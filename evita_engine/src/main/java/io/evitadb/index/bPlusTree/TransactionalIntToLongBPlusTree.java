@@ -48,6 +48,7 @@ import java.util.PrimitiveIterator.OfLong;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -793,9 +794,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -886,9 +885,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
@@ -924,9 +921,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
@@ -970,9 +965,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
@@ -997,9 +990,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
@@ -1029,9 +1020,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 */
 		@Nonnull
 		public int[] getKeysForUpdate() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1065,9 +1054,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 */
 		@Nonnull
 		public long[] getValuesForUpdate() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -1232,9 +1219,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
 
@@ -1275,9 +1260,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(int key, long value) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.keys.length - 1,
@@ -1323,9 +1306,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {

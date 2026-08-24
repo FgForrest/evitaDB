@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
 
@@ -1570,9 +1571,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
 			// steal/merge): flag the leaf so the granular write path re-emits its page
 			if (layer == null) {
@@ -1677,9 +1676,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<E> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -1710,9 +1707,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<E> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -1748,9 +1743,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<E> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// merging shifts this leaf's content and prepends the donor's: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
@@ -1774,9 +1767,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<E> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// appending the donor's content mutates this leaf's page: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
@@ -1831,9 +1822,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		@Nonnull
 		public E[] getValuesForUpdate() {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -2020,9 +2009,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		private boolean insert(@Nonnull E value) {
 			final int key = this.keyExtractor.applyAsInt(value);
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// inserting / replacing an element mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -2068,9 +2055,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
 			if (layer == null) {
 				this.dirty = true;
@@ -2137,9 +2122,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {

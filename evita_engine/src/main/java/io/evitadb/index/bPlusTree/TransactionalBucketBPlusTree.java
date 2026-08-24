@@ -61,6 +61,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -3154,9 +3155,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -3314,9 +3313,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode<M> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
 				System.arraycopy(
@@ -3354,9 +3351,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode<M> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final BPlusTreeNode<M, ?>[] nextNodeChildren = nextNode.getChildrenForUpdate();
 				System.arraycopy(nextNodeChildren, 0, this.children, this.peek + 1, numberOfHeadValues);
@@ -3404,9 +3399,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 			final int mergePeek = previousNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 				this.keys[mergePeek] = this.children[0].getLeftBoundaryKey();
@@ -3434,9 +3427,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 			final int mergePeek = nextNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 				this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
@@ -3473,9 +3464,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public M[] getKeysForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -3513,9 +3502,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public BPlusTreeNode<M, ?>[] getChildrenForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -3548,9 +3535,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				"Internal node must not be full to accommodate two leaf nodes after their split!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
 				Assert.isPremiseValid(
@@ -3615,9 +3600,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param childIndex the position of the child node to be removed from the children array
 		 */
 		public void removeChildOnIndex(int keyIndex, int childIndex) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				removeRecordFromSameArrayOnIndex(this.keys, keyIndex);
 				this.keys[this.peek - 1] = null;
@@ -3652,9 +3635,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				"Leftmost child node does not have a key in the parent node!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.children[index] == node,
@@ -3797,9 +3778,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Decouples the node's keys and children arrays into a transaction-local copy before mutation.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -4079,9 +4058,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
 			// steal/merge): flag the leaf so the granular write path re-emits its page
 			if (layer == null) {
@@ -4301,9 +4278,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<M> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -4354,9 +4329,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<M> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -4404,9 +4377,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<M> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -4446,9 +4417,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<M> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -4531,9 +4500,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public ValueColumn<M> getKeyColumnForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -4551,9 +4518,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public RecordColumn getRecordsForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.records;
 			} else {
@@ -4572,9 +4537,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable
 		public TransactionalBitmap[] getOverflowForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.overflow;
 			} else {
@@ -4998,9 +4961,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * existing bucket
 		 */
 		public int addRecord(@Nonnull M value, int pk) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// adding a record mutates this leaf's page: flag it for re-emission (the layer is created above regardless,
 			// so a rare no-op add over-reports at worst — never under-reports)
 			if (layer == null) {
@@ -5050,9 +5011,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link #NO_NEW_BUCKET} is never returned)
 		 */
 		public int addLongRecord(@Nonnull M value, long payload) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// adding a record mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -5107,9 +5066,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return true if a bucket was deleted, false when the value was absent
 		 */
 		public boolean removeLongRecord(@Nonnull M value) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// removing a record mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -5146,9 +5103,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * existing bucket
 		 */
 		public int addRecords(@Nonnull M value, @Nonnull int... pks) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// adding records mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -5194,9 +5149,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return true if the bucket was deleted, false otherwise
 		 */
 		public boolean removeRecords(@Nonnull M value, @Nonnull int... pks) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// removing records mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -5409,9 +5362,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Decouples the node's three columns into transaction-local copies before mutation.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				if (layer.keys == this.keys) {
 					layer.keys = this.keys.duplicate();

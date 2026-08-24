@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
@@ -43,6 +44,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 
 /**
  * The **position tree** of the two-tree backing for {@link UnorderedLookup}: a count-augmented (order-statistic) B+
@@ -2315,7 +2318,37 @@ public class UnorderedLookupTree implements
 	 * Drops the memoized flattened array after a mutation.
 	 */
 	private void invalidateMemoizedState() {
+		recordWarmUpSavepointTouch();
 		this.memoizedArray = null;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedArray} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Every mutator already drops the memo through {@link #invalidateMemoizedState()}, so the state a rollback finds it
+	 * in would be correct — were it not for reads. {@link #getArray()} memoizes precisely on the no-transaction branch,
+	 * i.e. exactly the warm-up path a savepoint brackets, so a read taken mid-mutation (a uniqueness check or a
+	 * reference cascade routinely runs one) repopulates the memo from the HALF-MUTATED tree and that flattening would
+	 * then survive the rollback of the containers underneath it. Re-nulling on restore is what closes that window.
+	 *
+	 * The memo is re-invalidated rather than restored to its captured pre-image on purpose: the containers are restored
+	 * absolutely from their own mementos, so the memo costs nothing but one recomputation, whereas a captured array
+	 * would have to be trusted to have been valid — which nothing here can establish.
+	 *
+	 * The tree's remaining own state needs nothing here: {@link #root} and {@link #size} are
+	 * {@link io.evitadb.index.reference.TransactionalReference}s that journal their own first touch, and every other
+	 * field is immutable configuration.
+	 *
+	 * Recorded once per savepoint — the whole cached state is this one slot, so a single re-invalidation covers every
+	 * write. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.memoizedArray = null);
+		}
 	}
 
 	/**
@@ -2775,8 +2808,7 @@ public class UnorderedLookupTree implements
 		 * Sets the container order-key, decoupling into the transactional layer when present.
 		 */
 		void setOrderKey(long orderKey) {
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.orderKey = orderKey;
 			} else {
@@ -2812,8 +2844,7 @@ public class UnorderedLookupTree implements
 		@Nonnull
 		long[] getHeadMaskForUpdate() {
 			final long[] currentMask = requireHeadMask(this.headMask);
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.dirty = true;
 				return currentMask;
@@ -2842,8 +2873,7 @@ public class UnorderedLookupTree implements
 		 * Structural bookkeeping only — does NOT flag the leaf dirty.
 		 */
 		void setPageSequence(int pageSequence) {
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.pageSequence = pageSequence;
 			} else {
@@ -2865,8 +2895,7 @@ public class UnorderedLookupTree implements
 		 * once the leaf's page has been collected for the current flush.
 		 */
 		void clearDirty() {
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.dirty = false;
 			} else {
@@ -2913,8 +2942,7 @@ public class UnorderedLookupTree implements
 		 * Sets the number of valid record ids, decoupling into the transactional layer when present.
 		 */
 		void setCount(int count) {
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.count = count;
 				this.dirty = true;
@@ -2940,8 +2968,7 @@ public class UnorderedLookupTree implements
 		 */
 		@Nonnull
 		int[] getRecordIdsForUpdate() {
-			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.dirty = true;
 				return this.recordIds;
@@ -3187,8 +3214,7 @@ public class UnorderedLookupTree implements
 		 * Sets the number of valid children, decoupling into the transactional layer when present.
 		 */
 		void setChildCount(int childCount) {
-			final InternalNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final InternalNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.childCount = childCount;
 			} else {
@@ -3212,8 +3238,7 @@ public class UnorderedLookupTree implements
 		 */
 		@Nonnull
 		Node<?>[] getChildrenForUpdate() {
-			final InternalNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final InternalNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -3242,8 +3267,7 @@ public class UnorderedLookupTree implements
 		 */
 		@Nonnull
 		long[] getSeparatorsForUpdate() {
-			final InternalNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final InternalNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.separators;
 			} else {
@@ -3272,8 +3296,7 @@ public class UnorderedLookupTree implements
 		 */
 		@Nonnull
 		int[] getCountsForUpdate() {
-			final InternalNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final InternalNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.counts;
 			} else {
@@ -3303,8 +3326,7 @@ public class UnorderedLookupTree implements
 		 */
 		@Nullable
 		int[] getHeadCountsForUpdate() {
-			final InternalNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final InternalNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.headCounts;
 			} else {

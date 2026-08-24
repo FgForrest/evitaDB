@@ -54,6 +54,7 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.InsertionPosition;
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
@@ -1313,9 +1314,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -1435,9 +1434,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode<M> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// we preserve all the current node children
 				System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
@@ -1487,9 +1484,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode<M> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// we move all the children
 				final BPlusTreeNode<?>[] nextNodeChildren = nextNode.getChildrenForUpdate();
@@ -1552,9 +1547,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			);
 			final int mergePeek = previousNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 				this.keys[mergePeek] = leftBoundaryKeyOf(this.children[0]);
@@ -1587,9 +1580,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			);
 			final int mergePeek = nextNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 				this.keys[this.peek] = leftBoundaryKeyOf(nextNode.getChildren()[0]);
@@ -1629,9 +1620,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 */
 		@Nonnull
 		public M[] getKeysForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1675,9 +1664,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 */
 		@Nonnull
 		public BPlusTreeNode<?>[] getChildrenForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -1714,9 +1701,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 				"Internal node must not be full to accommodate two leaf nodes after their split!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
 				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
@@ -1788,9 +1773,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 *                   It must be within the bounds of the current number of children (peek).
 		 */
 		public void removeChildOnIndex(int keyIndex, int childIndex) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				removeRecordFromSameArrayOnIndex(this.keys, keyIndex);
 				this.keys[this.peek - 1] = null;
@@ -1829,9 +1812,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 				"Leftmost child node does not have a key in the parent node!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.children[index] == node,
@@ -1966,9 +1947,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -2160,9 +2139,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -2300,9 +2277,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<M, N> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
@@ -2338,9 +2313,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<M, N> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling arrays in place, so it must
@@ -2385,9 +2358,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<M, N> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
@@ -2412,9 +2383,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<M, N> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(
 					nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1
@@ -2461,9 +2430,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 */
 		@Nonnull
 		public M[] getKeysForUpdate() {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -2505,9 +2472,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 */
 		@Nonnull
 		public N[] getValuesForUpdate() {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -2746,9 +2711,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(@Nonnull M key) {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int index = findKeyIndex(key, this.keys, 0, this.peek + 1);
 
@@ -2823,9 +2786,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(@Nonnull M key, @Nonnull N value) {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.keys.length - 1,
@@ -2881,9 +2842,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {

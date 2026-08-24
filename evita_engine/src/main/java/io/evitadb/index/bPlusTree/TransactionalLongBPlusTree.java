@@ -56,6 +56,7 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -1787,9 +1788,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -1911,9 +1910,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// we preserve all the current node children
 				System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
@@ -1963,9 +1960,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
@@ -2029,9 +2024,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			);
 			final int mergePeek = previousNode.getPeek();
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 				this.keys[mergePeek] = leftBoundaryKeyOf(this.children[0]);
@@ -2064,9 +2057,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			);
 			final int mergePeek = nextNode.getPeek();
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 				this.keys[this.peek] = leftBoundaryKeyOf(nextNode.getChildren()[0]);
@@ -2104,9 +2095,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public long[] getKeysForUpdate() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -2149,9 +2138,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public BPlusTreeNode<?>[] getChildrenForUpdate() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -2188,9 +2175,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				"Internal node must not be full to accommodate two leaf nodes after their split!"
 			);
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
 				final InsertionPosition insertionPosition = computeInsertPositionOfLongInOrderedArray(
@@ -2278,9 +2263,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 *                   It must be within the bounds of the current number of children (peek).
 		 */
 		public void removeChildOnIndex(int keyIndex, int childIndex) {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				removeLongFromSameArrayOnIndex(this.keys, keyIndex);
 				this.keys[this.peek - 1] = 0L;
@@ -2319,9 +2302,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				"Leftmost child node does not have a key in the parent node!"
 			);
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.children[index] == node,
@@ -2455,9 +2436,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -2641,9 +2620,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
 			// steal/merge): flag the leaf so the granular write path re-emits its page
 			if (layer == null) {
@@ -2793,9 +2770,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<V> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -2837,9 +2812,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<V> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -2886,9 +2859,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<V> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -2919,9 +2890,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<V> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -3001,9 +2970,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * {@link #dirty}.
 		 */
 		void markDirty() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.dirty = true;
 			} else {
@@ -3037,9 +3004,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public long[] getKeysForUpdate() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -3093,9 +3058,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public V[] getValuesForUpdate() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -3315,9 +3278,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(long key) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
 			if (layer == null) {
 				this.dirty = true;
@@ -3397,9 +3358,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(long key, @Nonnull V value) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// inserting or overwriting an entry mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -3463,9 +3422,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {

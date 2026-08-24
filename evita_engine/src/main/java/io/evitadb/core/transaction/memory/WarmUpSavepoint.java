@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
@@ -53,6 +54,9 @@ import java.util.Map.Entry;
  *   touch; the participant then captures its own pre-image and {@link #push(Runnable)}es the inverse itself.
  * - {@link #push(Runnable)} records one inverse without any dedup, for a participant whose pre-image must be captured
  *   per operation rather than once.
+ * - {@link #writeLayer(TransactionalLayerCreator, boolean)} is the packaged form of the first bullet for a structure
+ *   that is its OWN diff layer — the B+ tree nodes. It resolves the layer to write into exactly as before and folds
+ *   the first-touch record into the branch where there is none, so a mutator reaches the savepoint without naming it.
  * - {@link #rollback()} replays the journal in strict reverse, then releases every captured memento.
  * - {@link #commit()} discards the journal entries without running them, then releases every captured memento.
  *
@@ -204,6 +208,64 @@ public final class WarmUpSavepoint {
 		final WarmUpSavepoint savepoint = new WarmUpSavepoint();
 		CURRENT.set(savepoint);
 		return savepoint;
+	}
+
+	/**
+	 * Resolves the diff layer a self-layered structure's mutator must write into, and — when there is none and a
+	 * savepoint is open — records the structure's first touch so a rollback can restore it. It is the single normalized
+	 * form of the idiom the B+ tree node mutators repeat around a hundred times:
+	 *
+	 * ```
+	 * final SELF layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+	 * if (layer == null) { ...mutate own fields in place... } else { ...mutate the layer... }
+	 * ```
+	 *
+	 * The `baseNode` flag it takes is NOT a transaction test: it says whether this instance is a BASE node, i.e. one
+	 * permitted to own a diff layer. A diff layer of a self-layered structure is another instance of the same class
+	 * carrying `false`, and it mutates itself in place rather than layering over yet another copy — which is why the
+	 * layer-null branch serves two different populations.
+	 *
+	 * Behaviour is therefore:
+	 *
+	 * - **In a transaction over a base node** — unchanged: the diff layer is returned and the caller mutates it. The
+	 *   maintainer's own savepoint captures that layer, so nothing is recorded here.
+	 * - **On the layer-null branch** (no transaction at all, or a diff-layer instance mutating itself) — the caller is
+	 *   about to write its own fields in place, so the structure's pre-mutation state is captured through
+	 *   {@link #recordFirstTouch(Snapshotable)} when a savepoint is open. The nodes already implement
+	 *   {@link Snapshotable} with node-size-bounded mementos for the transactional savepoints, so this reuses the exact
+	 *   machinery rather than adding a second one; the intersection bound is what makes "every structure reached
+	 *   through here can be snapshotted" a compile-time fact instead of a runtime check.
+	 *
+	 * The second population cannot actually occur while a savepoint is open — a diff-layer instance exists only inside
+	 * a transaction, and a savepoint is only ever opened in WARM_UP where there is none — but recording its touch would
+	 * be correct anyway (the memento is an absolute pre-image of its own fields), so the branch needs no special case.
+	 *
+	 * Must be called BEFORE the mutation, which is what the assignment-then-branch shape above guarantees. Outside a
+	 * savepoint the layer-null branch costs one {@link ThreadLocal} read returning `null`; the in-transaction branch
+	 * costs exactly what it did before.
+	 *
+	 * @param node     the structure about to be mutated, which is its own diff layer type
+	 * @param baseNode whether this instance is permitted to own a diff layer (see above)
+	 * @param <T>      the diff layer type — the node type itself
+	 * @param <C>      the node type, constrained to be both its own layer creator and snapshottable
+	 * @return the diff layer to write into, or `null` when the caller must mutate its own fields in place
+	 */
+	@Nullable
+	public static <T, C extends TransactionalLayerCreator<T> & Snapshotable<?>> T writeLayer(
+		@Nonnull C node,
+		boolean baseNode
+	) {
+		if (baseNode) {
+			final T layer = Transaction.getOrCreateTransactionalMemoryLayer(node);
+			if (layer != null) {
+				return layer;
+			}
+		}
+		final WarmUpSavepoint savepoint = CURRENT.get();
+		if (savepoint != null) {
+			savepoint.recordFirstTouch(node);
+		}
+		return null;
 	}
 
 	/**

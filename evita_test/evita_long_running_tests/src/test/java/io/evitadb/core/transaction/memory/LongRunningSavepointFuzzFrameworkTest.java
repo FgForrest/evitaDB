@@ -24,6 +24,9 @@
 package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
@@ -48,6 +51,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
@@ -77,6 +81,12 @@ import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackResto
  * what its randomized batch probes is the opposite property - that a single copy-on-write clone taken before the first
  * write still describes the pre-savepoint members after an arbitrary mix of single and bulk adds and removals has
  * copied containers out from under it.
+ *
+ * Two B+ trees ({@link TransactionalObjectBPlusTree} and {@link TransactionalBucketBPlusTree}) run in warm-up mode as
+ * well, and they probe a third property again: they journal per NODE, so what a randomized batch can disprove is that
+ * the set of nodes recording a first touch covers every node the batch actually mutated. Node block sizes are set
+ * small enough that a batch of ten operations routinely splits, borrows, merges and collapses - the structural
+ * operations that reach beyond the node their mutator was called on, into a sibling or a parent.
  *
  * Each case asserts the in-savepoint batch actually changed the structure (non-vacuous), so a no-op rollback could
  * not pass by accident. The run is time-bounded; the random seed is echoed on failure for deterministic reproduction.
@@ -331,6 +341,212 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 			seed.put(random.nextInt(KEY_SPACE), random.nextInt());
 		}
 		return new TransactionalMap<>(seed);
+	}
+
+	@ParameterizedTest(
+		name = "TransactionalObjectBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint contents"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint contents")
+	void shouldRollBackObjectTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededObjectTree(random);
+			assertWarmUpSavepointRollbackRestores(
+				tree,
+				tested -> applyRandomObjectTreeOps(tested, random, 1 + random.nextInt(10)),
+				LongRunningSavepointFuzzFrameworkTest::objectTreeContents,
+				tested -> {
+					// a marker key outside the random key range guarantees a non-vacuous in-savepoint batch
+					tested.insert(KEY_SPACE + 1, Integer.MAX_VALUE);
+					applyRandomObjectTreeOps(tested, random, 1 + random.nextInt(10));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalObjectBPlusTree: warm-up savepoint commit keeps the in-savepoint contents")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint commit keeps the in-savepoint contents")
+	void shouldCommitObjectTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededObjectTree(random);
+			assertWarmUpSavepointCommitKeeps(
+				tree,
+				tested -> applyRandomObjectTreeOps(tested, random, 1 + random.nextInt(10)),
+				LongRunningSavepointFuzzFrameworkTest::objectTreeContents,
+				tested -> applyRandomObjectTreeOps(tested, random, 1 + random.nextInt(10))
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(
+		name = "TransactionalBucketBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint buckets"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint buckets")
+	void shouldRollBackBucketTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalBucketBPlusTree<Integer> tree = newSeededBucketTree(random);
+			assertWarmUpSavepointRollbackRestores(
+				tree,
+				tested -> applyRandomBucketTreeOps(tested, random, 1 + random.nextInt(10)),
+				LongRunningSavepointFuzzFrameworkTest::bucketTreeContents,
+				tested -> {
+					// a marker bucket outside the random key range guarantees a non-vacuous in-savepoint batch
+					tested.addRecord(KEY_SPACE + 1, 1);
+					applyRandomBucketTreeOps(tested, random, 1 + random.nextInt(10));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalBucketBPlusTree: warm-up savepoint commit keeps the in-savepoint buckets")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint commit keeps the in-savepoint buckets")
+	void shouldCommitBucketTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalBucketBPlusTree<Integer> tree = newSeededBucketTree(random);
+			assertWarmUpSavepointCommitKeeps(
+				tree,
+				tested -> applyRandomBucketTreeOps(tested, random, 1 + random.nextInt(10)),
+				LongRunningSavepointFuzzFrameworkTest::bucketTreeContents,
+				tested -> applyRandomBucketTreeOps(tested, random, 1 + random.nextInt(10))
+			);
+			return iteration + 1;
+		});
+	}
+
+	/**
+	 * Builds a fresh non-transactional object B+ tree with block sizes small enough that a handful of operations
+	 * splits and merges its nodes, seeded with a random subset of the key space.
+	 */
+	@Nonnull
+	private static TransactionalObjectBPlusTree<Integer, Integer> newSeededObjectTree(@Nonnull Random random) {
+		final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
+			8, 3, 7, 3, Integer.class, Integer.class
+		);
+		final int size = random.nextInt(KEY_SPACE);
+		for (int i = 0; i < size; i++) {
+			tree.insert(random.nextInt(KEY_SPACE), random.nextInt());
+		}
+		return tree;
+	}
+
+	/**
+	 * Applies `count` random insert / overwrite / remove operations to the object tree. The contents are read fresh
+	 * each op so removals and overwrites always target a key that exists.
+	 */
+	private static void applyRandomObjectTreeOps(
+		@Nonnull TransactionalObjectBPlusTree<Integer, Integer> tree, @Nonnull Random random, int count
+	) {
+		for (int i = 0; i < count; i++) {
+			final Map<Integer, Integer> contents = objectTreeContents(tree);
+			if (contents.isEmpty() || random.nextInt(3) == 0) {
+				tree.insert(random.nextInt(KEY_SPACE), random.nextInt());
+			} else {
+				final Integer key = pickKey(contents, random);
+				if (random.nextBoolean()) {
+					tree.insert(key, random.nextInt());
+				} else {
+					tree.delete(key);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reads the object tree's whole logical content into an `.equals`-comparable reference value.
+	 */
+	@Nonnull
+	private static Map<Integer, Integer> objectTreeContents(
+		@Nonnull TransactionalObjectBPlusTree<Integer, Integer> tree
+	) {
+		final Map<Integer, Integer> contents = new TreeMap<>();
+		final Iterator<TransactionalObjectBPlusTree.Entry<Integer, Integer>> it = tree.entryIterator();
+		while (it.hasNext()) {
+			final TransactionalObjectBPlusTree.Entry<Integer, Integer> entry = it.next();
+			contents.put(entry.key(), entry.value());
+		}
+		return contents;
+	}
+
+	/**
+	 * Builds a fresh non-transactional bucket B+ tree with block sizes small enough that a handful of operations
+	 * splits and merges its nodes, seeded with a random subset of the key space.
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<Integer> newSeededBucketTree(@Nonnull Random random) {
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+			8, 3, 7, 3, Integer.class, null
+		);
+		final int size = random.nextInt(KEY_SPACE);
+		for (int i = 0; i < size; i++) {
+			tree.addRecord(random.nextInt(KEY_SPACE), 1 + random.nextInt(KEY_SPACE));
+		}
+		return tree;
+	}
+
+	/**
+	 * Applies `count` random bucket operations to the bucket tree: create a bucket, grow an existing one (which may
+	 * promote it from the primitive single-record column to an overflow bitmap), or remove a record from one (which
+	 * may drain and delete the bucket).
+	 */
+	private static void applyRandomBucketTreeOps(
+		@Nonnull TransactionalBucketBPlusTree<Integer> tree, @Nonnull Random random, int count
+	) {
+		for (int i = 0; i < count; i++) {
+			final Map<Integer, List<Integer>> contents = bucketTreeContents(tree);
+			if (contents.isEmpty() || random.nextInt(3) == 0) {
+				tree.addRecord(random.nextInt(KEY_SPACE), 1 + random.nextInt(KEY_SPACE));
+			} else {
+				final Integer key = pickKey(contents, random);
+				if (random.nextBoolean()) {
+					tree.addRecord(key, 1 + random.nextInt(KEY_SPACE));
+				} else {
+					final List<Integer> records = contents.get(key);
+					tree.removeRecord(key, records.get(random.nextInt(records.size())));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reads the bucket tree's whole value-to-records mapping into an `.equals`-comparable reference value.
+	 */
+	@Nonnull
+	private static Map<Integer, List<Integer>> bucketTreeContents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		final Map<Integer, List<Integer>> contents = new TreeMap<>();
+		final BucketCursor<Integer> cursor = tree.cursor();
+		while (cursor.next()) {
+			final int[] array = cursor.records().getArray();
+			final List<Integer> records = new ArrayList<>(array.length);
+			for (final int record : array) {
+				records.add(record);
+			}
+			contents.put(cursor.value(), records);
+		}
+		return contents;
+	}
+
+	/**
+	 * Picks a random key present in the given contents.
+	 */
+	@Nonnull
+	private static Integer pickKey(@Nonnull Map<Integer, ?> contents, @Nonnull Random random) {
+		int index = random.nextInt(contents.size());
+		for (final Integer key : contents.keySet()) {
+			if (index-- == 0) {
+				return key;
+			}
+		}
+		throw new IllegalStateException("unreachable - the map was not empty");
 	}
 
 	/**

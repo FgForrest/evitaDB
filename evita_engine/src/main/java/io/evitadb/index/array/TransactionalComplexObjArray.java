@@ -415,6 +415,21 @@ public class TransactionalComplexObjArray<
 	 * change, but so that a later structural write in the same savepoint cannot capture an already-mutated array as if
 	 * it were the pre-image.
 	 *
+	 * That transitive coverage was verified element type by element type, since it is only as good as the elements
+	 * that actually exist. The engine declares exactly two {@link TransactionalObject} implementations, and neither
+	 * holds any raw mutable state of its own:
+	 *
+	 * - {@link io.evitadb.index.range.TransactionalRangePoint} — a `TransactionalBoolean` dirty flag plus two
+	 *   `TransactionalBitmap`s (`starts` / `ends`, assigned only by its constructors), all three of which journal
+	 *   their own warm-up writes.
+	 * - {@link io.evitadb.index.invertedIndex.ValueToRecordBitmap} — an immutable value plus one `TransactionalBitmap`.
+	 *
+	 * Both are in fact held by the B+ trees today (the range point in a `TransactionalLongBPlusTree`, the bucket in the
+	 * inverted index's `TransactionalBucketBPlusTree`) rather than in an array of this class, which no production code
+	 * currently instantiates — so the in-place element path is exercised only by this class's own tests. The coverage
+	 * argument is recorded here rather than left implicit because the moment a third element type appears, it is this
+	 * paragraph that has to be re-checked: an element carrying a plain field would silently escape the rollback.
+	 *
 	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
 	 */
 	private void recordWarmUpSavepointTouch() {

@@ -24,11 +24,24 @@
 package io.evitadb.core.collection;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestTags;
@@ -41,7 +54,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,19 +76,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Its job is to pin down, as executable assertions, exactly how far the warm-up path is from the atomicity the
  * transactional path already provides — so that each phase of the port can be measured against it rather than argued
- * about. The scenario is the proven one: a batch of three entities in which the middle one violates a unique
- * constraint after its index writes have already been applied.
+ * about. Both scenarios are a batch of three entities in which the middle one violates a unique constraint after its
+ * index writes have already been applied, and they differ only in HOW FAR the mutation gets first:
+ *
+ * - **The early failure** aborts at the very first index the entity reaches, so the only state it leaves behind is the
+ *   membership bitmap, the collection's storage diff layer and the indexes' dirty flags.
+ * - **The late failure** submits an explicitly ORDERED upsert mutation whose duplicate code sits last, so the entity is
+ *   already in the hierarchy, sort, filter, range and price indexes — five B+ tree-backed structures — before it fails.
  *
  * **The divergence with the switch off**, which the tests below still assert: the failed entity's primary key stays in
  * the collection's membership index (it is returned by a query) while its body storage part was never written
- * (fetching it yields nothing) — the same query therefore reports four products by reference and three by content.
- * Recovery is documented as "compensate on the client or rebuild the catalog" in
+ * (fetching it yields nothing) — the same query therefore reports four products by reference and three by content. In
+ * the late-failure shape it is additionally queryable through every index it reached on the way. Recovery is documented
+ * as "compensate on the client or rebuild the catalog" in
  * `documentation/user/en/deep-dive/bulk-vs-incremental-indexing.md`.
  *
- * Both switch positions are exercised. With {@link WarmUpSavepoint} switched on the divergence is now gone for this
- * scenario: the reference query and the body fetch agree on the same three products. That flip is this line of work's
- * acceptance criterion and this class is where it is recorded — see the on-test for exactly which structures the
- * scenario touches, and therefore what it does and does not yet prove.
+ * Both switch positions are exercised. With {@link WarmUpSavepoint} switched on the divergence is gone in both shapes:
+ * every index agrees with the body fetch on the same three products, and the catalog keeps taking writes afterwards.
+ * That flip is this line of work's acceptance criterion and this class is where it is recorded.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -83,6 +105,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Isolated
 class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_SORTABLE_CODE = "sortableCode";
+	private static final String ATTRIBUTE_VALIDITY = "validity";
+	private static final String PRICE_LIST_BASIC = "basic";
+	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
+	private static final OffsetDateTime VALIDITY_START =
+		OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+	private static final OffsetDateTime WITHIN_VALIDITY =
+		OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+	private static final DateTimeRange VALIDITY =
+		DateTimeRange.between(VALIDITY_START, VALIDITY_START.plusYears(1));
 	private TestPaths paths;
 	private Evita evita;
 	private boolean originalAtomicity;
@@ -95,13 +127,24 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		this.evita.defineCatalog(TEST_CATALOG);
 
 		// define a product schema carrying a unique code and seed product #1 (code "A"). The catalog deliberately stays
-		// in WARM_UP - it is never taken live - so every write below goes in place to the index delegates
+		// in WARM_UP - it is never taken live - so every write below goes in place to the index delegates.
+		// The hierarchy, the sortable/filterable code, the validity range and the price exist for the LATE-failure
+		// scenario: they are what puts a sort index, a filter index, a range index, a hierarchy index and a price index
+		// between the start of an entity mutation and the unique-code check that aborts it
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
+					.withHierarchy()
 					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+					.withAttribute(
+						ATTRIBUTE_SORTABLE_CODE, String.class, whichIs -> whichIs.filterable().sortable().nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_VALIDITY, DateTimeRange.class, whichIs -> whichIs.filterable().nullable()
+					)
+					.withPrice()
 					.updateVia(session);
 
 				session.upsertEntity(
@@ -149,6 +192,42 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 			assertCodeResolvesTo("B", 2);
 			assertCodeResolvesTo("C", 4);
 		}
+
+		@Test
+		@DisplayName("A late failure additionally strands the entity in the filter, range, price and hierarchy indexes")
+		@Tag(TestTags.ATTRIBUTE)
+		@Tag(TestTags.PRICE)
+		@Tag(TestTags.HIERARCHY)
+		void shouldStrandLateWritesWhenAtomicityIsOff() {
+			WarmUpSavepoint.setEnabled(false);
+			runLateFailingBatch();
+
+			// the mutation aborted only at its last local mutation, so everything written before it stayed - the
+			// bodiless entity #3 is queryable through every index it reached on the way. This is the divergence the
+			// switched-on counterpart of this test closes
+			assertProductReferencesAre(1, 2, 3, 4);
+			assertFetchedProductsAre(1, 2, 4);
+			assertQueryReturns(
+				"the filter index kept the failed entity's sortable code",
+				filterBy(attributeEquals(ATTRIBUTE_SORTABLE_CODE, "S3")),
+				3
+			);
+			assertQueryReturns(
+				"the range index kept the failed entity's validity",
+				filterBy(attributeInRange(ATTRIBUTE_VALIDITY, WITHIN_VALIDITY)),
+				2, 3, 4
+			);
+			assertQueryReturns(
+				"the price index kept the failed entity's price",
+				filterBy(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(CURRENCY_CZK)),
+				2, 3, 4
+			);
+			assertQueryReturns(
+				"the hierarchy index kept the failed entity as a child of #1",
+				filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
+				1, 2, 3, 4
+			);
+		}
 	}
 
 	@Nested
@@ -166,8 +245,8 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 * three kinds of state touched — the membership bitmap, the collection's storage diff layer, and the indexes'
 		 * dirty flags — and all three journal their warm-up writes.
 		 *
-		 * That also says what this test does NOT prove. It never reaches a B+ tree, so a scenario that fails LATER —
-		 * past the filter, sort, range or price writes — is not covered by it and is not yet recoverable either.
+		 * That also says what this test does NOT prove: it never reaches a B+ tree. The late-failure test below is the
+		 * one that does.
 		 */
 		@Test
 		@DisplayName("The failed entity leaves no orphan primary key behind")
@@ -204,6 +283,161 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 			);
 			assertCodeResolvesTo("D", 5);
 		}
+
+		/**
+		 * The scenario the early-failure test above explicitly could not reach: the duplicate code is written LAST, so
+		 * the mutation aborts only once the entity has already been inserted into the hierarchy index, the sort index
+		 * (an unordered lookup tree plus its order-key B+ tree), the filter index (a bucket B+ tree), the range index
+		 * (a long-keyed B+ tree) and the price index (an element-keyed B+ tree). Every one of those is a structure the
+		 * early scenario never touched.
+		 *
+		 * Each assertion below is answered by a different index, so a family left un-journaled shows up as its own
+		 * failure rather than as one blanket one.
+		 */
+		@Test
+		@DisplayName("An entity failing after the filter, sort, range, hierarchy and price writes recovers fully")
+		@Tag(TestTags.ATTRIBUTE)
+		@Tag(TestTags.PRICE)
+		@Tag(TestTags.HIERARCHY)
+		void shouldRecoverFromLateFailureWhenAtomicityIsOn() {
+			WarmUpSavepoint.setEnabled(true);
+			runLateFailingBatch();
+
+			// membership and bodies agree - no orphan primary key
+			assertProductReferencesAre(1, 2, 4);
+			assertFetchedProductsAre(1, 2, 4);
+			assertProductAbsent(3);
+
+			// the unique index took no entry for the failed code, and the successful ones are intact
+			assertCodeResolvesTo("A", 1);
+			assertCodeResolvesTo("B", 2);
+			assertCodeResolvesTo("C", 4);
+
+			// filter + sort index (bucket tree, unordered lookup tree, order-key tree): the failed entity's sortable
+			// code is gone, and the ordered result of the surviving ones is complete and correctly ordered
+			assertQueryReturns(
+				"the failed entity must leave no entry in the filter index",
+				filterBy(attributeEquals(ATTRIBUTE_SORTABLE_CODE, "S3"))
+			);
+			assertOrderedQueryReturns(
+				"the sort index must rank exactly the surviving entities",
+				filterBy(attributeIs(ATTRIBUTE_SORTABLE_CODE, AttributeSpecialValue.NOT_NULL)),
+				orderBy(attributeNatural(ATTRIBUTE_SORTABLE_CODE, OrderDirection.ASC)),
+				2, 4
+			);
+
+			// range index (long-keyed tree): only the surviving entities are valid at the probed moment
+			assertQueryReturns(
+				"the range index must cover exactly the surviving entities",
+				filterBy(attributeInRange(ATTRIBUTE_VALIDITY, WITHIN_VALIDITY)),
+				2, 4
+			);
+
+			// price index (element-keyed tree): the failed entity contributes no price
+			assertQueryReturns(
+				"the price index must cover exactly the surviving entities",
+				filterBy(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(CURRENCY_CZK)),
+				2, 4
+			);
+
+			// hierarchy index: the failed entity is no longer a child of #1
+			assertQueryReturns(
+				"the hierarchy index must hold exactly the surviving entities",
+				filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
+				1, 2, 4
+			);
+		}
+
+		@Test
+		@DisplayName("The catalog keeps accepting writes after a late failure was rolled back")
+		@Tag(TestTags.ATTRIBUTE)
+		void shouldKeepWritingAfterALateFailureWhenAtomicityIsOn() {
+			WarmUpSavepoint.setEnabled(true);
+			runLateFailingBatch();
+
+			// the code the failed entity tried to claim is free again for a fresh entity, and every index it touched
+			// accepts the new record on top of the restored state
+			EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(lateProduct(5, "D", "S3", 50));
+				}
+			);
+
+			assertCodeResolvesTo("D", 5);
+			assertQueryReturns(
+				"the sortable code freed by the rollback must be claimable again",
+				filterBy(attributeEquals(ATTRIBUTE_SORTABLE_CODE, "S3")),
+				5
+			);
+			assertQueryReturns(
+				"the price index must accept the record written after the rollback",
+				filterBy(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(CURRENCY_CZK)),
+				2, 4, 5
+			);
+			assertQueryReturns(
+				"the hierarchy index must accept the child added after the rollback",
+				filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
+				1, 2, 4, 5
+			);
+		}
+	}
+
+	/**
+	 * Runs the LATE-failure scenario in a single warm-up session. It is the same three-entity shape as
+	 * {@link #runFailingBatch()}, except each entity is submitted as an explicitly ordered
+	 * {@link EntityUpsertMutation} whose duplicate unique code sits LAST — so the failure strikes only after the
+	 * hierarchy, sort, filter, range and price indexes have all been written.
+	 *
+	 * The ordering has to be explicit: an entity built through the fluent builder emits its attribute mutations in
+	 * {@code HashMap} iteration order, which would decide by hash whether the failing code is written before or after
+	 * the attributes whose indexes this scenario exists to exercise.
+	 */
+	private void runLateFailingBatch() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(lateProduct(2, "B", "S2", 20));
+
+				assertThrows(
+					UniqueValueViolationException.class,
+					// duplicate of entity #1's code → fails once every other index of this entity is already written
+					() -> session.upsertEntity(lateProduct(3, "A", "S3", 30))
+				);
+
+				session.upsertEntity(lateProduct(4, "C", "S4", 40));
+			}
+		);
+	}
+
+	/**
+	 * Builds one product of the late-failure scenario as an explicitly ordered upsert mutation: parent, sortable code,
+	 * validity range, price, and only then the unique code that may abort the whole thing.
+	 *
+	 * @param primaryKey   the product's primary key
+	 * @param code         the unique code — "A" makes the mutation fail on entity #1's reservation
+	 * @param sortableCode the filterable + sortable code, written into the sort and filter indexes
+	 * @param priceId      the price id, unique per product so the price index gets a distinct record
+	 * @return the ordered upsert mutation
+	 */
+	@Nonnull
+	private EntityMutation lateProduct(
+		int primaryKey, @Nonnull String code, @Nonnull String sortableCode, int priceId
+	) {
+		return new EntityUpsertMutation(
+			Entities.PRODUCT,
+			primaryKey,
+			EntityExistence.MUST_NOT_EXIST,
+			new SetParentMutation(1),
+			new UpsertAttributeMutation(ATTRIBUTE_SORTABLE_CODE, sortableCode),
+			new UpsertAttributeMutation(ATTRIBUTE_VALIDITY, VALIDITY),
+			new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE),
+			new UpsertPriceMutation(
+				priceId, PRICE_LIST_BASIC, CURRENCY_CZK, null,
+				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
+			),
+			new UpsertAttributeMutation(ATTRIBUTE_CODE, code)
+		);
 	}
 
 	/**
@@ -332,6 +566,66 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				assertEquals(
 					new EntityReference(Entities.PRODUCT, expectedPrimaryKey),
 					reference.get()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Asserts that a product query narrowed by the supplied filter returns exactly the supplied primary keys, in any
+	 * order. Each call is answered by one specific index, so the `what` description says which one is being pinned.
+	 *
+	 * @param what                what the index under test is expected to hold, for the failure message
+	 * @param filter              the filter narrowing the query
+	 * @param expectedPrimaryKeys the complete set of primary keys the query must return
+	 */
+	private void assertQueryReturns(
+		@Nonnull String what, @Nonnull FilterBy filter, int... expectedPrimaryKeys
+	) {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int[] actualPrimaryKeys = session.queryList(
+						query(collection(Entities.PRODUCT), filter), EntityReference.class
+					).stream()
+					.mapToInt(EntityReference::getPrimaryKey)
+					.sorted()
+					.toArray();
+				assertEquals(
+					Arrays.toString(sorted(expectedPrimaryKeys)),
+					Arrays.toString(actualPrimaryKeys),
+					"Expected that " + what + "!"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Asserts that a product query narrowed and ordered by the supplied constraints returns exactly the supplied
+	 * primary keys IN THAT ORDER — the assertion the sort index answers, which an unordered comparison would not make.
+	 *
+	 * @param what                what the sort index is expected to rank, for the failure message
+	 * @param filter              the filter narrowing the query
+	 * @param order               the ordering the sort index must supply
+	 * @param expectedPrimaryKeys the primary keys in the exact order the query must return them
+	 */
+	private void assertOrderedQueryReturns(
+		@Nonnull String what, @Nonnull FilterBy filter, @Nonnull OrderBy order, int... expectedPrimaryKeys
+	) {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int[] actualPrimaryKeys = session.queryList(
+						query(collection(Entities.PRODUCT), filter, order), EntityReference.class
+					).stream()
+					.mapToInt(EntityReference::getPrimaryKey)
+					.toArray();
+				assertEquals(
+					Arrays.toString(expectedPrimaryKeys),
+					Arrays.toString(actualPrimaryKeys),
+					"Expected that " + what + "!"
 				);
 				return null;
 			}
