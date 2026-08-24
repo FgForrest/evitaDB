@@ -78,6 +78,7 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
 import io.evitadb.driver.config.ClientConnectionOptions;
+import io.evitadb.driver.EvitaClientChannel.TimeoutTier;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -192,6 +193,12 @@ public class EvitaClient implements EvitaContract {
 	private static final long CDC_CALLBACK_DRAIN_TIMEOUT_MS = 5_000L;
 	/**
 	 * Client call timeout.
+	 *
+	 * The bottom of the stack is the configured {@link ClientTimeoutOptions#timeout()} - the *whole-call*
+	 * tier. Anything above it was pushed by {@link #executeWithExtendedTimeout} and is an explicit
+	 * caller override. Prefer {@link #resolveTimeout(TimeoutTier)} over reading this directly: peeking
+	 * at it hands every call the whole-call budget, which is wrong for a stream and is precisely the bug
+	 * {@link TimeoutTier} was introduced to end.
 	 */
 	final ThreadLocal<LinkedList<Timeout>> timeout;
 	/**
@@ -489,6 +496,9 @@ public class EvitaClient implements EvitaContract {
 	 *                          those paths this value is overwritten anyway. Measured: disabling it changes
 	 *                          nothing (see the ADR's *Verification*). It is kept so that a future call site
 	 *                          which forgets the deadline still gets a sane window rather than 15 s.
+	 * @param streaming         `true` for a channel carrying server-streaming calls, which lifts Armeria's
+	 *                          10 MiB total-response-length cap - see the call site for why that cap is
+	 *                          meaningless on a stream and fatal for large file downloads
 	 * @param connectionOptions connection options providing the client id reported to the server
 	 * @param clientVersion     semantic version of this client, or NULL when it could not be parsed
 	 * @param grpcConfigurator  optional caller-supplied customization applied last, so it can override defaults
@@ -500,6 +510,7 @@ public class EvitaClient implements EvitaContract {
 		@Nonnull ClientFactory clientFactory,
 		@Nullable RetryRule retryRule,
 		@Nullable Duration responseTimeout,
+		boolean streaming,
 		@Nonnull ClientConnectionOptions connectionOptions,
 		@Nullable SemVer clientVersion,
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
@@ -522,6 +533,16 @@ public class EvitaClient implements EvitaContract {
 		}
 		if (responseTimeout != null) {
 			grpcClientBuilder.responseTimeout(responseTimeout);
+		}
+		if (streaming) {
+			// Armeria caps a response at 10 MiB by default, and the cap counts the *entire* HTTP body -
+			// which for a server-streaming call is every message added together, not the largest one.
+			// That is a sane guard on a unary reply and a hard ceiling on a stream: `fetchFile` could not
+			// download a backup larger than 10 MiB at all, dying part-way through with
+			// RESOURCE_EXHAUSTED. A stream's total length is not a meaningful safety bound - what needs
+			// bounding is how much is in flight at once, which is the server's job (see
+			// `GrpcOutboundGate`) - so the cap is lifted here and left in place for unary calls.
+			grpcClientBuilder.maxResponseLength(0);
 		}
 
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
@@ -797,20 +818,20 @@ public class EvitaClient implements EvitaContract {
 		// response-timeout deadline at call start and caps every stream at 15 s (issue #1388).
 		this.unaryChannel = new EvitaClientChannel.Unary(
 			createGrpcClientBuilder(
-				uri, this.clientFactory, createRetryRule(configuration.retry()), null, connectionOptions,
-				clientVersion, grpcConfigurator
+				uri, this.clientFactory, createRetryRule(configuration.retry()), null, false,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.streamingChannel = new EvitaClientChannel.Streaming(
 			createGrpcClientBuilder(
-				uri, this.clientFactory, null, this.streamingTimeout, connectionOptions, clientVersion,
-				grpcConfigurator
+				uri, this.clientFactory, null, this.streamingTimeout, true,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.cdcChannel = new EvitaClientChannel.Cdc(
 			createGrpcClientBuilder(
-				uri, this.cdcClientFactory, null, this.streamingTimeout, connectionOptions, clientVersion,
-				grpcConfigurator
+				uri, this.cdcClientFactory, null, this.streamingTimeout, true,
+				connectionOptions, clientVersion, grpcConfigurator
 			)
 		);
 		this.evitaServiceFutureStub = this.unaryChannel.stub(EvitaServiceFutureStub.class);
@@ -1615,6 +1636,27 @@ public class EvitaClient implements EvitaContract {
 		} finally {
 			callTimeouts.pop();
 		}
+	}
+
+	/**
+	 * Resolves the deadline a call of the passed tier runs under.
+	 *
+	 * An explicit {@link #executeWithExtendedTimeout} override wins over both tiers: the caller named a
+	 * duration for the work inside that lambda, and silently substituting a configured default for it -
+	 * in either direction - would defeat the point of the API. Absent an override, the tier decides, so
+	 * that a streaming call is budgeted per message rather than per call.
+	 *
+	 * @param tier which of the configured budgets applies, normally taken from the channel the call's
+	 *             stub was built from
+	 * @return the timeout to deadline the call with
+	 */
+	@Nonnull
+	Timeout resolveTimeout(@Nonnull TimeoutTier tier) {
+		final LinkedList<Timeout> callTimeouts = this.timeout.get();
+		// the stack is seeded with exactly one element, so anything beyond that is a caller override
+		return callTimeouts.size() > 1 ?
+			Objects.requireNonNull(callTimeouts.peek()) :
+			tier.resolve(this.configuration.timeouts());
 	}
 
 	/**
