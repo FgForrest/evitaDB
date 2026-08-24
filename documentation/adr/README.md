@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | proposed | #1433 |
+| 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
 | 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390, PR #1395 |
 | 2026-08-05 | [Never decorate a streaming gRPC channel with RetryingClient](2026-08-05-streaming-calls-must-not-be-retry-decorated.md) | fix | accepted | #1388, PR #1389 |
