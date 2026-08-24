@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -201,7 +202,30 @@ public class SortIndexChanges
 	 * Invoked from every {@link SortIndex} mutation path.
 	 */
 	public void sortOrderChanged() {
+		recordWarmUpSavepointTouch();
 		invalidateSupplierArrays();
+	}
+
+	/**
+	 * Registers this helper with the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a rolled-back mutation leaves the memoized supplier arrays INVALIDATED (see {@link WarmUpSavepoint}).
+	 *
+	 * Outside a transaction this instance is not a diff layer but the owning {@link SortIndex}'s own long-lived
+	 * scratch helper (see `SortIndex#getOrCreateSortIndexChanges`), so nothing discards it when a warm-up mutation
+	 * fails. The method above already drops the arrays on the forward path; what the journal entry covers is an
+	 * ORDER BY executed LATER inside the same root entity mutation, which would rematerialize them from the
+	 * half-mutated `sortedRecords` and leave them stale once those are rewound.
+	 *
+	 * The existing {@link Snapshotable} contract is reused verbatim rather than hand-rolling an inverse: the memento
+	 * carries no state and {@link #restore(SortIndexChangesMemento)} is exactly the re-invalidation wanted here.
+	 *
+	 * Recorded once per savepoint. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			savepoint.recordFirstTouch(this);
+		}
 	}
 
 	/**

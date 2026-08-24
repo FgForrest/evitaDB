@@ -36,6 +36,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -383,6 +384,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			}
 		);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
 		}
 	}
@@ -397,7 +399,29 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		removeFromPoint(start, recordId, true);
 		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #envelopingNowCache} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The two mutators above already drop the cache on the forward path, so the state a rollback finds is normally
+	 * correct. The journal entry exists for the case where a query runs LATER inside the same root entity mutation:
+	 * {@link #getRecordsValidNowFormula(long)} would repopulate the cache from the half-mutated range tree, and that
+	 * value would then outlive the rollback of the points underneath it. Re-invalidating on restore costs one
+	 * recomputation and makes no claim about a captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.envelopingNowCache = null);
 		}
 	}
 

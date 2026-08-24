@@ -32,6 +32,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -538,7 +539,28 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	protected void markDirtyAndInvalidateCache() {
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedIndexedPriceIds = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedIndexedPriceIds} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Every price mutator funnels through the method above, which already nulls the memo on the forward path; the
+	 * journal entry covers a read performed LATER inside the same root entity mutation, which would repopulate it from
+	 * the half-mutated price index and leave it stale once the price records underneath are rewound. Re-invalidating on
+	 * restore costs one recomputation and makes no claim about a captured array's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.memoizedIndexedPriceIds = null);
 		}
 	}
 

@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -62,7 +63,18 @@ public class TransactionalBitmap
 	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	private final PersistentRoaringBitmap roaringBitmap;
+	/**
+	 * The bitmap the non-transactional (delegate) branch writes into. NOT final only so that
+	 * {@link #recordWarmUpSavepointTouch()} can swap a captured pre-image back in when a warm-up savepoint is rolled
+	 * back; nothing else ever reassigns it after construction.
+	 *
+	 * Dropping `final` gives up the JMM's final-field freeze, so an instance handed to another thread WITHOUT a
+	 * happens-before edge could in principle see this slot as `null`. That is not a regression in practice and is not
+	 * defended against here: the reassignment only ever happens under a warm-up savepoint, and
+	 * {@link io.evitadb.api.CatalogState#WARMING_UP} is contractually single-threaded, while an `ALIVE` catalog
+	 * publishes its indexes across a version boundary that already carries the edge.
+	 */
+	private PersistentRoaringBitmap roaringBitmap;
 	private volatile int memoizedCardinality;
 
 	/**
@@ -141,6 +153,7 @@ public class TransactionalBitmap
 		} else {
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
+				recordWarmUpSavepointTouch();
 				this.roaringBitmap.add(recordId);
 				this.memoizedCardinality = -1;
 				return true;
@@ -153,6 +166,7 @@ public class TransactionalBitmap
 	@Override
 	public void addAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.roaringBitmap.add(recordId);
 			this.memoizedCardinality = -1;
 		} else {
@@ -167,6 +181,7 @@ public class TransactionalBitmap
 					if (!this.roaringBitmap.contains(recId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
+							recordWarmUpSavepointTouch();
 							this.roaringBitmap.add(recordId);
 							this.memoizedCardinality = -1;
 						} else {
@@ -184,6 +199,7 @@ public class TransactionalBitmap
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
 		} else {
@@ -200,6 +216,7 @@ public class TransactionalBitmap
 					if (!this.roaringBitmap.contains(recordId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
+							recordWarmUpSavepointTouch();
 							this.roaringBitmap.add(recordId);
 							while (it.hasNext()) {
 								this.roaringBitmap.add(it.nextInt());
@@ -226,6 +243,7 @@ public class TransactionalBitmap
 		} else {
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
+				recordWarmUpSavepointTouch();
 				this.roaringBitmap.remove(recordId);
 				this.memoizedCardinality = -1;
 				return true;
@@ -238,6 +256,7 @@ public class TransactionalBitmap
 	@Override
 	public void removeAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			for (int recId : recordId) {
 				this.roaringBitmap.remove(recId);
 			}
@@ -254,6 +273,7 @@ public class TransactionalBitmap
 					if (this.roaringBitmap.contains(recId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
+							recordWarmUpSavepointTouch();
 							for (int r : recordId) {
 								this.roaringBitmap.remove(r);
 							}
@@ -273,6 +293,7 @@ public class TransactionalBitmap
 	@Override
 	public void removeAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			if (recordIds instanceof RoaringBitmapBackedBitmap) {
 				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
 			} else {
@@ -296,6 +317,7 @@ public class TransactionalBitmap
 					if (this.roaringBitmap.contains(recordId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
+							recordWarmUpSavepointTouch();
 							this.roaringBitmap.remove(recordId);
 							while (it.hasNext()) {
 								this.roaringBitmap.remove(it.nextInt());
@@ -311,6 +333,45 @@ public class TransactionalBitmap
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * Captures the delegate bitmap for the warm-up savepoint bracketing the current root entity mutation, if one is
+	 * open, so that a failed mutation rewinds this bitmap to exactly the members it held before the mutation began
+	 * (see {@link WarmUpSavepoint}).
+	 *
+	 * The capture is made on the FIRST write-touch only, which is affordable here despite the bitmap being the large
+	 * accumulated base structure: {@link PersistentRoaringBitmap#clone()} is copy-on-write on both of its levels, so it
+	 * costs `O(#containers)` of pointer work rather than `O(#members)` of copying. Journaling membership per operation
+	 * was the alternative and loses on the hottest path — {@link #addAll(Bitmap)} would have to allocate an inverse
+	 * proportional to its argument on every call, whereas one clone covers every write in the savepoint.
+	 *
+	 * **Why the clone stays intact while the live bitmap keeps being mutated.** `clone()` raises the copy-on-write flag
+	 * on every container of BOTH sides and marks BOTH `RoaringArray`s frozen. The next in-place write to the live
+	 * bitmap therefore clones the container it targets before touching it (`copyIfShared`), and the next structural
+	 * write defrosts the key/value arrays into a private copy — so no mutation applied after the capture can reach the
+	 * captured pre-image. That is the same guarantee the transactional MVCC commit path relies on. The bitmap's own
+	 * thread-safety caveat (a shared result must be safely published before another thread mutates it) does not apply:
+	 * {@link io.evitadb.api.CatalogState#WARMING_UP} is contractually single-threaded.
+	 *
+	 * The restore swaps the captured reference back and re-invalidates {@link #memoizedCardinality} rather than
+	 * restoring its pre-image. The sentinel is unconditionally safe — it costs one recomputation on the next
+	 * {@link #size()} — while a restored value would silently outlive the swap if it were ever stale. Because the
+	 * restore is a reference swap, a caller holding a bitmap handed out by {@link #getRoaringBitmap()} from before the
+	 * rollback keeps the rewound-away instance; that is the same contract the array wrappers have, and warm-up readers
+	 * fetch through the accessor per call.
+	 *
+	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final PersistentRoaringBitmap preImage = this.roaringBitmap.clone();
+			savepoint.push(() -> {
+				this.roaringBitmap = preImage;
+				this.memoizedCardinality = -1;
+			});
 		}
 	}
 

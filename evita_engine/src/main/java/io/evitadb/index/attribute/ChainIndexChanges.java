@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -97,8 +98,33 @@ public class ChainIndexChanges
 	 * Resets the internally cached data.
 	 */
 	public void reset() {
+		recordWarmUpSavepointTouch();
 		this.unorderedLookup = null;
 		this.recordIds = null;
+	}
+
+	/**
+	 * Registers this helper with the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a rolled-back mutation restores the memoized derived caches to what they held before it (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Outside a transaction this instance is not a diff layer but the owning {@link ChainIndex}'s own long-lived
+	 * scratch helper (see `ChainIndex#getOrCreateChainIndexChanges`), so nothing discards it when a warm-up mutation
+	 * fails. {@link #reset()} already drops the caches on the forward path; what the journal entry covers is a chain
+	 * read performed LATER inside the same root entity mutation, which would repopulate them from the half-mutated
+	 * chain and leave them stale once the elements underneath are rewound.
+	 *
+	 * The existing {@link Snapshotable} contract is reused verbatim rather than hand-rolling an inverse: both cached
+	 * values are reference-reassigned on every rebuild and never mutated in place, so the captured references stay a
+	 * faithful pre-savepoint image and restoring them is an absolute restore (see {@link #snapshot()}).
+	 *
+	 * Recorded once per savepoint. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			savepoint.recordFirstTouch(this);
+		}
 	}
 
 	/**

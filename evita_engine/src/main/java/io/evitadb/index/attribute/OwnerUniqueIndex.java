@@ -28,6 +28,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.IndexHeapSize;
@@ -616,10 +617,32 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 		}
 
 		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedAllRecordsFormula} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The two entry points above already null the memo on the forward path. What the journal entry covers is a read
+	 * performed LATER inside the same root entity mutation - and this index is read mid-mutation more often than most,
+	 * since verifying the next unique value goes through it: {@link #getRecordIdsFormula()} would repopulate the memo
+	 * from the half-mutated index and leave it stale once the tree and record ids underneath it are rewound.
+	 * Re-invalidating on restore costs one recomputation and makes no claim about a captured formula's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.memoizedAllRecordsFormula = null);
+		}
 	}
 
 	/**
@@ -671,6 +694,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 		}
 

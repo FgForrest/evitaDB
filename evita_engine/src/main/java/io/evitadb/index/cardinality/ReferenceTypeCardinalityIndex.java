@@ -28,6 +28,7 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -323,6 +324,7 @@ public class ReferenceTypeCardinalityIndex
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
@@ -371,10 +373,31 @@ public class ReferenceTypeCardinalityIndex
 			}
 		}
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
 		return removed ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedAllReferencedPrimaryKeys} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Both mutators already null the memo on the forward path; the journal entry covers a read performed LATER inside
+	 * the same root entity mutation, which would repopulate it from the half-mutated cardinalities and leave it stale
+	 * once those are rewound. Re-invalidating on restore costs one recomputation and makes no claim about a captured
+	 * bitmap's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.memoizedAllReferencedPrimaryKeys = null);
+		}
 	}
 
 	/**

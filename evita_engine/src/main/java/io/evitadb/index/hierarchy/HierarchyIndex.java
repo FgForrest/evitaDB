@@ -32,6 +32,7 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -257,6 +258,7 @@ public class HierarchyIndex
 			}
 		}
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			resetMemoizedValues();
 		}
 	}
@@ -277,6 +279,7 @@ public class HierarchyIndex
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			resetMemoizedValues();
 		}
 		return removedNode.parentEntityPrimaryKey();
@@ -1378,6 +1381,27 @@ public class HierarchyIndex
 	 */
 	private void resetMemoizedValues() {
 		this.memoizedAllNodeFormula = null;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
+	 * memoized node formula has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * {@link #resetMemoizedValues()} already runs on the forward path, so the memo a rollback finds is normally
+	 * correct; what the journal entry covers is a read performed LATER inside the same root entity mutation, which
+	 * would repopulate the memo from the half-mutated hierarchy and leave it stale once the nodes underneath it are
+	 * rewound. Re-invalidating (rather than restoring a captured formula) costs one recomputation and needs no
+	 * assumption about the captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(this::resetMemoizedValues);
+		}
 	}
 
 	/**

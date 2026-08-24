@@ -62,17 +62,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * about. The scenario is the proven one: a batch of three entities in which the middle one violates a unique
  * constraint after its index writes have already been applied.
  *
- * **Today's divergence**, which the tests below assert: the failed entity's primary key stays in the collection's
- * membership index (it is returned by a query) while its body storage part was never written (fetching it yields
- * nothing) — the same query therefore reports four products by reference and three by content. Recovery is documented
- * as "compensate on the client or rebuild the catalog" in
+ * **The divergence with the switch off**, which the tests below still assert: the failed entity's primary key stays in
+ * the collection's membership index (it is returned by a query) while its body storage part was never written
+ * (fetching it yields nothing) — the same query therefore reports four products by reference and three by content.
+ * Recovery is documented as "compensate on the client or rebuild the catalog" in
  * `documentation/user/en/deep-dive/bulk-vs-incremental-indexing.md`.
  *
- * Both switch positions are exercised. With {@link WarmUpSavepoint} switched on, the bracket is opened and the storage
- * diff layer is rewound, but the index structures themselves do not yet journal their in-place writes — so the orphan
- * primary key survives for now, and the on-tests below say so explicitly. When the per-structure journaling lands,
- * those expectations flip to full recovery: that flip is this line of work's acceptance criterion, and this class is
- * where it is recorded.
+ * Both switch positions are exercised. With {@link WarmUpSavepoint} switched on the divergence is now gone for this
+ * scenario: the reference query and the body fetch agree on the same three products. That flip is this line of work's
+ * acceptance criterion and this class is where it is recorded — see the on-test for exactly which structures the
+ * scenario touches, and therefore what it does and does not yet prove.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -157,22 +156,27 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	class WithWarmUpAtomicity {
 
 		/**
-		 * Pins the reach of the mechanism as it stands. The savepoint brackets the root mutation and rewinds the
-		 * storage diff layer (`DataStoreChanges`: dirty-index bookkeeping and the trapped storage-part cache), but the
-		 * index structures still write to their delegates without journalling an inverse — so the membership index
-		 * keeps the failed entity's primary key exactly as it does with the switch off.
+		 * Pins the reach of the mechanism as it stands, which for this scenario is complete: the reference query and
+		 * the body fetch agree, so no orphan primary key is left behind.
 		 *
-		 * When the per-structure journaling lands, this expectation flips: the reference query must then return the
-		 * same three products the body fetch does.
+		 * What the scenario actually exercises, and why that is the whole of it: the failing entity reaches the unique
+		 * index only after its primary key has been written to the collection's membership bitmap, and
+		 * `EntityIndex#upsertAttribute` runs the unique insert BEFORE the filter one, while the unique insert itself
+		 * checks the value is free before writing its own tree. So the duplicate code aborts the mutation with exactly
+		 * three kinds of state touched — the membership bitmap, the collection's storage diff layer, and the indexes'
+		 * dirty flags — and all three journal their warm-up writes.
+		 *
+		 * That also says what this test does NOT prove. It never reaches a B+ tree, so a scenario that fails LATER —
+		 * past the filter, sort, range or price writes — is not covered by it and is not yet recoverable either.
 		 */
 		@Test
-		@DisplayName("The orphan primary key survives until the index structures journal their writes")
+		@DisplayName("The failed entity leaves no orphan primary key behind")
 		@Tag(TestTags.ATTRIBUTE)
-		void shouldStillLeaveOrphanPrimaryKeyWhenOnlyTheStorageLayerIsJournalled() {
+		void shouldLeaveNoOrphanPrimaryKeyWhenAtomicityIsOn() {
 			WarmUpSavepoint.setEnabled(true);
 			runFailingBatch();
 
-			assertProductReferencesAre(1, 2, 3, 4);
+			assertProductReferencesAre(1, 2, 4);
 			assertFetchedProductsAre(1, 2, 4);
 			assertProductAbsent(3);
 		}

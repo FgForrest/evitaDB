@@ -37,6 +37,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -785,7 +786,32 @@ public abstract sealed class SortIndex
 	 */
 	private void invalidateCommittedSnapshotCacheIfNonTransactional() {
 		if (Transaction.getTransactionalMemoryLayerIfExists(this) == null) {
+			recordWarmUpSavepointTouch();
 			this.cachedAscendingArrays = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #cachedAscendingArrays} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The method above already drops the cache on the forward path; the journal entry covers an ORDER BY executed
+	 * LATER inside the same root entity mutation, which would take the committed-snapshot fast path (no layer exists
+	 * outside a transaction), rematerialize the arrays from the half-mutated {@link #sortedRecords} and leave them
+	 * stale once those are rewound. That cache is deliberately long-lived - it is reused across every query against
+	 * this snapshot - so nothing else would ever drop it.
+	 *
+	 * The lazily created {@link #sortIndexChanges} helper needs no inverse of its own: it holds nothing but
+	 * rebuildable caches, which `SortIndexChanges#sortOrderChanged` journals for itself, so a helper instantiated
+	 * inside a rolled-back mutation is indistinguishable from the `null` slot it replaced.
+	 *
+	 * Recorded once per savepoint. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> this.cachedAscendingArrays = null);
 		}
 	}
 

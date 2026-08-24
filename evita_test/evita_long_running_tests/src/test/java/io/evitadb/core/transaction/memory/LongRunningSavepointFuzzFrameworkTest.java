@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
@@ -38,6 +39,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -67,11 +69,14 @@ import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackResto
  * The same oracle also drives the **WARM_UP** counterpart, where there is no transaction and no diff layer at all:
  * writes go straight to the delegate and a {@code WarmUpSavepoint} has to rewind them from the inverses the
  * structures record themselves. {@link io.evitadb.utils.AssertionUtils#assertWarmUpSavepointRollbackRestores} is that
- * mode's entry point, and {@link TransactionalMap}, {@link TransactionalSet} and {@link TransactionalList} are covered
- * in it. What the randomization is really testing there is composition: those three record one inverse PER OPERATION,
- * so a batch mixing puts, bulk operations, view-iterator removals and (for the list) position-shifting inserts is the
- * only thing that can disprove the claim that replaying them newest-first lands back on the pre-savepoint state.
- * {@link TransactionalBitmap} is deliberately absent - it does not journal its warm-up writes yet.
+ * mode's entry point, and {@link TransactionalMap}, {@link TransactionalSet}, {@link TransactionalList} and
+ * {@link TransactionalBitmap} are covered in it. What the randomization is really testing for the first three is
+ * composition: they record one inverse PER OPERATION, so a batch mixing puts, bulk operations, view-iterator removals
+ * and (for the list) position-shifting inserts is the only thing that can disprove the claim that replaying them
+ * newest-first lands back on the pre-savepoint state. The bitmap instead captures its delegate ONCE on first touch, so
+ * what its randomized batch probes is the opposite property - that a single copy-on-write clone taken before the first
+ * write still describes the pre-savepoint members after an arbitrary mix of single and bulk adds and removals has
+ * copied containers out from under it.
  *
  * Each case asserts the in-savepoint batch actually changed the structure (non-vacuous), so a no-op rollback could
  * not pass by accident. The run is time-bounded; the random seed is echoed on failure for deterministic reproduction.
@@ -275,6 +280,46 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		});
 	}
 
+	@ParameterizedTest(
+		name = "TransactionalBitmap: warm-up savepoint rollback restores the exact pre-savepoint record set"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalBitmap: warm-up savepoint rollback restores the exact pre-savepoint record set")
+	void shouldRollBackTransactionalBitmapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalBitmap bitmap = newSeededBitmap(random);
+			assertWarmUpSavepointRollbackRestores(
+				bitmap,
+				tested -> applyRandomBitmapOps(tested, random, 1 + random.nextInt(8)),
+				LongRunningSavepointFuzzFrameworkTest::bitmapContents,
+				tested -> {
+					// a record id outside the random range guarantees the in-savepoint batch changes the bitmap
+					tested.add(KEY_SPACE + 1);
+					applyRandomBitmapBulkOps(tested, random, 1 + random.nextInt(8));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalBitmap: warm-up savepoint commit keeps the in-savepoint record set")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalBitmap: warm-up savepoint commit keeps the in-savepoint record set")
+	void shouldCommitTransactionalBitmapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalBitmap bitmap = newSeededBitmap(random);
+			assertWarmUpSavepointCommitKeeps(
+				bitmap,
+				tested -> applyRandomBitmapOps(tested, random, 1 + random.nextInt(8)),
+				LongRunningSavepointFuzzFrameworkTest::bitmapContents,
+				tested -> applyRandomBitmapBulkOps(tested, random, 1 + random.nextInt(8))
+			);
+			return iteration + 1;
+		});
+	}
+
 	/**
 	 * Builds a fresh non-transactional map seeded with a random subset of the key space.
 	 */
@@ -388,6 +433,45 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 				bitmap.add(recordId);
 			}
 		}
+	}
+
+	/**
+	 * Applies `count` random operations to the bitmap, drawing from EVERY mutator kind rather than only the two
+	 * single-record ones: the bulk `addAll` / `removeAll` overloads take their own delegate branch, and the
+	 * `Bitmap`-argument overloads reach the roaring `andNot` fast path that mutates whole containers at once - the
+	 * shape most likely to write through a copy-on-write slot the first-touch clone still shares.
+	 */
+	private static void applyRandomBitmapBulkOps(@Nonnull TransactionalBitmap bitmap, @Nonnull Random random, int count) {
+		for (int i = 0; i < count; i++) {
+			final int[] recordIds = randomRecordIds(random);
+			switch (random.nextInt(6)) {
+				case 0 -> bitmap.add(recordIds[0]);
+				case 1 -> bitmap.remove(recordIds[0]);
+				case 2 -> bitmap.addAll(recordIds);
+				case 3 -> bitmap.removeAll(recordIds);
+				case 4 -> bitmap.addAll(new BaseBitmap(recordIds));
+				default -> bitmap.removeAll(new BaseBitmap(recordIds));
+			}
+		}
+	}
+
+	/**
+	 * Draws one to four distinct record ids from the key space, sorted ascending as the bulk mutators expect.
+	 */
+	@Nonnull
+	private static int[] randomRecordIds(@Nonnull Random random) {
+		final Set<Integer> ids = new HashSet<>();
+		final int n = 1 + random.nextInt(4);
+		for (int i = 0; i < n; i++) {
+			ids.add(1 + random.nextInt(KEY_SPACE));
+		}
+		final int[] result = new int[ids.size()];
+		int index = 0;
+		for (final Integer id : ids) {
+			result[index++] = id;
+		}
+		Arrays.sort(result);
+		return result;
 	}
 
 	/**

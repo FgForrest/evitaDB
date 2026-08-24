@@ -48,6 +48,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
@@ -748,6 +749,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -791,6 +793,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -839,6 +842,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -882,6 +886,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -1425,6 +1430,33 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		@Nonnull int[] rangeLeafPageSequences,
 		boolean listChanged
 	) {
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
+	 * memoized formulas have to be left INVALIDATED should the mutation be rolled back (see {@link WarmUpSavepoint}).
+	 *
+	 * The forward mutators already null both memos, so the state a rollback finds them in would be correct — were it
+	 * not for reads. A query executed later within the same root entity mutation (uniqueness checks and reference
+	 * cascades routinely run one) repopulates them from the HALF-MUTATED index, and that value would then survive the
+	 * rollback of the data underneath it. Re-nulling on restore is what closes that window.
+	 *
+	 * The memos are re-invalidated rather than restored to their captured pre-images on purpose: an absolute restore of
+	 * the underlying inverted index costs the memos nothing but a recomputation, whereas a captured formula would have
+	 * to be trusted to have been valid, which nothing here can establish.
+	 *
+	 * The touch is recorded once per savepoint - the whole cached state is these two slots, so a single re-invalidation
+	 * covers every write - and only from the non-transactional branch, since inside a transaction no warm-up savepoint
+	 * is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.push(() -> {
+				this.memoizedAllRecordsFormula = null;
+				this.memoizedRangeHistogramSubSet = null;
+			});
+		}
 	}
 
 	/**
