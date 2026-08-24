@@ -65,6 +65,11 @@ with zipfile.ZipFile('<export>.zip') as z: z.extractall('/var/tmp/senesi-bench/p
 disposable working directory on every run and the embedded engine only ever opens that copy, so the
 snapshot is never mutated — but it is also never re-verified, so keep the zip as the source of truth.
 
+`WORK_DIR` is wiped twice per run — once before the copy, once at teardown — so the harness deletes it
+only after proving it is its own: absent, empty, or carrying the `.evita-warmup-workdir` marker file it
+drops there. Point `WORK_DIR` at a directory holding anything else and the run refuses to start instead
+of wiping it.
+
 Key system properties (full list in the class JavaDoc):
 
 | property | meaning |
@@ -86,7 +91,9 @@ RUN=my-label .claude/skills/warmup-reindex-benchmark/run-warmup-reindex.sh
 
 **Run it backgrounded and let the harness wake you** — a full production catalog takes tens of minutes.
 Never poll for completion with `ps`: a finished JVM lingers as a zombie and `ps` still sees it. Detect
-by content — the script prints `RUN_STATUS=MEASUREMENT-DONE-<run>` as its last line.
+by content — the script prints `RUN_STATUS=MEASUREMENT-DONE-<run>` once the report is out, then exits
+with the loader's own status. The marker says the run *finished*; the exit code says whether it
+finished *well* (§4).
 
 Smoke-test the whole chain first, it costs a minute:
 
@@ -112,6 +119,15 @@ the load and calling the sum a publishing time is wrong. This is not hypothetica
 issue #1388 produced, a 15.0 s "goLive" that was Armeria's response timeout expiring. Check the marker
 before quoting a TOTAL, and check the **server** log for `is now alive!` — the transition may have
 completed server-side regardless.
+
+**A count mismatch fails the run; a verification that could not run does not.** After the report the
+harness re-queries both catalogs and compares per-collection entity counts. Counts that genuinely
+differ mean a short load — a faster and meaningless number — so the process exits non-zero and
+`run-warmup-load.sh` propagates that status. Verification that never got its answer (target gone,
+session refused, catalog terminated by a client-side goLive timeout) is logged as `UNVERIFIED` and
+leaves the exit code alone, because the counts are then unknown rather than known-bad. When automating
+a comparison, gate on the exit status — `UNVERIFIED` is the one outcome that needs a human to read the
+log.
 
 ## 5. Comparing two builds
 

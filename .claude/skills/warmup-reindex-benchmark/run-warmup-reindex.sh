@@ -151,3 +151,10 @@ if [[ "${PROFILE}" == "alloc" || "${PROFILE}" == "cpu" ]]; then
 	echo "profile  : ${COLLAPSED} ($(stat -c %s "${COLLAPSED}" 2>/dev/null || echo 0) bytes)"
 	echo "           copy it out of the tree before the next 'mvn clean'"
 fi
+
+# The loader's status is carried out of here, but only at the very end: the server still has to be torn
+# down, the report still has to be printed and RUN_STATUS still has to be emitted, all of which happen
+# above regardless of how the load went. Falling off the end instead would return 0 for a load that
+# failed its post-copy count verification - and a caller gating on the exit code would read a short,
+# meaninglessly fast load as a good measurement.
+exit "${LOAD_EXIT}"

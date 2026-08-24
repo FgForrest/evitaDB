@@ -16,6 +16,10 @@
 # The pristine snapshot directory is never written to - the harness copies it into a disposable
 # working directory on every run. PRISTINE_DIR must be the PARENT of the <CATALOG>/ folder.
 #
+# WORK_DIR is wiped before the copy and again at teardown, so the harness deletes it only when it is
+# absent, empty, or carries the `.evita-warmup-workdir` marker it drops there - point WORK_DIR at a
+# directory holding anything else and the run refuses to start rather than wiping it.
+#
 #   ROOT           evitaDB checkout to take the jar from          (default /www/oss/evita/release_2026-2)
 #   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder       (default /var/tmp/senesi-bench/pristine)
 #   CATALOG        source catalog name                            (default senesi)

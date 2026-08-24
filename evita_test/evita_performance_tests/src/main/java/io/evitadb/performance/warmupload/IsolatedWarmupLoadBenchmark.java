@@ -32,7 +32,6 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -45,6 +44,7 @@ import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -52,9 +52,11 @@ import org.apache.commons.io.FileUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.Serial;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -165,7 +167,8 @@ public class IsolatedWarmupLoadBenchmark {
 	public static final String TARGET_PORT_PROPERTY = "evita.warmup.targetPort";
 	/**
 	 * System property overriding the working directory the pristine snapshot is copied into. Defaults to a
-	 * fresh temp directory.
+	 * fresh temp directory. The harness wipes this directory before the copy and again on teardown, so it
+	 * only ever accepts one it can prove is disposable - see {@link #WORK_DIR_MARKER_FILE}.
 	 */
 	public static final String WORK_DIR_PROPERTY = "evita.warmup.workDir";
 	/**
@@ -210,6 +213,19 @@ public class IsolatedWarmupLoadBenchmark {
 	public static final String KEEP_WORK_DIR_PROPERTY = "evita.warmup.keepWorkDir";
 
 	/**
+	 * Name of the file dropped into the working directory to mark it as this harness's disposable scratch
+	 * space. Both deletions of that directory - the one before the copy and the one on teardown - refuse to
+	 * run unless the directory is empty or carries this marker, because {@value #WORK_DIR_PROPERTY} is an
+	 * operator-supplied path and a mistyped one would otherwise be wiped without warning.
+	 *
+	 * A marker rather than a `/tmp` prefix whitelist: a working copy of a production-sized catalog is tens of
+	 * gigabytes and legitimately belongs on whichever volume has the room, so a path check would reject valid
+	 * setups while still permitting a fat-fingered path that happens to sit under `/tmp`. The file lands at
+	 * the storage-directory root next to the engine's own lock file, where catalog discovery cannot see it -
+	 * `CatalogFolderClassifier` only ever enumerates directories.
+	 */
+	private static final String WORK_DIR_MARKER_FILE = ".evita-warmup-workdir";
+	/**
 	 * Default number of entities read from the source per fetch.
 	 */
 	private static final int DEFAULT_BATCH_SIZE = 1_000;
@@ -252,9 +268,11 @@ public class IsolatedWarmupLoadBenchmark {
 	 * constants for configuration.
 	 *
 	 * @param args ignored - the harness is configured entirely through system properties
-	 * @throws Exception when the working copy cannot be prepared, the target is unreachable, or either
-	 *                   engine fails to close - all of which must abort the run loudly rather than yield
-	 *                   a partial measurement
+	 * @throws Exception when the working copy cannot be prepared, the target is unreachable, the loaded
+	 *                   entity counts do not match the source, or either engine fails to close - all of
+	 *                   which must abort the run loudly rather than yield a partial measurement. Nothing is
+	 *                   caught here on purpose: the resulting non-zero exit code is the only failure signal
+	 *                   an automated caller gets.
 	 */
 	public static void main(@Nonnull final String[] args) throws Exception {
 		new IsolatedWarmupLoadBenchmark().run();
@@ -264,8 +282,9 @@ public class IsolatedWarmupLoadBenchmark {
 	 * Prepares the working copy, boots the embedded source engine, connects (or falls back) to the target,
 	 * runs the measured rebuild and prints the report.
 	 *
-	 * @throws Exception when the working copy cannot be prepared, the target is unreachable, or either
-	 *                   engine fails to close
+	 * @throws LoadVerificationFailedException when the target does not hold what the source does
+	 * @throws Exception                       when the working copy cannot be prepared, the target is
+	 *                                         unreachable, or either engine fails to close
 	 */
 	private void run() throws Exception {
 		final Path pristineDataDir = Path.of(requiredProperty(PRISTINE_DATA_DIR_PROPERTY));
@@ -303,7 +322,7 @@ public class IsolatedWarmupLoadBenchmark {
 		// ---- prepare a disposable working copy - the pristine snapshot is never written to -----
 		log.info("Copying pristine snapshot `{}` -> working directory `{}`...", pristineDataDir, workDataDir);
 		final long prepareStart = System.nanoTime();
-		FileUtils.deleteDirectory(workDataDir.toFile());
+		prepareWorkingDirectory(workDataDir);
 		FileUtils.copyDirectory(
 			pristineDataDir.resolve(sourceCatalog).toFile(),
 			workDataDir.resolve(sourceCatalog).toFile()
@@ -311,7 +330,10 @@ public class IsolatedWarmupLoadBenchmark {
 		log.info("Working copy ready in {} ms.", (System.nanoTime() - prepareStart) / 1_000_000);
 
 		final Evita source = bootSourceEngine(workDataDir);
-		try {
+		// `try (source)` rather than a plain close in the finally: when the measured block and the close both
+		// fail, try-with-resources attaches the close failure as suppressed instead of letting it replace the
+		// original one - and a verification mismatch is precisely the failure that must survive teardown.
+		try (source) {
 			awaitCatalogAlive(source, sourceCatalog);
 			final EvitaContract target = targetMode == TargetMode.REMOTE ?
 				connectToTargetServer(targetHost, targetPort) : source;
@@ -334,10 +356,19 @@ public class IsolatedWarmupLoadBenchmark {
 				} else {
 					try {
 						verifyCopy(source, target, sourceCatalog, targetCatalog, maxPerCollection, result);
+					} catch (LoadVerificationFailedException ex) {
+						// verification RAN and the counts genuinely differ: the load was short, so the number
+						// printed above is both wrong and flatteringly fast. Rethrowing is what makes the JVM
+						// exit non-zero - an automated caller checking the exit code has nothing else to read.
+						throw ex;
 					} catch (Exception ex) {
+						// anything else means verification never got its answer (target unreachable, session
+						// refused, catalog terminated by a client-side goLive timeout) - the counts are unknown
+						// rather than known-bad, which is not grounds for discarding a completed measurement
 						log.error(
 							"Post-copy verification could not run - the load figures above stand, but the " +
-								"target entity counts are UNVERIFIED for this run.", ex
+								"target entity counts are UNVERIFIED for this run. This is not a count " +
+								"mismatch: a mismatch fails the run instead.", ex
 						);
 					}
 				}
@@ -349,12 +380,87 @@ public class IsolatedWarmupLoadBenchmark {
 				}
 			}
 		} finally {
-			source.close();
 			if (keepWorkDir) {
 				log.info("Working directory `{}` kept on disk by configuration.", workDataDir);
 			} else {
-				FileUtils.deleteDirectory(workDataDir.toFile());
+				try {
+					deleteWorkingDirectory(workDataDir);
+				} catch (Exception ex) {
+					// a teardown that cannot finish is a nuisance, not the reason the run failed - throwing here
+					// would overwrite whatever the measured block reported with a message about a directory
+					log.error(
+						"Working directory `{}` could not be removed - remove it by hand before the next run.",
+						workDataDir, ex
+					);
+				}
 			}
+		}
+	}
+
+	/**
+	 * Empties the working directory and lays a freshly marked one in its place, ready for the pristine
+	 * snapshot to be copied in. The marker is what licenses every later deletion of this directory - see
+	 * {@link #deleteWorkingDirectory(Path)}.
+	 *
+	 * @param workDataDir the directory the working copy is built in
+	 * @throws IOException when the directory cannot be emptied, created or marked
+	 */
+	private static void prepareWorkingDirectory(@Nonnull final Path workDataDir) throws IOException {
+		deleteWorkingDirectory(workDataDir);
+		Files.createDirectories(workDataDir);
+		Files.writeString(
+			workDataDir.resolve(WORK_DIR_MARKER_FILE),
+			"Disposable working copy of a catalog snapshot, created by " +
+				IsolatedWarmupLoadBenchmark.class.getName() + "." + System.lineSeparator() +
+				"Every run of that benchmark wipes this directory. Do not keep anything here." +
+				System.lineSeparator(),
+			StandardCharsets.UTF_8
+		);
+	}
+
+	/**
+	 * Deletes the working directory, but only after establishing that it is this harness's to delete: it
+	 * must be absent, empty, or carry the {@link #WORK_DIR_MARKER_FILE} marker left by
+	 * {@link #prepareWorkingDirectory(Path)}. {@value #WORK_DIR_PROPERTY} is an operator-supplied path that
+	 * gets wiped twice per run, and a mistyped or copy-pasted one must fail loudly rather than quietly.
+	 *
+	 * @param workDataDir the directory to delete
+	 * @throws IOException                when the directory cannot be inspected or deleted
+	 * @throws GenericEvitaInternalError  when it holds something this harness did not put there
+	 */
+	private static void deleteWorkingDirectory(@Nonnull final Path workDataDir) throws IOException {
+		if (!Files.exists(workDataDir)) {
+			return;
+		}
+		if (!Files.isDirectory(workDataDir)) {
+			throw new GenericEvitaInternalError(
+				"Refusing to delete `" + workDataDir + "` - it is not a directory. Point `" + WORK_DIR_PROPERTY +
+					"` at a disposable directory.",
+				"Configured working directory is not a directory."
+			);
+		}
+		if (!Files.exists(workDataDir.resolve(WORK_DIR_MARKER_FILE)) && !isEmptyDirectory(workDataDir)) {
+			throw new GenericEvitaInternalError(
+				"Refusing to delete `" + workDataDir + "` - it is not empty and carries no `" +
+					WORK_DIR_MARKER_FILE + "` marker, so this harness did not create it. Point `" +
+					WORK_DIR_PROPERTY + "` at a disposable directory, or empty this one by hand if it really " +
+					"is scratch space.",
+				"Refusing to delete a working directory this harness did not create."
+			);
+		}
+		FileUtils.deleteDirectory(workDataDir.toFile());
+	}
+
+	/**
+	 * Tells whether the given directory holds no entries at all.
+	 *
+	 * @param directory the directory to inspect
+	 * @return true when the directory has no entries
+	 * @throws IOException when the directory cannot be listed
+	 */
+	private static boolean isEmptyDirectory(@Nonnull final Path directory) throws IOException {
+		try (final DirectoryStream<Path> entries = Files.newDirectoryStream(directory)) {
+			return !entries.iterator().hasNext();
 		}
 	}
 
@@ -743,6 +849,9 @@ public class IsolatedWarmupLoadBenchmark {
 	 * @param targetCatalog    name of the freshly built catalog
 	 * @param maxPerCollection the per-collection cap that was applied (0 == uncapped)
 	 * @param result           the measurement, holding the per-collection copied counts
+	 * @throws LoadVerificationFailedException when the counts were compared and differ - the one failure this
+	 *                                        method reports as a verdict rather than as an inability to reach
+	 *                                        the target, and the one the caller must not downgrade to a log
 	 */
 	private static void verifyCopy(
 		@Nonnull final Evita source,
@@ -778,7 +887,9 @@ public class IsolatedWarmupLoadBenchmark {
 		}
 		System.out.print(table);
 		if (mismatches.length() > 0) {
-			throw new IllegalStateException("Load verification FAILED - entity counts differ:" + mismatches);
+			throw new LoadVerificationFailedException(
+				"Load verification FAILED - entity counts differ:" + mismatches
+			);
 		}
 		System.out.println(
 			maxPerCollection > 0 ?
@@ -1018,6 +1129,22 @@ public class IsolatedWarmupLoadBenchmark {
 	@Nonnull
 	private static String padRight(@Nonnull final String value, final int width) {
 		return value.length() >= width ? value : value + " ".repeat(width - value.length());
+	}
+
+	/**
+	 * Raised when the post-copy verification ran to completion and the target does **not** hold what the
+	 * source does. It exists to be distinguishable from every other way verification can fail - an
+	 * unreachable target, a refused session, a catalog terminated client-side by a goLive timeout - because
+	 * those leave the counts merely *unknown*, while this one is a measured verdict that the load was short.
+	 * The distinction is the whole point: a short load yields a faster and entirely meaningless number, so
+	 * only this failure is allowed to take the run down with it.
+	 */
+	private static class LoadVerificationFailedException extends GenericEvitaInternalError {
+		@Serial private static final long serialVersionUID = -2871894423915203164L;
+
+		LoadVerificationFailedException(@Nonnull final String message) {
+			super(message);
+		}
 	}
 
 	/**
