@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-08-24 | [Refresh a reference's representative key whenever its built state is replaced](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, PR #1442, PR #1443 |
+| 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |
 | 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
 | 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390, PR #1395 |
 | 2026-08-05 | [Never decorate a streaming gRPC channel with RetryingClient](2026-08-05-streaming-calls-must-not-be-retry-decorated.md) | fix | accepted | #1388, PR #1389 |
