@@ -120,14 +120,19 @@ issue #1388 produced, a 15.0 s "goLive" that was Armeria's response timeout expi
 before quoting a TOTAL, and check the **server** log for `is now alive!` — the transition may have
 completed server-side regardless.
 
-**A count mismatch fails the run; a verification that could not run does not.** After the report the
-harness re-queries both catalogs and compares per-collection entity counts. Counts that genuinely
-differ mean a short load — a faster and meaningless number — so the process exits non-zero and
-`run-warmup-load.sh` propagates that status. Verification that never got its answer (target gone,
-session refused, catalog terminated by a client-side goLive timeout) is logged as `UNVERIFIED` and
-leaves the exit code alone, because the counts are then unknown rather than known-bad. When automating
-a comparison, gate on the exit status — `UNVERIFIED` is the one outcome that needs a human to read the
-log.
+**Three exit codes, because there are three outcomes.** After the report the harness re-queries both
+catalogs and compares per-collection entity counts, and says what it found in its status:
+
+| exit | meaning |
+|---|---|
+| `0` | counts verified against the source — or verification switched off by `SKIP_VERIFY=true`, which is the operator declining it on purpose |
+| `2` | the load finished and its figures stand, but verification never got its answer (target gone, session refused, catalog terminated by a client-side goLive timeout). Counts **unknown**, not known-bad |
+| `1` | the run failed: counts compared and genuinely differ — a short load, which is both wrong and flatteringly fast — or something else aborted it |
+
+Both `run-warmup-load.sh` and `run-warmup-reindex.sh` propagate the loader's status, so automation can
+gate on the exit code alone: accept `0`, reject `1`, and treat `2` as *measurement present,
+completeness unproven* — never as either. An unverified load is exactly the kind of run that quietly
+becomes a baseline.
 
 ## 5. Comparing two builds
 

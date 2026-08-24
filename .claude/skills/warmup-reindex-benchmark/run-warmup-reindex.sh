@@ -156,5 +156,6 @@ fi
 # down, the report still has to be printed and RUN_STATUS still has to be emitted, all of which happen
 # above regardless of how the load went. Falling off the end instead would return 0 for a load that
 # failed its post-copy count verification - and a caller gating on the exit code would read a short,
-# meaninglessly fast load as a good measurement.
+# meaninglessly fast load as a good measurement. The loader distinguishes 0 (counts verified), 2 (load
+# stands but counts unverified) and 1 (run failed); all three are passed through unchanged.
 exit "${LOAD_EXIT}"

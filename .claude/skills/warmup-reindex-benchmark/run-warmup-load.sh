@@ -20,6 +20,12 @@
 # absent, empty, or carries the `.evita-warmup-workdir` marker it drops there - point WORK_DIR at a
 # directory holding anything else and the run refuses to start rather than wiping it.
 #
+# This script exits with the loader's own status, which distinguishes three outcomes: 0 - entity counts
+# verified against the source (or SKIP_VERIFY=true); 2 - load finished and its figures stand, but the
+# counts could not be verified and are therefore unknown; 1 - the run failed, counts genuinely differ or
+# something else aborted it. Gate automation on that code: accept 0, reject 1, and never let a 2 pass as
+# either.
+#
 #   ROOT           evitaDB checkout to take the jar from          (default /www/oss/evita/release_2026-2)
 #   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder       (default /var/tmp/senesi-bench/pristine)
 #   CATALOG        source catalog name                            (default senesi)

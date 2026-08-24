@@ -213,6 +213,15 @@ public class IsolatedWarmupLoadBenchmark {
 	public static final String KEEP_WORK_DIR_PROPERTY = "evita.warmup.keepWorkDir";
 
 	/**
+	 * Exit code for a run whose load completed and was reported, but whose entity counts could not be
+	 * verified - the target went away, a session was refused, a client-side goLive timeout terminated the
+	 * catalog from this client's point of view. The measurement itself stands, which is why this is not a
+	 * failure; but it has not been shown to describe a *complete* load either, which is why it is not a
+	 * success. A caller that only reads the exit code has to be able to tell the two apart, so the state
+	 * gets a code of its own rather than borrowing `0` from a verified run or `1` from a broken one.
+	 */
+	private static final int EXIT_CODE_UNVERIFIED = 2;
+	/**
 	 * Name of the file dropped into the working directory to mark it as this harness's disposable scratch
 	 * space. Both deletions of that directory - the one before the copy and the one on teardown - refuse to
 	 * run unless the directory is empty or carries this marker, because {@value #WORK_DIR_PROPERTY} is an
@@ -267,26 +276,34 @@ public class IsolatedWarmupLoadBenchmark {
 	 * Program entry point. See the class-level documentation for what is measured and the `*_PROPERTY`
 	 * constants for configuration.
 	 *
+	 * Exits `0` only when the load was verified (or verification was switched off deliberately),
+	 * {@link #EXIT_CODE_UNVERIFIED} when the measurement stands but could not be verified, and `1` - by
+	 * letting the exception out - when the run failed outright. That is the whole failure signal an
+	 * automated caller gets, so nothing is caught here on purpose.
+	 *
 	 * @param args ignored - the harness is configured entirely through system properties
 	 * @throws Exception when the working copy cannot be prepared, the target is unreachable, the loaded
 	 *                   entity counts do not match the source, or either engine fails to close - all of
-	 *                   which must abort the run loudly rather than yield a partial measurement. Nothing is
-	 *                   caught here on purpose: the resulting non-zero exit code is the only failure signal
-	 *                   an automated caller gets.
+	 *                   which must abort the run loudly rather than yield a partial measurement
 	 */
 	public static void main(@Nonnull final String[] args) throws Exception {
-		new IsolatedWarmupLoadBenchmark().run();
+		final int exitCode = new IsolatedWarmupLoadBenchmark().run();
+		if (exitCode != 0) {
+			System.exit(exitCode);
+		}
 	}
 
 	/**
 	 * Prepares the working copy, boots the embedded source engine, connects (or falls back) to the target,
 	 * runs the measured rebuild and prints the report.
 	 *
+	 * @return `0` when the load was verified or verification was switched off deliberately,
+	 *         {@link #EXIT_CODE_UNVERIFIED} when the measurement stands but verification never got its answer
 	 * @throws LoadVerificationFailedException when the target does not hold what the source does
 	 * @throws Exception                       when the working copy cannot be prepared, the target is
 	 *                                         unreachable, or either engine fails to close
 	 */
-	private void run() throws Exception {
+	private int run() throws Exception {
 		final Path pristineDataDir = Path.of(requiredProperty(PRISTINE_DATA_DIR_PROPERTY));
 		final String sourceCatalog = System.getProperty(CATALOG_NAME_PROPERTY, "senesi");
 		final TargetMode targetMode = TargetMode.valueOf(
@@ -329,6 +346,7 @@ public class IsolatedWarmupLoadBenchmark {
 		);
 		log.info("Working copy ready in {} ms.", (System.nanoTime() - prepareStart) / 1_000_000);
 
+		int exitCode = 0;
 		final Evita source = bootSourceEngine(workDataDir);
 		// `try (source)` rather than a plain close in the finally: when the measured block and the close both
 		// fail, try-with-resources attaches the close failure as suppressed instead of letting it replace the
@@ -364,11 +382,15 @@ public class IsolatedWarmupLoadBenchmark {
 					} catch (Exception ex) {
 						// anything else means verification never got its answer (target unreachable, session
 						// refused, catalog terminated by a client-side goLive timeout) - the counts are unknown
-						// rather than known-bad, which is not grounds for discarding a completed measurement
+						// rather than known-bad, which is not grounds for discarding a completed measurement.
+						// It is not grounds for calling the run a success either: an unverified load must not be
+						// accepted by automation that only looks at the exit code, so it gets its own one.
+						exitCode = EXIT_CODE_UNVERIFIED;
 						log.error(
 							"Post-copy verification could not run - the load figures above stand, but the " +
-								"target entity counts are UNVERIFIED for this run. This is not a count " +
-								"mismatch: a mismatch fails the run instead.", ex
+								"target entity counts are UNVERIFIED for this run (exit code " +
+								EXIT_CODE_UNVERIFIED + "). This is not a count mismatch: a mismatch fails the " +
+								"run instead.", ex
 						);
 					}
 				}
@@ -395,6 +417,7 @@ public class IsolatedWarmupLoadBenchmark {
 				}
 			}
 		}
+		return exitCode;
 	}
 
 	/**
