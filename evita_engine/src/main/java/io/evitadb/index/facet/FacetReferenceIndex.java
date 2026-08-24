@@ -463,6 +463,19 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		return new FacetEntityTypeIndexChanges();
 	}
 
+	/**
+	 * {@link FacetEntityTypeIndexChanges} is pure in-transaction bookkeeping — it records which contained group
+	 * indexes a commit-merge has to visit — and the delegate branch is an explicit `if (txLayer != null)` that writes
+	 * nothing. The facet data a mutation touches lives in the contained {@link FacetGroupIndex} instances and the
+	 * transactional maps holding them, which journal their own warm-up writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public FacetReferenceIndex createCopyWithMergedTransactionalMemory(

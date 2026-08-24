@@ -1189,6 +1189,20 @@ public class ChainIndex implements
 		return new ChainIndexChanges(this);
 	}
 
+	/**
+	 * The chain data this index writes lives in contained transactional structures that journal their own writes, and
+	 * the lazily created {@link #chainIndexChanges} helper the delegate branch installs journals its own memoized
+	 * caches through the {@link io.evitadb.core.transaction.memory.Snapshotable} contract it already implements.
+	 * Instantiating that helper inside a rolled-back mutation is harmless — it holds nothing but rebuildable caches,
+	 * so the installed instance is indistinguishable from the `null` slot it replaced.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);

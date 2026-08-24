@@ -117,6 +117,18 @@ public class TransactionalBitmap
 		return new BitmapChanges(this.roaringBitmap);
 	}
 
+	/**
+	 * Every delegate branch of this class runs {@link #recordWarmUpSavepointTouch()} first, which captures a
+	 * copy-on-write {@link PersistentRoaringBitmap#clone()} of the whole bitmap — `O(#containers)` of pointer work,
+	 * not `O(size)` — and restores it by swapping the reference back and resetting the memoized cardinality.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(

@@ -320,6 +320,18 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 		return isTransactionAvailable() ? new IntArrayChanges(this.delegate) : null;
 	}
 
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write
+	 * — an absolute pre-image of the array's entire contents, restored by a single field assignment.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public int[] createCopyWithMergedTransactionalMemory(

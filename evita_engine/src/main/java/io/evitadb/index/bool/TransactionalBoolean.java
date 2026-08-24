@@ -82,6 +82,17 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
+	 * The whole mutable state of this wrapper is one `boolean`, so its pre-image is captured in full on the first
+	 * write-touch of the delegate branch and restored by a single field assignment.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * Sets the value to TRUE in a transaction-safe way (if transaction is available).
 	 */
 	public void setToTrue() {

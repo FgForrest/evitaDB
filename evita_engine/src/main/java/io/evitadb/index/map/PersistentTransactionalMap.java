@@ -283,6 +283,19 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * The delegate branch journals PER OPERATION through {@link WarmUpMapJournal}, which records the entry each write
+	 * overwrites (value plus presence) before applying it — the same granularity as {@link TransactionalMap}, chosen
+	 * for the same reason: the whole-state pre-image of the accumulated base map is the rollback cliff the journal
+	 * strategy exists to avoid.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 *
 	 * Produces the next committed snapshot. When a diff layer exists, its modified and removed keys are

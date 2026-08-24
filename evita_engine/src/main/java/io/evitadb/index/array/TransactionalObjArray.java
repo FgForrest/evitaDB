@@ -266,6 +266,19 @@ public class TransactionalObjArray<T>
 		return isTransactionAvailable() ? new ObjArrayChanges<>(this.delegate) : null;
 	}
 
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write.
+	 * Elements are captured by reference: one carrying mutable state of its own is rewound by that element's own
+	 * journalling, exactly as a nested producer is inside a memento.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public T[] createCopyWithMergedTransactionalMemory(

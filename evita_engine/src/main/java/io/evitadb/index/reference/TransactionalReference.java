@@ -200,6 +200,18 @@ public class TransactionalReference<T>
 		return new ReferenceChanges<>(this.value.get());
 	}
 
+	/**
+	 * The whole mutable state of this wrapper is one reference, so its pre-image is captured in full on the first
+	 * write-touch of the delegate branch and restored by a single field assignment. The referent is captured by
+	 * reference: one carrying mutable state of its own is rewound by that object's own journalling.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Optional<T> createCopyWithMergedTransactionalMemory(

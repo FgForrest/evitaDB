@@ -200,6 +200,19 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * The delegate branch mutates the backing `HashMap` in place, so a whole-state pre-image would be a deep copy of
+	 * the accumulated base map — the rollback cliff the journal strategy exists to avoid. It journals PER OPERATION
+	 * instead, through {@link WarmUpMapJournal}, which records the single entry each write overwrites (value plus
+	 * presence) before applying it.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 *
 	 * Produces a new map snapshot that includes all committed changes. When a diff layer is present its

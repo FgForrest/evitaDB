@@ -938,6 +938,22 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * The ordered data this index writes lives in contained transactional structures that journal their own writes;
+	 * what is left to this class is {@link #cachedAscendingArrays}, which {@link #recordWarmUpSavepointTouch()}
+	 * journals as an invalidation so a rollback cannot leave it rematerialized from half-mutated records.
+	 *
+	 * The lazily created {@link #sortIndexChanges} helper the delegate branch installs needs no inverse of its own: it
+	 * holds nothing but rebuildable caches, which `SortIndexChanges` journals for itself, so a helper instantiated
+	 * inside a rolled-back mutation is indistinguishable from the `null` slot it replaced.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * Discards this index's transactional layer together with the layers of every transactional sub-structure
 	 * it owns, so an aborted (or fully committed) transaction leaves no orphaned change buffers behind.
 	 */

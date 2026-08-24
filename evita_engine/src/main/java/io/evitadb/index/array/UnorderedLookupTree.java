@@ -2681,6 +2681,19 @@ public class UnorderedLookupTree implements
 		 * @return the owned heap footprint of this subtree in bytes, including alignment padding
 		 */
 		long getHeapSizeInBytes();
+
+		/**
+		 * Every node of this tree journals its warm-up writes, so the declaration is made once here rather than
+		 * repeated on {@link LeafNode} and {@link InternalNode}. Both mutate through
+		 * {@link WarmUpSavepoint#writeLayer}, which captures the node's own {@link Snapshotable} memento on the branch
+		 * that hands the mutator its in-place write — the same discharge as the B+ tree node families.
+		 *
+		 * @return always `true` — see above
+		 */
+		@Override
+		default boolean supportsWarmUpRollback() {
+			return true;
+		}
 	}
 
 	/**

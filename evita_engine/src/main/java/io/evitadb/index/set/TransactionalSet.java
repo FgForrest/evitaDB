@@ -90,6 +90,18 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		return new SetChanges<>(this.setDelegate);
 	}
 
+	/**
+	 * The delegate branch mutates the backing `HashSet` in place, so a whole-state pre-image would be a deep copy of
+	 * the accumulated base set — the rollback cliff the journal strategy exists to avoid. It journals PER OPERATION
+	 * instead, recording the membership each write changes before applying it.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Set<K> createCopyWithMergedTransactionalMemory(

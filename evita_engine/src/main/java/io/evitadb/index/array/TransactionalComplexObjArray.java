@@ -444,6 +444,19 @@ public class TransactionalComplexObjArray<
 		TransactionalLayerProducer implementation
 	 */
 
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write.
+	 * In-place mutation of an individual element is covered transitively: the elements are themselves transactional
+	 * structures whose own mutators journal their writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nullable
 	@Override
 	public ComplexObjArrayChanges<T> createLayer() {

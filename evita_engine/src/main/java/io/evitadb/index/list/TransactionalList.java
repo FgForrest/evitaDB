@@ -112,6 +112,19 @@ public class TransactionalList<V> implements
 	}
 
 	/**
+	 * The delegate branch mutates the backing `ArrayList` in place, so a whole-state pre-image would be a deep copy of
+	 * the accumulated base list — the rollback cliff the journal strategy exists to avoid. It journals PER OPERATION
+	 * instead, recording the slot each write overwrites (and the position each insertion or removal shifts) before
+	 * applying it.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * Produces an immutable copy of this list with all transactional changes from `layer` merged in.
 	 *
 	 * @param layer              the diff layer to merge; may be `null` if no changes were recorded

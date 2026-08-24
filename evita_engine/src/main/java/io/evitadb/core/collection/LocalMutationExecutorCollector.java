@@ -582,6 +582,18 @@ class LocalMutationExecutorCollector {
 	 * In case any {@code RuntimeException} occurs during the commit process, the exception
 	 * is caught and wrapped in a {@code TransactionException}, and the transaction is
 	 * expected to be rolled back.
+	 *
+	 * **The storage parts written here are inside the bracket, not after it.** Both savepoints are still open while
+	 * the executors commit, so the entity storage parts {@code ContainerizedLocalMutationExecutor#commit} pushes into
+	 * the data store buffer are captured like any other change: on the warm-up path they land in `DataStoreChanges`,
+	 * whose memento is a journal POSITION rather than a copy, so the mark taken when the index phase first touched it
+	 * still rewinds everything written afterwards. An executor failing part-way through this loop therefore leaves no
+	 * storage part behind — which is what closes the orphan-primary-key gap this whole mechanism exists for, since
+	 * that gap was precisely a body written (or not) out of step with the indexes.
+	 *
+	 * The one change that is deliberately NOT reverted is a failure of the savepoint acceptance itself: by then every
+	 * executor has committed and the mutation has succeeded, so there is nothing to undo — see the comment on the
+	 * warm-up acceptance below for why its reference is dropped unconditionally.
 	 */
 	private void commit() {
 		// we do not address the situation where only one applicator fails on commit and the others succeed

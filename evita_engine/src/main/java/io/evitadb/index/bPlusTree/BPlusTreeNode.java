@@ -23,7 +23,9 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -152,5 +154,23 @@ public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer);
+
+	/**
+	 * Every B+ tree node journals its warm-up writes, so the declaration is made once here rather than repeated on each
+	 * of the tree families' internal and leaf node classes.
+	 *
+	 * The obligation is discharged structurally: a node mutator never resolves its write target itself but goes through
+	 * {@link WarmUpSavepoint#writeLayer}, which records the node's first touch on the very branch that returns `null`
+	 * and sends the mutator into its in-place write. The pre-image is the node's own {@link Snapshotable} memento —
+	 * bounded by the node's block size, and already maintained for the transactional savepoints — so a rolled-back
+	 * split or merge restores every touched node absolutely and leaves the freshly created offspring unreachable,
+	 * with no linkage repair needed.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	default boolean supportsWarmUpRollback() {
+		return true;
+	}
 
 }

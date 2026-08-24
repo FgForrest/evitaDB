@@ -2921,6 +2921,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param pageSequence the page sequence to assign
 		 */
 		void setPageSequence(int pageSequence);
+
+		/**
+		 * Every node of this tree journals its warm-up writes, so the declaration is made once here rather than
+		 * repeated on {@link BPlusInternalTreeNode} and {@link BPlusLeafTreeNode}. The obligation is discharged the
+		 * same way as in the shared {@link io.evitadb.index.bPlusTree.BPlusTreeNode} family — see the declaration
+		 * there for the mechanism.
+		 *
+		 * @return always `true` — see above
+		 */
+		@Override
+		default boolean supportsWarmUpRollback() {
+			return true;
+		}
 	}
 
 	/**

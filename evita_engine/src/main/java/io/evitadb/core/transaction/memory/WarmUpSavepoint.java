@@ -60,6 +60,11 @@ import java.util.Map.Entry;
  * - {@link #rollback()} replays the journal in strict reverse, then releases every captured memento.
  * - {@link #commit()} discards the journal entries without running them, then releases every captured memento.
  *
+ * **Enforcement.** Journalling is a per-structure obligation, and warm-up has no maintainer to enforce it centrally,
+ * so {@link #verifyRollbackSupported(TransactionalLayerCreator)} is the backstop: every structure that takes its
+ * delegate branch while a savepoint is open must declare {@link TransactionalLayerCreator#supportsWarmUpRollback()},
+ * or the mutation fails immediately rather than being silently left un-rewindable by a rollback that reports success.
+ *
  * Because each recorded inverse is an ABSOLUTE restore of the state its own operation touched, participants are
  * mutually independent and the reverse-replay order between them carries no meaning — which is what lets first-touch
  * mementos and per-operation inverses share a single journal. Within one participant the ordering DOES carry meaning
@@ -194,6 +199,16 @@ public final class WarmUpSavepoint {
 	 * The caller must pair this with exactly one {@link #commit()} or {@link #rollback()}, in a `finally` block, or the
 	 * savepoint leaks into the next mutation on this thread and its `open()` fails.
 	 *
+	 * **A savepoint is open only where there is no transaction, and this method having a single call site is what
+	 * makes that true.** The bracket in `LocalMutationExecutorCollector` opens one on the branch where the
+	 * transactional maintainer is absent, and `Transaction#getTransactionalLayerMaintainer()` is `null` exactly when
+	 * `Transaction#isTransactionAvailable()` is `false`. A great deal rests on this: every index mutator whose
+	 * journalling sits behind an `if (!isTransactionAvailable())` gate is correct only because that gate is
+	 * unconditionally taken while a savepoint is open, and the delegate-branch backstop in
+	 * {@link #verifyRollbackSupported(TransactionalLayerCreator)} guards only the no-transaction path for the same
+	 * reason. A second call site would invalidate all of it at once, so `WarmUpRollbackConformanceTest` asserts there
+	 * is none.
+	 *
 	 * @return the opened savepoint
 	 * @throws GenericEvitaInternalError when a savepoint is already open on this thread
 	 */
@@ -314,12 +329,76 @@ public final class WarmUpSavepoint {
 	 * Splitting the answer from the capture is what keeps a repeat touch allocation-free: a variant taking the inverse
 	 * as an argument would have to build the capturing lambda on every call just to discard it.
 	 *
-	 * @param participant the structure about to be mutated
+	 * @param participant the structure about to be mutated, which must NOT be a {@link Snapshotable} — the two APIs
+	 *                    are mutually exclusive per participant
 	 * @return `true` when this is its first write-touch inside this savepoint and its pre-image still has to be
 	 *         captured, `false` when a pre-savepoint pre-image was already recorded for it
+	 * @throws GenericEvitaInternalError when the participant is a {@link Snapshotable} and therefore belongs on
+	 *                                   {@link #recordFirstTouch(Snapshotable)}
 	 */
 	public boolean claimFirstTouch(@Nonnull Object participant) {
-		return this.firstTouches.putIfAbsent(participant, SELF_CAPTURED) == null;
+		if (this.firstTouches.putIfAbsent(participant, SELF_CAPTURED) == null) {
+			// the two APIs are mutually exclusive PER PARTICIPANT: a Snapshotable already owns a pre-image mechanism
+			// this savepoint knows how to drive, and reaching it through the self-capture route would both skip that
+			// mechanism's activation (a journal-backed snapshot() is what ARMS the participant's own journal) and
+			// leave releaseMementos() with nothing to hand back, so its per-savepoint scratch state would never drain.
+			// Checked only on the first touch - the repeat touches this method exists to make cheap stay allocation-
+			// and branch-free, and a participant cannot change its type between two touches
+			if (participant instanceof Snapshotable<?>) {
+				throw new GenericEvitaInternalError(
+					"Participant " + participant.getClass().getName() + " implements Snapshotable but claimed a " +
+						"self-captured first touch in a warm-up savepoint - a Snapshotable participant must be " +
+						"recorded through recordFirstTouch(Snapshotable) instead, so its own memento mechanism is " +
+						"the one that captures and releases the pre-image.",
+					"A Snapshotable participant used the self-capture warm-up savepoint API."
+				);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Verifies that a creator about to take its DELEGATE branch inside an open warm-up savepoint declares that branch
+	 * rewindable (see {@link TransactionalLayerCreator#supportsWarmUpRollback()}), and fails loudly when it does not.
+	 * This is the runtime backstop of the mechanism, called from
+	 * {@link Transaction#getOrCreateTransactionalMemoryLayer(TransactionalLayerCreator)} at the moment it is about to
+	 * hand back `null`.
+	 *
+	 * It exists because warm-up has no maintainer, and therefore no choke point equivalent to
+	 * {@link TransactionalLayerMaintainer#recordSavepointSnapshotIfNeeded(long, Object)} — the defensive throw this one
+	 * mirrors. Without it, a structure whose delegate branch was never ported to journal its writes would fail
+	 * silently: the rollback would report success while leaving that structure's changes applied, which is strictly
+	 * worse than the pre-mechanism behaviour because the failure is then invisible. A structure that legitimately has
+	 * nothing to rewind says so by returning `true` (see the contract on the declaring method).
+	 *
+	 * **Cost, and why the flag is read first.** Three short-circuits, in widening order of expense: the mechanism's own
+	 * flag (a static volatile `boolean`), the thread's savepoint (one {@link ThreadLocal} read), then the declaration
+	 * (an interface call). The order matters because this sits on the bulk-ingest write path, whose thread is already
+	 * CPU-saturated: with the flag off, the check costs one perfectly-predicted load on a branch that was about to
+	 * return `null` anyway, and never touches the {@link ThreadLocal} machinery that measured 5.25 % of busy-thread
+	 * time on a comparable path. Reading the savepoint first would put that cost on every layer resolution in every
+	 * bulk load, including the overwhelming majority that have the mechanism switched off.
+	 *
+	 * The consequence is that the check is inert whenever a savepoint is somehow open while the flag is off. That
+	 * cannot happen in production — `open()` is called only under {@link #isEnabled()} — but it IS the state of the
+	 * per-structure rollback unit tests, which open a savepoint directly without touching the flag. Those tests
+	 * therefore exercise the journalling, not this backstop; the backstop's own coverage is
+	 * `WarmUpRollbackBackstopTest` (behaviour) and `WarmUpRollbackConformanceTest` (the declarations it reads).
+	 *
+	 * @param layerCreator the creator whose delegate branch is about to be taken
+	 * @throws GenericEvitaInternalError when a savepoint is open and the creator does not declare rollback support
+	 */
+	public static void verifyRollbackSupported(@Nonnull TransactionalLayerCreator<?> layerCreator) {
+		if (enabled && CURRENT.get() != null && !layerCreator.supportsWarmUpRollback()) {
+			throw new GenericEvitaInternalError(
+				"Structure " + layerCreator.getClass().getName() + " is modified inside a warm-up savepoint but does " +
+					"not declare support for warm-up rollback - the changes it writes in place could not be reverted " +
+					"on a per-entity rollback. Journal its delegate-branch writes into the savepoint and override " +
+					"TransactionalLayerCreator#supportsWarmUpRollback().",
+				"A structure modified inside a warm-up savepoint does not support warm-up rollback."
+			);
+		}
 	}
 
 	/**

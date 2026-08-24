@@ -270,6 +270,55 @@ class WarmUpSavepointDataStoreChangesTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Storage parts written in the commit phase")
+	class CommitPhaseStorageParts {
+
+		@Test
+		@DisplayName("Parts written after the first touch are dropped on rollback too")
+		void shouldRevertPartsWrittenAfterTheFirstTouch() {
+			// this is the ordering a real root entity mutation has: the index writes touch this layer FIRST (here,
+			// an index registration), and the entity body storage parts are written much LATER, from
+			// ContainerizedLocalMutationExecutor#commit, while the savepoint is still open. What makes the late
+			// writes revertable is that snapshot() captures a journal POSITION rather than a copy of the state, so
+			// the memento taken at the first touch still rewinds everything pushed after it
+			markIndexDirty(1);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			markIndexDirty(2);
+
+			// ... the commit phase now writes the entity's storage parts through the same buffer
+			trapPart(7);
+			WarmUpSavepointDataStoreChangesTest.this.dataStoreChanges.putStoragePart(
+				CATALOG_VERSION, new StubStoragePart(8L)
+			);
+			assertEquals(List.of(7L), trappedPartKeys(), "The test would be vacuous without an in-savepoint write.");
+
+			savepoint.rollback();
+			assertEquals(
+				List.of(1), dirtyIndexIds(),
+				"The index registration made inside the savepoint must be rewound."
+			);
+			assertEquals(
+				List.of(), trappedPartKeys(),
+				"A storage part written in the commit phase must be rewound as well - it is journalled onto the same " +
+					"position the first touch marked, not captured separately."
+			);
+		}
+
+		@Test
+		@DisplayName("Parts written after the first touch are kept on commit")
+		void shouldKeepPartsWrittenAfterTheFirstTouchOnCommit() {
+			markIndexDirty(1);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			markIndexDirty(2);
+			trapPart(7);
+
+			savepoint.commit();
+			assertEquals(List.of(1, 2), dirtyIndexIds());
+			assertEquals(List.of(7L), trappedPartKeys());
+		}
+	}
+
 	/**
 	 * Registers a stand-in index under the given id as dirty, the way the index executor does on every modification.
 	 *

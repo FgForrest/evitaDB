@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalMemory;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
@@ -241,6 +242,16 @@ public final class Transaction implements TransactionContract {
 
 	/**
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
+	 *
+	 * A `null` result sends the caller down its delegate branch, writing in place instead of into a diff layer. That
+	 * is the branch a warm-up savepoint has to be able to rewind, so when one is open the creator is required to
+	 * declare that its delegate branch is rewindable — see
+	 * {@link WarmUpSavepoint#verifyRollbackSupported(TransactionalLayerCreator)} for the check, its cost, and why the
+	 * declaration is needed at all.
+	 *
+	 * Only the no-transaction branch is guarded. The other way this method yields `null` — a creator suppressed inside
+	 * a live transaction — cannot coincide with an open warm-up savepoint, because a savepoint is opened only where
+	 * there is no transactional maintainer to open a transactional one instead.
 	 */
 	@Nullable
 	public static <T> T getOrCreateTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
@@ -250,6 +261,7 @@ public final class Transaction implements TransactionContract {
 		if (transaction != null) {
 			return transaction.transactionalMemory.getOrCreateTransactionalMemoryLayer(layerCreator);
 		} else {
+			WarmUpSavepoint.verifyRollbackSupported(layerCreator);
 			return null;
 		}
 	}

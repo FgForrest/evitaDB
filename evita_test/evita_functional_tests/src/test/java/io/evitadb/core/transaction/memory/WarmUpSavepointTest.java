@@ -291,6 +291,43 @@ class WarmUpSavepointTest {
 	}
 
 	@Nested
+	@DisplayName("Separation of the two first-touch APIs")
+	class FirstTouchApiSeparation {
+
+		@Test
+		@DisplayName("A Snapshotable participant may not claim a self-captured first touch")
+		void shouldThrowExceptionWhenSnapshotableClaimsSelfCapturedFirstTouch() {
+			// routing a Snapshotable through the self-capture API would skip its own memento mechanism entirely: the
+			// snapshot() that arms a journal-backed participant would never run, and releaseMementos() would have
+			// nothing to hand back, so its per-savepoint scratch state would never drain
+			final RecordingLayer layer = new RecordingLayer("a", 1);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> savepoint.claimFirstTouch(layer),
+				"A Snapshotable participant must be rejected by the self-capture API."
+			);
+			assertEquals(
+				0, layer.snapshotCount,
+				"The rejected participant must not have been snapshotted - the two APIs are mutually exclusive."
+			);
+		}
+
+		@Test
+		@DisplayName("A participant that is not Snapshotable claims its first touch exactly once")
+		void shouldClaimFirstTouchOnceForNonSnapshotableParticipant() {
+			final Object participant = new Object();
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+
+			assertTrue(savepoint.claimFirstTouch(participant), "The first touch must be claimable.");
+			assertFalse(savepoint.claimFirstTouch(participant), "A repeat touch must report the pre-image is taken.");
+
+			savepoint.commit();
+		}
+	}
+
+	@Nested
 	@DisplayName("Enablement flag")
 	class EnablementFlag {
 

@@ -184,6 +184,15 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		// created / removed / replaced, going live or terminating - so this is the single point at which a warm-up
 		// buffer whose flush failed can be stopped before it writes again (this buffer backs both an entity collection
 		// and the catalog, so the refusal is phrased for either)
+		//
+		// NOT guarded against running mid-savepoint, deliberately. Draining here while a WarmUpSavepoint were open
+		// would hand the storage layer state the journal may still rewind, but the two cannot interleave: every caller
+		// of this method is a flush entry point (EntityCollection#createFlushFuture / #flush / #flush(long),
+		// Catalog#flush / #flush(long)), and a savepoint exists only for the duration of one root entity mutation
+		// inside LocalMutationExecutorCollector#execute, which reaches no flush entry point. A guard here would
+		// therefore be unreachable code asserting an invariant that holds one level up - so the invariant is recorded
+		// rather than enforced. Should a flush ever become reachable from inside a mutation, this is the site to
+		// revisit first.
 		final Throwable theFlushFailure = this.flushFailure;
 		if (theFlushFailure != null) {
 			throw new GenericEvitaInternalError(
