@@ -1,11 +1,11 @@
 ---
 title: Price histogram granularity is decided per accessor, not all-or-nothing across the query
 date: 2026-08-24
-updated: 2026-08-24 13:10
-status: proposed
+updated: 2026-08-24 13:45
+status: accepted
 kind: fix
 issues: [1433]
-prs: []
+prs: [1435, 1436]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/algebra/price, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram]
 supersedes: []
 superseded-by: []
@@ -214,5 +214,8 @@ list would get simpler.
 - **2026-05-18** — #1159 fix merged (PR #1165); per-inner-record path introduced behind the
   all-or-nothing capability gate
 - **2026-08-24** — mixed-pool defect reported as #1433, reproduced, fixed; record written with the
-  implementation, `status: proposed` until the PR merges (flip to `accepted` and fill `prs:` then —
-  `date:` stays as written)
+  implementation and accepted. The fix ships through two pull requests rather than one: PR #1435 into
+  `release_2026-2`, where the defect was reported, and PR #1436 into `dev`. `release_2026-2` holds ten
+  commits `dev` does not, so #1436 is a cherry-pick onto a branch cut from `dev` rather than a
+  retarget — a retarget would have dragged those ten unrelated commits into the diff. Both were
+  verified independently against their own base, `dev` being 257 commits ahead at the time.
