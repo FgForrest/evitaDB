@@ -1210,6 +1210,12 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 * If the reference is added for the first time, it is stored. In case of a duplicate, the reference is marked
 	 * with a special indicator for duplicate references.
 	 *
+	 * Every replacement also refreshes the representative key the reference is registered under in its
+	 * {@link BuilderReferenceBundle}. References created through {@link #createReference(String, int)} are
+	 * registered while still empty and are populated only afterwards, so without this refresh the bundle would keep
+	 * them filed under their initial - all defaults, usually {@code null} - representative values forever, and the
+	 * next reference created the same way would be rejected as indistinguishable from that stale entry.
+	 *
 	 * @param reference the reference to be added; must not be null
 	 */
 	private void addOrReplaceReferenceInternal(@Nonnull ReferenceContract reference) {
@@ -1218,6 +1224,15 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			this.references = new LinkedHashMap<>(16);
 		}
 		final ReferenceContract referenceWithAssignedInternalId = getReference(reference);
+		// re-key before the collection is touched, so that a genuine collision leaves the builder untouched
+		if (this.referenceBundles != null) {
+			final BuilderReferenceBundle referenceBundle = this.referenceBundles.get(
+				referenceWithAssignedInternalId.getReferenceName()
+			);
+			if (referenceBundle != null) {
+				referenceBundle.refreshRepresentativeKey(referenceWithAssignedInternalId);
+			}
+		}
 		this.references.compute(
 			referenceWithAssignedInternalId.getReferenceKey(),
 			(key, existingValue) -> {

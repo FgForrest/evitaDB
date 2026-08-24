@@ -254,7 +254,7 @@ class BuilderReferenceBundle {
 					"` with the same representative attributes " + Arrays.toString(
 					rrk.representativeAttributeValues()) +
 					" as it would be indistinguishable from existing reference with internal id " +
-					internalPk + "!"
+					previousValue + "!"
 			);
 		} else {
 			final RepresentativeReferenceKey previousRRK = this.internalPkToRepRefKeys.put(internalPk, rrk);
@@ -268,11 +268,77 @@ class BuilderReferenceBundle {
 					() -> "Inconsistent internal structure!"
 				);
 			}
-			this.usedReferenceKeys.compute(
-				rrk.referenceKey(),
-				(rk, cardinality) -> cardinality == null ? 1 : cardinality + 1
+			// only an internal primary key the bundle has not seen before adds to the number of references
+			// the reference key holds - builders re-register a reference on every commit, and re-registering
+			// or re-keying a reference the bundle already knows must leave the count alone
+			if (previousRRK == null) {
+				this.usedReferenceKeys.compute(
+					rrk.referenceKey(),
+					(rk, cardinality) -> cardinality == null ? 1 : cardinality + 1
+				);
+			}
+		}
+	}
+
+	/**
+	 * Refreshes the representative key the passed reference is registered under, so that the key reflects the
+	 * current state of the reference's representative attributes.
+	 *
+	 * References may be registered in this bundle before their attributes are known:
+	 * {@link InitialReferencesBuilder#createReference(String, int)} registers a brand new - and therefore still empty -
+	 * reference and only afterwards hands the key back so the caller can populate it. The key derived at
+	 * registration time is consequently built from the default (usually {@code null}) representative values, and
+	 * goes stale the moment the caller fills the attributes in. A stale key keeps occupying a slot no reference
+	 * matches anymore, and the next reference registered the very same way is rejected as indistinguishable from
+	 * it.
+	 *
+	 * The method is a no-op when the reference is not registered yet, or when it is registered under a generic
+	 * key - generic keys carry no attribute values and therefore cannot go stale. That tolerance is what
+	 * separates it from {@link #upsertDuplicateReference(ReferenceContract)}, which presumes duplicate mode and
+	 * presumes the caller intends to register: this one is safe to call for every reference on every write.
+	 * It never touches {@link #usedReferenceKeys} either, because re-keying an already registered reference
+	 * does not change how many references its reference key holds.
+	 *
+	 * @param reference the reference whose representative key is to be recomputed, must not be null
+	 * @throws InvalidMutationException when the recomputed key is already occupied by a different reference
+	 */
+	public void refreshRepresentativeKey(@Nonnull ReferenceContract reference) {
+		final ReferenceKey referenceKey = reference.getReferenceKey();
+		if (referenceKey.isUnknownReference() || this.representativeAttributeDefinition == null) {
+			// the bundle never entered duplicate mode - there are no attribute bearing keys to refresh
+			return;
+		}
+		final int internalPk = referenceKey.internalPrimaryKey();
+		final RepresentativeReferenceKey currentRRK = this.internalPkToRepRefKeys.get(internalPk);
+		if (currentRRK == null || currentRRK.representativeAttributeValues().length == 0) {
+			// the reference is either not registered yet, or registered under a generic key
+			return;
+		}
+		final RepresentativeReferenceKey newRRK = new RepresentativeReferenceKey(
+			referenceKey,
+			this.representativeAttributeDefinition.getRepresentativeValues(reference)
+		);
+		if (currentRRK.equals(newRRK)) {
+			// the representative attributes did not change - the registered key is still accurate
+			return;
+		}
+		// claim the new slot first, so that a collision leaves the bundle exactly as it was
+		final Integer collidingPk = this.repRefKeysToInternalPk.putIfAbsent(newRRK, internalPk);
+		if (collidingPk != null && !collidingPk.equals(internalPk)) {
+			// this is a problem - we have two different references with the same representative keys
+			throw new InvalidMutationException(
+				"Cannot update duplicate reference `" + reference.getReferenceName() +
+					"` to representative attributes " + Arrays.toString(newRRK.representativeAttributeValues()) +
+					" as it would be indistinguishable from existing reference with internal id " +
+					collidingPk + "!"
 			);
 		}
+		this.internalPkToRepRefKeys.put(internalPk, newRRK);
+		final Integer removedPk = this.repRefKeysToInternalPk.remove(currentRRK);
+		Assert.isPremiseValid(
+			removedPk == null || removedPk == internalPk,
+			() -> "Inconsistent internal structure!"
+		);
 	}
 
 	/**
@@ -317,10 +383,8 @@ class BuilderReferenceBundle {
 			// zero in the map means that there are duplicates for this generic key
 			this.repRefKeysToInternalPk.put(genericRRK, 0);
 			this.repRefKeysToInternalPk.put(newRRK, previousRefInternalPk);
-			this.usedReferenceKeys.compute(
-				genericRRK.referenceKey(),
-				(rk, cardinality) -> cardinality == null ? 2 : cardinality + 1
-			);
+			// the previous reference is only re-keyed here, so it stays counted exactly once; the incoming
+			// one is counted by the upsertDuplicateReference call that closes this method
 			this.internalPkToRepRefKeys.remove(genericInternalPk);
 			this.internalPkToRepRefKeys.put(previousRefInternalPk, newRRK);
 			// now we can add the new duplicate reference
