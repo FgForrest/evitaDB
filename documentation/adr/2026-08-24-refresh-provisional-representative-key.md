@@ -1,7 +1,7 @@
 ---
 title: Keep the reference bundle in step with the reference collection
 date: 2026-08-24
-updated: 2026-08-24 14:05
+updated: 2026-08-24 15:10
 status: accepted
 kind: fix
 issues: [1438, 1444]
@@ -101,10 +101,15 @@ Bisection points straight at `b8400f922`, and its guard is the line that stopped
   cancel this one out. **Revisit if** the guard is ever shown to be unnecessary — but the refresh in
   Option A still has to exist, because the guard is not what keys references correctly.
 
-### Option C — do not register in `createReference` until the reference is populated (declined)
+### Option C — defer only the *bundle registration* until the reference is populated (declined)
 
-Let `createReference` hand back a key without touching the bundle, and register once the caller
-commits the populated builder.
+Let `createReference` assign the internal primary key and add the reference to the collection exactly
+as it does today, but hold off on the `BuilderReferenceBundle` entry until the caller commits the
+populated builder.
+
+**This option does not touch when the internal primary key is assigned.** That assignment must stay
+eager and is not negotiable — see *The early-PK invariant* below. Only the bundle entry is at stake
+here.
 
 - **Pros:** removes the provisional key entirely rather than repairing it; no re-keying needed.
 - **Cons:** opens a window in which a reference exists in the collection but not in the bundle.
@@ -112,8 +117,20 @@ commits the populated builder.
   when the second reference for a business key arrives, and `getReference(key)` has to resolve
   between create and populate — the proxy calls it immediately. Both would need redesigning, and a
   caller that creates a reference and never commits it would leave the two structures permanently out
-  of step. **Revisit if** the bundle ever becomes derived at build time (as `ExistingReferencesBuilder`'s
+  of step. That last shape is not hypothetical: it is exactly the gap that produced #1444.
+  **Revisit if** the bundle ever becomes derived at build time (as `ExistingReferencesBuilder`'s
   effectively is) rather than maintained incrementally.
+
+#### The early-PK invariant
+
+`createReference` assigns the internal primary key **before** returning, and every alternative here
+preserves that. It is load-bearing for the proxy layer: a proxy can be built on top of an
+*uncommitted* `InitialEntityBuilder`, handed to client code, and that client can read a reference back
+off the uncommitted proxy, modify it and reinsert it. Every one of those steps needs a stable identity
+for a reference that has not been committed yet, and the internal primary key is that identity —
+there is nothing else to key it by. Any future redesign that defers the bundle must still assign the
+key eagerly, or the proxy round-trip loses the ability to address the reference it is holding.
+Covered by `EntityEditorProxyingFunctionalTest` / `EntityPojoProxyingFunctionalTest` (179 tests).
 
 ### Option D — call the existing `upsertDuplicateReference` from the choke point (declined)
 
@@ -171,12 +188,27 @@ that is cheap to refresh, and D is the right *shape* but wrong preconditions.
   `upsertWithDuplicateReferenceConversion` like `createReference` does; the internal id is resolved
   *before* the `Reference` is constructed, so the bundle files it under the very key the collection
   stores.
-- **That registration makes mutation emission order load-bearing.** Registering eagerly means two
-  still-empty references collide on their identical default representative values, so a stream ordered
-  `[Insert A, Insert B, Attr A, Attr B]` would break replay. Real streams interleave per reference —
-  `buildChangeSet()` emits each insert followed by its own attribute mutations, which `toMutation()`'s
-  contract states — and `shouldReplayItsOwnMutationStream` exists to keep that guaranteed rather than
-  incidental. Anyone reordering `buildChangeSet` must read that test first.
+- **That registration makes mutation emission order load-bearing, and the exposure is not only
+  internal.** Registering eagerly means two still-empty references collide on their identical default
+  representative values, so a mutation list ordered `[Insert A, Insert B, Attr A, Attr B]` is rejected
+  even though the two references are distinguishable once their attributes land. Scope, measured
+  rather than assumed:
+  - **The server / gRPC path is unaffected.** `EntityUpsertMutation.mutate(...)` delegates to
+    `Entity.mutateEntity(...)`, which builds its references through its own `mutateReferences(...)`
+    helper and never touches `InitialReferencesBuilder` or the bundle. A client submitting a batched
+    mutation list over gRPC does **not** reach this code — verified by applying that exact batched list
+    through both paths and watching only the builder one throw.
+  - **The exposed surface is the client-side `EntityBuilder.mutate(LocalMutation...)` API**, where a
+    caller hand-orders mutations rather than taking them from `buildChangeSet()`. That is broader than
+    "someone refactors `buildChangeSet`", which is how this note originally read.
+  - Anything derived from `buildChangeSet()` is safe by construction: it emits each insert followed by
+    its own attribute mutations, which `toMutation()`'s contract states, and
+    `shouldReplayItsOwnMutationStream` keeps that guaranteed rather than incidental. Anyone reordering
+    `buildChangeSet` must read that test first.
+
+  The failure is loud (`InvalidMutationException`) rather than silent, so a caller in the exposed shape
+  finds out immediately. Accepted on that basis; making the builder tolerate transient collisions means
+  deferring duplicate validation to `build()`, which is Option C's redesign.
 - The exception message in `upsertDuplicateReference` reported `internalPk` — the *incoming*
   reference — where it meant `previousValue`, the existing one. The production trace's "internal id
   -7" was the reference being added, not the one it collided with, which sent the investigation after
