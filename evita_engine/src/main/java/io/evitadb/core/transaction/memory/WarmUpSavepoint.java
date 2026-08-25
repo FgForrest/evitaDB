@@ -30,8 +30,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import java.util.Map.Entry;
 
 /**
  * Per-entity savepoint for the WARM_UP (bulk indexing) write path — the non-transactional counterpart of
@@ -122,12 +122,21 @@ public final class WarmUpSavepoint {
 	 */
 	private static volatile boolean enabled = Boolean.getBoolean(ENABLED_PROPERTY);
 	/**
-	 * Placeholder stored in {@link #firstTouches} for a participant that captured its own pre-image (see
-	 * {@link #claimFirstTouch(Object)}) and therefore has no memento for this savepoint to hand back. It keeps both
-	 * kinds of first touch in a single map — one allocation per savepoint instead of two — while still letting
-	 * {@link #releaseMementos()} tell the entries apart.
+	 * Placeholder stored in {@link #firstTouches} to mark a participant as already write-touched. A single shared
+	 * marker suffices for both kinds of touch: the map is purely a first-touch dedup set, and the mementos that have to
+	 * be handed back are kept in {@link #mementoOwners} / {@link #mementos} instead.
 	 */
-	private static final Object SELF_CAPTURED = new Object();
+	private static final Object TOUCHED = new Object();
+	/**
+	 * Expected number of participants one root entity mutation write-touches, used to size {@link #firstTouches} so it
+	 * does not have to rehash midway through.
+	 *
+	 * Measured rather than guessed: on the 972k-article reference corpus an initial size of 16 left
+	 * `IdentityHashMap.resize` at 0.54 % of ingest CPU, i.e. a typical entity outgrew the initial table every single
+	 * time and paid for a rehash plus the intermediate table as garbage. Sizing for the observed population allocates
+	 * the same final table once instead.
+	 */
+	private static final int EXPECTED_TOUCHED_PARTICIPANTS = 64;
 
 	/**
 	 * The inverse operations recorded while this savepoint is open, replayed in strict reverse on {@link #rollback()}.
@@ -141,11 +150,33 @@ public final class WarmUpSavepoint {
 	 * reached by reference, never re-created per savepoint, and two distinct instances must never share an entry even
 	 * if they happen to compare equal.
 	 *
-	 * The value is the memento a {@link Snapshotable} participant produced, or {@link #SELF_CAPTURED} for a participant
-	 * that captured its own pre-image. Either way the entry is what makes the first-touch check `O(1)` and
-	 * allocation-free from the second touch onwards.
+	 * Every value is {@link #TOUCHED}; the map answers only "has this instance been captured yet", which is what makes
+	 * the first-touch check `O(1)` and allocation-free from the second touch onwards.
 	 */
-	private final IdentityHashMap<Object, Object> firstTouches = new IdentityHashMap<>(16);
+	private final IdentityHashMap<Object, Object> firstTouches =
+		new IdentityHashMap<>(EXPECTED_TOUCHED_PARTICIPANTS);
+	/**
+	 * The {@link Snapshotable} participants whose memento this savepoint still has to hand back, in capture order, with
+	 * {@link #mementos} holding each one's memento at the same index.
+	 *
+	 * These exist so {@link #releaseMementos()} never has to iterate {@link #firstTouches}. An
+	 * {@link IdentityHashMap}'s iterator walks its whole TABLE rather than its entries and allocates an `Entry` per
+	 * step, so releasing a handful of participants out of a table sized for many meant walking every empty slot and
+	 * allocating along the way — measurably: 0.87 % of the ON pass's allocation was
+	 * `IdentityHashMap$EntryIterator$Entry`, with the walk itself around 0.6 % of ingest CPU. Two parallel lists make
+	 * the release `O(captures)` and allocation-free.
+	 *
+	 * Participants that captured their own pre-image through {@link #claimFirstTouch(Object)} hold no memento and are
+	 * deliberately absent from both lists.
+	 */
+	private final ArrayList<Snapshotable<Object>> mementoOwners =
+		new ArrayList<>(EXPECTED_TOUCHED_PARTICIPANTS);
+	/**
+	 * The memento captured for the {@link #mementoOwners} entry at the same index. A `null` element is legal — it is
+	 * whatever that participant's {@link Snapshotable#snapshot()} returned — which is precisely why the capture is
+	 * tracked here rather than by a non-null value in {@link #firstTouches}.
+	 */
+	private final ArrayList<Object> mementos = new ArrayList<>(EXPECTED_TOUCHED_PARTICIPANTS);
 
 	/**
 	 * Private — a savepoint is always obtained through {@link #open()}, which is what registers it as the thread's
@@ -297,14 +328,22 @@ public final class WarmUpSavepoint {
 	 * @param layer the participant about to be mutated
 	 */
 	public void recordFirstTouch(@Nonnull Snapshotable<?> layer) {
-		if (this.firstTouches.get(layer) != null) {
-			// already captured within this savepoint - the pre-savepoint pre-image is the one that must survive
+		if (this.firstTouches.putIfAbsent(layer, TOUCHED) != null) {
+			// already captured within this savepoint - the pre-savepoint pre-image is the one that must survive.
+			// Keyed on PRESENCE rather than on a non-null value, so a participant whose snapshot() legitimately
+			// returns null is still captured exactly once, as the contract above promises.
+			//
+			// The mark is set BEFORE snapshot() runs, which costs one map operation instead of two on the hot path.
+			// It is safe because this method is contractually called BEFORE the mutation: if snapshot() throws, the
+			// write it was about to guard never happens, so the participant being left marked-but-uncaptured cannot
+			// hide an applied change from a rollback - there is nothing to revert
 			return;
 		}
 		// the participant declares its own memento type; this savepoint only shuttles the opaque value back to it
 		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) layer;
 		final Object memento = snapshotable.snapshot();
-		this.firstTouches.put(layer, memento);
+		this.mementoOwners.add(snapshotable);
+		this.mementos.add(memento);
 		this.undoJournal.push(() -> snapshotable.restore(memento));
 	}
 
@@ -337,7 +376,7 @@ public final class WarmUpSavepoint {
 	 *                                   {@link #recordFirstTouch(Snapshotable)}
 	 */
 	public boolean claimFirstTouch(@Nonnull Object participant) {
-		if (this.firstTouches.putIfAbsent(participant, SELF_CAPTURED) == null) {
+		if (this.firstTouches.putIfAbsent(participant, TOUCHED) == null) {
 			// the two APIs are mutually exclusive PER PARTICIPANT: a Snapshotable already owns a pre-image mechanism
 			// this savepoint knows how to drive, and reaching it through the self-capture route would both skip that
 			// mechanism's activation (a journal-backed snapshot() is what ARMS the participant's own journal) and
@@ -477,15 +516,14 @@ public final class WarmUpSavepoint {
 	 * a transactional savepoint.
 	 */
 	private void releaseMementos() {
-		for (final Entry<Object, Object> entry : this.firstTouches.entrySet()) {
-			final Object memento = entry.getValue();
-			if (memento != SELF_CAPTURED) {
-				// the value was produced by this very participant's snapshot(), so it is its own memento type
-				@SuppressWarnings("unchecked")
-				final Snapshotable<Object> snapshotable = (Snapshotable<Object>) entry.getKey();
-				snapshotable.releaseMemento(memento);
-			}
+		// indexed loop over the capture lists rather than an iteration of `firstTouches`: the identity map's iterator
+		// walks its whole table and allocates an Entry per step, which is pure waste when the captures are already
+		// recorded in order (see the field JavaDoc for the measurements)
+		for (int i = 0; i < this.mementoOwners.size(); i++) {
+			this.mementoOwners.get(i).releaseMemento(this.mementos.get(i));
 		}
+		this.mementoOwners.clear();
+		this.mementos.clear();
 		this.firstTouches.clear();
 	}
 

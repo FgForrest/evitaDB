@@ -87,8 +87,10 @@ final class WarmUpMapJournal {
 		@Nonnull Map<K, V> delegate,
 		K key
 	) {
-		final boolean present = delegate.containsKey(key);
-		final V previous = present ? delegate.get(key) : null;
+		// one lookup in the common case: a non-null value already proves presence, and the second lookup is only
+		// needed to tell "mapped to null" from "absent" - which a delegate that permits null values may still require
+		final V previous = delegate.get(key);
+		final boolean present = previous != null || delegate.containsKey(key);
 		savepoint.push(() -> {
 			if (present) {
 				delegate.put(key, previous);
