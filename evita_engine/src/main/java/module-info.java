@@ -87,6 +87,7 @@ module evita.engine {
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;
+	exports io.evitadb.index.fulltext.analysis;
 	exports io.evitadb.index.mutation;
 	exports io.evitadb.spi.store.catalog.chunk;
 	exports io.evitadb.spi.store.catalog.header;
@@ -130,6 +131,12 @@ module evita.engine {
 	requires proxycian.bytebuddy;
 	requires evita.roaringbitmap;
 	requires zero.allocation.hashing;
+	// `org.apache.lucene.analysis.common` requires the core module NON-transitively, so the core has to
+	// be required explicitly here - the full-text analysis package uses `Analyzer`, `TokenStream` and the
+	// token attributes straight from the core.
+	requires org.apache.lucene.core;
+	requires org.apache.lucene.analysis.common;
+	requires org.apache.lucene.analysis.stempel;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;

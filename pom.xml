@@ -130,6 +130,15 @@
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
+		<!--
+			Deliberately frozen, and NOT a candidate for routine bumps (see the `ignore` entry in
+			.github/dependabot.yml). The Lucene analysis chain defines the CONTENT of the future
+			full-text term dictionary: a minor upgrade may change a stop-word list or a stemmer's
+			output, which changes the terms produced for an unchanged attribute value - i.e. it is a
+			catalog reindex, not a dependency bump. All three lucene artifacts are pinned to this one
+			property so patch levels can never be mixed across them.
+		-->
+		<lucene.version>9.12.3</lucene.version>
 		<junit.jupiter.version>6.1.2</junit.jupiter.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
@@ -247,6 +256,27 @@
 				<groupId>com.carrotsearch</groupId>
 				<artifactId>hppc</artifactId>
 				<version>0.10.0</version>
+			</dependency>
+			<!--
+				Lucene analysis chain - consumed only by evita_engine (see the module boundary rationale
+				in the full-text analyzer package javadoc: the dependency must never reach the client
+				driver). All three artifacts share ${lucene.version} so that a mixed patch level, which
+				would silently mix analyzer behaviour, cannot arise.
+			-->
+			<dependency>
+				<groupId>org.apache.lucene</groupId>
+				<artifactId>lucene-core</artifactId>
+				<version>${lucene.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.lucene</groupId>
+				<artifactId>lucene-analysis-common</artifactId>
+				<version>${lucene.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.lucene</groupId>
+				<artifactId>lucene-analysis-stempel</artifactId>
+				<version>${lucene.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>net.openhft</groupId>
