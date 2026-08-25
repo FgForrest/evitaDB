@@ -6,8 +6,9 @@ touched between opening and closing the savepoint and can revert exactly those c
 surrounding transaction keeps running.
 
 This document describes the **snapshot / restore** lifecycle introduced for savepoints, the
-`Snapshotable` SPI a diff layer implements to participate, and the two memento strategies used in
-practice.
+`Snapshotable` SPI a diff layer implements to participate, the two memento strategies used in practice,
+and the [warm-up counterpart](#the-warm-up-counterpart) that provides the same per-entity guarantee on
+the non-transactional bulk-indexing write path, where there are no diff layers to snapshot.
 
 ---
 
@@ -26,18 +27,22 @@ shot. It replaced the earlier hand-written per-executor undo actions.
 
 ```
 execute(rootMutation)
-  ├─ maintainer.openSavepoint()                 // only when atomicRollback && a transaction is active
+  ├─ open a savepoint                    // only when atomicRollback -- which kind follows the write path
+  │    ├─ transaction active → maintainer.openSavepoint()
+  │    └─ warm-up            → WarmUpSavepoint.open()
   ├─ apply mutation (cascades through index + cross-collection writes)
-  ├─ success → commitSavepoint(savepoint)       // keep the changes, drop bookkeeping
-  └─ failure → rollbackSavepoint(savepoint)     // revert this entity's diff-layer changes, keep the tx
+  ├─ success → commit the savepoint      // keep the changes, drop bookkeeping
+  └─ failure → roll the savepoint back   // revert this entity's changes, keep going
 ```
 
-A savepoint is only opened on the **atomic, transaction-bound** path. The two contexts that opt out:
+A savepoint is only opened when **atomic rollback is requested**. **WAL replay** opts out
+(`atomicRollback == false`): it discards the whole in-memory transaction on failure rather than
+recovering per-entity.
 
-- **Warm-up (non-transactional) writes** go in place to the index delegate -- there is no diff layer to
-  snapshot, so a failed entity is left partially applied and must be retried by rebuilding.
-- **WAL replay** (`atomicRollback == false`) discards the whole in-memory transaction on failure rather
-  than recovering per-entity.
+The rest of this document describes the transaction-bound savepoint. Warm-up (non-transactional) writes
+go in place to the index delegate and have no diff layer to snapshot, so they are reverted by a
+different mechanism built on the same journal strategy -- see
+[The warm-up counterpart](#the-warm-up-counterpart).
 
 ---
 
@@ -183,6 +188,222 @@ representation -- so the common commit path pays nothing.
 
 ---
 
+## The warm-up counterpart
+
+**Primary class:** `WarmUpSavepoint` (`io.evitadb.core.transaction.memory`). Its type JavaDoc is the
+authoritative design summary; this section is the map.
+
+Everything above rests on the maintainer: it owns the diff layers, it is the write hook that captures
+them, and it is the choke point that refuses a layer it cannot revert. In WARM_UP (bulk indexing) there
+is no transaction and therefore no maintainer at all -- `Transaction.getTransactionalLayerMaintainer()`
+is `null` and every structure takes its **delegate branch**, writing its real state in place. A
+mid-write failure used to leave the indexes half-mutated with no way back, which is the orphan-key gap
+this mechanism closes.
+
+`WarmUpSavepoint` supplies exactly what the maintainer supplied, and nothing else:
+
+| The maintainer provides | Warm-up replacement |
+|-------------------------|---------------------|
+| Ownership -- "a savepoint is open" | A `ThreadLocal` holding the open savepoint; `getIfOpen()` returns `null` when none is. |
+| The write hook that captures on first touch | Each participant calls the savepoint itself, at the entry of its own mutator. |
+| Per-layer memento bookkeeping | One `IdentityHashMap` of write-touched participants, plus a single shared `UndoJournal`. |
+| The defensive throw on an unrevertible layer | `verifyRollbackSupported(...)`, driven by a declaration each structure makes. |
+
+`rollback()` replays the journal in strict reverse and then releases every captured memento;
+`commit()` discards the journal entries without running them and releases the mementos. Both **detach
+from the thread first**, so the restore / release work -- which runs through the participants' ordinary
+mutators -- cannot re-record into the savepoint that is closing.
+
+### Why one journal is enough for every participant
+
+Each recorded inverse is an **absolute restore of the state its own operation touched**. Between two
+participants the interleaving therefore carries no meaning, which is what lets first-touch mementos and
+per-operation inverses share a single journal. *Within* one participant the order does carry meaning,
+and it is what makes per-operation inverses correct: replayed newest-first, the earliest-pushed inverse
+for a given slot runs last and wins, so the pre-savepoint value survives however many times that slot
+was rewritten inside the savepoint. This is the same absolute-inverse rule the transactional
+`UndoJournal` already requires.
+
+### The four recording APIs
+
+| API | For a participant that... | Dedup |
+|-----|---------------------------|-------|
+| `recordFirstTouch(Snapshotable)` | already implements `Snapshotable` -- the memento mechanism the maintainer drives is reused verbatim | first touch only |
+| `claimFirstTouch(Object)` + `push(Runnable)` | is **not** a `Snapshotable` and captures its own `O(1)` pre-image | first touch only |
+| `push(Runnable)` | must capture per operation, because its whole-state pre-image is too expensive | none |
+| `writeLayer(creator, baseNode)` | is its **own** diff layer -- the B+ tree nodes | first touch only |
+
+The two first-touch APIs are **mutually exclusive per participant**: `claimFirstTouch` throws
+`GenericEvitaInternalError` when handed a `Snapshotable`, because routing one through the self-capture
+path would skip the activation its own memento mechanism performs (for a journal-backed `snapshot()`,
+the snapshot is what *arms* the journal) and would leave `releaseMemento` with nothing to hand back.
+
+Every recording call must happen **before** the forward mutation, and every inverse must be **total** --
+it may never throw for a benign reason. See [Rollback failure is fatal](#rollback-failure-is-fatal).
+
+`writeLayer` is the packaged form of the first row, for the roughly hundred B+ tree node mutation sites
+that repeat `layer = getOrCreateTransactionalMemoryLayer(this); if (layer == null) { mutate own fields }
+else { mutate the layer }`. It resolves the layer exactly as before and folds the first-touch record into the
+layer-null branch, so the mutator reaches the savepoint without naming it. Its `baseNode` flag is not a
+transaction test -- it says whether the instance may own a diff layer at all.
+
+### Which granularity a participant picks
+
+It follows from the **cost of the pre-image**, not from the participant's shape:
+
+- **First touch**, when the participant's *entire* mutable state has an `O(1)` pre-image -- a scalar, or
+  a wrapper whose writes replace an array *reference* rather than mutating the array in place. One
+  capture covers every write in the savepoint, and the journal stays bounded by participants rather than
+  by writes.
+- **Per operation**, when it does not. The collection wrappers mutate a large delegate `HashMap` /
+  `HashSet` / `ArrayList` in place, so a whole-state pre-image is a deep copy of the accumulated base
+  structure -- the same `O(N²)` cliff the journal strategy exists to avoid. They capture the one slot
+  each operation overwrites instead.
+
+### Per-family strategies
+
+| Family | Strategy | Pre-image |
+|--------|----------|-----------|
+| `TransactionalReference`, `TransactionalBoolean` | first touch, self-captured | the single held value |
+| `TransactionalIntArray`, `TransactionalObjArray`, `TransactionalComplexObjArray` | first touch, self-captured | the whole delegate array **reference** (writes always allocate a fresh array, so the outgoing reference is already an immutable snapshot) |
+| `TransactionalMap`, `PersistentTransactionalMap`, `TransactionalSet`, `TransactionalList` | per operation | the one slot / membership each operation overwrites (`WarmUpMapJournal` for the map pair). `clear()` is the exception -- it copies the whole delegate, being a whole-structure operation anyway. Iterators and views are swapped for journalling wrappers while a savepoint is open. |
+| `TransactionalBitmap` | first touch, self-captured | a copy-on-write `PersistentRoaringBitmap.clone()` -- pointer work proportional to containers, not to cardinality |
+| B+ tree nodes and `UnorderedLookupTree` nodes | first touch, via `writeLayer` | each node's own `Snapshotable` memento, bounded by block size |
+| Composite index layers -- `CatalogIndex`, `AttributeIndex`, `ChainIndex`, the facet and price index layers | *(nothing to record)* | their diff layer is pure in-transaction bookkeeping that only a commit-merge consumes; outside a transaction there is no state of their own to rewind, and the real state sits in contained structures that journal their own writes |
+| Memoized caches -- `FilterIndex`, `SortIndex`, `OwnerUniqueIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes | first touch | *none* -- the inverse is a re-invalidation, see [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
+| Index population counters (`IndexPopulation`) | first touch, self-captured | a clone of the fixed-size per-`(EntityIndexType, Scope)` count array |
+| `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write -- see below |
+
+`DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its
+indexes, and because it is the one participant that needs **both** granularities at once.
+
+Its memento is `DataStoreChangesMemento(int mark)`, an `O(1)` position in its own internal journal, and
+its `snapshot()` is what lazily allocates that journal -- which is precisely why `recordFirstTouch` must
+run at the *entry* of a mutating method rather than after the fact. That mark rewinds the layer's
+**in-memory** state: the dirty-index bookkeeping and the trapped storage-part cache.
+
+It does **not** rewind a write that reached the persistence service, and root entity mutations issue
+exactly those: they run with `trapChanges == false`, so `ContainerizedLocalMutationExecutor#commit`
+calls `DataStoreChanges#putStoragePart` / `#removeStoragePart`, which write the record through. That
+loop can fail part-way through an entity whose body spans several parts -- an attributes part written,
+the references part throwing -- and the parts already written would otherwise stay changed in the trunk
+while the indexes rolled back cleanly, i.e. a half-updated, fetchable entity body. Note that the rollback
+would *report success* in that case: the poison backstop only fires when the rollback itself throws.
+
+So each direct write additionally reads the record's pre-image before overwriting it and pushes an
+absolute restore into the open savepoint -- re-put what was there, remove what was not (and for a part
+whose primary key is assigned inside the write, remove whatever key the write ended up filing it under).
+The restores are absolute, so strict-reverse replay makes the earliest capture for a record win, and the
+record ends at its pre-savepoint value however many times the entity rewrote it. When no savepoint is
+open this costs nothing beyond the `ThreadLocal` read the first-touch record already needed; with one
+open it is one storage read per direct write, which for a newly inserted entity misses in the offset
+index without deserializing anything.
+
+### The single-open-site invariant
+
+**`WarmUpSavepoint.open()` has exactly one call site**, the mutation bracket in
+`LocalMutationExecutorCollector`, and it is taken on the branch where the transactional maintainer is
+absent. Since `Transaction#getTransactionalLayerMaintainer()` is `null` exactly when
+`Transaction#isTransactionAvailable()` is `false`, it follows that:
+
+> While a warm-up savepoint is open, `!isTransactionAvailable()` is **unconditionally true**.
+
+A great deal rests on this. Every index mutator whose journalling sits behind an
+`if (!isTransactionAvailable())` gate is correct only because that gate is always taken while a
+savepoint is open, and the delegate-branch backstop below guards only the no-transaction path for the
+same reason. A second opening site would invalidate all of it at once, so the invariant is **asserted
+rather than assumed**: `WarmUpRollbackConformanceTest` scans the engine sources and pins the single
+opening site, the maintainer-absence guard on it, and an allowlist of the `io.evitadb.index` sources
+permitted to branch on transaction availability at all -- each allowlist entry carrying the reason its
+gates are not a rollback hole.
+
+### Enforcement -- declared, not inferred
+
+Journalling is a **per-structure obligation** and warm-up has no maintainer to enforce it centrally.
+The backstop is `TransactionalLayerCreator#supportsWarmUpRollback()`, which **defaults to `false`**:
+
+- `WarmUpSavepoint.verifyRollbackSupported(...)` is called from
+  `Transaction#getOrCreateTransactionalMemoryLayer(...)` at the moment it is about to hand back `null`
+  -- i.e. exactly when a structure takes its delegate branch.
+- With a savepoint open and the declaration absent, the mutation **fails immediately**.
+
+Exactly one of two conditions earns a `true`: the delegate branch **journals what it writes**, or it
+**writes nothing of its own** (the composite index layers in the table above). The declaration is
+*honoured, not verified* -- returning `true` without meeting one of them silently reintroduces the gap.
+The `false` default is what makes the mechanism safe by construction: a structure ported to the warm-up
+write path without journalling is caught the first time a bracketed mutation reaches it, rather than
+discovered later as an index a rollback quietly failed to rewind.
+
+> **Why the flag is read before the `ThreadLocal`.** The three short-circuits in
+> `verifyRollbackSupported` widen in cost: a static `volatile boolean`, then one `ThreadLocal` read,
+> then an interface call. This sits on the bulk-ingest write path, so with the mechanism switched off
+> the check costs one perfectly-predicted load on a branch that was returning `null` anyway, and never
+> touches the `ThreadLocal` machinery.
+
+### Thread confinement
+
+The savepoint lives in a `ThreadLocal` rather than being passed down the call chain. The warm-up write
+path fans out through the whole index-mutation machinery, and plumbing a context parameter through it
+is the structural scattering that made the historical hand-written undo actions unmaintainable. It is
+sound because `CatalogState.WARMING_UP` is contractually single-threaded -- a catalog being bulk loaded
+has exactly one writer. Concurrent warm-up writers remain unsupported; the savepoint does not newly
+defend against them, and the type is deliberately not thread-safe.
+
+### Accepted residues
+
+A warm-up rollback rewinds index and storage state. Four things it deliberately does **not** restore:
+
+1. **Sequences are not rewound.** The primary-key, index-key and internal-price-id sequences guarantee
+   uniqueness and monotonicity, not contiguity -- an `AtomicInteger` cannot be un-consumed. A value drawn
+   for an entity whose mutation is then reverted leaves a harmless gap. See the field JavaDoc on
+   `EntityCollection#pkSequence`.
+2. **Memoized caches are invalidated, not restored.** Every derived cache -- filter formulas, sort-array
+   caches, memoized cardinalities, enveloping-range caches -- has its inverse push a *re-invalidation*
+   rather than the captured value. The underlying structures are restored absolutely from their own
+   mementos, so a dropped memo costs one recomputation, whereas a restored one would have to be *trusted*
+   to have been valid, which nothing at the restore site can establish.
+3. **Handles taken before the rollback go stale.** Because several restores are reference swaps, a caller
+   holding e.g. a bitmap obtained from `TransactionalBitmap#getRoaringBitmap()` before the rollback keeps
+   the rewound-away instance. This is the same contract the array wrappers have; warm-up readers fetch
+   through the accessor per call.
+4. **Storage is rewound by content, not by bytes.** The store is append-only, so putting a record's
+   pre-image back appends another record rather than un-writing the failed one, and dropping a record the
+   mutation created marks it removed rather than reclaiming its bytes. What a reader sees is exactly the
+   pre-savepoint state; what the file holds is the failed writes *and* their inverses, until the next
+   compaction. The same applies to the write `KeyCompressor`: a key first seen by a write that is then
+   reverted keeps its assigned id, because the compressor guarantees ids are unique, not that every id is
+   in use -- the same harmless gap as an un-consumed sequence value.
+
+Lazily created cache helpers (`SortIndexChanges`, `ChainIndexChanges`) installed inside a rolled-back
+mutation are also left in place. They hold nothing but rebuildable caches -- which journal themselves --
+so an installed instance is indistinguishable from the `null` slot it replaced.
+
+### Rollback failure is fatal
+
+A transactional savepoint whose rollback fails is survivable: the diff layers are thrown away with the
+transaction anyway. A warm-up rollback that fails is not, because the writes went **in place** -- there
+is no layer to discard, and the live indexes are left half-mutated with no second chance.
+
+`LocalMutationExecutorCollector` therefore **poisons the data store buffers** before recording the
+failure: the catalog-level buffer and the buffer of every entity collection that took part in the
+(possibly cross-collection) mutation refuse every future flush, so no later flush can persist state that
+could not be rewound. The original mutation failure stays the exception thrown to the caller; the
+rollback failure is attached to it as a suppressed cause. This is why every journalled inverse must be
+total.
+
+### Enablement
+
+The bracket is opened only when `WarmUpSavepoint.isEnabled()` says so. That flag is initialized from the
+internal system property `evitadb.warmUpAtomicity.enabled` (`WarmUpSavepoint.ENABLED_PROPERTY`) and is
+otherwise changed only by `setEnabled(boolean)`, which exists so tests can exercise both behaviours in
+one JVM -- it is process-wide, so a test that flips it must restore it. Whether and how the mechanism is
+surfaced on the public configuration API is decided independently of the mechanism itself; the code path
+described above is the same either way. With the bracket not opened, the warm-up write path behaves
+exactly as it did before this mechanism existed: a failed entity mutation is left partially applied and
+must be retried by rebuilding.
+
+---
+
 ## Testing
 
 Savepoint-capable layers are exercised by the `LongRunningSavepoint*` fuzz tests under
@@ -191,6 +412,33 @@ Savepoint-capable layers are exercised by the `LongRunningSavepoint*` fuzz tests
 random burst of mutations, then either commits or rolls back and compares the layer against a reference
 model -- catching memento-independence and nested-boundary violations that only surface after many
 generations.
+
+Those suites extend `AbstractSavepointFuzzTest`, a **mode-parametrized** harness: each suite declares
+one generation factory and inherits four tests -- transactional savepoint rollback and commit, plus the
+warm-up savepoint rollback and commit driven against the same reference model. The two exceptions carry
+the reason in their JavaDoc (a diff layer with no warm-up counterpart, and the framework's own
+self-validation suite, which must not be built on the helpers it validates).
+
+Every generation also asserts a **mid-savepoint read**: after the mutations and before the rollback or
+commit, the structure is read through its public views and must differ from the pre-savepoint oracle.
+This is what catches a memoized cache the rollback forgot to invalidate -- a read taken only *after* the
+rollback repopulates that cache from correct state and never notices.
+
+The warm-up mechanism additionally has:
+
+| Test | Pins |
+|------|------|
+| `WarmUpSavepoint*RollbackTest` (per structure family) | the journalling itself: a savepoint opened directly, mutations applied, rollback compared against the pre-image |
+| `WarmUpSavepointTest` | the savepoint's own contract -- nesting rejected, detach-before-work, the `Snapshotable` / self-capture exclusivity |
+| `WarmUpRollbackBackstopTest` | that an undeclared structure mutated inside a savepoint fails loudly |
+| `WarmUpRollbackConformanceTest` | the source-level invariants: the single opening site, its maintainer-absence guard, the `supportsWarmUpRollback()` declarations, and the transaction-availability allowlist |
+| `EntityAtomicMutationRollbackWarmUpFunctionalTest` | the end-to-end behaviour -- a failed entity in a bulk load leaves neither index entries nor a storage body behind |
+
+Because the enablement flag is a process-wide static and the module runs test classes concurrently, the
+warm-up fuzz methods take a JUnit resource lock (`@RequiresDefaultWarmUpWritePath` in `READ` mode marks
+the suites that bulk-load warming-up catalogs; the harness's warm-up methods take the same resource in
+`READ_WRITE`). Since they serialize, those methods run on a seconds budget (`-DwarmUpFuzz.seconds`)
+rather than the minute-bounded budget the transactional methods use.
 
 See [testing.md](testing.md) for the general generational / property-based testing pattern these build
 on.

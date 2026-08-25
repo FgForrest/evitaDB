@@ -2,13 +2,15 @@
 
 > **Scope.** This document describes how evitaDB translates incoming entity mutations into index
 > modifications. It covers the orchestrator class, per-domain mutators (references, attributes,
-> prices, hierarchy), ordering guarantees, undo/rollback mechanics, and cross-reference
-> propagation. For the index types themselves see [index-hierarchy.md](index-hierarchy.md); for
-> the data structures stored inside each index see [data-structures.md](data-structures.md); for
-> schema flags that control which indexes exist see [schema-settings.md](schema-settings.md).
+> prices, hierarchy), ordering guarantees, and cross-reference propagation. For the index types
+> themselves see [index-hierarchy.md](index-hierarchy.md); for the data structures stored inside
+> each index see [data-structures.md](data-structures.md); for schema flags that control which
+> indexes exist see [schema-settings.md](schema-settings.md). Reverting a failed entity mutation
+> is **not** the index layer's job -- see [Per-Entity Atomicity](#per-entity-atomicity) for what
+> owns it instead.
 >
 > **Source package.**
-> `io.evitadb.index.mutation.index` (module `evita_engine`).
+> `io.evitadb.index.mutation.local` (module `evita_engine`).
 
 ---
 
@@ -19,6 +21,8 @@
 3. [Attribute Mutations](#attribute-mutations)
 4. [Price Mutations](#price-mutations)
 5. [Hierarchy Mutations](#hierarchy-mutations)
+6. [Expression-Based Conditional Indexing](#expression-based-conditional-indexing-facetedpartially--bucketedpartially)
+7. [Histogram Mutations](#histogram-mutations-conditional-bucketed-indexing)
 
 ---
 
@@ -31,21 +35,21 @@ The executor is the single entry point for translating a batch of `LocalMutation
 output of the data-mutation layer) into concrete index modifications across every relevant
 `EntityIndex`.
 
-### Lifecycle: prepare / applyMutation / commit
+### Lifecycle: prepare / applyMutation / applyChanges / commit
 
 ```mermaid
 flowchart TD
-    START([Transaction receives mutations]) --> PREPARE
+    START([Collector receives mutations]) --> PREPARE
     PREPARE["prepare(localMutations)"]
-    PREPARE -->|" Ensure GlobalEntityIndex\nexists, insert PK,\nbootstrap compounds "| LOOP
+    PREPARE -->|" Ensure GlobalEntityIndex\nexists, insert PK; if the PK\nwas new, bootstrap compounds\nand seed hierarchy "| LOOP
     LOOP{"For each LocalMutation"}
     LOOP -->|next| APPLY["applyMutation(mutation)"]
-    APPLY --> DISPATCH{Mutation type?}
+    APPLY --> DISPATCH{"LocalMutationHandlerRegistry\nresolves a handler"}
     DISPATCH -->|SetPriceInnerRecordHandling| PIRH[updatePriceHandlingForEntity]
-    DISPATCH -->|PriceMutation| PRICE[updatePriceIndex\n+ cross-ref propagation]
+    DISPATCH -->|PriceMutation| PRICE[updatePriceIndex\n+ cross-ref fan-out]
     DISPATCH -->|ParentMutation| HIER[updateHierarchyPlacement]
-    DISPATCH -->|ReferenceMutation| REF["updateReferences\n+ cross-ref propagation"]
-    DISPATCH -->|AttributeMutation| ATTR["updateAttribute\n+ cross-ref propagation"]
+    DISPATCH -->|ReferenceMutation| REF["updateReferences\n+ cross-ref fan-out"]
+    DISPATCH -->|AttributeMutation| ATTR["updateAttribute\n+ cross-ref fan-out"]
     DISPATCH -->|AssociatedDataMutation| NOP[no-op]
     DISPATCH -->|SetEntityScopeMutation| SCOPE["removeEntityFromIndexes\n+ addEntityToIndexes"]
     PIRH --> LOOP
@@ -55,31 +59,35 @@ flowchart TD
     ATTR --> LOOP
     NOP --> LOOP
     SCOPE --> LOOP
-    LOOP -->|done| COMMIT
+    LOOP -->|done| FINISH
+    FINISH["finishLocalMutationExecutionPhase()"]
+    FINISH -->|" Run deferred expression\nre-evaluations "| CHANGES
+    CHANGES["applyChanges()"]
+    CHANGES -->|" Process locale adds/removes,\nremove entity if dropped,\nrecord index activity,\nclean empty indexes "| COMMIT
     COMMIT["commit()"]
-    COMMIT -->|" Process locale adds/removes,\nremove entity if dropped,\nclean empty indexes "| DONE([End])
+    COMMIT -->|" No-op promote --\nchanges were finalized above "| DONE([End])
 ```
 
 #### `prepare()`
 
-Called once before the mutation batch. It:
+Called once before the mutation batch. It obtains (or creates) the
+<Term location="/documentation/developer/indexes/overview.md" name="Global Entity Index">`GlobalEntityIndex`</Term>
+for the entity's current <Term location="/documentation/developer/indexes/overview.md" name="scope">scope</Term>
+and inserts the entity's primary key into it. The insert is idempotent, and **the rest of `prepare()`
+runs only when the primary key was actually new**:
 
-1. Obtains (or creates) the
-   <Term location="/documentation/developer/indexes/overview.md" name="Global Entity Index">`GlobalEntityIndex`</Term>
-   for the entity's current <Term location="/documentation/developer/indexes/overview.md" name="scope">scope</Term>.
-2. Inserts the entity's primary key into the global index (idempotent; skipped if already
-   present).
-3. Bootstraps the initial suite of **sortable attribute compounds** for non-localized attributes.
+1. Bootstraps the initial suite of **sortable attribute compounds** for non-localized attributes.
    Compounds are created even when the attribute values are all `null`; they are placeholders that
    will be filled in as attribute mutations arrive.
-4. If the entity schema declares `isWithHierarchy()`, calls `setParent` with a `null` parent
+2. If the entity schema declares `isWithHierarchy()`, calls `setParent` with a `null` parent
    (placing the entity as an orphan root) so the hierarchy index is aware of the entity from the
    start.
-5. Registers undo actions for every change if the executor was created with `undoOnError = true`.
 
 #### `applyMutation()`
 
-The central dispatcher. Each `LocalMutation` is pattern-matched to its handler:
+The central dispatcher. `LocalMutationHandlerRegistry` resolves each `LocalMutation` to its
+`LocalMutationHandler` (the `*Handler` / `*FanOut` classes in the `local.handler` sub-package), which
+then calls into the per-domain mutators:
 
 | Mutation type                       | Handler method                    | Cross-ref propagation? |
 |-------------------------------------|-----------------------------------|:----------------------:|
@@ -107,61 +115,87 @@ means the mutation is also applied to every other
 that the entity participates in. For example, when an
 <Term location="/documentation/developer/indexes/overview.md" name="entity attribute">**entity-level**</Term>
 attribute changes, the new value must appear in the reduced indexes of *every* reference the
-entity holds, not just the global index. This is achieved by calling
-`ReferenceIndexMutator.executeWithAllReferenceIndexes` with a `ReferenceIndexConsumer` callback
-that applies the same mutation to each reduced index. Only **entity-level** attributes and prices
-are propagated this way.
+entity holds, not just the global index. This is achieved through the executor's fan-out helpers
+(`fanOutPerReference` / `fanOutUniquePerIndex`) with a `ReferenceIndexConsumer` callback that applies
+the same mutation to each reduced index. Only **entity-level** attributes and prices are propagated
+this way.
 <Term location="/documentation/developer/indexes/overview.md" name="reference attribute">Reference-level
 attributes</Term>
 are specific to a single reference relation and do not propagate to other references' reduced
 indexes.
 
-#### `commit()`
+#### `finishLocalMutationExecutionPhase()`
 
-Called once after the mutation batch. It:
+Runs and clears the deferred expression re-evaluation actions (facet and histogram) collected while
+the mutations were applied. It must run after the storage writer has processed the current mutation,
+so that expression evaluation reads updated values.
+
+#### `applyChanges()`
+
+Called once at the end of the mutation batch, for the work that can only be resolved once every local
+mutation for the entity has been applied. It:
 
 1. Processes locale additions and removals that were accumulated during the batch (via
    `containerAccessor.getAddedLocales()` / `getRemovedLocales()`).
-2. Removes the entity from the global index if `containerAccessor.isEntityRemovedEntirely()`
+2. Removes the entity from the indexes if `containerAccessor.isEntityRemovedEntirely()`
    returns `true`.
-3. Iterates all `accessedIndexes` and removes any that have become empty (except the LIVE-scope
-   global index, which is never removed).
+3. Iterates all `accessedIndexes`, records index-maintenance activity against each, and removes any
+   that have become empty (except the LIVE-scope global index, which is never removed).
 
-### Undo / Rollback
+This work historically lived in `commit()`. It was moved because the collector invoked `commit()`
+from a step that bypassed rollback on failure, so a throw here produced a half-committed index.
+`LocalMutationExecutorCollector` now calls `applyChanges()` inside the protected execution phase --
+before the commit / rollback decision -- so a failure is caught and routed to the rollback described
+below.
 
-When the executor is created with `undoOnError = true`, every index modification registers its
-inverse as a `Runnable` in a `LinkedList<Runnable> undoActions`. The `rollback()` method executes
-these actions **in reverse order** (LIFO):
+#### `commit()`
 
-```java
-for(int i = this.undoActions.size() - 1;
-i >=0;i--){
-	this.undoActions.
+A no-op promote on the index side: the changes were already finalized in `applyChanges()`, and the
+transactional diff layer is published when the surrounding transaction commits.
 
-get(i).
+### Per-Entity Atomicity
 
-run();
-}
-```
+**There is no `rollback()` on this executor, and no `undoActions` list.** Both existed once -- an
+inverse `Runnable` registered by every index modification, scattered across the mutators -- and were
+deleted in `#569`. Reverting a failed entity mutation is now owned entirely by
+`LocalMutationExecutorCollector`, which brackets each **root** entity mutation with a savepoint before
+dispatching it and rolls that savepoint back when the mutation fails. This is what lets a caller skip
+one failed entity in a batch upsert (a uniqueness conflict, say) and keep writing.
 
-This is a *best-effort* rollback within the scope of a single entity mutation batch. It does not
-replace the catalog-level [STM transaction
-mechanism](../../user/en/deep-dive/transactions.md) but provides a fast undo path when a later
-mutation in the same batch fails validation.
+The reason it sits there rather than here is blast radius: a root mutation cascades through this
+executor *and* through reflected-reference and index-trigger writes into other collections. Only the
+collector sees the whole cascade, so only it can revert exactly that entity's changes in one shot.
+
+Two savepoint kinds exist, matching the two write paths:
+
+| Write path | Mechanism | What is reverted |
+|------------|-----------|------------------|
+| **ALIVE** (transactional) | `TransactionalLayerMaintainer.openSavepoint()` -- `#569` | every diff layer the mutation touched, restored from a memento the maintainer captured on first write-touch. Large accumulating layers use the `UndoJournal` strategy from `#1252` so capture is `O(1)` and restore costs one entity's delta. |
+| **WARM_UP** (bulk indexing) | `WarmUpSavepoint` -- `#1432` | the in-place writes themselves, replayed from inverses each structure journals as it writes. There is no maintainer and no diff layer on this path. Gated by an internal enablement flag. |
+
+**WAL replay** opts out of both: it discards the whole in-memory transaction on failure rather than
+recovering per-entity.
+
+For the mechanism itself -- the `Snapshotable` SPI, the two memento strategies, the warm-up
+journalling contract and its enforcement -- see
+[stm/savepoints.md](../stm/savepoints.md). The index layer's only obligation is that its data
+structures participate correctly; nothing in this document's mutators registers an inverse of its own.
 
 ### Key Fields
 
-| Field                           | Purpose                                                    |
-|---------------------------------|------------------------------------------------------------|
-| `entityIndexCreatingAccessor`   | Creates / retrieves `EntityIndex` instances                |
-| `catalogIndexCreatingAccessor`  | Creates / retrieves `CatalogIndex` instances               |
-| `entityPrimaryKey` (LinkedList) | Stack of PK resolvers; top element is active               |
-| `accessedIndexes`               | All `EntityIndexKey`s touched during mutation; used for    |
-|                                 | empty-index cleanup in `commit()`                          |
-| `undoActions`                   | LIFO list of inverse operations; `null` when undo disabled |
-| `memoizedRepresentativeAttrs`   | Cache of `RepresentativeReferenceKeys` per reference       |
-| `createdReferences`             | References newly inserted in this batch                    |
-| `localMutations`                | Full batch; peeked during RepresentativeReferenceKey calc  |
+| Field                              | Purpose                                                     |
+|------------------------------------|-------------------------------------------------------------|
+| `entityIndexCreatingAccessor`      | Creates / retrieves `EntityIndex` instances                 |
+| `catalogIndexCreatingAccessor`     | Creates / retrieves `CatalogIndex` instances                |
+| `entityPrimaryKey` (LinkedList)    | Stack of PK resolvers; top element is active                |
+| `accessedIndexes`                  | All `EntityIndexKey`s touched during mutation; used for     |
+|                                    | activity recording and empty-index cleanup in               |
+|                                    | `applyChanges()`                                            |
+| `accessedCatalogIndexes`           | Per-scope `CatalogIndex`es this mutation maintained, if any |
+| `memoizedRepresentativeAttributes` | Cache of `RepresentativeReferenceKeys` per reference        |
+| `createdReferences`                | References newly inserted in this batch                     |
+| `localMutations`                   | Full batch; peeked during RepresentativeReferenceKey calc   |
+| `deferredExpressionReEvaluations`  | Actions drained by `finishLocalMutationExecutionPhase()`    |
 
 ### Primary Key Overloading
 
@@ -172,10 +206,13 @@ rather than the entity's PK. The stack is always popped in a `finally` block.
 
 ### Test Blueprint Hints -- Orchestration
 
-- **Invariant:** After `commit()`, no accessed index should be empty unless it is the LIVE-scope
-  global index.
-- **Invariant:** After `rollback()`, every index that was modified should be restored to its
-  pre-batch state. Verify by snapshotting bitmap contents before and after.
+- **Invariant:** After `applyChanges()`, no accessed index should be empty unless it is the
+  LIVE-scope global index.
+- **Invariant:** When a root entity mutation fails, every index it modified is restored to its
+  pre-mutation state and everything written by *earlier* entities in the same batch is untouched.
+  This is a savepoint property, so it is asserted at the collector level -- see
+  `EntityAtomicMutationRollbackFunctionalTest` and its warm-up counterpart, not a test of this
+  executor.
 - **Invariant:** The `entityPrimaryKey` stack must be exactly size 1 after `applyMutation()`
   returns (the pushed overrides are always popped).
 - **Invariant:** For a new entity (`prepare()` with no prior PK), the global index must contain
@@ -221,24 +258,35 @@ is driven by the `ReferenceIndexConsumer` functional interface:
 ```java
 void accept(
 	ReferenceSchemaContract referenceSchema,
-	ReducedEntityIndex indexForRemoval,
-	ReducedEntityIndex indexForUpsert
+	AbstractReducedEntityIndex indexForRemoval,
+	AbstractReducedEntityIndex indexForUpsert
 );
 ```
 
-The `executeWithReferenceIndexes` family of helpers iterates all stored references on the entity,
-filters by index type level and
+The fan-out helpers iterate all stored references on the entity, filter by index type level and
 <Term location="/documentation/developer/indexes/overview.md" name="scope">scope</Term>,
-resolves the
+resolve the
 <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">
 `RepresentativeReferenceKey`</Term>,
-obtains (or creates) the
+obtain (or create) the
 <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>,
-and invokes the callback. Three variants exist:
+and invoke the callback. Handlers reach them through `EntityIndexLocalMutationExecutor`, which wraps
+the `ReferenceIndexMutator` statics so each call site spells its traversal out explicitly:
 
-- `executeWithReferenceIndexes` -- entity-level reduced indexes only
-- `executeWithGroupReferenceIndexes` -- group-level reduced indexes only
-- `executeWithAllReferenceIndexes` -- both entity and group indexes
+| Helper | Backing static | Fires the callback |
+|--------|----------------|--------------------|
+| `fanOutPerReference` | `ReferenceIndexMutator.forEachReferenceIndex` | once per qualifying **reference**, even when several resolve to the same shared reduced index |
+| `fanOutUniquePerIndex` | `ReferenceIndexMutator.forEachUniqueReferenceIndex` | at most once per unique **target index** |
+
+Which one a handler must use is a correctness question, not a preference. Work that is intrinsically
+per-reference -- facet add/remove keyed by an individual reference key, sortable attribute compounds --
+uses `fanOutPerReference`. Work that is entity-scoped relative to a possibly shared reduced index --
+entity-level attribute cardinality, set-semantic price leaves, locale tracking -- must use
+`fanOutUniquePerIndex`, or N sibling references would underflow counters or destroy buckets on the
+second iteration.
+
+Both take an `IterationPath` selecting which indexes to traverse: `REDUCED_ENTITY` (entity-level only),
+`GROUP` (group-level only), or `BOTH` (entity path then group path, in that order).
 
 ### Two-Phase Insert
 
@@ -311,7 +359,7 @@ entries also need updating. For example, when an `InsertReferenceMutation` for r
 arrives:
 
 1. The primary `updateReferences()` method handles A's own indexes (global + A's type/reduced).
-2. The orchestrator then calls `executeWithAllReferenceIndexes` with a predicate that **excludes**
+2. The orchestrator then fans out over `IterationPath.BOTH` with a predicate that **excludes**
    reference A (to avoid double-indexing) and invokes `updateReferencesInReferenceIndex` for
    every other reference B, C, D... This adds A's facet data into B's, C's, D's reduced indexes.
 
@@ -680,10 +728,7 @@ flowchart TD
     RP --> CHK
     CHK -->|no| NOP([No-op])
     CHK -->|yes| IDX["entityIndex.addNode(epk, parentPK)\nor\nentityIndex.removeNode(epk)"]
-    IDX --> UNDO{undoActionConsumer?}
-    UNDO -->|yes| REG[Register inverse operation]
-    UNDO -->|no| DONE([Done])
-    REG --> DONE
+    IDX --> DONE([Done])
 ```
 
 ### Global Index Only
@@ -707,13 +752,6 @@ When `parentPrimaryKey` is `null`, the entity is placed at the **root** of the h
 The `prepare()` method calls `setParent(epk, null)` for hierarchical entities to ensure every
 new entity starts as a root or orphan before any explicit `SetParentMutation` arrives.
 
-### Undo for removeParent
-
-When undo is enabled, `removeParent` captures the parent PK returned by
-`entityIndex.removeNode(primaryKeyToIndex)` and registers an undo action that calls
-`entityIndex.addNode(primaryKeyToIndex, capturedParentPK)`. This restores the exact parent
-relationship that existed before removal.
-
 ### Test Blueprint Hints -- Hierarchy
 
 - **Invariant:** After `setParent(child=5, parent=3)`, `hierarchyIndex.getParentNode(5)` must
@@ -725,8 +763,10 @@ relationship that existed before removal.
   automatically adopted.
 - **Invariant:** Hierarchy mutations must be no-ops when the entity's scope does not have
   hierarchy indexing enabled, even if the entity schema declares `isWithHierarchy() = true`.
-- **Invariant:** After rollback, the hierarchy index must reflect the exact parent relationships
-  that existed before the mutation batch.
+- **Invariant:** After a failed entity mutation is rolled back, the hierarchy index must reflect the
+  exact parent relationships that existed before that mutation. `HierarchyPlacementMutator` registers
+  no inverse of its own: the relationships live in the `TransactionalMap` / `TransactionalIntArray`
+  structures inside `HierarchyIndex`, which the savepoint restores directly.
 
 ---
 
@@ -736,8 +776,8 @@ relationship that existed before removal.
 
 **Primary classes:**
 `ReferenceIndexMutator` (local trigger evaluation),
-`ReevaluateExpressionMutationExecutor` (cross-entity re-evaluation),
-`CatalogExpressionTriggerRegistryImpl` (trigger storage and lookup),
+`ReevaluateExpressionExecutor` (cross-entity re-evaluation),
+`DefaultCatalogExpressionTriggerRegistry` (trigger storage and lookup),
 `FacetExpressionTriggerFactory` / `HistogramExpressionTriggerFactory` (trigger construction).
 
 ### Architecture Overview
@@ -803,9 +843,9 @@ For each reference with a `facetedPartially` expression in a given scope:
    and `FilterBy` tree. Local-only expressions (no cross-entity paths) produce a single trigger
    with `DependencyType == null`.
 
-### AbstractExpressionIndexTriggerImpl
+### AbstractExpressionIndexTrigger
 
-The shared base class for `FacetExpressionTriggerImpl` and `HistogramExpressionTriggerImpl`.
+The shared base class for `DefaultFacetExpressionTrigger` and `DefaultHistogramExpressionTrigger`.
 Carries 13+ immutable fields and implements the `evaluate()` method:
 
 - **Unconditional** (expression is null): returns `true` immediately.
@@ -842,7 +882,7 @@ for triggers that depend on the mutated entity type and attribute name. For each
 trigger includes histogram value source attributes (needed for old-value removal from histogram
 FilterIndex).
 
-**Execution** (in `ReevaluateExpressionMutationExecutor`):
+**Execution** (in `ReevaluateExpressionExecutor`):
 
 1. **Resolve affected owner PKs** — dispatches on `DependencyType`:
    - `GROUP_ENTITY_ATTRIBUTE`: Lookup group PK in `REFERENCED_GROUP_ENTITY_TYPE` index → iterate
@@ -872,7 +912,7 @@ tuple.
 
 **Primary classes:**
 `ReferenceIndexMutator` (histogram insert/remove within reference processing),
-`ReevaluateExpressionMutationExecutor` (cross-entity re-evaluation).
+`ReevaluateExpressionExecutor` (cross-entity re-evaluation).
 
 ### Trigger Architecture
 
@@ -885,7 +925,7 @@ Histogram indexing uses a two-expression trigger system registered in
   `HistogramValueDescriptor` metadata.
 
 Triggers fire through `HistogramExpressionTrigger` instances (extending
-`AbstractExpressionIndexTriggerImpl`) that share the same base infrastructure as
+`AbstractExpressionIndexTrigger`) that share the same base infrastructure as
 `FacetExpressionTrigger`.
 
 ### Local Triggers (same-entity mutations)
