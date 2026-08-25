@@ -985,7 +985,10 @@ with its own simple evaluation and a machine-readable output.
 **Q6 — The loss of infix matching against `attributeContains`.** It is assumed that `attributeContains`
 remains alongside fulltext (§4.4 of the research promises it) — but P1 ought to measure how often real
 queries depend on an infix. If often, it is input for P5 (rules for tokenizing numbers and alphanumeric
-codes), not for P1.
+codes), not for P1. A second consumer of that number now exists: the trigram substring index
+(`p8-trigram-substring-index.md`, §33), which attacks the infix case from the other side by making the
+literal `contains` path fast — if infix dependence turns out to be common, it strengthens that line
+rather than P5's tokenization rules.
 
 **Q7 — who will deliver the schema flag for a fulltext field?** P2 needs it as a switch for its baseline
 (`p2-transactional-maintenance.md`, §2 and §10.1) and reckons that if P1 does not deliver it, it becomes

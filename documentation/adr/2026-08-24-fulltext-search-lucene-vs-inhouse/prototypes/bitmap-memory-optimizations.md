@@ -588,7 +588,12 @@ against today's reading from the heap; the seam for reading a raw payload withou
    id would want a stable surrogate id plus an id→term map duplicating the strings a second time. What
    remains is to verify it by measurement in K3 and to think through the behaviour for languages whose
    stemmer is not suffix-based (with dictionary lemmatizers a form can be arbitrarily far from the lemma —
-   the entry then stores the full form; it is a degradation of cost, not of correctness).
+   the entry then stores the full form; it is a degradation of cost, not of correctness). The trigram
+   substring index (`p8-trigram-substring-index.md`, §33) is the counter-case that fixes the
+   discriminator: with single-digit references per stem, suffix-encoded key lists win; with up to
+   hundreds of thousands of values per trigram, only a dense numeric id space that roaring can compress
+   is viable — so a stable surrogate id is rejected here and required there, and the two decisions are
+   consistent, not contradictory.
 2. **Persisting the stem tree.** Simple: only lists of keys/ids are stored, the stem tree never owns any
    bitmaps, so no duplication arises on disk and there is nothing to collapse after loading (unlike the
    price indexes, §2.2).
