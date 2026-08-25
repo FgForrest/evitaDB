@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -44,19 +45,23 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaConflictResolutionOverrideMutation;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import lombok.Data;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -72,6 +77,7 @@ import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -190,12 +196,12 @@ class WalSerializationServiceTest {
 		// each Create*SchemaMutation carries a NON-default override — a plain compile pass cannot catch the field
 		// being silently dropped/defaulted on the WAL replay path, only an explicit round-trip assertion can
 		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null,
+			"code", null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
 		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -225,6 +231,71 @@ class WalSerializationServiceTest {
 			ConflictResolutionOverride.ENTITY,
 			roundTrip(walKryo, referenceMutation).getConflictResolutionOverride()
 		);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should round-trip filter index capabilities on all three mutations that carry them")
+	void shouldRoundTripFilterCapabilitiesOnAttributeMutations() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final ScopedFilterCapabilities[] substringInLive = {
+			new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+		};
+
+		// the same acceleration expressed through each of the three mutation shapes that transport it - a WAL entry
+		// whose capabilities were dropped on the way out would replay as a plainly filterable attribute, and nothing
+		// downstream would report a problem
+		final SetAttributeSchemaFilterableMutation setFilterableMutation =
+			SetAttributeSchemaFilterableMutation.fromCapabilities(
+				"name", new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			);
+		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
+			"code", null, null, null,
+			Scope.DEFAULT_SCOPES, substringInLive, Scope.NO_SCOPE,
+			false, false, false, String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
+			"url", null, null, null, null,
+			Scope.DEFAULT_SCOPES, substringInLive, Scope.NO_SCOPE,
+			false, false, false, String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		assertArrayEquals(
+			substringInLive, roundTrip(walKryo, setFilterableMutation).getFilterCapabilitiesInScopes()
+		);
+		assertArrayEquals(
+			substringInLive, roundTrip(walKryo, attributeMutation).getFilterCapabilitiesInScopes()
+		);
+		assertArrayEquals(
+			substringInLive, roundTrip(walKryo, globalAttributeMutation).getFilterCapabilitiesInScopes()
+		);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should write an empty capability array and an absent one as the very same bytes")
+	void shouldWriteEmptyAndAbsentCapabilityArraysIdentically() {
+		// this equivalence is what lets a reader written before capabilities existed and one written after agree on
+		// the same record: the presence flag collapses both "no carriers" shapes into one, so a mutation issued by an
+		// old client and one issued by a new client that declares nothing are the same bytes and the same mutation
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final SetAttributeSchemaFilterableMutation fromEmptyArray = new SetAttributeSchemaFilterableMutation(
+			"name", Scope.DEFAULT_SCOPES, ScopedFilterCapabilities.EMPTY
+		);
+		final SetAttributeSchemaFilterableMutation fromAbsentField = new SetAttributeSchemaFilterableMutation(
+			"name", Scope.DEFAULT_SCOPES, null
+		);
+		final SetAttributeSchemaFilterableMutation plain = new SetAttributeSchemaFilterableMutation(
+			"name", Scope.DEFAULT_SCOPES
+		);
+
+		assertArrayEquals(serialize(walKryo, fromEmptyArray), serialize(walKryo, fromAbsentField));
+		assertEquals(plain, roundTrip(walKryo, fromEmptyArray));
+		assertEquals(plain, roundTrip(walKryo, fromAbsentField));
 	}
 
 	@Test
@@ -298,6 +369,23 @@ class WalSerializationServiceTest {
 		try (final Input input = new Input(new ByteArrayInputStream(baos.toByteArray()))) {
 			return (T) walKryo.readClassAndObject(input);
 		}
+	}
+
+	/**
+	 * Serializes a mutation through the WAL kryo and hands back the raw bytes, so that two mutations can be compared
+	 * by what they actually put on the wire rather than by what they happen to read back as.
+	 *
+	 * @param walKryo  the WAL-configured kryo instance
+	 * @param mutation the mutation to serialize
+	 * @return the bytes the mutation was written as
+	 */
+	@Nonnull
+	private static byte[] serialize(@Nonnull Kryo walKryo, @Nonnull Object mutation) {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
+		try (final Output output = new Output(baos)) {
+			walKryo.writeClassAndObject(output, mutation);
+		}
+		return baos.toByteArray();
 	}
 
 	@Test

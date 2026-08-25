@@ -24,16 +24,19 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
@@ -50,6 +53,7 @@ import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -161,12 +165,14 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			null,
 			null,
 			null,
+			null,
 			false,
 			false,
 			false,
 			String.class,
 			null,
-			0
+			0,
+			ConflictResolutionOverride.INHERITED
 		);
 
 		final CreateGlobalAttributeSchemaMutation convertedMutation1 = this.converter.convertFromInput(
@@ -242,6 +248,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list())
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
@@ -253,6 +260,102 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.INHERITED.name())
 					.build()
 			);
+	}
+
+	@Test
+	void shouldResolveInputWithFilterCapabilities() {
+		final CreateGlobalAttributeSchemaMutation expectedMutation = new CreateGlobalAttributeSchemaMutation(
+			"code",
+			null,
+			null,
+			null,
+			null,
+			new Scope[] { Scope.LIVE },
+			new ScopedFilterCapabilities[] {
+				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			},
+			null,
+			false,
+			false,
+			false,
+			String.class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		final CreateGlobalAttributeSchemaMutation convertedFromEnums = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
+							.i(FilterIndexCapability.SUBSTRING))))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedFromEnums);
+
+		final CreateGlobalAttributeSchemaMutation convertedFromStrings = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), "String")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
+							.i(FilterIndexCapability.SUBSTRING.name()))))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedFromStrings);
+	}
+
+	@Test
+	void shouldResolveInputWithoutFilterCapabilities() {
+		// an old client never sends the property at all - the mutation must come out with no capability anywhere
+		// rather than refusing the input
+		final CreateGlobalAttributeSchemaMutation converted = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.build()
+		);
+		assertNotNull(converted.getFilterCapabilitiesInScopes());
+		assertEquals(0, converted.getFilterCapabilitiesInScopes().length);
+	}
+
+	@Test
+	void shouldRoundTripFilterCapabilities() {
+		final CreateGlobalAttributeSchemaMutation inputMutation = new CreateGlobalAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			null,
+			null,
+			new Scope[] { Scope.LIVE },
+			new ScopedFilterCapabilities[] {
+				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			},
+			null,
+			false,
+			false,
+			false,
+			String.class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		final CreateGlobalAttributeSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(inputMutation, roundTripped);
 	}
 
 	@Test
@@ -268,6 +371,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 			},
 			new Scope[]{Scope.LIVE},
+			null,
 			new Scope[]{Scope.LIVE},
 			true,
 			false,

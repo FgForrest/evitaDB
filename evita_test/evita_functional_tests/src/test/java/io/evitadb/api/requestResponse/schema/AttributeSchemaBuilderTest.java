@@ -24,12 +24,14 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
@@ -44,6 +46,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.empty;
@@ -188,6 +191,255 @@ class AttributeSchemaBuilderTest {
 				assertFalse(
 					attr.isFilterableInScope(Scope.ARCHIVED),
 					"ARCHIVED should remain not filterable"
+				);
+			}
+		}
+
+		@Nested
+		@DisplayName("filter index capabilities")
+		class FilterCapabilities {
+
+			@Test
+			@DisplayName(
+				"should leave capabilities empty for a plain filterable() call"
+			)
+			void shouldLeaveCapabilitiesEmptyForPlainFilterable() {
+				// the bare call form users write. That it still resolves to the
+				// no-argument overload rather than to the varargs capability one is
+				// proved by this file compiling, not by the assertions below - the two
+				// overloads build an identical schema and differ only in the mutation
+				// they emit, which the builder does not expose.
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							whichIs -> whichIs.filterable()
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("code").orElseThrow();
+
+				assertTrue(attr.isFilterable());
+				assertTrue(attr.getFilterCapabilities().isEmpty());
+				assertTrue(
+					attr.getFilterCapabilitiesInScopes().isEmpty(),
+					"a plain filterable() must cost nothing beyond the filter index"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should resolve a bare filterableInScope() to the scope overload"
+			)
+			void shouldResolveBareFilterableInScopeToTheScopeOverload() {
+				// this test is a compile-time guard first and a runtime assertion
+				// second: the capability overload takes its first carrier as a separate
+				// parameter precisely so that it is not applicable here, leaving
+				// `filterableInScope()` to resolve unambiguously against the
+				// `Scope...` overload. Should that head parameter ever be folded back
+				// into the varargs, this file stops compiling rather than shipping an
+				// ambiguity to every downstream caller.
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							whichIs -> whichIs.filterableInScope()
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("code").orElseThrow();
+
+				assertFalse(attr.isFilterable());
+				assertFalse(attr.isFilterableInScope(Scope.LIVE));
+				assertFalse(attr.isFilterableInScope(Scope.ARCHIVED));
+			}
+
+			@Test
+			@DisplayName(
+				"should declare SUBSTRING in the default scope"
+			)
+			void shouldDeclareSubstringInDefaultScope() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.filterable(
+								FilterIndexCapability.SUBSTRING
+							)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.DEFAULT_SCOPE));
+				assertEquals(
+					Set.of(FilterIndexCapability.SUBSTRING),
+					attr.getFilterCapabilities()
+				);
+				assertEquals(
+					Set.of(),
+					attr.getFilterCapabilitiesInScope(Scope.ARCHIVED)
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should declare a different capability set per scope"
+			)
+			void shouldDeclareDifferentCapabilitySetPerScope() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.filterableInScope(
+								new ScopedFilterCapabilities(
+									Scope.LIVE,
+									FilterIndexCapability.SUBSTRING
+								),
+								new ScopedFilterCapabilities(Scope.ARCHIVED)
+							)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertTrue(attr.isFilterableInScope(Scope.ARCHIVED));
+				assertEquals(
+					Set.of(FilterIndexCapability.SUBSTRING),
+					attr.getFilterCapabilitiesInScope(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(),
+					attr.getFilterCapabilitiesInScope(Scope.ARCHIVED),
+					"the archived scope is filterable but declares no acceleration"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should keep LIVE capabilities when ARCHIVED filterability is removed"
+			)
+			void shouldKeepLiveCapabilitiesWhenArchivedFilterabilityRemoved() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterableInScope(
+									new ScopedFilterCapabilities(
+										Scope.LIVE,
+										FilterIndexCapability.SUBSTRING
+									),
+									new ScopedFilterCapabilities(Scope.ARCHIVED)
+								)
+								.nonFilterableInScope(Scope.ARCHIVED)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertFalse(attr.isFilterableInScope(Scope.ARCHIVED));
+				assertEquals(
+					Set.of(FilterIndexCapability.SUBSTRING),
+					attr.getFilterCapabilitiesInScope(Scope.LIVE),
+					"dropping one scope must not strip an acceleration from another"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse SUBSTRING on an attribute that is not a String"
+			)
+			void shouldRefuseSubstringOnNonStringAttribute() {
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute(
+							"quantity", Integer.class,
+							whichIs -> whichIs.filterable(
+								FilterIndexCapability.SUBSTRING
+							)
+						)
+						.toInstance()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should accept SUBSTRING on a String array attribute"
+			)
+			void shouldAcceptSubstringOnStringArrayAttribute() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"tags", String[].class,
+							whichIs -> whichIs.filterable(
+								FilterIndexCapability.SUBSTRING
+							)
+						)
+						.toInstance();
+
+				assertEquals(
+					Set.of(FilterIndexCapability.SUBSTRING),
+					schema.getAttribute("tags").orElseThrow()
+						.getFilterCapabilities()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should reset capabilities when the filterable scopes are restated"
+			)
+			void shouldResetCapabilitiesWhenFilterableScopesAreRestated() {
+				// `filterableInScope(Scope...)` is documented as a *full statement* of
+				// filterability, exactly as `unique(...)` is of uniqueness - so it also
+				// clears the optional capabilities of every scope. That is the opposite
+				// of `nonFilterableInScope`, which removes whole scopes and leaves the
+				// surviving ones' capabilities alone, and the two are easy to conflate.
+				final EntitySchemaContract restatedByScope =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterable(FilterIndexCapability.SUBSTRING)
+								.filterableInScope(Scope.LIVE)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract byScope =
+					restatedByScope.getAttribute("name").orElseThrow();
+
+				assertTrue(byScope.isFilterableInScope(Scope.LIVE));
+				assertTrue(
+					byScope.getFilterCapabilitiesInScopes().isEmpty(),
+					"restating the filterable scopes left an acceleration behind"
+				);
+
+				// the no-argument form delegates to the same overload, so it resets too
+				final EntitySchemaContract restatedByFilterable =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterable(FilterIndexCapability.SUBSTRING)
+								.filterable()
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract byFilterable =
+					restatedByFilterable.getAttribute("name").orElseThrow();
+
+				assertTrue(byFilterable.isFilterableInScope(Scope.DEFAULT_SCOPE));
+				assertTrue(
+					byFilterable.getFilterCapabilitiesInScopes().isEmpty(),
+					"a plain filterable() left an acceleration behind"
 				);
 			}
 		}
@@ -773,6 +1025,85 @@ class AttributeSchemaBuilderTest {
 	@Nested
 	@DisplayName("GlobalAttributeSchemaBuilder")
 	class GlobalAttributeTests {
+
+		@Nested
+		@DisplayName("filter index capabilities")
+		class GlobalFilterCapabilities {
+
+			// a global attribute is not merely an entity attribute declared elsewhere:
+			// GlobalAttributeSchema has its own `_internalBuild` arm and its own
+			// serializer, and it is the kind that cascades into every collection using
+			// it - so the two cases below are asserted here rather than assumed from
+			// their entity-attribute twins.
+
+			@Test
+			@DisplayName(
+				"should declare SUBSTRING on a global attribute"
+			)
+			void shouldDeclareSubstringOnGlobalAttribute() {
+				final CatalogSchemaContract schema =
+					createCatalogSchemaBuilder()
+						.withAttribute(
+							"url", String.class,
+							whichIs -> whichIs.filterable(
+								FilterIndexCapability.SUBSTRING
+							)
+						)
+						.toInstance();
+
+				final GlobalAttributeSchemaContract attr =
+					schema.getAttribute("url").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.DEFAULT_SCOPE));
+				assertEquals(
+					Set.of(FilterIndexCapability.SUBSTRING),
+					attr.getFilterCapabilities()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should reset capabilities when the filterable scopes are restated"
+			)
+			void shouldResetCapabilitiesWhenFilterableScopesAreRestated() {
+				final CatalogSchemaContract schema =
+					createCatalogSchemaBuilder()
+						.withAttribute(
+							"url", String.class,
+							whichIs -> whichIs
+								.filterable(FilterIndexCapability.SUBSTRING)
+								.filterableInScope(Scope.LIVE)
+						)
+						.toInstance();
+
+				final GlobalAttributeSchemaContract attr =
+					schema.getAttribute("url").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertTrue(
+					attr.getFilterCapabilitiesInScopes().isEmpty(),
+					"restating the filterable scopes left an acceleration behind"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse SUBSTRING on a global attribute that is not a String"
+			)
+			void shouldRefuseSubstringOnNonStringGlobalAttribute() {
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createCatalogSchemaBuilder()
+						.withAttribute(
+							"quantity", Integer.class,
+							whichIs -> whichIs.filterable(
+								FilterIndexCapability.SUBSTRING
+							)
+						)
+						.toInstance()
+				);
+			}
+		}
 
 		@Nested
 		@DisplayName("global uniqueness scope operations")

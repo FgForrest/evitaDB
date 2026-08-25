@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -94,6 +96,9 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
+		// appended last, mirroring how the conflict-resolution override was added - the release-2026.2 reader
+		// (GlobalAttributeSchemaSerializer_2026_2) simply stops before this point
+		EntitySchemaSerializer.writeFilterCapabilities(kryo, output, attributeSchema.getFilterCapabilitiesInScopes());
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -129,11 +134,14 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
+		final Map<Scope, Set<FilterIndexCapability>> filterCapabilities =
+			EntitySchemaSerializer.readFilterCapabilities(kryo, input);
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			unique,
 			uniqueGlobally,
 			filterable,
+			filterCapabilities,
 			sortable,
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride

@@ -475,6 +475,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toFilterCapabilitiesArray(attributeSchemaContract.getFilterCapabilitiesInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -511,6 +512,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toFilterCapabilitiesArray(attributeSchemaContract.getFilterCapabilitiesInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),

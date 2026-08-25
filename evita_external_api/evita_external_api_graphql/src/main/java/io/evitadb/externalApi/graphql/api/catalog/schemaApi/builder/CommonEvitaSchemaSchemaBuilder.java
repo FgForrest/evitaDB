@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
@@ -110,6 +111,12 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedFilterCapabilitiesDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedFilterCapabilitiesDescriptor.THIS_INPUT.to(
 			this.inputObjectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(

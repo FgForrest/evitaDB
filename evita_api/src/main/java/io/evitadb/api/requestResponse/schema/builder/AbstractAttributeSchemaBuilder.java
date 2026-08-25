@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
@@ -148,6 +150,27 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
+	@Override
+	@Nonnull
+	public T filterableInScope(
+		@Nonnull ScopedFilterCapabilities first,
+		@Nonnull ScopedFilterCapabilities... rest
+	) {
+		final ScopedFilterCapabilities[] inScope = new ScopedFilterCapabilities[rest.length + 1];
+		inScope[0] = first;
+		System.arraycopy(rest, 0, inScope, 1, rest.length);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				SetAttributeSchemaFilterableMutation.fromCapabilities(
+					this.baseSchema.getName(),
+					inScope
+				)
+			)
+		);
+		return (T) this;
+	}
+
 	@Nonnull
 	@Override
 	public T nonFilterableInScope(@Nonnull Scope... inScope) {
@@ -155,11 +178,18 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				new SetAttributeSchemaFilterableMutation(
+				SetAttributeSchemaFilterableMutation.fromCapabilities(
 					this.baseSchema.getName(),
+					// the surviving scopes keep the capabilities they already declared - dropping filterability from
+					// one scope must not silently strip an acceleration from another
 					Arrays.stream(Scope.values())
 						.filter(it -> isFilterableInScope(it) && !excludedScopes.contains(it))
-						.toArray(Scope[]::new)
+						.map(
+							it -> new ScopedFilterCapabilities(
+								it, getFilterCapabilitiesInScope(it).toArray(FilterIndexCapability[]::new)
+							)
+						)
+						.toArray(ScopedFilterCapabilities[]::new)
 				)
 			)
 		);

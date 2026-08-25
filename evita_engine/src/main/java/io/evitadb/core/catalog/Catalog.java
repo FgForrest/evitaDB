@@ -960,6 +960,9 @@ public final class Catalog
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
 		try {
+			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
+			// a mid-cascade refusal cannot be undone
+			verifyEntitySchemaMutationsApplicable(schemaMutation);
 			final Optional<Transaction> transactionRef = Transaction.getTransaction();
 			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 			CatalogSchema currentSchema = originalSchema;
@@ -2946,10 +2949,48 @@ public final class Catalog
 	}
 
 	/**
+	 * Preflights every {@link ModifyEntitySchemaMutation} in a batch against the collection it targets, so that a
+	 * refusal is raised **before** any schema is exchanged.
+	 *
+	 * The problem this solves is failure atomicity, not validation coverage. A catalog-level change to a global
+	 * attribute fans out into one entity mutation per consuming collection, and the loop below applies them one at a
+	 * time - each exchanging its schema and writing its storage part. If the fourth collection refuses, the `catch`
+	 * restores only {@link #schema}: the three collections already updated keep the change, in memory and on disk,
+	 * while the catalog schema says the operation failed. Checking all of them first is what makes the cascade
+	 * all-or-nothing without holding a rollback log of exchanged schemas.
+	 *
+	 * Collections that do not exist yet are skipped - a batch may create one and then modify it, and there is nothing
+	 * to preflight against until it exists.
+	 *
+	 * @param schemaMutations the batch about to be applied
+	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
+	 */
+	private void verifyEntitySchemaMutationsApplicable(
+		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
+	) {
+		final CatalogSchema currentCatalogSchema = getInternalSchema();
+		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
+			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+				final EntityCollection entityCollection =
+					this.entityCollections.get(modifyEntitySchemaMutation.getName());
+				if (entityCollection != null) {
+					entityCollection.verifySchemaMutationsApplicable(
+						currentCatalogSchema, modifyEntitySchemaMutation.getSchemaMutations()
+					);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Modifies the entity schema by applying the given schema mutations.
 	 *
+	 * @param sessionId                  The session the modification is performed on behalf of, or null when it is
+	 *                                   applied by the transactional replayer, which has no session.
 	 * @param modifyEntitySchemaMutation The modifications to be applied to the entity schema.
 	 * @param catalogSchema              The catalog schema associated with the entity.
+	 * @param entityCollection           The collection whose schema is being modified.
+	 * @return the catalog schema carrying the version bumped by this modification
 	 */
 	@Nonnull
 	private CatalogSchemaContract modifyEntitySchema(

@@ -81,6 +81,7 @@ public class AttributeSchemaSerializer_2024_11 extends Serializer<AttributeSchem
 				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
 			},
 			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
+			null,
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable, false,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,

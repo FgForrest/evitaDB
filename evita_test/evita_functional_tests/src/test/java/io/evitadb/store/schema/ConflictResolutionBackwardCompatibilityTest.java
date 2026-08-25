@@ -364,7 +364,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null,
+			"code", null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -386,7 +386,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateGlobalAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);

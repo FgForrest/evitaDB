@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -84,11 +85,51 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
+	 * This call is a **full statement** of the attribute's filterability, exactly as `unique(...)` is of its
+	 * uniqueness: it also resets the optional {@link FilterIndexCapability capabilities} of every scope to none. Use
+	 * {@link #filterableInScope(ScopedFilterCapabilities, ScopedFilterCapabilities...)} to state scopes and
+	 * capabilities together, and note that {@link #nonFilterableInScope(Scope...)} deliberately does **not** reset
+	 * them - it removes whole scopes and leaves the surviving ones as they were.
+	 *
 	 * @param inScope one or more scopes in which the attribute should be filterable
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T filterableInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes the attribute filterable in the {@link Scope#DEFAULT_SCOPE} scope **and** asks the filter index to
+	 * maintain the listed optional {@link FilterIndexCapability capabilities} there.
+	 *
+	 * Passing no capability is identical to calling {@link #filterable()} - the capabilities are strictly additive and
+	 * each one costs additional memory and additional write-path work, so read its documentation before declaring it.
+	 * Because the capabilities are folded into this call rather than offered as a sibling flag, "accelerated but not
+	 * filterable" is not a state this API can express.
+	 *
+	 * @param capabilities the optional accelerations to maintain in the default scope
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T filterable(@Nonnull FilterIndexCapability... capabilities) {
+		return filterableInScope(new ScopedFilterCapabilities(Scope.DEFAULT_SCOPE, capabilities));
+	}
+
+	/**
+	 * Makes the attribute filterable in each listed scope **and** asks the filter index to maintain the optional
+	 * {@link FilterIndexCapability capabilities} that scope's carrier names - the scoped counterpart of
+	 * {@link #filterable(FilterIndexCapability...)}, allowing a different set per scope.
+	 *
+	 * Scopes not named here become non-filterable, exactly as {@link #filterableInScope(Scope...)} behaves. The first
+	 * carrier is a separate parameter so that this overload is not applicable to a bare `filterableInScope()` at all -
+	 * that call keeps resolving against {@link #filterableInScope(Scope...)}, and "filterable nowhere" stays the job
+	 * of {@link #nonFilterable()}.
+	 *
+	 * @param first one carrier for the first scope the attribute should be filterable in
+	 * @param rest  one carrier per further scope the attribute should be filterable in
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T filterableInScope(@Nonnull ScopedFilterCapabilities first, @Nonnull ScopedFilterCapabilities... rest);
 
 	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute

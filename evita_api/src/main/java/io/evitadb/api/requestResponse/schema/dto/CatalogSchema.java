@@ -304,6 +304,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toFilterCapabilitiesArray(attributeSchemaContract.getFilterCapabilitiesInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),

@@ -91,7 +91,7 @@ public class AttributeSchemaSerializer_2026_1 extends Serializer<AttributeSchema
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, representative,
+			unique, filterable, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED
 		);

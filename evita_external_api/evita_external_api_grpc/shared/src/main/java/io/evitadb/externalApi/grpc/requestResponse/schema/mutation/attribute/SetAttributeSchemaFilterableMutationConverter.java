@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toBooleanScopes;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScopedFilterCapabilities;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedFilterCapabilities;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -48,10 +51,14 @@ public class SetAttributeSchemaFilterableMutationConverter implements SchemaMuta
 	@Nonnull
 	public SetAttributeSchemaFilterableMutation convert(@Nonnull GrpcSetAttributeSchemaFilterableMutation mutation) {
 		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
+		// absent on the wire for an older client - proto3 renders that as an empty list, which converts to `null`
+		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
+			toScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopesList());
 
 		return new SetAttributeSchemaFilterableMutation(
 			mutation.getName(),
-			filterableInScopes
+			filterableInScopes,
+			filterCapabilitiesInScopes
 		);
 	}
 
@@ -64,6 +71,9 @@ public class SetAttributeSchemaFilterableMutationConverter implements SchemaMuta
 				Arrays.stream(mutation.getFilterableInScopes())
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
+			)
+			.addAllFilterCapabilitiesInScopes(
+				toGrpcScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopes())
 			)
 			.build();
 	}

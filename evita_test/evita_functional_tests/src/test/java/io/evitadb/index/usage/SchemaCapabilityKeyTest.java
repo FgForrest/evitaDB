@@ -26,6 +26,7 @@ package io.evitadb.index.usage;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -59,6 +60,7 @@ class SchemaCapabilityKeyTest {
 	private static final String ATTRIBUTE_NAME = "code";
 	private static final String REFERENCE_NAME = "categories";
 	private static final String COMPOUND_NAME = "codeAndName";
+	private static final String ENTITY_TYPE = "Product";
 
 	@Nested
 	@DisplayName("Factories")
@@ -112,6 +114,26 @@ class SchemaCapabilityKeyTest {
 			assertNotEquals(
 				entityLevel, referenceLevel,
 				"A compound declared on a reference is a different element from one of the same name on the entity"
+			);
+		}
+
+		@Test
+		@DisplayName("An attribute-only capability is rejected at the mint site, not at alignment")
+		void shouldRejectAttributeOnlyCapabilityOnReferenceAndEntity() {
+			// SUBSTRING_FILTERABLE belongs to an attribute alone. A reference or entity key naming it would be
+			// dropped silently at the next schema adoption and its author would never learn of it - so the factory
+			// refuses to mint one, exactly as it does for the other attribute-only flags.
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> SchemaCapabilityKey.reference(
+					REFERENCE_NAME, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+				)
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> SchemaCapabilityKey.entity(
+					ENTITY_TYPE, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+				)
 			);
 		}
 

@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
@@ -75,6 +76,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -151,6 +154,48 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
 			assertEquals(expectedAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			assertEquals(expectedAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
+			assertFilterCapabilities(
+				expectedAttributeSchema, actualAttributeSchema.getFilterCapabilitiesInScopesList()
+			);
+		}
+	}
+
+	/**
+	 * Asserts that the optional filter index accelerations of an attribute schema survived the conversion to the gRPC
+	 * form. The gRPC side carries one entry per scope declaring at least one capability - a scope declaring none is
+	 * simply absent, which is how a plain `filterable()` declaration is represented on the wire.
+	 *
+	 * @param expectedAttributeSchema  the schema the gRPC message was built from
+	 * @param actualFilterCapabilities the scoped carriers the gRPC message holds
+	 */
+	private static void assertFilterCapabilities(
+		@Nonnull AttributeSchemaContract expectedAttributeSchema,
+		@Nonnull List<GrpcScopedFilterCapabilities> actualFilterCapabilities
+	) {
+		final String attributeName = expectedAttributeSchema.getName();
+		final EnumMap<Scope, Set<FilterIndexCapability>> actualCapabilitiesInScopes = new EnumMap<>(Scope.class);
+		for (final GrpcScopedFilterCapabilities scopedCapabilities : actualFilterCapabilities) {
+			assertFalse(
+				scopedCapabilities.getCapabilitiesList().isEmpty(),
+				"Attribute `" + attributeName + "` emitted an empty capability carrier for scope `" +
+					scopedCapabilities.getScope() + "` - no acceleration is expressed by omitting the carrier!"
+			);
+			final Set<FilterIndexCapability> capabilities = EnumSet.noneOf(FilterIndexCapability.class);
+			for (final GrpcFilterIndexCapability capability : scopedCapabilities.getCapabilitiesList()) {
+				capabilities.add(EvitaEnumConverter.toFilterIndexCapability(capability));
+			}
+			actualCapabilitiesInScopes.put(EvitaEnumConverter.toScope(scopedCapabilities.getScope()), capabilities);
+		}
+		assertEquals(
+			actualFilterCapabilities.size(), actualCapabilitiesInScopes.size(),
+			"Attribute `" + attributeName + "` emitted more than one capability carrier per scope!"
+		);
+		for (final Scope scope : Scope.values()) {
+			assertEquals(
+				expectedAttributeSchema.getFilterCapabilitiesInScope(scope),
+				actualCapabilitiesInScopes.getOrDefault(scope, Set.of()),
+				"Filter capabilities of attribute `" + attributeName + "` in scope `" + scope + "` differ!"
+			);
 		}
 	}
 
@@ -189,6 +234,9 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
 			assertEquals(EvitaDataTypesConverter.toGrpcEvitaDataType(expectedAttributeSchema.getType()), actualAttributeSchema.getType());
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
+			assertFilterCapabilities(
+				expectedAttributeSchema, actualAttributeSchema.getFilterCapabilitiesInScopesList()
+			);
 		}
 	}
 

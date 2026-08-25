@@ -65,6 +65,7 @@ import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
@@ -194,6 +195,9 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			ScopedFilterCapabilitiesDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedFacetedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());

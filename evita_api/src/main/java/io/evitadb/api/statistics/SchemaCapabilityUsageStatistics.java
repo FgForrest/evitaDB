@@ -302,6 +302,19 @@ public record SchemaCapabilityUsageStatistics(
 		FILTERABLE,
 
 		/**
+		 * The element's filter index also answers substring matching -
+		 * `filterable(FilterIndexCapability.SUBSTRING)`, and the trigram index it costs. Carried by an
+		 * {@link ElementKind#ATTRIBUTE} row, always **alongside** {@link #FILTERABLE} rather than instead of it: the
+		 * acceleration is strictly additive, so an attribute carrying this one is filterable too and the two rows
+		 * describe two separately-droppable costs.
+		 *
+		 * Read them together. A high {@link #FILTERABLE} count with a near-zero count here says the attribute is
+		 * filtered often but almost never by `attributeContains` or `attributeEndsWith` - which is exactly the reading
+		 * that justifies dropping the capability while keeping the attribute filterable.
+		 */
+		SUBSTRING_FILTERABLE,
+
+		/**
 		 * The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
 		 */
 		SORTABLE,

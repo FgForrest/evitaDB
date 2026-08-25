@@ -257,6 +257,46 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	Set<Scope> getFilterableInScopes();
 
 	/**
+	 * The optional {@link FilterIndexCapability filter index capabilities} this attribute declares in the default
+	 * (i.e. {@link Scope#DEFAULT_SCOPE}) scope.
+	 *
+	 * An **empty set is the norm** and means plain filterability - exactly what `filterable()` has always produced.
+	 * Each capability present in the set buys an additional acceleration at the price of additional memory and
+	 * additional write-path work, so nothing is enabled implicitly.
+	 *
+	 * @return capabilities declared in the default scope, empty when the attribute is plainly filterable or not
+	 * filterable at all
+	 */
+	@Nonnull
+	default Set<FilterIndexCapability> getFilterCapabilities() {
+		return getFilterCapabilitiesInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * The optional {@link FilterIndexCapability filter index capabilities} this attribute declares in a particular
+	 * scope - see {@link #getFilterCapabilities()} for what an empty result means.
+	 *
+	 * The result is always empty for a scope the attribute is not
+	 * {@link #isFilterableInScope(Scope) filterable} in, because a capability without a filter index to accelerate is
+	 * not a representable state.
+	 *
+	 * @param scope the scope to read the capabilities of
+	 * @return capabilities declared in that scope, never null
+	 */
+	@Nonnull
+	Set<FilterIndexCapability> getFilterCapabilitiesInScope(@Nonnull Scope scope);
+
+	/**
+	 * Retrieves the capabilities declared per scope. Scopes the attribute is filterable in without any optional
+	 * acceleration may be absent from the map or map to an empty set - both readings are equivalent, and
+	 * {@link #getFilterableInScopes()} remains the authority on *whether* the attribute is filterable.
+	 *
+	 * @return map of scope to the capabilities maintained in it, never null
+	 */
+	@Nonnull
+	Map<Scope, Set<FilterIndexCapability>> getFilterCapabilitiesInScopes();
+
+	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the sortable attribute must

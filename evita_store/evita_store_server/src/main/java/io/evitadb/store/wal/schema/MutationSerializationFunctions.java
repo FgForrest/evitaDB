@@ -27,13 +27,16 @@ package io.evitadb.store.wal.schema;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Infrastructural interface allowing to share common method implementation among multiple serializers.
@@ -71,6 +74,66 @@ public interface MutationSerializationFunctions {
 			scopes[i] = kryo.readObject(input, Scope.class);
 		}
 		return scopes;
+	}
+
+	/**
+	 * Serializes an optional array of {@link ScopedFilterCapabilities} to the given Kryo output. A leading boolean
+	 * marks presence, so a mutation that declares no capability at all costs a single byte and - more importantly -
+	 * lets the matching reader know whether the section is there before it starts consuming it.
+	 *
+	 * The field is optional on the wire because it was added after release 2026.2; `null` and an empty array mean the
+	 * same thing to every mutation that carries it (no acceleration anywhere), so both are written as *absent*.
+	 *
+	 * @param kryo         the Kryo instance to use for serialization
+	 * @param output       the Output instance to write to
+	 * @param capabilities the carriers to serialize, may be null or empty
+	 */
+	default void writeScopedFilterCapabilitiesArray(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nullable ScopedFilterCapabilities[] capabilities
+	) {
+		if (capabilities == null || capabilities.length == 0) {
+			output.writeBoolean(false);
+			return;
+		}
+		output.writeBoolean(true);
+		output.writeVarInt(capabilities.length, true);
+		for (ScopedFilterCapabilities entry : capabilities) {
+			kryo.writeObject(output, entry.scope());
+			final FilterIndexCapability[] scopeCapabilities = entry.capabilities();
+			output.writeVarInt(scopeCapabilities.length, true);
+			for (FilterIndexCapability capability : scopeCapabilities) {
+				kryo.writeObject(output, capability);
+			}
+		}
+	}
+
+	/**
+	 * Reads an optional array of {@link ScopedFilterCapabilities} previously written by
+	 * {@link #writeScopedFilterCapabilitiesArray(Kryo, Output, ScopedFilterCapabilities[])}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the carriers that were read, or null when the record declares none
+	 */
+	@Nullable
+	default ScopedFilterCapabilities[] readScopedFilterCapabilitiesArray(@Nonnull Kryo kryo, @Nonnull Input input) {
+		if (!input.readBoolean()) {
+			return null;
+		}
+		final int size = input.readVarInt(true);
+		final ScopedFilterCapabilities[] capabilities = new ScopedFilterCapabilities[size];
+		for (int i = 0; i < size; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int capabilityCount = input.readVarInt(true);
+			final FilterIndexCapability[] scopeCapabilities = new FilterIndexCapability[capabilityCount];
+			for (int j = 0; j < capabilityCount; j++) {
+				scopeCapabilities[j] = kryo.readObject(input, FilterIndexCapability.class);
+			}
+			capabilities[i] = new ScopedFilterCapabilities(scope, scopeCapabilities);
+		}
+		return capabilities;
 	}
 
 	/**

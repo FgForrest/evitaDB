@@ -125,6 +125,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 					globalAttributeSchema.getUniquenessTypeInScopes(),
 					uniqueGlobally,
 					globalAttributeSchema.getFilterableInScopes(),
+					globalAttributeSchema.getFilterCapabilitiesInScopes(),
 					globalAttributeSchema.getSortableInScopes(),
 					globalAttributeSchema.isLocalized(),
 					globalAttributeSchema.isNullable(),

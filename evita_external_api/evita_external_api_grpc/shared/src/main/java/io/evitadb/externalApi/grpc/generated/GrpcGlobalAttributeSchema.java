@@ -66,6 +66,7 @@ private static final long serialVersionUID = 0L;
     sortableInScopes_ = java.util.Collections.emptyList();
     uniqueGloballyInScopes_ = java.util.Collections.emptyList();
     conflictResolutionOverride_ = 0;
+    filterCapabilitiesInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -916,6 +917,77 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.UNRECOGNIZED : result;
   }
 
+  public static final int FILTERCAPABILITIESINSCOPES_FIELD_NUMBER = 20;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> filterCapabilitiesInScopes_;
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+   * means the attribute is filterable without any optional acceleration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> getFilterCapabilitiesInScopesList() {
+    return filterCapabilitiesInScopes_;
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+   * means the attribute is filterable without any optional acceleration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder> 
+      getFilterCapabilitiesInScopesOrBuilderList() {
+    return filterCapabilitiesInScopes_;
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+   * means the attribute is filterable without any optional acceleration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+   */
+  @java.lang.Override
+  public int getFilterCapabilitiesInScopesCount() {
+    return filterCapabilitiesInScopes_.size();
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+   * means the attribute is filterable without any optional acceleration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities getFilterCapabilitiesInScopes(int index) {
+    return filterCapabilitiesInScopes_.get(index);
+  }
+  /**
+   * <pre>
+   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+   * means the attribute is filterable without any optional acceleration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder getFilterCapabilitiesInScopesOrBuilder(
+      int index) {
+    return filterCapabilitiesInScopes_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -995,6 +1067,9 @@ private static final long serialVersionUID = 0L;
     }
     if (conflictResolutionOverride_ != io.evitadb.externalApi.grpc.generated.GrpcConflictResolutionOverride.CONFLICT_RESOLUTION_OVERRIDE_INHERITED.getNumber()) {
       output.writeEnum(19, conflictResolutionOverride_);
+    }
+    for (int i = 0; i < filterCapabilitiesInScopes_.size(); i++) {
+      output.writeMessage(20, filterCapabilitiesInScopes_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -1096,6 +1171,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(19, conflictResolutionOverride_);
     }
+    for (int i = 0; i < filterCapabilitiesInScopes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(20, filterCapabilitiesInScopes_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1152,6 +1231,8 @@ private static final long serialVersionUID = 0L;
     if (!getUniqueGloballyInScopesList()
         .equals(other.getUniqueGloballyInScopesList())) return false;
     if (conflictResolutionOverride_ != other.conflictResolutionOverride_) return false;
+    if (!getFilterCapabilitiesInScopesList()
+        .equals(other.getFilterCapabilitiesInScopesList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1222,6 +1303,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + CONFLICTRESOLUTIONOVERRIDE_FIELD_NUMBER;
     hash = (53 * hash) + conflictResolutionOverride_;
+    if (getFilterCapabilitiesInScopesCount() > 0) {
+      hash = (37 * hash) + FILTERCAPABILITIESINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getFilterCapabilitiesInScopesList().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1374,6 +1459,7 @@ private static final long serialVersionUID = 0L;
         getNameVariantFieldBuilder();
         getUniqueInScopesFieldBuilder();
         getUniqueGloballyInScopesFieldBuilder();
+        getFilterCapabilitiesInScopesFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1431,6 +1517,13 @@ private static final long serialVersionUID = 0L;
       }
       bitField0_ = (bitField0_ & ~0x00020000);
       conflictResolutionOverride_ = 0;
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        filterCapabilitiesInScopes_ = java.util.Collections.emptyList();
+      } else {
+        filterCapabilitiesInScopes_ = null;
+        filterCapabilitiesInScopesBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00080000);
       return this;
     }
 
@@ -1500,6 +1593,15 @@ private static final long serialVersionUID = 0L;
         result.uniqueGloballyInScopes_ = uniqueGloballyInScopes_;
       } else {
         result.uniqueGloballyInScopes_ = uniqueGloballyInScopesBuilder_.build();
+      }
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00080000) != 0)) {
+          filterCapabilitiesInScopes_ = java.util.Collections.unmodifiableList(filterCapabilitiesInScopes_);
+          bitField0_ = (bitField0_ & ~0x00080000);
+        }
+        result.filterCapabilitiesInScopes_ = filterCapabilitiesInScopes_;
+      } else {
+        result.filterCapabilitiesInScopes_ = filterCapabilitiesInScopesBuilder_.build();
       }
     }
 
@@ -1746,6 +1848,32 @@ private static final long serialVersionUID = 0L;
       if (other.conflictResolutionOverride_ != 0) {
         setConflictResolutionOverrideValue(other.getConflictResolutionOverrideValue());
       }
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        if (!other.filterCapabilitiesInScopes_.isEmpty()) {
+          if (filterCapabilitiesInScopes_.isEmpty()) {
+            filterCapabilitiesInScopes_ = other.filterCapabilitiesInScopes_;
+            bitField0_ = (bitField0_ & ~0x00080000);
+          } else {
+            ensureFilterCapabilitiesInScopesIsMutable();
+            filterCapabilitiesInScopes_.addAll(other.filterCapabilitiesInScopes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.filterCapabilitiesInScopes_.isEmpty()) {
+          if (filterCapabilitiesInScopesBuilder_.isEmpty()) {
+            filterCapabilitiesInScopesBuilder_.dispose();
+            filterCapabilitiesInScopesBuilder_ = null;
+            filterCapabilitiesInScopes_ = other.filterCapabilitiesInScopes_;
+            bitField0_ = (bitField0_ & ~0x00080000);
+            filterCapabilitiesInScopesBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getFilterCapabilitiesInScopesFieldBuilder() : null;
+          } else {
+            filterCapabilitiesInScopesBuilder_.addAllMessages(other.filterCapabilitiesInScopes_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1921,6 +2049,19 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00040000;
               break;
             } // case 152
+            case 162: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.parser(),
+                      extensionRegistry);
+              if (filterCapabilitiesInScopesBuilder_ == null) {
+                ensureFilterCapabilitiesInScopesIsMutable();
+                filterCapabilitiesInScopes_.add(m);
+              } else {
+                filterCapabilitiesInScopesBuilder_.addMessage(m);
+              }
+              break;
+            } // case 162
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -4752,6 +4893,354 @@ private static final long serialVersionUID = 0L;
       conflictResolutionOverride_ = 0;
       onChanged();
       return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> filterCapabilitiesInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureFilterCapabilitiesInScopesIsMutable() {
+      if (!((bitField0_ & 0x00080000) != 0)) {
+        filterCapabilitiesInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities>(filterCapabilitiesInScopes_);
+        bitField0_ |= 0x00080000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder> filterCapabilitiesInScopesBuilder_;
+
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> getFilterCapabilitiesInScopesList() {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(filterCapabilitiesInScopes_);
+      } else {
+        return filterCapabilitiesInScopesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public int getFilterCapabilitiesInScopesCount() {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        return filterCapabilitiesInScopes_.size();
+      } else {
+        return filterCapabilitiesInScopesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities getFilterCapabilitiesInScopes(int index) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        return filterCapabilitiesInScopes_.get(index);
+      } else {
+        return filterCapabilitiesInScopesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder setFilterCapabilitiesInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities value) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.set(index, value);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder setFilterCapabilitiesInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder builderForValue) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder addFilterCapabilitiesInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities value) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.add(value);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder addFilterCapabilitiesInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities value) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.add(index, value);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder addFilterCapabilitiesInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder builderForValue) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder addFilterCapabilitiesInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder builderForValue) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder addAllFilterCapabilitiesInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> values) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        ensureFilterCapabilitiesInScopesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, filterCapabilitiesInScopes_);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder clearFilterCapabilitiesInScopes() {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        filterCapabilitiesInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00080000);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public Builder removeFilterCapabilitiesInScopes(int index) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        ensureFilterCapabilitiesInScopesIsMutable();
+        filterCapabilitiesInScopes_.remove(index);
+        onChanged();
+      } else {
+        filterCapabilitiesInScopesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder getFilterCapabilitiesInScopesBuilder(
+        int index) {
+      return getFilterCapabilitiesInScopesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder getFilterCapabilitiesInScopesOrBuilder(
+        int index) {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        return filterCapabilitiesInScopes_.get(index);  } else {
+        return filterCapabilitiesInScopesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder> 
+         getFilterCapabilitiesInScopesOrBuilderList() {
+      if (filterCapabilitiesInScopesBuilder_ != null) {
+        return filterCapabilitiesInScopesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(filterCapabilitiesInScopes_);
+      }
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder addFilterCapabilitiesInScopesBuilder() {
+      return getFilterCapabilitiesInScopesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder addFilterCapabilitiesInScopesBuilder(
+        int index) {
+      return getFilterCapabilitiesInScopesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
+     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
+     * means the attribute is filterable without any optional acceleration.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 20;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder> 
+         getFilterCapabilitiesInScopesBuilderList() {
+      return getFilterCapabilitiesInScopesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder> 
+        getFilterCapabilitiesInScopesFieldBuilder() {
+      if (filterCapabilitiesInScopesBuilder_ == null) {
+        filterCapabilitiesInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder>(
+                filterCapabilitiesInScopes_,
+                ((bitField0_ & 0x00080000) != 0),
+                getParentForChildren(),
+                isClean());
+        filterCapabilitiesInScopes_ = null;
+      }
+      return filterCapabilitiesInScopesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

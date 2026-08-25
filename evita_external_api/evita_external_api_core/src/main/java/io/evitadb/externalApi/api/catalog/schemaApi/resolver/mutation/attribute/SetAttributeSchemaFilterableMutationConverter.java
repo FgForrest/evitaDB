@@ -23,10 +23,17 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 
 import javax.annotation.Nonnull;
 
@@ -49,5 +56,39 @@ public class SetAttributeSchemaFilterableMutationConverter
 	@Override
 	protected Class<SetAttributeSchemaFilterableMutation> getMutationClass() {
 		return SetAttributeSchemaFilterableMutation.class;
+	}
+
+	@Nonnull
+	@Override
+	protected SetAttributeSchemaFilterableMutation convertFromInput(@Nonnull Input input) {
+		// read the mandatory name first, so that an input missing it is refused before any optional property is parsed
+		final String name = input.getProperty(AttributeSchemaMutationDescriptor.NAME);
+		// the typed overload is mandatory here - the raw one hands back the underlying List and the constructor
+		// expects a `Scope[]`, which would only blow up at runtime
+		final Scope[] filterableInScopes = input.getOptionalProperty(
+			SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(),
+			Scope[].class
+		);
+		// absent property means an older client that knows nothing about capabilities - `null` is turned into
+		// "no acceleration anywhere" by the mutation itself
+		final ScopedFilterCapabilities[] filterCapabilitiesInScopes = input.getOptionalProperty(
+			SetAttributeSchemaFilterableMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				SetAttributeSchemaFilterableMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES,
+				ScopedFilterCapabilities.class,
+				nestedInput -> new ScopedFilterCapabilities(
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedFilterCapabilitiesDescriptor.CAPABILITIES)
+				)
+			)
+		);
+
+		return new SetAttributeSchemaFilterableMutation(
+			name,
+			filterableInScopes,
+			filterCapabilitiesInScopes
+		);
 	}
 }

@@ -89,6 +89,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -195,6 +198,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -1077,6 +1081,8 @@ public final class EntityCollection implements
 			Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
 
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
+
+			verifyNoFilterCapabilityAddedToNonEmptyCollection(originalSchema, updatedSchema);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
@@ -2494,6 +2500,174 @@ public final class EntityCollection implements
 			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
 			returnType
 		);
+	}
+
+	/**
+	 * Dry-runs the given mutations against this collection's current schema and raises the
+	 * capability-on-populated-collection refusal **without exchanging anything**.
+	 *
+	 * This exists because a catalog-level change to a global attribute fans out into one
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
+	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
+	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
+	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
+	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
+	 *
+	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
+	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
+	 *
+	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
+	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
+	 *   Surfacing those here would turn a working schema change into a spurious rejection.
+	 * - The refusals the mutations raise themselves - wrong data type, capability on a reference attribute - depend
+	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
+	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
+	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
+	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
+	 *
+	 * @param catalogSchema  the catalog schema the mutations are applied against
+	 * @param schemaMutation the mutations that are about to be applied
+	 * @throws InvalidSchemaMutationException when a capability would be added to this non-empty collection
+	 */
+	public void verifySchemaMutationsApplicable(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final EntitySchema updatedSchema;
+		try {
+			EntitySchema schemaSoFar = originalSchema;
+			for (final EntitySchemaMutation theMutation : schemaMutation) {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
+				if (!(mutated instanceof EntitySchema theSchema)) {
+					// the mutation drops the collection or produces something this preflight cannot reason about -
+					// leave the verdict entirely to the real pass
+					return;
+				}
+				schemaSoFar = theSchema;
+			}
+			updatedSchema = schemaSoFar;
+		} catch (RuntimeException ex) {
+			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - three
+			// reasons, all of which must hold for it to stay one.
+			//
+			// (a) This replay runs the mutations OUTSIDE their real batch, so it can fail where the real pass will
+			//     not: an entity mutation naming a global attribute that an earlier mutation in the same batch
+			//     creates sees a catalog schema that does not have it yet. Surfacing that would turn a working
+			//     schema change into a spurious rejection - the preflight would become a new bug, not a guard.
+			// (b) Nothing is lost by staying quiet. This is a pure dry run against a copy; the real pass runs
+			//     moments later with the correct surrounding state and reports every genuine failure itself.
+			// (c) Only one verdict actually needs this preflight, and reaching it does not depend on the exception:
+			//     the non-empty-collection refusal is the sole rule whose answer differs PER COLLECTION, which is
+			//     what lets a cascade accept collection A and then refuse collection B. Every other refusal - wrong
+			//     data type, capability on a reference attribute - depends only on the attribute, so a cascade fires
+			//     it on the first collection visited, before anything has been exchanged, and is already atomic.
+			return;
+		}
+		verifyNoFilterCapabilityAddedToNonEmptyCollection(originalSchema, updatedSchema);
+	}
+
+	/**
+	 * Refuses a schema change that would newly declare a
+	 * {@link io.evitadb.api.requestResponse.schema.FilterIndexCapability} on a collection that already holds entities.
+	 *
+	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter capability are built incrementally
+	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
+	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
+	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
+	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
+	 * declare the capability before the data goes in.
+	 *
+	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
+	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
+	 * attribute created with capabilities already on it, a reference attribute, and whatever combination the mutation
+	 * pipeline collapses those into.
+	 *
+	 * **Attributes are matched by name, and that is correct even across a rename.**
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
+	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
+	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
+	 * does end up with a second attribute carrying the capability. That second attribute needs its own index built
+	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
+	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
+	 * the schema and this per-name comparison would need to follow the attribute through it - see
+	 * `FilterIndexCapabilityRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 *
+	 * {@link #isEmpty()} is consulted **only when a capability was actually added**, because it is a storage read and
+	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
+	 * transaction's own writes: {@link #isEmpty()} goes through the collection's {@link DataStoreReader}, which is
+	 * backed by {@link io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer} once the catalog is live, and
+	 * {@link io.evitadb.core.buffer.DataStoreChanges#countStorageParts} layers the transaction's trapped inserts and
+	 * removals over the persisted count. An entity upserted earlier in the same transaction therefore makes the
+	 * collection non-empty here, and the capability is refused - proven by the `AfterGoingLive` group of
+	 * `FilterIndexCapabilityRefusalTest`, whose same-transaction upsert case is refused while its otherwise
+	 * identical empty-collection counterfactual is accepted.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @throws InvalidSchemaMutationException when a capability would be added to a collection that is not empty
+	 */
+	private void verifyNoFilterCapabilityAddedToNonEmptyCollection(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		for (final EntityAttributeSchemaContract updatedAttribute : updatedSchema.getAttributes().values()) {
+			final AttributeSchemaContract originalAttribute = originalSchema.getAttributes()
+				.get(updatedAttribute.getName());
+			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
+		}
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			for (final AttributeSchemaContract updatedAttribute : updatedReference.getAttributes().values()) {
+				final AttributeSchemaContract originalAttribute = originalReference == null ?
+					null : originalReference.getAttributes().get(updatedAttribute.getName());
+				assertNoCapabilityAdded(
+					originalAttribute, updatedAttribute, updatedSchema.getName(), updatedReference.getName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * The per-attribute half of {@link #verifyNoFilterCapabilityAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * - compares one attribute's capabilities before and after, scope by scope, and refuses any addition while the
+	 * collection holds entities. A capability being *removed* is always allowed: dropping an index needs no data.
+	 *
+	 * @param originalAttribute the attribute as it stood before, or null when the mutation creates it
+	 * @param updatedAttribute  the attribute the mutations produced
+	 * @param entityType        the entity type, for the error message
+	 * @param referenceName     the reference the attribute belongs to, or null for an entity-level attribute
+	 * @throws InvalidSchemaMutationException when a capability would be added to a collection that is not empty
+	 */
+	private void assertNoCapabilityAdded(
+		@Nullable AttributeSchemaContract originalAttribute,
+		@Nonnull AttributeSchemaContract updatedAttribute,
+		@Nonnull String entityType,
+		@Nullable String referenceName
+	) {
+		final Map<Scope, Set<FilterIndexCapability>> updatedCapabilities =
+			updatedAttribute.getFilterCapabilitiesInScopes();
+		if (updatedCapabilities.isEmpty()) {
+			return;
+		}
+		for (final Entry<Scope, Set<FilterIndexCapability>> entry : updatedCapabilities.entrySet()) {
+			final Set<FilterIndexCapability> alreadyDeclared = originalAttribute == null ?
+				Set.of() : originalAttribute.getFilterCapabilitiesInScope(entry.getKey());
+			for (final FilterIndexCapability capability : entry.getValue()) {
+				if (!alreadyDeclared.contains(capability) && !isEmpty()) {
+					throw new InvalidSchemaMutationException(
+						"Cannot declare filter index capability `" + capability + "` on attribute `" +
+							updatedAttribute.getName() + "`" +
+							(referenceName == null ? "" : " of reference `" + referenceName + "`") +
+							" in entity `" + entityType + "` scope `" + entry.getKey() + "`, because the collection " +
+							"already contains entities! The index backing this capability is built as entities are " +
+							"indexed and there is no way to build it for entities that are already stored - " +
+							"declare the capability before inserting data, or remove the existing entities first."
+					);
+				}
+			}
+		}
 	}
 
 	/**

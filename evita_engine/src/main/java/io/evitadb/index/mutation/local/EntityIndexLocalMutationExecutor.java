@@ -1080,9 +1080,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final boolean maintained = switch (capability) {
 			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
 			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
-			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
-				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
-			);
+			case FILTERABLE, SUBSTRING_FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED ->
+				throw new GenericEvitaInternalError(
+					"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
+				);
 		};
 		if (!maintained) {
 			return;

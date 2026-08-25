@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
@@ -120,6 +121,9 @@ class EntitySchemaConverterTest {
 						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 					},
 					new Scope[]{Scope.LIVE},
+					new ScopedFilterCapabilities[]{
+						new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+					},
 					new Scope[]{Scope.LIVE},
 					true,
 					true,
@@ -184,6 +188,9 @@ class EntitySchemaConverterTest {
 								new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 							},
 							new Scope[]{Scope.LIVE},
+							new ScopedFilterCapabilities[]{
+								new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+							},
 							new Scope[]{Scope.LIVE},
 							true,
 							true,

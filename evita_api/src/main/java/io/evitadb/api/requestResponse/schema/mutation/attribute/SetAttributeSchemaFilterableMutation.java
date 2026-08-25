@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
@@ -58,10 +59,13 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.expression.visitor.AccessedDataFinder.findAccessedPaths;
@@ -72,6 +76,9 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
  * {@link GlobalAttributeSchemaContract} alone.
+ * Alongside the boolean filterability, the mutation can carry per-scope {@link FilterIndexCapability}
+ * accelerations via {@link #getFilterCapabilitiesInScopes()} - a reader looking only at this summary should
+ * not assume the mutation is a plain filterability toggle.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
@@ -84,9 +91,15 @@ public class SetAttributeSchemaFilterableMutation
 	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = -382658973541254821L;
+	@Serial private static final long serialVersionUID = -382658973541254820L;
 
 	@Getter @Nonnull private final Scope[] filterableInScopes;
+	/**
+	 * Optional accelerations the filter index should maintain, per scope. Never `null` after construction - an absent
+	 * field on the wire (an older client, an older WAL record) deserializes as the empty array, which is exactly the
+	 * behaviour every schema had before capabilities existed.
+	 */
+	@Getter @Nonnull private final ScopedFilterCapabilities[] filterCapabilitiesInScopes;
 
 	public SetAttributeSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
 		this(
@@ -95,13 +108,46 @@ public class SetAttributeSchemaFilterableMutation
 		);
 	}
 
-	@SerializableCreator
 	public SetAttributeSchemaFilterableMutation(
 		@Nonnull String name,
 		@Nullable Scope[] filterableInScopes
 	) {
+		this(name, filterableInScopes, null);
+	}
+
+	@SerializableCreator
+	public SetAttributeSchemaFilterableMutation(
+		@Nonnull String name,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedFilterCapabilities[] filterCapabilitiesInScopes
+	) {
 		super(name);
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
+		this.filterCapabilitiesInScopes = filterCapabilitiesInScopes == null ?
+			ScopedFilterCapabilities.EMPTY : filterCapabilitiesInScopes;
+		verifyCapabilityScopesAreFilterable(this.name, this.filterableInScopes, this.filterCapabilitiesInScopes);
+	}
+
+	/**
+	 * Builds the mutation from carriers alone - each carrier both *names* a scope the attribute becomes filterable in
+	 * and *lists* the capabilities maintained there, so the two halves cannot drift apart. This is the form schema
+	 * diffing and the builder use; the wire form keeps them separate because the scope array predates capabilities and
+	 * old clients still send only that.
+	 *
+	 * @param name                       name of the altered attribute
+	 * @param filterCapabilitiesInScopes one carrier per scope the attribute should be filterable in
+	 * @return the mutation making the attribute filterable in exactly the carriers' scopes
+	 */
+	@Nonnull
+	public static SetAttributeSchemaFilterableMutation fromCapabilities(
+		@Nonnull String name,
+		@Nonnull ScopedFilterCapabilities... filterCapabilitiesInScopes
+	) {
+		final Scope[] scopes = new Scope[filterCapabilitiesInScopes.length];
+		for (int i = 0; i < filterCapabilitiesInScopes.length; i++) {
+			scopes[i] = filterCapabilitiesInScopes[i].scope();
+		}
+		return new SetAttributeSchemaFilterableMutation(name, scopes, filterCapabilitiesInScopes);
 	}
 
 	public boolean isFilterable() {
@@ -145,8 +191,12 @@ public class SetAttributeSchemaFilterableMutation
 	) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final EnumSet<Scope> filterable = ArrayUtils.toEnumSet(Scope.class, this.filterableInScopes);
+		final EnumMap<Scope, Set<FilterIndexCapability>> capabilities =
+			AttributeSchema.toFilterCapabilitiesEnumMap(this.filterCapabilitiesInScopes);
+		verifyCapabilitiesApplicableToType(this.name, attributeSchema.getType(), capabilities);
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			if (globalAttributeSchema.getFilterableInScopes().equals(filterable)) {
+			if (globalAttributeSchema.getFilterableInScopes().equals(filterable) &&
+				globalAttributeSchema.getFilterCapabilitiesInScopes().equals(capabilities)) {
 				return attributeSchema;
 			} else {
 				//noinspection unchecked,rawtypes
@@ -158,6 +208,7 @@ public class SetAttributeSchemaFilterableMutation
 					globalAttributeSchema.getUniquenessTypeInScopes(),
 					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
 					filterable,
+					capabilities,
 					globalAttributeSchema.getSortableInScopes(),
 					globalAttributeSchema.isLocalized(),
 					globalAttributeSchema.isNullable(),
@@ -169,7 +220,8 @@ public class SetAttributeSchemaFilterableMutation
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
-			if (entityAttributeSchema.getFilterableInScopes().equals(filterable)) {
+			if (entityAttributeSchema.getFilterableInScopes().equals(filterable) &&
+				entityAttributeSchema.getFilterCapabilitiesInScopes().equals(capabilities)) {
 				return attributeSchema;
 			} else {
 				//noinspection unchecked,rawtypes
@@ -180,6 +232,7 @@ public class SetAttributeSchemaFilterableMutation
 					entityAttributeSchema.getDeprecationNotice(),
 					entityAttributeSchema.getUniquenessTypeInScopes(),
 					filterable,
+					capabilities,
 					entityAttributeSchema.getSortableInScopes(),
 					entityAttributeSchema.isLocalized(),
 					entityAttributeSchema.isNullable(),
@@ -191,7 +244,8 @@ public class SetAttributeSchemaFilterableMutation
 				);
 			}
 		} else {
-			if (attributeSchema.getFilterableInScopes().equals(filterable)) {
+			if (attributeSchema.getFilterableInScopes().equals(filterable) &&
+				attributeSchema.getFilterCapabilitiesInScopes().equals(capabilities)) {
 				return attributeSchema;
 			} else {
 				//noinspection unchecked,rawtypes
@@ -202,6 +256,7 @@ public class SetAttributeSchemaFilterableMutation
 					attributeSchema.getDeprecationNotice(),
 					attributeSchema.getUniquenessTypeInScopes(),
 					filterable,
+					capabilities,
 					attributeSchema.getSortableInScopes(),
 					attributeSchema.isLocalized(),
 					attributeSchema.isNullable(),
@@ -230,6 +285,12 @@ public class SetAttributeSchemaFilterableMutation
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		// deliberately outside the consistency-check guard: this is not a consistency question about the reference's
+		// current state but a flat statement that the capability cannot be served here at all, so a SKIP caller must
+		// not be able to write a declaration nothing will ever honour
+		verifyCapabilityNotOnReferenceAttribute(
+			this.name, referenceSchema.getName(), entitySchema.getName(), this.filterCapabilitiesInScopes
+		);
 		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
 			final List<Scope> nonIndexedScopes = Arrays.stream(this.filterableInScopes)
 				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
@@ -276,7 +337,9 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + this.name + "` schema: " +
-			"filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no");
+			"filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
+			(this.filterCapabilitiesInScopes.length == 0 ?
+				"" : ", capabilities=(" + join(this.filterCapabilitiesInScopes) + ")");
 	}
 
 	/**

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaEditor;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
@@ -753,6 +755,159 @@ class SchemaCapabilityUsageRegistryTest {
 					thatIs -> thatIs.sortableInScope(Scope.LIVE).uniqueInScope(Scope.LIVE)
 				)
 			);
+		}
+
+		@Nested
+		@DisplayName("The substring filter capability")
+		class SubstringFilterCapabilityTest {
+
+			@Test
+			@DisplayName("An accelerated attribute is seeded for both `filterable()` and the capability")
+			void shouldSeedSubstringAlongsideFilterable() {
+				// two rows, not one: the acceleration costs an index of its own *on top of* the filter index, and an
+				// operator can drop the capability while keeping the attribute filterable - so the two have to be
+				// separately reportable, exactly as a reference's `faceted()` is separate from its `indexed()`
+				final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+				theRegistry.alignWith(schemaWithAcceleratedEan());
+
+				assertTrue(
+					holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE)),
+					"The filter index the acceleration sits on top of got no row: " + theRegistry.listUsages()
+				);
+				assertTrue(
+					holds(
+						SchemaCapabilityKey.entityAttribute(
+							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+						)
+					),
+					"The declared acceleration got no row of its own: " + theRegistry.listUsages()
+				);
+				assertEquals(
+					2, theRegistry.size(),
+					"An attribute declaring one acceleration seeded more than the two indexes it pays for: " +
+						theRegistry.listUsages()
+				);
+			}
+
+			@Test
+			@DisplayName("Dropping the capability drops its row and leaves the filterable one alone")
+			void shouldDropOnlySubstringWhenTheCapabilityGoesAway() {
+				// the direct consequence of the two rows above being separate: dropping the acceleration must not
+				// reset the filter index's counters, because that index kept being maintained the whole time
+				final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+				theRegistry.alignWith(schemaWithAcceleratedEan());
+				final SchemaCapabilityKey filterable = SchemaCapabilityKey.entityAttribute(
+					ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
+				);
+				final SchemaCapabilityUsage filterableHolder = theRegistry.resolve(filterable);
+
+				theRegistry.alignWith(
+					schemaWith(
+						builder -> builder.withAttribute(
+							ATTRIBUTE_EAN, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE)
+						)
+					)
+				);
+
+				assertFalse(
+					holds(
+						SchemaCapabilityKey.entityAttribute(
+							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+						)
+					),
+					"The row of an acceleration the schema stopped declaring survived"
+				);
+				assertSame(
+					filterableHolder, theRegistry.resolve(filterable),
+					"Dropping the acceleration replaced the filter index's holder, resetting its counters"
+				);
+			}
+
+			@Test
+			@DisplayName("The capability is seeded only in the scope that declares it")
+			void shouldSeedSubstringOnlyInTheScopeThatDeclaresIt() {
+				// the acceleration is declared per scope exactly as filterability is, so an attribute filterable in
+				// both scopes but accelerated in one pays for - and must be reported as having - one such index
+				final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+				theRegistry.alignWith(
+					schemaWith(
+						builder -> builder.withAttribute(
+							ATTRIBUTE_EAN, String.class,
+							thatIs -> thatIs.filterableInScope(
+								new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING),
+								new ScopedFilterCapabilities(Scope.ARCHIVED)
+							)
+						)
+					)
+				);
+
+				assertTrue(
+					holds(
+						SchemaCapabilityKey.entityAttribute(
+							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+						)
+					),
+					"The scope declaring the acceleration got no row: " + theRegistry.listUsages()
+				);
+				assertTrue(
+					holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.ARCHIVED)),
+					"The archived scope is filterable and must still be reported as such"
+				);
+				assertFalse(
+					holds(
+						SchemaCapabilityKey.entityAttribute(
+							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.ARCHIVED
+						)
+					),
+					"A scope declaring no acceleration was seeded one anyway: " + theRegistry.listUsages()
+				);
+			}
+
+			@Test
+			@DisplayName("A substring key naming a reference or the entity itself is reported, not swallowed")
+			void shouldRefuseToAlignASubstringKeyOnAReferenceOrEntity() {
+				// neither `SchemaCapabilityKey#reference` nor `#entity` will mint such a key, so only the canonical
+				// record constructor can produce one - and dropping it quietly at alignment would look exactly like
+				// an ordinary alignment and hide whoever built it
+				final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+				theRegistry.resolve(
+					new SchemaCapabilityKey(
+						ElementKind.REFERENCE, null, REFERENCE_STOCKS, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+					)
+				);
+
+				assertThrows(GenericEvitaInternalError.class, () -> theRegistry.alignWith(fullSchema()));
+
+				final SchemaCapabilityUsageRegistry entityRegistry = new SchemaCapabilityUsageRegistry();
+				entityRegistry.resolve(
+					new SchemaCapabilityKey(
+						ElementKind.ENTITY, null, Entities.PRODUCT, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+					)
+				);
+
+				assertThrows(GenericEvitaInternalError.class, () -> entityRegistry.alignWith(fullSchema()));
+			}
+
+			/**
+			 * A schema whose sole attribute is filterable in the live scope and asks that scope's filter index for
+			 * the substring acceleration.
+			 *
+			 * @return the schema
+			 */
+			@Nonnull
+			private EntitySchemaContract schemaWithAcceleratedEan() {
+				return schemaWith(
+					builder -> builder.withAttribute(
+						ATTRIBUTE_EAN, String.class,
+						thatIs -> thatIs.filterableInScope(
+							new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+						)
+					)
+				);
+			}
+
 		}
 
 	}

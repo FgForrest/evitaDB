@@ -123,6 +123,7 @@ class CatalogSchemaTest {
 				},
 				new Scope[]{Scope.LIVE},
 				null,
+				null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED

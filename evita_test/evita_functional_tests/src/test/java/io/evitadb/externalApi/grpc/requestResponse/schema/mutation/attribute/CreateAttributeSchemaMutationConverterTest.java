@@ -23,13 +23,20 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcFilterIndexCapability;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRPC;
@@ -109,5 +116,52 @@ class CreateAttributeSchemaMutationConverterTest {
 
 		final CreateAttributeSchemaMutation roundTrip = converter.convert(grpcMutation);
 		assertTrue(roundTrip.isRepresentative());
+	}
+
+	@Test
+	void shouldRoundTripFilterCapabilitiesThroughGrpc() {
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			null,
+			new Scope[]{Scope.LIVE},
+			new ScopedFilterCapabilities[]{
+				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			},
+			Scope.NO_SCOPE,
+			false,
+			false,
+			false,
+			String.class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		final GrpcCreateAttributeSchemaMutation grpcMutation = converter.convert(mutation);
+		assertEquals(1, grpcMutation.getFilterCapabilitiesInScopesCount());
+		assertEquals(
+			GrpcFilterIndexCapability.FILTER_INDEX_CAPABILITY_SUBSTRING,
+			grpcMutation.getFilterCapabilitiesInScopes(0).getCapabilities(0)
+		);
+		assertEquals(mutation, converter.convert(grpcMutation));
+	}
+
+	/**
+	 * An older client never sends `filterCapabilitiesInScopes`, and proto3 renders that absence as an empty list.
+	 * The converter must read it as "no acceleration declared" - never as a spurious capability, never as a failure.
+	 */
+	@Test
+	void shouldConvertMutationOmittingFilterCapabilities() {
+		final GrpcCreateAttributeSchemaMutation legacyMutation = GrpcCreateAttributeSchemaMutation.newBuilder()
+			.setName("code")
+			.setFilterable(true)
+			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(String.class))
+			.build();
+		assertTrue(legacyMutation.getFilterCapabilitiesInScopesList().isEmpty());
+
+		final CreateAttributeSchemaMutation mutation = converter.convert(legacyMutation);
+		assertArrayEquals(ScopedFilterCapabilities.EMPTY, mutation.getFilterCapabilitiesInScopes());
 	}
 }
