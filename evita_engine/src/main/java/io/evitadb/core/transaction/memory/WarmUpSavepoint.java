@@ -79,7 +79,10 @@ import java.util.IdentityHashMap;
  * - **Per operation**, when it does not. The collection wrappers mutate a large delegate `HashMap` / `HashSet` /
  *   `ArrayList` in place, so their whole-state pre-image is a deep copy of the accumulated base structure — the
  *   `O(N²)`-per-transaction rollback cliff that the journal strategy exists to avoid (see {@link UndoJournal}). They
- *   capture the one slot each operation overwrites instead.
+ *   capture the one slot each operation overwrites instead. `TransactionalBitmap` belongs here too, and is the
+ *   cautionary case: it first took a copy-on-write `clone()`, which LOOKS `O(1)` because it only copies pointers,
+ *   while the copying it defers — one container per subsequent write, up to 8 KB each — showed up as 13.2 % of all
+ *   allocation on the bulk-ingest profile. "Cheap to capture" is not the test; "cheap in total" is.
  *
  * **Thread confinement.** The savepoint is held in a {@link ThreadLocal} rather than passed down the call chain: the
  * warm-up write path fans out through the whole index-mutation machinery, and plumbing a context parameter through it

@@ -413,8 +413,9 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 			),
 			Map.entry(
 				"io/evitadb/index/bitmap/TransactionalBitmap.java",
-				"warm-up fast path in addAll/removeAll - BOTH arms call recordWarmUpSavepointTouch() before writing, " +
-					"and the gate keeps the per-record contains() scan off the bulk-ingest hot path"
+				"warm-up fast path in addAll/removeAll - BOTH arms journal, the no-transaction one through " +
+					"addAllToDelegate()/removeAllFromDelegate() which capture the delta they write, and the gate " +
+					"keeps the per-record contains() scan off the bulk-ingest hot path"
 			),
 			Map.entry(
 				"io/evitadb/index/attribute/FilterIndex.java",

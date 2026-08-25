@@ -153,9 +153,9 @@ class WarmUpRollbackBackstopTest {
 		@Test
 		@DisplayName("The ported production structures declare it")
 		void shouldDeclareSupportOnPortedProductionStructures() {
-			// a spot check across the three journalling strategies - first-touch reference capture, copy-on-write
-			// first-touch, and per-operation slot capture - so a structure that loses its declaration in a future
-			// refactor fails here rather than at the first bracketed mutation that reaches it. The exhaustive
+			// a spot check across the three journalling strategies - first-touch reference capture, per-operation
+			// membership capture, and per-operation slot capture - so a structure that loses its declaration in a
+			// future refactor fails here rather than at the first bracketed mutation that reaches it. The exhaustive
 			// version of this assertion is WarmUpRollbackConformanceTest
 			assertTrue(new TransactionalBoolean().supportsWarmUpRollback());
 			assertTrue(new TransactionalBitmap().supportsWarmUpRollback());

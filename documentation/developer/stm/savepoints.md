@@ -260,6 +260,15 @@ It follows from the **cost of the pre-image**, not from the participant's shape:
   structure -- the same `O(N²)` cliff the journal strategy exists to avoid. They capture the one slot
   each operation overwrites instead.
 
+The cost that decides it is the **total** cost, not the cost at the moment of capture, and
+`TransactionalBitmap` is the case that taught us the difference. It first captured a copy-on-write
+`PersistentRoaringBitmap.clone()`, which is only pointer work -- proportional to containers, not to
+cardinality -- and so read as an `O(1)`-ish pre-image. What the clone really does is *freeze* every
+container on both sides, so each subsequent write to a shared container has to copy it out first (up to
+a `long[1024]`, 8 KB), and bulk ingest re-clones and re-defrosts once per entity. On the 972k-article
+reference corpus that deferred copying was 13.2 % of all allocation with the mechanism switched on. The
+bitmap now journals per operation like the collection wrappers.
+
 ### Per-family strategies
 
 | Family | Strategy | Pre-image |
@@ -267,7 +276,7 @@ It follows from the **cost of the pre-image**, not from the participant's shape:
 | `TransactionalReference`, `TransactionalBoolean` | first touch, self-captured | the single held value |
 | `TransactionalIntArray`, `TransactionalObjArray`, `TransactionalComplexObjArray` | first touch, self-captured | the whole delegate array **reference** (writes always allocate a fresh array, so the outgoing reference is already an immutable snapshot) |
 | `TransactionalMap`, `PersistentTransactionalMap`, `TransactionalSet`, `TransactionalList` | per operation | the one slot / membership each operation overwrites (`WarmUpMapJournal` for the map pair). `clear()` is the exception -- it copies the whole delegate, being a whole-structure operation anyway. Iterators and views are swapped for journalling wrappers while a savepoint is open. |
-| `TransactionalBitmap` | first touch, self-captured | a copy-on-write `PersistentRoaringBitmap.clone()` -- pointer work proportional to containers, not to cardinality |
+| `TransactionalBitmap` | per operation | the membership each operation actually changes -- one inverse per single-record write, one inverse per bulk write covering exactly the ids whose membership that call flipped |
 | B+ tree nodes and `UnorderedLookupTree` nodes | first touch, via `writeLayer` | each node's own `Snapshotable` memento, bounded by block size |
 | Composite index layers -- `CatalogIndex`, `AttributeIndex`, `ChainIndex`, the facet and price index layers | *(nothing to record)* | their diff layer is pure in-transaction bookkeeping that only a commit-merge consumes; outside a transaction there is no state of their own to rewind, and the real state sits in contained structures that journal their own writes |
 | Memoized caches -- `FilterIndex`, `SortIndex`, `OwnerUniqueIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes | first touch | *none* -- the inverse is a re-invalidation, see [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
@@ -363,9 +372,11 @@ A warm-up rollback rewinds index and storage state. Four things it deliberately 
    mementos, so a dropped memo costs one recomputation, whereas a restored one would have to be *trusted*
    to have been valid, which nothing at the restore site can establish.
 3. **Handles taken before the rollback go stale.** Because several restores are reference swaps, a caller
-   holding e.g. a bitmap obtained from `TransactionalBitmap#getRoaringBitmap()` before the rollback keeps
-   the rewound-away instance. This is the same contract the array wrappers have; warm-up readers fetch
-   through the accessor per call.
+   holding e.g. an array obtained from `TransactionalIntArray#getArray()` before the rollback keeps the
+   rewound-away instance. This is the contract of every wrapper whose pre-image is a bare reference;
+   warm-up readers fetch through the accessor per call. (`TransactionalBitmap` is *not* one of them any
+   more -- it journals per operation and restores in place, so a bitmap handle stays live across a
+   rollback.)
 4. **Storage is rewound by content, not by bytes.** The store is append-only, so putting a record's
    pre-image back appends another record rather than un-writing the failed one, and dropping a record the
    mutation created marks it removed rather than reclaiming its bytes. What a reader sees is exactly the

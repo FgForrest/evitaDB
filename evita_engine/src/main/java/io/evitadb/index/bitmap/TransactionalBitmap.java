@@ -64,17 +64,23 @@ public class TransactionalBitmap
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
-	 * The bitmap the non-transactional (delegate) branch writes into. NOT final only so that
-	 * {@link #recordWarmUpSavepointTouch()} can swap a captured pre-image back in when a warm-up savepoint is rolled
-	 * back; nothing else ever reassigns it after construction.
-	 *
-	 * Dropping `final` gives up the JMM's final-field freeze, so an instance handed to another thread WITHOUT a
-	 * happens-before edge could in principle see this slot as `null`. That is not a regression in practice and is not
-	 * defended against here: the reassignment only ever happens under a warm-up savepoint, and
-	 * {@link io.evitadb.api.CatalogState#WARMING_UP} is contractually single-threaded, while an `ALIVE` catalog
-	 * publishes its indexes across a version boundary that already carries the edge.
+	 * Initial capacity of the delta buffer a bulk delegate-branch write fills while a warm-up savepoint is open (see
+	 * {@link #appendChangedId(int[], int, int, int)}). It is capped by the bulk argument's own size, so a two-element
+	 * bulk write allocates two slots rather than this many.
 	 */
-	private PersistentRoaringBitmap roaringBitmap;
+	private static final int INITIAL_CHANGED_ID_CAPACITY = 16;
+
+	/**
+	 * The bitmap the non-transactional (delegate) branch writes into.
+	 *
+	 * The field is `final` because warm-up savepoint capture is PER OPERATION: a delegate-branch write flips bits on
+	 * THIS instance and journals the inverse of exactly the bits it flipped, so a rollback replays those inverses
+	 * against the same instance rather than swapping a captured pre-image reference back in (see
+	 * {@link #journalAdditions(WarmUpSavepoint, int[], int)}). Nothing reassigns the slot after construction, which
+	 * keeps the JMM's final-field freeze: an instance published to another thread WITHOUT a happens-before edge can
+	 * never observe it as `null`.
+	 */
+	private final PersistentRoaringBitmap roaringBitmap;
 	private volatile int memoizedCardinality;
 
 	/**
@@ -118,9 +124,10 @@ public class TransactionalBitmap
 	}
 
 	/**
-	 * Every delegate branch of this class runs {@link #recordWarmUpSavepointTouch()} first, which captures a
-	 * copy-on-write {@link PersistentRoaringBitmap#clone()} of the whole bitmap — `O(#containers)` of pointer work,
-	 * not `O(size)` — and restores it by swapping the reference back and resetting the memoized cardinality.
+	 * Every delegate branch of this class journals, into the warm-up savepoint bracketing the current root entity
+	 * mutation when one is open, an inverse restoring exactly the membership it is about to change: a single-bit write
+	 * pushes one inverse for that bit, a bulk write pushes one inverse reverting the ids whose membership it actually
+	 * changed. A write that changes nothing journals nothing.
 	 *
 	 * @return always `true` — see above
 	 */
@@ -165,7 +172,7 @@ public class TransactionalBitmap
 		} else {
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
-				recordWarmUpSavepointTouch();
+				journalAdditionIfOpen(recordId);
 				this.roaringBitmap.add(recordId);
 				this.memoizedCardinality = -1;
 				return true;
@@ -178,9 +185,7 @@ public class TransactionalBitmap
 	@Override
 	public void addAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
-			recordWarmUpSavepointTouch();
-			this.roaringBitmap.add(recordId);
-			this.memoizedCardinality = -1;
+			addAllToDelegate(recordId);
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
@@ -193,9 +198,7 @@ public class TransactionalBitmap
 					if (!this.roaringBitmap.contains(recId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
-							recordWarmUpSavepointTouch();
-							this.roaringBitmap.add(recordId);
-							this.memoizedCardinality = -1;
+							addAllToDelegate(recordId);
 						} else {
 							for (int r : recordId) {
 								layer.addRecordId(r);
@@ -211,9 +214,7 @@ public class TransactionalBitmap
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
-			recordWarmUpSavepointTouch();
-			this.roaringBitmap.add(recordIds.getArray());
-			this.memoizedCardinality = -1;
+			addAllToDelegate(recordIds);
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
@@ -228,12 +229,9 @@ public class TransactionalBitmap
 					if (!this.roaringBitmap.contains(recordId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
-							recordWarmUpSavepointTouch();
-							this.roaringBitmap.add(recordId);
-							while (it.hasNext()) {
-								this.roaringBitmap.add(it.nextInt());
-							}
-							this.memoizedCardinality = -1;
+							// the prefix already walked is present in the delegate, so re-offering the WHOLE argument
+							// to the shared helper reaches the same state while keeping a single journalling shape
+							addAllToDelegate(recordIds);
 						} else {
 							layer.addRecordId(recordId);
 							while (it.hasNext()) {
@@ -255,7 +253,7 @@ public class TransactionalBitmap
 		} else {
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
-				recordWarmUpSavepointTouch();
+				journalRemovalIfOpen(recordId);
 				this.roaringBitmap.remove(recordId);
 				this.memoizedCardinality = -1;
 				return true;
@@ -268,11 +266,7 @@ public class TransactionalBitmap
 	@Override
 	public void removeAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
-			recordWarmUpSavepointTouch();
-			for (int recId : recordId) {
-				this.roaringBitmap.remove(recId);
-			}
-			this.memoizedCardinality = -1;
+			removeAllFromDelegate(recordId);
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
@@ -285,11 +279,7 @@ public class TransactionalBitmap
 					if (this.roaringBitmap.contains(recId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
-							recordWarmUpSavepointTouch();
-							for (int r : recordId) {
-								this.roaringBitmap.remove(r);
-							}
-							this.memoizedCardinality = -1;
+							removeAllFromDelegate(recordId);
 						} else {
 							for (int r : recordId) {
 								layer.removeRecordId(r);
@@ -305,16 +295,7 @@ public class TransactionalBitmap
 	@Override
 	public void removeAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
-			recordWarmUpSavepointTouch();
-			if (recordIds instanceof RoaringBitmapBackedBitmap) {
-				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
-			} else {
-				final OfInt it = recordIds.iterator();
-				while (it.hasNext()) {
-					this.roaringBitmap.remove(it.nextInt());
-				}
-			}
-			this.memoizedCardinality = -1;
+			removeAllFromDelegate(recordIds);
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
@@ -329,12 +310,9 @@ public class TransactionalBitmap
 					if (this.roaringBitmap.contains(recordId)) {
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
-							recordWarmUpSavepointTouch();
-							this.roaringBitmap.remove(recordId);
-							while (it.hasNext()) {
-								this.roaringBitmap.remove(it.nextInt());
-							}
-							this.memoizedCardinality = -1;
+							// the prefix already walked is absent from the delegate, so re-offering the WHOLE argument
+							// to the shared helper reaches the same state while keeping a single journalling shape
+							removeAllFromDelegate(recordIds);
 						} else {
 							layer.removeRecordId(recordId);
 							while (it.hasNext()) {
@@ -349,42 +327,325 @@ public class TransactionalBitmap
 	}
 
 	/**
-	 * Captures the delegate bitmap for the warm-up savepoint bracketing the current root entity mutation, if one is
-	 * open, so that a failed mutation rewinds this bitmap to exactly the members it held before the mutation began
-	 * (see {@link WarmUpSavepoint}).
+	 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the inverse of
+	 * a single-bit ADDITION about to be applied to the delegate bitmap, so that a failed mutation rewinds this bitmap
+	 * to exactly the members it held before the mutation began (see {@link WarmUpSavepoint}).
 	 *
-	 * The capture is made on the FIRST write-touch only, which is affordable here despite the bitmap being the large
-	 * accumulated base structure: {@link PersistentRoaringBitmap#clone()} is copy-on-write on both of its levels, so it
-	 * costs `O(#containers)` of pointer work rather than `O(#members)` of copying. Journaling membership per operation
-	 * was the alternative and loses on the hottest path — {@link #addAll(Bitmap)} would have to allocate an inverse
-	 * proportional to its argument on every call, whereas one clone covers every write in the savepoint.
+	 * The caller must already have established that `recordId` is ABSENT — every call site sits behind the
+	 * {@link #contains(int)} short-circuit that makes an `add` of a present id a no-op — so the bit's captured previous
+	 * state is "absent" and the inverse that restores it is a plain removal. A write that changes nothing therefore
+	 * journals nothing.
 	 *
-	 * **Why the clone stays intact while the live bitmap keeps being mutated.** `clone()` raises the copy-on-write flag
-	 * on every container of BOTH sides and marks BOTH `RoaringArray`s frozen. The next in-place write to the live
-	 * bitmap therefore clones the container it targets before touching it (`copyIfShared`), and the next structural
-	 * write defrosts the key/value arrays into a private copy — so no mutation applied after the capture can reach the
-	 * captured pre-image. That is the same guarantee the transactional MVCC commit path relies on. The bitmap's own
-	 * thread-safety caveat (a shared result must be safely published before another thread mutates it) does not apply:
-	 * {@link io.evitadb.api.CatalogState#WARMING_UP} is contractually single-threaded.
+	 * **Why per operation rather than one whole-bitmap capture.** The bitmap used to capture a copy-on-write
+	 * {@link PersistentRoaringBitmap#clone()} on its first write-touch, which looked `O(1)`-ish because the clone is
+	 * pointer work proportional to containers. The cost was merely deferred: cloning freezes every container of BOTH
+	 * sides, so the very next write to a shared container has to copy it out (up to a `long[1024]` bitmap container),
+	 * and bulk ingest re-clones and re-defrosts per entity. Profiling the 972k-article reference corpus put
+	 * `BitmapContainer.clone`'s `long[]` copies at 13.2 % of all allocation with the mechanism switched on. Capturing
+	 * per operation is `O(changed)` and touches nothing the write was not touching anyway.
 	 *
-	 * The restore swaps the captured reference back and re-invalidates {@link #memoizedCardinality} rather than
-	 * restoring its pre-image. The sentinel is unconditionally safe — it costs one recomputation on the next
-	 * {@link #size()} — while a restored value would silently outlive the swap if it were ever stale. Because the
-	 * restore is a reference swap, a caller holding a bitmap handed out by {@link #getRoaringBitmap()} from before the
-	 * rollback keeps the rewound-away instance; that is the same contract the array wrappers have, and warm-up readers
-	 * fetch through the accessor per call.
+	 * **The inverse reads {@link #roaringBitmap} at replay time** rather than closing over the instance the write went
+	 * to. Today the field is final, so the two are the same bitmap; the shape is kept deliberately anyway, because a
+	 * future change that reintroduced a reference swap would make a captured-instance inverse restore members into a
+	 * bitmap nobody reads, silently. It re-invalidates {@link #memoizedCardinality} rather than restoring a captured
+	 * value — the sentinel costs one recomputation on the next {@link #size()}, whereas a restored value would have to
+	 * be trusted to have been valid (see the accepted-residues section of the savepoint documentation).
 	 *
 	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 *
+	 * @param recordId the id being added, known to be absent from the delegate bitmap
 	 */
-	private void recordWarmUpSavepointTouch() {
+	private void journalAdditionIfOpen(int recordId) {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
-		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			final PersistentRoaringBitmap preImage = this.roaringBitmap.clone();
+		if (savepoint != null) {
 			savepoint.push(() -> {
-				this.roaringBitmap = preImage;
+				this.roaringBitmap.remove(recordId);
 				this.memoizedCardinality = -1;
 			});
 		}
+	}
+
+	/**
+	 * Journals the inverse of a single-bit REMOVAL about to be applied to the delegate bitmap — the mirror of
+	 * {@link #journalAdditionIfOpen(int)}, whose JavaDoc carries the reasoning for the granularity.
+	 *
+	 * The caller must already have established that `recordId` is PRESENT, so the bit's captured previous state is
+	 * "present" and the inverse that restores it is a plain addition.
+	 *
+	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 *
+	 * @param recordId the id being removed, known to be present in the delegate bitmap
+	 */
+	private void journalRemovalIfOpen(int recordId) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			savepoint.push(() -> {
+				this.roaringBitmap.add(recordId);
+				this.memoizedCardinality = -1;
+			});
+		}
+	}
+
+	/**
+	 * Adds every id of `recordIds` to the delegate bitmap, journalling into an open warm-up savepoint the ids whose
+	 * membership the write actually CHANGED (its delta).
+	 *
+	 * With no savepoint open — the production default, and every bulk load with the atomicity flag off — this is
+	 * byte-for-byte the write the method always performed, a single bulk `add` that reaches roaring's whole-container
+	 * fast paths. That path must never pay for a mechanism that is switched off, so the per-id walk the delta needs
+	 * lives strictly inside the savepoint-open branch, which pays it in exchange for not cloning (and subsequently
+	 * defrosting) the whole accumulated bitmap.
+	 *
+	 * Duplicate ids in the argument need no special handling: the second occurrence finds the bit already present and
+	 * does not enter the delta. An empty delta pushes nothing.
+	 *
+	 * @param recordIds the ids to add
+	 */
+	private void addAllToDelegate(@Nonnull int[] recordIds) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint == null) {
+			this.roaringBitmap.add(recordIds);
+			this.memoizedCardinality = -1;
+		} else {
+			int[] addedIds = null;
+			int addedCount = 0;
+			try {
+				for (final int recordId : recordIds) {
+					if (!this.roaringBitmap.contains(recordId)) {
+						// the delta slot is reserved BEFORE the bit is flipped, so no failure can leave a flip
+						// outside the delta
+						addedIds = appendChangedId(addedIds, addedCount, recordId, recordIds.length);
+						addedCount++;
+						this.roaringBitmap.add(recordId);
+					}
+				}
+			} finally {
+				// pushed from a FINALLY, so a walk that dies part-way still journals the flips it managed to make
+				if (addedIds != null) {
+					journalAdditions(savepoint, addedIds, addedCount);
+				}
+				this.memoizedCardinality = -1;
+			}
+		}
+	}
+
+	/**
+	 * Adds every id of `recordIds` to the delegate bitmap, journalling into an open warm-up savepoint the ids whose
+	 * membership the write actually CHANGED — the {@link Bitmap} counterpart of
+	 * {@link #addAllToDelegate(int[])}, whose JavaDoc carries the reasoning.
+	 *
+	 * The savepoint-open branch iterates the argument rather than materializing it through {@link Bitmap#getArray()},
+	 * so it does not even pay the whole-argument array the no-savepoint fast path allocates.
+	 *
+	 * @param recordIds the ids to add
+	 */
+	private void addAllToDelegate(@Nonnull Bitmap recordIds) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint == null) {
+			this.roaringBitmap.add(recordIds.getArray());
+			this.memoizedCardinality = -1;
+		} else {
+			final int maxAddedCount = recordIds.size();
+			int[] addedIds = null;
+			int addedCount = 0;
+			try {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (!this.roaringBitmap.contains(recordId)) {
+						// the delta slot is reserved BEFORE the bit is flipped, so no failure can leave a flip
+						// outside the delta
+						addedIds = appendChangedId(addedIds, addedCount, recordId, maxAddedCount);
+						addedCount++;
+						this.roaringBitmap.add(recordId);
+					}
+				}
+			} finally {
+				// pushed from a FINALLY, so a walk that dies part-way still journals the flips it managed to make
+				if (addedIds != null) {
+					journalAdditions(savepoint, addedIds, addedCount);
+				}
+				this.memoizedCardinality = -1;
+			}
+		}
+	}
+
+	/**
+	 * Removes every id of `recordIds` from the delegate bitmap, journalling into an open warm-up savepoint the ids
+	 * whose membership the write actually CHANGED — the removal mirror of {@link #addAllToDelegate(int[])}.
+	 *
+	 * @param recordIds the ids to remove
+	 */
+	private void removeAllFromDelegate(@Nonnull int[] recordIds) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint == null) {
+			for (final int recordId : recordIds) {
+				this.roaringBitmap.remove(recordId);
+			}
+			this.memoizedCardinality = -1;
+		} else {
+			int[] removedIds = null;
+			int removedCount = 0;
+			try {
+				for (final int recordId : recordIds) {
+					if (this.roaringBitmap.contains(recordId)) {
+						// the delta slot is reserved BEFORE the bit is flipped, so no failure can leave a flip
+						// outside the delta
+						removedIds = appendChangedId(removedIds, removedCount, recordId, recordIds.length);
+						removedCount++;
+						this.roaringBitmap.remove(recordId);
+					}
+				}
+			} finally {
+				// pushed from a FINALLY, so a walk that dies part-way still journals the flips it managed to make
+				if (removedIds != null) {
+					journalRemovals(savepoint, removedIds, removedCount);
+				}
+				this.memoizedCardinality = -1;
+			}
+		}
+	}
+
+	/**
+	 * Removes every id of `recordIds` from the delegate bitmap, journalling into an open warm-up savepoint the ids
+	 * whose membership the write actually CHANGED — the {@link Bitmap} counterpart of
+	 * {@link #removeAllFromDelegate(int[])}.
+	 *
+	 * The no-savepoint branch keeps the whole-bitmap `andNot` fast path for a roaring-backed argument untouched; the
+	 * savepoint-open branch walks the argument id by id, because `andNot` reports nothing about WHICH members it took
+	 * away and the delta is exactly what the inverse has to put back.
+	 *
+	 * @param recordIds the ids to remove
+	 */
+	private void removeAllFromDelegate(@Nonnull Bitmap recordIds) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint == null) {
+			if (recordIds instanceof RoaringBitmapBackedBitmap) {
+				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
+			} else {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					this.roaringBitmap.remove(it.nextInt());
+				}
+			}
+			this.memoizedCardinality = -1;
+		} else {
+			final int maxRemovedCount = recordIds.size();
+			int[] removedIds = null;
+			int removedCount = 0;
+			try {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (this.roaringBitmap.contains(recordId)) {
+						// the delta slot is reserved BEFORE the bit is flipped, so no failure can leave a flip
+						// outside the delta
+						removedIds = appendChangedId(removedIds, removedCount, recordId, maxRemovedCount);
+						removedCount++;
+						this.roaringBitmap.remove(recordId);
+					}
+				}
+			} finally {
+				// pushed from a FINALLY, so a walk that dies part-way still journals the flips it managed to make
+				if (removedIds != null) {
+					journalRemovals(savepoint, removedIds, removedCount);
+				}
+				this.memoizedCardinality = -1;
+			}
+		}
+	}
+
+	/**
+	 * Pushes ONE inverse reverting the additions a bulk write made — the first `addedCount` entries of `addedIds`, all
+	 * of which were absent before that write and must be absent again after a rollback.
+	 *
+	 * A single journal entry per bulk operation, rather than one per changed id, is what keeps the journal bounded by
+	 * operations instead of by members; the restore is still absolute per id, which is what the journal's strict
+	 * reverse replay needs to collapse a bit written several times inside one savepoint back to its pre-savepoint
+	 * membership.
+	 *
+	 * Unlike every other recording call in this class this one necessarily runs AFTER its forward write, because a
+	 * delta is not knowable before the write that produces it. Two properties of the CALLER are what make that safe
+	 * rather than merely convenient, and both are load-bearing rather than defensive style:
+	 *
+	 * - **The push happens in a `finally`, not after a completed walk.** A bulk walk that dies part-way — a throwing
+	 *   iterator on the {@link Bitmap} overload, an allocation failure inside a container — has still flipped bits, and
+	 *   they are rewindable only if the delta accumulated up to that point reaches the journal. Pushing only on the
+	 *   normal exit would let the rollback report success while the bitmap silently kept those flips, which is exactly
+	 *   the silent-partial-rollback failure this whole mechanism exists to remove.
+	 * - **Each delta slot is reserved BEFORE its bit is flipped**, so no completed flip can end up outside the delta.
+	 *   The reverse residue — an entry whose flip then never happened, because the write right after it threw — is
+	 *   harmless: the inverse is an ABSOLUTE restore of the membership that id held before the walk, so re-asserting
+	 *   it is a no-op.
+	 *
+	 * Together they make the guarantee total: after any outcome of the walk, every membership it changed is in the
+	 * journal, and nothing the journal names can be restored wrongly.
+	 *
+	 * @param savepoint  the open savepoint to record into
+	 * @param addedIds   buffer holding the ids the write added, in its first `addedCount` slots
+	 * @param addedCount number of recorded ids, always greater than zero
+	 */
+	private void journalAdditions(@Nonnull WarmUpSavepoint savepoint, @Nonnull int[] addedIds, int addedCount) {
+		savepoint.push(() -> {
+			for (int i = 0; i < addedCount; i++) {
+				this.roaringBitmap.remove(addedIds[i]);
+			}
+			this.memoizedCardinality = -1;
+		});
+	}
+
+	/**
+	 * Pushes ONE inverse reverting the removals a bulk write made — the first `removedCount` entries of `removedIds`,
+	 * all of which were present before that write and must be present again after a rollback. The removal mirror of
+	 * {@link #journalAdditions(WarmUpSavepoint, int[], int)}, whose JavaDoc carries the reasoning.
+	 *
+	 * @param savepoint    the open savepoint to record into
+	 * @param removedIds   buffer holding the ids the write removed, in its first `removedCount` slots
+	 * @param removedCount number of recorded ids, always greater than zero
+	 */
+	private void journalRemovals(@Nonnull WarmUpSavepoint savepoint, @Nonnull int[] removedIds, int removedCount) {
+		savepoint.push(() -> {
+			for (int i = 0; i < removedCount; i++) {
+				this.roaringBitmap.add(removedIds[i]);
+			}
+			this.memoizedCardinality = -1;
+		});
+	}
+
+	/**
+	 * Appends `recordId` to a bulk write's delta buffer at index `changedCount`, allocating or growing the buffer as
+	 * needed, and returns the buffer to store back into the caller's local.
+	 *
+	 * The buffer is grown by doubling and hard-capped at `maxChangedCount` — the size of the bulk argument, which no
+	 * delta can exceed because each changed id is a distinct element of it. Sizing straight to that cap would make a
+	 * bulk write that adds one new id to a million-member argument allocate four megabytes; starting small and doubling
+	 * keeps the buffer proportional to the delta while still allocating exactly once for the common case of a delta
+	 * that fits the initial capacity. `CompositeIntArray` — the codebase's general growing int buffer — was the
+	 * alternative and loses here: its backing `ArrayList` plus a fixed 50-int chunk costs more than the whole buffer
+	 * for the small deltas this path sees.
+	 *
+	 * @param changedIds      the buffer built so far, or `null` when nothing has been appended yet
+	 * @param changedCount    number of ids already in the buffer, i.e. the index to write at
+	 * @param recordId        the id to append
+	 * @param maxChangedCount upper bound on the delta size, i.e. the size of the bulk argument
+	 * @return the buffer to keep using, which is a NEW array whenever it had to be allocated or grown
+	 */
+	@Nonnull
+	private static int[] appendChangedId(
+		@Nullable int[] changedIds, int changedCount, int recordId, int maxChangedCount
+	) {
+		final int[] target;
+		if (changedIds == null) {
+			target = new int[Math.min(INITIAL_CHANGED_ID_CAPACITY, maxChangedCount)];
+		} else if (changedCount == changedIds.length) {
+			// the cap can never truncate below `changedCount + 1`: the buffer being full at a count strictly below the
+			// cap means its length is below the cap too, so doubling-then-capping always yields a longer array
+			target = Arrays.copyOf(changedIds, Math.min(changedIds.length << 1, maxChangedCount));
+		} else {
+			target = changedIds;
+		}
+		target[changedCount] = recordId;
+		return target;
 	}
 
 	@Override

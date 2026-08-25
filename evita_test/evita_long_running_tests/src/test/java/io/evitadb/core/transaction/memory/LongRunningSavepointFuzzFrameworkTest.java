@@ -78,16 +78,15 @@ import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackResto
  * writes go straight to the delegate and a {@code WarmUpSavepoint} has to rewind them from the inverses the
  * structures record themselves. {@link io.evitadb.utils.AssertionUtils#assertWarmUpSavepointRollbackRestores} is that
  * mode's entry point, and {@link TransactionalMap}, {@link TransactionalSet}, {@link TransactionalList} and
- * {@link TransactionalBitmap} are covered in it. What the randomization is really testing for the first three is
+ * {@link TransactionalBitmap} are covered in it. What the randomization is really testing for all four is
  * composition: they record one inverse PER OPERATION, so a batch mixing puts, bulk operations, view-iterator removals
  * and (for the list) position-shifting inserts is the only thing that can disprove the claim that replaying them
- * newest-first lands back on the pre-savepoint state. The bitmap instead captures its delegate ONCE on first touch, so
- * what its randomized batch probes is the opposite property - that a single copy-on-write clone taken before the first
- * write still describes the pre-savepoint members after an arbitrary mix of single and bulk adds and removals has
- * copied containers out from under it.
+ * newest-first lands back on the pre-savepoint state. The bitmap is the sharpest case of it - a single bit can be
+ * added, removed and re-added inside one batch, across single-record and bulk mutators whose deltas overlap, and only
+ * the strict reverse replay of absolute per-id restores makes the earliest capture win.
  *
  * Two B+ trees ({@link TransactionalObjectBPlusTree} and {@link TransactionalBucketBPlusTree}) run in warm-up mode as
- * well, and they probe a third property again: they journal per NODE, so what a randomized batch can disprove is that
+ * well, and they probe a different property: they journal per NODE, so what a randomized batch can disprove is that
  * the set of nodes recording a first touch covers every node the batch actually mutated. Node block sizes are set
  * small enough that a batch of ten operations routinely splits, borrows, merges and collapses - the structural
  * operations that reach beyond the node their mutator was called on, into a sibling or a parent.
@@ -711,9 +710,9 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 
 	/**
 	 * Applies `count` random operations to the bitmap, drawing from EVERY mutator kind rather than only the two
-	 * single-record ones: the bulk `addAll` / `removeAll` overloads take their own delegate branch, and the
-	 * `Bitmap`-argument overloads reach the roaring `andNot` fast path that mutates whole containers at once - the
-	 * shape most likely to write through a copy-on-write slot the first-touch clone still shares.
+	 * single-record ones: the bulk `addAll` / `removeAll` overloads take their own delegate branch and capture one
+	 * delta for the whole call, so a batch whose bulk arguments overlap each other and the single-record writes is the
+	 * shape most likely to expose a delta that under- or over-states what its own call actually changed.
 	 */
 	private static void applyRandomBitmapBulkOps(@Nonnull TransactionalBitmap bitmap, @Nonnull Random random, int count) {
 		for (int i = 0; i < count; i++) {
