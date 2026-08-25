@@ -85,6 +85,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
@@ -394,6 +395,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		return new RestoreCatalogUploadObserver(
 			serverCallObserver,
 			ServiceRequestContext.current(),
+			this.evita.getConfiguration().transaction().transactionWorkDirectory(),
+			this.management,
 			this.evita.getRequestExecutor(),
 			this.streamingRequestTimeoutInMillis
 		);
@@ -434,6 +437,27 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							request.getTotalSizeInBytes(),
 							true
 						);
+						// The archive assembled here has no other owner. `createTempFile` deliberately does
+						// not reserve the file (that is `createManagedTempFile`), nothing sweeps the work
+						// directory, and the restore step - which deletes it once it runs, because
+						// `deleteAfterRestore` is set - only runs for an upload that actually completed. An
+						// upload that stops half way would therefore leave an archive the size of a catalog
+						// behind for the lifetime of the process.
+						//
+						// A chunked upload has no half-close to hang that cleanup on, so the task's future
+						// carries it: it completes on every terminal outcome, including the scheduler's purge
+						// of tasks left waiting for a precondition for longer than ten minutes
+						// (`Scheduler#purgeFinishedAndLongWaitingTasks`). That purge is what catches the cases
+						// no protocol-level signal ever reaches us for - a client that was killed, crashed, or
+						// simply lost the network mid-upload.
+						final Path uploadedFilePath = backupFilePath;
+						restorationTask.getFutureResult().whenComplete(
+							(result, exception) -> {
+								if (exception != null) {
+									deleteFileIfExists(uploadedFilePath, "restore");
+								}
+							}
+						);
 						this.management.registerWaitingTask(restorationTask);
 					} else {
 						backupFilePath = this.management.fileManagementService().getTempFile(fileId + ".zip");
@@ -446,9 +470,26 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						backupFile.writeTo(outputStream);
 					}
 
-					// we've reached the expected size of the file
 					final long actualSize = Files.size(backupFilePath);
-					if (actualSize == request.getTotalSizeInBytes()) {
+
+					// An over-long upload has to be rejected *before* the client is told the chunk was
+					// accepted. Reporting success first and throwing afterwards left the error being written
+					// into an already-completed observer - so the client saw the upload succeed - while the
+					// archive was deleted underneath a task that stayed registered, making the next chunk fail
+					// on `getTempFile`'s existence check instead of on the size that was actually wrong.
+					//
+					// Cancelling the task is what discards the archive: its completion hook owns that file.
+					if (actualSize > totalSizeInBytes) {
+						this.management.cancelTask(restorationTask.getStatus().taskId());
+						throw new UnexpectedIOException(
+							"Backup file size exceeds the expected size.",
+							"Backup file size exceeds the expected size (expected " + totalSizeInBytes +
+								", actual " + actualSize + " Bytes)."
+						);
+					}
+
+					// we've reached the expected size of the file
+					if (actualSize == totalSizeInBytes) {
 						this.management.submitWaitingTask(createRestoreTaskFindPredicate(fileId));
 					}
 
@@ -460,14 +501,6 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							.build()
 					);
 					responseObserver.onCompleted();
-
-					if (actualSize > totalSizeInBytes) {
-						deleteFileIfExists(backupFilePath, "restore");
-						throw new UnexpectedIOException(
-							"Backup file size exceeds the expected size.",
-							"Backup file size exceeds the expected size (expected " + totalSizeInBytes + ", actual " + actualSize + " Bytes)."
-						);
-					}
 				} catch (IOException e) {
 					throw new UnexpectedIOException(
 						"Failed to store data to the designated file: " + e.getMessage(),
@@ -840,7 +873,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * one. Neither is covered by a test that fails when it goes, so the redundancy is the only thing
 	 * standing between a plausible-looking simplification and a silently corrupted archive.
 	 */
-	private final class RestoreCatalogUploadObserver implements StreamObserver<GrpcRestoreCatalogRequest> {
+	static final class RestoreCatalogUploadObserver implements StreamObserver<GrpcRestoreCatalogRequest> {
 		/**
 		 * Size of the write buffer wrapped around the temporary file. Writes larger than the buffer
 		 * bypass it, so this only matters for clients that upload in small chunks - which the previous
@@ -850,6 +883,13 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 		private final ServerCallStreamObserver<GrpcRestoreCatalogResponse> responseObserver;
 		private final ServiceRequestContext serviceContext;
+		/**
+		 * Directory the assembled archive is written into. Resolved once at construction rather than per
+		 * chunk - it is a configuration read, and doing it here is what lets this observer be driven from
+		 * a test without an engine behind it.
+		 */
+		private final Path workDirectory;
+		private final EvitaManagement management;
 		private final Executor uploadExecutor;
 		/**
 		 * The call's configured request timeout, captured once at construction - i.e. before the first
@@ -880,11 +920,15 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		RestoreCatalogUploadObserver(
 			@Nonnull ServerCallStreamObserver<GrpcRestoreCatalogResponse> responseObserver,
 			@Nonnull ServiceRequestContext serviceContext,
+			@Nonnull Path workDirectory,
+			@Nonnull EvitaManagement management,
 			@Nonnull Executor uploadExecutor,
 			long streamingRequestTimeoutInMillis
 		) {
 			this.responseObserver = responseObserver;
 			this.serviceContext = serviceContext;
+			this.workDirectory = workDirectory;
+			this.management = management;
 			this.uploadExecutor = uploadExecutor;
 			this.configuredRequestTimeoutMillis = GrpcTimeoutUtil.resolveStreamingBudgetMillis(
 				serviceContext, streamingRequestTimeoutInMillis
@@ -918,15 +962,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		public void onError(Throwable t) {
 			// the client aborted mid-upload - let whatever is already in flight finish before the
 			// partial file is closed and discarded, so no worker is writing into a closed stream
-			this.uploadChain.whenCompleteAsync(
-				(ignored, throwable) -> {
-					closeOutputStream();
-					deleteFileIfExists(this.backupFilePath, "restore");
-					if (this.terminated.compareAndSet(false, true)) {
-						sendErrorToClient(t, this.responseObserver);
-					}
-				},
-				this.uploadExecutor
+			this.uploadChain.whenComplete(
+				(ignored, throwable) -> handOffCleanupToUploadExecutor(() -> failUpload(t))
 			);
 		}
 
@@ -940,26 +977,94 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		 * client once and then poisons the rest of the chain, so nothing downstream - the restoration
 		 * submission above all - ever runs against a half-written file.
 		 *
+		 * The hand-off to {@link #uploadExecutor} is made by hand rather than by `thenRunAsync`, because
+		 * the request pool is bounded and rejects work once its queue fills
+		 * (`EvitaRejectingExecutorHandler` throws). Letting `CompletableFuture` schedule the step loses
+		 * that rejection in two different ways, and the second one is worse than a lost error:
+		 *
+		 * - while the previous step is still running, the rejection surfaces on *that* worker, inside
+		 *   `CompletableFuture#postComplete`, with no relation to this call - the stage simply never
+		 *   completes and the client waits out its deadline;
+		 * - once the previous step has completed, `thenRunAsync` throws on the calling thread *before*
+		 *   `this.uploadChain` is reassigned, so the chain is left looking healthy. The next chunk then
+		 *   appends successfully, {@link #openBackupFileIfNeeded()} finds a null stream and reopens the
+		 *   temporary file in `APPEND` mode - leaking a second archive on the very path being handled.
+		 *
+		 * Completing `next` exceptionally in both cases is what keeps the chain poisoned, and therefore
+		 * what stops that reopen.
+		 *
 		 * @param step the operation to append
 		 */
 		private void appendToChain(@Nonnull UploadStep step) {
-			this.uploadChain = this.uploadChain.thenRunAsync(
-				() -> {
-					try {
-						step.run();
-					} catch (Exception ex) {
-						failUpload(ex);
-						throw ex instanceof RuntimeException runtimeException ?
-							runtimeException :
-							new UnexpectedIOException(
-								"Failed to store the uploaded backup file: " + ex.getMessage(),
-								"Failed to store the uploaded backup file.",
-								ex
-							);
+			final CompletableFuture<Void> previous = this.uploadChain;
+			final CompletableFuture<Void> next = new CompletableFuture<>();
+			this.uploadChain = next;
+			// deliberately `whenComplete` and not `whenCompleteAsync`: this stage only *submits* work, so
+			// running it inline (or on whichever worker completed the previous step) costs nothing and,
+			// crucially, cannot itself be rejected
+			previous.whenComplete(
+				(ignored, previousFailure) -> {
+					if (previousFailure != null) {
+						// a poisoned chain stays poisoned - nothing may run against a discarded file
+						next.completeExceptionally(previousFailure);
+						return;
 					}
-				},
-				this.uploadExecutor
+					handOffToUploadExecutor(
+						() -> {
+							try {
+								step.run();
+								next.complete(null);
+							} catch (Exception ex) {
+								failUpload(ex);
+								next.completeExceptionally(ex);
+							}
+						},
+						next
+					);
+				}
 			);
+		}
+
+		/**
+		 * Hands a step to {@link #uploadExecutor}, falling back to running it on the calling thread when
+		 * the pool refuses it.
+		 *
+		 * The fallback puts a `close` and an `unlink` on whichever thread got here - the event loop, in
+		 * the worst case - which is exactly what this observer exists to avoid. It is still the right
+		 * trade: the alternative to a few microseconds of blocking on an already-degraded server is a
+		 * part-uploaded archive, up to the full size of a catalog, left in the work directory for the
+		 * lifetime of the process. Nothing sweeps that directory.
+		 *
+		 * @param step             the work to run on the upload executor
+		 * @param rejectionOutcome poisoned with the rejection when the pool refuses the hand-off, so the
+		 *                         chain cannot continue past a step that never ran
+		 */
+		private void handOffToUploadExecutor(
+			@Nonnull Runnable step,
+			@Nonnull CompletableFuture<Void> rejectionOutcome
+		) {
+			try {
+				this.uploadExecutor.execute(step);
+			} catch (RejectedExecutionException ex) {
+				failUpload(ex);
+				rejectionOutcome.completeExceptionally(ex);
+			}
+		}
+
+		/**
+		 * Hands terminal cleanup to {@link #uploadExecutor}, running it on the calling thread when the
+		 * pool refuses it. Unlike {@link #handOffToUploadExecutor(Runnable, CompletableFuture)} there is
+		 * no stage left to poison - the call is already ending - so the rejection only has to not
+		 * prevent the cleanup from happening at all.
+		 *
+		 * @param cleanup the cleanup to run; idempotent, so running it on either thread is equivalent
+		 */
+		private void handOffCleanupToUploadExecutor(@Nonnull Runnable cleanup) {
+			try {
+				this.uploadExecutor.execute(cleanup);
+			} catch (RejectedExecutionException ex) {
+				cleanup.run();
+			}
 		}
 
 		/**
@@ -971,14 +1076,14 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			if (this.outputStream != null) {
 				return;
 			}
-			final Path workDirectory = EvitaManagementService.this.evita.getConfiguration()
-				.transaction().transactionWorkDirectory();
-			if (!workDirectory.toFile().exists()) {
+			if (!this.workDirectory.toFile().exists()) {
 				Assert.isTrue(
-					workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore."
+					this.workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore."
 				);
 			}
-			this.backupFilePath = Files.createTempFile(workDirectory, "catalog_backup_for_restore-", ".zip");
+			this.backupFilePath = Files.createTempFile(
+				this.workDirectory, "catalog_backup_for_restore-", ".zip"
+			);
 			this.outputStream = new BufferedOutputStream(
 				Files.newOutputStream(this.backupFilePath, StandardOpenOption.APPEND), UPLOAD_BUFFER_SIZE
 			);
@@ -994,7 +1099,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			Assert.isPremiseValid(theOutputStream != null, "Output stream has already been closed.");
 			theOutputStream.close();
 			this.outputStream = null;
-			final Task<?, Void> restorationTask = EvitaManagementService.this.management.restoreCatalog(
+			final Task<?, Void> restorationTask = this.management.restoreCatalog(
 				this.catalogNameToRestore,
 				Files.size(this.backupFilePath),
 				Files.newInputStream(this.backupFilePath, StandardOpenOption.READ)
