@@ -97,6 +97,17 @@ dictionary does with it is to be decided by **P1 by measuring the dictionary's s
 the suggester's quality). K3 therefore measures it in both variants; it is one builder parameter, not a
 second implementation.
 
+**Two P5 leftovers gate this decision (2026-08-25, PR #1453 review).** First, the real-attribute-value
+tokenization review of `p5-analyzers.md` §10.3 was not executed in P5 and is carried forward as a P1
+input: it must run before the dictionary layout freezes, on the same datasets P1 measures with. Second,
+the review of PR #1453 measured the accent-typing gap of the shipped fold-after-stemmer design: 68/83
+(82 %) of accent-stripped Czech query typings reach their accented form, with a systematic miss class
+(adjective `-ých`/`-ích` plurals typed bare, `stůl`/`stul`-type vowel shifts) that neither the fuzzy nor
+the prefix lane rescues. Folding *before* the stemmer measures 100 % accent-insensitive but collapses
+inflection convergence to 16/30, so no folding order fixes it — a **folded surface-form lane** in the
+dictionary is the candidate fix, which is a correctness argument for surface-form variant 3 of P5-1 on
+top of the size and suggester arguments above, and it must be weighed here, not after the layout locks.
+
 **What P1 hands over to P2:** the decision on the sidecar's shape including its invariants, the measured
 RAM of both considered shapes, and a list of places where the rank alignment can diverge under the
 transactional layer (§4.3.4). That is input for P2, not a detail. The P2 plan

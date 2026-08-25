@@ -171,14 +171,19 @@ The packages we need are exported: `org.apache.lucene.analysis`, `org.apache.luc
 `org.apache.lucene.analysis.tokenattributes` and `org.apache.lucene.util.automaton` from the core;
 `org.apache.lucene.analysis.cz`, `.de`, `.en`, `.custom`, `.core`, `.miscellaneous` and `.hunspell` from
 analysis-common; and `analysis.pl` from stempel. The module `org.apache.lucene.analysis.common` declares
-`requires org.apache.lucene.core`, so a single `requires` in our module-info suffices and the core comes
-with it:
+`requires org.apache.lucene.core` **without `transitive`** (verified with `jar --describe-module` on
+9.12.3, and confirmed by the P5 implementation in PR #1453), so our module-info must require the core
+explicitly — code compiling against `Analyzer` or the token attributes reads types from the core module:
 
 ```java
+requires org.apache.lucene.core;
 requires org.apache.lucene.analysis.common;
 // only if the decision falls to support Polish via stempel:
 requires org.apache.lucene.analysis.stempel;
 ```
+
+*(An earlier revision of this section claimed the single `requires` on analysis-common would bring the
+core along; that was wrong — the requires is not transitive.)*
 
 One place deserves attention. Lucene has a service layer: `lucene-core` declares
 `uses org.apache.lucene.analysis.TokenizerFactory` (and the same for `CharFilterFactory` and
@@ -405,6 +410,12 @@ This shape keeps the schema independent of Lucene: a Lucene type never appears i
 time it leaves the door open for `"custom:…"`, where the parameters describe the pipeline as a list of steps
 — `CustomAnalyzer` then applies (§3.3).
 
+> **Resolution (2026-08-25, PR #1453 review):** P5 shipped the identifier half of this contract only —
+> `AnalyzerAssignment` carries names, no parameters. That is deliberate, not an omission: the parameters
+> travel with the schema work and are recorded as a deferred item in `schema-design.md` §6.5. With §4.6
+> point 1 discarded, "expressions exempted from stemming" drops out of the parameter set entirely; the
+> custom stop-word list remains its primary content.
+
 ### 4.6 A catalog of filters the pipeline has to offer or deliberately reject
 
 The analysis of the existing client (internal, §2.5, §6.5 and §6.6)
@@ -434,6 +445,17 @@ their pipeline (§5.1) and `CzechAnalyzer` accepts the corresponding set in its 
 is written. The difference against the old client is that the protected expressions are given in the schema
 once, not in every value separately — which besides data cleanliness is better operability too.
 
+> **Discarded (2026-08-25).** Token-level protection is not adopted in any form. Values that must be found
+> exactly — catalog numbers, EANs, model designations — are to be modelled as **separate attributes that
+> are not fulltext-indexed** and searched via `attributeContains`, prospectively via the trigram
+> `SUBSTRING` capability (#1454, `p8-trigram-substring-index.md`), which is precisely the code-lookup lane.
+> A code still embedded in a sentence does pass through the stemmer, but analysis is symmetric — the query
+> side is mangled identically — so it keeps matching itself; the residual risk is rare false merges and
+> stem-mangled dictionary entries surfacing in the P3 suggester. *What would have to change for this to be
+> revisited:* the §10.3 real-value review showing actual collisions on production data. Discarding this
+> also retires the `KeywordAttribute` concern in point 3's parenthesis — with no protected tokens there is
+> nothing for diacritics folding to honour.
+
 **2. `WordWithNumberSplitFilter` — splitting a token into a word and a numeric part. Take up.** A token
 beginning or ending with a digit is split into a numeric and a textual part and **both are added at the same
 position**: from `123xyz` arises, besides the original token, also `123` and `xyz`. It is switched on by the
@@ -442,6 +464,11 @@ production-proven filter for e-commerce catalog numbers, which §6.6 of the anal
 belongs in the catalog as an optional pipeline step **switched off by default**: adding tokens at the same
 position enlarges both the dictionary and the postings and it has no business in the CMS profile, whereas
 for a field with an EAN or a catalog number it is exactly what the user expects.
+
+> **Confirmed and pulled forward (2026-08-25):** to be implemented within **PR #1453** as a composable,
+> off-by-default token filter with its own tests, so the analysis package closes with the filter catalog
+> complete rather than being reopened later. The per-field switch that turns it on arrives with the
+> analyzer parameters (`schema-design.md` §6.5).
 
 **3. `DiacriticFilter` — and why it is *not* NFD. Reject as a component, adopt as a test criterion.** The
 existing filter is a manual, fully written-out conversion table of European characters with diacritics onto
@@ -464,6 +491,10 @@ most cases, but not in all, and migrating an existing website from one to the ot
 search results**. That is not a hypothesis dismissable with a footnote: it is a parity §10.4 measures, and
 its list of differences is the only material from which it can be said in advance what the change will
 touch. Who informs the operator and when is a product decision — carried as P5-6 (§11).
+
+> **Commitment cancelled (2026-08-25).** Migration from the legacy client's stack is not a path this line
+> of work supports, so the difference list has no consumer. The rejection of the component above stands on
+> its own technical grounds; §10.4 and P5-6 fall with the commitment.
 
 ---
 
@@ -556,6 +587,14 @@ behaviour is predictable and needs no foreign data file. If the smoke test shows
 sensible results on Slovak, switching the default to B is a one-line change in the table. Variant A is the
 right target, but it belongs beyond the gate — it requires resolving both the origin and the licence of the
 dictionary, and that is work P5 should not be delayed by.
+
+> **Resolution (2026-08-25, PR #1453 review):** variant C shipped, with one deviation worth recording —
+> Lucene bundles **no Slovak stop-word list**, so the shipped chain is tokenize + lowercase + diacritics
+> folding only, without the stop words this section assumed. The **variant B measurement is discarded**:
+> the safe lower bound is in place, the false-merge risk of the Czech stemmer has no demonstrated upside
+> to buy, and the folded surface-form lane being weighed for P1 (accent-typing gap, see PR #1453 review)
+> would benefit Slovak recall without borrowing a foreign stemmer. Variant A remains the long-term target
+> under P5-2.
 
 ---
 
@@ -867,7 +906,16 @@ decision then arises about whether it belongs in the pipeline's own rules — an
 delivers to P1. The last two cases named are at the same time exactly the ones the existing client answers
 with the filters of §4.6, so it is immediately visible with them whether the filter catalog is sufficient.
 
+> **Status (2026-08-25):** not executed in PR #1453; carried forward as an explicit **P1 gate input** —
+> see `p1-index-core.md` §2. It must run before the dictionary layout freezes, because its findings plus
+> the measured accent-typing gap (PR #1453 review) decide the folded surface-form lane. It is also the
+> designated tripwire for revisiting the discarded keyword-marker protection (§4.6 point 1).
+
 ### 10.4 Parity of diacritics folding against the existing `DiacriticFilter`
+
+> **Discarded (2026-08-25)** together with the migration commitment of §4.6 point 3 and P5-6: no supported
+> migration path from the legacy stack means no consumer for the difference list. Kept below for the
+> record of what the test would have been.
 
 §4.6 rejects adopting the old client's manual conversion table as a component, but does not reject the
 commitment to know where exactly the two paths diverge. This test is therefore **decisional, not
@@ -917,7 +965,9 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   the schema addresses it.
 - **P5-5 — the registry's behaviour on an unknown language (§4.1).** The recommendation is a generic
   analyzer plus a log message, but it is a product decision: the alternative is to reject the query. Name it
-  in the documentation before somebody discovers it in production.
+  in the documentation before somebody discovers it in production. *Resolution (2026-08-25): the
+  generic-plus-warning behaviour shipped in PR #1453; the user-facing documentation of the fallback lands
+  with the schema step (`schema-design.md` §6.5), where analyzer selection first becomes user-visible.*
 - **P5-6 — who informs about the change of results on migrating from the existing `DiacriticFilter`, and
   when (§4.6, §10.4).** The old client's manual conversion table is equivalent neither to NFD decomposition
   nor to `ASCIIFoldingFilter`; the differences are small but they exist, and they manifest as **different
@@ -925,4 +975,5 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   to do with it — whether the differences are levelled with a targeted pipeline step, or merely announced as
   a behaviour change on migration — is a product decision, not a technical one, and it has to fall before
   the first existing website is switched over. Not according to complaints, because at that moment the way
-  back is a reindex.
+  back is a reindex. *Discarded (2026-08-25) — see §4.6 point 3: migration from the legacy stack is not a
+  supported path, and the parity list of §10.4 falls with it.*
