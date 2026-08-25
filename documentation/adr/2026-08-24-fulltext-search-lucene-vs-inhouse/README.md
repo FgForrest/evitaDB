@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-24 10:37
+updated: 2026-08-25 10:45
 status: proposed
 kind: feature
 issues: [258]
@@ -85,6 +85,7 @@ database entirely:
 | 2026-08-14 | The engine annotates recognized **facets** only — deterministic dictionary hits that map onto a primitive the engine already has | A narrower name states the contract; interval and spatial intents are grammar or inference over the query text and belong to the client layer above the engine | [`prototypes/query-design.md`](prototypes/query-design.md) §8.3, [`prototypes/schema-design.md`](prototypes/schema-design.md) §6.9 |
 | 2026-08-14 | Master/variant grouping is **not** part of fulltext; it belongs to the general issue [#17](https://github.com/FgForrest/evitaDB/issues/17) | It is an orthogonal engine capability composable with any query; the fulltext query API gets no grouping primitive | the internal e-commerce layer analysis, §5.5 |
 | 2026-08-12 | Order the prototypes P5 → P1 → P2 and put a numeric decision gate after them | The biggest risks (memory, scan latency, the write-path tax) fall first, and the prototypes build the final structures, so the gate also calibrates the estimate for the rest | [`management-summary.md`](management-summary.md) ch. 4 |
+| 2026-08-24 | Target the P8 trigram substring index before P1, with its offline analyzer as phase 0; P5 may run in parallel (disjoint scopes) | P8's value is independent of the fulltext gate (it fixes today's naive `contains`/`endsWith` and carries [#545](https://github.com/FgForrest/evitaDB/issues/545) regardless of the gate's outcome), it path-finds the shared hard parts — a new persisted index component, the scoped schema flag with reindex refusal, an MVCC-safe allocator, the formula-cache contract — at membership-only scale, and it closes P1's Q6 and Q7 before P1/P2 hit them | [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) §33–§34 |
 
 ### Why the in-house core won
 
@@ -258,6 +259,13 @@ Open items, each actionable:
   profiles (#12), the suggest shape and adaptive relaxation decided
 - **2026-08-24** — the research translated into English and consolidated into this record; the
   decision awaits approval of phase A
+- **2026-08-24** — the trigram substring-index brief, originating from a separate discussion, verified
+  against primary sources and against the codebase, and adopted as
+  `prototypes/p8-trigram-substring-index.md`
+- **2026-08-25** — the P8 spike measured on real corpora (cnc, evita-demo-dataset): the performance
+  gate passed on all criteria, the dictionary/positions/posting-representation/early-exit forks
+  closed and the brief's falsified claims corrected — recorded as
+  `prototypes/p8-trigram-substring-index.md` §35
 
 ## Supporting material
 
@@ -292,6 +300,15 @@ Open items, each actionable:
   thirteen open questions S1–S13 live at its end.
 - [`prototypes/bitmap-memory-optimizations.md`](prototypes/bitmap-memory-optimizations.md) — the
   memory analysis of the bitmap structures underlying the RAM estimate.
+- [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) — a related
+  spike adopted from a separate discussion: accelerating literal `attributeContains` /
+  `attributeEndsWith` with a `trigram → distinct-value-id` index. It shares the substrate, the memory
+  risks, the measurement harness and the valueId open question with P1/P2 and the bitmap memory
+  analysis; its §32 corrects its assumptions against the code, its §33 maps the convergence, its §19
+  ties issue [#545](https://github.com/FgForrest/evitaDB/issues/545) (case-insensitive attributes) to
+  the shared normalization contract, and its §34 records why the valueId is also the key to the
+  reduced-index value duplication. Its §35 holds the 2026-08-25 spike measurements: the gate verdict,
+  the closed forks, and the corrections to the brief's own claims.
 - The two analyses of today's plain-Lucene solution — the Edee CMS fulltext client and its
   e-commerce layer — are **internal and not published in this repository**. They were the yardstick:
   what today's client can do, capability by capability, so that "no step back" is a checkable claim
