@@ -1774,10 +1774,17 @@ medium pattern 307,180 → 130.7 (2,350×); rare patterns ≈ 1 µs; a **nonexis
 - **§15 positions → never.** Confirmed empirically, stronger than the SQLite argument: trigram
   intersection on real corpora is nearly exact (worst 0.36 fp/true match; a 20-code-point `url`
   pattern left 14 false candidates out of 68,831). Phase 2 of §15 is cancelled, not deferred.
-- **§16/§29 posting representation → hybrid, threshold 32.** Sorted `int[]` up to 32 entries,
-  RoaringBitmap above: −51% postings heap on the demo corpus, −6.4% on cnc at the knee. The knee
-  scales with the id-space width — ~128 values per 65,536-wide Roaring container the posting spans —
-  so a `T = 32 × ⌈V/65536⌉` rule is the follow-up worth checking, not a larger constant.
+- **§16/§29 posting representation → hybrid, and the threshold is a constant, T = 128.** Sorted
+  `int[]` up to T entries, RoaringBitmap above (−51% postings heap on the demo corpus, −6.4% on cnc
+  at the knee). The follow-up sweep (2026-08-25, six groups spanning a 31× V range, JOL only)
+  falsified the first-guess scaling rule `T = 32 × ⌈V/65536⌉` — wrong coefficient *and* wrong
+  variable; the crossover is linear in the containers a posting *actually spans*
+  (`T* ≈ 26 + 103·c`, R² = 0.965, exactly the cost algebra of `4n+16` vs `F + c·C + ~2n`). But the
+  heap curve is so flat that a single **T = 128 lands within 1.7% of every per-group optimum**, and
+  the whole stake is ~4% of the opt-in set's heap — no scaling machinery is worth that. Latency
+  caveat (unmeasurable on the contended box): T bounds the worst-case linear probe length of the
+  intersection, so 128 is 4× the T=32 worst case — confirm on a quiet box before the constant lands
+  in production code.
 - **§11 key structure → open-addressing long-keyed table, load ≤ 0.75.** 1.1–1.6 ns/lookup vs
   59–95 ns binary search over sorted `long[]` (40–60×) vs 4.5–28 ns boxed `HashMap`, for +0.4% heap
   on large attributes. `-1L` is a safe empty sentinel: §11's packing fills bits 0..62, so no legal
@@ -1826,7 +1833,16 @@ medium pattern 307,180 → 130.7 (2,350×); rare patterns ≈ 1 µs; a **nonexis
   not apply to decomposed Czech; ASCII-calibrated estimates are optimistic by 2× on localized
   attributes.
 - **`RoaringBitmap.runOptimize()` cuts serialized size of structured attributes 30–52%** and the
-  engine never calls it — a persistence-side lever independent of this index.
+  engine never calls it. This is deliberate, not an oversight (sponsor, 2026-08-25): the call has
+  its own CPU cost, the containers were assumed not to pay it back, and — decisively — there is no
+  single controlled call site; sprinkling it across dozens of mutation paths would mean losing
+  control over where that CPU is spent. The measurement adds one nuance to the density assumption:
+  the 30–52% wins came from *run-heavy* containers (consecutive-id ranges on code/URL-like
+  attributes), not from density per se. If it is ever revisited, the race-free seams are the places
+  where a bitmap is thread-private by construction — the freshly merged immutable version produced
+  at commit, or right after deserialization on load — never in-place on a published bitmap; and the
+  trigram index's own persisted postings (a new write path anyway) are the contained place to gather
+  real-world evidence first without touching any existing path.
 
 ## 35.5 Known gaps the spike did not close
 
@@ -1834,7 +1850,18 @@ medium pattern 307,180 → 130.7 (2,350×); rare patterns ≈ 1 µs; a **nonexis
   floor. The production key structure must be a resizable/persistable tree (§32's substrate).
 - The bucket-death hook of §21 step 3 / §32 still does not exist in the engine; the spike measured
   what it will cost once it does.
-- The cost of rewriting the `(leaf, slot)` directory on a leaf split is unmeasured — the one
-  tree-attached write-path fork left open for the implementation.
+- ~~The cost of rewriting the `(leaf, slot)` directory on a leaf split~~ — closed by operation
+  counting (2026-08-25): the question was posed at the wrong event. Splits are under 1% of directory
+  traffic (0.7 of ~94 writes/insert; one split per ~175 inserts moving exactly 128 values); the
+  dominant term is the in-leaf slot shift, which invalidates ~half a leaf's directory entries on
+  *every* insert. Total write cost: **~749 B/insert** (directory + id column) against the ~6 KB of
+  front-coded blob the same insert already re-encodes today — P8 adds ~12% to bytes moved, trivial.
+  The packed `(leaf, slot)` directory stays (a read-side decision the write path is not expensive
+  enough to overrule); a leaf-only directory remains available as a 2×-total-bytes lever for a
+  write-heavy attribute (the "54× less directory traffic" figure counts only the directory — both
+  designs pay the id-column memmove). **One hard constraint surfaced: the directory must reference
+  a stable leaf id, never a leaf-array position** — a positional reference renumbers every leaf
+  after a split (`O(V)` per split, design-ending). The implementation needs a `leafId → leaf`
+  indirection with a monotonic leaf-id allocator, same shape as the value-id allocator.
 - `endsWith` shares the whole candidate path and its correctness is proven against the engine, but
   it has no latency column of its own.
