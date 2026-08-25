@@ -41,6 +41,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -116,6 +117,12 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 	private static final Pattern MAINTAINER_ABSENCE_GUARD = Pattern.compile(
 		"maintainer\\s*==\\s*null|maintainer\\s*!=\\s*null"
 	);
+
+	/**
+	 * Matches the traffic-recording call in the mutation bracket — the one fallible step that must stay AHEAD of the
+	 * savepoint opening, because a savepoint has no `finally` protecting it until the try block below the bracket.
+	 */
+	private static final Pattern TRAFFIC_RECORDING = Pattern.compile("recordMutation\\(");
 
 	/**
 	 * Resolves the source root of `evita_engine` from the test module's working directory, and fails loudly when it is
@@ -318,6 +325,37 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 				MAINTAINER_ABSENCE_GUARD.matcher(bracket).find(),
 				"The mutation bracket must keep opening the savepoint only where there is no transactional " +
 					"maintainer, i.e. no transaction."
+			);
+		}
+
+		@Test
+		@DisplayName("Traffic recording happens before the savepoint is opened, not after")
+		void shouldOpenSavepointAfterTheTrafficRecordingThatCanThrow() throws IOException {
+			// A savepoint is closed by exactly one thing: the try/finally that follows the opening block. Anything
+			// throwing between the two escapes without a finally, and on the warm-up path the savepoint is bound to
+			// the THREAD - so it survives into the next entity, whose own open() then fails as a nested one and takes
+			// down the rest of the batch. Traffic recording is the fallible step that used to sit in that window: it
+			// activates a tracing block, and a tracing implementation may throw. Ordering is safe because recording
+			// touches no index, executor or storage state, so nothing revertable happens before the bracket begins
+			final Path sourceRoot = engineSourceRoot();
+			final String bracket = stripComments(readJavaSources(sourceRoot).get(OPENING_SITE));
+			final Matcher trafficRecording = TRAFFIC_RECORDING.matcher(bracket);
+			assertTrue(
+				trafficRecording.find(),
+				"The traffic recording call was not found in the mutation bracket - this scan is broken, not the " +
+					"code it checks."
+			);
+			final Matcher savepointOpening = SAVEPOINT_OPENING.matcher(bracket);
+			assertTrue(
+				savepointOpening.find(),
+				"The savepoint opening was not found in the mutation bracket - this scan is broken, not the code " +
+					"it checks."
+			);
+			assertTrue(
+				trafficRecording.start() < savepointOpening.start(),
+				"Nothing that can throw may sit between opening a warm-up savepoint and the try/finally that " +
+					"closes it - the traffic recording must therefore stay ahead of the opening, or a tracing " +
+					"failure leaks the savepoint onto the thread and fails the next entity's open()."
 			);
 		}
 	}

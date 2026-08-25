@@ -266,11 +266,27 @@ class LocalMutationExecutorCollector {
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
+			// record mutation to the traffic recorder
+			record = session == null ?
+				null :
+				this.catalog.getTrafficRecordingEngine().recordMutation(
+					session.getId(),
+					this.created,
+					entityMutation
+			);
 			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
 			// reverts exactly this entity's changes while everything written before it stays. Only meaningful when
 			// atomic rollback is requested (not WAL replay); which kind of savepoint applies depends on the write
 			// path: a transaction snapshots the diff layers through its maintainer, while warm-up writes go in place
 			// to the index delegates and are reverted from the journal the structures record into.
+			//
+			// INVARIANT: nothing that can throw may sit between opening a savepoint and the try/finally below, which
+			// is the only thing that closes it. This block therefore comes LAST in this branch - traffic recording
+			// activates a tracing block and a tracing implementation is free to fail, and an exception thrown after
+			// the open would escape without any finally to detach the savepoint. On the warm-up path that leaks the
+			// thread-bound savepoint, and the next entity on this thread then fails its own open() as a nested one.
+			// Ordering is safe because traffic recording touches no index, executor or storage state, so nothing
+			// revertable happens before the bracket begins.
 			if (atomicRollback) {
 				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
 				if (maintainer != null) {
@@ -280,14 +296,6 @@ class LocalMutationExecutorCollector {
 					this.warmUpSavepoint = WarmUpSavepoint.open();
 				}
 			}
-			// record mutation to the traffic recorder
-			record = session == null ?
-				null :
-				this.catalog.getTrafficRecordingEngine().recordMutation(
-					session.getId(),
-					this.created,
-					entityMutation
-			);
 		} else {
 			addToWAL = false;
 			// while implicit mutations are trapped in memory and stored on next flush
@@ -585,11 +593,21 @@ class LocalMutationExecutorCollector {
 	 *
 	 * **The storage parts written here are inside the bracket, not after it.** Both savepoints are still open while
 	 * the executors commit, so the entity storage parts {@code ContainerizedLocalMutationExecutor#commit} pushes into
-	 * the data store buffer are captured like any other change: on the warm-up path they land in `DataStoreChanges`,
-	 * whose memento is a journal POSITION rather than a copy, so the mark taken when the index phase first touched it
-	 * still rewinds everything written afterwards. An executor failing part-way through this loop therefore leaves no
-	 * storage part behind — which is what closes the orphan-primary-key gap this whole mechanism exists for, since
-	 * that gap was precisely a body written (or not) out of step with the indexes.
+	 * the data store buffer are revertable like any other change made under the bracket — which matters because this
+	 * loop can fail PART-WAY through an entity that writes several parts, having already written the earlier ones.
+	 * The two write modes are rewound by different means and both are needed:
+	 *
+	 * - A TRAPPED write (implicit, nested mutations) only changes `DataStoreChanges`' in-memory cache, which its
+	 *   memento rewinds — that memento is a journal POSITION rather than a copy, so the mark taken when the index
+	 *   phase first touched the layer still covers everything written afterwards.
+	 * - A DIRECT write — what a root mutation does, since it runs with `trapChanges == false` — reaches the
+	 *   persistence service, and no in-memory memento can undo that. `DataStoreChanges#putStoragePart` /
+	 *   `removeStoragePart` therefore read the record's pre-image and push its absolute restore straight into the open
+	 *   warm-up savepoint, at the point of each write.
+	 *
+	 * An executor failing part-way through this loop therefore leaves no storage part behind — which is what closes
+	 * the orphan-primary-key gap this whole mechanism exists for, since that gap was precisely a body written (or not)
+	 * out of step with the indexes.
 	 *
 	 * The one change that is deliberately NOT reverted is a failure of the savepoint acceptance itself: by then every
 	 * executor has committed and the mutation has succeeded, so there is nothing to undo — see the comment on the

@@ -26,14 +26,15 @@ package io.evitadb.core.buffer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.io.Serial;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -60,35 +61,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class WarmUpDataStoreMemoryBufferPoisonTest {
 
 	/**
-	 * Creates a throwaway persistence-service stub — the trapped-change paths under test never reach it.
+	 * Creates a throwaway persistence service — the trapped-change paths under test never reach it, and every method
+	 * it does not implement throws rather than answering, so a test that starts reaching it says so loudly.
 	 *
-	 * @return a Mockito stub of the persistence service
+	 * @return an in-memory persistence service
 	 */
 	@Nonnull
-	@SuppressWarnings("unchecked")
-	private static StoragePartPersistenceService<StorageDescriptor> mockPersistenceService() {
-		return Mockito.mock(StoragePartPersistenceService.class);
-	}
-
-	/**
-	 * Creates a {@link StoragePart} stub identified by the given primary key — the trapped-change map stores it purely
-	 * by reference and keys it by that pk.
-	 *
-	 * @param storagePartPk the primary key the stub reports
-	 * @return a {@link StoragePart} stub
-	 */
-	@Nonnull
-	private static StoragePart storagePartStub(long storagePartPk) {
-		final StoragePart part = Mockito.mock(StoragePart.class);
-		Mockito.when(part.getStoragePartPKOrElseThrowException()).thenReturn(storagePartPk);
-		return part;
+	private static StoragePartPersistenceService<StorageDescriptor> persistenceService() {
+		return new InMemoryStoragePartPersistenceService();
 	}
 
 	@Test
 	@DisplayName("hands the trapped parts out exactly once, so a failed write can never re-collect them")
 	void shouldPopTrappedChangesDestructively() {
-		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(mockPersistenceService());
-		buffer.trapUpdate(0L, storagePartStub(1L));
+		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(persistenceService());
+		buffer.trapUpdate(0L, new StubStoragePart(1L));
 
 		assertEquals(1, buffer.popTrappedChanges().getTrappedChangesCount(), "the flush must collect the trapped part");
 		assertEquals(
@@ -101,8 +88,8 @@ class WarmUpDataStoreMemoryBufferPoisonTest {
 	@Test
 	@DisplayName("refuses every later collect once a failed flush has poisoned it")
 	void shouldRefuseToPopOnceAFailedFlushHasPoisonedTheBuffer() {
-		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(mockPersistenceService());
-		buffer.trapUpdate(0L, storagePartStub(1L));
+		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(persistenceService());
+		buffer.trapUpdate(0L, new StubStoragePart(1L));
 
 		// the flush collects the parts (destructively) and then its write fails
 		buffer.popTrappedChanges();
@@ -110,7 +97,7 @@ class WarmUpDataStoreMemoryBufferPoisonTest {
 
 		// a later session traps more changes and closes: the collect must refuse rather than persist a catalog whose
 		// baselines claim the lost parts were already written
-		buffer.trapUpdate(0L, storagePartStub(2L));
+		buffer.trapUpdate(0L, new StubStoragePart(2L));
 		final GenericEvitaInternalError error = assertThrows(
 			GenericEvitaInternalError.class,
 			buffer::popTrappedChanges,
@@ -122,10 +109,31 @@ class WarmUpDataStoreMemoryBufferPoisonTest {
 		);
 	}
 
+	/**
+	 * Minimal {@link StoragePart} identified by its primary key — the trapped-change map stores it purely by reference
+	 * and keys it by that pk, so nothing else about it is ever read.
+	 *
+	 * @param pk the storage-part primary key
+	 */
+	private record StubStoragePart(long pk) implements StoragePart {
+		@Serial private static final long serialVersionUID = 1L;
+
+		@Nonnull
+		@Override
+		public Long getStoragePartPK() {
+			return this.pk;
+		}
+
+		@Override
+		public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
+			return this.pk;
+		}
+	}
+
 	@Test
 	@DisplayName("refuses deterministically — every subsequent collect fails the same way, never just the first")
 	void shouldRefuseDeterministicallyOnEveryLaterCollect() {
-		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(mockPersistenceService());
+		final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(persistenceService());
 		buffer.poison(new IOException("no space left on device"));
 
 		assertThrows(GenericEvitaInternalError.class, buffer::popTrappedChanges, "the first later collect must refuse");

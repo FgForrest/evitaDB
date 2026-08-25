@@ -189,14 +189,21 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * is the warm-up buffer's plain (non-diff) changeset, the non-transactional
 	 * {@link io.evitadb.core.transaction.memory.WarmUpSavepoint} that brackets a bulk-indexing entity mutation.
 	 *
-	 * Only the dirty-index tracking and the trapped storage-part cache are captured — these are the only fields a
-	 * single entity mutation can touch while the savepoint is open: the index executor marks indexes dirty through
-	 * {@link #getOrCreateIndexForModification} / {@link #getIndexForModification} on every modification. Writes that
-	 * reach the {@link #persistenceService} directly ({@link #putStoragePart} / {@link #removeStoragePart}) are issued
-	 * by the storage executor only from its `commit()`, which the collector runs solely on the success path — so a
-	 * rolled-back entity never persists a storage part and none needs reverting here; only the trapped-cache side
-	 * effect of those two methods is. The {@link #persistenceService} reference itself is intentionally not part of the
-	 * memento (it changes only on store compaction, never inside a mutation).
+	 * Only the dirty-index tracking and the trapped storage-part cache are captured — the IN-MEMORY state a single
+	 * entity mutation can touch while the savepoint is open: the index executor marks indexes dirty through
+	 * {@link #getOrCreateIndexForModification} / {@link #getIndexForModification} on every modification, and both
+	 * storage-part entry points maintain the trapped cache.
+	 *
+	 * Writes that reach the {@link #persistenceService} directly ({@link #putStoragePart} /
+	 * {@link #removeStoragePart}) are deliberately NOT part of this memento, and are not exempt from rollback either.
+	 * They are issued by the storage executor from its `commit()`, which the collector runs while the savepoint is
+	 * still open and which can fail part-way through an entity that writes several parts — leaving the parts written
+	 * before the failure changed in the trunk. Their pre-image is a STORED RECORD rather than in-memory state, so it
+	 * cannot be rewound by replaying this layer's journal; each one is captured and journalled into the open warm-up
+	 * savepoint at the point of the write instead (see {@link #journalPersistedChange}).
+	 *
+	 * The {@link #persistenceService} reference itself is intentionally not part of the memento (it changes only on
+	 * store compaction, never inside a mutation).
 	 *
 	 * Nothing is copied: BOTH the dirty-index tracking and the trapped storage-part cache are rewound by replaying the
 	 * journal down to the captured mark, so the memento is an `int` and a snapshot costs nothing that grows with the
@@ -265,11 +272,60 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 *
 	 * On the transactional path this costs a single {@link ThreadLocal} read returning `null`: a warm-up savepoint is
 	 * only ever opened when no transaction is active.
+	 *
+	 * The savepoint is handed back rather than kept private so that the two methods writing THROUGH this layer into the
+	 * persistence service can journal their own record-level inverses off the same read — the pre-image of a stored
+	 * record is not in-memory state and is therefore not covered by the memento this touch captures.
+	 *
+	 * @return the savepoint bracketing the current root entity mutation, or `null` when there is none
 	 */
-	private void recordWarmUpSavepointTouch() {
+	@Nullable
+	private WarmUpSavepoint recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint warmUpSavepoint = WarmUpSavepoint.getIfOpen();
 		if (warmUpSavepoint != null) {
 			warmUpSavepoint.recordFirstTouch(this);
+		}
+		return warmUpSavepoint;
+	}
+
+	/**
+	 * Captures the pre-image of ONE `(container type, primary key)` record of the {@link #persistenceService} and
+	 * pushes the inverse restoring it into the open warm-up savepoint. Must be called BEFORE the write it guards.
+	 *
+	 * **Why this is not part of {@link #snapshot()}.** The memento rewinds this layer's own in-memory state; the record
+	 * this method guards lives in the store, and its pre-image can only be obtained by reading it. The read is
+	 * therefore done here, per write, and the inverse goes straight into the savepoint's journal.
+	 *
+	 * The inverse is an ABSOLUTE restore either way — re-put what was there, or remove what was not — which is what
+	 * makes several writes to the same record inside one savepoint replay correctly: under the journal's strict-reverse
+	 * replay the earliest-pushed inverse for a record runs LAST and wins, so the record ends at its pre-savepoint
+	 * value. Removing a record that was already absent is a no-op in the store, so the absent-pre-image inverse is
+	 * total for the removal path as well as for the write path.
+	 *
+	 * **Cost.** Nothing at all when no savepoint is open — the caller has already established that from the single
+	 * {@link ThreadLocal} read it needed anyway. With one open it is one storage read per direct write; for the bulk
+	 * insert of a NEW entity every such read misses in the offset index and never deserializes anything, so the price
+	 * of a full pre-image is paid only where an existing record is genuinely being overwritten.
+	 *
+	 * @param savepoint      the savepoint bracketing the current root entity mutation
+	 * @param catalogVersion the catalog version the record is read from and restored into
+	 * @param primaryKey     the primary key of the record about to change
+	 * @param containerType  the storage-part type of the record about to change
+	 */
+	private void journalPersistedChange(
+		@Nonnull WarmUpSavepoint savepoint,
+		long catalogVersion,
+		long primaryKey,
+		@Nonnull Class<? extends StoragePart> containerType
+	) {
+		final StoragePart previous = this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
+		if (previous == null) {
+			savepoint.push(
+				() -> this.persistenceService.removeStoragePart(catalogVersion, primaryKey, containerType)
+			);
+		} else {
+			// the loaded part carries its primary key, so re-putting it files it back under the very same key
+			savepoint.push(() -> this.persistenceService.putStoragePart(catalogVersion, previous));
 		}
 	}
 
@@ -480,6 +536,10 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	/**
 	 * Removes a storage part identified by the given catalog version, primary key, and entity class.
 	 *
+	 * Both halves of what this changes are revertable by an open warm-up savepoint: the trapped-cache slot through the
+	 * layer's own journal, and the stored record through the record-level inverse pushed into the savepoint (see
+	 * {@link #journalPersistedChange}).
+	 *
 	 * @param catalogVersion the version of the catalog to modify
 	 * @param primaryKey the primary key of the storage part to remove
 	 * @param entityClass the class type of the storage part to remove
@@ -487,13 +547,16 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @return true if the storage part was successfully removed, false otherwise
 	 */
 	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
-		recordWarmUpSavepointTouch();
+		final WarmUpSavepoint savepoint = recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
 			final LongObjectMap<StoragePart> containerChanges = this.trappedChanges.get(entityClass);
 			if (containerChanges != null) {
 				journalTrappedChange(entityClass, primaryKey);
 				containerChanges.remove(primaryKey);
 			}
+		}
+		if (savepoint != null) {
+			journalPersistedChange(savepoint, catalogVersion, primaryKey, entityClass);
 		}
 		return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 	}
@@ -517,12 +580,16 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	/**
 	 * Stores the provided storage part and manages any trapped changes related to it.
 	 *
+	 * Both halves of what this changes are revertable by an open warm-up savepoint: the trapped-cache slot through the
+	 * layer's own journal, and the stored record through the record-level inverse pushed into the savepoint (see
+	 * {@link #journalPersistedChange}).
+	 *
 	 * @param catalogVersion the current version of the catalog to write to
 	 * @param value the storage part to store, must not be null
 	 * @param <T> the type of the storage part
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
-		recordWarmUpSavepointTouch();
+		final WarmUpSavepoint savepoint = recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
 			final LongObjectMap<StoragePart> containerChanges = this.trappedChanges.get(value.getClass());
 			if (containerChanges != null) {
@@ -531,6 +598,27 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 				final long primaryKey = value.getStoragePartPKOrElseThrowException();
 				journalTrappedChange(value.getClass(), primaryKey);
 				containerChanges.remove(primaryKey);
+			}
+		}
+		if (savepoint != null) {
+			final Class<? extends StoragePart> containerType = value.getClass();
+			final Long assignedPrimaryKey = value.getStoragePartPK();
+			if (assignedPrimaryKey == null) {
+				// A part whose primary key is still unassigned has never been read out of the store - on this write
+				// path every such instance is the fallback constructed after a storage miss - so its pre-image is
+				// "absent" by construction and the inverse is to drop whatever record the write files. The key it
+				// gets filed under is computed INSIDE the write, by
+				// StoragePart#computeUniquePartIdAndSet, which sets it on this very instance; the inverse therefore
+				// reads it off the part at rollback time rather than closing over a value that does not exist yet.
+				// A write that failed before assigning one has filed nothing and leaves the inverse a no-op
+				savepoint.push(() -> {
+					final Long createdPrimaryKey = value.getStoragePartPK();
+					if (createdPrimaryKey != null) {
+						this.persistenceService.removeStoragePart(catalogVersion, createdPrimaryKey, containerType);
+					}
+				});
+			} else {
+				journalPersistedChange(savepoint, catalogVersion, assignedPrimaryKey, containerType);
 			}
 		}
 		this.persistenceService.putStoragePart(catalogVersion, value);
