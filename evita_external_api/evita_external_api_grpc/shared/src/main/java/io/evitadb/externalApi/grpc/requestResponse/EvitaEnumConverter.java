@@ -61,6 +61,8 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -1769,19 +1771,22 @@ public class EvitaEnumConverter {
 	/**
 	 * Converts {@link GrpcIndexBrowseOrdering} to {@link IndexBrowseOrdering}.
 	 *
-	 * The unspecified value is rejected rather than defaulted to one of the real orders: choosing on the client's
-	 * behalf would silently decide whether it asked for "everything, cheaply" or "the largest ones".
+	 * This carries only the *key* half of an order; the direction it is read in travels beside it and is converted by
+	 * {@link #toOrderDirection(GrpcOrderDirection)}, which the browse surface shares with the query language rather
+	 * than restating.
 	 *
-	 * @param grpcOrdering the ordering to convert
-	 * @return the corresponding index browse ordering
-	 * @throws EvitaInvalidUsageException when the ordering is unspecified or unknown to this client
+	 * @param grpcOrdering the ordering key to convert
+	 * @return the corresponding index browse ordering key
+	 * @throws EvitaInvalidUsageException when the ordering key is unknown to this client
 	 */
 	@Nonnull
 	public static IndexBrowseOrdering toIndexBrowseOrdering(@Nonnull GrpcIndexBrowseOrdering grpcOrdering) {
 		return switch (grpcOrdering) {
 			case INDEX_BROWSE_ORDERING_MAP_ORDER -> IndexBrowseOrdering.MAP_ORDER;
-			case INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC -> IndexBrowseOrdering.BY_ENTITY_COUNT_DESC;
-			case INDEX_BROWSE_ORDERING_UNSPECIFIED, UNRECOGNIZED ->
+			case INDEX_BROWSE_ORDERING_ENTITY_COUNT -> IndexBrowseOrdering.ENTITY_COUNT;
+			case INDEX_BROWSE_ORDERING_QUERY_COUNT -> IndexBrowseOrdering.QUERY_COUNT;
+			case INDEX_BROWSE_ORDERING_UPDATE_COUNT -> IndexBrowseOrdering.UPDATE_COUNT;
+			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized index browse ordering: " + grpcOrdering);
 		};
 	}
@@ -1789,14 +1794,16 @@ public class EvitaEnumConverter {
 	/**
 	 * Converts {@link IndexBrowseOrdering} to {@link GrpcIndexBrowseOrdering}.
 	 *
-	 * @param ordering the ordering to convert
-	 * @return the corresponding gRPC index browse ordering
+	 * @param ordering the ordering key to convert
+	 * @return the corresponding gRPC index browse ordering key
 	 */
 	@Nonnull
 	public static GrpcIndexBrowseOrdering toGrpcIndexBrowseOrdering(@Nonnull IndexBrowseOrdering ordering) {
 		return switch (ordering) {
 			case MAP_ORDER -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER;
-			case BY_ENTITY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC;
+			case ENTITY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_ENTITY_COUNT;
+			case QUERY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_QUERY_COUNT;
+			case UPDATE_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UPDATE_COUNT;
 		};
 	}
 
@@ -1829,6 +1836,87 @@ public class EvitaEnumConverter {
 			case UNIQUE -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_UNIQUE;
 			case FILTER -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_FILTER;
 			case SORT -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_SORT;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaElementKind} to {@link ElementKind}.
+	 *
+	 * @param grpcElementKind the kind of schema element to convert
+	 * @return the corresponding schema element kind
+	 * @throws EvitaInvalidUsageException when the kind is unknown to this client
+	 */
+	@Nonnull
+	public static ElementKind toSchemaElementKind(@Nonnull GrpcSchemaElementKind grpcElementKind) {
+		return switch (grpcElementKind) {
+			case SCHEMA_ELEMENT_KIND_ATTRIBUTE -> ElementKind.ATTRIBUTE;
+			case SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND -> ElementKind.SORTABLE_COMPOUND;
+			case SCHEMA_ELEMENT_KIND_REFERENCE -> ElementKind.REFERENCE;
+			case SCHEMA_ELEMENT_KIND_ENTITY -> ElementKind.ENTITY;
+			case SCHEMA_ELEMENT_KIND_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema element kind: " + grpcElementKind);
+		};
+	}
+
+	/**
+	 * Converts {@link ElementKind} to {@link GrpcSchemaElementKind}.
+	 *
+	 * @param elementKind the kind of schema element to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaElementKind toGrpcSchemaElementKind(@Nonnull ElementKind elementKind) {
+		return switch (elementKind) {
+			case ATTRIBUTE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE;
+			case SORTABLE_COMPOUND -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND;
+			case REFERENCE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_REFERENCE;
+			case ENTITY -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaCapability} to {@link Capability}.
+	 *
+	 * Not interchangeable with {@link #toAttributeIndexType(GrpcAttributeIndexType)} despite the matching value names:
+	 * that one names a physical index structure, this one a schema flag an operator can drop.
+	 *
+	 * @param grpcCapability the schema capability to convert
+	 * @return the corresponding schema capability
+	 * @throws EvitaInvalidUsageException when the capability is unknown to this client
+	 */
+	@Nonnull
+	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
+		return switch (grpcCapability) {
+			case SCHEMA_CAPABILITY_FILTERABLE -> Capability.FILTERABLE;
+			case SCHEMA_CAPABILITY_SORTABLE -> Capability.SORTABLE;
+			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
+			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
+			case SCHEMA_CAPABILITY_INDEXED -> Capability.INDEXED;
+			case SCHEMA_CAPABILITY_BUCKETED -> Capability.BUCKETED;
+			case SCHEMA_CAPABILITY_HIERARCHY_INDEXED -> Capability.HIERARCHICAL;
+			case SCHEMA_CAPABILITY_PRICE_INDEXED -> Capability.PRICED;
+			case SCHEMA_CAPABILITY_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema capability: " + grpcCapability);
+		};
+	}
+
+	/**
+	 * Converts {@link Capability} to {@link GrpcSchemaCapability}.
+	 *
+	 * @param capability the schema capability to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
+		return switch (capability) {
+			case FILTERABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE;
+			case SORTABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORTABLE;
+			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
+			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;
+			case INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_INDEXED;
+			case BUCKETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_BUCKETED;
+			case HIERARCHICAL -> GrpcSchemaCapability.SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
+			case PRICED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
 		};
 	}
 }

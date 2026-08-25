@@ -89,6 +89,7 @@ module evita.engine {
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.fulltext.analysis;
 	exports io.evitadb.index.mutation;
+	exports io.evitadb.index.usage;
 	exports io.evitadb.spi.store.catalog.chunk;
 	exports io.evitadb.spi.store.catalog.header;
 	exports io.evitadb.spi.store.catalog.header.model;

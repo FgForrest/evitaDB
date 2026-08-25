@@ -255,12 +255,21 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 
 	/**
 	 * Method reconstructs entity index from underlying containers.
+	 *
+	 * @param catalogVersion          the catalog version to read the storage parts from
+	 * @param entityIndexId           the primary key of the index to reconstruct
+	 * @param entitySchema            the resolved schema of the owning collection
+	 * @param usageStatisticsTracking whether the reconstructed index opens an observation window and counts its own
+	 *                                usage; false leaves it with no activity holder at all, which is how
+	 *                                `server.usageStatisticsTracking: false` reclaims five longs per index across a
+	 *                                catalog that may hold hundreds of thousands of them
 	 */
 	@Nonnull
 	EntityIndex readEntityIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull EntitySchema entitySchema
+		@Nonnull EntitySchema entitySchema,
+		boolean usageStatisticsTracking
 	);
 
 	/**

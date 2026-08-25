@@ -858,6 +858,61 @@ message GrpcBrowsedIndex {
   // asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
   // half of each row's identity.
   google.protobuf.StringValue entityType = 8;
+  // How many executed query plans have chosen this index as part of their winning target index set.
+  //
+  // It counts chosen, not consulted. Planning also probes candidate indexes that lose the cost comparison, reaches a
+  // collection's super price index from a reduced-index plan, and pulls referenced-entity indexes to enrich what is
+  // fetched - none of that is counted here. The reading means "this index was the filtering backbone of an executed
+  // query", which is what makes it actionable; counting every consultation would inflate the losers and say nothing
+  // about what to drop.
+  //
+  // Counted since the server loaded the catalog, and never persisted - see `updateCount`.
+  int64 queryCount = 9;
+  // How many entity mutations have acquired this index for modification - one increment per entity mutation per index,
+  // never per attribute write.
+  //
+  // It counts work performed, including work a rollback later undoes: the increment happens when the mutation finishes
+  // applying, before the commit-or-rollback decision, because a rolled-back transaction still paid the index-
+  // maintenance cost and this reading measures that cost rather than surviving state.
+  //
+  // A global index is acquired by essentially every entity mutation, so its reading is close to the collection's total
+  // mutation count. That is accurate rather than misleading - a global index is never a drop candidate. The actionable
+  // readings are the ones on reduced indexes, which are acquired only when genuinely touched.
+  //
+  // Counted since the server loaded the catalog, and never persisted: both counters and both stamps reset on a catalog
+  // load, because their operational use is a rate over an observation window, which persisting them would not improve,
+  // while a hot mutable value in an index's manifest would cost a rewrite on every commit. Read a pair of samples, not
+  // one absolute number.
+  int64 updateCount = 10;
+  // When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+  // loaded - which is a statement about the observation window rather than about the index's whole life.
+  GrpcOffsetDateTime lastQueriedAt = 11;
+  // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+  // was loaded - see `lastQueriedAt`.
+  GrpcOffsetDateTime lastUpdatedAt = 12;
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+  // nor the write path reach for one.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 14;
+  // When observation of this index began - the start of the window the two counters and the two stamps above are read
+  // against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+  // is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+  // treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+  // window, "now" a zero-length one.
+  //
+  // It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+  // load, while one created hours later reads its own creation, because it was not observable before it existed. That
+  // is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+  // zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+  GrpcOffsetDateTime observedSince = 13;
 
 }
 
@@ -898,5 +953,131 @@ message GrpcIndexDetail {
   // Name of the entity collection holding the described index. Unset for an index the catalog holds itself. Echoed
   // back with the handle above because the two together are the index's identity - see `GrpcBrowsedIndex.entityType`.
   google.protobuf.StringValue entityType = 4;
+  // How many executed query plans have chosen this index as part of their winning target index set - see
+  // `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+  // readings share.
+  int64 queryCount = 5;
+  // How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+  int64 updateCount = 6;
+  // When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+  // loaded.
+  GrpcOffsetDateTime lastQueriedAt = 7;
+  // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+  // was loaded.
+  GrpcOffsetDateTime lastUpdatedAt = 8;
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+  // nor the write path reach for one.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 10;
+  // When observation of this index began, and therefore the window the two counters and the two stamps above are read
+  // against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+  // A server that knows this field always sets it; absent only from a server predating it, and the window is then
+  // unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+  GrpcOffsetDateTime observedSince = 9;
+
+}
+
+// How often one schema capability was asked for by queries, against how often mutations had to maintain it - the
+// reading that answers "you never filter by EAN, so why are you paying to keep its filter index up to date?".
+//
+// One row describes one capability flag, on one schema element, in one scope: `filterable()` on the entity attribute
+// `ean` in the live scope, `sortable()` on the `categories` reference's `priority` attribute, and so on. That is the
+// granularity an operator can act on, because the remedial action is a schema mutation which removes every physical
+// index maintaining the flag at once.
+//
+// `requestedCount` is not physical index usage, and must never be presented as such. `GrpcBrowsedIndex.queryCount`
+// counts the times one physical index was in the winning target index set of an executed plan - "is this index earning
+// the heap it occupies?" - and deliberately excludes a candidate index the planner probed and then discarded.
+// `requestedCount` counts the times a logical query asked for this capability, whichever plan won - "would dropping
+// this flag from the schema break somebody's query?" - and for that question a losing candidate plan is not a false
+// positive at all: the query named the element, so removing the flag would have made it invalid regardless of which
+// index ended up serving it. The two disagree by design.
+//
+// It is counted once per logical query, not once per candidate plan. The one caveat is the server's plan-verification
+// debug modes, which build and execute a query's alternative plans a second time to compare their results: that
+// re-executes genuine physical work, which the per-index counters see, but the capability is still counted once
+// because one logical query was issued.
+//
+// Why this is a separate surface from `GrpcIndexDetail`: a capability is maintained by many physical indexes at once -
+// a filterable entity attribute has a filter index in the global index and in every reduced index that carries it - so
+// these counts are an aggregate over all of them. No per-index row can carry one without either double counting it
+// across the collection's rows or attributing a collection-wide reading to a single index, and pairing a
+// collection-wide aggregate with one index's cost on the same row invites the wrong reading. Read the two side by
+// side; they are not merged.
+message GrpcSchemaCapabilityUsage {
+
+  // Name of the entity collection whose schema declares the element. Unset for a row the catalog owns itself - the
+  // capabilities of a globally-unique attribute the catalog schema declares. Those live on the catalog because a query
+  // filtering by such an attribute may name no collection at all, being served from the catalog's own global unique
+  // index, and because dropping the flag is a catalog schema mutation. A catalog-owned row always carries
+  // `SCHEMA_ELEMENT_KIND_ATTRIBUTE` and an unset `containerName`: a catalog schema declares no references and no
+  // compounds.
+  google.protobuf.StringValue entityType = 1;
+  // What kind of schema element this row describes - the only thing telling an attribute apart from a sortable
+  // compound carrying the same name in the same container.
+  GrpcSchemaElementKind elementKind = 2;
+  // Name of the reference the element is declared on. Unset when the entity - or the catalog - declares it directly,
+  // rather than naming an unnamed reference. Attribute names are unique within their owner and not across owners, so
+  // `priority` on the entity and `priority` on the `categories` reference are routinely both present and are different
+  // elements.
+  google.protobuf.StringValue containerName = 3;
+  // Name of the attribute or sortable compound itself.
+  string elementName = 4;
+  // Which of the element's flags this row counts.
+  GrpcSchemaCapability capability = 5;
+  // The scope whose indexes maintain the capability. A flag may be declared for the live data set and the archive
+  // independently, and so may be dropped from one and kept in the other.
+  GrpcEntityScope scope = 6;
+  // How many logical queries asked for this capability since the server loaded the catalog (queries). Read the message
+  // comment before acting on it, and never present it as physical index earning.
+  int64 requestedCount = 7;
+  // How many entity mutations touched the element since the server loaded the catalog (entity mutations).
+  //
+  // Deduplicated per entity mutation rather than per affected index: one upsert writing an attribute that lives in the
+  // global index and five reduced indexes is one, not six. The fan-out width is a legitimately different metric -
+  // "physical maintenance operations" - and `GrpcBrowsedIndex.updateCount` is where it is visible. Like the per-index
+  // counters this measures work performed, including work a later rollback undoes, because the maintenance was paid
+  // either way.
+  int64 updatedCount = 8;
+  // When the last query asking for this capability was planned. Unset when none has since the catalog was loaded -
+  // which is a statement about the observation window rather than about the capability's whole life.
+  //
+  // Accurate to the second: the stamp is not rewritten while the recorded instant already falls in the current second,
+  // which is what keeps a capability requested thousands of times a second down to one store.
+  GrpcOffsetDateTime lastRequestedAt = 9;
+  // When the last entity mutation touching the element finished applying. Unset when none has since the catalog was
+  // loaded, and coarsened to the second exactly like `lastRequestedAt`.
+  GrpcOffsetDateTime lastUpdatedAt = 10;
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+  // The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+  // stamps carry no information.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 12;
+  // When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+  // itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+  // unlike the two stamps above there is no "not yet" case.
+  //
+  // It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+  // states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+  // twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+  // element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+  // was not maintained in between.
+  GrpcOffsetDateTime observedSince = 11;
 
 }

@@ -869,7 +869,12 @@ public class DefaultEntityCollectionPersistenceService
 
 	@Nonnull
 	@Override
-	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
+	public EntityIndex readEntityIndex(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull EntitySchema entitySchema,
+		boolean usageStatisticsTracking
+	) {
 		final EntityIndexStoragePart manifest = this.storagePartPersistenceService.getStoragePart(
 			catalogVersion, entityIndexId, EntityIndexStoragePart.class
 		);
@@ -919,7 +924,7 @@ public class DefaultEntityCollectionPersistenceService
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
 			effectiveVersion, entityIds, entityIdsByLanguage,
-			this.storagePartPersistenceService, referenceKey
+			this.storagePartPersistenceService, referenceKey, usageStatisticsTracking
 		);
 
 		return resolvePlanFor(entityIndexKey.type()).run(context);

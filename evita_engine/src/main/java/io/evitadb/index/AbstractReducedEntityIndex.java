@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -119,7 +120,25 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a new empty reduced entity index, stating whether it counts its own usage - see
+	 * {@link #AbstractReducedEntityIndex(int, String, EntityIndexKey)} for everything else this constructor does.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	protected AbstractReducedEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.priceIndex = new PriceRefIndex(this.getIndexKey().scope());
 		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
@@ -140,6 +159,9 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	 * @param priceIndex          the price reference index
 	 * @param hierarchyIndex      the hierarchy index
 	 * @param facetIndex          the facet index
+	 * @param activity            the activity holder to keep counting into — the copied index's own instance on the
+	 *                            commit-time merge copy, a fresh one when loading from disk; see
+	 *                            {@link io.evitadb.index.IndexActivity}
 	 */
 	protected AbstractReducedEntityIndex(
 		int primaryKey,
@@ -150,12 +172,13 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));

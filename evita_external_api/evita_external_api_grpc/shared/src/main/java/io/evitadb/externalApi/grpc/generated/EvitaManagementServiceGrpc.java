@@ -318,6 +318,37 @@ public final class EvitaManagementServiceGrpc {
     return getGetIndexDetailMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> getListSchemaCapabilityUsageMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ListSchemaCapabilityUsage",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> getListSchemaCapabilityUsageMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest, io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> getListSchemaCapabilityUsageMethod;
+    if ((getListSchemaCapabilityUsageMethod = EvitaManagementServiceGrpc.getListSchemaCapabilityUsageMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getListSchemaCapabilityUsageMethod = EvitaManagementServiceGrpc.getListSchemaCapabilityUsageMethod) == null) {
+          EvitaManagementServiceGrpc.getListSchemaCapabilityUsageMethod = getListSchemaCapabilityUsageMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest, io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ListSchemaCapabilityUsage"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("ListSchemaCapabilityUsage"))
+              .build();
+        }
+      }
+    }
+    return getListSchemaCapabilityUsageMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
       io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
 
@@ -872,6 +903,25 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+     * mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+     * date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+     * Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+     * those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+     * mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+     * than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+     * the request count is not physical index usage.
+     * Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+     * schema rather than by the data, and there is no index walk behind it.
+     * </pre>
+     */
+    default void listSchemaCapabilityUsage(io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getListSchemaCapabilityUsageMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
      * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
@@ -1153,6 +1203,26 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+     * mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+     * date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+     * Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+     * those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+     * mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+     * than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+     * the request count is not physical index usage.
+     * Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+     * schema rather than by the data, and there is no index walk behind it.
+     * </pre>
+     */
+    public void listSchemaCapabilityUsage(io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getListSchemaCapabilityUsageMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
      * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
@@ -1422,6 +1492,25 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+     * mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+     * date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+     * Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+     * those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+     * mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+     * than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+     * the request count is not physical index usage.
+     * Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+     * schema rather than by the data, and there is no index walk behind it.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse listSchemaCapabilityUsage(io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getListSchemaCapabilityUsageMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
      * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
@@ -1683,6 +1772,25 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+     * mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+     * date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+     * Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+     * those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+     * mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+     * than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+     * the request count is not physical index usage.
+     * Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+     * schema rather than by the data, and there is no index walk behind it.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse listSchemaCapabilityUsage(io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getListSchemaCapabilityUsageMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
      * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
@@ -1939,6 +2047,26 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+     * mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+     * date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+     * Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+     * those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+     * mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+     * than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+     * the request count is not physical index usage.
+     * Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+     * schema rather than by the data, and there is no index walk behind it.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse> listSchemaCapabilityUsage(
+        io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getListSchemaCapabilityUsageMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
      * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
@@ -2059,18 +2187,19 @@ public final class EvitaManagementServiceGrpc {
   private static final int METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT = 6;
   private static final int METHODID_BROWSE_INDEXES = 7;
   private static final int METHODID_GET_INDEX_DETAIL = 8;
-  private static final int METHODID_RESTORE_CATALOG_UNARY = 9;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 10;
-  private static final int METHODID_LIST_TASK_STATUSES = 11;
-  private static final int METHODID_GET_TASK_STATUS = 12;
-  private static final int METHODID_GET_TASK_STATUSES = 13;
-  private static final int METHODID_CANCEL_TASK = 14;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 15;
-  private static final int METHODID_GET_FILE_TO_FETCH = 16;
-  private static final int METHODID_FETCH_FILE = 17;
-  private static final int METHODID_DELETE_FILE = 18;
-  private static final int METHODID_LIST_RESERVED_KEYWORDS = 19;
-  private static final int METHODID_RESTORE_CATALOG = 20;
+  private static final int METHODID_LIST_SCHEMA_CAPABILITY_USAGE = 9;
+  private static final int METHODID_RESTORE_CATALOG_UNARY = 10;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 11;
+  private static final int METHODID_LIST_TASK_STATUSES = 12;
+  private static final int METHODID_GET_TASK_STATUS = 13;
+  private static final int METHODID_GET_TASK_STATUSES = 14;
+  private static final int METHODID_CANCEL_TASK = 15;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 16;
+  private static final int METHODID_GET_FILE_TO_FETCH = 17;
+  private static final int METHODID_FETCH_FILE = 18;
+  private static final int METHODID_DELETE_FILE = 19;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 20;
+  private static final int METHODID_RESTORE_CATALOG = 21;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2124,6 +2253,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_GET_INDEX_DETAIL:
           serviceImpl.getIndexDetail((io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>) responseObserver);
+          break;
+        case METHODID_LIST_SCHEMA_CAPABILITY_USAGE:
+          serviceImpl.listSchemaCapabilityUsage((io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_UNARY:
           serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
@@ -2253,6 +2386,13 @@ public final class EvitaManagementServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
               io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>(
                 service, METHODID_GET_INDEX_DETAIL)))
+        .addMethod(
+          getListSchemaCapabilityUsageMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse>(
+                service, METHODID_LIST_SCHEMA_CAPABILITY_USAGE)))
         .addMethod(
           getRestoreCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncClientStreamingCall(
@@ -2394,6 +2534,7 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetEntityCollectionStatisticsSnapshotMethod())
               .addMethod(getBrowseIndexesMethod())
               .addMethod(getGetIndexDetailMethod())
+              .addMethod(getListSchemaCapabilityUsageMethod())
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogUnaryMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())

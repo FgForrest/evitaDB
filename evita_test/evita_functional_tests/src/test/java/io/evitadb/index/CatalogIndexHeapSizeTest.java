@@ -246,7 +246,7 @@ class CatalogIndexHeapSizeTest {
 			}
 			uniqueIndexes.put(attributeKey, globalUniqueIndex);
 		}
-		return new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes);
+		return new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
 	}
 
 	/**

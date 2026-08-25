@@ -1,7 +1,7 @@
 ---
 title: Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
 date: 2026-08-10
-updated: 2026-08-14 14:45
+updated: 2026-08-16 18:10
 status: accepted
 kind: feature
 issues: [1339]
@@ -9,7 +9,7 @@ prs: [1418]
 areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-16-per-index-usage-statistics]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -252,6 +252,10 @@ select it. Reversing that would reverse the cost argument the whole browse surfa
   area (`evita_engine/index`, the B+ tree layer). Its collation-key cache is one of the structures this
   work had to rule on: charged as the 48-byte private part only, never the ~30 KB shared collation
   tables.
+- [Per-index usage statistics](../2026-08-16-per-index-usage-statistics.md) — adds what an index
+  *earns* to the surface this record built for what it *costs*, on both the browse row and the
+  drill-down. It is bound by the rule stated here: `O(1)` readings may ride on a row, but nothing that
+  has to be measured may order one — which is why it leaves `BY_QUERY_COUNT` deferred.
 
 ## Supporting material
 

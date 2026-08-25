@@ -432,7 +432,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						null,
 						null,
 						null,
-						this.classifierResolver
+						this.classifierResolver,
+						this.usageRegistry,
+						this.catalogUsageRegistry,
+
+						true
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -460,7 +464,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						null,
 						null,
 						null,
-						this.classifierResolver
+						this.classifierResolver,
+						this.usageRegistry,
+						this.catalogUsageRegistry,
+
+						true
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -493,7 +501,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				null,
 				null,
 				null,
-				this.classifierResolver
+				this.classifierResolver,
+				this.usageRegistry,
+				this.catalogUsageRegistry,
+
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -516,7 +528,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				null,
 				null,
 				null,
-				this.classifierResolver
+				this.classifierResolver,
+				this.usageRegistry,
+				this.catalogUsageRegistry,
+
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -644,7 +660,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				null,
 				null,
 				null,
-				this.classifierResolver
+				this.classifierResolver,
+				this.usageRegistry,
+				this.catalogUsageRegistry,
+
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,

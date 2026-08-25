@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -337,6 +338,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				throw new ReferenceNotIndexedException(referenceName, entitySchema, scope);
 			}
 		}
+		// every scope passed the check above, so ordering by this reference genuinely depends on `indexed()` in all
+		// of them - the widest dependency the surface reports, since dropping it takes the reduced index family too
+		orderByVisitor.getQueryContext().recordRequestedReferenceCapability(
+			entitySchema, referenceName, Capability.INDEXED, processingScope.getScopes()
+		);
 		final boolean referencedEntityHierarchical = referenceSchema.isReferencedEntityTypeManaged() &&
 			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
 

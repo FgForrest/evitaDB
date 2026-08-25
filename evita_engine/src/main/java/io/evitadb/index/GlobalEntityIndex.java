@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -215,7 +216,24 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public GlobalEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.priceIndex = new PriceSuperIndex();
 		addComponent(new PriceIndexComponent(this.priceIndex));
 		// fresh empty index — every component contributes an empty manifest, so the baseline
@@ -223,6 +241,12 @@ public class GlobalEntityIndex extends EntityIndex
 		captureOriginalsFromComponents();
 	}
 
+	/**
+	 * Reconstructs a global entity index from persisted or committed state.
+	 *
+	 * @param activity the activity holder to keep counting into — the copied index's own instance on the commit-time
+	 *                 merge copy, a fresh one when loading from disk; see {@link io.evitadb.index.IndexActivity}
+	 */
 	public GlobalEntityIndex(
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
@@ -232,12 +256,13 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull EntityAttributeIndex attributeIndex,
 		@Nonnull PriceSuperIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));
@@ -293,7 +318,10 @@ public class GlobalEntityIndex extends EntityIndex
 				),
 				new PriceSuperIndex(prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
-				facet.facetIndex()
+				facet.facetIndex(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 
@@ -316,7 +344,9 @@ public class GlobalEntityIndex extends EntityIndex
 			(EntityAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

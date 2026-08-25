@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -106,6 +107,13 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						Assert.isTrue(
 							scopesToLookup.stream().allMatch(targetEntitySchema::isHierarchyIndexedInScope),
 							() -> new HierarchyNotIndexedException(targetEntitySchema)
+						);
+
+						// past the assertion on purpose - the count has to mean "a query depended on this flag being
+						// on". A `hierarchyWithin` naming another collection's entity records nothing here, the same
+						// way a filter evaluated against another collection does
+						queryContext.recordRequestedEntityCapability(
+							targetEntitySchema, Capability.HIERARCHICAL, scopesToLookup
 						);
 
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();

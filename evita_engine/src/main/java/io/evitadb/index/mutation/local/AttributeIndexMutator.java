@@ -178,6 +178,11 @@ public interface AttributeIndexMutator {
 				attributeDefinition.isFilterableInScope(scope) ||
 				attributeDefinition.isSortableInScope(scope)
 		) {
+			// report the maintenance, once per entity mutation - the executor throws away the repeats this call makes
+			// as the write fans out over the indexes
+			executor.reportAttributeTouched(
+				attributeSchemaProvider.getContainerName(), attributeDefinition, scope
+			);
 			final EntitySchema entitySchema = executor.getEntitySchema();
 			final Set<Locale> allowedLocales = entitySchema.getLocales();
 			final Locale locale = attributeKey.locale();
@@ -319,6 +324,10 @@ public interface AttributeIndexMutator {
 		final Scope scope = indexForRemoval.getIndexKey().scope();
 		if (attributeDefinition.isUniqueInScope(scope) || attributeDefinition.isFilterableInScope(
 			scope) || attributeDefinition.isSortableInScope(scope)) {
+			// a removal maintains the same indexes an upsert does, and is counted the same way
+			executor.reportAttributeTouched(
+				attributeSchemaProvider.getContainerName(), attributeDefinition, scope
+			);
 			final int existingPk = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING);
 			indexForRemoval.removeAttribute(
 				referenceSchema, attributeDefinition, allowedLocales, scope, locale,
@@ -451,6 +460,9 @@ public interface AttributeIndexMutator {
 
 		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
 
+		// a delta rewrites whatever the value is indexed in, so it maintains the same capabilities an upsert does
+		executor.reportAttributeTouched(attributeSchemaProvider.getContainerName(), attributeDefinition, scope);
+
 		final int recordId = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.NEW);
 		indexForUpsert.applyAttributeDelta(
 			referenceSchema, attributeDefinition, allowedLocales, scope, locale,
@@ -530,6 +542,11 @@ public interface AttributeIndexMutator {
 			if (!compound.isIndexedInScope(scope) || compound.isLocalized(schemaResolver) != wantLocalized) {
 				continue;
 			}
+			// a new entity (or a new locale, or a new reduced index) writes a compound entry, which is maintenance
+			// this compound cost the mutation whether or not any of its attributes were themselves written
+			executor.reportSortableCompoundTouched(
+				attributeSchemaProvider.getContainerName(), compound.getName(), scope
+			);
 			insertNewCompound(
 				entityPrimaryKey, entityIndex, compound,
 				null, null,
@@ -600,6 +617,10 @@ public interface AttributeIndexMutator {
 			if (!compound.isIndexedInScope(scope) || compound.isLocalized(schemaResolver) != wantLocalized) {
 				continue;
 			}
+			// tearing the entry down is the same maintenance the insert above is counted for
+			executor.reportSortableCompoundTouched(
+				attributeSchemaProvider.getContainerName(), compound.getName(), scope
+			);
 			removeOldCompound(
 				entityPrimaryKey, entityIndex, compound,
 				locale,
@@ -675,6 +696,11 @@ public interface AttributeIndexMutator {
 			.filter(it -> it.isIndexedInScope(scope))
 			.forEach(
 				compound -> {
+					// the compound's sort index is rebuilt because one of its attributes changed - maintenance the
+					// compound cost this mutation, and attributed to the compound rather than to that attribute
+					executor.reportSortableCompoundTouched(
+						attributeSchemaProvider.getContainerName(), compound.getName(), scope
+					);
 					final Function<AttributeKey, AttributeValue> existingAttributeValueProvider =
 						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
 

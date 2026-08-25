@@ -1025,26 +1025,72 @@ enum GrpcEntityIndexType {
 
 }
 
-// The order in which an index browse returns its results. Both orders walk every index of the collection; what they
-// differ in is how much of that walk has to be kept in memory to produce a page.
+// What an index browse ranks its results by - the key half of the order, whose other half is the direction carried
+// beside it in `GrpcIndexBrowseRequest.direction`. Every key walks every index of the collection; what they differ in
+// is how much of that walk has to be kept in memory to produce a page, and what the kept entries are ranked by.
+//
+// The two halves are separate fields because they are separate choices: the same key read in the other direction
+// answers the opposite question (the largest indexes or the smallest, the busiest or the untouched), and every key
+// but map order is meaningful both ways.
 enum GrpcIndexBrowseOrdering {
 
-  // Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
-  // answer is "everything, cheaply" or "the largest ones", which are different questions.
-  INDEX_BROWSE_ORDERING_UNSPECIFIED = 0;
   // The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
   // a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
   // a client should read into.
-  INDEX_BROWSE_ORDERING_MAP_ORDER = 1;
-  // Largest first by `entityCount`, ties broken deterministically by index kind, then scope, then discriminator.
-  // The tiebreaker matters: index counts are heavily tied in practice, and without it successive pages would
-  // re-order the tied block and show duplicates while hiding other indexes.
+  //
+  // It holds the zero slot, so an unset `ordering` reads as "enumerate everything, cheaply" - the one answer that
+  // cannot be mistaken for a ranking the client did not ask for. It is also the one key with no ranking to reverse:
+  // it is accepted with direction `ASC` alone, which is how the walk order is spelled, and rejected with `DESC`
+  // rather than the direction being silently ignored.
+  INDEX_BROWSE_ORDERING_MAP_ORDER = 0;
+  // `entityCount`, ties broken deterministically by index kind, then scope, then discriminator - descending for the
+  // largest indexes first, ascending for the smallest. The tiebreaker matters: index counts are heavily tied in
+  // practice, and without it successive pages would re-order the tied block and show duplicates while hiding other
+  // indexes.
   //
   // This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
   // narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
   // is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
   // mean estimating every index in the collection on every call.
-  INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;
+  //
+  // A catalog browse has nothing for this key to rank by in either direction - a catalog index reports no entity
+  // count at all - so there it degenerates to the same order `INDEX_BROWSE_ORDERING_MAP_ORDER` yields, ascending as
+  // much as descending. It is accepted rather than rejected so that one client can send the same request to either.
+  INDEX_BROWSE_ORDERING_ENTITY_COUNT = 1;
+  // `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
+  //
+  // Descending answers which indexes are earning the memory they occupy. Read each count against the same row's
+  // `observedSince` rather than on its own: the observation window opens per index, so two raw counts only become
+  // comparable once each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_ENTITY_COUNT` this key is
+  // meaningful for a catalog browse too, because a catalog index is queried and maintained like any other.
+  //
+  // Ascending is the hunt for indexes that may be worth dropping, and it is dominated by ties at zero, because on
+  // most catalogs the majority of indexes have never been chosen by a query; the kind-then-scope-then-discriminator
+  // tiebreaker is the whole of what makes a page boundary drawn inside that block of zeros reproducible. A zero is
+  // not by itself a verdict - it is a statement about the window the row's `observedSince` opens.
+  //
+  // The rank is a best-effort reading taken as the walk passes each index, not a snapshot of one instant - the
+  // counters move under live traffic. Each index is read once, and the count a row reports for the counter it was
+  // ranked by is the reading that placed it, so no row contradicts its own position. Pages are nevertheless unstable
+  // across calls: recording activity does not advance the catalog version, so two pages agreeing on `catalogVersion`
+  // may still have been ranked by counters that moved between them, and one index can appear on two pages or on
+  // neither. This is a top-N access pattern - page in `INDEX_BROWSE_ORDERING_MAP_ORDER` to enumerate the whole set -
+  // and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`, in both
+  // directions.
+  INDEX_BROWSE_ORDERING_QUERY_COUNT = 2;
+  // `updateCount`, same tiebreaker. Descending, read beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` descending, finds
+  // the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount` documents
+  // about the maintenance it counts before acting on the head of that direction: a global index leads it on
+  // essentially every catalog and is never a drop candidate, and maintenance driven by a write to another collection
+  // is not counted at all.
+  //
+  // Ascending surfaces the indexes nothing is writing to. It is dominated by ties at zero exactly as
+  // `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending is, and reproducible inside that block for the same reason. A
+  // never-updated index is not thereby a drop candidate: it may be precisely the one every query reads, so read it
+  // beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending rather than acting on it alone.
+  //
+  // The caveats on `INDEX_BROWSE_ORDERING_QUERY_COUNT` apply unchanged, in both directions.
+  INDEX_BROWSE_ORDERING_UPDATE_COUNT = 3;
 
 }
 
@@ -1065,5 +1111,78 @@ enum GrpcAttributeIndexType {
   ATTRIBUTE_INDEX_TYPE_FILTER = 2;
   // The sort index - records ordered by their attribute value.
   ATTRIBUTE_INDEX_TYPE_SORT = 3;
+
+}
+
+// What kind of schema element one schema-capability usage row describes. Deliberately not split by owner - an entity
+// attribute and a reference attribute are the same kind of thing declared in two places, and
+// `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the things that would
+// otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container,
+// and a reference is both a container of elements and an element in its own right.
+enum GrpcSchemaElementKind {
+
+  // Default value, never sent by the server. Every reported row carries an explicit kind.
+  SCHEMA_ELEMENT_KIND_UNSPECIFIED = 0;
+  // An attribute, of the entity, of one of its references, or of the catalog schema itself.
+  SCHEMA_ELEMENT_KIND_ATTRIBUTE = 1;
+  // A sortable attribute compound, of the entity or of one of its references.
+  SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;
+  // A reference itself rather than something declared on it - the element carrying `indexed()`, `faceted()` and
+  // `bucketed()`. `containerName` is empty on such a row and `elementName` holds the reference name, because a
+  // reference is declared by the entity schema directly and has no container of its own. Not to be confused with a
+  // row about an attribute *of* that reference, which names it in `containerName` instead.
+  SCHEMA_ELEMENT_KIND_REFERENCE = 3;
+  // The entity itself - the element carrying `withHierarchy()` and `withPrice()`. Both are declared on the entity
+  // schema rather than on anything inside it, so `containerName` is empty and `elementName` repeats the entity type.
+  SCHEMA_ELEMENT_KIND_ENTITY = 4;
+
+}
+
+// One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
+//
+// The values are named after the schema flags they report - `filterable()`, `sortable()`, `unique()` - which is what
+// separates them from `GrpcAttributeIndexType`, whose values name the physical index structure a cardinality reading
+// came from. Dropping a flag here takes every physical structure maintaining it with it, and the two axes do not
+// correspond even where their names meet: a unique attribute that is not filterable carries
+// `SCHEMA_CAPABILITY_FILTERABLE`, because a filter against it is served from its uniqueness index - while no filter
+// index exists for it at all. Keeping the two apart is the whole point of the schema-capability surface - see
+// `GrpcSchemaCapabilityUsage`.
+//
+// The values span every schema flag whose maintenance a physical index pays for, and which of them a row can carry is
+// fixed by its `GrpcSchemaElementKind`: an attribute has three, a sortable compound exactly one, a reference three of
+// its own, and the entity two. Nothing outside that set is reported, because a flag no index maintains costs nothing
+// to keep and is therefore not a thing an operator would act on.
+enum GrpcSchemaCapability {
+
+  // Default value, never sent by the server. Every reported row carries an explicit capability.
+  SCHEMA_CAPABILITY_UNSPECIFIED = 0;
+  // The element can be filtered by - `filterable()`, and the inverted indexes it costs. A unique attribute carries
+  // this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
+  SCHEMA_CAPABILITY_FILTERABLE = 1;
+  // The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
+  SCHEMA_CAPABILITY_SORTABLE = 2;
+  // The element's values are unique - `unique()`, whether within the entity collection or globally, and the
+  // uniqueness index it costs.
+  SCHEMA_CAPABILITY_UNIQUE = 3;
+  // The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_FACETED = 4;
+  // The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  //
+  // This is the widest flag reported here, and the one to read most carefully: dropping it takes the whole reduced
+  // index family for that reference with it, so every filter, ordering and fetch path reaching *through* the
+  // reference stops being answerable - not merely slower. A low request count means far less here than the same
+  // number on an attribute's `filterable()`.
+  SCHEMA_CAPABILITY_INDEXED = 5;
+  // The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+  // maintenance. Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_BUCKETED = 6;
+  // The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index it
+  // costs. Carried by a `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_HIERARCHY_INDEXED = 7;
+  // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
 
 }

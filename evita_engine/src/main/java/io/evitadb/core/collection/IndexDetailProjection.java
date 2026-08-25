@@ -25,6 +25,7 @@ package io.evitadb.core.collection;
 
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.IndexActivity;
 
 import javax.annotation.Nonnull;
 
@@ -66,6 +67,10 @@ final class IndexDetailProjection {
 	 */
 	@Nonnull
 	static IndexDetail describe(@Nonnull String entityType, @Nonnull EntityIndex index) {
+		// read off the live index rather than off a snapshot, which is exactly right for counters that are shared
+		// across catalog versions and deliberately outside the transactional diff layer. Null when the server does not
+		// track usage statistics, in which case the row reports itself unmeasured rather than reporting zeros
+		final IndexActivity activity = index.getActivity();
 		return new IndexDetail(
 			entityType,
 			index.getPrimaryKey(),
@@ -74,7 +79,13 @@ final class IndexDetailProjection {
 				index.getIndexKey(),
 				IndexBrowseProjection.renderDiscriminator(index.getIndexKey()),
 				index
-			)
+			),
+			activity == null ? 0L : activity.getQueryCount(),
+			activity == null ? 0L : activity.getUpdateCount(),
+			activity == null ? null : activity.getLastQueriedAt(),
+			activity == null ? null : activity.getLastUpdatedAt(),
+			activity == null ? null : activity.getObservedSince(),
+			activity != null
 		);
 	}
 

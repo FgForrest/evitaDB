@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -219,6 +220,18 @@ public abstract class EntityIndex implements
 	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing.
 	 */
 	private final List<IndexComponent> components = new ArrayList<>(INITIAL_COMPONENT_CAPACITY);
+	/**
+	 * Query / update counters and last-activity stamps of this index — see {@link IndexActivity}.
+	 *
+	 * Threaded **by reference** through the reconstruction constructor, so the commit-time merge copy keeps counting
+	 * into the very same holder while a reload from disk starts a fresh one. It is the one piece of state here that is
+	 * neither transactional nor persisted.
+	 *
+	 * **Null when `server.usageStatisticsTracking` is off**, in which case no holder is allocated for any index and
+	 * nothing on the query or the write path reaches for one — see {@link Index#getActivity()} for why the absence must
+	 * be reported as *not measured* rather than as zero counts.
+	 */
+	@Nullable private final IndexActivity activity;
 
 	/**
 	 * Read-only accessor exposed for `EntityIndexReloadPlanSymmetryTest`. Returns an unmodifiable
@@ -254,10 +267,33 @@ public abstract class EntityIndex implements
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey indexKey
 	) {
+		this(primaryKey, entityType, indexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a brand-new, empty entity index at version 1, stating whether it counts its own usage — see
+	 * {@link #EntityIndex(int, String, EntityIndexKey)} for everything else this constructor does.
+	 *
+	 * @param primaryKey              the unique identifier of this index instance within the catalog
+	 * @param entityType              the entity type this index belongs to
+	 * @param indexKey                the key (type + discriminator) describing what slice of data this index covers
+	 * @param usageStatisticsTracking whether to allocate an {@link IndexActivity} holder for this index; false leaves
+	 *                                it null for the index's whole lifetime, because the decision is per server rather
+	 *                                than per index and cannot change under a running catalog
+	 */
+	protected EntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey indexKey,
+		boolean usageStatisticsTracking
+	) {
 		this.primaryKey = primaryKey;
 		this.version = 1;
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
+		// a brand-new index has been neither queried nor updated yet - and is not counting at all when the server
+		// runs with usage statistics switched off
+		this.activity = usageStatisticsTracking ? new IndexActivity() : null;
 		this.entityIds = new TransactionalBitmap();
 		// a fresh index has no persisted bitmaps yet
 		this.previouslyPersisted = false;
@@ -298,6 +334,12 @@ public abstract class EntityIndex implements
 	 * @param attributeIndex      the attribute sub-index reconstructed from persisted parts
 	 * @param hierarchyIndex      the hierarchy sub-index reconstructed from persisted parts
 	 * @param facetIndex          the facet sub-index reconstructed from persisted parts
+	 * @param activity            the activity holder this index continues counting into — the **same instance** the
+	 *                            copied index held when the caller is the commit-time merge copy, and a fresh one when
+	 *                            the index is being loaded from disk. It is a required parameter precisely so that a
+	 *                            future copy site has to state which of the two it is; see {@link IndexActivity}.
+	 *                            Null when the server does not track usage statistics — a merge copy of an untracked
+	 *                            index passes the null straight through, exactly as it passes a holder through
 	 */
 	protected EntityIndex(
 		int primaryKey,
@@ -307,12 +349,14 @@ public abstract class EntityIndex implements
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nullable IndexActivity activity
 	) {
 		this.primaryKey = primaryKey;
 		this.indexKey = indexKey;
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
+		this.activity = activity;
 		this.entityIds = new TransactionalBitmap(entityIds);
 		// reloaded / transactionally-copied indexes already carry persisted bitmaps when non-empty;
 		// this self-heals across the commit copy, which is built from the committed (non-empty) bitmap
@@ -791,6 +835,21 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * Deliberately `final`: the throwing stubs produced by {@link GlobalEntityIndex#createThrowingStub} and
+	 * {@link ReferencedTypeEntityIndex#createThrowingStub} are ByteBuddy proxies whose catch-all classification throws
+	 * for every method they can override, and a final method is not one of them. A stub therefore answers with the
+	 * (never-read) holder its real super instance allocated rather than raising - the same treatment `getIndexKey` gets
+	 * through an explicit pass-through classification.
+	 */
+	@Nullable
+	@Override
+	public final IndexActivity getActivity() {
+		return this.activity;
+	}
+
+	/**
 	 * Returns the heap this index occupies, in bytes — its entity-id bitmaps, every sub-index it owns, and the
 	 * persisted-baseline manifest it keeps between flushes.
 	 *
@@ -831,6 +890,12 @@ public abstract class EntityIndex implements
 	 * {@link #entityIdsByLanguage} is keyed by {@link Locale}, which the schema shares with every index it touches,
 	 * so only the entry slots are charged for the keys.
 	 *
+	 * {@link #activity} is charged **here, in full**, even though the holder is shared with the superseded versions of
+	 * this same logical index: only one version of an index is ever walked, and the predecessor is garbage-in-waiting,
+	 * so reporting the five longs as shared would show them belonging to nobody (accounting rule 2). A server that does
+	 * not track usage statistics holds no such object and is charged nothing for it, which is the footprint that switch
+	 * exists to reclaim.
+	 *
 	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
 	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding
 	 */
@@ -838,12 +903,17 @@ public abstract class EntityIndex implements
 		final VMLayout layout = VMLayout.current();
 		// id, primaryKey, version and the two booleans, then the attributeIndex / dirty / entityIds
 		// / entityIdsByLanguage / indexKey / facetIndex / hierarchyIndex / originalAttributeIndexes
-		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components slots, plus whatever
-		// the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields are
-		// sized in a single call
+		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components / activity slots, plus
+		// whatever the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields
+		// are sized in a single call
 		long size = layout.sizeOfObject(
-			Long.BYTES + 2L * Integer.BYTES + 2L + 12L * layout.referenceSize() + ownFieldBytes
+			Long.BYTES + 2L * Integer.BYTES + 2L + 13L * layout.referenceSize() + ownFieldBytes
 		);
+		// the activity holder: five longs and nothing else, since its CAS updaters are static - and nothing at all when
+		// usage statistics are not tracked, because then there is no holder to charge for
+		if (this.activity != null) {
+			size += layout.sizeOfObject(5L * Long.BYTES);
+		}
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.entityIds.getHeapSizeInBytes();
 		size += this.entityIdsByLanguage.getHeapSizeInBytes(

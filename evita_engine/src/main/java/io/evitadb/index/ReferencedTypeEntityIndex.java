@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -245,7 +246,24 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReferencedTypeEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.indexPrimaryKeyCardinality = new ReferenceTypeCardinalityIndex();
 		this.cardinalityIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), AttributeCardinalityIndex.class, Function.identity()
@@ -259,6 +277,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		captureOriginalsFromComponents();
 	}
 
+	/**
+	 * Reconstructs a reference-type entity index from persisted or committed state.
+	 *
+	 * @param activity the activity holder to keep counting into — the copied index's own instance on the commit-time
+	 *                 merge copy, a fresh one when loading from disk; see {@link IndexActivity}
+	 */
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
@@ -270,12 +294,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull Map<String, HistogramIndex> histogramIndexes
+		@Nonnull Map<String, HistogramIndex> histogramIndexes,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
 		this.cardinalityIndexes = new TransactionalMap<>(
@@ -349,7 +374,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				facet.facetIndex(),
 				refTypeCardinality.referenceTypeCardinalityIndex(),
 				cardinalities.cardinalityIndexes(),
-				histograms.histogramIndexes()
+				histograms.histogramIndexes(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 
@@ -776,7 +804,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

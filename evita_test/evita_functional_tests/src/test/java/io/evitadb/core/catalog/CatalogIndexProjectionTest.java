@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -36,6 +37,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +46,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +59,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,6 +84,10 @@ class CatalogIndexProjectionTest {
 
 	private static final String ENTITY_TYPE = "Product";
 	private static final long CATALOG_VERSION = 17L;
+	/** An arbitrary but recognisable instant, and two later ones, so a stamp read off the wrong holder is visible. */
+	private static final long FIRST_MILLIS = 1_800_000_000_000L;
+	private static final long SECOND_MILLIS = 1_800_000_060_000L;
+	private static final long THIRD_MILLIS = 1_800_000_120_000L;
 
 	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
 		@Override
@@ -150,6 +160,14 @@ class CatalogIndexProjectionTest {
 				assertNull(index.entityCount());
 				assertTrue(index.entityCountIfKnown().isEmpty());
 				assertNotNull(index.scope());
+				// nothing has been recorded on either holder, so both counters read zero and both stamps state absence
+				// rather than the epoch, which a client would render as a date in 1970
+				assertEquals(0L, index.queryCount());
+				assertEquals(0L, index.updateCount());
+				assertNull(index.lastQueriedAt());
+				assertNull(index.lastUpdatedAt());
+				assertTrue(index.lastQueriedAtIfKnown().isEmpty());
+				assertTrue(index.lastUpdatedAtIfKnown().isEmpty());
 			}
 			assertEquals(
 				List.of(Scope.LIVE, Scope.ARCHIVED),
@@ -175,7 +193,7 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE), empty(Scope.ARCHIVED)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER,
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					Set.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
 				)
 			);
@@ -192,7 +210,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(), Set.of("categoriez")
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+					Set.of(), Set.of(), Set.of("categoriez")
 				)
 			);
 			assertEquals(0, result.totalRecordCount());
@@ -205,7 +224,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE), empty(Scope.ARCHIVED)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(Scope.ARCHIVED), Set.of()
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+					Set.of(), Set.of(Scope.ARCHIVED), Set.of()
 				)
 			);
 			assertEquals(1, result.totalRecordCount());
@@ -235,22 +255,146 @@ class CatalogIndexProjectionTest {
 		}
 
 		@Test
-		@DisplayName("orders by handle whichever ordering is asked for")
-		void shouldOrderByHandleUnderEitherOrdering() {
-			// every catalog index reports an absent entity count, so a size ordering has nothing to discriminate on
-			// and must fall back to a total order rather than to whatever order the indexes were collected in
+		@DisplayName("falls back to the handle whenever the ordering has nothing to discriminate on")
+		void shouldFallBackToTheHandleWhenNothingDiscriminates() {
+			// nothing has been recorded on either holder and no catalog index reports an entity count, so every one of
+			// the orderings is asked to rank two indexes it cannot tell apart. Each must still yield the same total
+			// order rather than whatever order the indexes happened to be collected in - including the directions,
+			// which have nothing to reverse when every value compared is equal or absent
 			final List<CatalogIndex> reversed = List.of(empty(Scope.ARCHIVED), empty(Scope.LIVE));
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					reversed,
-					new IndexBrowseCriteria(1, 10, ordering, Set.of(), Set.of(), Set.of())
-				);
-				assertEquals(
-					List.of(0, 1),
-					Arrays.stream(result.indexes()).map(BrowsedIndex::indexPrimaryKey).toList(),
-					"ordering " + ordering + " must still yield a total order"
-				);
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					assertHandlesInOrder(reversed, ordering, direction, List.of(0, 1));
+				}
 			}
+		}
+
+		@Test
+		@DisplayName("degenerates to the handle for the entity count, in both directions")
+		void shouldDegenerateToTheHandleForTheEntityCount() {
+			// a catalog index maintains no primary-key bitmap, so there is no size to rank by and no direction that
+			// makes one appear. Asking for the smallest catalog index is exactly as answerable as asking for the
+			// largest, which is to say not at all - and both must still page reproducibly rather than by luck
+			final List<CatalogIndex> reversed = List.of(busy(Scope.ARCHIVED, 9, 9), busy(Scope.LIVE, 1, 1));
+			assertHandlesInOrder(reversed, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC, List.of(0, 1));
+			assertHandlesInOrder(reversed, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.ASC, List.of(0, 1));
+		}
+
+		@Test
+		@DisplayName("orders by query count, in whichever direction is asked for")
+		void shouldOrderByQueryCount() {
+			// each direction is asked of a fixture whose counter order contradicts the handle order, so neither half
+			// can be passed by a projection that quietly fell back to the handle
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 1, 0), busy(Scope.ARCHIVED, 3, 0)),
+				IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, List.of(1, 0)
+			);
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 3, 0), busy(Scope.ARCHIVED, 1, 0)),
+				IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, List.of(1, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("orders by update count, in whichever direction is asked for")
+		void shouldOrderByUpdateCount() {
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 0, 2), busy(Scope.ARCHIVED, 0, 7)),
+				IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, List.of(1, 0)
+			);
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 0, 7), busy(Scope.ARCHIVED, 0, 2)),
+				IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.ASC, List.of(1, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("ranks by the counter the ordering names, and not by the other one")
+		void shouldRankByTheNamedCounterOnly() {
+			// the two counters disagree about which index leads, which is the only fixture that can tell four
+			// near-identical comparators apart - one wired to the wrong counter inverts exactly half of these
+			final List<CatalogIndex> indexes = List.of(busy(Scope.LIVE, 5, 1), busy(Scope.ARCHIVED, 1, 5));
+
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, List.of(0, 1));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.ASC, List.of(0, 1));
+		}
+
+		@Test
+		@DisplayName("returns a snapshot whose counts never move with traffic recorded after the browse")
+		void shouldReturnAnImmutableSnapshotOfTheCounters() {
+			final CatalogIndex live = busy(Scope.LIVE, 1, 0);
+			final CatalogIndex archived = busy(Scope.ARCHIVED, 3, 0);
+
+			final IndexBrowseResult result = browse(
+				List.of(live, archived),
+				new IndexBrowseCriteria(
+					1, 10, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC,
+					Set.of(), Set.of(), Set.of()
+				)
+			);
+			// traffic recorded against the trailing index *after* browse returned. This proves the rows are value
+			// snapshots rather than live views of the holder; it cannot exercise a mutation *between* ranking and
+			// rendering, because this projection sorts already-rendered rows - rank and render read the holder once,
+			// so no such window exists here by construction
+			for (int query = 0; query < 8; query++) {
+				live.getActivity().recordQuery(SECOND_MILLIS);
+			}
+
+			final BrowsedIndex[] rows = result.indexes();
+			assertEquals(2, rows.length);
+			assertEquals(3L, rows[0].queryCount());
+			assertEquals(
+				1L, rows[1].queryCount(),
+				"The row must report the count read during the browse, not the one its index has now"
+			);
+			assertTrue(
+				rows[0].queryCount() >= rows[1].queryCount(),
+				"No row may report a count that contradicts its own position in the page"
+			);
+		}
+
+		@Test
+		@DisplayName("carries the traffic of the index each row describes, and nobody else's")
+		void shouldReportTheTrafficOfEachDescribedIndex() {
+			// the two scopes are separate indexes with separate holders, and a row is the only place the two can be
+			// crossed - the counters they report are the only thing distinguishing these two otherwise identical rows
+			final CatalogIndex busy = empty(Scope.LIVE);
+			final CatalogIndex idle = empty(Scope.ARCHIVED);
+			busy.getActivity().recordQuery(FIRST_MILLIS);
+			busy.getActivity().recordUpdate(SECOND_MILLIS);
+			busy.getActivity().recordUpdate(THIRD_MILLIS);
+
+			final IndexBrowseResult result = browse(List.of(busy, idle), criteria(1, 10));
+
+			final BrowsedIndex busyRow = rowOfScope(result, Scope.LIVE);
+			assertEquals(1L, busyRow.queryCount(), "The live scope's row lost the one query recorded against it");
+			assertEquals(2L, busyRow.updateCount(), "Both recorded updates must reach the live scope's row");
+			assertEquals(toTimestamp(FIRST_MILLIS), busyRow.lastQueriedAt());
+			assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "The stamp is the last one recorded");
+
+			final BrowsedIndex idleRow = rowOfScope(result, Scope.ARCHIVED);
+			assertEquals(0L, idleRow.queryCount(), "The archived scope's row reported the live scope's traffic");
+			assertEquals(0L, idleRow.updateCount(), "The archived scope's row reported the live scope's traffic");
+			assertNull(idleRow.lastQueriedAt());
+			assertNull(idleRow.lastUpdatedAt());
+		}
+
+		@Test
+		@DisplayName("states when observation of the index each row describes began")
+		void shouldReportWhenObservationOfEachDescribedIndexBegan() {
+			// the archived index is created lazily, so the two windows genuinely differ in production - a row carrying
+			// the wrong one would let a client divide a count by a window the index never had
+			final CatalogIndex live = empty(Scope.LIVE);
+			final CatalogIndex archived = empty(Scope.ARCHIVED);
+			// taken after the fixture is built, so both windows have already opened by now
+			final OffsetDateTime now = OffsetDateTime.now();
+
+			final IndexBrowseResult result = browse(List.of(live, archived), criteria(1, 10));
+
+			assertObservationWindowOf(live, rowOfScope(result, Scope.LIVE).observedSince(), now);
+			assertObservationWindowOf(archived, rowOfScope(result, Scope.ARCHIVED).observedSince(), now);
 		}
 
 	}
@@ -274,6 +418,42 @@ class CatalogIndexProjectionTest {
 			assertTrue(detail.cardinality().entityCountIfKnown().isEmpty());
 			assertNull(detail.cardinality().referencedEntityCount());
 			assertEquals(0, detail.cardinality().attributes().length);
+			// nothing has been recorded on this index's holder, so both counters read zero and both stamps state
+			// absence rather than the epoch, which a client would render as a date in 1970
+			assertEquals(0L, detail.queryCount());
+			assertEquals(0L, detail.updateCount());
+			assertNull(detail.lastQueriedAt());
+			assertNull(detail.lastUpdatedAt());
+			assertTrue(detail.lastQueriedAtIfKnown().isEmpty());
+			assertTrue(detail.lastUpdatedAtIfKnown().isEmpty());
+		}
+
+		@Test
+		@DisplayName("reports the traffic recorded on the index it describes")
+		void shouldReportTheTrafficOfTheDescribedIndex() {
+			final CatalogIndex index = seeded(Scope.ARCHIVED);
+			index.getActivity().recordQuery(FIRST_MILLIS);
+			index.getActivity().recordQuery(SECOND_MILLIS);
+			index.getActivity().recordUpdate(THIRD_MILLIS);
+
+			final IndexDetail detail = CatalogIndexProjection.describe(index);
+
+			assertEquals(2L, detail.queryCount());
+			assertEquals(1L, detail.updateCount(), "A query must not be counted as maintenance");
+			assertEquals(toTimestamp(SECOND_MILLIS), detail.lastQueriedAt(), "The stamp is the last one recorded");
+			assertEquals(toTimestamp(THIRD_MILLIS), detail.lastUpdatedAt());
+		}
+
+		@Test
+		@DisplayName("states when observation of the described index began")
+		void shouldReportWhenObservationOfTheDescribedIndexBegan() {
+			final CatalogIndex index = seeded(Scope.ARCHIVED);
+			// taken after the fixture is built, so the window has already opened by now
+			final OffsetDateTime now = OffsetDateTime.now();
+
+			final IndexDetail detail = CatalogIndexProjection.describe(index);
+
+			assertObservationWindowOf(index, detail.observedSince(), now);
 		}
 
 		@Test
@@ -337,6 +517,97 @@ class CatalogIndexProjectionTest {
 	}
 
 	/**
+	 * Browses one unfiltered page under a given ordering and asserts which indexes it placed where.
+	 *
+	 * The rows are compared by handle rather than by scope because the handle is what an ordering has to *displace* -
+	 * every fixture here is built so that the expected order contradicts the handle order the projection falls back to.
+	 *
+	 * @param indexes         the catalog indexes to browse
+	 * @param ordering        what to rank the rows by
+	 * @param direction       which end of that ranking the page is cut from
+	 * @param expectedHandles the handles the page must carry, in the order they must arrive in
+	 */
+	private static void assertHandlesInOrder(
+		@Nonnull List<CatalogIndex> indexes,
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction,
+		@Nonnull List<Integer> expectedHandles
+	) {
+		final IndexBrowseResult result = browse(
+			indexes, new IndexBrowseCriteria(1, 10, ordering, direction, Set.of(), Set.of(), Set.of())
+		);
+		assertEquals(
+			expectedHandles,
+			Arrays.stream(result.indexes()).map(BrowsedIndex::indexPrimaryKey).toList(),
+			"ordering " + ordering + " " + direction +
+				" placed the rows by something other than the counter it names"
+		);
+	}
+
+	/**
+	 * Picks the row describing the catalog index of one scope out of a page.
+	 *
+	 * @param result the page to read
+	 * @param scope  scope of the index whose row is wanted
+	 * @return that index's row
+	 */
+	@Nonnull
+	private static BrowsedIndex rowOfScope(@Nonnull IndexBrowseResult result, @Nonnull Scope scope) {
+		return Arrays.stream(result.indexes())
+			.filter(it -> scope == it.scope())
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("no row describes the catalog index of scope " + scope));
+	}
+
+	/**
+	 * Asserts that a reported observation window is the one the given index's own holder opened.
+	 *
+	 * @param index         the index the reading describes
+	 * @param observedSince the window the projection reported for it
+	 * @param now           an instant taken after the fixture was built, which the window cannot postdate
+	 */
+	private static void assertObservationWindowOf(
+		@Nonnull CatalogIndex index,
+		@Nullable OffsetDateTime observedSince,
+		@Nonnull OffsetDateTime now
+	) {
+		assertNotNull(
+			observedSince,
+			"An index has been observed since it came into existence, so there is no absence to report"
+		);
+		assertFalse(observedSince.isAfter(now), "Observation cannot have begun after the call that reports it");
+		assertEquals(
+			index.getActivity().getObservedSince(), observedSince,
+			"The reading must carry the window of the holder it describes"
+		);
+	}
+
+	/**
+	 * Renders epoch millis the way {@link IndexActivity} does, so an assertion compares like with like rather than
+	 * restating the conversion.
+	 *
+	 * @param millis the stamp to render
+	 * @return the timestamp in the JVM's own zone
+	 */
+	@Nonnull
+	private static OffsetDateTime toTimestamp(long millis) {
+		return OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+	}
+
+	/**
+	 * The directions one ordering key accepts - both of them, except for the key that ranks nothing and therefore has
+	 * no ranking to reverse.
+	 *
+	 * @param ordering the key to ask about
+	 * @return the directions it can be paired with
+	 */
+	@Nonnull
+	private static List<OrderDirection> directionsOf(@Nonnull IndexBrowseOrdering ordering) {
+		return ordering == IndexBrowseOrdering.MAP_ORDER ?
+			List.of(OrderDirection.ASC) : List.of(OrderDirection.values());
+	}
+
+	/**
 	 * Builds unfiltered criteria for one page.
 	 *
 	 * @param pageNumber which page to ask for, 1-indexed
@@ -346,7 +617,8 @@ class CatalogIndexProjectionTest {
 	@Nonnull
 	private static IndexBrowseCriteria criteria(int pageNumber, int pageSize) {
 		return new IndexBrowseCriteria(
-			pageNumber, pageSize, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(), Set.of()
+			pageNumber, pageSize, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+			Set.of(), Set.of(), Set.of()
 		);
 	}
 
@@ -359,6 +631,29 @@ class CatalogIndexProjectionTest {
 	@Nonnull
 	private static CatalogIndex empty(@Nonnull Scope scope) {
 		return new CatalogIndex(scope);
+	}
+
+	/**
+	 * Builds a catalog index that has already seen traffic, so that an ordering has something to rank it by.
+	 *
+	 * The two counters are set independently because that is what tells the four counter orderings apart - an index
+	 * leading on queries and trailing on updates cannot be placed correctly by a comparator reading the wrong one.
+	 *
+	 * @param scope   scope of the index
+	 * @param queries how many queries to record against it
+	 * @param updates how many updates to record against it
+	 * @return the index, with its holder already advanced
+	 */
+	@Nonnull
+	private static CatalogIndex busy(@Nonnull Scope scope, int queries, int updates) {
+		final CatalogIndex index = empty(scope);
+		for (int query = 0; query < queries; query++) {
+			index.getActivity().recordQuery(FIRST_MILLIS);
+		}
+		for (int update = 0; update < updates; update++) {
+			index.getActivity().recordUpdate(SECOND_MILLIS);
+		}
+		return index;
 	}
 
 	/**
@@ -379,7 +674,7 @@ class CatalogIndexProjectionTest {
 			new AttributeKey("code"),
 			globalUniqueIndex(scope, new AttributeKey("code"), null, 2)
 		);
-		return new CatalogIndex(1, new CatalogIndexKey(scope), uniqueIndexes);
+		return new CatalogIndex(1, new CatalogIndexKey(scope), uniqueIndexes, new IndexActivity());
 	}
 
 	/**

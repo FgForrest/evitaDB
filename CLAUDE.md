@@ -58,6 +58,37 @@ Template: `documentation/adr/TEMPLATE.md`. Index: `documentation/adr/README.md`,
 `tools/generate-adr-index.sh`. Full rules — when a record is required, which date it carries, what
 to keep and what to delete: `.claude/rules/adr.md`.
 
+## Naming
+
+**Search the codebase for a name before you invent one.** Two different things wearing the same name — or
+one thing wearing a word the codebase already spends elsewhere — costs every future reader a lookup to
+disambiguate, and costs a wide mechanical rename to fix once the name has spread through an API, its gRPC
+mirror, its tests and its documentation. Ambiguity is not a cosmetic problem; comprehension is the thing
+being paid for.
+
+Before naming a new type, enum or enum constant:
+
+```shell
+rg -n "enum <Name>|class <Name>|record <Name>|interface <Name>" --glob '*.java'   # is the type name taken?
+rg -rn "\b<CONSTANT>\b" --glob '*.java' -l | head                                 # are the constants taken?
+```
+
+Three checks, in order:
+
+1. **Is the name already taken by something else?** Then either reuse that type or pick a different name.
+   Never mint a second `Foo` whose values happen to read the same as the first one's.
+2. **Does the codebase already have a word for this?** Follow the local vocabulary rather than a synonym —
+   a package of `...Statistics` types gets another `...Statistics`, not a `...Snapshot`.
+3. **Is the word load-bearing already?** Some words carry a specific technical meaning here and must not be
+   borrowed: `Snapshot` / `Snapshotable` is the transactional MVCC memento mechanism, so a weakly-consistent
+   read of live counters must not be called one.
+
+Where two enums genuinely name **different axes**, name their constants after their own axis rather than
+after each other: schema flags are `FILTERABLE` / `SORTABLE` / `UNIQUE` (after `filterable()`, `sortable()`,
+`unique()`), physical index structures are `FILTER` / `SORT` / `UNIQUE` / `CHAIN`. Identical constant names
+across two enums in one package is the failure this rule exists to prevent — and the reuse question ("should
+these be one enum?") must be answered *before* the second one ships, not after.
+
 ## Code Quality Requirements
 
 - Line coverage with unit tests must be >= 70%
