@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -271,6 +272,80 @@ class ExceptionUtilsTest {
 			final RuntimeException topLevel = new RuntimeException("top", intermediate);
 
 			assertTrue(ExceptionUtils.causeChainContains(topLevel, IllegalStateException.class));
+		}
+	}
+
+	@Nested
+	@DisplayName("Cause chain instance lookup")
+	class FindInCauseChainTest {
+
+		@Test
+		@DisplayName("should return the matching instance itself, not merely a verdict")
+		void shouldReturnMatchingInstance() {
+			// the point of this method over causeChainContains: callers need state off the instance
+			final IOException rootCause = new IOException("IO error");
+			final RuntimeException topLevel = new RuntimeException("top", rootCause);
+
+			assertSame(rootCause, ExceptionUtils.findInCauseChain(topLevel, IOException.class));
+		}
+
+		@Test
+		@DisplayName("should return the throwable itself when it already matches")
+		void shouldReturnThrowableItselfWhenMatching() {
+			final IOException exception = new IOException("IO error");
+
+			assertSame(exception, ExceptionUtils.findInCauseChain(exception, IOException.class));
+		}
+
+		@Test
+		@DisplayName("should return the outermost match when several are present")
+		void shouldReturnOutermostMatch() {
+			final IllegalStateException rootCause = new IllegalStateException("inner");
+			final IllegalStateException intermediate = new IllegalStateException("outer", rootCause);
+			final RuntimeException topLevel = new RuntimeException("top", intermediate);
+
+			assertSame(intermediate, ExceptionUtils.findInCauseChain(topLevel, IllegalStateException.class));
+		}
+
+		@Test
+		@DisplayName("should return null when the type is absent from the chain")
+		void shouldReturnNullWhenTypeAbsent() {
+			final RuntimeException topLevel = new RuntimeException("top", new IOException("io"));
+
+			assertNull(ExceptionUtils.findInCauseChain(topLevel, CancellationException.class));
+		}
+
+		@Test
+		@DisplayName("should terminate on a two-element circular reference when the type is absent")
+		void shouldTerminateOnCircularReferenceWhenTypeAbsent() {
+			// `A -> B -> A` is the shape a self-reference guard (`current.getCause() == current`)
+			// misses; only the visited-set traversal terminates here
+			final CircularException exception1 = new CircularException("Exception 1");
+			final CircularException exception2 = new CircularException("Exception 2", exception1);
+			exception1.initCause(exception2);
+
+			assertNull(ExceptionUtils.findInCauseChain(exception1, CancellationException.class));
+		}
+
+		@Test
+		@DisplayName("should find the type inside a circular reference chain")
+		void shouldFindTypeInCircularReferenceChain() {
+			final CircularException exception1 = new CircularException("Exception 1");
+			final CircularException exception2 = new CircularException("Exception 2", exception1);
+			exception1.initCause(exception2);
+
+			assertSame(exception1, ExceptionUtils.findInCauseChain(exception1, CircularException.class));
+		}
+
+		@Test
+		@DisplayName("should match a superclass of an exception in the chain")
+		void shouldMatchSuperclassInCauseChain() {
+			// the top level is deliberately *not* a RuntimeException, so the match can only come from
+			// the cause - otherwise this would pass without walking the chain at all
+			final IllegalArgumentException rootCause = new IllegalArgumentException("arg");
+			final IOException topLevel = new IOException("top", rootCause);
+
+			assertSame(rootCause, ExceptionUtils.findInCauseChain(topLevel, RuntimeException.class));
 		}
 	}
 
