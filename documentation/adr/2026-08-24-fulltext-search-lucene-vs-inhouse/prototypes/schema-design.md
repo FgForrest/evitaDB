@@ -864,6 +864,30 @@ B — because although a flat list does not signal the cost boundary, it at leas
 mutation is single-purpose and the engine can tell from it what changed. Variant B is the worst of both
 worlds, because to the invisibility of the boundary it adds the need to compare contents.
 
+**Considered and rejected (2026-08-25): folding `searchable` into `filterable(...)` as a capability
+argument.** The question arose when the trigram substring flag (`p8-trigram-substring-index.md`) adopted
+exactly that shape — `filterable(FilterIndexCapability.SUBSTRING)` — and it deserves an answer here
+because the two decisions look contradictory and are not. The discriminator: **fold a capability into a
+host flag only when it is a pure same-semantics accelerator of that flag's own index and cannot exist
+without it.** Substring passes on all counts — it is a view over the filter index's value tree, shares
+its NFD normalization contract, returns byte-identical results to the scan, and has nothing to configure.
+`searchable` fails on all three:
+
+1. **It exists without `filterable` — and that is the normal case.** A long description is searchable
+   but never filtered by equality or range; folding would force building the exact-match value tree
+   (the dominant heap term per the P8 replication census) for attributes that only search — paying real
+   memory for API symmetry.
+2. **It carries parameters** — the profile and the weight. Pushing those into `filterable`'s argument
+   list recreates variant B inside a method call, with the same invisible cost boundary this section
+   already rejected.
+3. **It changes the query surface** — a new constraint (`attributeMatches`) and ranking, not a faster
+   path for constraints `filterable` already grants. A `filterable` argument that widens the query
+   language beyond the filter family would make the flag's name a lie.
+
+The principle does transfer in one direction: future sub-capabilities *of the fulltext index itself*
+(suggester participation, vectors) belong inside the search profile — variant C's container for exactly
+this — not as sibling flags beside `searchable()`.
+
 ### 5.5 The complete set of methods of the recommended variant
 
 The snippets above show only ordinary usage. Because the choice of variant per S1 is practically
