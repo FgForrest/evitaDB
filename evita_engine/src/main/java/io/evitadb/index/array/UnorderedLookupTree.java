@@ -1044,7 +1044,7 @@ public class UnorderedLookupTree implements
 		for (final LeafNode leaf : collectLeaves()) {
 			// create-free reset: this runs at flush time after commit() has forbidden new layer creation, and the walk
 			// visits EVERY leaf including collapse survivors this transaction never touched (which carry no layer) - so
-			// it must NOT route through the create-on-write setPageSequence/clearDirty (see LeafNode.forgetPage)
+			// it must not create a layer either (see LeafNode.forgetPage)
 			leaf.forgetPage();
 		}
 	}
@@ -2759,12 +2759,26 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
-		 * Stamps this leaf's logical persistence page sequence, decoupling into the transactional layer when present.
-		 * Structural bookkeeping only — does NOT flag the leaf dirty.
+		 * Stamps this leaf's logical persistence page sequence, writing through an EXISTING transactional layer when
+		 * one is present but NEVER creating one — the same create-free contract as {@link #forgetPage()}, and for the
+		 * same reason. Structural bookkeeping only — does NOT flag the leaf dirty.
+		 *
+		 * This is called from the flush path ({@code PageStreamRegistry.collectChangedPages}), which runs INSIDE the
+		 * commit — {@code TransactionTrunkFinalizer.commitCatalogChanges} flushes the catalog after
+		 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has already forbidden new
+		 * layer creation. The emitter walks EVERY leaf and stamps each one not yet paged, so a leaf the transaction
+		 * never touched (which carries no layer) reaches this method routinely: a create-on-write stamp would trip the
+		 * "already committed" premise on it and abort the commit. That is exactly what happens on the first write to a
+		 * chain index restored from a legacy, non-paged `ChainIndexStoragePart` — every leaf of such a tree is fresh
+		 * (see issue #1437).
+		 *
+		 * Writing the committed baseline field in place is what the merge carries forward anyway: with no layer,
+		 * {@link #createCopyWithMergedTransactionalMemory} returns `this`. When a layer DOES exist the merge takes the
+		 * layer's value, so the stamp must land there — hence the branch rather than an unconditional field write.
 		 */
 		void setPageSequence(int pageSequence) {
 			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
 			if (layer == null) {
 				this.pageSequence = pageSequence;
 			} else {
@@ -2782,12 +2796,15 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
-		 * Clears this leaf's dirty flag, decoupling into the transactional layer when present. Called by the page emitter
-		 * once the leaf's page has been collected for the current flush.
+		 * Clears this leaf's dirty flag, writing through an EXISTING transactional layer when one is present but NEVER
+		 * creating one. Called by the page emitter once the leaf's page has been collected for the current flush —
+		 * i.e. from the very same post-{@code commit()} flush pass as {@link #setPageSequence(int)}, and therefore
+		 * bound by the same create-free contract (see that method for the full rationale). Symmetric with the
+		 * create-free read path {@link #isDirty()}: the flag is cleared exactly where it was read from.
 		 */
 		void clearDirty() {
 			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
 			if (layer == null) {
 				this.dirty = false;
 			} else {
@@ -2798,9 +2815,10 @@ public class UnorderedLookupTree implements
 		/**
 		 * Resets this leaf's page bookkeeping — un-assigns the page sequence and clears the dirty flag — as part of a
 		 * `PAGED->SINGLE` collapse (see {@link #forgetPageStream()}). Writes through an EXISTING transactional layer when
-		 * one is present, but NEVER creates one — unlike {@link #setPageSequence(int)} / {@link #clearDirty()}, which route
-		 * through the create-on-write path. This runs at flush time, INSIDE the commit, after
-		 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has forbidden new layer creation;
+		 * one is present, but NEVER creates one — the same create-free contract the rest of the flush-path page
+		 * bookkeeping ({@link #setPageSequence(int)} / {@link #clearDirty()}) obeys. This runs at flush time, INSIDE
+		 * the commit, after {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has
+		 * forbidden new layer creation;
 		 * because `forgetPageStream` walks EVERY leaf (a collapse survivor can be a leaf this transaction never touched, so
 		 * it carries no layer), a create-on-write reset would trip the "already committed" premise on that untouched leaf.
 		 * A leaf with no layer has no pending diff, so resetting its committed baseline field in place is what the merge
