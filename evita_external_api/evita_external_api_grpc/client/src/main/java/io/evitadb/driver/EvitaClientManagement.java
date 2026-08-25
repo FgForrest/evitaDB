@@ -232,58 +232,95 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		GrpcTaskStatus restorationTask = null;
 		GrpcUuid uploadFileId = null;
 		long bytesSent = 0L;
-		try (inputStream) {
-			int bytesRead;
-			while ((bytesRead = inputStream.read(buffer)) != -1) {
-				final GrpcRestoreCatalogUnaryRequest.Builder requestBuilder = GrpcRestoreCatalogUnaryRequest
-					.newBuilder()
-					.setCatalogName(catalogName)
-					.setTotalSizeInBytes(totalBytesExpected)
-					.setBackupFile(ByteString.copyFrom(buffer, 0, bytesRead));
-				// every chunk but the first names the upload it belongs to
-				if (uploadFileId != null) {
-					requestBuilder.setFileId(uploadFileId);
+		// flipped only once the upload is the caller's problem rather than ours - every other way out of
+		// this method leaves a half-written archive on the server that nobody has been told to discard
+		boolean handedOver = false;
+		try {
+			try (inputStream) {
+				int bytesRead;
+				while ((bytesRead = inputStream.read(buffer)) != -1) {
+					final GrpcRestoreCatalogUnaryRequest.Builder requestBuilder = GrpcRestoreCatalogUnaryRequest
+						.newBuilder()
+						.setCatalogName(catalogName)
+						.setTotalSizeInBytes(totalBytesExpected)
+						.setBackupFile(ByteString.copyFrom(buffer, 0, bytesRead));
+					// every chunk but the first names the upload it belongs to
+					if (uploadFileId != null) {
+						requestBuilder.setFileId(uploadFileId);
+					}
+					final GrpcRestoreCatalogUnaryRequest request = requestBuilder.build();
+					final GrpcRestoreCatalogUnaryResponse response = executeWithEvitaUploadService(
+						evitaService -> evitaService.restoreCatalogUnary(request)
+					);
+					restorationTask = response.getTask();
+					if (uploadFileId == null) {
+						// the response's own `fileId` is the documented handle for the upload - the id on the
+						// task's file descriptor is not populated on the first chunk
+						uploadFileId = response.getFileId();
+					}
+					bytesSent += bytesRead;
 				}
-				final GrpcRestoreCatalogUnaryRequest request = requestBuilder.build();
-				final GrpcRestoreCatalogUnaryResponse response = executeWithEvitaUploadService(
-					evitaService -> evitaService.restoreCatalogUnary(request)
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to read the backup file being restored: " + e.getMessage(),
+					"Failed to read the backup file being restored.",
+					e
 				);
-				restorationTask = response.getTask();
-				if (uploadFileId == null) {
-					// the response's own `fileId` is the documented handle for the upload - the id on the
-					// task's file descriptor is not populated on the first chunk
-					uploadFileId = response.getFileId();
-				}
-				bytesSent += bytesRead;
 			}
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to read the backup file being restored: " + e.getMessage(),
-				"Failed to read the backup file being restored.",
-				e
-			);
-		}
 
-		if (restorationTask == null) {
-			throw new UnexpectedIOException(
-				"The backup file being restored contains no data.",
-				"The backup file being restored contains no data."
-			);
-		}
-		// the server submits the restoration task only once the uploaded size reaches the announced one,
-		// so a mismatch here would otherwise hand back a task that is never going to run
-		if (bytesSent != totalBytesExpected) {
-			throw new UnexpectedIOException(
-				"Number of bytes uploaded during catalog restoration does not match the announced size " +
-					"(announced " + totalBytesExpected + ", uploaded " + bytesSent + ")!",
-				"Number of bytes uploaded during catalog restoration does not match the announced size!"
-			);
-		}
+			if (restorationTask == null) {
+				throw new UnexpectedIOException(
+					"The backup file being restored contains no data.",
+					"The backup file being restored contains no data."
+				);
+			}
+			// the server submits the restoration task only once the uploaded size reaches the announced one,
+			// so a mismatch here would otherwise hand back a task that is never going to run
+			if (bytesSent != totalBytesExpected) {
+				throw new UnexpectedIOException(
+					"Number of bytes uploaded during catalog restoration does not match the announced size " +
+						"(announced " + totalBytesExpected + ", uploaded " + bytesSent + ")!",
+					"Number of bytes uploaded during catalog restoration does not match the announced size!"
+				);
+			}
 
-		//noinspection unchecked
-		return (Task<?, Void>) this.clientTaskTracker.createTask(
-			EvitaDataTypesConverter.toTaskStatus(restorationTask)
-		);
+			handedOver = true;
+			//noinspection unchecked
+			return (Task<?, Void>) this.clientTaskTracker.createTask(
+				EvitaDataTypesConverter.toTaskStatus(restorationTask)
+			);
+		} finally {
+			if (!handedOver && restorationTask != null) {
+				abandonRestoreUpload(restorationTask);
+			}
+		}
+	}
+
+	/**
+	 * Tells the server to discard a restore upload this client has given up on.
+	 *
+	 * Once the first chunk has been accepted the server holds a temporary archive and a task waiting for
+	 * the rest of it, and a chunked unary upload has no half-close for the server to notice its absence
+	 * by. Cancelling the task is the abort signal: the task's completion hook is what deletes the partial
+	 * archive.
+	 *
+	 * Deliberately best effort. The server does not depend on this - the scheduler purges a task left
+	 * waiting for its precondition after ten minutes and the same hook runs then - and the failure that
+	 * brought us here has quite possibly taken the channel with it, so a cancellation that cannot be
+	 * delivered must not replace the original exception with a less informative one. All this buys is
+	 * releasing the disk space now rather than ten minutes from now.
+	 *
+	 * @param restorationTask status of the waiting restoration task, as returned by the last accepted chunk
+	 */
+	private void abandonRestoreUpload(@Nonnull GrpcTaskStatus restorationTask) {
+		try {
+			cancelTask(EvitaDataTypesConverter.toTaskStatus(restorationTask).taskId());
+		} catch (Exception ex) {
+			log.debug(
+				"Failed to abandon an unfinished catalog restore upload - the server will reclaim it when " +
+					"the waiting task is purged: {}", ex.getMessage()
+			);
+		}
 	}
 
 	@Nonnull

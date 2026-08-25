@@ -1,11 +1,11 @@
 ---
 title: Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers
 date: 2026-08-24
-updated: 2026-08-24 19:40
+updated: 2026-08-25 05:00
 status: accepted
 kind: fix
 issues: [1441]
-prs: []
+prs: [1450, 1451]
 areas:
   - evita_external_api/evita_external_api_grpc/server/src/main/java/io/evitadb/externalApi/grpc/utils
   - evita_external_api/evita_external_api_grpc/server/src/main/java/io/evitadb/externalApi/grpc/services
@@ -261,6 +261,44 @@ path no matter what the server does, and can never fail.
 
 ## Consequences & open follow-ups
 
+- **A restore upload's temporary archive is owned by whoever created it, and the owner must survive a
+  hand-off the request pool refuses.** Both restore paths assemble the upload into a temporary file that
+  nothing else will ever collect: `FileManagementService.createTempFile` deliberately does *not* reserve
+  the file (that is `createManagedTempFile`), no sweeper walks the work directory, and the restore step
+  that deletes it — `deleteAfterRestore` — only runs for an upload that completed. An upload that stops
+  half way therefore leaves an archive the size of a catalog behind for the lifetime of the process.
+
+  The two paths hang that cleanup on different things, and neither is obvious from the call site:
+  - **Client-streaming** (`RestoreCatalogUploadObserver`) owns the file directly and discards it in
+    `failUpload`. Because the request pool is bounded and *throws* once its queue fills
+    (`EvitaRejectingExecutorHandler`), every hand-off to it has to be made by hand rather than through
+    `thenRunAsync`: a rejection raised while a previous step is in flight surfaces on that worker inside
+    `CompletableFuture#postComplete`, unrelated to the call, and the stage simply never completes.
+    Worse, a rejection raised once the chain is idle throws *before* `uploadChain` is reassigned, leaving
+    the chain looking healthy — so the next chunk reopens the archive that was just deleted. Poisoning
+    the successor stage in both cases is what closes that second hole.
+  - **Chunked unary** (`restoreCatalogUnary`) has no half-close to notice, so the *restoration task's
+    future* carries the cleanup. It completes on every terminal outcome, including the scheduler's
+    ten-minute purge of tasks still waiting for a precondition, which is what catches a client that
+    crashed or lost the network. The driver additionally cancels the task on its way out
+    (`EvitaClientManagement#abandonRestoreUpload`), which only makes the reclaim prompt — it is best
+    effort by construction, since the failure that triggers it may have taken the channel with it.
+
+  Anything that later adds a third upload path inherits this obligation. One invariant is worth stating
+  because nothing enforces it locally: the unary hook is registered on the *first* chunk, while the
+  over-size branch that relies on it can fire on any chunk. It works because `getWaitingTask` hands back
+  the same task instance across requests — a cross-request dependency that a future change to task
+  lookup could quietly break.
+
+  Both halves are verified, and both tests were calibrated against the pre-fix code rather than merely
+  observed to pass:
+  - `RestoreCatalogUploadObserverTest` — three rejection cases, each of which hangs for the full 30 s
+    latch without the fix instead of terminating the call, plus a control case that a progressing upload
+    keeps its archive.
+  - `EvitaClientReadWriteTest#shouldDiscardTheArchiveOfAnAbandonedChunkedRestoreUpload` — drives a real
+    chunked upload whose source dies after the first chunk and asserts the work directory is unchanged.
+    With the task-future hook removed it fails with the archive still present
+    (`[.lock, 69cb300e-….zip]`), which is precisely the leak being fixed.
 - A slow download now holds a request-executor thread for the duration of the transfer (bounded by
   `GrpcOutboundGate.DEFAULT_STALL_TIMEOUT_MILLIS`, 5 minutes of *zero* progress). The pool is
   `availableProcessors() * 4` by default. If concurrent slow downloads ever exhaust it, that is the

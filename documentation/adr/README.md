@@ -34,7 +34,7 @@ filename date that disagrees with `date:`.
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
-| 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441 |
+| 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
 | 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |
 | 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429, PR #1430 |
 | 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429, PR #1430 |
