@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +85,6 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static java.util.Optional.ofNullable;
-import static java.util.stream.Collectors.summingInt;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
@@ -113,12 +113,18 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies histogram integrity against source entities.
 	 *
-	 * Auto-detects the engine path used to build the histogram and dispatches to the matching assertion
-	 * helper. When **every** filtered entity has `LOWEST_PRICE` inner-record handling the engine activates
-	 * the per-inner-record histogram bypass — each inner-record-id contributes one bucket data point. In
-	 * any other case (pure `NONE`, pure `SUM`, or a mixed catalog that contains at least one
-	 * non-LOWEST_PRICE accessor) the engine falls back to the per-entity histogram path, so each entity
-	 * contributes exactly one bucket data point.
+	 * The expected bucket population is derived **per entity from its own
+	 * {@link PriceInnerRecordHandling}** — the granularity contract the histogram promises regardless of
+	 * how homogeneous the candidate pool happens to be:
+	 *
+	 * - `LOWEST_PRICE` entities contribute one data point per inner-record-id (every variant price the
+	 *   pool can reach), not just the winning price for sale;
+	 * - `NONE` and `SUM` entities contribute exactly one data point — their price for sale.
+	 *
+	 * A pool that mixes handling modes therefore expects the union of both rules. This is deliberately
+	 * **not** derived from which engine path fired: an assertion that adapts to the engine cannot detect
+	 * the engine silently dropping to a coarser granularity, which is exactly the defect reported in
+	 * issue #1433.
 	 */
 	protected static void assertHistogramIntegrity(
 		@Nonnull EvitaResponse<SealedEntity> result,
@@ -127,66 +133,188 @@ public class EntityByPriceFilteringFunctionalTest {
 		@Nullable BigDecimal to,
 		@Nullable OffsetDateTime validIn
 	) {
-		// detect whether the engine fired the per-inner-record bypass: requires every accessor to be a
-		// histogram-aware LOWEST_PRICE termination formula, which in practice maps to "every filtered
-		// entity uses LOWEST_PRICE handling"
-		boolean allLowestPrice = !filteredProducts.isEmpty();
-		for (final SealedEntity entity : filteredProducts) {
-			if (entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.LOWEST_PRICE) {
-				allLowestPrice = false;
-				break;
-			}
-		}
-		if (allLowestPrice) {
-			assertHistogramIntegrityPerInnerRecord(result, filteredProducts, from, to, validIn);
-		} else {
-			assertHistogramIntegrityPerEntity(result, filteredProducts, from, to, validIn);
-		}
+		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
+		assertNotNull(priceHistogram);
+
+		assertHistogramMatchesDataPoints(
+			priceHistogram,
+			collectExpectedHistogramDataPoints(filteredProducts, validIn),
+			from, to,
+			"Histogram data points must follow each entity's own price inner record handling — one per " +
+				"inner-record-id for LOWEST_PRICE entities, one per entity for NONE/SUM entities"
+		);
 	}
 
 	/**
-	 * Verifies histogram integrity against source entities for the per-entity histogram path.
+	 * Asserts the fixture really mixes {@link PriceInnerRecordHandling} values — the precondition the
+	 * mixed-pool histogram assertions exist to exercise (issue #1433). Without it a change to the data
+	 * generator could homogenise the catalog and every mixed-pool test would keep passing while covering
+	 * nothing, which is how the original defect stayed invisible.
 	 *
-	 * The histogram reports one bucket data point per filtered entity — the entity's selling price (the
-	 * winner across the queried price-list priority). Used for pure `NONE` and pure `SUM` handling
-	 * catalogs as well as for mixed catalogs where the engine cannot fire the per-inner-record bypass.
+	 * @param products the whole fixture the histogram queries draw their candidate pools from
 	 */
-	protected static void assertHistogramIntegrityPerEntity(
-		@Nonnull EvitaResponse<SealedEntity> result,
-		@Nonnull List<SealedEntity> filteredProducts,
-		@Nullable BigDecimal from,
-		@Nullable BigDecimal to,
+	protected static void assertPoolMixesInnerRecordHandling(@Nonnull List<SealedEntity> products) {
+		final Set<PriceInnerRecordHandling> handlings = collectInnerRecordHandlings(products);
+		assertTrue(
+			handlings.containsAll(
+				List.of(
+					PriceInnerRecordHandling.NONE,
+					PriceInnerRecordHandling.LOWEST_PRICE,
+					PriceInnerRecordHandling.SUM
+				)
+			),
+			"Mixed-pool histogram tests require a fixture carrying NONE, LOWEST_PRICE and SUM entities " +
+				"(both the LOWEST_PRICE + NONE and the LOWEST_PRICE + SUM combinations reproduce #1433), " +
+				"but the fixture only carries: " + handlings
+		);
+	}
+
+	/**
+	 * Collects the distinct {@link PriceInnerRecordHandling} values present among the passed entities.
+	 */
+	@Nonnull
+	private static Set<PriceInnerRecordHandling> collectInnerRecordHandlings(@Nonnull List<SealedEntity> entities) {
+		final Set<PriceInnerRecordHandling> handlings = EnumSet.noneOf(PriceInnerRecordHandling.class);
+		for (final SealedEntity entity : entities) {
+			handlings.add(entity.getPriceInnerRecordHandling());
+		}
+		return handlings;
+	}
+
+	/**
+	 * Picks up to `count` entities satisfying the predicate, spreading the selection over as many distinct
+	 * {@link PriceInnerRecordHandling} values as the candidates offer and preferring, within each of them,
+	 * the entity contributing the most histogram data points.
+	 *
+	 * Both halves matter for the prefetch histogram tests, which query a handful of entities by primary key:
+	 *
+	 * - without the **spread**, a plain "first N matches" pick can land on a homogeneous subset of an
+	 *   otherwise mixed catalog, and the mixed-pool granularity contract of issue #1433 stops being covered;
+	 * - without the **contribution preference**, the pick can satisfy the spread with single-variant
+	 *   `LOWEST_PRICE` masters, for which per-entity and per-inner-record granularity return the same
+	 *   numbers — a pool that is mixed by handling but cannot tell the two granularities apart. That is not
+	 *   a hypothetical: the balanced-but-toothless `{NONE=2, LOWEST_PRICE=2, SUM=2}` pool is exactly what
+	 *   this method produced before the ordering was added, and the regressed engine passed against it.
+	 *
+	 * @param candidates entities to pick from, in the order they should be preferred among equals
+	 * @param predicate  condition every picked entity has to satisfy
+	 * @param validIn    moment the prices must be valid in, or `null` when validity is not constrained
+	 * @param count      maximum number of entities to pick
+	 * @return the picked entities — fewer than `count` when the candidates cannot supply enough matches
+	 */
+	@Nonnull
+	private static List<SealedEntity> pickSpreadingInnerRecordHandling(
+		@Nonnull List<SealedEntity> candidates,
+		@Nonnull Predicate<SealedEntity> predicate,
+		@Nullable OffsetDateTime validIn,
+		int count
+	) {
+		// stable sort — entities contributing more data points first, encounter order preserved among equals
+		final List<SealedEntity> matching = candidates.stream()
+			.filter(predicate)
+			.sorted(
+				Comparator.comparingInt(
+					(SealedEntity it) -> collectExpectedHistogramDataPoints(List.of(it), validIn).size()
+				).reversed()
+			)
+			.toList();
+		final boolean[] alreadyPicked = new boolean[matching.size()];
+		final List<SealedEntity> picked = new ArrayList<>(count);
+
+		// first pass — take one entity per distinct price inner record handling
+		final Set<PriceInnerRecordHandling> covered = EnumSet.noneOf(PriceInnerRecordHandling.class);
+		for (int i = 0; i < matching.size() && picked.size() < count; i++) {
+			final SealedEntity candidate = matching.get(i);
+			if (covered.add(candidate.getPriceInnerRecordHandling())) {
+				picked.add(candidate);
+				alreadyPicked[i] = true;
+			}
+		}
+
+		// second pass — fill the remaining slots with whatever is left
+		for (int i = 0; i < matching.size() && picked.size() < count; i++) {
+			if (!alreadyPicked[i]) {
+				picked.add(matching.get(i));
+			}
+		}
+
+		return picked;
+	}
+
+	/**
+	 * Expands the passed entities into the price values the histogram is expected to bucket, applying the
+	 * granularity rule of each entity's own {@link PriceInnerRecordHandling}. Entities that resolve to no
+	 * price in the queried scope are skipped — they contribute nothing to the engine's funnel either.
+	 *
+	 * @param entities entities that survived the filter (the histogram's candidate pool)
+	 * @param validIn  moment the prices must be valid in, or `null` when validity is not constrained
+	 * @return every price value expected to appear as a histogram data point, in no particular order
+	 */
+	@Nonnull
+	private static List<BigDecimal> collectExpectedHistogramDataPoints(
+		@Nonnull List<SealedEntity> entities,
 		@Nullable OffsetDateTime validIn
 	) {
-		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
-		assertNotNull(priceHistogram);
+		// capacity hint of `entities.size() * 2` reflects the typical mixed catalog shape — LOWEST_PRICE
+		// masters carry ~2 inner records, the remaining handling modes contribute a single point each
+		final List<BigDecimal> expanded = new ArrayList<>(entities.size() * 2);
+		for (final SealedEntity entity : entities) {
+			if (entity.getPriceInnerRecordHandling() == PriceInnerRecordHandling.LOWEST_PRICE) {
+				final List<PriceContract> allPricesForSale = entity.getAllPricesForSale(
+					CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+				for (final PriceContract price : allPricesForSale) {
+					expanded.add(price.priceWithTax());
+				}
+			} else {
+				entity.getPriceForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+					.map(PriceContract::priceWithTax)
+					.ifPresent(expanded::add);
+			}
+		}
+		return expanded;
+	}
+
+	/**
+	 * Shared assertion core for every histogram integrity check — verifies the overall count, the min/max
+	 * span, the per-bucket occurrences and the `requested` flag against a pre-computed list of expected
+	 * data points. Keeping the assertions in one place stops the per-entity, per-inner-record and mixed
+	 * expectations from drifting apart on everything except how they expand entities into prices.
+	 *
+	 * @param priceHistogram histogram returned by the engine
+	 * @param expectedPrices price values expected to populate the histogram
+	 * @param from           lower bound of the user's price slider, or `null` when unconstrained
+	 * @param to             upper bound of the user's price slider, or `null` when unconstrained
+	 * @param countMessage   explanation attached to the overall-count assertion
+	 */
+	private static void assertHistogramMatchesDataPoints(
+		@Nonnull PriceHistogram priceHistogram,
+		@Nonnull List<BigDecimal> expectedPrices,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
+		@Nonnull String countMessage
+	) {
 		assertTrue(priceHistogram.getBuckets().length <= 20);
 
-		assertEquals(filteredProducts.size(), priceHistogram.getOverallCount());
-		final List<BigDecimal> pricesForSale = filteredProducts
-			.stream()
-			.map(it -> it.getPriceForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.map(PriceContract::priceWithTax)
-			.toList();
+		assertEquals(expectedPrices.size(), priceHistogram.getOverallCount(), countMessage);
+		assertEquals(
+			expectedPrices.stream().min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO),
+			priceHistogram.getMin()
+		);
+		assertEquals(
+			expectedPrices.stream().max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO),
+			priceHistogram.getMax()
+		);
 
-		assertEquals(pricesForSale.stream().min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMin());
-		assertEquals(pricesForSale.stream().max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMax());
-
-		// verify bucket occurrences
-		final Map<Integer, Integer> expectedOccurrences = filteredProducts
-			.stream()
-			.collect(
-				Collectors.groupingBy(
-					it -> findIndexInHistogram(it, priceHistogram, validIn),
-					summingInt(entity -> 1)
-				)
-			);
+		// verify bucket occurrences — one data point per expected price
+		final Map<Integer, Integer> expectedOccurrences = new HashMap<>(expectedPrices.size());
+		for (final BigDecimal price : expectedPrices) {
+			expectedOccurrences.merge(findIndexInHistogramByPrice(price, priceHistogram), 1, Integer::sum);
+		}
 
 		final Bucket[] buckets = priceHistogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
-			final Bucket bucket = priceHistogram.getBuckets()[i];
+			final Bucket bucket = buckets[i];
 			if (from == null && to == null) {
 				assertTrue(bucket.requested());
 			} else if (
@@ -221,79 +349,28 @@ public class EntityByPriceFilteringFunctionalTest {
 	) {
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
-		assertTrue(priceHistogram.getBuckets().length <= 20);
 
 		// expand each entity into its per-inner-record winning prices
-		final List<PriceContract> expandedPrices = collectPerInnerRecordPricesForSale(filteredProducts, validIn);
+		final List<BigDecimal> expandedPrices = new ArrayList<>(filteredProducts.size() * 2);
+		for (final SealedEntity entity : filteredProducts) {
+			final List<PriceContract> allPricesForSale = entity.getAllPricesForSale(
+				CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC
+			);
+			for (final PriceContract price : allPricesForSale) {
+				expandedPrices.add(price.priceWithTax());
+			}
+		}
 
-		assertEquals(
-			expandedPrices.size(), priceHistogram.getOverallCount(),
+		assertHistogramMatchesDataPoints(
+			priceHistogram, expandedPrices, from, to,
 			"Per-inner-record histogram overall count must equal the total number of distinct " +
 				"inner-record prices across all LOWEST_PRICE entities"
 		);
-
-		final BigDecimal expectedMin = expandedPrices.stream()
-			.map(PriceContract::priceWithTax)
-			.min(Comparator.naturalOrder())
-			.orElse(BigDecimal.ZERO);
-		final BigDecimal expectedMax = expandedPrices.stream()
-			.map(PriceContract::priceWithTax)
-			.max(Comparator.naturalOrder())
-			.orElse(BigDecimal.ZERO);
-		assertEquals(expectedMin, priceHistogram.getMin());
-		assertEquals(expectedMax, priceHistogram.getMax());
-
-		// verify bucket occurrences — one data point per per-inner-record price
-		final Map<Integer, Integer> expectedOccurrences = new HashMap<>(expandedPrices.size());
-		for (final PriceContract price : expandedPrices) {
-			final int bucketIndex = findIndexInHistogramByPrice(price.priceWithTax(), priceHistogram);
-			expectedOccurrences.merge(bucketIndex, 1, Integer::sum);
-		}
-
-		final Bucket[] buckets = priceHistogram.getBuckets();
-		for (int i = 0; i < buckets.length; i++) {
-			final Bucket bucket = buckets[i];
-			if (from == null && to == null) {
-				assertTrue(bucket.requested());
-			} else if (
-				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
-				assertTrue(bucket.requested());
-			} else {
-				assertFalse(bucket.requested());
-			}
-			assertEquals(
-				ofNullable(expectedOccurrences.get(i)).orElse(0),
-				bucket.occurrences()
-			);
-		}
 	}
 
 	/**
-	 * Collects per-inner-record selling prices from all passed entities using the same priority rule the
-	 * engine applies (`getAllPricesForSale` for LOWEST_PRICE entities returns one winner per inner record
-	 * id). Entities that resolve to no candidates in scope are silently skipped — they would not appear in
-	 * the engine's histogram funnel either.
-	 */
-	@Nonnull
-	private static List<PriceContract> collectPerInnerRecordPricesForSale(
-		@Nonnull List<SealedEntity> entities,
-		@Nullable OffsetDateTime validIn
-	) {
-		// capacity hint of `entities.size() * 2` reflects the typical LOWEST_PRICE catalog shape — most
-		// entities have ~2 inner records; under-shoots are cheap (ArrayList grows by ~50%), over-shoots are
-		// wasted memory only for the duration of the assertion
-		final List<PriceContract> expanded = new ArrayList<>(entities.size() * 2);
-		for (final SealedEntity entity : entities) {
-			expanded.addAll(entity.getAllPricesForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC));
-		}
-		return expanded;
-	}
-
-	/**
-	 * Locates the histogram bucket index for an arbitrary price value. Mirrors the logic of
-	 * `findIndexInHistogram` but works against a pre-computed price (used when expanding LOWEST_PRICE
-	 * entities into multiple data points — one per inner record id).
+	 * Locates the histogram bucket index for an arbitrary price value — the bucket whose threshold is the
+	 * greatest one still not exceeding the price.
 	 */
 	private static int findIndexInHistogramByPrice(@Nonnull BigDecimal price, @Nonnull HistogramContract histogram) {
 		final Bucket[] buckets = histogram.getBuckets();
@@ -364,25 +441,6 @@ public class EntityByPriceFilteringFunctionalTest {
 			}
 		}
 		fail("There is product that contains price from price lists: " + Arrays.stream(priceLists).map(Object::toString).collect(Collectors.joining(", ")));
-	}
-
-	/**
-	 * Finds appropriate index in the histogram according to histogram thresholds.
-	 */
-	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram, OffsetDateTime validIn) {
-		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC)
-			.orElseThrow()
-			.priceWithTax();
-		final Bucket[] buckets = histogram.getBuckets();
-		for (int i = buckets.length - 1; i >= 0; i--) {
-			final Bucket bucket = buckets[i];
-			final int priceCompared = entityPrice.compareTo(bucket.threshold());
-			if (priceCompared >= 0) {
-				return i;
-			}
-		}
-		fail("Histogram span doesn't match current entity price: " + entityPrice);
-		return -1;
 	}
 
 	/**
@@ -1875,29 +1933,65 @@ public class EntityByPriceFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Predicate<PriceContract> betweenPredicate = it -> it.priceWithTax().compareTo(from) >= 0 && it.priceWithTax().compareTo(to) <= 0;
-				final List<SealedEntity> filteredProducts = Stream.concat(
-					originalProductEntities
-						.stream()
-						.filter(
-							sealedEntity ->
-								sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP).map(betweenPredicate::test).orElse(false) ||
-									sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC).map(betweenPredicate::test).orElse(false)
-						)
-						.limit(3),
-					originalProductEntities
-						.stream()
-						.filter(
-							sealedEntity ->
-							{
-								final Optional<PriceContract> vipPrice = sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP);
-								final Optional<PriceContract> basicPrice = sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC);
-								return (vipPrice.isPresent() && vipPrice.map(it -> !betweenPredicate.test(it)).orElse(true)) &&
-									(basicPrice.map(it -> !betweenPredicate.test(it)).orElse(true));
-							}
-						)
-						.limit(3)
-				).collect(Collectors.toList());
+				// both pool membership and price-between matching are derived from the model contract rather
+				// than hand-rolled per price list — `hasPriceInInterval` applies the very rule the engine does
+				// for each handling mode (price for sale for NONE/SUM, any inner-record price for LOWEST_PRICE),
+				// which is what makes this fixture valid for every subclass' dataset and not just the NONE one
+				final Predicate<SealedEntity> inCandidatePool = it ->
+					hasAnyIndexedPrice(it, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(it, CURRENCY_EUR, PRICE_LIST_BASIC);
+				final Predicate<SealedEntity> matchesPriceBetween = it -> it.hasPriceInInterval(
+					from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				final List<SealedEntity> matchingProducts = pickSpreadingInnerRecordHandling(
+					originalProductEntities, inCandidatePool.and(matchesPriceBetween), null, 3
+				);
+				final List<SealedEntity> filteredOutProducts = pickSpreadingInnerRecordHandling(
+					originalProductEntities, inCandidatePool.and(matchesPriceBetween.negate()), null, 3
+				);
+
+				// verify our test works — the pool must hold both entities the price filter keeps and entities
+				// it removes, otherwise the histogram could not prove it ignores that filter
+				assertEquals(
+					3, matchingProducts.size(),
+					"Fixture doesn't offer three products matching the price between query!"
+				);
+				assertEquals(
+					3, filteredOutProducts.size(),
+					"Fixture doesn't offer three products the price between query filters out. " +
+						"Test is not testing anything!"
+				);
+
+				final List<SealedEntity> filteredProducts = Stream
+					.concat(matchingProducts.stream(), filteredOutProducts.stream())
+					.collect(Collectors.toList());
+
+				// pin the granularity coverage of the pool the prefetched plan actually sees: it has to span
+				// every handling mode the dataset can supply (capped by how many entities we select), so the
+				// mixed-pool contract of issue #1433 stays exercised here. On the homogeneous subclass datasets
+				// this degrades to the single mode they offer and asserts nothing beyond it.
+				final Set<PriceInnerRecordHandling> availableHandlings = collectInnerRecordHandlings(
+					originalProductEntities.stream().filter(inCandidatePool).toList()
+				);
+				assertTrue(
+					collectInnerRecordHandlings(filteredProducts).size() >= Math.min(3, availableHandlings.size()),
+					"Prefetched pool must span every price inner record handling the dataset offers, but " +
+						"the dataset has " + availableHandlings + " and the pool only " +
+						collectInnerRecordHandlings(filteredProducts)
+				);
+
+				// spanning the handling modes is not enough on its own — a pool of single-variant LOWEST_PRICE
+				// masters returns identical numbers under both granularities, so the regression it is meant to
+				// catch would pass straight through it. Demand at least one entity contributing more than one
+				// data point wherever the dataset can supply one.
+				if (availableHandlings.contains(PriceInnerRecordHandling.LOWEST_PRICE)) {
+					assertTrue(
+						collectExpectedHistogramDataPoints(filteredProducts, null).size() > filteredProducts.size(),
+						"Prefetched pool must contain a multi-inner-record LOWEST_PRICE entity, otherwise " +
+							"per-entity and per-inner-record granularity are indistinguishable here"
+					);
+				}
 
 				final EvitaResponse<SealedEntity> result = session.query(
 					query(
@@ -1922,18 +2016,8 @@ public class EntityByPriceFilteringFunctionalTest {
 					SealedEntity.class
 				);
 
-				// verify our test works
-				final Predicate<SealedEntity> priceForSaleBetweenPredicate = it -> {
-					final BigDecimal price = it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
-						.orElseThrow()
-						.priceWithTax();
-					return price.compareTo(from) >= 0 && price.compareTo(to) <= 0;
-				};
-				assertEquals(3, result.getTotalRecordCount());
-				assertTrue(
-					filteredProducts.size() > filteredProducts.stream().filter(priceForSaleBetweenPredicate).count(),
-					"Price between query didn't filter out any products. Test is not testing anything!"
-				);
+				// the prefetched plan must agree with the model on which entities the price filter keeps
+				assertEquals(matchingProducts.size(), result.getTotalRecordCount());
 
 				// the price between query must be ignored while computing price histogram
 				assertHistogramIntegrity(result, filteredProducts, from, to, null);

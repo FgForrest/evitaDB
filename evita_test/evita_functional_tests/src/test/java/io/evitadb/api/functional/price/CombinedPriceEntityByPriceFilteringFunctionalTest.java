@@ -267,6 +267,9 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Test
 	@Override
 	void shouldReturnPriceHistogram(Evita evita, List<SealedEntity> originalProductEntities) {
+		// #1433 regression: the histogram must keep per-inner-record granularity for the LOWEST_PRICE
+		// masters even though NONE and SUM neighbours share the candidate pool
+		assertPoolMixesInnerRecordHandling(originalProductEntities);
 		super.shouldReturnPriceHistogram(evita, originalProductEntities);
 	}
 
@@ -275,6 +278,9 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Test
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(Evita evita, List<SealedEntity> originalProductEntities) {
+		// #1433 regression: the histogram must keep per-inner-record granularity for the LOWEST_PRICE
+		// masters even though NONE and SUM neighbours share the candidate pool
+		assertPoolMixesInnerRecordHandling(originalProductEntities);
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(evita, originalProductEntities);
 	}
 
@@ -283,6 +289,9 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Test
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
+		// #1433 regression: the histogram must keep per-inner-record granularity for the LOWEST_PRICE
+		// masters even though NONE and SUM neighbours share the candidate pool
+		assertPoolMixesInnerRecordHandling(originalProductEntities);
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(evita, originalProductEntities);
 	}
 
@@ -291,6 +300,9 @@ public class CombinedPriceEntityByPriceFilteringFunctionalTest extends EntityByP
 	@Test
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		// #1433 regression: the histogram must keep per-inner-record granularity for the LOWEST_PRICE
+		// masters even though NONE and SUM neighbours share the candidate pool
+		assertPoolMixesInnerRecordHandling(originalProductEntities);
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);
 	}
 
