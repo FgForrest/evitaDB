@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 
 /**
@@ -1470,27 +1471,29 @@ public class UnorderedLookupTree implements
 
 	/**
 	 * Adjusts the stored subtree counts of every internal node on the cursor path by `delta`.
+	 *
+	 * Each node is adjusted through {@link InternalNode#adjustCount(int, int)} rather than through its raw count
+	 * column, because this is the write the ordinary insert / remove path repeats `depth` times per record and the
+	 * bound matters: inside a warm-up savepoint the semantic mutator journals the one slot it overwrites, where the
+	 * raw column would have to journal the whole node. Each node on the path answers that question for itself — a
+	 * spine on which some nodes have already been captured whole and others have not is the normal case, not an edge
+	 * one.
 	 */
 	private static void propagateCountDelta(@Nonnull Cursor cursor, int delta) {
 		for (int level = 0; level < cursor.depth; level++) {
-			final InternalNode node = cursor.path[level];
-			final int[] counts = node.getCountsForUpdate();
-			counts[cursor.idx[level]] += delta;
+			cursor.path[level].adjustCount(cursor.idx[level], delta);
 		}
 	}
 
 	/**
-	 * Adjusts the stored head counts of every internal node on the cursor path by `delta`. Only meaningful on a
-	 * head-aware tree (every path node then carries a non-null `headCounts`); a no-op guard tolerates a non-head-aware
-	 * node defensively.
+	 * Adjusts the stored head counts of every internal node on the cursor path by `delta`, through the same per-slot
+	 * mutator {@link #propagateCountDelta} uses. Only meaningful on a head-aware tree (every path node then carries a
+	 * non-null `headCounts`); {@link InternalNode#adjustHeadCount(int, int)} tolerates a non-head-aware node
+	 * defensively.
 	 */
 	private static void propagateHeadCountDelta(@Nonnull Cursor cursor, int delta) {
 		for (int level = 0; level < cursor.depth; level++) {
-			final InternalNode node = cursor.path[level];
-			final int[] headCounts = node.getHeadCountsForUpdate();
-			if (headCounts != null) {
-				headCounts[cursor.idx[level]] += delta;
-			}
+			cursor.path[level].adjustHeadCount(cursor.idx[level], delta);
 		}
 	}
 
@@ -1743,7 +1746,10 @@ public class UnorderedLookupTree implements
 			}
 			final InternalNode parent = cursor.path[level];
 			final int ci = cursor.idx[level];
-			// the existing child's stored count was already incremented for the inserted record; shed the moved part
+			// the existing child's stored count was already incremented for the inserted record; shed the moved part.
+			// Deliberately the raw column and not adjustCount: insertIntoInternal below shifts this very node's
+			// columns and therefore takes its whole-node memento anyway, so a per-slot inverse here would only add a
+			// journal entry the memento already covers
 			parent.getCountsForUpdate()[ci] -= rightCount;
 			if (parent.getHeadCounts() != null) {
 				parent.getHeadCountsForUpdateOrThrow()[ci] -= rightHeadCount;
@@ -3360,6 +3366,39 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
+		 * Adds `delta` to the subtree count stored for child `index` — the ONE bounded write this node takes on the
+		 * ordinary insert / remove path, where a record entering or leaving a container re-stamps a single count slot
+		 * on every node of the root→leaf spine.
+		 *
+		 * **Why it is not simply `getCountsForUpdate()[index] += delta`.** That accessor hands out the raw column, and
+		 * handing out a raw column is a promise that ANY of its slots may be rewritten — so it has to take this node's
+		 * whole-node memento (four cloned arrays plus the child count) to be able to rewind it. Paying that for a write
+		 * that moves one `int` is what made these adjustments the single largest remaining slice of the warm-up
+		 * atomicity CPU tax: 200 ms per 100k ingested entities on the bulk-ingest profile, with the whole node cloned
+		 * `depth` times per inserted record. This mutator states the bound the caller actually needs, so a savepoint
+		 * can journal the slot instead of the node.
+		 *
+		 * @param index the child slot whose subtree count changes
+		 * @param delta the amount to add (negative to subtract)
+		 */
+		void adjustCount(int index, int delta) {
+			final InternalNode layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				journalCountAdjustmentIfOpen(index);
+				this.counts[index] += delta;
+			} else {
+				// the layer decouples its own copy of the column on first write exactly as getCountsForUpdate does -
+				// inside a transaction the maintainer's savepoint captures that layer, so nothing is journalled here
+				//noinspection ArrayEquality
+				if (layer.counts == this.counts) {
+					layer.counts = new int[this.counts.length];
+					System.arraycopy(this.counts, 0, layer.counts, 0, this.counts.length);
+				}
+				layer.counts[index] += delta;
+			}
+		}
+
+		/**
 		 * Returns the per-child head-count array for READ-ONLY purposes (the layer copy when present), or `null` for a
 		 * non-head-aware node.
 		 */
@@ -3386,6 +3425,92 @@ public class UnorderedLookupTree implements
 					System.arraycopy(this.headCounts, 0, layer.headCounts, 0, this.headCounts.length);
 				}
 				return layer.headCounts;
+			}
+		}
+
+		/**
+		 * Head-count twin of {@link #adjustCount(int, int)}: adds `delta` to the head count stored for child `index`,
+		 * and is a no-op on a non-head-aware node (which allocates no head column at all — the same tolerance the raw
+		 * accessor's `null` return gives its callers).
+		 *
+		 * @param index the child slot whose head count changes
+		 * @param delta the amount to add (negative to subtract)
+		 */
+		void adjustHeadCount(int index, int delta) {
+			final InternalNode layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				if (this.headCounts == null) {
+					return;
+				}
+				journalHeadCountAdjustmentIfOpen(index);
+				this.headCounts[index] += delta;
+			} else {
+				if (layer.headCounts == null) {
+					return;
+				}
+				// the layer decouples its own copy of the column on first write exactly as getHeadCountsForUpdate does
+				//noinspection ArrayEquality
+				if (layer.headCounts == this.headCounts) {
+					layer.headCounts = new int[this.headCounts.length];
+					System.arraycopy(this.headCounts, 0, layer.headCounts, 0, this.headCounts.length);
+				}
+				layer.headCounts[index] += delta;
+			}
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of the count adjustment {@link #adjustCount(int, int)} is about to make: an absolute rewrite of that
+		 * one slot with the value it holds now.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this node's whole-node memento (see
+		 * {@link WarmUpSavepoint#isCaptured}). That memento restores every column, and it was pushed EARLIER than an
+		 * inverse recorded here could be, so reverse replay runs it LAST for this node and it wins outright. The two
+		 * granularities are therefore mutually exclusive per node per savepoint — which is also what lets a node take
+		 * per-slot inverses for a run of ordinary count adjustments and then fall back to a whole-node memento the
+		 * moment a split, steal or merge reaches it: replay restores the node to its pre-structural state first, and
+		 * the older per-slot inverses then walk exactly the slots they had overwritten back to their pre-savepoint
+		 * values.
+		 *
+		 * **The inverse is index-addressed, and that is sound only because of the above.** Every write that SHIFTS this
+		 * node's columns — every raw `...ForUpdate` hand-out and {@link #setChildCount} — routes through
+		 * {@link WarmUpSavepoint#writeLayer} and therefore takes the whole-node memento. So when an inverse recorded
+		 * here runs, every entry pushed after it has already been replayed and the node is back in exactly the shape it
+		 * had immediately after the adjustment being undone: slot `index` still denotes the same child.
+		 *
+		 * **The inverse reads {@link #counts} at REPLAY time rather than closing over the array.** A whole-node memento
+		 * replayed before it installs a fresh clone of the column (see {@link #restore}), and an inverse holding the
+		 * displaced array would write into an object the node no longer refers to.
+		 *
+		 * Must be called BEFORE the slot is overwritten. Outside a savepoint it costs one {@link ThreadLocal} read
+		 * returning `null`.
+		 *
+		 * @param index the child slot about to be adjusted
+		 */
+		private void journalCountAdjustmentIfOpen(int index) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				final int preImage = this.counts[index];
+				savepoint.push(() -> this.counts[index] = preImage);
+			}
+		}
+
+		/**
+		 * Head-count twin of {@link #journalCountAdjustmentIfOpen(int)}, journalling the inverse of the head-count
+		 * adjustment {@link #adjustHeadCount(int, int)} is about to make. The gate, the index addressing and the
+		 * replay-time dereference are the ones that method documents.
+		 *
+		 * Reached only on a head-aware node, so {@link #headCounts} is non-null both here and on replay: the column is
+		 * allocated at construction and the only writer of the field afterwards is {@link #restore}, which reinstates
+		 * whichever of the two shapes the node had when its memento was taken.
+		 *
+		 * @param index the child slot about to be adjusted
+		 */
+		private void journalHeadCountAdjustmentIfOpen(int index) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				final int preImage = this.headCounts[index];
+				savepoint.push(() -> this.headCounts[index] = preImage);
 			}
 		}
 
