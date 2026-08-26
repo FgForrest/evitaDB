@@ -309,7 +309,10 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		definition.mode().checkAllowedInMode(slot.getRequiredMode());
 		return this.instances.computeIfAbsent(
 			name,
-			analyzerName -> new FulltextAnalyzer(analyzerName, definition.mode(), definition.factory().get())
+			analyzerName -> {
+				assertNotClosed();
+				return new FulltextAnalyzer(analyzerName, definition.mode(), definition.factory().get());
+			}
 		);
 	}
 
