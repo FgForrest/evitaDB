@@ -61,10 +61,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the pre-savepoint members. A bit written several times inside one savepoint is the case that can only come out right
  * if every inverse is an ABSOLUTE restore of the membership its own operation captured.
  *
- * A bulk write is the one place the inverse is necessarily recorded AFTER the flips it reverts, because a delta is not
- * knowable before the write that produces it — so two tests inject a failure PART-WAY through a bulk walk (see
- * {@link FailingIteratorBitmap}) and assert the rollback still rewinds what the failed write managed to change. That
- * is the property the whole mechanism exists to provide, and the one that would fail silently if it regressed.
+ * A bulk write is the one place a journal entry is recorded before the delta it reverts is fully known: the entry goes
+ * in when the first id enters the delta and keeps being filled as the walk proceeds. Three groups of tests pin what
+ * that placement buys, all of which would fail SILENTLY if it regressed — a rollback that reports success over state
+ * it did not rewind is the exact failure the mechanism exists to remove:
+ *
+ * - Two tests inject a failure PART-WAY through a bulk walk (see {@link FailingIteratorBitmap}) and assert the
+ *   rollback still rewinds what the failed write managed to change.
+ * - Two tests let the argument's iterator write back into the bitmap being mutated (see
+ *   {@link ReentrantIteratorBitmap}), in both orders, and assert the rollback lands on the pre-savepoint members. They
+ *   are what pins journal ORDER: the bulk entry has to sit below an inverse pushed after it and above one pushed
+ *   before it, which is why the entry is opened where it is and re-opened when a foreign entry lands on top.
+ * - Three tests hand a bulk mutator an argument backed by the very bitmap it is mutating, which is the one shape whose
+ *   walk would otherwise read containers it is emptying.
  *
  * The composite indexes contribute nothing of their own to a rollback except their memoized caches — everything else
  * they hold is one of the wrapper structures covered by the sibling suites. A cache is left INVALIDATED rather than
@@ -402,6 +411,132 @@ class WarmUpSavepointIndexRollbackTest {
 		}
 
 		@Test
+		@DisplayName("A bulk removal fed the bitmap itself empties it, and the rollback puts every member back")
+		void shouldRestoreBitmapEmptiedByRemovingItself() {
+			// removing every id the argument holds while ITERATING that same argument walks the containers the
+			// removals are emptying: a roaring cursor that lost its footing skips members, so this call would leave an
+			// arbitrary remnant rather than an empty bitmap. The ids straddle two containers on purpose, because the
+			// skipping is per container and a single-container fixture can hide it
+			final int[] baseline = {1, 2, 3, 4, 5, 70_000, 70_001};
+			final TransactionalBitmap bitmap = new TransactionalBitmap(baseline);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			bitmap.removeAll(bitmap);
+			assertArrayEquals(
+				new int[0], bitmap.getArray(), "Removing a bitmap from itself must leave nothing behind."
+			);
+			assertEquals(0, bitmap.size());
+			savepoint.rollback();
+
+			assertArrayEquals(baseline, bitmap.getArray(), "Every removed member must be journalled and restored.");
+			assertEquals(baseline.length, bitmap.size());
+		}
+
+		@Test
+		@DisplayName("Commit keeps a bitmap emptied by removing itself")
+		void shouldKeepBitmapEmptiedByRemovingItselfOnCommit() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 2, 3, 4, 5, 70_000, 70_001);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			bitmap.removeAll(bitmap);
+			savepoint.commit();
+
+			assertArrayEquals(new int[0], bitmap.getArray(), "Commit must keep the emptied bitmap empty.");
+			assertEquals(0, bitmap.size());
+		}
+
+		@Test
+		@DisplayName("A bulk removal fed another wrapper of the same delegate empties it just as well")
+		void shouldRestoreBitmapEmptiedByRemovingAWrapperOfItsOwnDelegate() {
+			// the same aliasing reached the other way round: `BaseBitmap(PersistentRoaringBitmap)` WRAPS rather than
+			// copies, so this argument is a second handle on the very bitmap being mutated - and a guard keyed on
+			// `argument == this` alone would miss it
+			final int[] baseline = {1, 2, 3, 4, 5, 70_000, 70_001};
+			final TransactionalBitmap bitmap = new TransactionalBitmap(baseline);
+			final Bitmap sameDelegate = new BaseBitmap(bitmap.getRoaringBitmap());
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			bitmap.removeAll(sameDelegate);
+			assertArrayEquals(new int[0], bitmap.getArray(), "self-check: the aliased removal emptied the bitmap");
+			savepoint.rollback();
+
+			assertArrayEquals(baseline, bitmap.getArray());
+			assertEquals(baseline.length, bitmap.size());
+		}
+
+		@Test
+		@DisplayName("A bulk addition fed the bitmap itself changes nothing, on either outcome")
+		void shouldTolerateAddingABitmapToItself() {
+			// every id the argument yields is by definition already present, so the walk's `contains` short-circuit
+			// makes this a total no-op and the aliased argument is never mutated underneath its own cursor. Nothing
+			// enters a delta, so nothing is journalled - which the rollback below is what actually demonstrates: an
+			// inverse recorded here could only be one REMOVING these ids, and it would strip the bitmap bare
+			final TransactionalBitmap rolledBack = new TransactionalBitmap(1, 2, 3, 70_000);
+			final WarmUpSavepoint first = WarmUpSavepoint.open();
+			rolledBack.addAll(rolledBack);
+			assertArrayEquals(
+				new int[]{1, 2, 3, 70_000}, rolledBack.getArray(), "self-check: the bulk add was a no-op"
+			);
+			first.rollback();
+			assertArrayEquals(new int[]{1, 2, 3, 70_000}, rolledBack.getArray());
+			assertEquals(4, rolledBack.size());
+
+			final TransactionalBitmap committed = new TransactionalBitmap(1, 2, 3, 70_000);
+			final WarmUpSavepoint second = WarmUpSavepoint.open();
+			committed.addAll(committed);
+			second.commit();
+			assertArrayEquals(new int[]{1, 2, 3, 70_000}, committed.getArray());
+			assertEquals(4, committed.size());
+		}
+
+		@Test
+		@DisplayName("A write reentered from the argument's iterator AFTER the bulk delta opened is rewound")
+		void shouldRestoreWhenIteratorWritesBackAfterTheBulkDelta() {
+			// the bulk write adds 7 and the argument's iterator immediately removes it again, so the nested inverse is
+			// recorded AFTER the bulk one. Reverse replay must therefore reach the nested "put 7 back" first and the
+			// bulk "take 7 away" second - the other order re-adds 7 and leaves it standing, because the bulk entry is
+			// the earlier capture and the earliest capture for a bit has to win LAST
+			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 2);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			bitmap.addAll(new ReentrantIteratorBitmap(0, () -> bitmap.remove(7), 7));
+			assertArrayEquals(
+				new int[]{1, 2}, bitmap.getArray(), "self-check: the nested removal undid the bulk addition"
+			);
+			savepoint.rollback();
+
+			assertArrayEquals(
+				new int[]{1, 2}, bitmap.getArray(),
+				"A bit added in bulk and removed from inside the walk must end up absent again."
+			);
+			assertEquals(2, bitmap.size());
+		}
+
+		@Test
+		@DisplayName("A write reentered from the argument's iterator BEFORE a later bulk capture is rewound")
+		void shouldRestoreWhenIteratorWritesBackBeforeALaterBulkCapture() {
+			// the mirror of the test above, and the reason a bulk write cannot simply keep filling ONE entry: 5 starts
+			// present, the iterator removes it half-way through the walk, and the walk then re-adds it as part of its
+			// own delta. That capture is younger than the nested inverse, so folding it into the entry opened before
+			// the nested inverse would have the replay strip 5 out after the nested inverse had put it back. The delta
+			// is sealed and a second entry opened instead, which puts every capture back in journal order
+			final TransactionalBitmap bitmap = new TransactionalBitmap(5);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			bitmap.addAll(new ReentrantIteratorBitmap(0, () -> bitmap.remove(5), 3, 5));
+			assertArrayEquals(
+				new int[]{3, 5}, bitmap.getArray(), "self-check: the walk re-added the member its iterator removed"
+			);
+			savepoint.rollback();
+
+			assertArrayEquals(
+				new int[]{5}, bitmap.getArray(),
+				"A member removed from inside the walk and re-added by it must end up present, as it began."
+			);
+			assertEquals(1, bitmap.size());
+		}
+
+		@Test
 		@DisplayName("Rollback of a long interleaved sequence matches a reference set")
 		void shouldMatchReferenceSetAfterInterleavedMutations() {
 			final int[] baseline = {1, 4, 9, 70_000, 70_005, 140_000};
@@ -653,6 +788,163 @@ class WarmUpSavepointIndexRollbackTest {
 		private static UnsupportedOperationException unreached(@Nonnull String method) {
 			return new UnsupportedOperationException(
 				"FailingIteratorBitmap#" + method + " was called - the bulk mutator under test is expected to read " +
+					"this argument only through size() and iterator(), so reaching here means the fault injection " +
+					"no longer covers the path it was written for."
+			);
+		}
+	}
+
+	/**
+	 * A hand-written {@link Bitmap} whose iterator writes back into the bitmap currently consuming it, once, at a
+	 * chosen point in the walk — the fault injection that drives a bulk mutator into recording a journal entry while
+	 * another entry for the same bitmap is being pushed underneath or on top of it.
+	 *
+	 * The write is fired from {@link OfInt#hasNext()} rather than {@link OfInt#nextInt()} so that it lands AFTER the
+	 * mutator has finished processing the id it is keyed to: the bulk walks all call `hasNext` once per iteration
+	 * before pulling the next id, and once more when the ids run out, so a trigger keyed to the last id still fires.
+	 *
+	 * Like {@link FailingIteratorBitmap} it implements only {@link #size()} and {@link #iterator()} and throws from
+	 * everything else, so an implementation change that started reading the argument some other way fails loudly
+	 * instead of making these tests pass vacuously.
+	 */
+	private static class ReentrantIteratorBitmap implements Bitmap {
+		@Serial private static final long serialVersionUID = -3_512_069_824_477_180_233L;
+		/**
+		 * The record ids this bitmap reports as its contents, in iteration order.
+		 */
+		private final int[] recordIds;
+		/**
+		 * Index into {@link #recordIds} after whose consumption {@link #reentrantWrite} runs.
+		 */
+		private final int reentrantAfterIndex;
+		/**
+		 * The write to perform on the bitmap consuming this argument, mid-walk.
+		 */
+		private final Runnable reentrantWrite;
+		/**
+		 * Whether {@link #reentrantWrite} has already run, so it fires exactly once however often `hasNext` is asked.
+		 */
+		private boolean fired;
+
+		ReentrantIteratorBitmap(int reentrantAfterIndex, @Nonnull Runnable reentrantWrite, @Nonnull int... recordIds) {
+			this.reentrantAfterIndex = reentrantAfterIndex;
+			this.reentrantWrite = reentrantWrite;
+			this.recordIds = recordIds;
+		}
+
+		@Override
+		public int size() {
+			return this.recordIds.length;
+		}
+
+		@Nonnull
+		@Override
+		public OfInt iterator() {
+			return new OfInt() {
+				private int index;
+
+				@Override
+				public boolean hasNext() {
+					if (!ReentrantIteratorBitmap.this.fired &&
+						this.index > ReentrantIteratorBitmap.this.reentrantAfterIndex) {
+						ReentrantIteratorBitmap.this.fired = true;
+						ReentrantIteratorBitmap.this.reentrantWrite.run();
+					}
+					return this.index < ReentrantIteratorBitmap.this.recordIds.length;
+				}
+
+				@Override
+				public int nextInt() {
+					return ReentrantIteratorBitmap.this.recordIds[this.index++];
+				}
+			};
+		}
+
+		@Override
+		public boolean isEmpty() {
+			throw unreached("isEmpty");
+		}
+
+		@Override
+		public boolean add(int recordId) {
+			throw unreached("add");
+		}
+
+		@Override
+		public void addAll(int... recordId) {
+			throw unreached("addAll(int...)");
+		}
+
+		@Override
+		public void addAll(@Nonnull Bitmap recordIds) {
+			throw unreached("addAll(Bitmap)");
+		}
+
+		@Override
+		public boolean remove(int recordId) {
+			throw unreached("remove");
+		}
+
+		@Override
+		public void removeAll(int... recordId) {
+			throw unreached("removeAll(int...)");
+		}
+
+		@Override
+		public void removeAll(@Nonnull Bitmap recordIds) {
+			throw unreached("removeAll(Bitmap)");
+		}
+
+		@Override
+		public boolean contains(int recordId) {
+			throw unreached("contains");
+		}
+
+		@Override
+		public int indexOf(int recordId) {
+			throw unreached("indexOf");
+		}
+
+		@Override
+		public int get(int index) {
+			throw unreached("get");
+		}
+
+		@Override
+		public int[] getRange(int start, int end) {
+			throw unreached("getRange");
+		}
+
+		@Override
+		public int getFirst() {
+			throw unreached("getFirst");
+		}
+
+		@Override
+		public int getLast() {
+			throw unreached("getLast");
+		}
+
+		@Override
+		public int[] getArray() {
+			throw unreached("getArray");
+		}
+
+		@Override
+		public long getHeapSizeInBytes() {
+			throw unreached("getHeapSizeInBytes");
+		}
+
+		/**
+		 * Builds the failure raised by a member this fake deliberately does not implement.
+		 *
+		 * @param method the member that was called
+		 * @return the exception to throw
+		 */
+		@Nonnull
+		private static UnsupportedOperationException unreached(@Nonnull String method) {
+			return new UnsupportedOperationException(
+				"ReentrantIteratorBitmap#" + method + " was called - the bulk mutator under test is expected to read " +
 					"this argument only through size() and iterator(), so reaching here means the fault injection " +
 					"no longer covers the path it was written for."
 			);

@@ -463,6 +463,27 @@ public final class WarmUpSavepoint {
 	}
 
 	/**
+	 * Returns the journal's current position, which a participant compares against the position it saw right after its
+	 * own {@link #push(Runnable)} to learn whether ANOTHER inverse has since landed on top of its own.
+	 *
+	 * It exists for the one participant whose journal entry is not a point-in-time capture: a bulk
+	 * {@link io.evitadb.index.bitmap.TransactionalBitmap} write pushes ONE inverse covering every membership the write
+	 * changes, but it pushes it before the first of those changes and keeps filling the entry as the walk proceeds.
+	 * That is sound only while the entry stays at the top of the journal — reverse replay orders entries, not the
+	 * captures inside one of them, so a capture made after a foreign entry was pushed would be replayed on the wrong
+	 * side of it. Seeing the position move, the participant seals its entry and opens a fresh one, which restores the
+	 * property that every entry's captures are contiguous in journal order.
+	 *
+	 * Nothing else needs this: every other participant captures its pre-image and pushes the matching inverse without
+	 * yielding control in between, so no entry can slip between the two.
+	 *
+	 * @return the number of inverses recorded so far
+	 */
+	public int journalMark() {
+		return this.undoJournal.mark();
+	}
+
+	/**
 	 * Reverts every change made while this savepoint was open: the recorded inverses are replayed in strict reverse
 	 * order, then every captured memento is released so participants drop the scratch state they kept for it. The
 	 * warm-up write path continues afterwards as if the bracketed entity mutation had never run.
