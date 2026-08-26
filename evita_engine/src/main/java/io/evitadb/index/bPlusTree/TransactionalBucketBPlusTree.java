@@ -139,6 +139,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * insert?" by decoding and comparing the leaf's boundary keys.
 	 */
 	private static final int NO_NEW_BUCKET = -1;
+	/**
+	 * Sentinel returned by {@link #removeRecordReportingValueDeath(Comparable, int...)} and by the leaf remove methods
+	 * when the removal deleted NO bucket, i.e. the value survived it. It is deliberately distinct from `0`, the
+	 * unassigned-value-id sentinel a DELETED bucket reports on a tree that carries no id column — the two states are
+	 * what a value lifecycle sink has to tell apart, since only the second one is a programming error.
+	 */
+	public static final int NO_DELETED_BUCKET = -1;
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -1394,13 +1401,35 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Override
 	public void removeRecord(@Nonnull K value, @Nonnull int... pks) {
+		removeRecordReportingValueDeath(value, pks);
+	}
+
+	/**
+	 * Value-id-reporting variant of {@link #removeRecord(Comparable, int...)}, for a caller that has to learn WHICH
+	 * distinct value this removal took out of existence — the id is the handle every value-id consumer keys its own
+	 * structures by, and it stops being readable the instant the bucket is deleted.
+	 *
+	 * The id costs nothing extra: it is read off the very slot the removal's own descent already resolved, so a
+	 * removal that reports a death descends exactly as often as one that does not, and a removal over a surviving
+	 * value pays nothing at all for the reporting. Resolving it with a separate {@link #valueIdOf(Comparable)} would
+	 * instead buy one full descent per removal — paid on every call, while the answer is only ever used on the rare
+	 * one that ends a value's life.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pks   the record ids to remove; must be non-empty (may contain negative ids)
+	 * @return the dead value's stable id — or `0`, the "unassigned" sentinel, when this tree carries no value ids —
+	 * and {@link #NO_DELETED_BUCKET} when the removal deleted no bucket, i.e. no value died
+	 */
+	@Override
+	public int removeRecordReportingValueDeath(@Nonnull K value, @Nonnull int... pks) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
 		final Cursor<K> cursor = createCursor(value);
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 
 		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
-		if (leaf.removeRecords(value, pks)) {
+		final int dyingValueId = leaf.removeRecords(value, pks);
+		if (dyingValueId != NO_DELETED_BUCKET) {
 			this.size.set(size() - 1);
 			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
 			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
@@ -1412,6 +1441,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			consolidate(cursor);
 		}
+		return dyingValueId;
 	}
 
 	/**
@@ -5948,9 +5978,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * @param value the value identifying the bucket
 		 * @param pks   the record ids to remove; must be non-empty
-		 * @return true if the bucket was deleted, false otherwise
+		 * @return the deleted bucket's value id (`0` when this leaf carries no id column), or
+		 * {@link #NO_DELETED_BUCKET} when no bucket was deleted
 		 */
-		public boolean removeRecords(@Nonnull M value, @Nonnull int... pks) {
+		public int removeRecords(@Nonnull M value, @Nonnull int... pks) {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
@@ -5964,7 +5995,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final InsertionPosition insertionPosition =
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (!insertionPosition.alreadyPresent()) {
-					return false;
+					return NO_DELETED_BUCKET;
 				}
 				return removeFromBucket(insertionPosition.position(), pks);
 			} else {
@@ -5972,7 +6003,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final InsertionPosition insertionPosition =
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
 				if (!insertionPosition.alreadyPresent()) {
-					return false;
+					return NO_DELETED_BUCKET;
 				}
 				return layer.removeFromBucket(insertionPosition.position(), pks);
 			}
@@ -6034,30 +6065,35 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * @param index the bucket index
 		 * @param pks   the record ids to remove; must be non-empty
-		 * @return true if the bucket was deleted, false otherwise
+		 * @return the deleted bucket's value id (`0` when this leaf carries no id column), or
+		 * {@link #NO_DELETED_BUCKET} when the bucket survived
 		 */
-		private boolean removeFromBucket(int index, @Nonnull int... pks) {
+		private int removeFromBucket(int index, @Nonnull int... pks) {
 			if (this.overflow != null && this.overflow[index] != null) {
 				// multi bucket - mutate in place
 				final TransactionalBitmap bitmap = this.overflow[index];
 				bitmap.removeAll(pks);
 				if (bitmap.isEmpty()) {
-					// the multi bucket drained to zero - delete it (release its bitmap layer)
+					// the multi bucket drained to zero - delete it (release its bitmap layer). The id is read here, off
+					// the slot the caller's search already resolved and while the bucket is still there: once
+					// deleteBucketAt has collapsed the slot there is nothing left to read it from
+					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
 					deleteBucketAt(index);
-					return true;
+					return dyingValueId;
 				}
-				return false;
+				return NO_DELETED_BUCKET;
 			}
 			// single bucket - removing its sole id deletes the bucket
 			final int held = this.records.intAt(index);
 			for (final int pk : pks) {
 				if (pk == held) {
+					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
 					deleteBucketAt(index);
-					return true;
+					return dyingValueId;
 				}
 			}
 			// none of the ids matched the sole record - silent no-op
-			return false;
+			return NO_DELETED_BUCKET;
 		}
 
 		/**

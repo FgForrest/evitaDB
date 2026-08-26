@@ -55,12 +55,21 @@ import java.util.Set;
  *
  * ## Threading
  *
- * It is mutated only by the single writer that owns the tree — attaching and detaching a consumer are structural
- * decisions taken on the schema-mutation path, which runs under a single session in warm-up mode and is serialized
- * through trunk incorporation on a live catalog — and is therefore not synchronized. A consumer must never
- * register or unregister from a query or background thread. Publication of the owning index to readers carries
- * the happens-before edge that makes the unsynchronized fields visible, so neither this class nor the index's
- * reference to it needs `volatile` or a lock.
+ * It is mutated only by the single writer that owns the tree, and is therefore not synchronized. There are exactly
+ * two moments at which that happens, and both are single-writer:
+ *
+ * 1. **The entity write path**, at the moment a shared value tree is created for an attribute whose schema declares
+ *    a capability needing ids. It cannot be the schema mutation itself: a capability may only be declared on an
+ *    EMPTY collection, and `AttributeIndex` creates the tree lazily on the attribute's first write — so at
+ *    schema-mutation time there is no tree to attach to. Warm-up runs a single session and a live catalog
+ *    serializes every write through trunk incorporation, so the single-writer premise holds either way.
+ * 2. **The catalog load path**, which re-registers what this registry does not persist. The ids themselves come
+ *    back inside the leaf pages; the names do not, because they say which compiled-in subsystem wants them rather
+ *    than anything about the data.
+ *
+ * A consumer must never register or unregister from a query or background thread. Publication of the owning index
+ * to readers carries the happens-before edge that makes the unsynchronized fields visible, so neither this class
+ * nor the index's reference to it needs `volatile` or a lock.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

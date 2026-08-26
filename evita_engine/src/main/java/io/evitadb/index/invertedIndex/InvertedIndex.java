@@ -74,6 +74,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -650,9 +651,11 @@ public class InvertedIndex implements
 	 * already-populated tree cannot be switched on. Registering onto a tree that already carries ids is unrestricted,
 	 * because it changes nothing about the ids themselves.
 	 *
-	 * Attaching and detaching are structural decisions taken on the single-writer schema-mutation path — warm-up runs a
-	 * single session, and a live catalog serializes schema changes through trunk incorporation — so this method must
-	 * never be called from a query or background thread, nor concurrently with another writer on the same index.
+	 * Attaching and detaching are structural decisions taken by the single writer that owns this tree, so this method
+	 * must never be called from a query or background thread, nor concurrently with another writer on the same index.
+	 * {@link ValueIdConsumerRegistry} names the two moments at which it legitimately happens — the entity write path
+	 * when the tree is first created, and the catalog load path — and why neither of them is the schema mutation that
+	 * declared the capability.
 	 *
 	 * @param consumerName the consumer's stable name, e.g. `trigram-substring-index`
 	 * @see #detachValueIdConsumer(String)
@@ -993,8 +996,26 @@ public class InvertedIndex implements
 	 * mutated in place so its transactional diff layer is preserved.
 	 */
 	public void addRecord(@Nonnull Serializable value, int recordId) {
+		addRecord(value, recordId, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(Serializable, int)}: `sink` is notified when — and only
+	 * when — this write brought a distinct value into existence, i.e. created a bucket and minted its value id.
+	 *
+	 * @param value    the value to index
+	 * @param recordId the record id to associate with it
+	 * @param sink     learns about a value born by this write, or `null` when nobody is interested
+	 */
+	public void addRecord(@Nonnull Serializable value, int recordId, @Nullable ValueLifecycleSink sink) {
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
+		// the bucket count is the birth detector: the tree increments it exactly on the new-bucket branch, and it is
+		// transaction-aware, so a writer sees its own earlier writes and no one else's
+		final int bucketsBefore = sink == null ? 0 : this.buckets.size();
 		this.buckets.addRecord(normalizedValue, recordId);
+		if (sink != null && this.buckets.size() > bucketsBefore) {
+			notifyValueCreated(sink, normalizedValue);
+		}
 		this.dirty.setToTrue();
 		this.valueIdDirectoryStale = true;
 	}
@@ -1006,9 +1027,25 @@ public class InvertedIndex implements
 	 * bucket is mutated in place so its transactional diff layer is preserved.
 	 */
 	public void addRecord(@Nonnull Serializable value, int... recordId) {
+		addRecord(value, null, recordId);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(Serializable, int...)}. However many record ids are
+	 * added, they all land in ONE bucket, so `sink` is notified at most once.
+	 *
+	 * @param value    the value to index
+	 * @param sink     learns about a value born by this write, or `null` when nobody is interested
+	 * @param recordId the record ids to associate with it
+	 */
+	public void addRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
+		final int bucketsBefore = sink == null ? 0 : this.buckets.size();
 		this.buckets.addRecord(normalizedValue, recordId);
+		if (sink != null && this.buckets.size() > bucketsBefore) {
+			notifyValueCreated(sink, normalizedValue);
+		}
 		this.dirty.setToTrue();
 		this.valueIdDirectoryStale = true;
 	}
@@ -1021,12 +1058,69 @@ public class InvertedIndex implements
 	 * id, so removing that id empties it). The dirty flag is always raised to mirror the historical behaviour.
 	 */
 	public void removeRecord(@Nonnull Serializable value, int... recordId) {
+		removeRecord(value, null, recordId);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecord(Serializable, int...)}: `sink` is notified when — and
+	 * only when — this write took a distinct value out of existence, i.e. drained its bucket and deleted it.
+	 *
+	 * A sink costs this path nothing on the common write, the one that leaves the value alive: the dying id rides back
+	 * out of the removal's own descent rather than being resolved by a second one, so the only branch that pays for
+	 * the reporting is the death itself. That is the half of the value-id design's cost promise this method upholds;
+	 * {@link #notifyValueCreated} states the other.
+	 *
+	 * @param value    the value to remove records from
+	 * @param sink     learns about a value that died in this write, or `null` when nobody is interested
+	 * @param recordId the record ids to disassociate from it
+	 */
+	public void removeRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
 		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
-		this.buckets.removeRecord(normalizedValue, recordId);
+		if (sink == null) {
+			this.buckets.removeRecord(normalizedValue, recordId);
+		} else {
+			// the id has to be read while the bucket is still there — once the removal has deleted it there is nothing
+			// left to read it from, and it is precisely what the sink needs to drop the value from its structures. The
+			// tree reads it off the slot its own descent resolved, so a removal that reports nothing (the common one,
+			// where the value survives) pays neither a descent nor a bucket count for the sink's benefit
+			final int dyingValueId = this.buckets.removeRecordReportingValueDeath(normalizedValue, recordId);
+			if (dyingValueId != TransactionalBucketBPlusTree.NO_DELETED_BUCKET) {
+				Assert.isPremiseValid(
+					dyingValueId != ValueIdAllocator.UNASSIGNED_VALUE_ID,
+					() -> "The bucket of value `" + normalizedValue + "` was deleted but carried no value id — a " +
+						"value lifecycle sink can only be attached to a tree that carries them, and every bucket " +
+						"of such a tree is stamped when it is created."
+				);
+				sink.valueRemoved(dyingValueId, (Serializable) normalizedValue);
+			}
+		}
 		this.valueIdDirectoryStale = true;
+	}
+
+	/**
+	 * Reports a value that has just come into existence to `sink`, resolving the id the insert minted for it.
+	 *
+	 * The resolution is one tree descent, paid ONLY on the birth branch — an insert that joins an existing value costs
+	 * nothing beyond the two bucket-count reads that detect the birth, which is the property the whole value-id design
+	 * rests on. The insert path resolves the id after the fact because the id does not exist until the insert mints
+	 * it; the removal path, whose id instead stops existing when the bucket does, gets it back from the removal
+	 * itself and so pays not even the bucket counts — see
+	 * {@link #removeRecord(Serializable, ValueLifecycleSink, int...)}.
+	 *
+	 * @param sink            the sink to notify
+	 * @param normalizedValue the value the insert created a bucket for, already normalized
+	 */
+	private void notifyValueCreated(@Nonnull ValueLifecycleSink sink, @Nonnull Comparable normalizedValue) {
+		final int valueId = this.buckets.valueIdOf(normalizedValue);
+		Assert.isPremiseValid(
+			valueId != ValueIdAllocator.UNASSIGNED_VALUE_ID,
+			() -> "The bucket freshly created for value `" + normalizedValue + "` carries no value id — a value " +
+				"lifecycle sink can only be attached to a tree that carries them, and this one does not."
+		);
+		sink.valueCreated(valueId, (Serializable) normalizedValue);
 	}
 
 	/**
@@ -1143,6 +1237,30 @@ public class InvertedIndex implements
 			result.add(cursor.valueId());
 		}
 		return result.toArray();
+	}
+
+	/**
+	 * Hands every distinct value together with its stable id to `consumer`, in ascending value order.
+	 *
+	 * This is how a consumer rebuilds a value-id-keyed structure of its own from a tree that has just come back from
+	 * disk — the ids came back inside the pages, so the pairs handed out here are exactly the ones that were handed
+	 * out while the catalog was last running. It walks the tree's cursor directly rather than materializing the
+	 * buckets, so it allocates nothing per value; it is nevertheless `O(values)` and belongs to load and diagnostics,
+	 * never to a query path.
+	 *
+	 * @param consumer receives each normalized value and the id naming it
+	 * @throws GenericEvitaInternalError when this tree carries no value ids at all
+	 */
+	public void forEachValueId(@Nonnull ObjIntConsumer<Serializable> consumer) {
+		Assert.isPremiseValid(
+			this.valueIdAllocator != null,
+			"This shared value tree carries no value ids, so there is nothing to walk - a consumer must attach " +
+				"before it can rebuild anything from the ids."
+		);
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			consumer.accept((Serializable) cursor.value(), cursor.valueId());
+		}
 	}
 
 	/**

@@ -68,6 +68,20 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	void removeRecord(@Nonnull K value, @Nonnull int... pks);
 
 	/**
+	 * Value-id-reporting variant of {@link #removeRecord(Comparable, int...)} for a caller that has to learn WHICH
+	 * distinct value the removal took out of existence. The id is read off the slot the removal's own descent already
+	 * resolved — and it has to be read there, because a deleted bucket takes its id with it — so reporting a death
+	 * costs no descent beyond the one the removal performs anyway, and a removal over a surviving value costs nothing
+	 * extra at all.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pks   the record ids to remove; must be non-empty (may contain negative ids)
+	 * @return the dead value's stable id — or `0`, the "unassigned" sentinel, when the tree carries no value ids —
+	 * and {@link TransactionalBucketBPlusTree#NO_DELETED_BUCKET} when no bucket was deleted, i.e. no value died
+	 */
+	int removeRecordReportingValueDeath(@Nonnull K value, @Nonnull int... pks);
+
+	/**
 	 * Returns the record set associated with the given value (a lean single-record view, a transactional bitmap, or the
 	 * empty bitmap when absent).
 	 *
