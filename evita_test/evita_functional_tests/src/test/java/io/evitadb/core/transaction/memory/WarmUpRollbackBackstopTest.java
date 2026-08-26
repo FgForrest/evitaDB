@@ -33,7 +33,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -53,9 +52,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The backstop exists because warm-up has no {@link TransactionalLayerMaintainer}, and therefore no single place that
  * can see every write. Journalling is a per-structure obligation, and the failure mode of forgetting it is the one
  * worth engineering against: the rollback reports success while that structure's changes stay applied. This suite
- * therefore asserts both halves — that a structure which has NOT met the obligation is rejected, and that the three
- * conditions gating the check (flag on, savepoint open, declaration absent) each suppress it on their own, so the
- * ordinary write path is untouched.
+ * therefore asserts both halves — that a structure which has NOT met the obligation is rejected while a savepoint is
+ * open, and that either gating condition (no savepoint open, or the declaration present) suppresses the check on its
+ * own, so the ordinary write path is untouched.
  *
  * The violating structure is a purpose-built stand-in rather than a production class: making a real index stop
  * declaring support would be a change to the thing under test, and the stand-in reproduces the exact idiom — resolve
@@ -67,21 +66,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(TRANSACTION)
 @DisplayName("Warm-up rollback support backstop")
-// the enablement flag is a process-wide static and test classes in this module run concurrently in one JVM
-@Isolated
 class WarmUpRollbackBackstopTest {
 
 	/**
-	 * Restores the process-wide flag and closes a savepoint a failing test might have left bound to this thread — the
-	 * binding is thread-wide, so a leaked savepoint would fail every subsequent test in this fork.
+	 * Closes a savepoint a failing test might have left bound to this thread — the binding is thread-wide, so a leaked
+	 * savepoint would fail every subsequent test in this fork.
 	 */
 	@AfterEach
-	void restoreGlobalState() {
+	void closeLeakedSavepoint() {
 		final WarmUpSavepoint leaked = WarmUpSavepoint.getIfOpen();
 		if (leaked != null) {
 			leaked.commit();
 		}
-		WarmUpSavepoint.setEnabled(false);
 	}
 
 	@Nested
@@ -92,7 +88,6 @@ class WarmUpRollbackBackstopTest {
 		@DisplayName("Mutating it inside an open warm-up savepoint throws")
 		void shouldThrowExceptionWhenMutatedInsideWarmUpSavepoint() {
 			final UnjournalledCounter counter = new UnjournalledCounter();
-			WarmUpSavepoint.setEnabled(true);
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 
 			final GenericEvitaInternalError error = assertThrows(
@@ -113,21 +108,10 @@ class WarmUpRollbackBackstopTest {
 		@DisplayName("Mutating it outside any savepoint is untouched")
 		void shouldNotThrowExceptionWhenNoSavepointIsOpen() {
 			final UnjournalledCounter counter = new UnjournalledCounter();
-			WarmUpSavepoint.setEnabled(true);
 
+			// the absence of an open savepoint short-circuits the check - the state every ALIVE catalog and every
+			// unbracketed warm-up write is in, and the reason the backstop costs the ordinary write path nothing
 			assertDoesNotThrow(counter::increment, "Without an open savepoint there is nothing to rewind.");
-			assertEquals(1, counter.value);
-		}
-
-		@Test
-		@DisplayName("Mutating it with the mechanism switched off is untouched")
-		void shouldNotThrowExceptionWhenMechanismIsDisabled() {
-			final UnjournalledCounter counter = new UnjournalledCounter();
-			WarmUpSavepoint.setEnabled(false);
-
-			// no savepoint can be open while the mechanism is off, so the flag alone short-circuits the check -
-			// this is the state every ALIVE catalog and every unbracketed warm-up write is in
-			assertDoesNotThrow(counter::increment, "The disabled mechanism must not change the write path.");
 			assertEquals(1, counter.value);
 		}
 	}
@@ -140,7 +124,6 @@ class WarmUpRollbackBackstopTest {
 		@DisplayName("Mutating it inside an open warm-up savepoint is allowed")
 		void shouldNotThrowExceptionWhenDeclaringStructureIsMutated() {
 			final JournalledCounter counter = new JournalledCounter();
-			WarmUpSavepoint.setEnabled(true);
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 
 			assertDoesNotThrow(counter::increment, "A declared structure must be allowed to write.");

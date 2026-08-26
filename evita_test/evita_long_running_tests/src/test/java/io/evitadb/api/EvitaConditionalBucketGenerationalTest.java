@@ -43,7 +43,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -93,7 +92,6 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@RequiresDefaultWarmUpWritePath
 @CommonsLog
 @DisplayName("Conditional bucket histogram generational tests")
 @Tag(CONTRACT)

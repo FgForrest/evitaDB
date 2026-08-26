@@ -23,15 +23,12 @@
 
 package io.evitadb.core.transaction.memory;
 
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.AssertionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -91,29 +88,17 @@ import static org.junit.jupiter.api.Assumptions.abort;
  * The step doubles as the non-vacuity guard: it asserts the mid-savepoint content DIFFERS from the pre-savepoint
  * oracle, so no generation can pass by rolling back nothing.
  *
- * **Warm-up mode switches a process-wide flag, so it runs under a resource lock — and briefly.**
- * {@link WarmUpSavepoint#isEnabled()} is a static, and this module runs its test CLASSES concurrently inside one JVM
- * (`parallel=all` in the module's `pom.xml`; methods within a class stay sequential). A suite that flipped the flag
- * without coordinating would therefore change the write path under every catalog a concurrently running suite happens
- * to be bulk-loading. The two warm-up methods take {@link RequiresDefaultWarmUpWritePath#RESOURCE} in
- * {@link ResourceAccessMode#READ_WRITE} and every catalog-writing suite in this module carries
- * {@link RequiresDefaultWarmUpWritePath}, which takes the same resource in read mode — read mode is shared, so those
- * suites still run concurrently with each other and with everything else, and only overlap with a flag flip is
- * excluded.
+ * **Warm-up atomicity is unconditional, so the harness needs no process-wide coordination.** A savepoint is bound to
+ * the thread that opened it and to nothing else, so the warm-up methods run concurrently with every other suite in the
+ * module (`parallel=all` in the module's `pom.xml`; methods within a class stay sequential) exactly as the ALIVE ones
+ * do. The mechanism's runtime backstop ({@link WarmUpSavepoint#verifyRollbackSupported(TransactionalLayerCreator)}) is
+ * live for the whole window a savepoint is open, so any structure a scenario reaches whose delegate branch was never
+ * ported fails the generation that reaches it, rather than being silently left un-rewindable by a rollback that
+ * reports success.
  *
- * `Resources#GLOBAL` would have removed the need to annotate the other side, but it is the wrong tool: an exclusive
- * GLOBAL lock forces the whole discovered tree into single-threaded execution, which would turn a full-matrix sweep of
- * this module from tens of minutes into hours.
- *
- * Since the warm-up methods do serialize against one another, their budget is
- * {@link #WARM_UP_FUZZ_SECONDS_PROPERTY} seconds (default {@link #DEFAULT_WARM_UP_FUZZ_SECONDS}) rather than the whole
- * minute the ALIVE methods get; raise it for a deep sweep. Generations are cheap enough that seconds still buy
- * thousands of them.
- *
- * The flag is switched on for exactly that window, so the mechanism's runtime backstop
- * ({@link WarmUpSavepoint#verifyRollbackSupported(TransactionalLayerCreator)}, which reads the flag first) is live
- * while fuzzing: any structure a scenario reaches whose delegate branch was never ported fails the generation that
- * reaches it, rather than being silently left un-rewindable by a rollback that reports success.
+ * The warm-up methods keep their own budget, {@link #WARM_UP_FUZZ_SECONDS_PROPERTY} seconds (default
+ * {@link #DEFAULT_WARM_UP_FUZZ_SECONDS}), so a deep warm-up sweep can be asked for without lengthening the ALIVE half
+ * as well; raise it for such a sweep. Generations are cheap enough that seconds still buy thousands of them.
  *
  * @param <R> the `.equals`-comparable value the oracle reads the structure's logical content into
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -124,12 +109,11 @@ import static org.junit.jupiter.api.Assumptions.abort;
 public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSupport {
 	/**
 	 * System property setting how many seconds each warm-up fuzz method generates for. Kept separate from the
-	 * `interval` the ALIVE methods use because warm-up methods run exclusively (see the type JavaDoc), so their budget
-	 * is paid serially by the whole run rather than shared across the surefire threads.
+	 * `interval` the ALIVE methods use so the warm-up half can be deepened on its own.
 	 */
 	public static final String WARM_UP_FUZZ_SECONDS_PROPERTY = "warmUpFuzz.seconds";
 	/**
-	 * Default warm-up budget per method. Chosen so a full-matrix sweep pays a few minutes in total for the exclusive
+	 * Default warm-up budget per method. Chosen so a full-matrix sweep pays a few minutes in total for the warm-up
 	 * half, while still running thousands of generations of every scenario.
 	 */
 	public static final int DEFAULT_WARM_UP_FUZZ_SECONDS = 10;
@@ -141,7 +125,7 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	 * The warm-up fuzz budget in seconds, resolved from {@link #WARM_UP_FUZZ_SECONDS_PROPERTY}. Exposed so a suite that
 	 * drives warm-up savepoints by hand rather than through this harness — `LongRunningSavepointFuzzFrameworkTest`,
 	 * which validates the oracle helpers themselves and must stay independent of the harness built on them — budgets
-	 * its exclusive methods the same way.
+	 * its warm-up methods the same way.
 	 *
 	 * @return how many seconds one warm-up fuzz method may generate for
 	 */
@@ -201,54 +185,48 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Warm-up savepoint rollback restores the exact pre-savepoint state")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	protected void shouldRestoreStateOnWarmUpSavepointRollback(@Nonnull GenerationalTestInput input) {
 		abortWhenWarmUpModeExcluded();
-		runWithWarmUpAtomicityEnabled(
-			() -> runForSeconds(input, WARM_UP_FUZZ_SECONDS, echoEachIterations(), 0L, (random, iteration) -> {
-				final AtomicReference<R> preSavepoint = new AtomicReference<>();
-				AssertionUtils.assertWarmUpSavepointRollbackRestores(
-					newGeneration(random),
-					tested -> {
-						tested.applyBaselineOperations(random);
-						preSavepoint.set(tested.contents());
-					},
-					FuzzGeneration::contents,
-					tested -> {
-						tested.applySavepointOperations(random);
-						assertMidSavepointReadSeesMutations(tested, preSavepoint.get());
-					}
-				);
-				return iteration + 1;
-			})
-		);
+		runForSeconds(input, WARM_UP_FUZZ_SECONDS, echoEachIterations(), 0L, (random, iteration) -> {
+			final AtomicReference<R> preSavepoint = new AtomicReference<>();
+			AssertionUtils.assertWarmUpSavepointRollbackRestores(
+				newGeneration(random),
+				tested -> {
+					tested.applyBaselineOperations(random);
+					preSavepoint.set(tested.contents());
+				},
+				FuzzGeneration::contents,
+				tested -> {
+					tested.applySavepointOperations(random);
+					assertMidSavepointReadSeesMutations(tested, preSavepoint.get());
+				}
+			);
+			return iteration + 1;
+		});
 	}
 
 	@ParameterizedTest(name = "Warm-up savepoint commit keeps the in-savepoint state")
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("Warm-up savepoint commit keeps the in-savepoint state")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	protected void shouldKeepStateOnWarmUpSavepointCommit(@Nonnull GenerationalTestInput input) {
 		abortWhenWarmUpModeExcluded();
-		runWithWarmUpAtomicityEnabled(
-			() -> runForSeconds(input, WARM_UP_FUZZ_SECONDS, echoEachIterations(), 0L, (random, iteration) -> {
-				final AtomicReference<R> preSavepoint = new AtomicReference<>();
-				AssertionUtils.assertWarmUpSavepointCommitKeeps(
-					newGeneration(random),
-					tested -> {
-						tested.applyBaselineOperations(random);
-						preSavepoint.set(tested.contents());
-					},
-					FuzzGeneration::contents,
-					tested -> {
-						tested.applySavepointOperations(random);
-						assertMidSavepointReadSeesMutations(tested, preSavepoint.get());
-					}
-				);
-				return iteration + 1;
-			})
-		);
+		runForSeconds(input, WARM_UP_FUZZ_SECONDS, echoEachIterations(), 0L, (random, iteration) -> {
+			final AtomicReference<R> preSavepoint = new AtomicReference<>();
+			AssertionUtils.assertWarmUpSavepointCommitKeeps(
+				newGeneration(random),
+				tested -> {
+					tested.applyBaselineOperations(random);
+					preSavepoint.set(tested.contents());
+				},
+				FuzzGeneration::contents,
+				tested -> {
+					tested.applySavepointOperations(random);
+					assertMidSavepointReadSeesMutations(tested, preSavepoint.get());
+				}
+			);
+			return iteration + 1;
+		});
 	}
 
 	/**
@@ -379,26 +357,6 @@ public abstract class AbstractSavepointFuzzTest<R> implements TimeBoundedTestSup
 		final String reason = warmUpExclusionReason();
 		if (reason != null) {
 			abort("This scenario has no WARM_UP counterpart: " + reason);
-		}
-	}
-
-	/**
-	 * Switches the warm-up atomicity mechanism on for the duration of `fuzzing` and restores the previous value
-	 * afterwards. The flag is process-wide, which is why the callers hold
-	 * {@link RequiresDefaultWarmUpWritePath#RESOURCE} exclusively — see the type JavaDoc.
-	 *
-	 * Callers outside this class MUST hold {@link RequiresDefaultWarmUpWritePath#RESOURCE} in
-	 * {@link ResourceAccessMode#READ_WRITE} for the duration, or the flip is visible to concurrently running suites.
-	 *
-	 * @param fuzzing the generation loop to run with the mechanism enabled
-	 */
-	public static void runWithWarmUpAtomicityEnabled(@Nonnull Runnable fuzzing) {
-		final boolean previouslyEnabled = WarmUpSavepoint.isEnabled();
-		WarmUpSavepoint.setEnabled(true);
-		try {
-			fuzzing.run();
-		} finally {
-			WarmUpSavepoint.setEnabled(previouslyEnabled);
 		}
 	}
 

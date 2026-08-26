@@ -32,14 +32,11 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.parallel.ResourceAccessMode;
-import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -101,8 +98,8 @@ import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackResto
  * the only warm-up fuzz coverage of {@link TransactionalMap} and {@link TransactionalBitmap}, which have no
  * `LongRunningSavepoint*` suite of their own.
  *
- * Its warm-up cases do share the harness's flag discipline (see {@link #runWarmUpFuzz}): they switch the mechanism on
- * so the delegate-branch backstop is live, and therefore hold the same exclusive resource lock while doing so.
+ * Its warm-up cases do share the harness's budget (see {@link #runWarmUpFuzz}), so the warm-up half of this suite is
+ * deepened by the same system property as the harness-based ones.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -194,7 +191,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: warm-up savepoint rollback restores the exact pre-savepoint contents")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackTransactionalMapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalMap<Integer, Integer> map = newSeededMap(random);
@@ -217,7 +213,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalMap: warm-up savepoint commit keeps the in-savepoint contents")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitTransactionalMapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalMap<Integer, Integer> map = newSeededMap(random);
@@ -235,7 +230,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalSet: warm-up savepoint rollback restores the exact pre-savepoint elements")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackTransactionalSetToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalSet<Integer> set = newSeededSet(random);
@@ -258,7 +252,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalSet: warm-up savepoint commit keeps the in-savepoint elements")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitTransactionalSetWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalSet<Integer> set = newSeededSet(random);
@@ -276,7 +269,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackTransactionalListToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalList<Integer> list = newSeededList(random);
@@ -299,7 +291,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitTransactionalListWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalList<Integer> list = newSeededList(random);
@@ -319,7 +310,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: warm-up savepoint rollback restores the exact pre-savepoint record set")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackTransactionalBitmapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalBitmap bitmap = newSeededBitmap(random);
@@ -342,7 +332,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBitmap: warm-up savepoint commit keeps the in-savepoint record set")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitTransactionalBitmapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalBitmap bitmap = newSeededBitmap(random);
@@ -358,11 +347,9 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 
 
 	/**
-	 * Runs a warm-up generation loop with the atomicity mechanism switched ON, so the delegate-branch backstop
-	 * ({@code WarmUpSavepoint#verifyRollbackSupported}) is live while fuzzing rather than only the journalling being
-	 * exercised. The flag is a process-wide static, which is why every caller carries the exclusive resource lock
-	 * declared on the methods above — see {@link AbstractSavepointFuzzTest} for the full reasoning and for why the
-	 * budget is seconds rather than the minute the transactional cases get.
+	 * Runs a warm-up generation loop on the same budget {@link AbstractSavepointFuzzTest} gives its own warm-up
+	 * methods, so this suite — which validates the oracle helpers themselves and therefore stays independent of the
+	 * harness built on them — is deepened by the same system property rather than by one of its own.
 	 *
 	 * @param input     the generational input carrying the random seed
 	 * @param testLogic one generation
@@ -372,13 +359,7 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		@Nonnull GenerationalTestInput input,
 		@Nonnull BiFunction<Random, Long, Long> testLogic
 	) {
-		final long[] finished = new long[1];
-		AbstractSavepointFuzzTest.runWithWarmUpAtomicityEnabled(
-			() -> finished[0] = runForSeconds(
-				input, AbstractSavepointFuzzTest.warmUpFuzzSeconds(), 1000, 0L, testLogic
-			)
-		);
-		return finished[0];
+		return runForSeconds(input, AbstractSavepointFuzzTest.warmUpFuzzSeconds(), 1000, 0L, testLogic);
 	}
 
 	/**
@@ -400,7 +381,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint contents")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackObjectTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededObjectTree(random);
@@ -423,7 +403,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalObjectBPlusTree: warm-up savepoint commit keeps the in-savepoint contents")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitObjectTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalObjectBPlusTree<Integer, Integer> tree = newSeededObjectTree(random);
@@ -443,7 +422,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint rollback restores the exact pre-savepoint buckets")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldRollBackBucketTreeToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalBucketBPlusTree<Integer> tree = newSeededBucketTree(random);
@@ -466,7 +444,6 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Tag(SLOW)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	@DisplayName("TransactionalBucketBPlusTree: warm-up savepoint commit keeps the in-savepoint buckets")
-	@ResourceLock(value = RequiresDefaultWarmUpWritePath.RESOURCE, mode = ResourceAccessMode.READ_WRITE)
 	void shouldCommitBucketTreeWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
 			final TransactionalBucketBPlusTree<Integer> tree = newSeededBucketTree(random);

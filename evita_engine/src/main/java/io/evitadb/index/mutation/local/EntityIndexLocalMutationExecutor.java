@@ -829,9 +829,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// transactional diff layer is published when the surrounding transaction commits.
 		//
 		// Note there is no per-executor rollback() counterpart: a failed entity mutation is reverted structurally
-		// by the diff-layer savepoint opened in LocalMutationExecutorCollector; the legacy
-		// hand-written undo actions have been removed. In the non-transactional warm-up path there is no savepoint
-		// and partial changes are intentionally not reverted — a failed warm-up entity must be retried by rebuilding.
+		// by the savepoint opened in LocalMutationExecutorCollector — the transactional diff-layer savepoint while
+		// a transaction is active, the WarmUpSavepoint journal on the non-transactional warm-up path; the legacy
+		// hand-written undo actions have been removed.
 	}
 
 	/**

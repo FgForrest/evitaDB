@@ -167,9 +167,8 @@ class LocalMutationExecutorCollector {
 	 * diff layers, so there is no maintainer to drive — the structures record the inverse of each mutation into this
 	 * savepoint's journal instead, and it replays them on failure.
 	 *
-	 * {@code null} whenever a transaction is active (that path uses {@link #savepoint} exclusively), when the mutation
-	 * opted out of atomic rollback (WAL replay), or when the mechanism is switched off — see
-	 * {@link WarmUpSavepoint#isEnabled()}, which defaults to `false`. The two savepoint kinds are mutually exclusive by
+	 * {@code null} whenever a transaction is active (that path uses {@link #savepoint} exclusively) or when the
+	 * mutation opted out of atomic rollback (WAL replay). The two savepoint kinds are mutually exclusive by
 	 * construction: at most one of them is ever open.
 	 */
 	@Nullable private WarmUpSavepoint warmUpSavepoint;
@@ -229,8 +228,8 @@ class LocalMutationExecutorCollector {
 	 * @param atomicRollback            when {@code true}, the root entity mutation is bracketed by a savepoint so that
 	 *                                  a partial failure is surgically reverted while everything written before it
 	 *                                  stays — the transactional diff-layer savepoint while a transaction is active,
-	 *                                  the {@link WarmUpSavepoint} on the warm-up path when that mechanism is switched
-	 *                                  on; when {@code false} (WAL replay) no savepoint is opened
+	 *                                  the {@link WarmUpSavepoint} on the warm-up path otherwise; when {@code false}
+	 *                                  (WAL replay) no savepoint is opened
 	 * @param generateImplicitMutations flags indicating which implicit mutations should be generated
 	 * @param changeCollector           executor to collect and apply local mutations
 	 * @param entityIndexUpdater        executor to update the entity index with the mutations
@@ -292,7 +291,7 @@ class LocalMutationExecutorCollector {
 				if (maintainer != null) {
 					this.savepointMaintainer = maintainer;
 					this.savepoint = maintainer.openSavepoint();
-				} else if (WarmUpSavepoint.isEnabled()) {
+				} else {
 					this.warmUpSavepoint = WarmUpSavepoint.open();
 				}
 			}

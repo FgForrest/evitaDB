@@ -59,7 +59,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -83,39 +82,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * entity through a catalog that is still being bulk loaded, where writes go IN PLACE to the index delegates instead of
  * to a transaction's diff layers.
  *
- * Its job is to pin down, as executable assertions, exactly how far the warm-up path is from the atomicity the
- * transactional path already provides — so that each phase of the port can be measured against it rather than argued
- * about. All three scenarios are a batch of three entities in which the middle one violates a unique constraint after
- * its index writes have already been applied, and they differ only in WHICH index families the mutation reaches first:
+ * Its job is to pin down, as executable assertions, that a failing entity leaves the warm-up path exactly as it found
+ * it — the atomicity the transactional path already provides, reached here by {@link WarmUpSavepoint} rewinding the
+ * in-place writes from the inverses the structures journal themselves. All three scenarios are a batch of three
+ * entities in which the middle one violates a unique constraint after its index writes have already been applied, and
+ * they differ only in WHICH index families the mutation reaches before it fails:
  *
- * - **The early failure** aborts at the very first index the entity reaches, so the only state it leaves behind is the
+ * - **The early failure** aborts at the very first index the entity reaches, so the only state to rewind is the
  *   membership bitmap, the collection's storage diff layer and the indexes' dirty flags.
  * - **The late failure** submits an explicitly ORDERED upsert mutation whose duplicate code sits last, so the entity is
  *   already in the hierarchy, sort, filter, range and price indexes — five B+ tree-backed structures — before it fails.
  * - **The facet failure** does the same for the reference side: two grouped, faceted references are written first, so
  *   the entity is already in the reference index, the reference-type cardinality index and the facet index family
- *   (facet index, per-reference index, per-facet-id bitmaps, group index) when the duplicate code aborts it. Left
- *   behind, its facet entry is an ORPHAN — a facet counted forever against an entity that cannot be fetched.
+ *   (facet index, per-reference index, per-facet-id bitmaps, group index) when the duplicate code aborts it. Were it
+ *   left behind, its facet entry would be an ORPHAN — a facet counted forever against an entity that cannot be fetched.
  *
- * **The divergence with the switch off**, which the tests below still assert: the failed entity's primary key stays in
- * the collection's membership index (it is returned by a query) while its body storage part was never written
- * (fetching it yields nothing) — the same query therefore reports four products by reference and three by content. In
- * the late-failure shape it is additionally queryable through every index it reached on the way. Recovery is documented
- * as "compensate on the client or rebuild the catalog" in
- * `documentation/user/en/deep-dive/bulk-vs-incremental-indexing.md`.
- *
- * Both switch positions are exercised. With {@link WarmUpSavepoint} switched on the divergence is gone in both shapes:
- * every index agrees with the body fetch on the same three products, and the catalog keeps taking writes afterwards.
- * That flip is this line of work's acceptance criterion and this class is where it is recorded.
+ * **What every scenario asserts is that the divergence is absent**: the failed entity's primary key is gone from the
+ * collection's membership index, so a reference query and a body fetch agree on the same three products, no index it
+ * reached on the way still answers for it, and the catalog keeps taking writes afterwards. The mechanism is
+ * unconditional, so this is simply how a bulk load behaves — there is no configuration under which the partial state
+ * survives.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Per-entity atomic mutation rollback in warm-up mode")
 @Tag(TestTags.ENGINE)
 @Tag(TestTags.INDEXING)
-// the warm-up atomicity switch is a process-wide static and test classes in this module run concurrently in one JVM;
-// @Isolated keeps a flipped switch from reaching an unrelated class
-@Isolated
 class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_SORTABLE_CODE = "sortableCode";
@@ -134,11 +126,9 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		DateTimeRange.between(VALIDITY_START, VALIDITY_START.plusYears(1));
 	private TestPaths paths;
 	private Evita evita;
-	private boolean originalAtomicity;
 
 	@BeforeEach
 	void setUp() {
-		this.originalAtomicity = WarmUpSavepoint.isEnabled();
 		this.paths = createTestPaths("EntityAtomicMutationRollbackWarmUpFunctionalTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		this.evita.defineCatalog(TEST_CATALOG);
@@ -194,109 +184,16 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 
 	@AfterEach
 	void tearDown() {
-		WarmUpSavepoint.setEnabled(this.originalAtomicity);
 		this.evita.close();
 		cleanupTestPaths(this.paths);
 	}
 
 	@Nested
-	@DisplayName("Warm-up atomicity switched off")
-	class WithoutWarmUpAtomicity {
-
-		@Test
-		@DisplayName("The failed entity leaves an orphan primary key with no body behind")
-		@Tag(TestTags.ATTRIBUTE)
-		void shouldLeaveOrphanPrimaryKeyBehindWhenAtomicityIsOff() {
-			WarmUpSavepoint.setEnabled(false);
-			runFailingBatch();
-
-			// #3 was registered in the collection's membership index before its unique-code check threw, and nothing
-			// reverted it; its body storage part is only written on the success path, so it was never stored
-			assertProductReferencesAre(1, 2, 3, 4);
-			assertFetchedProductsAre(1, 2, 4);
-			assertProductAbsent(3);
-		}
-
-		@Test
-		@DisplayName("The unique attribute index is nonetheless left consistent")
-		@Tag(TestTags.ATTRIBUTE)
-		void shouldKeepUniqueIndexConsistentWhenAtomicityIsOff() {
-			WarmUpSavepoint.setEnabled(false);
-			runFailingBatch();
-
-			// the failure struck as the unique index rejected the duplicate, so that index never took #3's entry - the
-			// damage is confined to the structures written before the check, which is what makes it easy to miss
-			assertCodeResolvesTo("A", 1);
-			assertCodeResolvesTo("B", 2);
-			assertCodeResolvesTo("C", 4);
-		}
-
-		@Test
-		@DisplayName("A late failure additionally strands the entity in the filter, range, price and hierarchy indexes")
-		@Tag(TestTags.ATTRIBUTE)
-		@Tag(TestTags.PRICE)
-		@Tag(TestTags.HIERARCHY)
-		void shouldStrandLateWritesWhenAtomicityIsOff() {
-			WarmUpSavepoint.setEnabled(false);
-			runLateFailingBatch();
-
-			// the mutation aborted only at its last local mutation, so everything written before it stayed - the
-			// bodiless entity #3 is queryable through every index it reached on the way. This is the divergence the
-			// switched-on counterpart of this test closes
-			assertProductReferencesAre(1, 2, 3, 4);
-			assertFetchedProductsAre(1, 2, 4);
-			assertQueryReturns(
-				"the filter index kept the failed entity's sortable code",
-				filterBy(attributeEquals(ATTRIBUTE_SORTABLE_CODE, "S3")),
-				3
-			);
-			assertQueryReturns(
-				"the range index kept the failed entity's validity",
-				filterBy(attributeInRange(ATTRIBUTE_VALIDITY, WITHIN_VALIDITY)),
-				2, 3, 4
-			);
-			assertQueryReturns(
-				"the price index kept the failed entity's price",
-				filterBy(priceInPriceLists(PRICE_LIST_BASIC), priceInCurrency(CURRENCY_CZK)),
-				2, 3, 4
-			);
-			assertQueryReturns(
-				"the hierarchy index kept the failed entity as a child of #1",
-				filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
-				1, 2, 3, 4
-			);
-		}
-
-		@Test
-		@DisplayName("A reference failure additionally strands the entity in the reference and facet indexes")
-		@Tag(TestTags.FACET)
-		@Tag(TestTags.REFERENCE)
-		void shouldStrandReferenceAndFacetWritesWhenAtomicityIsOff() {
-			WarmUpSavepoint.setEnabled(false);
-			runFacetFailingBatch();
-
-			// the reference and facet entries of the bodiless entity #3 were written before the unique-code check
-			// aborted the mutation, and nothing took them back out: it is an orphan facet - a facet whose entity
-			// cannot be fetched - which is exactly the shape the switched-on counterpart below removes
-			assertProductReferencesAre(1, 2, 3, 4);
-			assertFetchedProductsAre(1, 2, 4);
-			assertQueryReturns(
-				"the reference index kept the failed entity's reference",
-				filterBy(referenceHaving(REFERENCE_PARAMETER, entityPrimaryKeyInSet(PARAMETER_ONE))),
-				2, 3, 4
-			);
-			assertFacetResolvesExactlyTo(PARAMETER_ONE, 2, 3, 4);
-			assertFacetCountsAre(3, 3);
-		}
-	}
-
-	@Nested
-	@DisplayName("Warm-up atomicity switched on")
-	class WithWarmUpAtomicity {
+	@DisplayName("Failure at the first index the entity reaches")
+	class EarlyFailure {
 
 		/**
-		 * Pins the reach of the mechanism as it stands, which for this scenario is complete: the reference query and
-		 * the body fetch agree, so no orphan primary key is left behind.
+		 * Pins the reach of the mechanism for the narrowest failure shape there is.
 		 *
 		 * What the scenario actually exercises, and why that is the whole of it: the failing entity reaches the unique
 		 * index only after its primary key has been written to the collection's membership bitmap, and
@@ -305,14 +202,13 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 * three kinds of state touched — the membership bitmap, the collection's storage diff layer, and the indexes'
 		 * dirty flags — and all three journal their warm-up writes.
 		 *
-		 * That also says what this test does NOT prove: it never reaches a B+ tree. The late-failure test below is the
-		 * one that does.
+		 * That also says what this test does NOT prove: it never reaches a B+ tree. {@link LateFailure} is the one
+		 * that does.
 		 */
 		@Test
 		@DisplayName("The failed entity leaves no orphan primary key behind")
 		@Tag(TestTags.ATTRIBUTE)
-		void shouldLeaveNoOrphanPrimaryKeyWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldLeaveNoOrphanPrimaryKeyBehind() {
 			runFailingBatch();
 
 			assertProductReferencesAre(1, 2, 4);
@@ -323,8 +219,7 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		@Test
 		@DisplayName("The surrounding batch is unaffected and the catalog keeps accepting writes")
 		@Tag(TestTags.ATTRIBUTE)
-		void shouldKeepWritingAfterTheFailedEntityWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldKeepWritingAfterTheFailedEntity() {
 			runFailingBatch();
 
 			// everything the batch legitimately wrote survived the bracketed failure, and the unique index is intact
@@ -343,24 +238,28 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 			);
 			assertCodeResolvesTo("D", 5);
 		}
+	}
+
+	@Nested
+	@DisplayName("Failure after the filter, sort, range, hierarchy and price writes")
+	class LateFailure {
 
 		/**
-		 * The scenario the early-failure test above explicitly could not reach: the duplicate code is written LAST, so
-		 * the mutation aborts only once the entity has already been inserted into the hierarchy index, the sort index
-		 * (an unordered lookup tree plus its order-key B+ tree), the filter index (a bucket B+ tree), the range index
-		 * (a long-keyed B+ tree) and the price index (an element-keyed B+ tree). Every one of those is a structure the
+		 * The scenario {@link EarlyFailure} explicitly could not reach: the duplicate code is written LAST, so the
+		 * mutation aborts only once the entity has already been inserted into the hierarchy index, the sort index (an
+		 * unordered lookup tree plus its order-key B+ tree), the filter index (a bucket B+ tree), the range index (a
+		 * long-keyed B+ tree) and the price index (an element-keyed B+ tree). Every one of those is a structure the
 		 * early scenario never touched.
 		 *
 		 * Each assertion below is answered by a different index, so a family left un-journaled shows up as its own
 		 * failure rather than as one blanket one.
 		 */
 		@Test
-		@DisplayName("An entity failing after the filter, sort, range, hierarchy and price writes recovers fully")
+		@DisplayName("An entity failing after those writes recovers fully")
 		@Tag(TestTags.ATTRIBUTE)
 		@Tag(TestTags.PRICE)
 		@Tag(TestTags.HIERARCHY)
-		void shouldRecoverFromLateFailureWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldRecoverFromLateFailure() {
 			runLateFailingBatch();
 
 			// membership and bodies agree - no orphan primary key
@@ -409,10 +308,9 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		}
 
 		@Test
-		@DisplayName("The catalog keeps accepting writes after a late failure was rolled back")
+		@DisplayName("The catalog keeps accepting writes after the failure was rolled back")
 		@Tag(TestTags.ATTRIBUTE)
-		void shouldKeepWritingAfterALateFailureWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldKeepWritingAfterALateFailure() {
 			runLateFailingBatch();
 
 			// the code the failed entity tried to claim is free again for a fresh entity, and every index it touched
@@ -441,6 +339,11 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				1, 2, 4, 5
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Failure after the reference and facet writes")
+	class ReferenceAndFacetFailure {
 
 		/**
 		 * The reference and facet families, which neither failure shape above reaches: the failing entity is inserted
@@ -454,11 +357,10 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 * bitmaps by `facetHaving`, and the group index by the facet summary's per-facet counts.
 		 */
 		@Test
-		@DisplayName("An entity failing after its reference and facet writes leaves no orphan facet behind")
+		@DisplayName("An entity failing after those writes leaves no orphan facet behind")
 		@Tag(TestTags.FACET)
 		@Tag(TestTags.REFERENCE)
-		void shouldRecoverFromReferenceAndFacetFailureWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldRecoverFromReferenceAndFacetFailure() {
 			runFacetFailingBatch();
 
 			// membership and bodies agree - no orphan primary key
@@ -489,11 +391,10 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		}
 
 		@Test
-		@DisplayName("The catalog keeps accepting faceted writes after a reference failure was rolled back")
+		@DisplayName("The catalog keeps accepting faceted writes after the failure was rolled back")
 		@Tag(TestTags.FACET)
 		@Tag(TestTags.REFERENCE)
-		void shouldKeepWritingFacetedEntitiesAfterAFailureWhenAtomicityIsOn() {
-			WarmUpSavepoint.setEnabled(true);
+		void shouldKeepWritingFacetedEntitiesAfterAFailure() {
 			runFacetFailingBatch();
 
 			// the reverted entity's facet slots are free again, and the restored indexes take a new record on top
@@ -750,8 +651,8 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	/**
 	 * Asserts that the same product query, this time asked to materialize the entity bodies, yields exactly the
 	 * supplied primary keys. A primary key present in the index but missing a body storage part silently drops out
-	 * here — which is what makes the gap between this and {@link #assertProductReferencesAre(int...)} the sharp
-	 * observation of the divergence.
+	 * here — which is what makes agreement between this and {@link #assertProductReferencesAre(int...)} the sharp
+	 * observation that the rollback left nothing behind.
 	 *
 	 * @param expectedPrimaryKeys the complete set of primary keys expected to have a stored body
 	 */

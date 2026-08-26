@@ -104,9 +104,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * returning `null` on delegate write branches, the same order of cost warm-up already pays for its transaction
  * lookup.
  *
- * **Enablement.** The mechanism is gated by {@link #isEnabled()}, an internal flag defaulting to `false` (see
- * {@link #ENABLED_PROPERTY}). It stays internal until the warm-up throughput measurement decides whether per-entity
- * atomicity can be the public default.
+ * **The mechanism is unconditional.** Per-entity atomicity of warm-up writes has no switch, internal or public:
+ * every warm-up root entity mutation is bracketed by a savepoint. The throughput measurement that gated this
+ * decision put the mechanism's cost at about 2 % of bulk-ingest CPU on the 972k-article reference corpus, and the
+ * consistency it buys — a failed entity mutation reverts completely instead of leaving half-indexed state — was
+ * judged worth that price everywhere, with no configuration surface for trading it away.
  *
  * This type is deliberately NOT thread-safe, for the confinement reason above.
  *
@@ -117,23 +119,10 @@ import java.util.concurrent.atomic.AtomicLong;
 @NotThreadSafe
 public final class WarmUpSavepoint {
 	/**
-	 * Name of the system property that switches per-entity atomicity of warm-up writes on. Absent or non-`true`, the
-	 * warm-up write path behaves exactly as it did before this mechanism existed: a failed entity mutation is left
-	 * partially applied.
-	 */
-	public static final String ENABLED_PROPERTY = "evitadb.warmUpAtomicity.enabled";
-	/**
 	 * The savepoint currently open on this thread, or `null` when none is. Read on every warm-up delegate write branch,
-	 * so it is the single cost the mechanism imposes while switched off at a given moment.
+	 * so it is the single cost the mechanism imposes on writes outside a root entity mutation bracket.
 	 */
 	private static final ThreadLocal<WarmUpSavepoint> CURRENT = new ThreadLocal<>();
-	/**
-	 * Whether warm-up writes are bracketed by a savepoint at all. Initialized from {@link #ENABLED_PROPERTY} and
-	 * otherwise changed only by {@link #setEnabled(boolean)}. Declared `volatile` so that a test flipping it (possibly
-	 * from a different thread than the writer) is observed; a volatile read of a static boolean is negligible next to
-	 * the work of the mutation it gates.
-	 */
-	private static volatile boolean enabled = Boolean.getBoolean(ENABLED_PROPERTY);
 	/**
 	 * Capacity the two capture lists are allocated at, so a savepoint that captures many participants does not have to
 	 * grow them midway through.
@@ -226,27 +215,6 @@ public final class WarmUpSavepoint {
 					"captures, so no further savepoint may be opened in this process."
 			)
 		);
-	}
-
-	/**
-	 * Returns whether warm-up writes should be bracketed by a savepoint. Callers that open savepoints must consult this
-	 * before doing so; participants recording touches need not, because no savepoint is ever open while it is `false`.
-	 *
-	 * @return `true` when per-entity atomicity of warm-up writes is switched on
-	 */
-	public static boolean isEnabled() {
-		return enabled;
-	}
-
-	/**
-	 * Switches per-entity atomicity of warm-up writes on or off at runtime. Intended for tests, which need both
-	 * behaviours in one JVM; production code configures the flag through {@link #ENABLED_PROPERTY} instead. A test that
-	 * flips it must restore the previous value, since the flag is process-wide.
-	 *
-	 * @param newEnabled `true` to bracket warm-up root entity mutations with a savepoint
-	 */
-	public static void setEnabled(boolean newEnabled) {
-		enabled = newEnabled;
 	}
 
 	/**
@@ -369,8 +337,9 @@ public final class WarmUpSavepoint {
 	 *
 	 * It exists for the leaf nodes of `TransactionalBucketBPlusTree`, whose whole-node memento duplicates both columns
 	 * plus the overflow clone for a write that typically touches one or two of the leaf's slots — 551 ms per 100k
-	 * entities and around a fifth of all allocation on the flag-ON bulk-ingest profile. A caller of this method must
-	 * therefore honour the exclusivity the granularities have per structure per savepoint: it may push a per-operation
+	 * entities and around a fifth of all allocation on the savepoint-bracketed bulk-ingest profile. A caller of this
+	 * method must therefore honour the exclusivity the granularities have per structure per savepoint: it may push a
+	 * per-operation
 	 * inverse only while {@link #isCaptured(WarmUpTouchStamped)} answers `false` for it, because a whole-node memento
 	 * replays LAST for its structure and would overwrite everything the finer inverses had refined.
 	 *
@@ -511,25 +480,22 @@ public final class WarmUpSavepoint {
 	 * worse than the pre-mechanism behaviour because the failure is then invisible. A structure that legitimately has
 	 * nothing to rewind says so by returning `true` (see the contract on the declaring method).
 	 *
-	 * **Cost, and why the flag is read first.** Three short-circuits, in widening order of expense: the mechanism's own
-	 * flag (a static volatile `boolean`), the thread's savepoint (one {@link ThreadLocal} read), then the declaration
-	 * (an interface call). The order matters because this sits on the bulk-ingest write path, whose thread is already
-	 * CPU-saturated: with the flag off, the check costs one perfectly-predicted load on a branch that was about to
-	 * return `null` anyway, and never touches the {@link ThreadLocal} machinery that measured 5.25 % of busy-thread
-	 * time on a comparable path. Reading the savepoint first would put that cost on every layer resolution in every
-	 * bulk load, including the overwhelming majority that have the mechanism switched off.
+	 * **Cost.** Two short-circuits, in widening order of expense: the thread's savepoint (one {@link ThreadLocal}
+	 * read, `null` exactly when no root entity mutation is in flight), then the declaration (an interface call on a
+	 * handful of small final implementations). Both sat on the measured bulk-ingest write path — the mechanism's
+	 * ~2 % ingest-CPU price already includes them — and outside a bracket the check is the single predicted-null
+	 * {@link ThreadLocal} read every delegate write branch pays anyway.
 	 *
-	 * The consequence is that the check is inert whenever a savepoint is somehow open while the flag is off. That
-	 * cannot happen in production — `open()` is called only under {@link #isEnabled()} — but it IS the state of the
-	 * per-structure rollback unit tests, which open a savepoint directly without touching the flag. Those tests
-	 * therefore exercise the journalling, not this backstop; the backstop's own coverage is
-	 * `WarmUpRollbackBackstopTest` (behaviour) and `WarmUpRollbackConformanceTest` (the declarations it reads).
+	 * The check is live whenever a savepoint is open — which, the bracket being unconditional, is during every
+	 * warm-up root entity mutation, and equally in the per-structure rollback unit tests that open a savepoint
+	 * directly. The backstop's dedicated coverage is `WarmUpRollbackBackstopTest` (behaviour) and
+	 * `WarmUpRollbackConformanceTest` (the declarations it reads).
 	 *
 	 * @param layerCreator the creator whose delegate branch is about to be taken
 	 * @throws GenericEvitaInternalError when a savepoint is open and the creator does not declare rollback support
 	 */
 	public static void verifyRollbackSupported(@Nonnull TransactionalLayerCreator<?> layerCreator) {
-		if (enabled && CURRENT.get() != null && !layerCreator.supportsWarmUpRollback()) {
+		if (CURRENT.get() != null && !layerCreator.supportsWarmUpRollback()) {
 			throw new GenericEvitaInternalError(
 				"Structure " + layerCreator.getClass().getName() + " is modified inside a warm-up savepoint but does " +
 					"not declare support for warm-up rollback - the changes it writes in place could not be reverted " +

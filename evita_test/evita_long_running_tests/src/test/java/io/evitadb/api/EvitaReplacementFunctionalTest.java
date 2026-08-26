@@ -32,7 +32,6 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -62,7 +61,6 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiresDefaultWarmUpWritePath
 @DisplayName("Evita catalog replacement under load")
 @Tag(SLOW)
 @ExtendWith(EvitaParameterResolver.class)

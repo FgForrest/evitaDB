@@ -29,7 +29,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -59,9 +58,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ENGINE)
 @Tag(TRANSACTION)
 @DisplayName("Warm-up savepoint (per-entity rollback without a transaction)")
-// the enablement flag is a process-wide static and test classes in this module run concurrently in one JVM;
-// @Isolated keeps the flag test's flip from reaching an unrelated class
-@Isolated
 class WarmUpSavepointTest {
 	private final List<String> events = new ArrayList<>();
 
@@ -375,34 +371,6 @@ class WarmUpSavepointTest {
 			assertFalse(savepoint.claimFirstTouch(participant), "A repeat touch must report the pre-image is taken.");
 
 			savepoint.commit();
-		}
-	}
-
-	@Nested
-	@DisplayName("Enablement flag")
-	class EnablementFlag {
-
-		@Test
-		@DisplayName("The flag follows its system property until something changes it")
-		void shouldFollowTheSystemProperty() {
-			assertEquals(
-				Boolean.getBoolean(WarmUpSavepoint.ENABLED_PROPERTY), WarmUpSavepoint.isEnabled(),
-				"The flag must follow its system property until something explicitly changes it."
-			);
-		}
-
-		@Test
-		@DisplayName("The flag can be flipped at runtime and restored")
-		void shouldAllowFlippingTheFlagAtRuntime() {
-			final boolean original = WarmUpSavepoint.isEnabled();
-			try {
-				WarmUpSavepoint.setEnabled(true);
-				assertTrue(WarmUpSavepoint.isEnabled());
-				WarmUpSavepoint.setEnabled(false);
-				assertFalse(WarmUpSavepoint.isEnabled());
-			} finally {
-				WarmUpSavepoint.setEnabled(original);
-			}
 		}
 	}
 

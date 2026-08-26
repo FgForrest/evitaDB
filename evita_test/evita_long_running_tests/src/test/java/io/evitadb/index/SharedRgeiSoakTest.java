@@ -41,7 +41,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import io.evitadb.test.generator.DataGenerator;
 import org.junit.jupiter.api.AfterEach;
@@ -113,7 +112,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@RequiresDefaultWarmUpWritePath
 @Tag(SLOW)
 @Tag(INDEXING)
 @Tag(REFERENCE)

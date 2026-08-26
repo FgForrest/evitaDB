@@ -46,7 +46,6 @@ import io.evitadb.server.EvitaServer;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.TestConstants;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -82,7 +81,6 @@ import static io.evitadb.test.TestTags.CDC;
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@RequiresDefaultWarmUpWritePath
 @Slf4j
 @Tag(SLOW)
 @Disabled("Long-running test - enable manually when needed")

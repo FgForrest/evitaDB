@@ -68,15 +68,19 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 
 /**
- * A/B measurement of what per-entity warm-up atomicity costs the bulk-ingest thread.
+ * Measurement of what the bulk-ingest thread costs with per-entity warm-up atomicity in place.
  *
- * The mechanism under measurement is {@link WarmUpSavepoint}: with it switched ON, `LocalMutationExecutorCollector`
- * brackets every root entity mutation with a savepoint, and every delegate-branch write made underneath journals the
- * inverse that would undo it. With it OFF the only residue is one static volatile load per delegate-branch layer
- * resolution. The question this program answers is how much of the ingest thread's time the ON state costs, because
- * that thread is the bulk load's bottleneck — it runs ~94 % saturated (see
+ * The mechanism under measurement is {@link WarmUpSavepoint}: `LocalMutationExecutorCollector` brackets every root
+ * entity mutation with a savepoint, and every delegate-branch write made underneath journals the inverse that would
+ * undo it. The question this program answers is how much of the ingest thread's time a bulk load costs, because that
+ * thread is the bulk load's bottleneck — it runs ~94 % saturated (see
  * `documentation/adr/2026-07-31-bulk-ingest-write-path.md`), so its CPU time is very nearly the wall time of the whole
  * load.
+ *
+ * **Comparing two mechanisms is a cross-revision exercise, not an in-JVM one.** The mechanism has no runtime switch —
+ * it is unconditional on the warm-up write path — so an A/B means building each git revision and running this program
+ * against both with the same `--seed`, the same corpus knobs and the same machine, then comparing the reported
+ * medians. Two runs that differ in any of those three are not comparable.
  *
  * **What is measured.** Primarily {@link ThreadMXBean#getCurrentThreadCpuTime()} of the thread executing the upserts,
  * sampled from inside the session lambda (which `EvitaSession#execute` runs on the caller thread, so the ingest thread
@@ -99,17 +103,17 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
  * **Why the mutation stream is materialized up front.** The corpus is generated exactly once, into a throwaway catalog
  * that is dropped immediately afterwards, and kept as a list of {@link EntityMutation}s. Every pass then replays the
  * very same mutation objects into a freshly created catalog. This removes generation from the measured window (it is
- * far more expensive than the ingest itself) and makes the two arms of the A/B identical by construction rather than
- * merely by seed.
+ * far more expensive than the ingest itself) and makes every pass — and every run of this program on the same seed —
+ * identical by construction rather than merely by seed.
  *
- * **Protocol.** Passes alternate OFF, ON, OFF, ON, … in a single JVM (the flag is process-wide static, so it may only
- * be changed BETWEEN catalogs, never during one). The first pair is discarded as JIT warm-up and the remaining pairs
- * are reported plus reduced to a median delta. Each pass gets its own catalog, which is verified against the expected
- * entity counts and then dropped, so no pass inherits another's indexes or files.
+ * **Protocol.** Passes run back to back in a single JVM. The first is discarded as JIT warm-up and the rest are
+ * reported plus reduced to a median. Each pass gets its own catalog, which is verified against the expected entity
+ * counts and then dropped, so no pass inherits another's indexes or files.
  *
  * Usage: `WarmUpAtomicityIngestBenchmark [--products=N] [--categories=N] [--brands=N] [--stores=N] [--parameters=N]
- * [--parameterGroups=N] [--pairs=N] [--seed=N] [--dir=PATH]`. Run it with a heap large enough to hold the materialized
- * mutation stream AND one fully indexed catalog at a time — `-Xmx16g` is comfortable for the default 50 000 products.
+ * [--parameterGroups=N] [--passes=N] [--seed=N] [--dir=PATH]`. Run it with a heap large enough to hold the
+ * materialized mutation stream AND one fully indexed catalog at a time — `-Xmx16g` is comfortable for the default
+ * 50 000 products.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see WarmUpSavepoint
@@ -128,7 +132,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	 */
 	private static final String CORPUS_CATALOG = "warmUpAtomicityCorpus";
 	/**
-	 * Prefix of the per-pass catalog names; the pass index and mode are appended.
+	 * Prefix of the per-pass catalog names; the pass index is appended.
 	 */
 	private static final String PASS_CATALOG_PREFIX = "warmUpAtomicityPass";
 	/**
@@ -435,7 +439,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs the whole measurement: builds the corpus once, then alternates OFF / ON passes over it and reports.
+	 * Runs the whole measurement: builds the corpus once, then replays it pass after pass and reports.
 	 *
 	 * @param options the parsed command-line options
 	 */
@@ -448,19 +452,15 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		THREAD_MX_BEAN.setThreadCpuTimeEnabled(true);
 
 		final TestPaths paths = createTestPaths(options.directory(), "WarmUpAtomicityIngestBenchmark");
-		// the flag is process-wide; leave the JVM exactly as it was found even if a pass throws
-		final boolean originalFlag = WarmUpSavepoint.isEnabled();
 		final Evita evita = new Evita(configuration(paths));
 		try {
 			final Map<String, List<EntityMutation>> corpus = buildCorpus(evita, options);
-			final List<PassResult> results = new ArrayList<>(options.pairs() * 2);
-			for (int pair = 0; pair < options.pairs(); pair++) {
-				results.add(runPass(evita, corpus, pair, false));
-				results.add(runPass(evita, corpus, pair, true));
+			final List<PassResult> results = new ArrayList<>(options.passes());
+			for (int pass = 0; pass < options.passes(); pass++) {
+				results.add(runPass(evita, corpus, pass));
 			}
 			printReport(options, corpus, results);
 		} finally {
-			WarmUpSavepoint.setEnabled(originalFlag);
 			evita.close();
 			cleanupTestPaths(paths);
 		}
@@ -560,23 +560,21 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs one measured pass: a fresh catalog, the schemas (untimed), then the corpus replayed into it with the
-	 * mechanism in the requested state, then `goLiveAndClose()`, then verification, then the catalog is dropped.
+	 * Runs one measured pass: a fresh catalog, the schemas (untimed), then the corpus replayed into it, then
+	 * `goLiveAndClose()`, then verification, then the catalog is dropped.
 	 *
-	 * @param evita       the embedded instance
-	 * @param corpus      the mutations to replay, keyed by collection in insertion order
-	 * @param pair        index of the OFF/ON pair this pass belongs to
-	 * @param savepointOn whether per-entity warm-up atomicity is switched on for this pass
+	 * @param evita  the embedded instance
+	 * @param corpus the mutations to replay, keyed by collection in insertion order
+	 * @param pass   index of this pass
 	 * @return the measurement of this pass
 	 */
 	@Nonnull
 	private PassResult runPass(
 		@Nonnull Evita evita,
 		@Nonnull Map<String, List<EntityMutation>> corpus,
-		int pair,
-		boolean savepointOn
+		int pass
 	) {
-		final String catalogName = PASS_CATALOG_PREFIX + pair + (savepointOn ? "On" : "Off");
+		final String catalogName = PASS_CATALOG_PREFIX + pass;
 		evita.deleteCatalogIfExists(catalogName);
 		evita.defineCatalog(catalogName);
 		// schema creation is a fixed cost unrelated to the mechanism, so it happens in its own session, untimed
@@ -589,8 +587,6 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 
 		settle();
 
-		// the flag is a process-wide static and may only change between catalogs, never during one
-		WarmUpSavepoint.setEnabled(savepointOn);
 		final long gcCountBefore = gcCount();
 		final long gcTimeBefore = gcTimeMillis();
 		// mirrors the array-holder idiom of WarmupCopyCatalogBenchmark: the session lambda is a Consumer, so the
@@ -628,7 +624,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				session.goLiveAndClose();
 
 				holder[0] = new PassResult(
-					pair, savepointOn, ingestThreadName,
+					pass, ingestThreadName,
 					ingestWallNanos, ingestCpuNanos, ingestAllocatedBytes, ingestProcessCpuNanos,
 					System.nanoTime() - goLiveWallStart,
 					goLiveProcessCpuStart < 0L ? -1L : processCpuTime() - goLiveProcessCpuStart,
@@ -637,7 +633,6 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				);
 			}
 		);
-		WarmUpSavepoint.setEnabled(false);
 
 		verify(evita, catalogName, corpus);
 		evita.deleteCatalogIfExists(catalogName);
@@ -708,7 +703,9 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	}
 
 	/**
-	 * Prints the per-pass table and the reduction of the measured pairs to a median delta.
+	 * Prints the per-pass table and the reduction of the measured passes to medians. The medians are the numbers to
+	 * quote and the numbers to compare against another git revision's run of this same program on the same seed and
+	 * machine — see the class documentation for why an A/B cannot happen inside one JVM.
 	 *
 	 * @param options the parsed command-line options
 	 * @param corpus  the replayed corpus, for the entity total
@@ -730,17 +727,16 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			System.out.printf("  %-18s: %,d%n", collection.getKey(), collection.getValue().size());
 		}
 		System.out.printf("Ingest thread           : %s%n", results.get(0).ingestThreadName());
-		System.out.printf("Pairs (first discarded) : %d%n", options.pairs());
+		System.out.printf("Passes (first discarded): %d%n", options.passes());
 		System.out.println("------------------------------------------------------------------------------");
 		System.out.printf(
-			"%-5s %-4s %10s %10s %11s %9s %9s %8s %10s%n",
-			"pair", "mode", "wall s", "cpu s", "ent/s(cpu)", "alloc GB", "procCpu s", "gc ms", "goLive s"
+			"%-5s %10s %10s %11s %9s %9s %8s %10s%n",
+			"pass", "wall s", "cpu s", "ent/s(cpu)", "alloc GB", "procCpu s", "gc ms", "goLive s"
 		);
 		for (final PassResult result : results) {
 			System.out.printf(
-				"%-5d %-4s %10.2f %10.2f %11.0f %9s %9.2f %8d %10.2f%n",
-				result.pair(),
-				result.savepointOn() ? "ON" : "OFF",
+				"%-5d %10.2f %10.2f %11.0f %9s %9.2f %8d %10.2f%n",
+				result.pass(),
 				seconds(result.ingestWallNanos()),
 				seconds(result.ingestCpuNanos()),
 				entities / seconds(result.ingestCpuNanos()),
@@ -753,30 +749,30 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		}
 		System.out.println("------------------------------------------------------------------------------");
 
-		// the first pair is JIT warm-up and is never part of the verdict
-		final int measuredPairs = options.pairs() - 1;
-		if (measuredPairs < 1) {
+		// the first pass is JIT warm-up and is never part of the verdict
+		final int measuredPasses = options.passes() - 1;
+		if (measuredPasses < 1) {
 			System.out.println(
-				"Only the warm-up pair was run - re-run with --pairs=2 or more to get a delta worth quoting."
+				"Only the warm-up pass was run - re-run with --passes=2 or more to get a number worth quoting."
 			);
 			System.out.println("==============================================================================");
 			return;
 		}
-		final double[] cpuDeltas = new double[measuredPairs];
-		final double[] wallDeltas = new double[measuredPairs];
-		final double[] allocDeltas = new double[measuredPairs];
-		for (int pair = 1; pair < options.pairs(); pair++) {
-			final PassResult off = results.get(pair * 2);
-			final PassResult on = results.get(pair * 2 + 1);
-			cpuDeltas[pair - 1] = 100.0 * (on.ingestCpuNanos() - off.ingestCpuNanos()) / off.ingestCpuNanos();
-			wallDeltas[pair - 1] = 100.0 * (on.ingestWallNanos() - off.ingestWallNanos()) / off.ingestWallNanos();
-			allocDeltas[pair - 1] = off.ingestAllocatedBytes() <= 0L ?
-				Double.NaN :
-				100.0 * (on.ingestAllocatedBytes() - off.ingestAllocatedBytes()) / off.ingestAllocatedBytes();
+		final double[] cpuSeconds = new double[measuredPasses];
+		final double[] wallSeconds = new double[measuredPasses];
+		final double[] allocatedGigabytes = new double[measuredPasses];
+		for (int pass = 1; pass < options.passes(); pass++) {
+			final PassResult result = results.get(pass);
+			cpuSeconds[pass - 1] = seconds(result.ingestCpuNanos());
+			wallSeconds[pass - 1] = seconds(result.ingestWallNanos());
+			allocatedGigabytes[pass - 1] = result.ingestAllocatedBytes() < 0L ?
+				Double.NaN : result.ingestAllocatedBytes() / (1024.0 * 1024.0 * 1024.0);
 		}
-		System.out.printf("Median ingest-thread CPU delta (ON vs OFF) : %+.2f %%%n", median(cpuDeltas));
-		System.out.printf("Median ingest wall-clock delta (ON vs OFF) : %+.2f %%%n", median(wallDeltas));
-		System.out.printf("Median ingest allocation delta (ON vs OFF) : %+.2f %%%n", median(allocDeltas));
+		final double medianCpuSeconds = median(cpuSeconds);
+		System.out.printf("Median ingest-thread CPU    : %.2f s%n", medianCpuSeconds);
+		System.out.printf("Median ingest throughput    : %,.0f entities/s (cpu)%n", entities / medianCpuSeconds);
+		System.out.printf("Median ingest wall clock    : %.2f s%n", median(wallSeconds));
+		System.out.printf("Median ingest allocation    : %.2f GB%n", median(allocatedGigabytes));
 		System.out.println("==============================================================================");
 	}
 
@@ -789,7 +785,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	 * @param storeCount          number of `STORE` entities
 	 * @param parameterCount      number of `PARAMETER` entities
 	 * @param parameterGroupCount number of `PARAMETER_GROUP` entities
-	 * @param pairs               number of OFF/ON pairs to run; the first is discarded as JIT warm-up
+	 * @param passes              number of passes to run; the first is discarded as JIT warm-up
 	 * @param seed                seed of the corpus generation
 	 * @param directory           directory the throwaway storage of this run lives under
 	 */
@@ -800,7 +796,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		int storeCount,
 		int parameterCount,
 		int parameterGroupCount,
-		int pairs,
+		int passes,
 		long seed,
 		@Nonnull Path directory
 	) {
@@ -824,7 +820,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			int storeCount = 12;
 			int parameterCount = 200;
 			int parameterGroupCount = 20;
-			int pairs = 3;
+			int passes = 6;
 			long seed = 42L;
 			Path directory = Path.of(DEFAULT_DIRECTORY);
 
@@ -833,7 +829,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				if (!arg.startsWith("--") || separator < 0) {
 					throw new IllegalArgumentException(
 						"Unrecognized argument `" + arg + "` - expected `--key=value`. Supported keys: products, " +
-							"categories, brands, stores, parameters, parameterGroups, pairs, seed, dir."
+							"categories, brands, stores, parameters, parameterGroups, passes, seed, dir."
 					);
 				}
 				final String key = arg.substring(2, separator);
@@ -845,23 +841,23 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 					case "stores" -> storeCount = Integer.parseInt(value);
 					case "parameters" -> parameterCount = Integer.parseInt(value);
 					case "parameterGroups" -> parameterGroupCount = Integer.parseInt(value);
-					case "pairs" -> pairs = Integer.parseInt(value);
+					case "passes" -> passes = Integer.parseInt(value);
 					case "seed" -> seed = Long.parseLong(value);
 					case "dir" -> directory = Path.of(value);
 					default -> throw new IllegalArgumentException(
 						"Unknown option `--" + key + "`. Supported keys: products, categories, brands, stores, " +
-							"parameters, parameterGroups, pairs, seed, dir."
+							"parameters, parameterGroups, passes, seed, dir."
 					);
 				}
 			}
-			if (pairs < 1) {
-					throw new IllegalArgumentException(
-					"At least one OFF/ON pair has to be run, got `--pairs=" + pairs + "`."
+			if (passes < 1) {
+				throw new IllegalArgumentException(
+					"At least one pass has to be run, got `--passes=" + passes + "`."
 				);
 			}
 			return new Options(
 				productCount, categoryCount, brandCount, storeCount, parameterCount, parameterGroupCount,
-				pairs, seed, directory
+				passes, seed, directory
 			);
 		}
 	}
@@ -869,8 +865,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	/**
 	 * Everything one pass measured.
 	 *
-	 * @param pair                  index of the OFF/ON pair this pass belongs to
-	 * @param savepointOn           whether per-entity warm-up atomicity was switched on
+	 * @param pass                  index of this pass
 	 * @param ingestThreadName      name of the thread that executed the upserts, reported so the reader can confirm
 	 *                              the per-thread readings describe the thread they are supposed to
 	 * @param ingestWallNanos       wall clock of the ingest loop
@@ -883,8 +878,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	 * @param gcTimeMillis          approximate garbage collection time during the pass
 	 */
 	private record PassResult(
-		int pair,
-		boolean savepointOn,
+		int pass,
 		@Nonnull String ingestThreadName,
 		long ingestWallNanos,
 		long ingestCpuNanos,

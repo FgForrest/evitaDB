@@ -35,7 +35,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
-import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +60,6 @@ import static io.evitadb.test.TestTags.SESSION;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiresDefaultWarmUpWritePath
 @DisplayName("Session killer functionality")
 @Tag(SLOW)
 @Tag(ENGINE)

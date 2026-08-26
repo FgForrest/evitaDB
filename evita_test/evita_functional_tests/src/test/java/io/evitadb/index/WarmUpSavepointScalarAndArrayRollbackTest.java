@@ -63,8 +63,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * pre-savepoint value here.
  *
  * The savepoint is opened directly rather than through `LocalMutationExecutorCollector`, because what is under test is
- * the structures' own journaling and not the bracket; the enablement flag only gates who opens a savepoint, never what
- * an open one records, so no test here touches it.
+ * the structures' own journaling and not the bracket — an open savepoint records the same thing however it came to be
+ * open.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see WarmUpSavepointCollectionRollbackTest for the structures that journal per operation instead

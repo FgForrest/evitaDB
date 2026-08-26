@@ -72,8 +72,8 @@ public interface TimeBoundedTestSupport {
 	 * {@link GenerationalTestInput#intervalInMinutes()} can express.
 	 *
 	 * It exists for generative cases that must not occupy a full minute each — the warm-up half of the savepoint fuzz
-	 * matrix being the one that motivated it, because the mechanism's enablement flag is a process-wide static and its
-	 * suites therefore have to run exclusively rather than fanned out across the surefire threads. Everything else is
+	 * matrix being the one that motivated it, because that matrix doubles the method count of every scenario it covers
+	 * and a full minute apiece would price a full sweep out of reach. Everything else is
 	 * identical to {@link #runFor(GenerationalTestInput, int, Object, BiFunction, BiConsumer)}: the same seeded
 	 * {@link Random}, the same progress echo, and the same seed enrichment of a failure so the run can be reproduced
 	 * with `-Dtest.seed=...`.
