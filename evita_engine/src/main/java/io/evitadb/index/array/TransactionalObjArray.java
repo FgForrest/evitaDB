@@ -28,9 +28,11 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,8 +63,15 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  */
 @ThreadSafe
 public class TransactionalObjArray<T>
-	implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
+	implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 3207853222537134300L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	@Nonnull private T[] delegate;
 	@Nonnull private final Comparator<T> comparator;

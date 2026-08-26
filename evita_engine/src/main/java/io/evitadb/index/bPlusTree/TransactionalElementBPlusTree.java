@@ -30,11 +30,14 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -973,7 +976,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		final VMLayout layout = VMLayout.current();
 		// id + four block-size ints + elementType/keyExtractor/root/size slots
 		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 4L * layout.referenceSize());
-		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// the holder carries the warmUpTouchStamp beside its id, so it is two longs wide before its value slot
+		final long transactionalReference = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
 		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
 		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
@@ -1448,6 +1452,18 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		IntBoundaryKeyedNode,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<E>> {
 		@Serial private static final long serialVersionUID = 4087516269781010854L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -1611,10 +1627,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + dirty + keyExtractor/values slots + peek + pageSequence. There is no key
+			// id + warmUpTouchStamp + transactionalLayer + dirty + keyExtractor/values slots + peek
+			// + pageSequence. There is no key
 			// array at all - this leaf derives each key from its element through the extractor, which is one lambda
 			// shared by every node of the tree and so contributes only its slot
-			long size = layout.sizeOfObject(Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
+			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
 			// the elements are exactly the case the sizer exists for: a PriceListAndCurrencyPriceRefIndex holds the
 			// very same PriceRecord instances as the super index, so it sizes this tree spine-only (sizer -> 0)

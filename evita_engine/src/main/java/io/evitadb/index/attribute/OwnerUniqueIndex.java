@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.IndexHeapSize;
@@ -50,6 +51,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -86,8 +89,15 @@ import static io.evitadb.utils.Assert.isTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public final class OwnerUniqueIndex extends UniqueIndex {
+public final class OwnerUniqueIndex extends UniqueIndex implements WarmUpTouchStamped {
 	@Serial private static final long serialVersionUID = 2639205026498958517L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Single page stream per owner unique index — its value bucket tree (mirrors {@code InvertedIndex.BUCKET_PAGE_STREAM}).
@@ -332,8 +342,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds / memoizedAllRecordsFormula slots
-		return getSharedHeapSizeInBytes(7L * layout.referenceSize())
+		// the warmUpTouchStamp, then the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds /
+		// memoizedAllRecordsFormula slots - the mark is this subclass's field, so it belongs to its own bytes
+		return getSharedHeapSizeInBytes(Long.BYTES + 7L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.recordIds.getHeapSizeInBytes()

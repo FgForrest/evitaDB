@@ -24,10 +24,13 @@
 package io.evitadb.core.collection;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -56,7 +59,14 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see EntityCollection#getIndexCount()
  */
-final class IndexPopulation {
+final class IndexPopulation implements WarmUpTouchStamped {
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private long warmUpTouchStamp;
 	/**
 	 * Number of scopes, which is the stride of {@link #countsByTypeAndScope}.
 	 */

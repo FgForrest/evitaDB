@@ -28,8 +28,10 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,8 +53,16 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalBoolean implements TransactionalLayerProducer<BooleanChanges, Boolean>, Serializable {
+public class TransactionalBoolean
+	implements TransactionalLayerProducer<BooleanChanges, Boolean>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 7796376128158582312L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private boolean value;
 
@@ -173,8 +183,8 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	public long getHeapSizeInBytes() {
-		// id + the boolean
-		return VMLayout.current().sizeOfObject(Long.BYTES + 1L);
+		// id + warmUpTouchStamp + the boolean
+		return VMLayout.current().sizeOfObject(2L * Long.BYTES + 1L);
 	}
 
 	/*

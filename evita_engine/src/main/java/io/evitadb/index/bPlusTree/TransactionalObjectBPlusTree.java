@@ -30,12 +30,15 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjTriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1177,6 +1180,18 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		ObjectKeyedNode<M>,
 		Snapshotable<BPlusInternalTreeNode.BPlusInternalNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = -7185842083654066615L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use themselves
@@ -1351,8 +1366,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + keys/children slots + peek
-			long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+			// id + warmUpTouchStamp + transactionalLayer + keys/children slots + peek
+			long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
 			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
 			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 			// separator keys are boxed here, and are often the very instances the leaves below hold, so they go
@@ -1991,6 +2006,18 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		ObjectKeyedNode<M>,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<M, N>> {
 		@Serial private static final long serialVersionUID = 8382269323782408764L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use themselves
@@ -2179,8 +2206,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + wrapper/keys/values slots + peek
-			long size = layout.sizeOfObject(Long.BYTES + 1L + 3L * layout.referenceSize() + Integer.BYTES);
+			// id + warmUpTouchStamp + transactionalLayer + wrapper/keys/values slots + peek
+			long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 3L * layout.referenceSize() + Integer.BYTES);
 			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
 			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
 			// both the boxed keys and the stored values are the caller's to price

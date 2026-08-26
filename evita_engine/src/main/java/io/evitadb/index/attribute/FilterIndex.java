@@ -49,6 +49,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
@@ -62,6 +63,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -107,7 +109,7 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public abstract sealed class FilterIndex implements IndexDataStructure, Serializable
+public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTouchStamped, Serializable
 	permits OwnerFilterIndex, FilterIndexView {
 	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
@@ -117,6 +119,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM_POINTS = new ValueToRecordBitmap[0];
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	/**
 	 * Aggregation lambda used by {@link #getRangeHistogramOfAllRecords(Class, int)} when producing the subset's
@@ -597,9 +606,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
-		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
+		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int and the
+		// warmUpTouchStamp
 		long size = layout.sizeOfObject(
-			8L * layout.referenceSize() + Integer.BYTES + ownFieldBytes
+			8L * layout.referenceSize() + Integer.BYTES + Long.BYTES + ownFieldBytes
 		);
 		size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
 		if (this.memoizedAllRecordsFormula instanceof final ConstantFormula unionFormula

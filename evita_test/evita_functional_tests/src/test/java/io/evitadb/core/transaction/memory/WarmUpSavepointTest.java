@@ -272,8 +272,10 @@ class WarmUpSavepointTest {
 		@Test
 		@DisplayName("Dedup is by instance identity, not equality")
 		void shouldDedupByIdentityRatherThanEquality() {
-			// two distinct participants that compare equal must still be captured separately - sharing one entry would
-			// silently leave the second one unrewindable
+			// two distinct participants that compare equal must still be captured separately - sharing one capture
+			// would silently leave the second one unrewindable. The mark each participant carries makes this true by
+			// construction rather than by a lookup policy, and the test pins it so a future dedup keyed on anything
+			// but the instance itself fails here
 			final EqualByNameLayer first = new EqualByNameLayer("shared", 1);
 			final EqualByNameLayer second = new EqualByNameLayer("shared", 10);
 			assertEquals(first, second, "The fixture must supply two equal-but-distinct participants.");
@@ -287,6 +289,55 @@ class WarmUpSavepointTest {
 			savepoint.rollback();
 			assertEquals(1, first.value);
 			assertEquals(10, second.value);
+		}
+
+		@Test
+		@DisplayName("A second savepoint captures a participant the first one already captured")
+		void shouldCaptureAgainInTheNextSavepoint() {
+			// the never-cleared-mark property: a closed savepoint leaves its stamp on every participant it captured,
+			// and the next savepoint must NOT read that leftover as its own. A stale mark satisfying a later savepoint
+			// would skip that participant's capture and let a rollback report success over state it never rewound
+			final RecordingLayer layer = new RecordingLayer("a", 1);
+
+			final WarmUpSavepoint first = WarmUpSavepoint.open();
+			first.recordFirstTouch(layer);
+			layer.value = 2;
+			first.commit();
+			assertEquals(2, layer.value, "self-check: the first savepoint kept its change.");
+			assertEquals(1, layer.snapshotCount, "The first savepoint must capture the participant once.");
+
+			final WarmUpSavepoint second = WarmUpSavepoint.open();
+			second.recordFirstTouch(layer);
+			layer.value = 3;
+			second.rollback();
+
+			assertEquals(
+				2, layer.snapshotCount,
+				"The second savepoint must capture the participant again - its mark from the first must not match."
+			);
+			assertEquals(
+				2, layer.value,
+				"The second rollback must rewind to the value the FIRST savepoint committed, not to the original."
+			);
+		}
+
+		@Test
+		@DisplayName("A second savepoint re-claims a self-capturing participant the first one already claimed")
+		void shouldReclaimSelfCapturedFirstTouchInTheNextSavepoint() {
+			// the same never-cleared-mark property on the self-capture API, where a stale match would stop the
+			// participant from ever pushing its inverse
+			final StampedCounter participant = new StampedCounter();
+
+			final WarmUpSavepoint first = WarmUpSavepoint.open();
+			assertTrue(first.claimFirstTouch(participant), "The first savepoint must be able to claim the touch.");
+			first.commit();
+
+			final WarmUpSavepoint second = WarmUpSavepoint.open();
+			assertTrue(
+				second.claimFirstTouch(participant),
+				"The next savepoint must claim its own first touch - the previous savepoint's mark is stale."
+			);
+			second.commit();
 		}
 	}
 
@@ -317,7 +368,7 @@ class WarmUpSavepointTest {
 		@Test
 		@DisplayName("A participant that is not Snapshotable claims its first touch exactly once")
 		void shouldClaimFirstTouchOnceForNonSnapshotableParticipant() {
-			final Object participant = new Object();
+			final StampedCounter participant = new StampedCounter();
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 
 			assertTrue(savepoint.claimFirstTouch(participant), "The first touch must be claimable.");
@@ -376,15 +427,26 @@ class WarmUpSavepointTest {
 	 * Minimal {@link Snapshotable} stand-in holding a single mutable `int`, which appends every lifecycle callback to
 	 * the enclosing test's shared event log and counts how often it was snapshotted / released.
 	 */
-	private class RecordingLayer implements Snapshotable<Integer> {
+	private class RecordingLayer implements Snapshotable<Integer>, WarmUpTouchStamped {
 		final String name;
 		int value;
 		int snapshotCount;
 		int releaseCount;
+		private long warmUpTouchStamp;
 
 		RecordingLayer(@Nonnull String name, int value) {
 			this.name = name;
 			this.value = value;
+		}
+
+		@Override
+		public long getWarmUpTouchStamp() {
+			return this.warmUpTouchStamp;
+		}
+
+		@Override
+		public void setWarmUpTouchStamp(long stamp) {
+			this.warmUpTouchStamp = stamp;
 		}
 
 		@Nonnull
@@ -405,6 +467,25 @@ class WarmUpSavepointTest {
 		public void releaseMemento(@Nonnull Integer memento) {
 			this.releaseCount++;
 			WarmUpSavepointTest.this.events.add(this.name + ":release");
+		}
+	}
+
+	/**
+	 * Minimal stand-in for a participant that captures its OWN pre-image: it carries the first-touch mark the
+	 * savepoint's dedup needs and is deliberately NOT a {@link Snapshotable}, which is what makes it eligible for
+	 * {@link WarmUpSavepoint#claimFirstTouch(WarmUpTouchStamped)}.
+	 */
+	private static class StampedCounter implements WarmUpTouchStamped {
+		private long warmUpTouchStamp;
+
+		@Override
+		public long getWarmUpTouchStamp() {
+			return this.warmUpTouchStamp;
+		}
+
+		@Override
+		public void setWarmUpTouchStamp(long stamp) {
+			this.warmUpTouchStamp = stamp;
 		}
 	}
 

@@ -34,6 +34,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.UndoJournal;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
@@ -48,6 +49,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStor
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -78,7 +81,15 @@ import static java.util.Optional.ofNullable;
  * @see DataStoreMemoryBuffer
  */
 @NotThreadSafe
-public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStoreChangesMemento> {
+public class DataStoreChanges
+	implements Snapshotable<DataStoreChanges.DataStoreChangesMemento>, WarmUpTouchStamped {
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private long warmUpTouchStamp;
 	/**
 	 * This map contains index of "dirty" entity indexes - i.e. subset of {@link EntityCollection indexes} that were
 	 * modified and not yet persisted.

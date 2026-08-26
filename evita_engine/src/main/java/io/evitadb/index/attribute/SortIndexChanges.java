@@ -27,10 +27,13 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.VMLayout;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,8 +54,15 @@ import static io.evitadb.index.attribute.SortIndex.invert;
  */
 @NotThreadSafe
 public class SortIndexChanges
-	implements Serializable, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
+	implements Serializable, WarmUpTouchStamped, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
 	@Serial private static final long serialVersionUID = -4791973822619493092L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Reference to the {@link SortIndex} this data structure is linked to.
@@ -279,8 +289,8 @@ public class SortIndexChanges
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the sortIndex back-reference plus the two cache slots
-		long size = layout.sizeOfObject(3L * layout.referenceSize());
+		// warmUpTouchStamp + the sortIndex back-reference plus the two cache slots
+		long size = layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize());
 		if (this.memoizedAscending != null) {
 			size += sizeOfMaterializedSortRecords(this.memoizedAscending, true);
 		}

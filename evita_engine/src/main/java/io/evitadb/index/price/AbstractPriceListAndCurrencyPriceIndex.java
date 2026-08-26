@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -47,6 +48,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,7 +74,14 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends AbstractPriceListAndCurrencyPriceIndex<SELF>>
 	implements VoidTransactionMemoryProducer<SELF>,
 	PriceListAndCurrencyPriceIndex<SELF>,
-	IndexDataStructure, Serializable {
+	IndexDataStructure, WarmUpTouchStamped, Serializable {
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Shared empty array reused by callers that need to return "no price records" without per-call
@@ -477,10 +486,10 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 */
 	protected long getBaseHeapSizeInBytes(@Nonnull ToLongFunction<Object> priceRecordSizer, long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
-		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords
-		// /terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the instance
-		// carries ONE header, so the whole hierarchy's fields are sized in a single call
-		long size = layout.sizeOfObject(Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
+		// id + warmUpTouchStamp, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex
+		// /priceRecords/terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the
+		// instance carries ONE header, so the whole hierarchy's fields are sized in a single call
+		long size = layout.sizeOfObject(2L * Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.terminated.getHeapSizeInBytes();
 		size += this.indexedPriceIds.getHeapSizeInBytes();

@@ -27,12 +27,15 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.VMLayout;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,9 +66,16 @@ import static io.evitadb.index.attribute.SortIndex.invert;
  */
 @NotThreadSafe
 public class ChainIndexChanges
-	implements Serializable, Snapshotable<ChainIndexChanges.ChainIndexChangesMemento> {
+	implements Serializable, WarmUpTouchStamped, Snapshotable<ChainIndexChanges.ChainIndexChangesMemento> {
 
 	@Serial private static final long serialVersionUID = -1108329020855413122L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * Default implementation of {@link SortedComparableForwardSeeker} for chainable types. It makes no sense to
 	 * attempt to compare two chainable types, so this implementation throws an exception.
@@ -143,8 +153,8 @@ public class ChainIndexChanges
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the chainIndex back-reference plus the two cache slots
-		long size = layout.sizeOfObject(3L * layout.referenceSize());
+		// warmUpTouchStamp + the chainIndex back-reference plus the two cache slots
+		long size = layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize());
 		if (this.unorderedLookup != null) {
 			size += this.unorderedLookup.getHeapSizeInBytes();
 		}

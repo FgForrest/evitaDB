@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -35,6 +36,7 @@ import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -84,8 +86,16 @@ import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 public class UnorderedLookupTree implements
 	TransactionalLayerProducer<Void, UnorderedLookupTree>,
 	ConsistencySensitiveDataStructure,
+	WarmUpTouchStamped,
 	Serializable {
 	@Serial private static final long serialVersionUID = -7242020610200620162L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Default (and maximum) physical capacity of a single node block (both container record slots and internal child
@@ -344,12 +354,14 @@ public class UnorderedLookupTree implements
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + orderKeyGap + five block-size ints + headAware/paged + root/size/memoizedArray slots
+		// id + orderKeyGap + warmUpTouchStamp + five block-size ints + headAware/paged
+		// + root/size/memoizedArray slots
 		long size = layout.sizeOfObject(
-			2L * Long.BYTES + 5L * Integer.BYTES + 2L + 3L * layout.referenceSize()
+			3L * Long.BYTES + 5L * Integer.BYTES + 2L + 3L * layout.referenceSize()
 		);
 		// each TransactionalReference is itself an object wrapping an AtomicReference
-		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// the holder carries the warmUpTouchStamp beside its id, so it is two longs wide before its value slot
+		final long transactionalReference = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
 		size += 2L * transactionalReference;
 		// the size reference holds a boxed Integer - see the note above on why it is charged outright
@@ -2669,7 +2681,7 @@ public class UnorderedLookupTree implements
 	 * first write, exactly like the reference B+ trees. The recursive `N` type binds the layer / copy type to the
 	 * concrete node type so the transactional accessors stay strongly typed.
 	 */
-	interface Node<N extends Node<N>> extends TransactionalLayerProducer<N, N>, Serializable {
+	interface Node<N extends Node<N>> extends TransactionalLayerProducer<N, N>, WarmUpTouchStamped, Serializable {
 
 		/**
 		 * Returns the heap this node and everything below it occupies, in bytes.
@@ -2706,6 +2718,18 @@ public class UnorderedLookupTree implements
 	 */
 	static final class LeafNode implements Node<LeafNode>, Snapshotable<LeafNode.LeafNodeMemento> {
 		@Serial private static final long serialVersionUID = -2510718704128926730L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -2794,9 +2818,10 @@ public class UnorderedLookupTree implements
 		@Override
 		public long getHeapSizeInBytes() {
 			final VMLayout layout = VMLayout.current();
-			// id + orderKey + transactionalLayer + dirty + count + pageSequence + recordIds/headMask slots
+			// id + warmUpTouchStamp + orderKey + transactionalLayer + dirty + count + pageSequence
+			// + recordIds/headMask slots
 			long size = layout.sizeOfObject(
-				2L * Long.BYTES + 2L + 2L * Integer.BYTES + 2L * layout.referenceSize()
+				3L * Long.BYTES + 2L + 2L * Integer.BYTES + 2L * layout.referenceSize()
 			);
 			// the record array is allocated at `leafCapacity + 1` and never trimmed, so the slack above `count` is
 			// real occupied heap and is reported as such
@@ -3127,6 +3152,18 @@ public class UnorderedLookupTree implements
 	 */
 	static final class InternalNode implements Node<InternalNode>, Snapshotable<InternalNode.InternalNodeMemento> {
 		@Serial private static final long serialVersionUID = 1791772842933035170L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers (see the matching field
@@ -3194,9 +3231,9 @@ public class UnorderedLookupTree implements
 		@Override
 		public long getHeapSizeInBytes() {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + childCount + children/separators/counts/headCounts slots
+			// id + warmUpTouchStamp + transactionalLayer + childCount + children/separators/counts/headCounts slots
 			long size = layout.sizeOfObject(
-				Long.BYTES + 1L + Integer.BYTES + 4L * layout.referenceSize()
+				2L * Long.BYTES + 1L + Integer.BYTES + 4L * layout.referenceSize()
 			);
 			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 			size += layout.sizeOfArray(this.separators.length, Long.BYTES);

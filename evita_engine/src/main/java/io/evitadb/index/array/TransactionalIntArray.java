@@ -28,11 +28,13 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,8 +65,16 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class TransactionalIntArray implements TransactionalLayerProducer<IntArrayChanges, int[]>, Serializable {
+public class TransactionalIntArray
+	implements TransactionalLayerProducer<IntArrayChanges, int[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 7259098757116568796L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private int[] delegate;
 
@@ -100,8 +110,8 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the delegate slot
-		final long ownSize = layout.sizeOfObject(Long.BYTES + layout.referenceSize());
+		// id + warmUpTouchStamp + the delegate slot
+		final long ownSize = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize());
 		return this.delegate == ArrayUtils.EMPTY_INT_ARRAY ?
 			ownSize : ownSize + layout.sizeOfArray(this.delegate.length, Integer.BYTES);
 	}

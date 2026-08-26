@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -59,6 +60,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -101,8 +103,16 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ReferenceTypeCardinalityIndex
-	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure, Serializable {
+	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure,
+	WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -7416602590381722682L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Block-size geometry of the cardinality bucket tree — a 256-entry leaf with the matching minimum split thresholds
@@ -692,9 +702,9 @@ public class ReferenceTypeCardinalityIndex
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
+		// warmUpTouchStamp + the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
 		// memoizedAllReferencedPrimaryKeys slots
-		long size = layout.sizeOfObject(5L * layout.referenceSize())
+		long size = layout.sizeOfObject(Long.BYTES + 5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.cardinalities.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(

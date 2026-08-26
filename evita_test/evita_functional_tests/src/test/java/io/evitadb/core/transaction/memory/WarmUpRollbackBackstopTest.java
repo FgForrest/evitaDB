@@ -201,13 +201,24 @@ class WarmUpRollbackBackstopTest {
 	 * it has done so. The counterpart of {@link UnjournalledCounter}, so the two differ in exactly the property under
 	 * test.
 	 */
-	private static class JournalledCounter implements TransactionalLayerCreator<Object> {
+	private static class JournalledCounter implements TransactionalLayerCreator<Object>, WarmUpTouchStamped {
 		private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		private int value;
+		private long warmUpTouchStamp;
 
 		@Override
 		public long getId() {
 			return this.id;
+		}
+
+		@Override
+		public long getWarmUpTouchStamp() {
+			return this.warmUpTouchStamp;
+		}
+
+		@Override
+		public void setWarmUpTouchStamp(long stamp) {
+			this.warmUpTouchStamp = stamp;
 		}
 
 		@Nullable

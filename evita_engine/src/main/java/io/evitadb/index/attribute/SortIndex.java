@@ -38,6 +38,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -59,6 +60,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -114,9 +116,16 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public abstract sealed class SortIndex
 	implements SortedRecordsSupplierFactory, TransactionalLayerProducer<SortIndexChanges, SortIndex>,
-	IndexDataStructure, Serializable
+	IndexDataStructure, WarmUpTouchStamped, Serializable
 	permits OwnerSortIndex, SortIndexView {
 	@Serial private static final long serialVersionUID = 5862170244589598450L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * Contains record ids sorted by assigned values. The array is divided in so called record ids block that respects
 	 * order in the index's value ordering. Record ids within the same block are sorted naturally by their integer id.
@@ -905,10 +914,10 @@ public abstract sealed class SortIndex
 	 */
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
-		// id + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer / comparator / referenceKey
-		// / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
+		// id + warmUpTouchStamp + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer /
+		// comparator / referenceKey / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
 		long size = layout.sizeOfObject(
-			Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
+			2L * Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
 		)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.sortedRecords.getHeapSizeInBytes()

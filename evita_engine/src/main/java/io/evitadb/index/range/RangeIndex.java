@@ -37,6 +37,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -49,6 +50,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -90,8 +92,16 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
+public class RangeIndex
+	implements VoidTransactionMemoryProducer<RangeIndex>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link TransactionalRangePoint}.
@@ -909,8 +919,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
-		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+		// id + warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.ranges.getHeapSizeInBytes(
 				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()

@@ -26,6 +26,7 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -49,6 +50,7 @@ import java.util.function.ToLongFunction;
 public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	extends
 	TransactionalLayerProducer<N, N>,
+	WarmUpTouchStamped,
 	Serializable {
 
 	/**

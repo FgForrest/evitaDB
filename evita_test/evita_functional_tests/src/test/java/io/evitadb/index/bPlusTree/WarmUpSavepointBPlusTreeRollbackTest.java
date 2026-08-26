@@ -26,6 +26,7 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.TreeMap;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -45,6 +47,8 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -656,6 +660,535 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 
 			assertEquals(expected, contents(tree), "Commit must keep every change made while the savepoint was open.");
 			assertConsistent(tree.getConsistencyReport(), "after a committed split");
+		}
+	}
+
+	/**
+	 * Covers the per-OPERATION half of `TransactionalBucketBPlusTree.BPlusLeafTreeNode`'s journalling, one test per
+	 * arm of the leaf mutators.
+	 *
+	 * The leaf is the one node in the family that does not take a whole-node memento for an ordinary bucket write: a
+	 * memento duplicates both columns plus a clone of the overflow array, which is most of the mechanism's cost on the
+	 * bulk-ingest profile for a write that reaches one slot. Each arm instead pushes an inverse restoring the single
+	 * bucket it touches, and the arms that write nothing into the columns — a record joining a bitmap bucket, a record
+	 * already held — push nothing at all.
+	 *
+	 * Every test therefore asserts TWO things, and the second is the one the contents comparison cannot see:
+	 *
+	 * - the rollback (or the commit) reaches the right state, as everywhere else in this class, and
+	 * - {@link WarmUpSavepoint#isCaptured} still answers `false` for the leaf, i.e. the write did NOT fall back to a
+	 *   whole-node memento. Without it a regression that quietly reinstated the memento would pass every test here
+	 *   while giving back the whole optimization.
+	 *
+	 * The interplay tests are the exception: they deliberately drive a structural operation onto a leaf that already
+	 * carries per-slot inverses, which is exactly when the memento SHOULD appear.
+	 */
+	@Nested
+	@DisplayName("TransactionalBucketBPlusTree — per-operation leaf journalling")
+	class BucketTreePerOperationJournalling {
+
+		/**
+		 * Builds a bucket tree of `count` consecutive single-record buckets, in leaves of eight.
+		 */
+		@Nonnull
+		private TransactionalBucketBPlusTree<Integer> newTree(int count) {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				8, 3, 7, 3, Integer.class, null
+			);
+			for (int i = 0; i < count; i++) {
+				tree.addRecord(i, i + 1);
+			}
+			return tree;
+		}
+
+		/**
+		 * Builds a `long`-payload bucket tree of `count` consecutive buckets, in leaves of eight.
+		 */
+		@Nonnull
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		private TransactionalBucketBPlusTree<Integer> newLongTree(int count) {
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(Integer.class, null);
+			//noinspection unchecked
+			final TransactionalBucketBPlusTree<Integer> tree = TransactionalBucketBPlusTree.withLongPayload(
+				8, 3, 7, 3, Integer.class, null, factory
+			);
+			for (int i = 0; i < count; i++) {
+				tree.addLongRecord(i, 1000L + i);
+			}
+			return tree;
+		}
+
+		/**
+		 * Reads the whole bucket-to-records mapping into a comparable reference value.
+		 */
+		@Nonnull
+		private TreeMap<Integer, List<Integer>> contents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final TreeMap<Integer, List<Integer>> result = new TreeMap<>();
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				final int[] array = cursor.records().getArray();
+				final List<Integer> records = new ArrayList<>(array.length);
+				for (final int record : array) {
+					records.add(record);
+				}
+				result.put(cursor.value(), records);
+			}
+			return result;
+		}
+
+		/**
+		 * Reads a `long`-payload tree's whole bucket-to-payload mapping into a comparable reference value.
+		 */
+		@Nonnull
+		private TreeMap<Integer, Long> longContents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final TreeMap<Integer, Long> result = new TreeMap<>();
+			for (int i = -20; i < 200; i++) {
+				final OptionalLong payload = tree.getLongRecordEqualTo(i);
+				if (payload.isPresent()) {
+					result.put(i, payload.getAsLong());
+				}
+			}
+			return result;
+		}
+
+		/**
+		 * Returns the tree's only leaf. Every test that asserts on the overflow column or on the absence of a
+		 * whole-node memento works on a single-leaf tree, so the mutation and the assertion cannot drift apart.
+		 */
+		@Nonnull
+		private BPlusLeafTreeNode<Integer> onlyLeaf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(1, leaves.size(), "self-check: this test needs a single-leaf tree");
+			return leaves.get(0);
+		}
+
+		/**
+		 * Asserts the leaf has NOT been given a whole-node memento inside the open savepoint — i.e. the writes it just
+		 * took were journalled per operation, which is the whole point of the mechanism under test.
+		 */
+		private void assertJournalledPerOperation(
+			@Nonnull WarmUpSavepoint savepoint,
+			@Nonnull BPlusLeafTreeNode<Integer> leaf
+		) {
+			assertFalse(
+				savepoint.isCaptured(leaf),
+				"The leaf must journal this write per operation, not fall back to a whole-node memento."
+			);
+		}
+
+		@Test
+		@DisplayName("A record joining a bitmap bucket journals nothing in the leaf and rewinds through the bitmap")
+		void shouldRewindMultiBucketAdditionThroughTheBitmapAlone() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			// promote bucket 0 BEFORE the savepoint, so the in-savepoint add lands on an existing bitmap
+			tree.addRecord(0, 900);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(0, 901);
+			assertEquals(List.of(1, 900, 901), contents(tree).get(0), "self-check: the bitmap took the new record");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore the bucket's pre-savepoint members.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back multi-bucket addition");
+		}
+
+		@Test
+		@DisplayName("Re-adding the record a single bucket already holds writes nothing and rewinds to itself")
+		void shouldLeaveASingleBucketUntouchedWhenItsOwnRecordIsReAdded() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(3, 4);
+			assertEquals(expected, contents(tree), "self-check: re-adding the held record is a no-op");
+			assertJournalledPerOperation(savepoint, leaf);
+			assertNull(leaf.getOverflow(), "self-check: a no-op must not allocate the overflow column");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must leave the untouched bucket exactly as it was.");
+			assertNull(leaf.getOverflow(), "Rollback must not have created an overflow column either.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back no-op addition");
+		}
+
+		@Test
+		@DisplayName("Rollback demotes a promoted bucket and drops the overflow column the promotion created")
+		void shouldDemoteAPromotedBucketAndDropTheOverflowColumnItCreated() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+			assertNull(leaf.getOverflow(), "self-check: the seeded leaf carries no overflow column");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(2, 777);
+			assertEquals(List.of(3, 777), contents(tree).get(2), "self-check: bucket 2 was promoted");
+			assertNotNull(leaf.getOverflow(), "self-check: the promotion allocated the overflow column");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(
+				expected, contents(tree),
+				"Rollback must demote the bucket back to the single record the record column still held."
+			);
+			assertNull(
+				leaf.getOverflow(),
+				"Rollback must drop the overflow column the promotion created, not leave an empty one behind."
+			);
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back promotion");
+		}
+
+		@Test
+		@DisplayName("A promotion into an existing overflow column keeps that column on rollback")
+		void shouldKeepAPreExistingOverflowColumnWhenDemotingAPromotedBucket() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			// bucket 5 is multi BEFORE the savepoint, so the leaf already owns an overflow column the rollback keeps
+			tree.addRecord(5, 950);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+			assertNotNull(leaf.getOverflow(), "self-check: the seeded leaf already carries an overflow column");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(1, 778);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must demote only the bucket the promotion touched.");
+			assertNotNull(
+				leaf.getOverflow(),
+				"Rollback must NOT drop an overflow column that already existed before the savepoint."
+			);
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back promotion into an existing column");
+		}
+
+		@Test
+		@DisplayName("Rollback deletes a bucket the savepoint inserted")
+		void shouldDeleteABucketInsertedInsideTheSavepoint() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(50, 51);
+			assertEquals(7, tree.bucketCount(), "self-check: the new bucket landed");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must remove the bucket the savepoint inserted.");
+			assertEquals(6, tree.bucketCount(), "Rollback must restore the bucket count.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back bucket insertion");
+		}
+
+		@Test
+		@DisplayName("Rollback deletes a multi-record bucket the savepoint inserted, column and all")
+		void shouldDeleteAMultiRecordBucketInsertedInsideTheSavepoint() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+			assertNull(leaf.getOverflow(), "self-check: the seeded leaf carries no overflow column");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(50, 51, 52, 53);
+			assertEquals(List.of(51, 52, 53), contents(tree).get(50), "self-check: the new bucket is a multi bucket");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must remove the multi bucket the savepoint inserted.");
+			assertNull(
+				leaf.getOverflow(),
+				"Rollback must drop the overflow column the multi-bucket insertion created."
+			);
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back multi-bucket insertion");
+		}
+
+		@Test
+		@DisplayName("Rollback demotes a bucket promoted by a bulk addition")
+		void shouldDemoteABucketPromotedByABulkAddition() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(4, 801, 802, 803);
+			assertEquals(List.of(5, 801, 802, 803), contents(tree).get(4), "self-check: bucket 4 was promoted");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must demote the bulk-promoted bucket.");
+			assertNull(leaf.getOverflow(), "Rollback must drop the overflow column the promotion created.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back bulk promotion");
+		}
+
+		@Test
+		@DisplayName("A partial removal from a bitmap bucket journals nothing in the leaf")
+		void shouldRewindAPartialMultiBucketRemovalThroughTheBitmapAlone() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			tree.addRecord(0, 900, 901);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(0, 900);
+			assertEquals(List.of(1, 901), contents(tree).get(0), "self-check: the bucket survived the removal");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must put the removed member back into the bitmap.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back partial removal");
+		}
+
+		@Test
+		@DisplayName("Rollback re-inserts a drained bitmap bucket and the bitmap then refills it")
+		void shouldReinsertADrainedBucketBeforeItsBitmapIsRefilled() {
+			// the ordering test: the bitmap's own removeAll inverse is pushed BEFORE the leaf's delete inverse, so
+			// reverse replay must re-attach the (empty) bucket first and only then put its members back
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			tree.addRecord(3, 930, 931);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(3, 4, 930, 931);
+			assertFalse(tree.contains(3), "self-check: the drained bucket was deleted");
+			assertEquals(5, tree.bucketCount(), "self-check: the bucket count dropped");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(
+				expected, contents(tree),
+				"Rollback must re-insert the drained bucket AND refill it with every member it held."
+			);
+			assertEquals(6, tree.bucketCount(), "Rollback must restore the bucket count.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back drain");
+		}
+
+		@Test
+		@DisplayName("Rollback re-inserts a deleted single-record bucket with the record it held")
+		void shouldReinsertADeletedSingleRecordBucket() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(2, 3);
+			assertFalse(tree.contains(2), "self-check: the single bucket was deleted");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must re-insert the bucket with its record.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back single-bucket deletion");
+		}
+
+		@Test
+		@DisplayName("A removal matching nothing in a single bucket writes nothing")
+		void shouldLeaveASingleBucketUntouchedWhenNoRemovedIdMatches() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(2, 12345);
+			assertEquals(expected, contents(tree), "self-check: a non-matching removal is a no-op");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must leave the untouched bucket exactly as it was.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back non-matching removal");
+		}
+
+		@Test
+		@DisplayName("Rollback restores the record of a bucket promoted and then drained in one savepoint")
+		void shouldRestoreTheRecordOfABucketPromotedAndThenDrained() {
+			// the minimal case where two inverses for one key have to compose: the deletion's inverse rebuilds the
+			// bucket's slot, and the promotion's inverse - pushed earlier, so replayed LATER - then demotes it back to
+			// the single form and reads the record column again. Neither inverse may rely on what the other left in
+			// that slot, or the bucket comes back holding the multi form's don't-care value instead of its record
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(2, 500);
+			assertEquals(List.of(3, 500), contents(tree).get(2), "self-check: bucket 2 was promoted");
+			tree.removeRecord(2, 3, 500);
+			assertFalse(tree.contains(2), "self-check: the promoted bucket was then drained and deleted");
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(
+				expected, contents(tree),
+				"Rollback must give bucket 2 back its pre-savepoint record, not the multi form's don't-care value."
+			);
+			assertNull(leaf.getOverflow(), "Rollback must drop the overflow column the promotion created.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back promote-then-drain of one key");
+		}
+
+		@Test
+		@DisplayName("Rollback collapses every write made to one key inside a single savepoint")
+		void shouldCollapseRepeatedWritesToTheSameKey() {
+			// the per-operation contract in one test: the EARLIEST inverse for a slot replays LAST and wins, so a key
+			// inserted, promoted, drained and re-inserted inside one savepoint still ends up absent
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(60, 61);
+			tree.addRecord(60, 62);
+			tree.addRecord(60, 63);
+			tree.removeRecord(60, 61, 62, 63);
+			tree.addRecord(60, 64);
+			tree.addRecord(2, 500);
+			tree.removeRecord(2, 3, 500);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(
+				expected, contents(tree),
+				"Rollback must collapse every write made to a key back to its pre-savepoint state."
+			);
+			assertEquals(6, tree.bucketCount(), "Rollback must restore the bucket count.");
+			assertConsistent(tree.getConsistencyReport(), "after rolling back repeated writes to one key");
+		}
+
+		@Test
+		@DisplayName("Commit keeps every per-operation write, promotions and deletions alike")
+		void shouldKeepEveryPerOperationWriteOnCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(0, 900);
+			tree.addRecord(0, 901);
+			tree.addRecord(50, 51);
+			tree.addRecord(51, 52, 53);
+			tree.removeRecord(2, 3);
+			tree.removeRecord(1, 2);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.commit();
+
+			assertEquals(expected, contents(tree), "Commit must keep every change made while the savepoint was open.");
+			assertConsistent(tree.getConsistencyReport(), "after a committed per-operation burst");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes per-slot writes that a later split on the same leaf did not capture")
+		void shouldRewindPerSlotWritesAcrossASplitOfTheSameLeaf() {
+			// a leaf split copies both halves into FRESH columns and leaves the former leaf untouched, so the per-slot
+			// inverses recorded before it still address the very columns they were recorded against
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			assertFalse(tree.isRootInternal(), "self-check: the seeded tree must still be a single leaf");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(0, 900);
+			tree.addRecord(50, 51);
+			tree.addRecord(51, 52);
+			assertTrue(tree.isRootInternal(), "self-check: the burst must have split the leaf");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore the exact pre-savepoint contents.");
+			assertFalse(tree.isRootInternal(), "Rollback must restore the pre-split single-leaf shape.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back split over per-slot writes");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes per-slot writes that a later rebalance of the same leaf captured wholesale")
+		void shouldRewindPerSlotWritesAcrossARebalanceOfTheSameLeaf() {
+			// the interplay the design rests on: the structural operation takes a whole-node memento of the leaf's
+			// MID-savepoint state, which reverse replay installs FIRST; the older per-slot inverses then refine
+			// exactly the slots they had overwritten, back to the pre-savepoint value
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(40);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			assertTrue(tree.isRootInternal(), "self-check: the seeded tree must span several leaves");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// per-slot writes across the first leaves...
+			tree.addRecord(0, 900);
+			tree.addRecord(1, 901, 902);
+			tree.addRecord(2, 903);
+			// ...then drain those leaves below the minimum occupancy so the rebalancer steals and merges into them
+			for (int i = 3; i < 20; i++) {
+				tree.removeRecord(i, i + 1);
+			}
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore the exact pre-savepoint contents.");
+			assertEquals(40, tree.bucketCount(), "Rollback must restore the bucket count.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back rebalance over per-slot writes");
+		}
+
+		@Test
+		@DisplayName("Commit keeps per-slot writes a later rebalance of the same leaf captured wholesale")
+		void shouldKeepPerSlotWritesAcrossARebalanceOnCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(40);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord(0, 900);
+			tree.addRecord(1, 901, 902);
+			for (int i = 3; i < 20; i++) {
+				tree.removeRecord(i, i + 1);
+			}
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			savepoint.commit();
+
+			assertEquals(expected, contents(tree), "Commit must keep every change made while the savepoint was open.");
+			assertConsistent(tree.getConsistencyReport(), "after a committed rebalance over per-slot writes");
+		}
+
+		@Test
+		@DisplayName("Rollback deletes a long-payload bucket the savepoint inserted")
+		void shouldDeleteALongPayloadBucketInsertedInsideTheSavepoint() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(6);
+			final TreeMap<Integer, Long> expected = longContents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addLongRecord(50, Long.MIN_VALUE + 7);
+			assertEquals(
+				Long.MIN_VALUE + 7, tree.getLongRecordEqualTo(50).orElseThrow(),
+				"self-check: the long-payload bucket landed"
+			);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, longContents(tree), "Rollback must remove the long-payload bucket.");
+			assertFalse(tree.contains(50), "Rollback must leave the key absent.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back long-payload insertion");
+		}
+
+		@Test
+		@DisplayName("Commit keeps a long-payload bucket the savepoint inserted")
+		void shouldKeepALongPayloadBucketOnCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(6);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addLongRecord(50, 4242L);
+			final TreeMap<Integer, Long> expected = longContents(tree);
+			savepoint.commit();
+
+			assertEquals(expected, longContents(tree), "Commit must keep the long-payload bucket.");
+			assertConsistent(tree.getConsistencyReport(), "after a committed long-payload insertion");
+		}
+
+		@Test
+		@DisplayName("Rollback restores a long-payload bucket the savepoint removed")
+		void shouldRestoreALongPayloadBucketRemovedInsideTheSavepoint() {
+			// removeLongRecord keeps the whole-node memento (it is not one of the converted arms), so this test also
+			// pins that the two granularities coexist on the same leaf without either losing a write
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(6);
+			final TreeMap<Integer, Long> expected = longContents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addLongRecord(50, 4242L);
+			assertTrue(tree.removeLongRecord(3), "self-check: the bucket was removed");
+			savepoint.rollback();
+
+			assertEquals(expected, longContents(tree), "Rollback must restore the removed long-payload bucket.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back long-payload removal");
 		}
 	}
 

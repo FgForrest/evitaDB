@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -60,6 +61,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -105,8 +107,15 @@ import static java.util.Optional.ofNullable;
 public class HierarchyIndex
 	implements HierarchyIndexContract,
 	VoidTransactionMemoryProducer<HierarchyIndex>,
-	IndexDataStructure, IndexComponent, Serializable {
+	IndexDataStructure, IndexComponent, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 4121668650337515744L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -787,8 +796,9 @@ public class HierarchyIndex
 		// a HierarchyNode is a record of the node's own primary key and a boxed parent key, which is this node's
 		// alone - a root node has none and pays only for the slot
 		final long hierarchyNode = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
-		// id, then the dirty / itemIndex / roots / levelIndex / orphans / memoizedAllNodeFormula slots
-		long size = layout.sizeOfObject(Long.BYTES + 6L * layout.referenceSize())
+		// id + warmUpTouchStamp, then the dirty / itemIndex / roots / levelIndex / orphans /
+		// memoizedAllNodeFormula slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 6L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.roots.getHeapSizeInBytes()
 			+ this.orphans.getHeapSizeInBytes()

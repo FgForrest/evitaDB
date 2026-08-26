@@ -29,10 +29,12 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -71,8 +73,15 @@ import static java.util.Optional.ofNullable;
 public class TransactionalComplexObjArray<
 	T extends TransactionalObject<T> & Comparable<T>>
 	implements TransactionalLayerProducer<
-	ComplexObjArrayChanges<T>, T[]>, Serializable {
+	ComplexObjArrayChanges<T>, T[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 1929748392138616409L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final Class<T> objectType;
 	private final boolean transactionalLayerProducer;
