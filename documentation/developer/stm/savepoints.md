@@ -266,8 +266,8 @@ The cost that decides it is the **total** cost, not the cost at the moment of ca
 cardinality -- and so read as an `O(1)`-ish pre-image. What the clone really does is *freeze* every
 container on both sides, so each subsequent write to a shared container has to copy it out first (up to
 a `long[1024]`, 8 KB), and bulk ingest re-clones and re-defrosts once per entity. On the 972k-article
-reference corpus that deferred copying was 13.2 % of all allocation with the mechanism switched on. The
-bitmap now journals per operation like the collection wrappers.
+reference corpus that deferred copying was 13.2 % of all allocation on the bracketed warm-up write
+path. The bitmap now journals per operation like the collection wrappers.
 
 ### Per-family strategies
 
@@ -343,11 +343,10 @@ The `false` default is what makes the mechanism safe by construction: a structur
 write path without journalling is caught the first time a bracketed mutation reaches it, rather than
 discovered later as an index a rollback quietly failed to rewind.
 
-> **Why the flag is read before the `ThreadLocal`.** The three short-circuits in
-> `verifyRollbackSupported` widen in cost: a static `volatile boolean`, then one `ThreadLocal` read,
-> then an interface call. This sits on the bulk-ingest write path, so with the mechanism switched off
-> the check costs one perfectly-predicted load on a branch that was returning `null` anyway, and never
-> touches the `ThreadLocal` machinery.
+> **What the check costs.** The two short-circuits in `verifyRollbackSupported` widen in cost: one
+> `ThreadLocal` read (`null` exactly when no root entity mutation is in flight), then an interface call
+> on a handful of small final implementations. This sits on the bulk-ingest write path, so outside a
+> bracket the check is the single predicted-null read that every delegate write branch pays anyway.
 
 ### Thread confinement
 
@@ -402,16 +401,26 @@ could not be rewound. The original mutation failure stays the exception thrown t
 rollback failure is attached to it as a suppressed cause. This is why every journalled inverse must be
 total.
 
-### Enablement
+### Always on -- there is no switch
 
-The bracket is opened only when `WarmUpSavepoint.isEnabled()` says so. That flag is initialized from the
-internal system property `evitadb.warmUpAtomicity.enabled` (`WarmUpSavepoint.ENABLED_PROPERTY`) and is
-otherwise changed only by `setEnabled(boolean)`, which exists so tests can exercise both behaviours in
-one JVM -- it is process-wide, so a test that flips it must restore it. Whether and how the mechanism is
-surfaced on the public configuration API is decided independently of the mechanism itself; the code path
-described above is the same either way. With the bracket not opened, the warm-up write path behaves
-exactly as it did before this mechanism existed: a failed entity mutation is left partially applied and
-must be retried by rebuilding.
+The bracket is unconditional. It is opened for every root entity mutation that requests atomic rollback
+and finds no transactional maintainer -- which is every warm-up entity upsert and removal. The only
+caller that opts out is **WAL replay**, and it opts out of the transactional savepoint too
+(`atomicRollback == false`), because it discards the whole in-memory transaction on failure rather than
+recovering per-entity.
+
+The mechanism was developed behind an internal system property while its cost was being measured. The
+measurement settled the question -- roughly **+2 % bulk-ingest CPU and +1.8 % wall clock** on the
+972k-entity reference corpus -- and the property, the test-only setter that went with it, and the JUnit
+fencing that the setter's process-wide mutability forced onto the fuzz suites were all deleted together.
+Nothing on the warm-up write path is conditional at runtime any more, and the mechanism holds no mutable
+static state.
+
+The user-visible contract follows directly: an entity upsert or removal that fails during bulk indexing
+is reverted completely -- indexes, storage parts, everything -- the session stays usable, and subsequent
+writes and the transition to ALIVE proceed normally. See
+[Bulk vs. incremental indexing](../../user/en/deep-dive/bulk-vs-incremental-indexing.md#atomicity-of-individual-writes)
+for how that is stated for users.
 
 ---
 
@@ -445,11 +454,8 @@ The warm-up mechanism additionally has:
 | `WarmUpRollbackConformanceTest` | the source-level invariants: the single opening site, its maintainer-absence guard, the `supportsWarmUpRollback()` declarations, and the transaction-availability allowlist |
 | `EntityAtomicMutationRollbackWarmUpFunctionalTest` | the end-to-end behaviour -- a failed entity in a bulk load leaves neither index entries nor a storage body behind |
 
-Because the enablement flag is a process-wide static and the module runs test classes concurrently, the
-warm-up fuzz methods take a JUnit resource lock (`@RequiresDefaultWarmUpWritePath` in `READ` mode marks
-the suites that bulk-load warming-up catalogs; the harness's warm-up methods take the same resource in
-`READ_WRITE`). Since they serialize, those methods run on a seconds budget (`-DwarmUpFuzz.seconds`)
-rather than the minute-bounded budget the transactional methods use.
+The warm-up fuzz methods run on their own budget (`-DwarmUpFuzz.seconds`) rather than the
+minute-bounded budget the transactional methods use; raise it for a deep sweep.
 
 See [testing.md](testing.md) for the general generational / property-based testing pattern these build
 on.

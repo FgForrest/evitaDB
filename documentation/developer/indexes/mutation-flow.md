@@ -171,7 +171,7 @@ Two savepoint kinds exist, matching the two write paths:
 | Write path | Mechanism | What is reverted |
 |------------|-----------|------------------|
 | **ALIVE** (transactional) | `TransactionalLayerMaintainer.openSavepoint()` -- `#569` | every diff layer the mutation touched, restored from a memento the maintainer captured on first write-touch. Large accumulating layers use the `UndoJournal` strategy from `#1252` so capture is `O(1)` and restore costs one entity's delta. |
-| **WARM_UP** (bulk indexing) | `WarmUpSavepoint` -- `#1432` | the in-place writes themselves, replayed from inverses each structure journals as it writes. There is no maintainer and no diff layer on this path. Gated by an internal enablement flag. |
+| **WARM_UP** (bulk indexing) | `WarmUpSavepoint` -- `#1432` | the in-place writes themselves, replayed from inverses each structure journals as it writes. There is no maintainer and no diff layer on this path. |
 
 **WAL replay** opts out of both: it discards the whole in-memory transaction on failure rather than
 recovering per-entity.
