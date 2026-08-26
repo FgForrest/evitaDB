@@ -155,8 +155,9 @@ public final class WarmUpSavepoint {
 	 * rollback over state it never rewound. That is why this is a process-wide {@link AtomicLong} rather than a
 	 * per-catalog counter (two catalogs may warm up on different threads and their counters would collide) and why
 	 * the stamp is a `long` rather than an `int` (a wrapped sequence would eventually hand out a value some mark
-	 * still holds). One CAS per savepoint — i.e. per root entity mutation — is noise next to the ~64 identity-map
-	 * operations per entity the mark replaced.
+	 * still holds). Even the `long` sequence wraps after 2^64 draws, so the constructor additionally fails closed on
+	 * the first wrapped value rather than letting it circulate. One CAS per savepoint — i.e. per root entity
+	 * mutation — is noise next to the ~64 identity-map operations per entity the mark replaced.
 	 */
 	private static final AtomicLong STAMP_SEQUENCE = new AtomicLong();
 
@@ -170,6 +171,15 @@ public final class WarmUpSavepoint {
 	 * The inverse operations recorded while this savepoint is open, replayed in strict reverse on {@link #rollback()}.
 	 * A single journal is shared by all participants because every recorded inverse is an absolute restore of the state
 	 * its own operation touched, so the interleaving between participants is irrelevant.
+	 *
+	 * **The journal must only ever be replayed COMPLETELY, in strict reverse, to position zero — a partial
+	 * `rollbackTo(mark)` on it would corrupt state.** Two mechanisms depend on the totality: WITHIN one participant
+	 * the entries are ordered (the earliest-pushed inverse for a slot must run last to win, and a bulk entry's
+	 * companions — e.g. the leaf re-insertion that re-attaches a drained bitmap which that bitmap's own earlier entry
+	 * then refills — must all run for either to be an absolute restore), and the per-slot/whole-node exclusivity
+	 * deliberately journals NOTHING for a structure once its whole-state memento is captured, so any replay boundary
+	 * other than zero would leave the suppressed writes applied while reporting success. {@link #rollback()} honours
+	 * this by always draining to zero; a future feature needing partial rollback marks must not reuse this journal.
 	 */
 	private final UndoJournal undoJournal = new UndoJournal();
 	/**
@@ -199,8 +209,23 @@ public final class WarmUpSavepoint {
 	/**
 	 * Private — a savepoint is always obtained through {@link #open()}, which is what registers it as the thread's
 	 * current one.
+	 *
+	 * The constructor is where stamp-sequence exhaustion FAILS CLOSED. {@link AtomicLong#incrementAndGet()} wraps
+	 * modulo 2^64, and the wrapped sequence's first value is 0 — the "never captured" default every mark starts at, so
+	 * a savepoint carrying it would treat every untouched participant as already captured and report a successful
+	 * rollback over state it never rewound; each later wrapped value is equally poisonous, being one some mark may
+	 * still hold. Refusing the 0 stamp stops the process at the FIRST reused value, which makes the uniqueness
+	 * invariant total rather than merely astronomical (2^64 savepoints in one JVM lifetime is out of reach — this
+	 * check is contract hygiene, not a reachable path, and its cost is one compare per root entity mutation).
 	 */
 	private WarmUpSavepoint() {
+		Assert.isPremiseValid(
+			this.stamp != 0,
+			() -> new GenericEvitaInternalError(
+				"The warm-up savepoint stamp sequence is exhausted - a wrapped stamp would silently skip first-touch " +
+					"captures, so no further savepoint may be opened in this process."
+			)
+		);
 	}
 
 	/**
