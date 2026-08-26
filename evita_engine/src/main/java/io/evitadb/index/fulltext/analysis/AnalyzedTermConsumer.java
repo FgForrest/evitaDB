@@ -24,6 +24,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import javax.annotation.Nonnull;
+import java.util.function.Supplier;
 
 /**
  * Callback invoked once per term produced by {@link FulltextAnalyzer#analyze(String, AnalyzedTermConsumer)}.
@@ -46,14 +47,14 @@ public interface AnalyzedTermConsumer {
 	 * Accepts a single analysed term.
 	 *
 	 * @param term              the analysed term
-	 * @param surfaceForm       substring of the NFC-normalized input the term was produced from
+	 * @param surfaceForm       lazily provided substring of the NFC-normalized input the term was produced from
 	 * @param startOffset       start offset of the surface form in the NFC-normalized input
 	 * @param endOffset         end offset (exclusive) of the surface form in the NFC-normalized input
 	 * @param positionIncrement distance from the preceding term's position
 	 */
 	void accept(
 		@Nonnull String term,
-		@Nonnull String surfaceForm,
+		@Nonnull Supplier<String> surfaceForm,
 		int startOffset,
 		int endOffset,
 		int positionIncrement

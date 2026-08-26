@@ -119,7 +119,7 @@ public class FulltextAnalyzer implements Closeable {
 		analyze(
 			text,
 			(term, surfaceForm, startOffset, endOffset, positionIncrement) -> terms.add(
-				new AnalyzedTerm(term, surfaceForm, startOffset, endOffset, positionIncrement)
+				new AnalyzedTerm(term, surfaceForm.get(), startOffset, endOffset, positionIncrement)
 			)
 		);
 		return terms;
@@ -165,7 +165,7 @@ public class FulltextAnalyzer implements Closeable {
 				final int endOffset = offsetAttribute.endOffset();
 				consumer.accept(
 					termAttribute.toString(),
-					normalizedText.substring(startOffset, endOffset),
+					() -> normalizedText.substring(startOffset, endOffset),
 					startOffset,
 					endOffset,
 					positionAttribute.getPositionIncrement()

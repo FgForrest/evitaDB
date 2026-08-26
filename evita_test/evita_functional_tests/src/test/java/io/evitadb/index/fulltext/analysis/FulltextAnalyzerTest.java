@@ -167,7 +167,7 @@ class FulltextAnalyzerTest {
 			czechAnalyzer().analyze(
 				text,
 				(term, surfaceForm, startOffset, endOffset, positionIncrement) -> streamed.add(
-					new AnalyzedTerm(term, surfaceForm, startOffset, endOffset, positionIncrement)
+					new AnalyzedTerm(term, surfaceForm.get(), startOffset, endOffset, positionIncrement)
 				)
 			);
 			assertIterableEquals(analyze(CZECH, text), streamed);
