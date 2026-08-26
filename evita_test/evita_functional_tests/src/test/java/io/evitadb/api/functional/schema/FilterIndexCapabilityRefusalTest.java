@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Set;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -82,6 +83,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String REFERENCE_CATEGORIES = "categories";
+	/** The PRODUCT-side reference the reflected one below points at - deliberately never declared. */
+	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
+	/** The CATEGORY-side reflected reference, declared before its target and therefore momentarily unresolved. */
+	private static final String REFERENCE_REFLECTED_PRODUCTS = "productsInCategory";
+	/** An attribute the reflected reference declares as its own, so its attribute set is not trivially empty. */
+	private static final String ATTRIBUTE_MARKET = "market";
+	/** The attribute the reflected reference excludes from inheritance, which is what makes it hold a filter. */
+	private static final String ATTRIBUTE_NOT_INHERITED = "notInherited";
 	private static final int CATEGORY_PK = 1;
 
 	private TestPaths paths;
@@ -494,6 +503,65 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should allow a schema change on a collection carrying an unresolved reflected reference")
+		void shouldAllowSchemaChangeWithUnresolvedReflectedReference() {
+			// CATEGORY declares its reflected reference BEFORE PRODUCT declares the reference it reflects, so at the
+			// moment CATEGORY's own mutation is verified the reflected reference is still UNRESOLVED. It also
+			// declares attributes of its own alongside an inheritance filter, which is what makes
+			// `ReflectedReferenceSchema#getAttributes` throw rather than answer empty while the target is missing -
+			// the refusal check must skip such a reference rather than walk it. Before the skip existed this block
+			// threw "Attributes of the reflected reference are inherited from the target reference, but the
+			// reflected reference is not available!" from inside the refusal walk
+			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTED_PRODUCTS, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_NOT_INHERITED)
+								.withAttribute(
+									ATTRIBUTE_MARKET, String.class,
+									thatIs -> thatIs.filterable().withDefaultValue("CZ")
+								)
+						)
+						.updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+								.withAttribute(
+									ATTRIBUTE_NOT_INHERITED, String.class,
+									thatIs -> thatIs.filterable().withDefaultValue("default")
+								)
+						)
+						.updateVia(session);
+				}
+			);
+
+			// and an ordinary, capability-free schema change on the reflecting collection must still go through
+			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntitySchemaOrThrow(Entities.CATEGORY)
+						.openForWrite()
+						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterable())
+						.updateVia(session);
+				}
+			);
+
+			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EntitySchemaContract schema = session.getEntitySchemaOrThrow(Entities.CATEGORY);
+					assertTrue(
+						schema.getAttribute(ATTRIBUTE_CODE).isPresent(),
+						"the unrelated attribute must have been added"
+					);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("should allow removing the capability from a populated collection")
 		void shouldAllowRemovingCapabilityFromPopulatedCollection() {
 			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
@@ -530,6 +598,67 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
 							.getFilterCapabilities().isEmpty()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the shared value tree usable when the capability is dropped from populated data")
+		void shouldKeepSharedValueTreeConsistentWhenCapabilityIsDroppedFromPopulatedCollection() {
+			// The tripwire for the increment that wires a value id consumer to this capability. Removal is
+			// deliberately legal on a populated collection (the sibling test above pins that), but
+			// `InvertedIndex#detachValueIdConsumer` refuses to take the LAST consumer off a populated tree - dropping
+			// the id columns dirties no leaf page, so the ids already written would outlive the drop on disk. Nothing
+			// registers a consumer today, so the drop below simply goes through. The moment the trigram substring
+			// index is attached to SUBSTRING, this test starts failing on that premise - which is the intent: the
+			// drop path (unregister, drop the minter, dirty every leaf page, let the high-water force the root out)
+			// has to land in the same breath as the wiring, not afterwards.
+			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(
+							ATTRIBUTE_NAME, String.class,
+							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+						)
+						.updateVia(session);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1).setAttribute(ATTRIBUTE_NAME, "iPhone 15")
+					);
+				}
+			);
+
+			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntitySchemaOrThrow(Entities.PRODUCT)
+						.openForWrite()
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+						.updateVia(session);
+					// writing THROUGH the tree the drop just touched is the part that matters: a tree left disagreeing
+					// with its own consumer registry fails on the next value it is asked to stamp, not on the drop
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2).setAttribute(ATTRIBUTE_NAME, "Pixel 9")
+					);
+				}
+			);
+
+			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertEquals(
+						"iPhone 15",
+						session.getEntity(Entities.PRODUCT, 1, attributeContentAll())
+							.orElseThrow().getAttribute(ATTRIBUTE_NAME),
+						"the entity written before the capability was dropped must survive the drop"
+					);
+					assertEquals(
+						"Pixel 9",
+						session.getEntity(Entities.PRODUCT, 2, attributeContentAll())
+							.orElseThrow().getAttribute(ATTRIBUTE_NAME),
+						"the collection must still accept writes after the capability was dropped"
 					);
 				}
 			);

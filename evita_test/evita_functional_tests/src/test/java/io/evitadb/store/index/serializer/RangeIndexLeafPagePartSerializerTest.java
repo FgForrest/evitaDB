@@ -187,7 +187,8 @@ class RangeIndexLeafPagePartSerializerTest {
 				1, new AttributeKeyWithIndexType(null, "validity", null, AttributeIndexType.FILTER), 0,
 				new io.evitadb.index.invertedIndex.ValueToRecordBitmap[]{
 					new io.evitadb.index.invertedIndex.ValueToRecordBitmap(1, 1)
-				}
+				},
+				null
 			);
 			bucketPage.computeUniquePartIdAndSet(this.keyCompressor());
 			assertNotEquals(

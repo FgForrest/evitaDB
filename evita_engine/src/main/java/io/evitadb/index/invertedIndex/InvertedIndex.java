@@ -30,10 +30,12 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -69,6 +71,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -106,6 +109,12 @@ import java.util.function.Predicate;
  *
  * If no transaction is opened, changes are applied directly to the delegate tree. In such case the class is not thread
  * safe for multiple writers!
+ *
+ * The value id directory is the one piece of state a READER may write: {@link #getValueById(int)} catches the
+ * warm-up path's writes up before it answers. That catch-up is single-flight and its completion is published through
+ * the volatile {@link #valueIdDirectoryStale}, so concurrent readers cannot rebuild over one another — but a reader
+ * that took the fast path can still be inside the tree's `valueOf` while a later reader rebuilds. See
+ * {@link #refreshValueIdDirectory()} for what remains open and why it is deferred.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -216,6 +225,50 @@ public class InvertedIndex implements
 	 * flush/commit path.
 	 */
 	@Nonnull @Getter private final PageStreamRegistry pageStreamRegistry;
+	/**
+	 * The per-tree value id allocator, or `null` while this tree carries no value ids at all — which is the state
+	 * every tree is born in and the state the overwhelming majority of trees stay in.
+	 *
+	 * Non-null exactly when {@link #buckets} carries the id column; the two are switched on and off together and
+	 * {@link #carriesValueIds()} reads the pair as one. Unlike {@link #pageStreamRegistry} the allocator is
+	 * transactional — ids are minted during a transaction rather than on the flush path — so it is MERGED across a
+	 * commit rather than carried by reference, and the surviving tree is re-pointed at the surviving allocator.
+	 */
+	@Nullable private ValueIdAllocator valueIdAllocator;
+	/**
+	 * Which subsystems currently need this tree's value ids. `null` until the first consumer registers.
+	 *
+	 * Owner-resident and NOT transactional, like {@link #pageStreamRegistry}: registering a consumer is a structural
+	 * decision about the tree, not a data change. A loaded tree can legitimately have ids (they came back with its
+	 * pages) and no registered consumer yet — consumers re-register on first use after a restart.
+	 */
+	@Nullable private ValueIdConsumerRegistry valueIdConsumers;
+	/**
+	 * The value id high-water mark the last emitted `FilterIndexStoragePart` root carried — the change-detection
+	 * baseline that keeps the persisted high-water from going stale.
+	 *
+	 * It exists because the root part is deliberately NOT rewritten on a commit that changed no leaf-page list (see
+	 * `FilterIndex#appendStorageParts`), and a commit can mint ids without ever allocating or freeing a page. Without
+	 * this baseline the persisted high-water would lag behind the ids already written into the leaf pages, and a
+	 * restart would re-mint ids that are in use. Owner-resident and non-transactional, like
+	 * {@link #pageStreamRegistry}.
+	 */
+	private int emittedNextValueId = ValueIdAllocator.UNASSIGNED_VALUE_ID;
+	/**
+	 * Whether the tree has been mutated since its value id directory was last built.
+	 *
+	 * The directory is normally rebuilt at a publication point — a commit merge, a load, or the moment ids are
+	 * switched on. The warm-up path has no such point: it mutates this very instance outside any transaction and
+	 * never reaches a merge, so without this flag the first query after a bulk load would resolve against a directory
+	 * built when the tree was still empty. Setting it costs one field write per mutation; acting on it costs one
+	 * change-detecting walk, and only on a read that follows a write.
+	 *
+	 * `volatile` because the catch-up it drives happens on the READ path, where several query threads meet it at once
+	 * — see {@link #refreshValueIdDirectory()}. The flag is cleared only after the rebuild has finished, so a reader
+	 * that observes `false` has a happens-before edge with that rebuild and sees the directory whole rather than the
+	 * three fields it is made of in whatever order they happened to land.
+	 */
+	private volatile boolean valueIdDirectoryStale;
 
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
@@ -482,6 +535,8 @@ public class InvertedIndex implements
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
 	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param perPageValueIds      the persisted value ids of each leaf page, positionally aligned with
+	 *                             `orderedPageSequences`, or `null` when the tree carries no value ids
 	 * @param highWaterPageSequence     the persisted stream high-water (largest page sequence ever allocated)
 	 * @param normalizer           the value normalizer
 	 * @param comparator           the value order
@@ -494,6 +549,7 @@ public class InvertedIndex implements
 		@Nonnull Class<?> plainType,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
 		int highWaterPageSequence,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator,
@@ -504,6 +560,10 @@ public class InvertedIndex implements
 			"The number of page sequences must match the number of leaf-page bucket arrays."
 		);
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged inverted index must have at least one leaf page.");
+		Assert.isPremiseValid(
+			perPageValueIds == null || perPageValueIds.length == orderedPageSequences.length,
+			"The per-page value id columns must align with the page sequences one for one."
+		);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
@@ -527,7 +587,9 @@ public class InvertedIndex implements
 					overflow[j] = new TransactionalBitmap(recordIds);
 				}
 			}
-			pageTree.bulkLoadPage(keys, payloads, overflow, buckets.length);
+			pageTree.bulkLoadPage(
+				keys, payloads, overflow, perPageValueIds == null ? null : perPageValueIds[i], buckets.length
+			);
 			pageTrees.add(pageTree);
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
@@ -578,6 +640,353 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Registers `consumerName` as needing stable value ids on this tree, switching the tree into id-carrying mode the
+	 * first time any consumer does so. Idempotent: registering a name that is already registered changes nothing.
+	 *
+	 * The gate on the id column is this registration and nothing else — never an attribute schema flag. See
+	 * {@link ValueIdConsumerRegistry} for why the distinction matters.
+	 *
+	 * The first registration is only accepted while the tree is still EMPTY — see {@link #enableValueIds} for why an
+	 * already-populated tree cannot be switched on. Registering onto a tree that already carries ids is unrestricted,
+	 * because it changes nothing about the ids themselves.
+	 *
+	 * Attaching and detaching are structural decisions taken on the single-writer schema-mutation path — warm-up runs a
+	 * single session, and a live catalog serializes schema changes through trunk incorporation — so this method must
+	 * never be called from a query or background thread, nor concurrently with another writer on the same index.
+	 *
+	 * @param consumerName the consumer's stable name, e.g. `trigram-substring-index`
+	 * @see #detachValueIdConsumer(String)
+	 */
+	public void attachValueIdConsumer(@Nonnull String consumerName) {
+		// the tree is switched on BEFORE the name is recorded, so a refused attach leaves the registry untouched and
+		// the tree and its registry keep agreeing about whether ids exist
+		enableValueIds(new ValueIdAllocator());
+		if (this.valueIdConsumers == null) {
+			this.valueIdConsumers = new ValueIdConsumerRegistry();
+		}
+		this.valueIdConsumers.register(consumerName);
+	}
+
+	/**
+	 * Unregisters `consumerName`. When it was the last consumer, the tree leaves id-carrying mode and every id it ever
+	 * minted is discarded — any structure still keyed by them must be discarded with them.
+	 *
+	 * The last consumer may only leave while the tree is still EMPTY, symmetrically with
+	 * {@link #attachValueIdConsumer(String)}: dropping the id columns of a populated tree clears them in memory but
+	 * marks no leaf page dirty, so the columns already written would survive on disk and the next reload would
+	 * silently resurrect the ids this call discarded.
+	 *
+	 * ## The schema boundary does NOT refuse this, and is not going to
+	 *
+	 * Do not read the restriction above as "someone upstream already prevents it". Removing a filter capability from a
+	 * populated collection is **deliberately legal**:
+	 * `EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection` refuses *additions* only, on the stated
+	 * grounds that "dropping an index needs no data", and
+	 * `FilterIndexCapabilityRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. Nothing
+	 * reaches this method today because no production code registers a consumer at all — the increment that wires the
+	 * trigram substring index to the SUBSTRING capability is the one that will first make a populated tree reachable
+	 * here, and it owes the missing half rather than a new refusal upstream: unregister, drop the minter, mark every
+	 * leaf page dirty so the columns actually leave the disk, and let {@link #isValueIdHighWaterDirty()} — which
+	 * already reports the mark's return to {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} — force the root out with it.
+	 * Until that exists the premise below fails loudly, which is the right failure: the alternative is a catalog whose
+	 * persisted root claims ids its pages no longer carry, and the loader refuses to open that at all.
+	 *
+	 * Unregistering a consumer that is not the last one is unrestricted — the tree keeps its ids and nothing
+	 * structural happens.
+	 *
+	 * The same single-writer obligation as {@link #attachValueIdConsumer(String)} applies.
+	 *
+	 * @param consumerName the consumer's stable name
+	 * @see #attachValueIdConsumer(String)
+	 */
+	public void detachValueIdConsumer(@Nonnull String consumerName) {
+		if (this.valueIdConsumers == null) {
+			return;
+		}
+		// checked BEFORE the registry is mutated, so a refused detach leaves the tree and its registry in agreement
+		Assert.isPremiseValid(
+			!this.valueIdConsumers.isSoleConsumer(consumerName) || this.buckets.size() == 0,
+			"The last value id consumer can only leave while the tree is still empty - dropping the id columns of a " +
+				"populated tree dirties no leaf page, so the ids already persisted would survive on disk and a " +
+				"reload would resurrect them. The schema boundary does NOT refuse this (removing a filter " +
+				"capability from a populated collection is deliberately legal), so whoever wires a consumer to a " +
+				"capability owes the drop path: unregister, drop the minter, and mark every leaf page dirty so the " +
+				"columns really leave the disk."
+		);
+		if (this.valueIdConsumers.unregister(consumerName)) {
+			this.buckets.removeValueIdMinter();
+			this.valueIdAllocator = null;
+		}
+	}
+
+	/**
+	 * Switches this tree into id-carrying mode around the given allocator. A no-op when the tree already carries ids,
+	 * so the passed allocator is used only on the first call — which is why callers that must restore a specific
+	 * high-water mark go through {@link #restoreValueIds(int)} instead. The load path does not pass through here at
+	 * all.
+	 *
+	 * The tree must still be EMPTY when ids are switched on. The tree itself would happily back-fill the values already
+	 * present, but that back-fill would live in memory only: it writes the id columns of leaves nothing marks dirty, so
+	 * the emitter never rewrites their pages, the ids never reach disk, and a reload would mint different ids for
+	 * exactly the values a consumer had already recorded ids for. The constraint costs nothing in practice because a
+	 * filter capability cannot be declared on a collection that already holds entities
+	 * (`EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection`), so the tree a consumer attaches to has
+	 * nothing in it yet.
+	 *
+	 * @param allocator the allocator to mint from
+	 */
+	private void enableValueIds(@Nonnull ValueIdAllocator allocator) {
+		if (this.valueIdAllocator == null) {
+			Assert.isPremiseValid(
+				this.buckets.size() == 0,
+				"Value ids can only be switched on while the tree is still empty - back-filling the values already " +
+					"present dirties no leaf page, so the ids would never reach disk and a reload would hand those " +
+					"values different ones. A filter capability cannot be declared on a collection that already " +
+					"holds entities, so a consumer always attaches to an empty tree."
+			);
+			this.valueIdAllocator = allocator;
+			this.buckets.installValueIdMinter(this.valueIdAllocator::allocate);
+			this.buckets.rebuildValueIdDirectory();
+			this.valueIdDirectoryStale = false;
+		}
+	}
+
+	/**
+	 * Restores id-carrying mode on a tree just rebuilt from persisted pages: the ids themselves came back inside the
+	 * pages, and this re-attaches the allocator at the persisted high-water mark so the next minted id continues where
+	 * the previous run left off. Continuing the sequence rather than restarting it is what makes the ids stable across
+	 * a restart, which is the whole reason the allocator is persisted at all.
+	 *
+	 * @param nextValueId the persisted high-water mark
+	 */
+	public void restoreValueIds(int nextValueId) {
+		restoreValueIds(nextValueId, null);
+	}
+
+	/**
+	 * Restores id-carrying mode on a tree just rebuilt from persistence, together with the ids of the values it already
+	 * holds.
+	 *
+	 * The two shapes reach this differently. A `PAGED` index gets its ids back inside each leaf page, so it passes
+	 * `null` here and the ids are already in place. A `SINGLE` (inline) index replays its buckets through the ordinary
+	 * insert path, which cannot carry ids, so it passes the persisted inline column and the tree stamps it in ascending
+	 * key order.
+	 *
+	 * @param nextValueId       the persisted high-water mark
+	 * @param persistedValueIds the ids of the values already present in ascending key order, or `null` when they came
+	 *                          back with the pages
+	 */
+	public void restoreValueIds(int nextValueId, @Nullable int[] persistedValueIds) {
+		Assert.isPremiseValid(
+			this.valueIdAllocator == null,
+			"Value ids have already been enabled on this tree — they cannot be restored over."
+		);
+		this.valueIdAllocator = new ValueIdAllocator(nextValueId);
+		this.buckets.installValueIdMinter(this.valueIdAllocator::allocate, persistedValueIds);
+		// the directory is derived state and is NOT persisted - it is rebuilt here from the reloaded tree, which is
+		// what keeps the value id feature's storage surface to the id column alone
+		this.buckets.rebuildValueIdDirectory();
+		this.valueIdDirectoryStale = false;
+		// what was just restored is by definition what is on disk, so the root needs no rewrite until the next mint
+		this.emittedNextValueId = nextValueId;
+	}
+
+	/**
+	 * Tells whether the value id high-water mark has MOVED since the last root part was emitted, and the root must
+	 * therefore be rewritten even though no leaf page was allocated or freed this commit.
+	 *
+	 * Moved in either direction. Advancing is the common case — a commit can mint ids into an existing leaf without
+	 * touching any page list. But dropping the ids altogether moves the mark back to
+	 * {@link ValueIdAllocator#UNASSIGNED_VALUE_ID}, and that has to force the root out just as hard: a persisted root
+	 * still claiming a high-water its leaf pages no longer carry is precisely the pairing
+	 * `AttributeIndexLoader#loadInvertedIndex` refuses, so leaving it behind does not merely lose the mark — it stops
+	 * the catalog from opening.
+	 *
+	 * @return `true` when the persisted high-water would otherwise disagree with the tree
+	 */
+	public boolean isValueIdHighWaterDirty() {
+		return getNextValueId() != this.emittedNextValueId;
+	}
+
+	/**
+	 * Records that a root part carrying the current high-water mark has just been emitted, so the next commit that
+	 * mints nothing leaves the root alone.
+	 *
+	 * ## Why this may advance from inside the collect
+	 *
+	 * {@link io.evitadb.index.Index#getModifiedStorageParts} is documented as a pure, idempotent read, with the
+	 * baseline advance deliberately relocated to `notifyFlushed` — so a baseline that moves here looks, at first
+	 * glance, like it is in the wrong place. It is not, and the reason is worth stating because it is not local: in
+	 * production `EntityIndex#getModifiedStorageParts` is reached from exactly two places, and both are accounted for.
+	 * `DataStoreChanges#popTrappedUpdates` collects the parts that are then written, and `notifyFlushed` immediately
+	 * re-runs the same collect through `captureOriginalsFromComponents` into a sink it discards. The second pass
+	 * finds this mark already advanced and the page list unchanged, so it emits no root at all — pinned by
+	 * `FilterIndexValueIdRootEmissionTest#shouldNotDisturbValueIdHighWaterWhenBaselineCaptureRepeatsTheCollect`.
+	 *
+	 * A third caller that collected and threw the result away WOULD strand the mark: the next real flush would find
+	 * it clean, skip the root, and leave the persisted high-water behind ids the leaf pages already carry, which a
+	 * restart resolves by handing one id to two values. No such caller exists, and the page-stream registry beside
+	 * this one makes exactly the same assumption — {@link #collectChangedPages()} publishes the previous flush's
+	 * staged page set and clears each leaf's dirty flag on the way through, so a discarded collect loses leaf pages
+	 * outright, before this mark is even reached. Adding one is therefore not a licence to stage this mark instead;
+	 * it is a change that has to be weighed against that whole contract at once.
+	 */
+	public void markValueIdHighWaterEmitted() {
+		this.emittedNextValueId = getNextValueId();
+	}
+
+	/**
+	 * @return `true` when every distinct value in this tree carries a stable id
+	 */
+	public boolean carriesValueIds() {
+		return this.valueIdAllocator != null;
+	}
+
+	/**
+	 * Returns the high-water mark that must be persisted alongside this tree's pages, so
+	 * {@link #restoreValueIds(int)} can continue the sequence after a restart.
+	 *
+	 * @return the id the next mint would hand out, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this tree
+	 *         carries no value ids
+	 */
+	public int getNextValueId() {
+		return this.valueIdAllocator == null
+			? ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIdAllocator.getNextValueId();
+	}
+
+	/**
+	 * Returns the names of the subsystems this tree's id column is being paid for — diagnostics only.
+	 *
+	 * @return the registered consumer names, empty when none are registered
+	 */
+	@Nonnull
+	public Set<String> getValueIdConsumerNames() {
+		return this.valueIdConsumers == null ? Set.of() : this.valueIdConsumers.getConsumerNames();
+	}
+
+	/**
+	 * Resolves the stable id of a distinct value, in a single tree descent.
+	 *
+	 * @param value the value to resolve; it is normalized here exactly as {@link #addRecord(Serializable, int)}
+	 *              normalizes it, so callers pass the raw attribute value
+	 * @return the value's stable id, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this tree carries no value
+	 *         ids or holds no bucket for that value
+	 */
+	public int getValueId(@Nullable Serializable value) {
+		if (value == null || this.valueIdAllocator == null) {
+			return ValueIdAllocator.UNASSIGNED_VALUE_ID;
+		}
+		return this.buckets.valueIdOf((Comparable) this.normalizer.apply(value));
+	}
+
+	/**
+	 * Resolves a stable value id back to the distinct value it names — the reverse of {@link #getValueId}.
+	 *
+	 * This is the probe a consumer performs once per candidate: the trigram substring index intersects its postings
+	 * down to a set of candidate value ids and then verifies each one by resolving it here. It answers in `O(1)`
+	 * through the tree's `valueId -> (leafId, slot)` directory rather than by searching, because value ids are
+	 * allocation-ordered and therefore not searchable in the tree's key order at all.
+	 *
+	 * The returned value is the NORMALIZED form the tree stores, which is the form a consumer must verify against —
+	 * it is what {@link #getValueId} was given after normalization.
+	 *
+	 * ## Committed state only
+	 *
+	 * This answers from the last published version of the tree, and REFUSES to answer at all while a transaction is
+	 * open on the calling thread. The directory is built once per published version and carries no diff layer — that is
+	 * what buys MVCC here without one — so a transaction's own writes are invisible to it in both directions: an id
+	 * minted inside the transaction has no entry at all, and an entry made before it addresses a leaf and slot the
+	 * transaction may since have moved that value out of. Both resolve to `null`, so the probe would report "no such
+	 * value" for values the collection does hold. For the candidate-verification consumer this reverse lookup exists
+	 * for, that means quietly matching fewer entities than the query asked for — a silent under-report is worse than a
+	 * refusal, and evitaDB guarantees a transaction sees its own writes.
+	 *
+	 * Making the reverse lookup transaction-aware is left to the increment that adds the first production consumer (the
+	 * trigram substring index and its translator), because choosing between a transaction-local `valueId -> value`
+	 * overlay, a transaction-local directory rebuilt from the transaction's own leaves, and falling back to the scan
+	 * path needs that consumer's access pattern. Until then a caller that may run inside a transaction must check for
+	 * one and take its fallback rather than probe here.
+	 *
+	 * @param valueId the id to resolve
+	 * @return the normalized value that id names, or `null` when this tree carries no value ids or the id names
+	 *         nothing live
+	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
+	 */
+	@Nullable
+	public Serializable getValueById(int valueId) {
+		Assert.isPremiseValid(
+			!Transaction.isTransactionAvailable(),
+			"A value id cannot be resolved back to its value while a transaction is open on this thread - the " +
+				"directory addresses the last published version of the tree while the leaves it reads are the " +
+				"transaction's own, so the probe would silently under-report. Resolve against the committed index, " +
+				"or take the scan fallback until the transactional overlay this needs exists."
+		);
+		if (this.valueIdAllocator == null) {
+			return null;
+		}
+		// catch up the warm-up path's writes. The premise above has already established there is no transaction on this
+		// thread, which is what makes the rebuild safe: `enumerateLeaves` reads the transaction-aware root, so
+		// rebuilding inside a transaction would fold one transaction's uncommitted leaves into the directory every
+		// other reader shares
+		if (this.valueIdDirectoryStale) {
+			refreshValueIdDirectory();
+		}
+		return (Serializable) this.buckets.valueOf(valueId);
+	}
+
+	/**
+	 * Rebuilds the value id directory once, however many readers arrive to find it stale.
+	 *
+	 * The catch-up this performs is a WRITE made from the read path, and the rebuild behind it is emphatically not
+	 * re-entrant: it advances the tree's plain leaf-id counter and calls `assignLeafId`, whose premise refuses a
+	 * second assignment outright. Two query threads that both saw the stale flag would therefore either fail that
+	 * premise — an internal error raised on a query — or race each other's writes into the location array and leave
+	 * live values resolving to nothing, which is the silent under-report {@link #getValueById(int)}'s own transaction
+	 * premise exists to rule out. Hence single-flight: the lock admits one rebuilder and the re-check inside it makes
+	 * every thread that queued behind them return without doing the work a second time.
+	 *
+	 * ## What this does NOT make safe
+	 *
+	 * A reader already past the flag on the fast path — having seen it `false` — can still be inside
+	 * `BucketBPlusTree#valueOf` while a later writer marks the directory stale and the next reader rebuilds it,
+	 * because the rebuild updates its three fields in place rather than publishing an immutable unit. Closing that
+	 * window means representing the directory as one atomically-published record, which is deferred to the increment
+	 * that adds the first production consumer (the trigram substring index) for the same reason the transaction-aware
+	 * overlay in {@link #getValueById(int)} is: the right shape depends on that consumer's access pattern, and until
+	 * it exists nothing reaches this method from a query thread at all.
+	 */
+	private synchronized void refreshValueIdDirectory() {
+		if (this.valueIdDirectoryStale) {
+			this.buckets.rebuildValueIdDirectory();
+			// cleared LAST, so the volatile write publishes the finished directory to every reader that takes the
+			// fast path afterwards
+			this.valueIdDirectoryStale = false;
+		}
+	}
+
+	/**
+	 * Returns the next stable leaf id the shared tree would hand out — one more than the number of leaves it has ever
+	 * created. Leaf-id stability across a commit is an invariant with no behavioural symptom (losing it burns the id
+	 * space and bloats the directory rather than producing wrong answers), so this is what pins it.
+	 *
+	 * @return the next leaf id to be minted
+	 */
+	public long getNextLeafId() {
+		return this.buckets.getNextLeafId();
+	}
+
+	/**
+	 * Returns the heap the value id directory occupies, in bytes — reported apart from
+	 * {@link #getHeapSizeInBytes()} because it is derived bookkeeping rebuilt on load, like the page-stream registry
+	 * beside it, rather than data this index owns.
+	 *
+	 * @return the directory's dominant heap term, or `0` when this tree carries no value ids
+	 */
+	public long getValueIdDirectoryHeapSizeInBytes() {
+		return this.buckets.getValueIdDirectoryHeapSizeInBytes();
+	}
+
+	/**
 	 * Adds single record id into the bucket with specified `value`. If no bucket with this value exists, it is
 	 * automatically created as a compact single-record column entry. A single-record bucket promotes to a multi-record
 	 * bitmap when a second distinct record id is added; an add of the id it already holds is a no-op. A bitmap bucket is
@@ -587,6 +996,7 @@ public class InvertedIndex implements
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		this.buckets.addRecord(normalizedValue, recordId);
 		this.dirty.setToTrue();
+		this.valueIdDirectoryStale = true;
 	}
 
 	/**
@@ -600,6 +1010,7 @@ public class InvertedIndex implements
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		this.buckets.addRecord(normalizedValue, recordId);
 		this.dirty.setToTrue();
+		this.valueIdDirectoryStale = true;
 	}
 
 	/**
@@ -615,6 +1026,7 @@ public class InvertedIndex implements
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		this.buckets.removeRecord(normalizedValue, recordId);
+		this.valueIdDirectoryStale = true;
 	}
 
 	/**
@@ -711,6 +1123,26 @@ public class InvertedIndex implements
 			}
 		}
 		return result.toArray(ValueToRecordBitmap[]::new);
+	}
+
+	/**
+	 * Returns the stable value id of every bucket, in the same ascending value order as
+	 * {@link #getValueToRecordBitmap()} — its parallel column for the `SINGLE` (inline) serialization route, where the
+	 * whole index rides the root part rather than per-leaf pages.
+	 *
+	 * @return the ids aligned with the inline bucket array, or `null` when this tree carries no value ids
+	 */
+	@Nullable
+	public int[] getValueIds() {
+		if (this.valueIdAllocator == null) {
+			return null;
+		}
+		final CompositeIntArray result = new CompositeIntArray();
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			result.add(cursor.valueId());
+		}
+		return result.toArray();
 	}
 
 	/**
@@ -961,10 +1393,14 @@ public class InvertedIndex implements
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + indexedDecimalPlaces, then the dirty / buckets / normalizer / comparator / plainType /
-		// pageStreamRegistry slots
-		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 6L * layout.referenceSize())
+		// id + indexedDecimalPlaces + emittedNextValueId + valueIdDirectoryStale, then the dirty / buckets /
+		// normalizer / comparator / plainType / pageStreamRegistry / valueIdAllocator / valueIdConsumers slots
+		return layout.sizeOfObject(Long.BYTES + 2L * Integer.BYTES + 1L + 8L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
+			// the id COLUMNS are charged by the tree walk below; only the allocator object itself is charged here.
+			// The consumer registry holds a handful of interned names and is not charged — it is diagnostics-sized,
+			// bounded by the number of compiled-in subsystems rather than by the data.
+			+ (this.valueIdAllocator == null ? 0L : this.valueIdAllocator.getHeapSizeInBytes())
 			+ this.buckets.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
 	}
 
@@ -989,7 +1425,7 @@ public class InvertedIndex implements
 			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
-			return new InvertedIndex(
+			final InvertedIndex merged = new InvertedIndex(
 				this.plainType,
 				committedTree,
 				this.normalizer,
@@ -999,6 +1435,27 @@ public class InvertedIndex implements
 				// allocator + change-detection baseline the just-completed flush populated
 				this.pageStreamRegistry
 			);
+			if (this.valueIdAllocator != null) {
+				// the consumer registry is owner-resident bookkeeping and carries over by reference, exactly like the
+				// page-stream registry above; the ALLOCATOR is transactional and is merged, then the surviving tree is
+				// re-pointed at it. The committed tree already carries the minting operation of the pre-merge
+				// allocator (`TransactionalBucketBPlusTree#createCopyWithMergedTransactionalMemory` carries it so the
+				// leaves and the minter never disagree), so this re-point must happen before the merged index takes
+				// any write — which it does, since nothing can reach `merged` until this method returns.
+				merged.valueIdConsumers = this.valueIdConsumers;
+				merged.valueIdAllocator =
+					transactionalLayer.getStateCopyWithCommittedChanges(this.valueIdAllocator);
+				// the emission baseline is owner-resident bookkeeping and must survive the commit, or every commit
+				// would look like the high-water had changed and rewrite the root for nothing
+				merged.emittedNextValueId = this.emittedNextValueId;
+				committedTree.installValueIdMinter(merged.valueIdAllocator::allocate);
+				// the directory belongs to the version it was built against: building it here, once, makes it
+				// immutable for the lifetime of this committed index, so a reader holding an older version keeps
+				// resolving against that version's own directory and MVCC needs no diff layer for it
+				committedTree.rebuildValueIdDirectoryAfterMerge();
+				merged.valueIdDirectoryStale = false;
+			}
+			return merged;
 		} else {
 			return this;
 		}
@@ -1007,6 +1464,10 @@ public class InvertedIndex implements
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
+		if (this.valueIdAllocator != null) {
+			// an aborted transaction gives its minted ids back — see ValueIdAllocatorChanges for why that is sound
+			this.valueIdAllocator.removeLayer(transactionalLayer);
+		}
 		this.buckets.removeLayer(transactionalLayer);
 	}
 
@@ -1096,7 +1557,9 @@ public class InvertedIndex implements
 			BUCKET_PAGE_STREAM, handles,
 			(pageSequence, handle) -> {
 				final BucketCursor cursor = handle.cursor();
+				final boolean withValueIds = carriesValueIds();
 				final List<ValueToRecord> pageBuckets = new ArrayList<>();
+				final CompositeIntArray pageValueIds = withValueIds ? new CompositeIntArray() : null;
 				while (cursor.next()) {
 					final Serializable value = (Serializable) cursor.value();
 					pageBuckets.add(
@@ -1104,8 +1567,14 @@ public class InvertedIndex implements
 							? new ValueToRecordPrimitive(value, cursor.singleRecordId())
 							: new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records())
 					);
+					if (pageValueIds != null) {
+						pageValueIds.add(cursor.valueId());
+					}
 				}
-				return new LeafPage(pageSequence, pageBuckets.toArray(ValueToRecord[]::new));
+				return new LeafPage(
+					pageSequence, pageBuckets.toArray(ValueToRecord[]::new),
+					pageValueIds == null ? null : pageValueIds.toArray()
+				);
 			}
 		);
 	}
@@ -1131,8 +1600,10 @@ public class InvertedIndex implements
 	 *
 	 * @param pageSequence the leaf's stable page sequence
 	 * @param buckets the leaf's buckets in ascending value order
+	 * @param valueIds the stable value id of each bucket, positionally aligned with `buckets`, or `null` when the tree
+	 *                 carries no value ids
 	 */
-	public record LeafPage(int pageSequence, @Nonnull ValueToRecord[] buckets) {
+	public record LeafPage(int pageSequence, @Nonnull ValueToRecord[] buckets, @Nullable int[] valueIds) {
 	}
 
 	/**

@@ -1,0 +1,198 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.invertedIndex;
+
+import io.evitadb.index.attribute.FilterIndex;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SLOW;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * Stress verification of the one thing about {@link InvertedIndex#getValueById(int)} that no deterministic test can
+ * reach: that several query threads meeting a stale value id directory rebuild it exactly once between them.
+ *
+ * The reverse lookup is a READ that may perform a WRITE. The warm-up path mutates the index outside any transaction
+ * and never reaches a commit merge, so the directory is caught up lazily on the first read that follows a write. The
+ * rebuild behind that catch-up is not re-entrant: it advances the tree's plain leaf-id counter and calls
+ * `assignLeafId`, whose premise refuses a second assignment outright. Two readers that both observe the stale flag
+ * therefore either fail that premise — an internal error raised on a query — or interleave their writes into the
+ * shared location array and leave live values resolving to `null`, which is exactly the silent under-report that
+ * `getValueById`'s own transaction premise exists to rule out.
+ *
+ * That interleaving is a handful of statements wide and nothing can place a second reader inside it on demand, so
+ * `ValueIdTest` in the functional module deliberately does not try. It pins the neighbouring, reachable cases in the
+ * fast loop — "resolution survives a commit that re-shells the leaves" and "a commit leaves the previous version
+ * resolving against its own directory" — and this test covers the remainder the only way it can be covered: by
+ * releasing many readers onto the same stale directory at once, over enough rounds that the race is hit repeatedly.
+ *
+ * **It lives here, disabled, on purpose.** A probabilistic test in the fast loop fails once every few hundred CI runs
+ * and trains everyone to press re-run; the same test on a quiet machine, run deliberately, is real evidence. Enable
+ * it after touching `InvertedIndex#refreshValueIdDirectory` or the tree's `rebuildValueIdDirectory`.
+ *
+ * **Calibration (measured, not estimated).** With `synchronized` removed from
+ * `InvertedIndex#refreshValueIdDirectory` the run fails around round 11 of {@link #ROUNDS}, in 0.11 s, on a live
+ * value resolving to `null` — `assignLeafId`'s "assigned once and never reassigned" premise is the other shape the
+ * same race takes. With the guard in place all {@link #ROUNDS} rounds pass in 0.32 s. Re-measure after changing
+ * either method: if the counterfactual stops failing, this test has quietly become decorative, and
+ * {@link #READER_THREADS} or {@link #ROUNDS} must be raised until it fails again before a green run means anything.
+ *
+ * **What this test does NOT cover.** A reader that already passed the staleness check — having seen it `false` — can
+ * still be inside the tree's `valueOf` while a later reader rebuilds, because the rebuild updates its fields in place
+ * rather than publishing an immutable unit. Closing that window is deferred to the increment that adds the first
+ * production consumer; see `InvertedIndex#refreshValueIdDirectory`. Every reader here is released against a directory
+ * that is already stale, so they contend on the rebuild rather than on a rebuild-versus-read.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@Slf4j
+@Tag(SLOW)
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
+@Disabled("Probabilistic stress test - needs a quiet machine; enable manually after touching the value id directory")
+@DisplayName("Long-running value id directory concurrency tests")
+class LongRunningValueIdDirectoryConcurrencyTest {
+
+	/**
+	 * Names the registration that switches the id column on; only its presence matters, never its value.
+	 */
+	private static final String TEST_CONSUMER = "value-id-directory-concurrency-test";
+	/**
+	 * The leaf block size of an {@link InvertedIndex}. Each round inserts more than this many NEW distinct values, so
+	 * every round leaves at least one freshly split leaf carrying no leaf id yet — which is what makes two concurrent
+	 * rebuilds collide on `assignLeafId` rather than merely duplicating harmless work.
+	 */
+	private static final int LEAF_BLOCK_SIZE = 256;
+	/**
+	 * Distinct values the index starts with, spanning many leaves so a rebuild is a real walk rather than one node.
+	 */
+	private static final int SEED_VALUES = LEAF_BLOCK_SIZE * 8;
+	/**
+	 * Independent races. Each round dirties the directory afresh and releases a new wave of readers at it.
+	 */
+	private static final int ROUNDS = 500;
+	/**
+	 * Readers released simultaneously per round. More than the core count on purpose: the readers must genuinely
+	 * overlap rather than take turns.
+	 */
+	private static final int READER_THREADS = 8;
+	/**
+	 * How long a round waits for its readers. A healthy round resolves in microseconds; this bound only has to exceed
+	 * scheduling noise on a loaded box, and a positive wait can only fail spuriously if it is too tight.
+	 */
+	private static final long ROUND_TIMEOUT_SECONDS = 30L;
+
+	@Test
+	@DisplayName("Concurrent reverse lookups after a warm-up write all resolve every live value")
+	void shouldResolveEveryLiveValueWhenReadersRebuildTheDirectoryConcurrently() throws Exception {
+		final ExecutorService readers = Executors.newFixedThreadPool(
+			READER_THREADS, daemonFactory("value-id-directory-reader")
+		);
+		try {
+			final InvertedIndex index = new InvertedIndex(
+				Integer.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			index.attachValueIdConsumer(TEST_CONSUMER);
+			int nextValue = 0;
+			for (; nextValue < SEED_VALUES; nextValue++) {
+				index.addRecord(nextValue, nextValue + 1);
+			}
+
+			for (int round = 0; round < ROUNDS; round++) {
+				// insert a whole leaf block of NEW values, so this round's rebuild meets at least one split-born leaf
+				// that still carries no leaf id - and mark the directory stale in the process
+				final int roundFirstValue = nextValue;
+				for (int i = 0; i <= LEAF_BLOCK_SIZE; i++, nextValue++) {
+					index.addRecord(nextValue, nextValue + 1);
+				}
+				// the ids are read on this thread, before any reader starts, so the expectations below are taken from
+				// the forward lookup rather than from the directory the readers are about to rebuild
+				final int[] expectedIds = new int[nextValue - roundFirstValue];
+				for (int i = 0; i < expectedIds.length; i++) {
+					expectedIds[i] = index.getValueId(roundFirstValue + i);
+				}
+
+				final CountDownLatch startLine = new CountDownLatch(1);
+				final List<Future<?>> probes = new ArrayList<>(READER_THREADS);
+				for (int reader = 0; reader < READER_THREADS; reader++) {
+					probes.add(
+						readers.submit(() -> {
+							startLine.await();
+							for (int i = 0; i < expectedIds.length; i++) {
+								assertEquals(
+									roundFirstValue + i, index.getValueById(expectedIds[i]),
+									"value " + (roundFirstValue + i) + " did not resolve for a reader that met the "
+										+ "directory while another reader was rebuilding it"
+								);
+							}
+							return null;
+						})
+					);
+				}
+				startLine.countDown();
+				for (final Future<?> probe : probes) {
+					// generous by design: the latch returns the instant the work completes, so a wide bound costs a
+					// passing run nothing and still fails a genuine hang
+					probe.get(ROUND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+				}
+			}
+		} finally {
+			readers.shutdownNow();
+		}
+	}
+
+	/**
+	 * Builds a daemon thread factory, so a fixture that fails to shut down cannot keep the surefire JVM alive and
+	 * pollute assertions made by sibling classes in the same fork.
+	 *
+	 * @param name the thread name prefix
+	 * @return the daemon-producing factory
+	 */
+	@Nonnull
+	private static ThreadFactory daemonFactory(@Nonnull String name) {
+		return runnable -> {
+			final Thread thread = new Thread(runnable, name);
+			thread.setDaemon(true);
+			return thread;
+		};
+	}
+
+}

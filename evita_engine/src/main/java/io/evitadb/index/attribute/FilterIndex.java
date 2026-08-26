@@ -1277,7 +1277,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
 	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
 	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
-	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
+	 * axes are page-stable AND the bucket axis's value-id high-water mark hasn't advanced this commit, the root is
+	 * byte-identical to disk and skipped. The leaf pages
 	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
@@ -1300,7 +1301,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
 		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
 		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
-		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		// a commit can mint value ids into an existing leaf without ever allocating or freeing a page, and the root is
+		// the only place the id high-water mark lives — so a changed mark forces the root out even when both page lists
+		// are stable, or a restart would re-mint ids the leaf pages already carry
+		final boolean bucketRootStable =
+			bucket.paged() && !bucket.listChanged() && !bucket.valueIdHighWaterChanged();
 		final boolean rangeRootStable = range.rangePaged()
 			? !range.listChanged()
 			: range.inlineRangeIndex() == null;
@@ -1313,9 +1318,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
 				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
-				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(),
+				bucket.nextValueId(), bucket.inlineValueIds(), null
 			)
 		);
+		// the root just written carries the current high-water mark, so the next commit that mints nothing leaves it be
+		this.invertedIndex.markValueIdHighWaterEmitted();
 	}
 
 	/**
@@ -1338,7 +1346,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				sink.addChangeToStore(
-					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+					new FilterIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets(), page.valueIds()
+					)
 				);
 			}
 			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
@@ -1348,7 +1358,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 			return new BucketAxis(
 				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
-				emission.pageListChanged()
+				emission.pageListChanged(),
+				this.invertedIndex.getNextValueId(), null, this.invertedIndex.isValueIdHighWaterDirty()
 			);
 		}
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
@@ -1365,7 +1376,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
 		// (listChanged=true)
 		return new BucketAxis(
-			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true,
+			this.invertedIndex.getNextValueId(), this.invertedIndex.getValueIds(), true
 		);
 	}
 
@@ -1430,13 +1442,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
 	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
 	 *                         histogram always rides the root
+	 * @param nextValueId      the bucket axis's next-value-id high-water mark to persist on the root
+	 * @param inlineValueIds   the `SINGLE` part's inline value-id column, parallel to `histogramPoints`; `null` for a
+	 *                         `PAGED` part, whose value ids live in the leaf pages instead
+	 * @param valueIdHighWaterChanged whether the value-id high-water mark advanced this commit, forcing the root to
+	 *                         re-emit even when both axes are otherwise page-stable
 	 */
 	private record BucketAxis(
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		boolean paged,
 		int highWaterPageSequence,
 		@Nonnull int[] leafPageSequences,
-		boolean listChanged
+		boolean listChanged,
+		int nextValueId,
+		@Nullable int[] inlineValueIds,
+		boolean valueIdHighWaterChanged
 	) {
 	}
 

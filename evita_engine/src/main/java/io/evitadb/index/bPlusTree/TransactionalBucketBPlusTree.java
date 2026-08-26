@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
@@ -56,9 +57,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -70,7 +73,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * primitive `int` single-record column, and a sparse, lazily-allocated {@link TransactionalBitmap} overflow column for
  * the few multi-record buckets.
  *
- * **Leaf layout — LAZY-PARALLEL.** All three columns have length `valueBlockSize` and move in lockstep on
+ * **Leaf layout — LAZY-PARALLEL.** All four columns have length `valueBlockSize` and move in lockstep on
  * insert-shift / split / merge / steal:
  *
  * - `K[] keys` — the value, ordered by the {@link #comparator} (natural order when `null`).
@@ -78,6 +81,8 @@ import static io.evitadb.utils.ArrayUtils.*;
  *   {@link IntRecordColumn} backs it with a bare `int[]`.
  * - `TransactionalBitmap[] overflow` — **lazy**: `null` until the leaf's first multi bucket, then `overflow[i] != null`
  * marks a multi bucket whose record set is the bitmap.
+ * - `RecordColumn valueIds` — **lazy and optional**: `null` until a value-id minter is installed on the tree, then
+ *   `valueIds.intAt(i)` is the stable id naming bucket `i`'s distinct value.
  *
  * The single/multi discriminator is **always** `overflow == null || overflow[i] == null`, **never** the sign or value
  * of `records[i]`. Externally-assigned primary keys may be any 32-bit int (including `-1` and {@link Integer#MIN_VALUE}),
@@ -118,6 +123,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@link io.evitadb.index.page.PageStreamRegistry#NO_PAGE} sentinel (both engine-side).
 	 */
 	public static final int UNASSIGNED_PAGE_SEQUENCE = -1;
+	/**
+	 * The leaf id of a leaf that has not been given one — every leaf of an id-carrying tree has a real one, so this
+	 * only ever appears on a tree that carries no value ids at all.
+	 */
+	public static final long UNASSIGNED_LEAF_ID = 0L;
+	/**
+	 * The first stable leaf id a tree hands out; `0` is spent on {@link #UNASSIGNED_LEAF_ID}.
+	 */
+	public static final long FIRST_LEAF_ID = 1L;
 	/**
 	 * Sentinel returned by the leaf add methods when the record joined an EXISTING bucket, i.e. no new bucket key was
 	 * inserted. Any other (non-negative) return is the slot index the new bucket landed on, which
@@ -187,6 +201,53 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Root node of the tree.
 	 */
 	private final TransactionalReference<BPlusTreeNode<K, ?>> root;
+	/**
+	 * Mints the stable id of a value the tree has never held before, or `null` when this tree carries no value ids at
+	 * all — which is the default, and the state every tree is born in.
+	 *
+	 * Its presence is the single switch for the whole id column: a leaf allocates the parallel id column exactly when
+	 * this is non-null, so `valueIds != null` on any leaf and `valueIdMinter != null` on the tree always agree. The
+	 * tree deliberately does NOT own the allocator itself — it holds only the minting operation, so that
+	 * `io.evitadb.index.bPlusTree` keeps knowing nothing about the inverted index that owns the id space, and so that
+	 * a commit (which replaces both the tree and its allocator with fresh instances) can re-point the surviving tree at
+	 * the surviving allocator with a single call rather than carrying a stale reference forward.
+	 *
+	 * NOT transactional: installing or removing it is a structural decision about the tree, not a data change, and must
+	 * never be rolled back by a data transaction.
+	 */
+	@Nullable private IntSupplier valueIdMinter;
+	/**
+	 * The next stable leaf id this tree will hand out. Monotonic, never reused, runtime-only — see
+	 * {@link BPlusLeafTreeNode#getLeafId()}. Non-transactional, and carried across the commit-merge so a committed
+	 * tree keeps numbering onward instead of colliding with ids its own live leaves already hold.
+	 */
+	private long nextLeafId = FIRST_LEAF_ID;
+	/**
+	 * The `valueId -> (leafId, slot)` directory: the reverse of {@link #valueIdOf}, and the structure that makes
+	 * {@link #valueOf(int)} an `O(1)` probe instead of a scan the tree cannot perform at all (value ids are
+	 * allocation-ordered, so they are not searchable in the tree's key order).
+	 *
+	 * Indexed by value id, packed as `(leafId << 32) | slot`; `0` means "no entry". `null` until the tree carries
+	 * value ids. The entry references a STABLE LEAF ID, never a leaf's position in any array — a positional reference
+	 * would have to be rewritten for every leaf after a split, which is `O(V)` per split and design-ending.
+	 *
+	 * **Derived state.** Nothing here is persisted; the whole directory is rebuilt from the tree, which is what keeps
+	 * the value id feature's storage surface to the id column alone. It is also **immutable once built for a given
+	 * committed version**: it is (re)built at commit against the committed tree, so a reader holding an older index
+	 * version keeps resolving against that version's own directory and MVCC needs no diff layer here. The consequence
+	 * is that ids minted inside a still-open transaction are not resolvable through it until that transaction commits.
+	 */
+	@Nullable private long[] valueIdLocations;
+	/**
+	 * The `leafId -> leaf` indirection the directory resolves through. Rebuilt beside {@link #valueIdLocations}.
+	 */
+	@Nullable private Map<Long, BPlusLeafTreeNode<K>> leafById;
+	/**
+	 * `leafId -> the leaf instance version token last folded into the directory`. Lets a rebuild re-stamp only the
+	 * leaves whose content actually changed, exactly as the page stream registry diffs `pageSequence -> nodeId` — the
+	 * walk stays `O(leaves)` while the stamping stays proportional to what the commit touched.
+	 */
+	@Nullable private Map<Long, Long> directoryVersionByLeafId;
 
 	/**
 	 * Updates the keys in the parent nodes of a B+ tree based on changes in a specific path. Propagates changes up the
@@ -651,6 +712,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			new BPlusLeafTreeNode<>(
 				valueColumnFactory.create(valueBlockSize),
 				RecordColumnFactory.INT.create(valueBlockSize),
+				// a fresh tree carries no value ids; a consumer installs them afterwards via installValueIdMinter
+				null,
 				comparator,
 				true
 			),
@@ -699,6 +762,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			new BPlusLeafTreeNode<>(
 				valueColumnFactory.create(valueBlockSize),
 				RecordColumnFactory.LONG.create(valueBlockSize),
+				// a fresh tree carries no value ids; a consumer installs them afterwards via installValueIdMinter
+				null,
 				comparator,
 				true
 			),
@@ -823,9 +888,33 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize} — a page never exceeds a
 	 *                 leaf's capacity)
 	 */
-	@SuppressWarnings("unchecked")
 	public void bulkLoadPage(
 		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable TransactionalBitmap[] overflow, int count
+	) {
+		bulkLoadPage(keys, payloads, overflow, null, count);
+	}
+
+	/**
+	 * Value-id-aware sibling of {@link #bulkLoadPage(Object[], long[], TransactionalBitmap[], int)}: restores a
+	 * persisted page together with the stable value ids its buckets carried when the page was written.
+	 *
+	 * The loaded page's id column is built from `valueIds` alone and does NOT depend on whether a value id minter has
+	 * been installed yet — on the load path the minter is installed by the owner once the whole tree has been
+	 * assembled, which is necessarily after every page has been bulk-loaded.
+	 *
+	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
+	 * @param payloads the single-record payload for each key that is NOT overflow-promoted
+	 * @param overflow per-key pre-built multi-record bitmap, or {@code null} at a single-record slot; {@code null}
+	 *                 entirely when no key in this page is multi-record
+	 * @param valueIds the persisted value id of each key, aligned by index with {@code keys}; only
+	 *                 {@code valueIds[0, count)} are read. {@code null} when the tree carries no value ids, in which
+	 *                 case the page is loaded without an id column
+	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize})
+	 */
+	@SuppressWarnings("unchecked")
+	public void bulkLoadPage(
+		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable TransactionalBitmap[] overflow,
+		@Nullable int[] valueIds, int count
 	) {
 		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
 		Assert.isPremiseValid(
@@ -852,7 +941,371 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			paddedOverflow = overflow.length == this.valueBlockSize
 				? overflow : Arrays.copyOf(overflow, this.valueBlockSize);
 		}
-		setRoot(new BPlusLeafTreeNode<>(keyColumn, recordColumn, paddedOverflow, count - 1, this.comparator, true));
+		final RecordColumn valueIdColumn;
+		if (valueIds == null) {
+			valueIdColumn = createValueIdColumn();
+		} else {
+			Assert.isPremiseValid(
+				valueIds.length >= count,
+				"The persisted value id column is shorter (" + valueIds.length + ") than the page it belongs to ("
+					+ count + ")!"
+			);
+			valueIdColumn = RecordColumnFactory.INT.create(this.valueBlockSize);
+			for (int i = 0; i < count; i++) {
+				valueIdColumn.setAt(i, valueIds[i]);
+			}
+		}
+		setRoot(new BPlusLeafTreeNode<>(
+			keyColumn, recordColumn, paddedOverflow, valueIdColumn, count - 1, this.comparator, true));
+	}
+
+	/**
+	 * Creates a fresh, empty value id column for a leaf of this tree, or returns `null` when this tree carries no
+	 * value ids. The column is always an `int` column regardless of the tree's payload kind — ids are 32-bit.
+	 *
+	 * @return the empty id column, or `null` when the tree carries no value ids
+	 */
+	@Nullable
+	private RecordColumn createValueIdColumn() {
+		return this.valueIdMinter == null ? null : RecordColumnFactory.INT.create(this.valueBlockSize);
+	}
+
+	/**
+	 * Mints and stamps the stable id of a bucket that has just been created, or does nothing when this tree carries no
+	 * value ids. Called on the new-bucket branch only — an insert that joins an existing bucket costs no id and no
+	 * write here, which is the property the whole design rests on (churn on an existing value is free on the
+	 * dictionary side).
+	 *
+	 * Stamping happens BEFORE the leaf can split, so the slot index the leaf just reported is still valid.
+	 *
+	 * @param leaf      the leaf the bucket was inserted into
+	 * @param insertedAt the slot the new bucket occupies
+	 */
+	private void stampValueId(@Nonnull BPlusLeafTreeNode<K> leaf, int insertedAt) {
+		if (this.valueIdMinter != null) {
+			leaf.setValueIdAt(insertedAt, this.valueIdMinter.getAsInt());
+		}
+	}
+
+	/**
+	 * Switches this tree into id-carrying mode: every leaf gains the parallel value id column, and every bucket
+	 * inserted from now on is stamped with a freshly minted id.
+	 *
+	 * Buckets that already exist are stamped in ascending key order. That walk exists for the load path of an inline
+	 * (`SINGLE`) index — whose buckets are replayed through the ordinary insert path and therefore arrive without ids —
+	 * and not as a general "switch a populated tree on" capability: it is `O(V)`, and it writes into leaves that
+	 * nothing marks dirty, so on an already-persisted tree the stamped ids would never reach disk and a reload would
+	 * hand those values different ones. The only two moments a caller may reach for this method are therefore (a) right
+	 * after the tree was created, while it is still empty, and (b) right after it was rebuilt from persisted pages,
+	 * where the ids came back with the pages and the walk finds nothing to do. `InvertedIndex#attachValueIdConsumer`
+	 * refuses anything else on the way in.
+	 *
+	 * Back-filling a populated tree from inside a transaction is refused: the walk would write through the base leaves
+	 * rather than the transaction's own layers and leak across isolation.
+	 *
+	 * Idempotent with respect to the ids themselves — re-installing a minter over a tree that already carries ids
+	 * replaces the minting operation (which is what a commit does, re-pointing the surviving tree at the surviving
+	 * allocator) and back-fills nothing.
+	 *
+	 * @param valueIdMinter mints the id of a value the tree has never held before
+	 */
+	public void installValueIdMinter(@Nonnull IntSupplier valueIdMinter) {
+		installValueIdMinter(valueIdMinter, null);
+	}
+
+	/**
+	 * Persisted-id variant of {@link #installValueIdMinter(IntSupplier)}: instead of minting fresh ids for the values
+	 * already present, it stamps the ids the tree carried when it was written, taken in ascending key order.
+	 *
+	 * This is the load path of an index persisted in the inline (`SINGLE`) shape, whose buckets are replayed through
+	 * the ordinary insert path and therefore arrive without ids. The paged shape has no use for it — there the ids come
+	 * back inside each page and are already in place before the minter is installed.
+	 *
+	 * @param valueIdMinter   mints the id of a value the tree has never held before, from now on
+	 * @param persistedValueIds the ids of the values already present, in ascending key order, or `null` to mint fresh
+	 *                          ones
+	 */
+	public void installValueIdMinter(@Nonnull IntSupplier valueIdMinter, @Nullable int[] persistedValueIds) {
+		final boolean freshlyEnabled = this.valueIdMinter == null;
+		this.valueIdMinter = valueIdMinter;
+		if (!freshlyEnabled) {
+			// already id-carrying: the caller only re-pointed the minting operation, every bucket already has an id
+			return;
+		}
+		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
+		if (holdsAnyBucket(leaves)) {
+			Assert.isPremiseValid(
+				!Transaction.isTransactionAvailable(),
+				"Cannot back-fill value ids of a populated tree from inside a transaction — the walk would write " +
+					"through the base leaves and leak across transaction isolation. Install the minter either on a " +
+					"freshly created tree or right after it has been rebuilt from persisted pages."
+			);
+		}
+		// checked BEFORE the walk: a short column would otherwise surface as an array index failure halfway through a
+		// half-stamped tree rather than as the misalignment it is
+		final int valueCount = size();
+		Assert.isPremiseValid(
+			persistedValueIds == null || persistedValueIds.length == valueCount,
+			() -> "The persisted value id column holds " + persistedValueIds.length + " ids but the tree holds "
+				+ valueCount + " values - the two must align exactly."
+		);
+		int valueOrdinal = 0;
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			final RecordColumn column = leaf.ensureValueIdColumn();
+			for (int slot = 0; slot < leaf.size(); slot++) {
+				// an id already in place came back with a persisted page and must never be overwritten
+				if (column.intAt(slot) == 0) {
+					column.setAt(
+						slot,
+						persistedValueIds == null ? valueIdMinter.getAsInt() : persistedValueIds[valueOrdinal]
+					);
+				}
+				valueOrdinal++;
+			}
+		}
+	}
+
+	/**
+	 * Switches this tree out of id-carrying mode, dropping every leaf's id column. Called when the last consumer of
+	 * this tree's ids has unregistered.
+	 *
+	 * The ids are gone for good: nothing remembers them, so a later {@link #installValueIdMinter} mints an entirely
+	 * new set. Any structure still keyed by the old ids must be discarded together with them.
+	 *
+	 * Dropping the columns of a POPULATED tree from inside a transaction is refused, on exactly the condition
+	 * {@link #installValueIdMinter(IntSupplier, int[])} refuses the mirror-image back-fill: the walk below writes
+	 * through the base leaves rather than the transaction's own layers. An EMPTY tree is allowed, because the walk
+	 * then has no column to clear and nothing to leak — and that is the only shape this ever arrives in, since a
+	 * schema mutation reaches the indexes with a transaction bound to the thread.
+	 */
+	public void removeValueIdMinter() {
+		if (this.valueIdMinter == null) {
+			return;
+		}
+		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
+		if (holdsAnyBucket(leaves)) {
+			Assert.isPremiseValid(
+				!Transaction.isTransactionAvailable(),
+				"Cannot drop the value id columns of a populated tree from inside a transaction — the walk would " +
+					"write through the base leaves and leak across transaction isolation."
+			);
+		}
+		this.valueIdMinter = null;
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			leaf.valueIds = null;
+		}
+	}
+
+	/**
+	 * Tells whether any leaf in `leaves` still holds a bucket.
+	 *
+	 * Shared by the two guards protecting the id-column walks of {@link #installValueIdMinter(IntSupplier, int[])}
+	 * and {@link #removeValueIdMinter()}. Both walks write through the BASE leaves, so both must be refused inside a
+	 * transaction; both are harmless on an empty tree, where the walk has nothing to write. The condition lives here
+	 * rather than at the two sites so the guards cannot drift apart — an asymmetry between them makes one of the two
+	 * paths unreachable from the schema mutation that is their only real caller.
+	 *
+	 * @param leaves this tree's leaves, in ascending key order
+	 * @return `true` when at least one leaf holds a bucket
+	 */
+	private boolean holdsAnyBucket(@Nonnull List<BPlusLeafTreeNode<K>> leaves) {
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			if (leaf.size() > 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * @return `true` when this tree stamps every bucket with a stable value id
+	 */
+	public boolean carriesValueIds() {
+		return this.valueIdMinter != null;
+	}
+
+	/**
+	 * Returns the stable id of the distinct `value`, in a single tree descent.
+	 *
+	 * @param value the bucket value to resolve
+	 * @return the value's stable id, or `0` (the "unassigned" sentinel) when this tree carries no value ids or holds
+	 *         no bucket for that value
+	 */
+	public int valueIdOf(@Nullable K value) {
+		if (value == null || this.valueIdMinter == null) {
+			return 0;
+		}
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		final InsertionPosition position =
+			leaf.getKeyColumn().findKeyPosition(value, 0, leaf.getPeek() + 1, this.comparator);
+		return position.alreadyPresent() ? leaf.valueIdAt(position.position()) : 0;
+	}
+
+	/**
+	 * (Re)builds the `valueId -> value` directory against the tree's CURRENT committed content, minting a stable leaf
+	 * id for any leaf that does not have one yet.
+	 *
+	 * This variant re-stamps EVERY leaf, because it must also be correct after an in-place mutation, which changes a
+	 * leaf's content while leaving its instance — and therefore its version token — exactly as it was. That is the
+	 * warm-up path's shape, and it is why the lazy catch-up in `InvertedIndex#getValueById` calls this one. Call it
+	 * once per published version: after a load, when value ids are first switched on, and to fold in the writes a
+	 * warm-up session made. After a COMMIT MERGE call {@link #rebuildValueIdDirectoryAfterMerge()} instead, which is
+	 * the variant that gets to skip the leaves the merge carried forward untouched.
+	 *
+	 * Entries of values that have since died are deliberately NOT swept - sweeping them would cost a second `O(V)`
+	 * walk over an id space this design keeps sparse on purpose. {@link #valueOf(int)} instead validates every hit
+	 * against the leaf it lands on, so a stale entry resolves to nothing rather than to the wrong value.
+	 */
+	public void rebuildValueIdDirectory() {
+		rebuildValueIdDirectory(false);
+	}
+
+	/**
+	 * Commit-merge variant of {@link #rebuildValueIdDirectory()}: re-stamps only the leaves whose instance identity
+	 * changed, leaving the entries of leaves the merge carried forward by reference exactly as they are.
+	 *
+	 * The shortcut is valid ONLY here, and the distinction is easy to get wrong. A leaf's `id` is a per-instance
+	 * version token, so it moves when the merge rebuilds a leaf — but an in-place mutation outside a transaction
+	 * changes a leaf's CONTENT while keeping the very same instance and therefore the very same token. Using this
+	 * variant after such a mutation would silently skip the leaf that changed; that is what
+	 * {@link #rebuildValueIdDirectory()} is for.
+	 *
+	 * The entries it reuses are those of the PREVIOUS version, which
+	 * {@link #createCopyWithMergedTransactionalMemory} hands to the merged tree — the version map by reference and
+	 * the location array as a copy, since this rebuild writes into that array in place and the previous version's
+	 * readers are still resolving through their own. Without that carry this method silently degrades to the full
+	 * re-stamp of {@link #rebuildValueIdDirectory()}, which is correct but pays `O(V)` on every commit.
+	 */
+	public void rebuildValueIdDirectoryAfterMerge() {
+		rebuildValueIdDirectory(true);
+	}
+
+	/**
+	 * Shared body of the two rebuild entry points.
+	 *
+	 * @param reuseUnchangedLeaves whether a leaf whose instance identity is unchanged may keep its existing entries
+	 */
+	private void rebuildValueIdDirectory(boolean reuseUnchangedLeaves) {
+		if (this.valueIdMinter == null) {
+			this.valueIdLocations = null;
+			this.leafById = null;
+			this.directoryVersionByLeafId = null;
+			return;
+		}
+		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
+		final Map<Long, BPlusLeafTreeNode<K>> rebuiltLeafById = CollectionUtils.createHashMap(leaves.size());
+		final Map<Long, Long> rebuiltVersions = CollectionUtils.createHashMap(leaves.size());
+		final Map<Long, Long> previousVersions =
+			this.directoryVersionByLeafId == null ? Map.of() : this.directoryVersionByLeafId;
+		long[] locations = this.valueIdLocations == null ? new long[64] : this.valueIdLocations;
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			if (leaf.getLeafId() == UNASSIGNED_LEAF_ID) {
+				leaf.assignLeafId(this.nextLeafId++);
+			}
+			final long leafId = leaf.getLeafId();
+			Assert.isPremiseValid(
+				leafId <= 0xFFFF_FFFFL,
+				"The leaf id space of this shared value tree is exhausted - the directory packs a leaf id and a slot " +
+					"into one long. Leaf ids are runtime-only and restart on load, so only an extraordinarily " +
+					"long-lived process can reach this; a generation-scoped compaction resets them."
+			);
+			rebuiltLeafById.put(leafId, leaf);
+			rebuiltVersions.put(leafId, leaf.getId());
+			final Long builtVersion = previousVersions.get(leafId);
+			if (reuseUnchangedLeaves && builtVersion != null && builtVersion == leaf.getId()) {
+				// the merge carried this very instance forward, so nothing about it moved and its entries still stand
+				continue;
+			}
+			final int size = leaf.size();
+			for (int slot = 0; slot < size; slot++) {
+				final int valueId = leaf.valueIdAt(slot);
+				if (valueId == 0) {
+					continue;
+				}
+				if (valueId >= locations.length) {
+					locations = Arrays.copyOf(locations, Math.max(valueId + 1, locations.length * 2));
+				}
+				locations[valueId] = (leafId << 32) | slot;
+			}
+		}
+		this.valueIdLocations = locations;
+		this.leafById = rebuiltLeafById;
+		this.directoryVersionByLeafId = rebuiltVersions;
+	}
+
+	/**
+	 * Resolves a stable value id back to the distinct value it names - the reverse of {@link #valueIdOf}, and the
+	 * probe a consumer performs once per candidate (the trigram index verifies its candidates through exactly this).
+	 *
+	 * Every hit is validated against the leaf it lands on: a directory entry left behind by a value that has since
+	 * died, or one whose leaf has been rebuilt around it, resolves to `null` rather than to whatever now occupies that
+	 * slot. That validation is what lets the rebuild skip sweeping dead entries.
+	 *
+	 * ## The caller owes the transaction check
+	 *
+	 * This method deliberately carries NO transaction premise, so that the characterization test for the hazard can
+	 * reach it — but the hazard is real and the caller owns it. The directory belongs to the last PUBLISHED version
+	 * and has no diff layer, so a transaction open on the calling thread sees neither the ids it minted (no entry at
+	 * all) nor the values it moved (an entry addressing a slot they have left). Both come back `null`, so a probe
+	 * would report "no such value" for values the collection does hold — a silent under-report, which for the
+	 * candidate-verifying consumer this exists for means quietly matching fewer entities than the query asked for.
+	 *
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#getValueById(int)} is the guarded entry point and refuses
+	 * outright instead; it is what production callers must go through. Anything reaching this tree method directly
+	 * must make the same check, or take its scan fallback, for itself.
+	 *
+	 * @param valueId the id to resolve
+	 * @return the value that id names, or `null` when the tree carries no value ids, the directory has not been built
+	 *         for the current version, or the id names nothing live
+	 */
+	@Nullable
+	public K valueOf(int valueId) {
+		final long[] locations = this.valueIdLocations;
+		final Map<Long, BPlusLeafTreeNode<K>> leaves = this.leafById;
+		if (locations == null || leaves == null || valueId <= 0 || valueId >= locations.length) {
+			return null;
+		}
+		final long location = locations[valueId];
+		if (location == 0L) {
+			return null;
+		}
+		final BPlusLeafTreeNode<K> leaf = leaves.get(location >>> 32);
+		if (leaf == null) {
+			return null;
+		}
+		final int slot = (int) (location & 0xFFFF_FFFFL);
+		// the entry may predate a rebuild of this leaf, so it is believed only when the slot still carries that id
+		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.keyAt(slot) : null;
+	}
+
+	/**
+	 * Returns the next stable leaf id this tree would hand out — equivalently, one more than the number of leaves it
+	 * has ever created since it was built or loaded.
+	 *
+	 * Exposed because leaf-id stability is an invariant with no behavioural symptom: losing it does not produce wrong
+	 * answers, it silently burns the id space and fills the directory with entries under leaf ids nothing points at
+	 * any more. This counter is the only place that shows it, so it is what the test for that invariant asserts on.
+	 *
+	 * @return the next leaf id to be minted
+	 */
+	public long getNextLeafId() {
+		return this.nextLeafId;
+	}
+
+	/**
+	 * Returns the heap the value id directory's location array occupies - the dominant term, at 8 B per minted id.
+	 *
+	 * It is reported separately rather than folded into {@link #getHeapSizeInBytes(ToLongFunction)} for the same
+	 * reason the page-stream registry is not charged there: both are derived bookkeeping rebuilt on load rather than
+	 * data the tree owns, and the index heap figures are asserted byte-exact against a JOL walk that treats such
+	 * fields as excluded. The two small leaf-keyed maps beside the array are bounded by the leaf count (one entry per
+	 * 256 values) and are likewise not counted.
+	 *
+	 * @return the location array's footprint in bytes, or `0` when the tree carries no value ids
+	 */
+	public long getValueIdDirectoryHeapSizeInBytes() {
+		return this.valueIdLocations == null
+			? 0L : VMLayout.current().sizeOfArray(this.valueIdLocations.length, Long.BYTES);
 	}
 
 	/**
@@ -877,6 +1330,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addRecord(value, pk);
 		if (insertedAt != NO_NEW_BUCKET) {
+			stampValueId(leaf, insertedAt);
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts run on the new-bucket branch before the (possible) split, while the
 			// descent context still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order
@@ -912,6 +1366,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addRecords(value, pks);
 		if (insertedAt != NO_NEW_BUCKET) {
+			stampValueId(leaf, insertedAt);
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts — see addRecord(K, int); the new-bucket branch validates cross-leaf
 			// order before the (possible) split
@@ -1030,6 +1485,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusLeafTreeNode<K> leaf = context.leaf();
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addLongRecord(value, payload);
+		stampValueId(leaf, insertedAt);
 		this.size.set(size() + 1);
 		// op-time boundary-mutation asserts — a long-payload add always inserts a new bucket (or throws on a duplicate),
 		// so validate cross-leaf order unconditionally before the (possible) split
@@ -1184,11 +1640,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 		final VMLayout layout = VMLayout.current();
-		// id + four block-size ints + longPayload + six reference slots: keyType, comparator, the two column
-		// factories, size and root. The factories are lambdas the caller supplied and every tree of this key type
-		// receives the same pair, so only their slots belong here
+		// id + four block-size ints + longPayload + seven reference slots: keyType, comparator, the two column
+		// factories, size, root and the value id minter. The factories are lambdas the caller supplied and every tree
+		// of this key type receives the same pair, so only their slots belong here; the minter is likewise a lambda
+		// owned by the index above this tree
 		long ownSize = layout.sizeOfObject(
-			Long.BYTES + 4L * Integer.BYTES + 1L + 6L * layout.referenceSize()
+			Long.BYTES + 4L * Integer.BYTES + 1L + 7L * layout.referenceSize()
+				// nextLeafId, plus the three value id directory slots (their contents are reported apart, by
+				// getValueIdDirectoryHeapSizeInBytes)
+				+ Long.BYTES + 3L * layout.referenceSize()
 		);
 		// the two TransactionalReference holders are the tree's own, and each wraps an AtomicReference. The `root`
 		// holder addresses the node walked below; the `size` holder addresses a boxed Integer, charged in full -
@@ -1357,6 +1817,27 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		} else {
 			throw new GenericEvitaInternalError("Unknown node type: " + theRoot);
 		}
+		// carry id-carrying mode across the merge so the merged tree's leaves and its minter never disagree, even for
+		// the instant before the owner re-points the minter at the freshly merged allocator (see
+		// `InvertedIndex#createCopyWithMergedTransactionalMemory`). The carried operation still mints from the
+		// PRE-merge allocator, so it must be replaced before the merged tree takes any write.
+		merged.valueIdMinter = this.valueIdMinter;
+		// leaf ids are never reused, so the merged tree must continue the sequence rather than restart it and collide
+		// with ids its own carried-forward leaves already hold
+		merged.nextLeafId = this.nextLeafId;
+		// hand the merged tree the previous version's directory, so `rebuildValueIdDirectoryAfterMerge` can actually
+		// take its reuse branch. It keys the skip off `directoryVersionByLeafId`, which without this carry is empty on
+		// every merged tree — the incremental rebuild then degrades to a full O(V) re-stamp plus a freshly
+		// doubling-grown long[] on EVERY commit, which is precisely the cost the design exists to avoid.
+		// The version map is only ever READ by the rebuild (it publishes a fresh one at the end), so it carries by
+		// reference. The location array is written into IN PLACE, so it must be COPIED: sharing it would let this
+		// merged tree overwrite the very slots a reader still holding the previous version resolves through — leaf ids
+		// are stable across the merge, so those writes would land on live entries and turn a missing optimization into
+		// an MVCC correctness bug. `leafById` is deliberately NOT carried: the rebuild replaces it wholesale, and an
+		// old map would resolve to the previous version's leaf instances in the window before it runs.
+		merged.directoryVersionByLeafId = this.directoryVersionByLeafId;
+		merged.valueIdLocations = this.valueIdLocations == null
+			? null : Arrays.copyOf(this.valueIdLocations, this.valueIdLocations.length);
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
 		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
 		// the merged nodes are fresh or unchanged-and-layer-free, so the descent never consults a diff layer).
@@ -1490,6 +1971,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull private final ValueColumn<M> keys;
 		@Nonnull private final RecordColumn records;
 		@Nullable private final TransactionalBitmap[] overflow;
+		@Nullable private final RecordColumn valueIds;
 		private final int peek;
 		private final long leafId;
 		private int currentIndex = -1;
@@ -1499,8 +1981,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.keys = leaf.getKeyColumn();
 			this.records = leaf.getRecords();
 			this.overflow = leaf.getOverflow();
+			this.valueIds = leaf.getValueIds();
 			this.peek = leaf.getPeek();
 			this.leafId = leaf.getId();
+		}
+
+		@Override
+		public int valueId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.valueIds == null ? 0 : this.valueIds.intAt(this.currentIndex);
 		}
 
 		@Override
@@ -2379,6 +2868,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							new BPlusLeafTreeNode<>(
 								this.valueColumnFactory.create(this.valueBlockSize),
 								this.recordColumnFactory.create(this.valueBlockSize),
+								createValueIdColumn(),
 								this.comparator,
 								true
 							)
@@ -2587,6 +3077,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final ValueColumn<K> originKeys = leaf.getKeyColumn();
 		final RecordColumn originRecords = leaf.getRecords();
 		final TransactionalBitmap[] originOverflow = leaf.getOverflow();
+		final RecordColumn originValueIds = leaf.getValueIds();
 
 		// Structural assert: the split partitions a sorted leaf into a left half [0, mid) and a right half
 		// [mid, capacity); the left leaf's last key must sort strictly before the right leaf's first key, and the
@@ -2608,9 +3099,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originKeys,
 			originRecords,
 			originOverflow,
+			originValueIds,
 			originKeys.allocate(this.valueBlockSize),
 			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new TransactionalBitmap[this.valueBlockSize],
+			originValueIds == null ? null : originValueIds.allocate(this.valueBlockSize),
 			0,
 			mid,
 			this.comparator,
@@ -2624,9 +3117,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originKeys,
 			originRecords,
 			originOverflow,
+			originValueIds,
 			originKeys.allocate(this.valueBlockSize),
 			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new TransactionalBitmap[this.valueBlockSize],
+			originValueIds == null ? null : originValueIds.allocate(this.valueBlockSize),
 			mid,
 			leftLeaf.getKeyColumn().capacity(),
 			this.comparator,
@@ -2960,6 +3455,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the single record id
 		 */
 		int singleRecordId();
+
+		/**
+		 * Returns the stable value id of the current bucket — the id that names its distinct value independently of
+		 * where that value currently sits in the tree.
+		 *
+		 * @return the bucket's value id, or `0` (the "unassigned" sentinel) when the tree carries no value ids
+		 */
+		int valueId();
 
 		/**
 		 * Returns the lone `long` payload of the current bucket. Valid only on a long-payload tree (built via
@@ -3876,6 +4379,39 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable private TransactionalBitmap[] overflow;
 		/**
+		 * The optional parallel **value id** column: `valueIds.intAt(i)` is the stable id naming the distinct value of
+		 * bucket `i`, positionally aligned with {@link #keys} and {@link #records} and shifted in lockstep with them.
+		 *
+		 * `null` unless the owning tree carries value ids at all (see the tree's `valueIdMinter`), which is the common
+		 * case — the column is paid for only by trees some subsystem has registered as a consumer of. A live slot
+		 * always holds a minted id; a vacated slot reads back as `0`, the "unassigned" sentinel, because the record
+		 * column's `clearAt` / `fillEmpty` zero-fill it.
+		 */
+		@Nullable private RecordColumn valueIds;
+		/**
+		 * The leaf's **stable logical id** — the identity a value id directory references, as distinct from
+		 * {@link #id}, which is a per-instance version token that changes on every commit-merge rebuild.
+		 *
+		 * Minted from the tree's own monotonic counter and NEVER reused, for the same reason value ids are not: a
+		 * directory entry that outlived its leaf must resolve to nothing rather than to a different leaf that happens
+		 * to have inherited the number. Unlike a leaf's array position it survives a split of any neighbour (a
+		 * positional reference would renumber every leaf after the split, which is `O(V)` per split and
+		 * design-ending).
+		 *
+		 * **Assigned lazily, at a publication point — not when the leaf is created.** The only assignment site is
+		 * `rebuildValueIdDirectory`, which runs after a load, after a commit merge, when value ids are first switched
+		 * on, and on the lazy catch-up in `InvertedIndex#getValueById`; from there
+		 * {@link #createCopyWithMergedTransactionalMemory} carries it forward, so each leaf is numbered exactly once.
+		 * A leaf created INSIDE a transaction — a split-born one, constructed with this field left at
+		 * {@link #UNASSIGNED_LEAF_ID} — therefore has no id until that transaction commits, and nothing may build a
+		 * transaction-local structure keyed by it. That is the opposite of {@link #pageSequence}, which the write path
+		 * stamps onto a split-born leaf during the flush that first emits it.
+		 *
+		 * Runtime-only and NOT persisted: the directory built on top of it is derived state rebuilt on load, so a
+		 * reload is free to number the leaves afresh.
+		 */
+		@Getter private long leafId = UNASSIGNED_LEAF_ID;
+		/**
 		 * Index of the last occupied position in the columns.
 		 */
 		private int peek;
@@ -3944,24 +4480,53 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
+		 * Copies a range of value ids from `src` into `dst` during rebalancing, in lockstep with the key and record
+		 * columns. A no-op when the destination leaf carries no id column, which — because id-carrying is a property of
+		 * the whole tree, not of an individual leaf — implies the donor carries none either. The reverse (a destination
+		 * column without a donor column) is therefore a programming error rather than a case to absorb silently.
+		 *
+		 * @param src    the donor's value id column (null only when the whole tree carries no ids)
+		 * @param srcPos the start index in the donor
+		 * @param dst    the receiver's value id column (null only when the whole tree carries no ids)
+		 * @param dstPos the start index in the receiver
+		 * @param length the number of ids to copy
+		 */
+		private static void copyValueIdRange(
+			@Nullable RecordColumn src, int srcPos,
+			@Nullable RecordColumn dst, int dstPos, int length
+		) {
+			if (dst != null) {
+				Assert.isPremiseValid(
+					src != null,
+					"The receiving leaf carries a value id column but the donor sibling does not — id-carrying is a " +
+						"property of the whole tree, so the two can never disagree!"
+				);
+				src.copyRangeTo(srcPos, dst, dstPos, length);
+			}
+		}
+
+		/**
 		 * Creates a new empty leaf node backed by a pre-built key column and single-record column. The key column's
 		 * capacity defines the leaf block size, and the column kinds (boxed vs. primitive key, int vs. long payload) were
 		 * chosen by the tree's {@link ValueColumnFactory} / {@link RecordColumnFactory}.
 		 *
 		 * @param keys               the empty key column (its capacity is the block size)
 		 * @param records            the empty single-record column (same capacity, built by the tree's record factory)
+		 * @param valueIds           the empty value id column (same capacity), or `null` when the tree carries no ids
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
 		public BPlusLeafTreeNode(
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
+			@Nullable RecordColumn valueIds,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
 			this.keys = keys;
 			this.records = records;
 			this.overflow = null;
+			this.valueIds = valueIds;
 			this.comparator = comparator;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
@@ -3974,9 +4539,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param originKeys         the source key column to copy from
 		 * @param originRecords      the source single-record column to copy from
 		 * @param originOverflow     the source overflow column to copy from (may be null)
+		 * @param originValueIds     the source value id column to copy from (may be null)
 		 * @param keys               the target key column (may be the same as originKeys)
 		 * @param records            the target single-record column (may be the same as originRecords)
 		 * @param overflow           the target overflow column (may be the same as originOverflow, or null)
+		 * @param valueIds           the target value id column (may be the same as originValueIds, or null)
 		 * @param start              the start index (inclusive) in the origin arrays
 		 * @param end                the end index (exclusive) in the origin arrays
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
@@ -3986,9 +4553,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull ValueColumn<M> originKeys,
 			@Nonnull RecordColumn originRecords,
 			@Nullable TransactionalBitmap[] originOverflow,
+			@Nullable RecordColumn originValueIds,
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
+			@Nullable RecordColumn valueIds,
 			int start, int end,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
@@ -3996,6 +4565,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.keys = keys;
 			this.records = records;
 			this.overflow = overflow;
+			this.valueIds = valueIds;
 			originKeys.copyRangeTo(start, keys, 0, end - start);
 			if (keys == originKeys) {
 				keys.fillEmpty(end - start, keys.capacity());
@@ -4003,6 +4573,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originRecords.copyRangeTo(start, records, 0, end - start);
 			if (records == originRecords) {
 				records.fillEmpty(end - start, records.capacity());
+			}
+			if (valueIds != null && originValueIds != null) {
+				originValueIds.copyRangeTo(start, valueIds, 0, end - start);
+				if (valueIds == originValueIds) {
+					valueIds.fillEmpty(end - start, valueIds.capacity());
+				}
 			}
 			if (overflow != null) {
 				// originOverflow may be null when the source leaf carried no multi bucket but the target column was
@@ -4024,6 +4600,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
+			@Nullable RecordColumn valueIds,
 			int peek,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
@@ -4031,6 +4608,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.keys = keys;
 			this.records = records;
 			this.overflow = overflow;
+			this.valueIds = valueIds;
 			this.peek = peek;
 			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
@@ -4095,6 +4673,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (peek < originPeek) {
 					this.keys.fillEmpty(peek + 1, originPeek + 1);
 					this.records.fillEmpty(peek + 1, originPeek + 1);
+					if (this.valueIds != null) {
+						this.valueIds.fillEmpty(peek + 1, originPeek + 1);
+					}
 					if (this.overflow != null) {
 						Arrays.fill(this.overflow, peek + 1, originPeek + 1, null);
 					}
@@ -4117,6 +4698,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						layer.records = this.records.duplicate();
 					} else {
 						layer.records.fillEmpty(peek + 1, originPeek + 1);
+					}
+					if (layer.valueIds != null) {
+						if (layer.valueIds == this.valueIds) {
+							// decouple by deep-copying the shared base column (its tail beyond originPeek is already
+							// zero, so the deep copy matches the fresh-array + copy-[0, originPeek] decouple verbatim)
+							layer.valueIds = this.valueIds.duplicate();
+						} else {
+							layer.valueIds.fillEmpty(peek + 1, originPeek + 1);
+						}
 					}
 					if (layer.overflow != null) {
 						//noinspection ArrayEquality
@@ -4141,6 +4731,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void setPageSequence(int pageSequence) {
 			this.pageSequence = pageSequence;
+		}
+
+		/**
+		 * Stamps this leaf's stable logical id. Called once, by the directory rebuild that first sees the leaf; the id
+		 * is then carried across every later commit-merge rebuild, so it is assigned exactly once per leaf.
+		 *
+		 * @param leafId the freshly minted id
+		 */
+		void assignLeafId(long leafId) {
+			Assert.isPremiseValid(
+				this.leafId == UNASSIGNED_LEAF_ID,
+				"A leaf's stable id is assigned once and never reassigned!"
+			);
+			this.leafId = leafId;
 		}
 
 		/**
@@ -4177,17 +4781,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * Charges its own object, both columns and - when it has one - the lazy overflow array together with every
 		 * bitmap in it. `comparator` is the tree's and shared by every node, so only its slot is charged; the
-		 * `overflow` array is `null` until the leaf's first multi-record bucket and costs nothing until then.
+		 * `overflow` array is `null` until the leaf's first multi-record bucket and costs nothing until then, and the
+		 * `valueIds` column is `null` unless some subsystem has registered as a consumer of this tree's ids.
 		 *
 		 * @param elementSizer prices one boxed key, for the columns that store references
 		 * @return the owned heap footprint of this leaf in bytes
 		 */
 		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + dirty + comparator/keys/records/overflow slots + peek + pageSequence
-			long size = layout.sizeOfObject(Long.BYTES + 2L + 4L * layout.referenceSize() + 2L * Integer.BYTES);
+			// id + leafId + transactionalLayer + dirty + comparator/keys/records/overflow/valueIds slots
+			// + peek + pageSequence
+			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 5L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += this.keys.getHeapSizeInBytes(elementSizer);
 			size += this.records.getHeapSizeInBytes();
+			if (this.valueIds != null) {
+				size += this.valueIds.getHeapSizeInBytes();
+			}
 			if (this.overflow != null) {
 				size += layout.sizeOfArray(this.overflow.length, layout.referenceSize());
 				for (int i = 0; i < this.overflow.length; i++) {
@@ -4317,12 +4926,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.overflow != null) {
 					System.arraycopy(this.overflow, 0, this.overflow, numberOfTailValues, this.peek + 1);
 				}
+				if (this.valueIds != null) {
+					this.valueIds.copyRangeTo(0, this.valueIds, numberOfTailValues, this.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
 				previousNode.getRecords().copyRangeTo(
 					previousNode.size() - numberOfTailValues, this.records, 0, numberOfTailValues);
 				copyOverflowRange(
 					previousNode.getOverflow(), previousNode.size() - numberOfTailValues, this.overflow, 0,
+					numberOfTailValues
+				);
+				copyValueIdRange(
+					previousNode.getValueIds(), previousNode.size() - numberOfTailValues, this.valueIds, 0,
 					numberOfTailValues
 				);
 				this.peek += numberOfTailValues;
@@ -4337,12 +4953,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.overflow != null) {
 					System.arraycopy(layer.overflow, 0, layer.overflow, numberOfTailValues, layer.peek + 1);
 				}
+				if (layer.valueIds != null) {
+					layer.valueIds.copyRangeTo(0, layer.valueIds, numberOfTailValues, layer.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, layer.keys, 0, numberOfTailValues);
 				previousNode.getRecords().copyRangeTo(
 					previousNode.size() - numberOfTailValues, layer.records, 0, numberOfTailValues);
 				copyOverflowRange(
 					previousNode.getOverflow(), previousNode.size() - numberOfTailValues, layer.overflow, 0,
+					numberOfTailValues
+				);
+				copyValueIdRange(
+					previousNode.getValueIds(), previousNode.size() - numberOfTailValues, layer.valueIds, 0,
 					numberOfTailValues
 				);
 				layer.peek += numberOfTailValues;
@@ -4367,15 +4990,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
 				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final TransactionalBitmap[] nextOverflow = nextNode.getOverflowForUpdate();
+				final RecordColumn nextValueIds = nextNode.getValueIdsForUpdate();
 				ensureOverflowForSteal(nextOverflow);
 				nextKeys.copyRangeTo(0, this.keys, this.peek + 1, numberOfHeadValues);
 				nextRecords.copyRangeTo(0, this.records, this.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, this.overflow, this.peek + 1, numberOfHeadValues);
+				copyValueIdRange(nextValueIds, 0, this.valueIds, this.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
 				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
 					System.arraycopy(
 						nextOverflow, numberOfHeadValues, nextOverflow, 0, nextNode.size() - numberOfHeadValues);
+				}
+				if (nextValueIds != null) {
+					nextValueIds.copyRangeTo(
+						numberOfHeadValues, nextValueIds, 0, nextNode.size() - numberOfHeadValues);
 				}
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				this.peek += numberOfHeadValues;
@@ -4386,15 +5015,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
 				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final TransactionalBitmap[] nextOverflow = nextNode.getOverflowForUpdate();
+				final RecordColumn nextValueIds = nextNode.getValueIdsForUpdate();
 				ensureLayerOverflowForSteal(layer, nextOverflow);
 				nextKeys.copyRangeTo(0, layer.keys, layer.peek + 1, numberOfHeadValues);
 				nextRecords.copyRangeTo(0, layer.records, layer.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, layer.overflow, layer.peek + 1, numberOfHeadValues);
+				copyValueIdRange(nextValueIds, 0, layer.valueIds, layer.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
 				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
 					System.arraycopy(
 						nextOverflow, numberOfHeadValues, nextOverflow, 0, nextNode.size() - numberOfHeadValues);
+				}
+				if (nextValueIds != null) {
+					nextValueIds.copyRangeTo(
+						numberOfHeadValues, nextValueIds, 0, nextNode.size() - numberOfHeadValues);
 				}
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				layer.peek += numberOfHeadValues;
@@ -4420,9 +5055,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.overflow != null) {
 					System.arraycopy(this.overflow, 0, this.overflow, mergePeek + 1, this.peek + 1);
 				}
+				if (this.valueIds != null) {
+					this.valueIds.copyRangeTo(0, this.valueIds, mergePeek + 1, this.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(0, this.keys, 0, mergePeek + 1);
 				previousNode.getRecords().copyRangeTo(0, this.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflow(), 0, this.overflow, 0, mergePeek + 1);
+				copyValueIdRange(previousNode.getValueIds(), 0, this.valueIds, 0, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				previousNode.setPeek(-1);
 			} else {
@@ -4435,9 +5074,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.overflow != null) {
 					System.arraycopy(layer.overflow, 0, layer.overflow, mergePeek + 1, layer.peek + 1);
 				}
+				if (layer.valueIds != null) {
+					layer.valueIds.copyRangeTo(0, layer.valueIds, mergePeek + 1, layer.peek + 1);
+				}
 				previousNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, 0, mergePeek + 1);
 				previousNode.getRecordsForUpdate().copyRangeTo(0, layer.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflowForUpdate(), 0, layer.overflow, 0, mergePeek + 1);
+				copyValueIdRange(previousNode.getValueIdsForUpdate(), 0, layer.valueIds, 0, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				previousNode.setPeek(-1);
 			}
@@ -4460,6 +5103,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				nextNode.getKeyColumn().copyRangeTo(0, this.keys, this.peek + 1, mergePeek + 1);
 				nextNode.getRecords().copyRangeTo(0, this.records, this.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflow(), 0, this.overflow, this.peek + 1, mergePeek + 1);
+				copyValueIdRange(nextNode.getValueIds(), 0, this.valueIds, this.peek + 1, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			} else {
@@ -4470,6 +5114,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				nextNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, layer.peek + 1, mergePeek + 1);
 				nextNode.getRecordsForUpdate().copyRangeTo(0, layer.records, layer.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflowForUpdate(), 0, layer.overflow, layer.peek + 1, mergePeek + 1);
+				copyValueIdRange(nextNode.getValueIdsForUpdate(), 0, layer.valueIds, layer.peek + 1, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			}
@@ -4503,6 +5148,105 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				return layer.records;
 			}
+		}
+
+		/**
+		 * Retrieves the parallel value id column for READ-ONLY purposes (transaction-aware). Null when the owning tree
+		 * carries no value ids.
+		 *
+		 * @return the value id column, or null
+		 */
+		@Nullable
+		public RecordColumn getValueIds() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.valueIds;
+			} else {
+				return layer.valueIds;
+			}
+		}
+
+		/**
+		 * Retrieves the value id column for updating, decoupling a transactional copy when needed. Returns null when
+		 * the owning tree carries no value ids.
+		 *
+		 * @return the value id column (transaction-local copy when a layer is active), or null
+		 */
+		@Nullable
+		public RecordColumn getValueIdsForUpdate() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getOrCreateTransactionalMemoryLayer(this)
+				: null;
+			if (layer == null) {
+				return this.valueIds;
+			} else {
+				if (layer.valueIds != null && layer.valueIds == this.valueIds) {
+					layer.valueIds = this.valueIds.duplicate();
+				}
+				return layer.valueIds;
+			}
+		}
+
+		/**
+		 * Reads the stable value id of the bucket at `index` (transaction-aware).
+		 *
+		 * @param index the bucket index
+		 * @return the bucket's value id, or `0` (the "unassigned" sentinel) when the tree carries no value ids
+		 */
+		public int valueIdAt(int index) {
+			final RecordColumn theValueIds = getValueIds();
+			return theValueIds == null ? 0 : theValueIds.intAt(index);
+		}
+
+		/**
+		 * Stamps the stable value id onto the bucket at `index`. Called right after a new bucket has been inserted, by
+		 * the tree that minted the id.
+		 *
+		 * @param index   the bucket index
+		 * @param valueId the freshly minted id
+		 */
+		public void setValueIdAt(int index, int valueId) {
+			final RecordColumn theValueIds = getValueIdsForUpdate();
+			Assert.isPremiseValid(
+				theValueIds != null,
+				"Cannot stamp a value id onto a leaf of a tree that carries no value id column!"
+			);
+			theValueIds.setAt(index, valueId);
+		}
+
+		/**
+		 * Allocates this leaf's value id column when the owning tree carries value ids and the column is not yet
+		 * present, and returns the column every subsequent write to this leaf will land on.
+		 *
+		 * Used by the back-fill path that switches a tree into id-carrying mode. That path may run with a transaction
+		 * bound to the thread — an empty tree is allowed to be switched on inside one — and a leaf the transaction has
+		 * ALREADY touched then carries a diff layer created back when the base had no id column at all, so
+		 * {@link #createLayer()} copied a `null` into it. Every later stamp goes through
+		 * {@link #getValueIdsForUpdate()}, which reads the layer and would find nothing there, failing
+		 * {@link #setValueIdAt(int, int)}'s premise on a tree that demonstrably does carry ids. Seeding the layer here
+		 * is what keeps base and layer from disagreeing about whether the leaf has a column at all.
+		 *
+		 * @return the value id column the next write to this leaf will target, guaranteed non-null
+		 */
+		@Nonnull
+		private RecordColumn ensureValueIdColumn() {
+			if (this.valueIds == null) {
+				this.valueIds = RecordColumnFactory.INT.create(this.records.capacity());
+			}
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.valueIds;
+			}
+			// decouple exactly as `getValueIdsForUpdate` does, and additionally cover the layer that was created
+			// before the column existed and therefore carries `null` rather than the base reference
+			if (layer.valueIds == null || layer.valueIds == this.valueIds) {
+				layer.valueIds = this.valueIds.duplicate();
+			}
+			return layer.valueIds;
 		}
 
 		/**
@@ -4819,9 +5563,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.keys,
 				this.records,
 				this.overflow,
+				this.valueIds,
 				this.keys,
 				this.records,
 				this.overflow,
+				this.valueIds,
 				0,
 				this.peek + 1,
 				this.comparator,
@@ -4846,6 +5592,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.keys.duplicate(),
 				this.records.duplicate(),
 				this.overflow == null ? null : this.overflow.clone(),
+				this.valueIds == null ? null : this.valueIds.duplicate(),
 				this.peek
 			);
 		}
@@ -4861,6 +5608,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.keys = memento.keys().duplicate();
 			this.records = memento.records().duplicate();
 			this.overflow = memento.overflow() == null ? null : memento.overflow().clone();
+			this.valueIds = memento.valueIds() == null ? null : memento.valueIds().duplicate();
 			this.peek = memento.peek();
 		}
 
@@ -4878,16 +5626,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final ValueColumn<M> theKeys;
 			final RecordColumn theRecords;
 			final TransactionalBitmap[] theOverflow;
+			final RecordColumn theValueIds;
 			final int thePeek;
 			if (layer == null) {
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
 				thePeek = layer.peek;
 			}
 
@@ -4953,6 +5704,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					theKeys,
 					theMergedRecords,
 					newOverflow,
+					theValueIds,
 					thePeek,
 					this.comparator,
 					true
@@ -4962,6 +5714,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					theKeys,
 					theMergedRecords,
 					theOverflow,
+					theValueIds,
 					thePeek,
 					this.comparator,
 					true
@@ -4974,6 +5727,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					theKeys,
 					theMergedRecords,
 					theOverflow,
+					theValueIds,
 					thePeek,
 					this.comparator,
 					true
@@ -4985,6 +5739,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// page (reuse this.pageSequence), while a split-born leaf keeps its UNASSIGNED_PAGE_SEQUENCE so the write path allocates
 			// it fresh
 			result.pageSequence = this.pageSequence;
+			// the stable logical id follows the leaf across the rebuild - that is exactly what makes it stable, and
+			// what lets a directory entry survive a commit that merely re-shelled the leaf around the same values
+			result.leafId = this.leafId;
 			return result;
 		}
 
@@ -5319,6 +6076,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (this.overflow != null) {
 				shiftOverflowForSingleInsert(this.overflow, position);
 			}
+			if (this.valueIds != null) {
+				// shift the id column in lockstep and leave the freed slot unassigned — the tree stamps the freshly
+				// minted id onto it immediately after this call returns
+				this.valueIds.insertAt(position, 0);
+			}
 			this.peek++;
 		}
 
@@ -5343,6 +6105,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final TransactionalBitmap[] overflow = ensureOverflowColumn();
 				insertRecordIntoSameArrayOnIndex(new TransactionalBitmap(pks), overflow, position);
 			}
+			if (this.valueIds != null) {
+				// shift the id column in lockstep and leave the freed slot unassigned — the tree stamps the freshly
+				// minted id onto it immediately after this call returns
+				this.valueIds.insertAt(position, 0);
+			}
 			this.peek++;
 		}
 
@@ -5363,6 +6130,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records.removeAt(index);
 			this.keys.clearAt(this.peek);
 			this.records.clearAt(this.peek);
+			if (this.valueIds != null) {
+				// the dead value's id is NOT given back — ids are monotonic with holes, so the slot simply collapses
+				this.valueIds.removeAt(index);
+				this.valueIds.clearAt(this.peek);
+			}
 			this.peek--;
 		}
 
@@ -5419,6 +6191,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.records == this.records) {
 					layer.records = this.records.duplicate();
 				}
+				if (this.valueIds != null && layer.valueIds == this.valueIds) {
+					layer.valueIds = this.valueIds.duplicate();
+				}
 				//noinspection ArrayEquality
 				if (this.overflow != null && layer.overflow == this.overflow) {
 					layer.overflow = new TransactionalBitmap[this.overflow.length];
@@ -5435,12 +6210,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param keys     deep copy of the key (bucket-value) column
 		 * @param records  deep copy of the single-record column
 		 * @param overflow shallow clone of the lazy overflow column, or {@code null}
+		 * @param valueIds deep copy of the parallel value id column, or {@code null} when the tree carries no ids
 		 * @param peek     the last occupied column index
 		 */
 		record BPlusLeafNodeMemento<M extends Comparable<M>>(
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
+			@Nullable RecordColumn valueIds,
 			int peek
 		) {
 		}
@@ -5461,6 +6238,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private ValueColumn<M> leafKeys;
 		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
+		@Nullable private RecordColumn leafValueIds;
 		private int leafPeek;
 		private long leafId;
 
@@ -5548,6 +6326,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		@Override
+		public int valueId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafValueIds == null ? 0 : this.leafValueIds.intAt(this.currentIndex);
+		}
+
+		@Override
 		public long longRecordId() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
 			return this.leafRecords.longAt(this.currentIndex);
@@ -5585,6 +6369,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
+			this.leafValueIds = leaf.getValueIds();
 			this.leafPeek = leaf.getPeek();
 			this.leafId = leaf.getId();
 		}
@@ -5630,6 +6415,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private ValueColumn<M> leafKeys;
 		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
+		@Nullable private RecordColumn leafValueIds;
 		private int leafPeek;
 		private long leafId;
 
@@ -5692,6 +6478,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		@Override
+		public int valueId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafValueIds == null ? 0 : this.leafValueIds.intAt(this.currentIndex);
+		}
+
+		@Override
 		public long longRecordId() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
 			return this.leafRecords.longAt(this.currentIndex);
@@ -5729,6 +6521,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafKeys = leaf.getKeyColumn();
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
+			this.leafValueIds = leaf.getValueIds();
 			this.leafPeek = leaf.getPeek();
 			this.leafId = leaf.getId();
 		}

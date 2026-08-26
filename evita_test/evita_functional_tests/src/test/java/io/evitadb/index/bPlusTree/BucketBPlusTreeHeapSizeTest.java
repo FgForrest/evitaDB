@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,9 +67,25 @@ class BucketBPlusTreeHeapSizeTest {
 	 * @param recordsPerValue records per bucket; more than one forces the overflow bitmap
 	 * @return the populated tree
 	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<?> buildTree(int distinctValues, int recordsPerValue) {
+		return buildTree(distinctValues, recordsPerValue, false);
+	}
+
+	/**
+	 * As above, optionally switching the tree into id-carrying mode BEFORE it is filled — so every leaf allocates the
+	 * parallel value id column the arithmetic has to charge on top of the key and record columns.
+	 *
+	 * @param distinctValues  the number of distinct keys (buckets)
+	 * @param recordsPerValue records per bucket; more than one forces the overflow bitmap
+	 * @param withValueIds    whether the leaves carry a value id column
+	 * @return the populated tree
+	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private static TransactionalBucketBPlusTree buildTree(int distinctValues, int recordsPerValue) {
+	private static TransactionalBucketBPlusTree buildTree(
+		int distinctValues, int recordsPerValue, boolean withValueIds
+	) {
 		final int minBlock = BLOCK_SIZE / 2 - 1;
 		final int minInternal = (int) (Math.ceil((float) minBlock / 2.0) - 1);
 		final ValueColumnFactory factory = ValueColumnFactory.forKey(
@@ -78,6 +95,10 @@ class BucketBPlusTreeHeapSizeTest {
 			BLOCK_SIZE, minBlock, minBlock, minInternal,
 			Comparable.class, (Comparator) Comparator.naturalOrder(), factory
 		);
+		if (withValueIds) {
+			// switched on while the tree is still empty, so every leaf it ever allocates is born with the id column
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+		}
 		for (int i = 0; i < distinctValues; i++) {
 			final Integer key = 2 * i;
 			if (recordsPerValue == 1) {
@@ -151,6 +172,20 @@ class BucketBPlusTreeHeapSizeTest {
 		void shouldMatchMeasuredHeapWithOverflowBitmaps() {
 			// every bucket holds several records, so each leaf allocates its lazy overflow array of bitmaps
 			assertNodeGraphMatchesMeasuredHeap(buildTree(300, 8));
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForIdCarryingMultiLevelTree() {
+			// the id column is a fourth per-leaf array the walk has to find and the arithmetic has to charge; the
+			// id-less shape above validates the grown per-leaf constant, but never the column itself
+			assertNodeGraphMatchesMeasuredHeap(buildTree(500, 1, true));
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForIdCarryingTreeWithOverflowBitmaps() {
+			// a leaf carrying the key column, the record column, the overflow array AND the id column at once - the
+			// fullest shape a leaf ever takes
+			assertNodeGraphMatchesMeasuredHeap(buildTree(300, 8, true));
 		}
 
 		@Test
