@@ -2616,17 +2616,57 @@ public final class EntityCollection implements
 				.get(updatedAttribute.getName());
 			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
 		}
+		// this reference loop is defence in depth today - nothing it walks can currently fail it, because
+		// `AbstractAttributeSchemaMutation#verifyCapabilityNotOnReferenceAttribute` refuses a filter capability on ANY
+		// reference attribute before it can reach a schema at all. That restriction is documented as liftable once the
+		// index learns to host reference attribute values, and on the day it is lifted this loop becomes the live
+		// guard - so it has to be correct for reflected references already. They are the awkward shape here: a
+		// reflected reference is resolved by `notifyAboutExternalReferenceUpdate` -> `exchangeSchema`, a path that
+		// never passes through `updateSchema` and so never reaches this check. Whatever it declares therefore has to
+		// be vetted here, while its target is still missing, rather than deferred to the resolution that follows
 		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
 			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
 				.get(updatedReference.getName());
-			for (final AttributeSchemaContract updatedAttribute : updatedReference.getAttributes().values()) {
-				final AttributeSchemaContract originalAttribute = originalReference == null ?
-					null : originalReference.getAttributes().get(updatedAttribute.getName());
+			final Map<String, AttributeSchemaContract> originalAttributes = originalReference == null ?
+				Collections.emptyMap() : getAttributesVisibleWithoutTarget(originalReference);
+			final Map<String, AttributeSchemaContract> updatedAttributes =
+				getAttributesVisibleWithoutTarget(updatedReference);
+			for (final AttributeSchemaContract updatedAttribute : updatedAttributes.values()) {
 				assertNoCapabilityAdded(
-					originalAttribute, updatedAttribute, updatedSchema.getName(), updatedReference.getName()
+					originalAttributes.get(updatedAttribute.getName()), updatedAttribute,
+					updatedSchema.getName(), updatedReference.getName()
 				);
 			}
 		}
+	}
+
+	/**
+	 * Returns the attributes of the given reference that can be read without knowing what the reference inherits from
+	 * - all of them for an ordinary reference, and the half it declares itself for an **unresolved reflected**
+	 * reference.
+	 *
+	 * A reflected reference does declare attributes of its own -
+	 * {@link io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder#withAttribute} puts them
+	 * there - and presents them merged with the ones it inherits from the reference it reflects. While the target is
+	 * missing that inherited half is unknowable, so {@link ReflectedReferenceSchema#getAttributes()} declines to
+	 * answer at all and throws; {@link ReflectedReferenceSchema#getDeclaredAttributes()} answers the declared half
+	 * without throwing.
+	 *
+	 * Reading only the declared half costs the caller nothing, because the inherited half is a copy of the target
+	 * reference's own attributes and is vetted against the collection that declares *it*.
+	 *
+	 * @param referenceSchema the reference whose attributes are to be read
+	 * @return the attributes readable in the reference's current resolution state
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> getAttributesVisibleWithoutTarget(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		// ReferenceSchema is sealed and permits only ReflectedReferenceSchema, so this narrowing covers every
+		// reference an EntitySchema can hold
+		return referenceSchema instanceof final ReflectedReferenceSchema reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable() ?
+			reflectedReference.getDeclaredAttributes() : referenceSchema.getAttributes();
 	}
 
 	/**
