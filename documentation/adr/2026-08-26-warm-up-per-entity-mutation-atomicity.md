@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-26 20:20
+updated: 2026-08-26 23:20
 status: accepted
 kind: feature
 issues: [1432]
@@ -176,6 +176,59 @@ The one thing it costs: **A/B measurement of the mechanism is now a cross-revisi
 than a flag flip within one build. The protocol for doing it is documented on
 `WarmUpAtomicityIngestBenchmark`.
 
+### Generalizing beyond the measured corpus (2026-08-26, later the same day)
+
+Every profile behind the +2.17 % headline came from one corpus. A structure the CNC dataset barely touches could
+still be paying the unoptimized cost, so `WarmUpSavepointStructureCostBenchmark`
+(`evita_test/evita_performance_tests/.../spike/`) was written to measure each structure directly instead of hoping
+a corpus reaches it: identical write workload with and without an open savepoint, `-prof gc`, with the two
+already-converted structures included as CONTROLS so the benchmark has to prove it can tell converted from
+unconverted before any other row may be read.
+
+**The signal is marginal, not absolute.** `open()`/`commit()` costs a fixed ~800 B per entity write whatever it
+brackets, so the per-structure number is the cost of one MORE instance touched inside the same savepoint — read off
+an `instancesPerEntity` 1 → 10 parameter. That is also the number that matters in production, because instances
+multiply with catalogue shape: one reduced index per referenced entity, one price index per price-list × currency ×
+record-handling.
+
+The answer was that the optimizations had **not** generalized. Against controls at 68 B and 116 B, the chain leaf
+cost 5 972 B per instance and the range leaf 6 576 B — 88× and 97×. Four structures were converted in response
+(`TransactionalLongBPlusTree`, `TransactionalElementBPlusTree`, `UnorderedLookupTree`'s paged leaf, and
+`TransactionalIntToLongBPlusTree`, the second half of the chain's two-tree backing):
+
+| Structure | Before | After | Change |
+|---|---|---|---|
+| `ChainIndex` (both its trees) | 5 972 B | 890 B | −85 % |
+| `RangeIndex` / `TransactionalLongBPlusTree` | 6 576 B | 512 B | −92 % |
+| `TransactionalElementBPlusTree` (prices) | 320 B | 24 B | −92 % |
+
+**End to end this mattered more than the headline suggested.** On the synthetic ingest corpus (50k products, six
+price lists across four currencies, `validity` ranges, a real hierarchy and four reference types), measured by
+toggling the bracket at `LocalMutationExecutorCollector.java:295` rather than across revisions:
+
+| arm | ingest CPU | vs. mechanism off | allocation |
+|---|---|---|---|
+| mechanism off | 25.26 s | — | 17.97 GB |
+| on, before these conversions | 26.72 s | **+5.78 %** | 26.83 GB |
+| on, after these conversions | 25.85 s | **+2.34 %** | 21.05 GB |
+
+That is the point of the exercise: a corpus shape differing from the one profiled was paying **above the 5 % bar
+the always-on decision rests on**, while the recorded headline said +2.17 %. It also under-states the case, because
+this corpus has no `Predecessor` attribute and therefore never builds a `ChainIndex` at all.
+
+Two things a future conversion must know, both found the hard way here:
+
+- **A structural operation can inherit a memento it never asked for.** `splitLeafNode` reaches its leaf through
+  read-only accessors and captured nothing of its own; it was safe only because `insert()` had captured first.
+  Converting `insert()` to per-slot journalling broke rollback until `captureBeforeStructuralChange()` was added at
+  each split. Before converting any mutator, audit every structural operation on the same node for how it obtains
+  its memento. Merge and steal paths did *not* need this — they go through `...ForUpdate()` accessors and capture
+  on their own.
+- **Per-slot journalling has a floor.** Every `push` allocates a lambda and a journal slot, and one chain append
+  drives pushes across two trees, the spine counts and the element-state map. The chain's residual 890 B is that
+  floor, not a memento; the converted control sits at 113 B. This is why further conversion of the chain was
+  stopped rather than pushed toward zero.
+
 ## Rejected outright
 
 | Option | Rejected because | Revisit if |
@@ -190,7 +243,7 @@ than a flag flip within one build. The protocol for doing it is documented on
 | A 32-bit stamp | Wraparound eventually hands out a value some stale mark still holds; same silent-skip failure | Never |
 | Keep the `IdentityHashMap` as a fallback for un-stamped strays | It preserves a map lookup on every miss path for a population of zero, and silently re-admits the drift the typed signatures exclude — the compiler now proves coverage | Never; a stray would be a compile error today |
 | Semantic counter-op inverses for tree nodes ("re-insert the deleted key") | Violates the mechanism's defining property that inverses are absolute restores of captured state; two such inverses relying on each other's residue was an actual defect found in testing | Never |
-| Per-slot inverses for `UnorderedLookupTree`'s leaf and scalar snapshots | ~90 ms per 100k entities, below the noise floor of the 200k-entity A/B — a conversion with no measurable payoff and real invariant surface | A future profile shows them above the floor |
+| ~~Per-slot inverses for `UnorderedLookupTree`'s leaf snapshots~~ — **reversed the same day, see "Generalizing beyond the measured corpus" above** | The ~90 ms per 100k measurement covered *two different node shapes under one name*: the non-paged `int[65]` leaf the SortIndex family uses, and the paged `int[1025]` leaf `ChainIndex` uses. Only the small one was ever below the floor | Already revisited — the paged shape measured 5 972 B per instance touched and was converted |
 | Extend the `DataStoreChanges` memento to cover direct storage-part writes | Its memento is an `O(1)` journal position; making it cover the parts would recapture the large trapped buffer once per entity | Never — record-level inverses are strictly cheaper |
 | Bytecode instrumentation to verify journalling | Disproportionate for a per-structure obligation that a default-`false` declaration plus one runtime choke point already catches on first use | The declaration is ever found to have drifted in practice |
 | A per-savepoint deep-compare oracle in production | Reintroduces the `O(N)` cliff the whole design avoids, in the guise of a safety check | Never in production; this is what the fuzz suites do offline |
@@ -286,8 +339,16 @@ caught it was **vacuous** — it asserted only against the trapped cache, which 
 
 - Measuring the mechanism against its absence is now a **cross-revision** exercise; the protocol lives
   in `WarmUpAtomicityIngestBenchmark`'s JavaDoc.
-- `UnorderedLookupTree`'s leaf and scalar snapshots keep whole-node capture (~90 ms per 100k
-  entities). Deliberate, and only worth revisiting if a profile lifts them above the noise floor.
+- No end-to-end corpus number yet confirms the four later conversions; they rest on the per-structure
+  benchmark and the test sweep. The synthetic `WarmUpAtomicityIngestBenchmark` corpus cannot supply one
+  for the chain as it stands, because `DataGenerator` has no `Predecessor` value generation and therefore
+  never builds a `ChainIndex` — register one via
+  `DataGenerator.Builder#registerValueGenerator(entityType, attributeName, BiFunction<ReferenceKey, Faker, Object>)`
+  before drawing any end-to-end conclusion about chain ordering.
+- No warm-up rollback test reached the **paged** `UnorderedLookupTree` leaf before this work:
+  `WarmUpSavepointUnorderedLookupRollbackTest` builds the three-argument, non-paged shape.
+  `WarmUpSavepointChainIndexRollbackTest` now covers the paged one. Treat "the lookup tree is tested" as a
+  claim about a specific node shape, not the class.
 - The journal is **not** reusable for a partial rollback to a mark; a future feature needing one must
   build its own.
 
@@ -319,3 +380,7 @@ caught it was **vacuous** — it asserted only against the trapped cache, which 
   per-slot B+ leaves (`3b4f9e316`); per-slot count adjustments (`19f09e924`); stamp fail-closed and
   the full-replay invariant pinned (`cc3bf17c1`); final full-scale measurement at **+2.17 %**; the
   always-on decision, and the switch removed
+- **2026-08-26, later** — the single-corpus assumption tested directly with a per-structure JMH benchmark;
+  chain, range and price leaves found unconverted at up to 97× the converted controls; four structures
+  converted to per-slot journalling (−85 % to −92 %), `captureBeforeStructuralChange` added at every split,
+  and `WarmUpSavepointChainIndexRollbackTest` written to cover the paged leaf shape nothing had tested

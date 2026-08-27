@@ -55,11 +55,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that the five B+ trees rewind their non-transactional (WARM_UP) writes when the {@link WarmUpSavepoint}
  * bracketing them is rolled back, and keep them when it is committed.
  *
- * The trees journal at NODE granularity: every node mutator resolves its diff layer through
- * {@link WarmUpSavepoint#writeLayer}, which on the layer-null branch captures the node's own bounded memento the first
- * time that node is write-touched. The tree-level root and size references journal separately (they are
- * {@code TransactionalReference}s), and nodes CREATED inside the savepoint need no inverse at all — restoring the old
- * root and the parents' child pointers makes them unreachable garbage.
+ * The trees journal at TWO granularities, and which one applies is a property of the write rather than of the tree.
+ * {@link TransactionalObjectBPlusTree} still journals purely at NODE granularity: every node mutator resolves its diff
+ * layer through {@link WarmUpSavepoint#writeLayer}, which on the layer-null branch captures the node's own bounded
+ * memento the first time that node is write-touched. The other four take {@code perOperationWriteLayer} in
+ * {@code insert} / {@code delete} and push a PER-SLOT inverse instead, capturing a whole-node memento only when a
+ * structural change asks for one. Three rules make the two compose, and each is worth a test of its own:
+ *
+ * - a per-slot inverse is ABSOLUTE and KEY-ADDRESSED, never positional — it re-finds its slot by key when it runs,
+ *   because a memento restored before it may have moved everything;
+ * - it is pushed BEFORE the write it undoes, and gated on {@code savepoint != null && !savepoint.isCaptured(this)},
+ *   so a node holding a whole-node memento never also journals per slot;
+ * - a split calls {@code captureBeforeStructuralChange()} rather than inheriting a memento from whichever mutator
+ *   called it. Reverse replay then runs that memento FIRST and the earlier per-slot inverses refine it.
+ *
+ * The tree-level root and size references journal separately (they are {@code TransactionalReference}s), and nodes
+ * CREATED inside the savepoint need no inverse at all — restoring the old root and the parents' child pointers makes
+ * them unreachable garbage.
  *
  * What that design makes worth testing beyond "a write was rewound" is the STRUCTURAL churn, because that is where a
  * mutation reaches beyond the node it is called on:
@@ -345,12 +357,53 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 			for (int i = 0; i < 30; i++) {
 				tree.insert(1000 + i, i);
 				tree.delete(i);
-				tree.upsert(2000L + i, value -> value == null ? 1 : value + 1);
+				// modulo, so a key repeats and the upsert takes its EXISTING-key branch interleaved with the splits
+				// and merges around it - with a distinct key per round that branch is never entered at all
+				tree.upsert(2000L + (i % 15), value -> value == null ? 1 : value + 1);
 			}
 			savepoint.rollback();
 
 			assertEquals(expected, contents(tree), "Rollback must restore the exact pre-savepoint contents.");
 			assertConsistent(tree.getConsistencyReport(), "after a rolled-back interleaved churn");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes values replaced in place by upsert")
+		void shouldRestoreValuesReplacedByUpsert() {
+			final TransactionalLongBPlusTree<Integer> tree = newTree(40);
+			final TreeMap<Long, Integer> expected = contents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// every key already exists, so each upsert writes a slot IN PLACE rather than inserting. That write is
+			// journalled by the slot inverse and by nothing else - it used to be rewindable only as a side effect of
+			// markDirty() taking the leaf's whole-node memento, which per-slot journalling removed.
+			for (int i = 0; i < 40; i++) {
+				tree.upsert(i, value -> value == null ? 1 : value + 1);
+			}
+			assertNotEquals(expected, contents(tree), "self-check: the upserts must have changed every value");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore every replaced value.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back upsert replacement burst");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes values overwritten by insert at existing keys")
+		void shouldRestoreValuesOverwrittenAtExistingKeys() {
+			final TransactionalLongBPlusTree<Integer> tree = newTree(40);
+			final TreeMap<Long, Integer> expected = contents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// insert on an ALREADY PRESENT key overwrites the value slot instead of adding an entry - the same
+			// in-place write as upsert takes, reached through the other entry point
+			for (int i = 0; i < 40; i++) {
+				tree.insert(i, -i);
+			}
+			assertNotEquals(expected, contents(tree), "self-check: the inserts must have overwritten every value");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore every overwritten value.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back overwrite burst");
 		}
 
 		@Test
@@ -453,11 +506,126 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 
 			assertEquals(expected, contents(tree), "Commit must keep every change made while the savepoint was open.");
 		}
+
+		@Test
+		@DisplayName("Rollback undoes values replaced in place by upsert")
+		void shouldRestoreValuesReplacedByUpsert() {
+			final TransactionalIntToLongBPlusTree tree = newTree(40);
+			final TreeMap<Integer, Long> expected = contents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// upsert reaches the value slot by a DIFFERENT route than insert does: it writes `values[existingIndex]`
+			// straight after decoupleTransactionalArrays(), which journals nothing. An insert at an existing key is
+			// journalled and passes even when this route is not, so the two need separate tests.
+			for (int i = 0; i < 40; i++) {
+				tree.upsert(i, value -> value + 1L);
+			}
+			assertNotEquals(expected, contents(tree), "self-check: the upserts must have changed every value");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore every replaced value.");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes upserts interleaved with splits and merges")
+		void shouldRestoreValuesUpsertedAcrossStructuralChurn() {
+			final TransactionalIntToLongBPlusTree tree = newTree(40);
+			final TreeMap<Integer, Long> expected = contents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// proves the per-slot inverse survives a whole-node memento landing on top of it later in the savepoint
+			for (int i = 0; i < 30; i++) {
+				tree.insert(1000 + i, i * 10L);
+				tree.delete(i % 15);
+				tree.upsert(20 + (i % 15), value -> value + 1L);
+			}
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore the exact pre-savepoint contents.");
+		}
+
+		@Test
+		@DisplayName("Rollback undoes values overwritten at existing keys")
+		void shouldRestoreValuesOverwrittenAtExistingKeys() {
+			final TransactionalIntToLongBPlusTree tree = newTree(40);
+			final TreeMap<Integer, Long> expected = contents(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// insert on an ALREADY PRESENT key overwrites the value slot instead of adding an entry. This is the tree
+			// half that maps a record id to its order key, so this is also the write a container split makes when it
+			// re-stamps the order keys of the records it moved.
+			for (int i = 0; i < 40; i++) {
+				tree.insert(i, -i * 10L);
+			}
+			assertNotEquals(expected, contents(tree), "self-check: the inserts must have overwritten every value");
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must restore every overwritten order key.");
+		}
 	}
 
 	@Nested
 	@DisplayName("TransactionalElementBPlusTree")
 	class ElementTree {
+
+		/**
+		 * Element whose identity is only PART of it, so replacing an element at an existing key is observable. The
+		 * fixture built on {@link Integer} keyed by {@link Integer#intValue()} cannot see such a replacement at all —
+		 * element and key are the same value there, so a lost replacement inverse restores something indistinguishable
+		 * from what it should have restored. Production keys elements this way (a price record by its internal price
+		 * id), which is what makes the distinction worth carrying in the fixture.
+		 *
+		 * @param key     the element's identity in the tree
+		 * @param payload the part of the element a replacement actually changes
+		 */
+		record KeyedPayload(int key, @Nonnull String payload) {
+		}
+
+		/**
+		 * Builds a tree of `count` elements whose payload differs from their key, so an element REPLACED at an existing
+		 * key is visible in {@link #payloads(TransactionalElementBPlusTree)}.
+		 */
+		@Nonnull
+		private TransactionalElementBPlusTree<KeyedPayload> newKeyedTree(int count) {
+			final TransactionalElementBPlusTree<KeyedPayload> tree = new TransactionalElementBPlusTree<>(
+				8, 3, 7, 3, KeyedPayload.class, KeyedPayload::key
+			);
+			for (int i = 0; i < count; i++) {
+				tree.insert(new KeyedPayload(i, "original-" + i));
+			}
+			return tree;
+		}
+
+		/**
+		 * Reads the keyed tree's whole logical content into a comparable reference value.
+		 */
+		@Nonnull
+		private List<KeyedPayload> payloads(@Nonnull TransactionalElementBPlusTree<KeyedPayload> tree) {
+			final List<KeyedPayload> result = new ArrayList<>(tree.size());
+			final Iterator<KeyedPayload> it = tree.valueIterator();
+			while (it.hasNext()) {
+				result.add(it.next());
+			}
+			return result;
+		}
+
+		@Test
+		@DisplayName("Rollback undoes elements replaced at existing keys")
+		void shouldRestoreElementsReplacedAtExistingKeys() {
+			final TransactionalElementBPlusTree<KeyedPayload> tree = newKeyedTree(40);
+			final List<KeyedPayload> expected = payloads(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// same key, different payload - the element slot is overwritten in place rather than added to
+			for (int i = 0; i < 40; i++) {
+				tree.insert(new KeyedPayload(i, "replaced-" + i));
+			}
+			assertNotEquals(expected, payloads(tree), "self-check: the inserts must have replaced every element");
+			assertEquals(40, tree.size(), "self-check: replacing must not have grown the tree");
+			savepoint.rollback();
+
+			assertEquals(expected, payloads(tree), "Rollback must restore every replaced element.");
+		}
 
 		/**
 		 * Builds a tree of `count` consecutive elements. The element is the key itself, so the tree stores no separate

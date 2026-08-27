@@ -815,7 +815,9 @@ public class UnorderedLookupTree implements
 		final int word = offset >>> 6;
 		final long bit = 1L << (offset & 63);
 		if ((container.getHeadMaskOrThrow()[word] & bit) == 0L) {
-			container.getHeadMaskForUpdate()[word] |= bit;
+			// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+			container.journalHeadBitIfOpen(recordId, false);
+			container.getHeadMaskForUpdatePerOperation()[word] |= bit;
 			propagateHeadCountDelta(cursor, +1);
 		}
 	}
@@ -832,7 +834,9 @@ public class UnorderedLookupTree implements
 		final int word = offset >>> 6;
 		final long bit = 1L << (offset & 63);
 		if ((container.getHeadMaskOrThrow()[word] & bit) != 0L) {
-			container.getHeadMaskForUpdate()[word] &= ~bit;
+			// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+			container.journalHeadBitIfOpen(recordId, true);
+			container.getHeadMaskForUpdatePerOperation()[word] &= ~bit;
 			propagateHeadCountDelta(cursor, -1);
 		}
 	}
@@ -945,15 +949,19 @@ public class UnorderedLookupTree implements
 		final LeafNode container = descendByKey(orderKey, cursor);
 		final int offset = indexInContainer(container, recordId);
 		final int count = container.getCount();
-		final int[] recordIds = container.getRecordIdsForUpdate();
+		// the record's head bit has to be read BEFORE anything moves, because the inverse restores it
+		final boolean wasHead = this.headAware
+			&& ((container.getHeadMaskOrThrow()[offset >>> 6] >>> (offset & 63)) & 1L) != 0L;
+		// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+		container.journalRecordRemovalIfOpen(offset, recordId, wasHead);
+		final int[] recordIds = container.getRecordIdsForUpdatePerOperation();
 		System.arraycopy(recordIds, offset + 1, recordIds, offset, count - offset - 1);
-		container.setCount(count - 1);
+		container.setCountPerOperation(count - 1);
 		if (this.headAware) {
 			// a removed record leaving the tree also drops its head mark; decrement head counts iff it was a head
-			final long[] mask = container.getHeadMaskForUpdate();
-			final boolean removedHead = ((mask[offset >>> 6] >>> (offset & 63)) & 1L) != 0L;
+			final long[] mask = container.getHeadMaskForUpdatePerOperation();
 			removeHeadSlot(mask, offset);
-			if (removedHead) {
+			if (wasHead) {
 				propagateHeadCountDelta(cursor, -1);
 			}
 		}
@@ -1385,13 +1393,15 @@ public class UnorderedLookupTree implements
 	 */
 	private void insertIntoContainer(@Nonnull LeafNode container, int offset, int recordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
 		final int count = container.getCount();
-		final int[] recordIds = container.getRecordIdsForUpdate();
+		// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+		container.journalRecordInsertionIfOpen(recordId);
+		final int[] recordIds = container.getRecordIdsForUpdatePerOperation();
 		System.arraycopy(recordIds, offset, recordIds, offset + 1, count - offset);
 		recordIds[offset] = recordId;
-		container.setCount(count + 1);
+		container.setCountPerOperation(count + 1);
 		if (this.headAware) {
 			// the freshly inserted record is never a head - open a clear bit at `offset` (no head-count change)
-			insertHeadSlot(container.getHeadMaskForUpdate(), offset);
+			insertHeadSlot(container.getHeadMaskForUpdatePerOperation(), offset);
 		}
 		propagateCountDelta(cursor, +1);
 		setSize(size() + 1);
@@ -2702,9 +2712,20 @@ public class UnorderedLookupTree implements
 
 		/**
 		 * Every node of this tree journals its warm-up writes, so the declaration is made once here rather than
-		 * repeated on {@link LeafNode} and {@link InternalNode}. Both mutate through
-		 * {@link WarmUpSavepoint#writeLayer}, which captures the node's own {@link Snapshotable} memento on the branch
-		 * that hands the mutator its in-place write — the same discharge as the B+ tree node families.
+		 * repeated on {@link LeafNode} and {@link InternalNode}. Both discharge the obligation with a **mixture** of
+		 * two mechanisms, and which one applies is a property of the write rather than of the node:
+		 *
+		 * - **whole-node memento** via {@link WarmUpSavepoint#writeLayer}, taken by the raw `...ForUpdate()` column
+		 *   accessors that structural code uses (a container split, a bulk load). One clone restores every column,
+		 *   which is what a write touching an unbounded number of slots needs.
+		 * - **per-slot inverses** pushed via {@link WarmUpSavepoint#push} before the write they undo, used by the
+		 *   ordinary bounded writes — record insertion, removal and head marking on {@link LeafNode}, count and
+		 *   head-count adjustments on {@link InternalNode}. See the `journal...IfOpen` methods on each node type for
+		 *   the inverses themselves and for the gate that stops a node journalling per slot once it already holds a
+		 *   whole-node memento.
+		 *
+		 * The two compose in one savepoint because reverse replay runs the later-pushed memento FIRST, so the
+		 * per-slot inverses recorded before it then refine exactly the slots they had overwritten.
 		 *
 		 * @return always `true` — see above
 		 */
@@ -2980,6 +3001,202 @@ public class UnorderedLookupTree implements
 			final LeafNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
 			return layer == null ? this.count : layer.count;
+		}
+
+		/**
+		 * Sets the number of valid record ids WITHOUT capturing a whole-node memento — the per-slot counterpart of
+		 * {@link #setCount(int)}, for the ordinary insert / remove paths whose callers journal their own inverse. The
+		 * count is restored by that inverse, so capturing 4 KB of record ids to record it would be pure cost.
+		 *
+		 * @param count the new number of valid record ids
+		 */
+		void setCountPerOperation(int count) {
+			final LeafNode layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				this.count = count;
+				this.dirty = true;
+			} else {
+				layer.count = count;
+				layer.dirty = true;
+			}
+		}
+
+		/**
+		 * Returns the record id array for UPDATE WITHOUT capturing a whole-node memento — the per-slot counterpart of
+		 * {@link #getRecordIdsForUpdate()}. Only for callers that have already journalled the inverse of the exact
+		 * slots they are about to write; every other caller must keep using {@link #getRecordIdsForUpdate()}.
+		 *
+		 * @return the record id array to write into
+		 */
+		@Nonnull
+		int[] getRecordIdsForUpdatePerOperation() {
+			final LeafNode layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				this.dirty = true;
+				return this.recordIds;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.recordIds == this.recordIds) {
+					layer.recordIds = new int[this.recordIds.length];
+					System.arraycopy(this.recordIds, 0, layer.recordIds, 0, this.recordIds.length);
+				}
+				layer.dirty = true;
+				return layer.recordIds;
+			}
+		}
+
+		/**
+		 * Returns the head-mask words for UPDATE WITHOUT capturing a whole-node memento — the per-slot counterpart of
+		 * {@link #getHeadMaskForUpdate()}, subject to the same obligation on its callers.
+		 *
+		 * @return the head-mask words to write into
+		 */
+		@Nonnull
+		long[] getHeadMaskForUpdatePerOperation() {
+			final long[] currentMask = requireHeadMask(this.headMask);
+			final LeafNode layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				this.dirty = true;
+				return currentMask;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.headMask == currentMask) {
+					layer.headMask = currentMask.clone();
+				}
+				layer.dirty = true;
+				return requireHeadMask(layer.headMask);
+			}
+		}
+
+		/**
+		 * Returns the in-container offset of `recordId`, or `-1` when it is not present. The non-throwing counterpart
+		 * of the tree's `indexInContainer`, used by the journalled inverses, which must be able to observe that the
+		 * operation they undo never happened.
+		 *
+		 * @param recordId the record id to locate
+		 * @return its offset in `[0, count)`, or `-1`
+		 */
+		private int offsetOfRecord(int recordId) {
+			final int[] ids = this.recordIds;
+			for (int i = 0; i < this.count; i++) {
+				if (ids[i] == recordId) {
+					return i;
+				}
+			}
+			return -1;
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of a record INSERTION this container is about to make: removing that record again.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this container's whole-node memento
+		 * (see {@link WarmUpSavepoint#isCaptured}). That memento restores every column and was pushed later than any
+		 * inverse recorded here, so reverse replay runs it FIRST and the per-slot inverses then refine exactly the
+		 * slots they had overwritten — which is what lets a container journal per slot for a run of ordinary writes
+		 * and fall back to a whole-node memento the moment a split or a bulk load reaches it.
+		 *
+		 * **The inverse is RECORD-addressed, not position-addressed.** It re-finds the record when it runs, because a
+		 * memento restore or an inverse replayed before it may have shifted the array; record ids are stable within a
+		 * container, offsets are not. Finding the record ABSENT means the insertion this undoes never happened, and
+		 * the inverse is then a no-op.
+		 *
+		 * Must be called BEFORE the first column write. Outside a savepoint it costs one {@link ThreadLocal} read
+		 * returning `null`.
+		 *
+		 * @param recordId the record about to be inserted, absent from this container at the time of the call
+		 */
+		private void journalRecordInsertionIfOpen(int recordId) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final int offset = offsetOfRecord(recordId);
+					if (offset >= 0) {
+						System.arraycopy(this.recordIds, offset + 1, this.recordIds, offset, this.count - offset - 1);
+						this.count--;
+						if (this.headMask != null) {
+							// the forward insert opened a CLEAR bit, so closing it again changes no head count
+							removeHeadSlot(this.headMask, offset);
+						}
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a record REMOVAL this container is about to make: putting the record back where it
+		 * was, with the head mark it carried. The gate is the one {@link #journalRecordInsertionIfOpen} documents.
+		 *
+		 * **How an absolute inverse addresses a position.** A container is ordered by position and has no key to
+		 * re-find a slot by, so the inverse anchors on the record that PRECEDED the removed one and re-inserts
+		 * directly after it (or at offset 0 when the removed record was first). The anchor is guaranteed to be present
+		 * when the inverse runs: had it been removed earlier in the savepoint it would not have been the predecessor,
+		 * and had it been removed later its own inverse was pushed later and therefore replays first, putting it back.
+		 * That is why a missing anchor is a programming error rather than a tolerable no-op.
+		 *
+		 * Must be called BEFORE the first column write.
+		 *
+		 * @param offset   the offset the record currently occupies
+		 * @param recordId the record about to be removed
+		 * @param wasHead  whether that record is currently marked as a chain head
+		 */
+		private void journalRecordRemovalIfOpen(int offset, int recordId, boolean wasHead) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				final int anchorRecordId = offset > 0 ? this.recordIds[offset - 1] : -1;
+				savepoint.push(() -> {
+					if (offsetOfRecord(recordId) >= 0) {
+						return;
+					}
+					final int restoreOffset;
+					if (anchorRecordId < 0) {
+						restoreOffset = 0;
+					} else {
+						final int anchorOffset = offsetOfRecord(anchorRecordId);
+						if (anchorOffset < 0) {
+							throw new GenericEvitaInternalError(
+								"Corrupted warm-up rollback: the anchor record " + anchorRecordId + " that record " +
+									recordId + " used to follow is no longer in its container, so the record cannot " +
+									"be put back at its original position."
+							);
+						}
+						restoreOffset = anchorOffset + 1;
+					}
+					System.arraycopy(
+						this.recordIds, restoreOffset, this.recordIds, restoreOffset + 1, this.count - restoreOffset);
+					this.recordIds[restoreOffset] = recordId;
+					this.count++;
+					if (this.headMask != null) {
+						insertHeadSlot(this.headMask, restoreOffset);
+						if (wasHead) {
+							this.headMask[restoreOffset >>> 6] |= 1L << (restoreOffset & 63);
+						}
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a HEAD-MARK flip: restoring the bit the record carried. The gate and the
+		 * record addressing are the ones {@link #journalRecordInsertionIfOpen} documents.
+		 *
+		 * @param recordId    the record whose head bit is about to be flipped
+		 * @param previousBit the bit that record currently carries
+		 */
+		private void journalHeadBitIfOpen(int recordId, boolean previousBit) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final int offset = offsetOfRecord(recordId);
+					if (offset >= 0 && this.headMask != null) {
+						if (previousBit) {
+							this.headMask[offset >>> 6] |= 1L << (offset & 63);
+						} else {
+							this.headMask[offset >>> 6] &= ~(1L << (offset & 63));
+						}
+					}
+				});
+			}
 		}
 
 		/**

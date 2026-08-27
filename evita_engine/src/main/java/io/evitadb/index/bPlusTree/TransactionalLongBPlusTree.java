@@ -59,6 +59,7 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
@@ -1096,6 +1097,15 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			// during commit; when the updater mutates and returns the same instance, nothing is discarded
 			if (newValue != previousValue) {
 				BPlusLeafTreeNode.discardRemovedValueLayer(previousValue);
+				// this write is journalled HERE and nowhere else. It used to be rewindable only as a side effect of
+				// markDirty() taking the leaf's whole-node memento; that memento is gone, so the slot inverse has to
+				// be pushed explicitly, and before the write.
+				//
+				// Gated on the identity check because the slot write below is a no-op when the updater mutated and
+				// returned the SAME instance - which is what every production caller does (`RangeIndex` updates a
+				// range point in place, and the point's own bitmaps journal the content change). Journalling then
+				// costs a capturing lambda and a journal slot per write to restore a value that never moved.
+				leaf.journalValueReplacementIfOpen(key, previousValue);
 			}
 			values[existingIndex] = newValue;
 		} else {
@@ -1462,6 +1472,9 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		@Nonnull BPlusLeafTreeNode<V> leaf,
 		@Nonnull Cursor cursor
 	) {
+		// a split is a structural rewrite of this leaf: it needs the whole-node memento that ordinary per-slot
+		// journalling deliberately does not take
+		leaf.captureBeforeStructuralChange();
 		final int mid = this.valueBlockSize / 2;
 		final long[] originKeys = leaf.getKeys();
 		final V[] originValues = leaf.getValues();
@@ -2996,9 +3009,17 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * when a stored value's content is mutated out-of-band (the value object itself changes while the leaf's columns
 		 * do not — e.g. a range point's record set), which the per-method mutation marks would otherwise miss. See
 		 * {@link #dirty}.
+		 *
+		 * **This method deliberately journals nothing.** It used to route through {@code writeLayer}, which captured
+		 * the leaf's whole-node memento — 768 bytes copied to set one boolean the memento does not even carry — and
+		 * {@link TransactionalLongBPlusTree#upsert(long, UnaryOperator)} silently leaned on that capture to make its
+		 * own in-place value write rewindable. Both halves were fixed together: this method now takes the
+		 * per-operation layer, and that call site pushes its own {@link #journalValueReplacementIfOpen} inverse. An
+		 * over-reported dirty flag after a rollback costs one re-emitted page and never loses data, which is why the
+		 * flag itself needs no inverse.
 		 */
 		void markDirty() {
-			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<V> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				this.dirty = true;
 			} else {
@@ -3298,6 +3319,97 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		}
 
 		/**
+		 * Captures this leaf's whole-node memento before a STRUCTURAL change rewrites it, when a warm-up savepoint is
+		 * open. Ordinary writes journal per slot and take no memento, but a split hands this leaf's arrays to another
+		 * node and installs fresh ones here — something no per-slot inverse can undo. The split therefore has to ask
+		 * for the memento explicitly; it used to inherit one only because `insert` captured it on the way in, and that
+		 * implicit coupling is exactly what the per-slot conversion removed.
+		 *
+		 * First-touch dedup makes a repeat call free. Reverse replay runs this memento BEFORE the per-slot inverses
+		 * pushed earlier for the same leaf, so it restores the pre-split state and those inverses then refine exactly
+		 * the slots they had overwritten.
+		 */
+		void captureBeforeStructuralChange() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.recordFirstTouch(this);
+			}
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of an entry INSERTION this leaf is about to make: a deletion of that key.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this leaf's whole-node memento (see
+		 * {@link WarmUpSavepoint#isCaptured}). That memento restores every column and was pushed later than any
+		 * inverse recorded here, so reverse replay runs it FIRST for this leaf and the per-slot inverses then refine
+		 * exactly the slots they had overwritten. The two granularities are mutually exclusive per leaf per savepoint,
+		 * which is what lets a leaf take per-slot inverses for a run of ordinary writes and fall back to a whole-node
+		 * memento the moment a split, steal or merge reaches it.
+		 *
+		 * **The inverse is key-addressed and absolute.** It re-finds the slot by key when it runs rather than closing
+		 * over a position, because inverses replayed before it may have shifted the columns; keys are stable,
+		 * positions are not. Finding the key ABSENT means the insertion this undoes never happened, and the inverse is
+		 * then a no-op — exactly what an absolute restore of "this key was not here" has to be.
+		 *
+		 * Must be called BEFORE the first column write. Outside a savepoint it costs one {@link ThreadLocal} read
+		 * returning `null`.
+		 *
+		 * @param key the key about to be inserted, absent from this leaf at the time of the call
+		 */
+		private void journalEntryInsertionIfOpen(long key) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> delete(key));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an entry DELETION this leaf is about to make: a re-insertion of the key with the
+		 * value it carried. The gate and the key addressing are the ones {@link #journalEntryInsertionIfOpen}
+		 * documents; finding the key already PRESENT when the inverse runs means the deletion never happened, and
+		 * {@link #insert} then simply restores the value, which is the same absolute end state.
+		 *
+		 * Must be called BEFORE the first column write.
+		 *
+		 * @param key   the key about to be deleted
+		 * @param value the value that key carries, to be restored
+		 */
+		private void journalEntryDeletionIfOpen(long key, @Nonnull V value) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> insert(key, value));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an in-place VALUE REPLACEMENT at an existing key: putting the previous value back.
+		 * The gate and the key addressing are the ones {@link #journalEntryInsertionIfOpen} documents.
+		 *
+		 * **What this does NOT restore.** It captures the previous value REFERENCE, so it undoes a replacement of the
+		 * stored instance but not a mutation the caller made to that instance in place. That is not a regression: the
+		 * whole-node memento this replaced cloned the array of references and never captured value contents either.
+		 * A value whose content is mutated in place has to journal its own inverse, the way a range point's record
+		 * set does.
+		 *
+		 * Must be called BEFORE the value slot is written.
+		 *
+		 * @param key           the key whose value slot is about to be overwritten
+		 * @param previousValue the value currently stored at that key
+		 */
+		private void journalValueReplacementIfOpen(long key, @Nullable V previousValue) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final int index = getValueIndex(key);
+					if (index >= 0) {
+						this.values[index] = previousValue;
+					}
+				});
+			}
+		}
+
+		/**
 		 * Deletes a key-value pair from the BPlusLeafTreeNode based on the specified key.
 		 * If the key is found within the node, it removes the corresponding entry,
 		 * maintains the node's internal structure, and decrements the count of stored items.
@@ -3306,7 +3418,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(long key) {
-			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<V> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
 			if (layer == null) {
 				this.dirty = true;
@@ -3317,6 +3429,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
 
 				if (index >= 0) {
+					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+					journalEntryDeletionIfOpen(key, this.values[index]);
 					// the value is discarded from the tree - release its transactional diff layer (if any)
 					// so it is not left ALIVE and detected as stale during commit; outside a transaction the
 					// guard short-circuits and this is a no-op
@@ -3386,7 +3500,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(long key, @Nonnull V value) {
-			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<V> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// inserting or overwriting an entry mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -3405,6 +3519,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					// an existing value is overwritten - release the discarded instance's diff layer (if any
 					// and if it is genuinely a different instance) so it is not left ALIVE during commit
 					final V previousValue = this.values[insertionPosition.position()];
+					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+					journalValueReplacementIfOpen(key, previousValue);
 					if (value != previousValue) {
 						discardRemovedValueLayer(previousValue);
 					}
@@ -3412,6 +3528,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+					journalEntryInsertionIfOpen(key);
 					insertLongIntoSameArrayOnIndex(key, this.keys, insertionPosition.position());
 					insertRecordIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
@@ -3448,9 +3566,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		/**
 		 * Internal arrays may have been still identical to the original arrays we need to copy them in
 		 * the transactional layer before modifying.
+		 *
+		 * Takes the PER-OPERATION layer: outside a transaction this method has nothing to do, so routing it through
+		 * {@code writeLayer} captured a whole-node memento for a call that then did nothing at all. Every warm-up
+		 * caller journals its own inverse.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<V> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {

@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
@@ -1262,6 +1263,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull BPlusLeafTreeNode<E> leaf,
 		@Nonnull Cursor cursor
 	) {
+		// a split is a structural rewrite of this leaf: it needs the whole-node memento that ordinary per-slot
+		// journalling deliberately does not take
+		leaf.captureBeforeStructuralChange();
 		final int mid = this.valueBlockSize / 2;
 		final E[] originValues = leaf.getValues();
 
@@ -2018,6 +2022,85 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		}
 
 		/**
+		 * Captures this leaf's whole-node memento before a STRUCTURAL change rewrites it, when a warm-up savepoint is
+		 * open. Ordinary writes journal per slot and take no memento, but a split hands this leaf's arrays to another
+		 * node and installs fresh ones here — something no per-slot inverse can undo. The split therefore has to ask
+		 * for the memento explicitly; it used to inherit one only because `insert` captured it on the way in, and that
+		 * implicit coupling is exactly what the per-slot conversion removed.
+		 *
+		 * First-touch dedup makes a repeat call free. Reverse replay runs this memento BEFORE the per-slot inverses
+		 * pushed earlier for the same leaf, so it restores the pre-split state and those inverses then refine exactly
+		 * the slots they had overwritten.
+		 */
+		void captureBeforeStructuralChange() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.recordFirstTouch(this);
+			}
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of an element INSERTION this leaf is about to make: a deletion of that key.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this leaf's whole-node memento (see
+		 * {@link WarmUpSavepoint#isCaptured}). That memento restores every column and was pushed later than any
+		 * inverse recorded here, so reverse replay runs it FIRST for this leaf and the per-slot inverses then refine
+		 * exactly the slots they had overwritten — which is what lets a leaf journal per-slot for a run of ordinary
+		 * writes and fall back to a whole-node memento the moment a split, steal or merge reaches it.
+		 *
+		 * **The inverse is key-addressed and absolute**, re-finding the slot by derived key when it runs rather than
+		 * closing over a position, because inverses replayed before it may have shifted the column. Finding the key
+		 * ABSENT means the insertion this undoes never happened, and the inverse is a no-op.
+		 *
+		 * Must be called BEFORE the first column write.
+		 *
+		 * @param key the derived key about to be inserted, absent from this leaf at the time of the call
+		 */
+		private void journalElementInsertionIfOpen(int key) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> delete(key));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an element DELETION: a re-insertion of the element that was removed. The gate and
+		 * the key addressing are the ones {@link #journalElementInsertionIfOpen} documents.
+		 *
+		 * @param value the element about to be removed, to be put back
+		 */
+		private void journalElementDeletionIfOpen(@Nonnull E value) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> insert(value));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an in-place element REPLACEMENT at an existing key: putting the previous element
+		 * back. The gate and the key addressing are the ones {@link #journalElementInsertionIfOpen} documents.
+		 *
+		 * It captures the previous element REFERENCE, so it undoes a replacement of the stored instance but not a
+		 * mutation the caller made to that instance in place — no regression, since the whole-node memento it replaces
+		 * cloned the array of references and never captured element contents either.
+		 *
+		 * @param key           the derived key whose slot is about to be overwritten
+		 * @param previousValue the element currently stored at that key
+		 */
+		private void journalElementReplacementIfOpen(int key, @Nullable E previousValue) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final InsertionPosition position = searchKey(key, this.values, this.peek);
+					if (position.alreadyPresent()) {
+						this.values[position.position()] = previousValue;
+					}
+				});
+			}
+		}
+
+		/**
 		 * Inserts an element into this leaf, preserving ascending derived-key order. If an element with the same key is
 		 * already present it is replaced in place (no size change).
 		 *
@@ -2026,7 +2109,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		private boolean insert(@Nonnull E value) {
 			final int key = this.keyExtractor.applyAsInt(value);
-			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// inserting / replacing an element mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -2037,9 +2120,13 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
 				if (insertionPosition.alreadyPresent()) {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalElementReplacementIfOpen(key, this.values[insertionPosition.position()]);
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalElementInsertionIfOpen(key);
 					insertRecordIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
 					return true;
@@ -2072,12 +2159,14 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
 			if (layer == null) {
 				this.dirty = true;
 				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
 				if (insertionPosition.alreadyPresent()) {
+					// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
+					journalElementDeletionIfOpen(this.values[insertionPosition.position()]);
 					removeRecordFromSameArrayOnIndex(this.values, insertionPosition.position());
 					this.values[this.peek] = null;
 					this.peek--;
@@ -2139,7 +2228,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {
