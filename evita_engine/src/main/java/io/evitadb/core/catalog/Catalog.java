@@ -549,12 +549,15 @@ public final class Catalog
 								(entityCollection) -> {
 									// backward compatibility (currently, the global index is part of used indexes)
 									final Integer globalIndexPk = entityHeader.globalEntityIndexPrimaryKey();
+									final EntityIndex globalIndex;
 									if (globalIndexPk != null) {
-										final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
+										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, entityCollection.getInternalSchema(),
 											initBulk.catalog().isUsageStatisticsTracked()
 										);
-										initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
+									} else {
+										globalIndex = null;
 									}
 									return entityHeader
 										.usedEntityIndexPrimaryKeys()
@@ -563,15 +566,22 @@ public final class Catalog
 											eid -> new ProgressingFuture<EntityIndex>(
 												0,
 												theFuture -> {
+													// the global index is also listed among the used
+													// indexes (see the note above) and has already been
+													// read; reading it again would deserialize the whole
+													// index a second time - and rebuild every structure
+													// derived on load rather than persisted, such as the
+													// trigram indexes - only for the duplicate to be
+													// discarded by the combiner below
+													if (globalIndex != null && Objects.equals(globalIndexPk, eid)) {
+														return globalIndex;
+													}
 													final EntityIndex loadedIndex = entityCollectionPersistenceService
 														.readEntityIndex(
 															catalogVersion, eid, entityCollection.getInternalSchema(),
-														initBulk.catalog().isUsageStatisticsTracked()
+															initBulk.catalog().isUsageStatisticsTracked()
 														);
-													if (
-														loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL
-															&& !Objects.equals(globalIndexPk, eid)
-													) {
+													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
 														initBulk.addGlobalIndex(
 															entityCollection.getEntityType(), loadedIndex);
 													}
