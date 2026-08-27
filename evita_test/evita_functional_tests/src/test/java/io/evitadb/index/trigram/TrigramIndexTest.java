@@ -34,10 +34,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
+import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -121,6 +124,64 @@ class TrigramIndexTest {
 			remainder /= 26;
 		}
 		return value.toString();
+	}
+
+	/**
+	 * The trigram every value built by {@link #sharedTrigramValue(int)} carries, whatever its ordinal. Chosen so
+	 * that {@link #distinctValue(int)} cannot also produce it — its letters need an ordinal far above any fixture
+	 * here to line up.
+	 */
+	private static final String SHARED_TRIGRAM = "qzx";
+
+	/**
+	 * A value carrying {@link #SHARED_TRIGRAM} on top of the trigrams {@link #distinctValue(int)} makes unique to
+	 * it, so one fixture holds a posting large enough to be a bitmap alongside many that stay compact.
+	 *
+	 * @param ordinal the value's ordinal
+	 * @return the value
+	 */
+	@Nonnull
+	private static String sharedTrigramValue(int ordinal) {
+		return SHARED_TRIGRAM + distinctValue(ordinal);
+	}
+
+	/**
+	 * Reaches past the index's façade to the posting itself, so a test can assert WHICH of the two representations
+	 * it is in — something {@link TrigramIndex#getValueIdsOf(long)} deliberately hides by normalizing both to a
+	 * {@link io.evitadb.index.bitmap.Bitmap}.
+	 *
+	 * @param index   the index to read from
+	 * @param trigram the packed trigram
+	 * @return the raw posting, `null` when the trigram holds none
+	 */
+	@Nullable
+	private static Object postingOf(@Nonnull TrigramIndex index, long trigram) {
+		return ((TrigramPostingStore) Objects.requireNonNull(readField(index, "store"))).get(trigram);
+	}
+
+	/**
+	 * Builds a tree carrying value ids and fills it with `count` values from {@link #sharedTrigramValue(int)},
+	 * inserted in DESCENDING ordinal order.
+	 *
+	 * The descending insertion is the point: a tree allocates value ids in the order values arrive, but
+	 * {@link InvertedIndex#forEachValueId} later walks them in COMPARATOR order, so a rebuild meets the ids
+	 * scrambled relative to the walk. A fixture inserted in ascending order would hand the rebuild ids that happen
+	 * to be sorted already and would pass even if the rebuild never ordered anything.
+	 *
+	 * @param count      how many values to index
+	 * @param maintained the index kept up to date incrementally alongside the tree
+	 * @return the populated tree
+	 */
+	@Nonnull
+	private static InvertedIndex treeWithDecorrelatedValueIds(int count, @Nonnull TrigramIndex maintained) {
+		final InvertedIndex tree = new InvertedIndex(
+			String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+		);
+		tree.attachValueIdConsumer(TrigramIndex.VALUE_ID_CONSUMER_NAME);
+		for (int ordinal = count; ordinal >= 1; ordinal--) {
+			tree.addRecord(sharedTrigramValue(ordinal), count - ordinal + 1, maintained);
+		}
+		return tree;
 	}
 
 	@Nested
@@ -752,6 +813,102 @@ class TrigramIndexTest {
 
 			assertTrue(rebuilt.isEmpty());
 			assertEquals(0, rebuilt.getTrigramCount());
+		}
+
+		@Test
+		@DisplayName("a rebuild reproduces bitmap postings, in the representation the write path would have grown")
+		void shouldRebuildBitmapPostingsIdenticallyToTheMaintainedIndex() {
+			// the fixtures above hold four values apiece, so between them they never leave the compact
+			// representation and never see a value id arrive out of order - which is most of what a real load does
+			final int count = 4 * TrigramPostings.SMALL_POSTING_THRESHOLD;
+			final TrigramIndex maintained = emptyIndex();
+			final InvertedIndex tree = treeWithDecorrelatedValueIds(count, maintained);
+
+			final TrigramIndex rebuilt = TrigramIndex.rebuildFrom(ATTRIBUTE_KEY, tree);
+
+			final long shared = trigram(SHARED_TRIGRAM);
+			assertFalse(
+				postingOf(maintained, shared) instanceof int[],
+				"the fixture must have promoted the shared posting past the compact form"
+			);
+			assertFalse(
+				postingOf(rebuilt, shared) instanceof int[],
+				"a rebuilt posting must land in the same representation the write path would have grown"
+			);
+			assertEquals(maintained.getTrigramCount(), rebuilt.getTrigramCount());
+			for (int ordinal = 1; ordinal <= count; ordinal++) {
+				for (final long key : TrigramCodec.extractUniqueTrigrams(sharedTrigramValue(ordinal))) {
+					assertArrayEquals(
+						maintained.getValueIdsOf(key).getArray(),
+						rebuilt.getValueIdsOf(key).getArray(),
+						() -> "trigram `" + TrigramCodec.toDisplayString(key) + "` must resolve identically"
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a compact posting comes back ascending though the walk hands its ids over scrambled")
+		void shouldRebuildAscendingCompactPostingsFromAScrambledWalk() {
+			// the compact representation IS a sorted int[] - TrigramPostings binary-searches it - so a buffer left
+			// in walk order would produce an index that silently answers wrong. This pins the ordering step as
+			// load-bearing rather than incidental
+			final int count = TrigramPostings.SMALL_POSTING_THRESHOLD;
+			final TrigramIndex maintained = emptyIndex();
+			final InvertedIndex tree = treeWithDecorrelatedValueIds(count, maintained);
+
+			final TrigramIndex rebuilt = TrigramIndex.rebuildFrom(ATTRIBUTE_KEY, tree);
+
+			final long shared = trigram(SHARED_TRIGRAM);
+			final Object posting = postingOf(rebuilt, shared);
+			assertTrue(posting instanceof int[], "at the threshold the posting must still be the compact form");
+			final int[] members = (int[]) posting;
+			assertEquals(count, members.length);
+			for (int i = 1; i < members.length; i++) {
+				final int index = i;
+				assertTrue(
+					members[index - 1] < members[index],
+					() -> "members must be strictly ascending, but " + members[index - 1] +
+						" precedes " + members[index]
+				);
+			}
+			assertArrayEquals(maintained.getValueIdsOf(shared).getArray(), rebuilt.getValueIdsOf(shared).getArray());
+		}
+
+		@Test
+		@DisplayName("a rebuild switches representation at the same threshold the write path does")
+		void shouldRebuildAtTheRepresentationBoundary() {
+			// the bulk build restates the promotion threshold rather than arriving at it by repeated adds, so the
+			// two statements of it have to be pinned together or nothing stops them drifting apart
+			final TrigramIndex atThreshold = emptyIndex();
+			final TrigramIndex justAbove = emptyIndex();
+			final long shared = trigram(SHARED_TRIGRAM);
+
+			final TrigramIndex rebuiltAtThreshold = TrigramIndex.rebuildFrom(
+				ATTRIBUTE_KEY,
+				treeWithDecorrelatedValueIds(TrigramPostings.SMALL_POSTING_THRESHOLD, atThreshold)
+			);
+			final TrigramIndex rebuiltJustAbove = TrigramIndex.rebuildFrom(
+				ATTRIBUTE_KEY,
+				treeWithDecorrelatedValueIds(TrigramPostings.SMALL_POSTING_THRESHOLD + 1, justAbove)
+			);
+
+			assertTrue(
+				postingOf(atThreshold, shared) instanceof int[],
+				"the maintained index must still be compact at the threshold"
+			);
+			assertTrue(
+				postingOf(rebuiltAtThreshold, shared) instanceof int[],
+				"and so must the rebuilt one"
+			);
+			assertFalse(
+				postingOf(justAbove, shared) instanceof int[],
+				"the maintained index must have promoted one past the threshold"
+			);
+			assertFalse(
+				postingOf(rebuiltJustAbove, shared) instanceof int[],
+				"and so must the rebuilt one"
+			);
 		}
 
 	}

@@ -162,7 +162,11 @@ public class TrigramIndex implements
 	 * ids it would have resolved before one. Nothing about the result depends on how the tree was persisted, which is
 	 * what makes the paged and the inline shapes indistinguishable from here.
 	 *
-	 * Runs outside any transaction, on the single thread loading the catalog, so it populates the table in place.
+	 * Runs outside any transaction, on the single thread loading the catalog, which is what lets
+	 * {@link TrigramPostingAccumulator} build the whole table in bulk instead of growing it one membership at a
+	 * time: nothing else can see the table until it is handed over, so the copy-on-write the write path owes every
+	 * published posting is not owed here. That is the difference between 76.5 s and 3.7 s on the measured flagship
+	 * attribute - see the accumulator for the numbers and for what it costs in transient heap.
 	 *
 	 * @param attributeIndexKey the attribute and locale the tree belongs to
 	 * @param sharedValueTree   the reloaded tree, already carrying its value ids
@@ -175,14 +179,7 @@ public class TrigramIndex implements
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull InvertedIndex sharedValueTree
 	) {
-		final TrigramPostingStore store = new TrigramPostingStore();
-		sharedValueTree.forEachValueId((normalizedValue, valueId) -> {
-			final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
-			for (int i = 0; i < trigrams.length; i++) {
-				store.put(trigrams[i], TrigramPostings.add(store.get(trigrams[i]), valueId));
-			}
-		});
-		return new TrigramIndex(attributeIndexKey, store);
+		return new TrigramIndex(attributeIndexKey, TrigramPostingAccumulator.accumulate(sharedValueTree));
 	}
 
 	/**
@@ -190,9 +187,9 @@ public class TrigramIndex implements
 	 * loaded with — the entry point of the load path, since nothing about this index is persisted.
 	 *
 	 * Only entity-level attributes are considered, because {@link FilterIndexCapability#SUBSTRING} is refused on a
-	 * reference attribute at schema-mutation time; and only attributes the schema STILL declares it for. Attaching the
-	 * value id consumer here restores the registration the tree does not persist — the ids themselves came back inside
-	 * the pages, which is why this cannot fall foul of the tree's empty-at-attach premise.
+	 * reference attribute at schema-mutation time; and only attributes the schema STILL declares it for. Attaching
+	 * the value id consumer here restores the registration the tree does not persist — the ids themselves came back
+	 * inside the pages, which is why this cannot fall foul of the tree's empty-at-attach premise.
 	 *
 	 * An attribute whose capability was withdrawn therefore gets no accelerator back — but its cost does not leave
 	 * with it. The loader restores a tree's value id column, allocator and directory from the persisted shape alone
