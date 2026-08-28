@@ -1,7 +1,7 @@
 ---
 title: Index caches memoize the bitmap, never the formula, because a formula node carries per-query state
 date: 2026-08-28
-updated: 2026-08-28 13:05
+updated: 2026-08-28 13:25
 status: accepted
 kind: fix
 issues: [1458]
@@ -211,10 +211,21 @@ unrepresentable rather than merely documented and tested.
   Two details a reader will otherwise trip on. The memo is keyed by the **hash function identity**, not
   assumed global: `CacheEnforcingPolicy` builds its own instance from the same factory as
   `TransactionalDataRelatedStructure#HASH_FUNCTION`, and a memo that ignored that would answer one function's
-  question with another's hash. And `BaseBitmap` is `@NotThreadSafe` yet the memo is read concurrently — the
-  guard field is written *after* the hash with volatile semantics, so a racing reader either misses the memo
-  and recomputes an identical value or sees a fully published one. Mutation concurrent with reads was already
-  outside the class' contract and stays there; every mutator clears the memo alongside `memoizedCardinality`.
+  question with another's hash. And `BaseBitmap` is `@NotThreadSafe` yet the memo is read concurrently, so the
+  hash and the function it belongs to are held in **one immutable record**, published by a single volatile
+  reference write. Mutation concurrent with reads was already outside the class' contract and stays there;
+  every mutator clears the memo alongside `memoizedCardinality`.
+
+  **The first attempt at that publication was wrong, and the way it was wrong is the point.** It used two
+  fields — a plain `long` written first, a `volatile` function reference written second as a guard — which is
+  the textbook safe-publication idiom and is correct for a *single* writer. It is not correct here: two threads
+  hashing with different functions can interleave so that the guard ends up naming one function while the value
+  belongs to the other, after which a third caller matches the guard and receives a hash never computed for the
+  function it asked about. That is a wrong cache key, not a slow one. The idiom publishes a value; it does not
+  make a *pair* atomic, and a memo that keys on one field and answers from another needs the latter. Not
+  reachable from main sources today — only `HASH_FUNCTION` ever reaches `getContentHash` — but the keying
+  exists precisely to support callers that bring their own, so the guarantee has to hold. Splitting the record
+  back into two fields for the allocation would reintroduce it.
 
   The invalidation had to be exhaustive, and a sweep confirmed it can be: no site in main sources mutates a
   `PersistentRoaringBitmap` in place after wrapping it in a `BaseBitmap` — `OrFormula#computeInternal`,
@@ -231,11 +242,12 @@ unrepresentable rather than merely documented and tested.
 - **The memo made a heap test fail *warm* while passing cold, and neither cause was the obvious one.** Both
   were settled against a JOL walk rather than by reasoning, and both are worth knowing before touching
   `BaseBitmap#getHeapSizeInBytes`:
-  - Adding a `long` field does **not** need an alignment term. A `long` must start 8-aligned and the object
-    header is 12 bytes, so the arithmetic looks like it should charge 4 bytes of padding — but the JVM packs
-    the existing `int` into that gap and the `long` lands aligned for free. Adding the term over-reported by
-    8 bytes per bitmap.
-  - The memo's guard field points at `TransactionalDataRelatedStructure#HASH_FUNCTION`, one instance for the
+  - A `long` field does **not** need an alignment term, in either object. A `long` must start 8-aligned and
+    the object header is 12 bytes, so the arithmetic looks like it should charge 4 bytes of padding — but both
+    objects carry a 4-byte field the JVM slots into that gap (`memoizedCardinality` in the bitmap, the function
+    reference in the memo record), so the `long` lands aligned for free. This was got wrong twice, once per
+    object, each time over-reporting by exactly 8 bytes; a JOL probe settled it both times.
+  - The memo record points at `TransactionalDataRelatedStructure#HASH_FUNCTION`, one instance for the
     whole JVM. The arithmetic correctly charges nothing for it, but a walk reaches it and charges 16 bytes —
     and only once the memo is populated, which is why the same fixture passed cold and failed warm. It is now
     in `IndexHeapSizeAssertions#SHARED_EMPTY_ARRAYS`. It is the first entry there that is absent from a cold

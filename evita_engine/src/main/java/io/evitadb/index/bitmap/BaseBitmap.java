@@ -50,22 +50,23 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	private final PersistentRoaringBitmap roaringBitmap;
 	private int memoizedCardinality;
 	/**
-	 * Hash function {@link #memoizedContentHash} was computed with, or `null` when no content hash has been computed
-	 * for the current contents yet.
+	 * Memoized result of {@link #getContentHash(LongHashFunction)} together with the function that produced it, or
+	 * `null` when none has been computed for the current contents. Every mutator clears it, exactly as it
+	 * invalidates {@link #memoizedCardinality}.
 	 *
-	 * It doubles as the publication guard for {@link #memoizedContentHash}: it is written **after** the hash, and
-	 * because the write is volatile, a thread that observes a matching function here is guaranteed to observe the
-	 * matching hash as well. Keying on the function rather than assuming a single global one keeps the memo correct
-	 * for callers that bring their own — {@code CacheEnforcingPolicy} builds a separate instance from the same
-	 * factory as {@code TransactionalDataRelatedStructure#HASH_FUNCTION}.
+	 * The hash and its function travel as **one immutable object** on purpose, and splitting them back into two
+	 * fields would be a correctness bug even with a volatile guard between them. Two threads hashing with
+	 * *different* functions can interleave their writes so that the guard ends up naming one function while the
+	 * value belongs to the other; a third caller then matches the guard and receives a hash that was never computed
+	 * for the function it asked about — a wrong formula cache key, not merely a slow one. A record's final fields
+	 * are safely published even through a data race, so a reader here sees either `null` or a consistent pair, and
+	 * racing writers can only overwrite each other with individually-consistent ones.
+	 *
+	 * Keying on the function rather than assuming a single global one keeps the memo correct for callers that bring
+	 * their own — {@code CacheEnforcingPolicy} builds a separate instance from the same factory as
+	 * {@code TransactionalDataRelatedStructure#HASH_FUNCTION}.
 	 */
-	@Nullable private transient volatile LongHashFunction memoizedContentHashFunction;
-	/**
-	 * Memoized result of {@link #getContentHash(LongHashFunction)}. Only meaningful while
-	 * {@link #memoizedContentHashFunction} is non-null — every mutator clears that guard, exactly as it invalidates
-	 * {@link #memoizedCardinality}.
-	 */
-	private transient long memoizedContentHash;
+	@Nullable private transient volatile ContentHash memoizedContentHash;
 
 	public BaseBitmap() {
 		this.roaringBitmap = new PersistentRoaringBitmap();
@@ -114,7 +115,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		final boolean added = this.roaringBitmap.checkedAdd(recordId);
 		if (added) {
 			this.memoizedCardinality = -1;
-			this.memoizedContentHashFunction = null;
+			this.memoizedContentHash = null;
 		}
 		return added;
 	}
@@ -123,14 +124,14 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	public void addAll(int... recordId) {
 		this.roaringBitmap.add(recordId);
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		this.roaringBitmap.add(recordIds.getArray());
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	@Override
@@ -138,7 +139,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		final boolean removed = this.roaringBitmap.checkedRemove(recordId);
 		if (removed) {
 			this.memoizedCardinality = -1;
-			this.memoizedContentHashFunction = null;
+			this.memoizedContentHash = null;
 		}
 		return removed;
 	}
@@ -149,7 +150,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 			this.roaringBitmap.remove(recId);
 		}
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	@Override
@@ -164,7 +165,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 			}
 		}
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	/**
@@ -198,7 +199,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		}
 		this.roaringBitmap.andNot(writer.get());
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	/**
@@ -233,7 +234,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		}
 		this.roaringBitmap.andNot(writer.get());
 		this.memoizedCardinality = -1;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	/**
@@ -244,7 +245,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	public void clear() {
 		this.roaringBitmap.clear();
 		this.memoizedCardinality = 0;
-		this.memoizedContentHashFunction = null;
+		this.memoizedContentHash = null;
 	}
 
 	@Override
@@ -315,21 +316,27 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	}
 
 	/**
-	 * This wrapper's own object — the `roaringBitmap` reference, the memoized cardinality and the two slots of the
-	 * content-hash memo — plus the roaring bitmap it exclusively owns, priced at its containers' allocated
-	 * capacity. The memo costs the same whether or not it has been populated: it is two plain fields, and the
-	 * {@link LongHashFunction} the guard points at is a JVM-wide shared instance this bitmap borrows rather than
-	 * owns — charging it here would price the same singleton once per bitmap in the catalog.
+	 * This wrapper's own object — the `roaringBitmap` reference, the memoized cardinality and the content-hash
+	 * memo's reference slot — plus the roaring bitmap it exclusively owns, priced at its containers' allocated
+	 * capacity, plus the memo's holder once one has been allocated.
 	 *
-	 * The field sum needs no alignment term of its own despite holding a `long`: the JVM packs
-	 * {@link #memoizedCardinality} into the gap a 12-byte header leaves, so the `long` lands 8-aligned for free
-	 * (verified against a JOL walk by `LeafIndexHeapSizeTest`).
+	 * The holder is charged **conditionally** because it genuinely does not exist until something asks this bitmap
+	 * for its content hash; a bitmap that is never hashed pays only the null slot. What is *not* charged either way
+	 * is the {@link LongHashFunction} the holder points at: it is one JVM-wide instance every formula hashes with,
+	 * so pricing it here would bill the same object once per bitmap in the catalog.
+	 *
+	 * Neither term needs an alignment correction for the holder's `long`, which a field sum does not obviously
+	 * predict and a JOL walk settled twice: a `long` must start 8-aligned, but both objects carry a 4-byte field —
+	 * {@link #memoizedCardinality} here, the function reference there — that the JVM slots into the gap a 12-byte
+	 * header leaves, so the `long` lands aligned for free. Adding a padding term over-reports by 8 bytes.
 	 */
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		return layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES + Long.BYTES)
+		final long ownSize = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES)
 			+ this.roaringBitmap.getHeapSizeInBytes(ROARING_HEAP_LAYOUT);
+		return this.memoizedContentHash == null ?
+			ownSize : ownSize + layout.sizeOfObject(layout.referenceSize() + Long.BYTES);
 	}
 
 	/**
@@ -348,15 +355,14 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	 */
 	@Override
 	public long getContentHash(@Nonnull LongHashFunction hashFunction) {
-		final LongHashFunction memoizedFor = this.memoizedContentHashFunction;
-		if (memoizedFor == hashFunction) {
-			return this.memoizedContentHash;
+		final ContentHash memoized = this.memoizedContentHash;
+		if (memoized != null && memoized.function() == hashFunction) {
+			return memoized.hash();
 		}
 		final long contentHash = hashFunction.hashInts(getArray());
-		this.memoizedContentHash = contentHash;
-		// publish last - the volatile write makes the hash assigned above visible to every reader that observes
-		// this function reference
-		this.memoizedContentHashFunction = hashFunction;
+		// one reference write publishes the hash and its function together - see the field for why they must not
+		// be assigned separately
+		this.memoizedContentHash = new ContentHash(hashFunction, contentHash);
 		return contentHash;
 	}
 
@@ -396,5 +402,15 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	public String toString() {
 		// we need to unify the output with ArrayBitmap and other implementations
 		return "[" + this.roaringBitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "]";
+	}
+
+	/**
+	 * A content hash paired with the {@link LongHashFunction} that produced it, so that the two can never be
+	 * observed out of step by a concurrent reader — see {@link #memoizedContentHash} for why that matters.
+	 *
+	 * @param function the function the hash was computed with, compared by identity
+	 * @param hash     the hash of the bitmap's record ids as they stood when it was computed
+	 */
+	private record ContentHash(@Nonnull LongHashFunction function, long hash) {
 	}
 }
