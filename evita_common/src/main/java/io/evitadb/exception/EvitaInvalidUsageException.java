@@ -23,10 +23,10 @@
 
 package io.evitadb.exception;
 
-import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -40,7 +40,15 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	@Serial private static final long serialVersionUID = 2004640911160330154L;
 
 	@Getter private final String publicMessage;
-	@Getter private final String errorCode;
+	/**
+	 * Lazily resolved {@link #getErrorCode()} - see the identical field on {@link EvitaInternalError} for why it is
+	 * computed on first read and why the data race on it is benign. Client-side exceptions are constructed on
+	 * ordinary rejection paths, so keeping the stack walk and two MD5 hashes off construction matters most here.
+	 *
+	 * Non-null from construction only when the code was supplied explicitly, which happens when an exception is
+	 * rebuilt on the client from data that crossed the wire.
+	 */
+	@Nullable private String errorCode;
 
 	/**
 	 * Method is targeted to be used on the client.
@@ -53,10 +61,6 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	public EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage) {
@@ -66,10 +70,6 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	public EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, cause);
 		this.publicMessage = publicMessage;
-		final StackTraceElement stackTraceElement = getProperStackLine();
-		this.errorCode = StringUtils.hashChars(stackTraceElement.getClassName()) + ":" +
-			StringUtils.hashChars(stackTraceElement.getMethodName()) + ":" +
-			stackTraceElement.getLineNumber();
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
@@ -88,13 +88,15 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 		return getMessage();
 	}
 
-	private StackTraceElement getProperStackLine() {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		int index = 1;
-		while (index < stackTrace.length && this.getClass().getName().equals(stackTrace[index].getClassName())) {
-			index++;
+	@Nonnull
+	@Override
+	public String getErrorCode() {
+		String theErrorCode = this.errorCode;
+		if (theErrorCode == null) {
+			theErrorCode = ErrorCodeResolver.resolveErrorCode(this);
+			this.errorCode = theErrorCode;
 		}
-		return stackTrace[index];
+		return theErrorCode;
 	}
 
 }
