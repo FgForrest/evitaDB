@@ -1533,9 +1533,10 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should invalidate the hash when add inserts a record")
 		void shouldInvalidateHashWhenAddInsertsRecord() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.add(4);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
@@ -1554,25 +1555,28 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should invalidate the hash when addAll receives an array")
 		void shouldInvalidateHashWhenAddAllReceivesArray() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.addAll(4, 5);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when addAll receives a bitmap")
 		void shouldInvalidateHashWhenAddAllReceivesBitmap() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.addAll(new BaseBitmap(8, 9));
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when remove deletes a record")
 		void shouldInvalidateHashWhenRemoveDeletesRecord() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.remove(2);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
@@ -1591,65 +1595,78 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should invalidate the hash when removeAll receives an array")
 		void shouldInvalidateHashWhenRemoveAllReceivesArray() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.removeAll(1, 3);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when removeAll receives a bitmap")
 		void shouldInvalidateHashWhenRemoveAllReceivesBitmap() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.removeAll(new BaseBitmap(1, 2));
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when removeAll applies a predicate")
 		void shouldInvalidateHashWhenRemoveAllAppliesPredicate() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.removeAll((IntPredicate) value -> value % 2 == 0);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when retainAll applies a predicate")
 		void shouldInvalidateHashWhenRetainAllAppliesPredicate() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.retainAll((IntPredicate) value -> value > 1);
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		@Test
 		@DisplayName("should invalidate the hash when the bitmap is cleared")
 		void shouldInvalidateHashWhenBitmapIsCleared() {
-			final BaseBitmap bitmap = seedAndHash();
+			final CountingHashFunction hashFunction = new CountingHashFunction();
+			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.clear();
-			assertHashRecomputedAndCorrect(bitmap);
+			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 
 		/**
-		 * Builds a three-record bitmap and warms its content-hash memo, so the caller's mutation is the thing that
-		 * decides whether the next {@link BaseBitmap#getContentHash} recomputes.
+		 * Builds a three-record bitmap and warms its content-hash memo **with the caller's own function**, so the
+		 * mutation the caller then performs is the only thing that can decide whether the next
+		 * {@link BaseBitmap#getContentHash} recomputes.
+		 *
+		 * Warming with any other instance would defeat the whole check: the memo is keyed by function identity, so a
+		 * later call carrying a different one misses it whether or not the mutator cleared anything, and the
+		 * assertion would hold even against a `BaseBitmap` that never invalidates.
 		 */
 		@Nonnull
-		private BaseBitmap seedAndHash() {
+		private BaseBitmap seedAndHash(@Nonnull CountingHashFunction hashFunction) {
 			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
-			bitmap.getContentHash(LongHashFunction.xx3());
+			bitmap.getContentHash(hashFunction);
 			return bitmap;
 		}
 
 		/**
 		 * Asserts a mutated bitmap answers for its **current** contents and got there by walking them again rather
-		 * than replaying the memo warmed by {@link #seedAndHash()}.
+		 * than replaying the memo {@link #seedAndHash(CountingHashFunction)} warmed with this same function — one
+		 * walk for the seeding, a second forced by the mutation.
 		 */
-		private void assertHashRecomputedAndCorrect(@Nonnull BaseBitmap bitmap) {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
+		private void assertHashRecomputedAndCorrect(
+			@Nonnull BaseBitmap bitmap,
+			@Nonnull CountingHashFunction hashFunction
+		) {
 			assertEquals(
 				hashFunction.hashIntsUncounted(bitmap.getArray()), bitmap.getContentHash(hashFunction),
 				"the content hash must describe the bitmap's current contents"
 			);
-			assertEquals(1, hashFunction.getHashIntsCallCount(), "the mutation must have forced a recomputation");
+			assertEquals(2, hashFunction.getHashIntsCallCount(), "the mutation must have forced a recomputation");
 		}
 	}
 
