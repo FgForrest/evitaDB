@@ -35,12 +35,17 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link ErrorOriginLogger}: which modes report, that repeated occurrences of one origin collapse onto a
@@ -157,6 +162,47 @@ class ErrorOriginLoggerTest {
 		}
 
 		@Test
+		@DisplayName("Should hold the cap when distinct new origins arrive concurrently")
+		void shouldHoldCapUnderConcurrentNovelOrigins() throws InterruptedException {
+			// the cap guards a map keyed partly on data that can arrive from the wire, so it has to hold under
+			// concurrent arrival - checking the size and then inserting would let every racing thread through
+			final int threads = 8;
+			final int originsPerThread = 400;
+			final CountDownLatch startGate = new CountDownLatch(1);
+			final CountDownLatch finished = new CountDownLatch(threads);
+			final ExecutorService executor = Executors.newFixedThreadPool(threads, runnable -> {
+				final Thread thread = new Thread(runnable, "origin-cap-probe");
+				thread.setDaemon(true);
+				return thread;
+			});
+			try {
+				for (int t = 0; t < threads; t++) {
+					final int threadIndex = t;
+					executor.submit(() -> {
+						try {
+							startGate.await();
+							for (int i = 0; i < originsPerThread; i++) {
+								ErrorOriginLogger.reportInternalError(
+									errorWithOrigin("race:" + threadIndex + ":" + i)
+								);
+							}
+						} catch (InterruptedException ex) {
+							Thread.currentThread().interrupt();
+						} finally {
+							finished.countDown();
+						}
+					});
+				}
+				startGate.countDown();
+				assertTrue(finished.await(30, TimeUnit.SECONDS), "reporting threads must finish");
+			} finally {
+				executor.shutdownNow();
+			}
+
+			assertEquals(ErrorOriginLogger.MAX_TRACKED_ORIGINS, ErrorOriginLogger.trackedOriginCount());
+		}
+
+		@Test
 		@DisplayName("Should forget everything on reset")
 		void shouldForgetEverythingOnReset() {
 			ErrorOriginLogger.reportInternalError(errorWithOrigin("a:b:1"));
@@ -181,6 +227,14 @@ class ErrorOriginLoggerTest {
 		void shouldIgnoreNonEvitaThrowable() {
 			assertDoesNotThrow(() -> ErrorOriginLogger.reportInternalError(new IllegalStateException("Whatever")));
 		}
+
+		@Test
+		@DisplayName("Should not recurse when reporting itself constructs an evitaDB error")
+		void shouldNotRecurseWhenReportingConstructsAnError() {
+			// without the re-entrancy guard this recurses until the stack is exhausted - and a StackOverflowError
+			// raised from inside a constructor is exactly the failure this class exists not to cause
+			assertDoesNotThrow(() -> ErrorOriginLogger.reportInternalError(new ReentrantError()));
+		}
 	}
 
 	/**
@@ -198,6 +252,25 @@ class ErrorOriginLoggerTest {
 		@Override
 		public String getErrorCode() {
 			throw new UnsupportedOperationException("Deliberately hostile.");
+		}
+	}
+
+	/**
+	 * Stands in for anything the reporting path might come to call that itself constructs an evitaDB error - a
+	 * logging appender, a future helper. The re-entrant call must be dropped rather than followed.
+	 */
+	private static class ReentrantError extends GenericEvitaInternalError {
+		@Serial private static final long serialVersionUID = 2377395168353447457L;
+
+		ReentrantError() {
+			super("Whatever");
+		}
+
+		@Nonnull
+		@Override
+		public String getErrorCode() {
+			ErrorOriginLogger.reportInternalError(new ReentrantError());
+			return "reentrant:origin:1";
 		}
 	}
 }

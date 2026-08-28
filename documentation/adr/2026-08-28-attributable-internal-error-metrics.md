@@ -1,7 +1,7 @@
 ---
 title: Count each evitaDB error once, at the hierarchy root, and record where it was created
 date: 2026-08-28
-updated: 2026-08-28 21:40
+updated: 2026-08-28 22:10
 status: accepted
 kind: fix
 issues: [1461]
@@ -192,9 +192,19 @@ distinct sites differ; an assertion failure is attributed to its caller; a wire-
 - **Existing series step.** `io_evitadb_errors_total{error_type="GenericEvitaInternalError"}` is unchanged at one
   increment per instance, but the 18 nested internal error types drop 2-3x and `io_evitadb_client_errors_total`
   drops 2-6x across its 121 subtypes. Those series were wrong before; anything reading them still steps at deploy.
-- **Client-visible error codes change value.** The `hash:hash:line` shape is unchanged, so the gRPC status prefix
+- **Client-visible error codes change value.** The `hash:hash:line` shape is unchanged, so the gRPC status message
   and the GraphQL/REST error payloads are structurally unaffected, but the values differ. They were constants that
   could not locate anything, so nothing could meaningfully depend on them.
+- **The Java driver does not currently recover the code from a gRPC status, and has not since Dec 2024.** The server
+  sets the status description to `errorCode + ": " + publicMessage`
+  (`GlobalExceptionHandlerInterceptor`), but `EvitaClient#transformStatusRuntimeException` prepends the status name
+  before matching (`statusCode.name() + ": " + description`), so `ERROR_MESSAGE_PATTERN` - anchored on
+  `(\w+:\w+:\w+): (.*)` - cannot match the resulting `"INTERNAL: <code>: <message>"`. The driver therefore falls
+  through to the no-code branch and `createExceptionWithErrorCode` is effectively dead on that path. This is
+  **pre-existing and untouched by this work** - it predates issue #1461 - but it is worth knowing before anyone
+  relies on codes reaching a Java client. GraphQL and REST are unaffected: both expose `errorCode` as a structured
+  JSON field rather than a regex-parsed composite string. Needs its own ticket, because fixing it changes the
+  message text clients see.
 - `io_evitadb_probe_health_problem{problem_type="EVITA_DB_INTERNAL_ERRORS"}` still flips to 1 whenever the counter
   moves between probes, including for a swallowed exception. It does not affect liveness or readiness
   (`ObservabilityProbesDetector.checkEvitaErrors` uses the `String` constructor, so it never enters the `EnumSet`),

@@ -57,10 +57,13 @@ final class ErrorCodeResolver {
 	/**
 	 * Returned when the exception carries no stack trace at all - which happens when the JVM runs with
 	 * `-XX:-StackTraceInThrowable`, or when a throwable was constructed with stack trace collection disabled.
-	 * Deliberately not in the `hash:hash:line` shape of a real code, so it is obvious in a log that no origin was
-	 * available rather than looking like a site that cannot be found.
+	 *
+	 * Reads as obviously-not-a-hash so a log line cannot be mistaken for a site that merely cannot be found, but
+	 * still matches the `\w+:\w+:\w+` shape a code has to keep: an error code travels to the client inside the gRPC
+	 * status description and is parsed back out of it by the driver, and a sentinel containing `?` would fail that
+	 * parse and silently degrade to an exception with no code at all.
 	 */
-	static final String UNKNOWN_ERROR_CODE = "?:?:0";
+	static final String UNKNOWN_ERROR_CODE = "unknown:unknown:0";
 
 	/**
 	 * Fully qualified name of the assertion helper whose frames are skipped, resolved from the class rather than
