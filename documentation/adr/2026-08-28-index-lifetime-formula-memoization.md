@@ -5,7 +5,7 @@ updated: 2026-08-28 11:40
 status: accepted
 kind: fix
 issues: [1458]
-prs: [1459]
+prs: [1459, 1460]
 areas: [evita_engine/io/evitadb/index/attribute, evita_engine/io/evitadb/index/hierarchy, evita_engine/io/evitadb/core/query/algebra]
 supersedes: []
 superseded-by: []
