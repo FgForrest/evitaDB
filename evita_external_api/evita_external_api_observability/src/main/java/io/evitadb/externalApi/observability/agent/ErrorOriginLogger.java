@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -46,13 +47,18 @@ import java.util.concurrent.atomic.AtomicLong;
  * something is escalating, without a per-occurrence cost or a flooded log. Origins are identified by
  * {@link EvitaError#getErrorCode()}, which is derived from the creating frame and already cached on the exception.
  *
- * ## Why nothing here may throw
+ * ## Why nothing here may throw, or recurse
  *
  * Every method runs inside an exception constructor, from Byte Buddy advice, on an object that is not yet fully
  * constructed. A throwable escaping from here would surface from `new SomeException(...)` at an arbitrary call site
  * that has no way to handle it, so the whole body is wrapped in a `catch (Throwable)` and only
  * {@link EvitaError#getErrorCode()} and {@link Throwable#getStackTrace()} - neither of which reads subclass state -
  * are called on the exception.
+ *
+ * The same position makes re-entrancy fatal rather than merely wasteful: an evitaDB error constructed anywhere below
+ * this method would be reported, re-entering it, until the stack runs out. A thread-local guard drops the nested
+ * report, so the safety of this class does not rest on a promise about what the logging framework - or a future
+ * version of this method - happens to construct.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -72,6 +78,15 @@ public class ErrorOriginLogger {
 	private static final Map<String, AtomicLong> OCCURRENCES_BY_ORIGIN = new ConcurrentHashMap<>(256);
 
 	/**
+	 * Number of slots handed out in {@link #OCCURRENCES_BY_ORIGIN}. Kept separately from the map's own `size()`
+	 * because a slot has to be *reserved before* the insert: checking `size()` and then inserting is two operations,
+	 * and enough threads reporting distinct new origins at once would all pass the check and all insert, pushing the
+	 * map past its cap. The map guards against error codes arriving from the wire, so it has to hold under exactly
+	 * that kind of concurrent arrival.
+	 */
+	private static final AtomicInteger RESERVED_ORIGIN_SLOTS = new AtomicInteger();
+
+	/**
 	 * Currently effective mode. Written once from {@link #configure(ErrorOriginLogging)} when the observability
 	 * manager starts, read on every error construction - hence `volatile`.
 	 *
@@ -80,6 +95,14 @@ public class ErrorOriginLogger {
 	 * anything constructed in between must fall on the useful side, not into a blind spot.
 	 */
 	private static volatile ErrorOriginLogging mode = ErrorOriginLogging.INTERNAL;
+
+	/**
+	 * Marks the thread as being inside {@link #report}, so an evitaDB error constructed further down - by the
+	 * logging framework, an appender, or anything this method comes to call in future - is dropped rather than
+	 * recursing back in. Without it the safety of this class would rest on the claim that nothing below ever
+	 * constructs an evitaDB error, which is a claim about code that has not been written yet.
+	 */
+	private static final ThreadLocal<Boolean> REPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
 	/**
 	 * Applies the configured mode. Called by the observability manager on start-up.
@@ -118,6 +141,7 @@ public class ErrorOriginLogger {
 	 */
 	static void reset() {
 		OCCURRENCES_BY_ORIGIN.clear();
+		RESERVED_ORIGIN_SLOTS.set(0);
 	}
 
 	/**
@@ -132,6 +156,15 @@ public class ErrorOriginLogger {
 	}
 
 	/**
+	 * Returns how many distinct origins are currently tracked. For tests asserting the cap holds.
+	 *
+	 * @return number of tracked origins, never above {@link #MAX_TRACKED_ORIGINS}
+	 */
+	static int trackedOriginCount() {
+		return OCCURRENCES_BY_ORIGIN.size();
+	}
+
+	/**
 	 * Counts one occurrence of the error's origin and logs it when it is either new or has just reached a power of
 	 * ten. Never propagates a failure - see the class comment for why that is not merely defensive.
 	 *
@@ -139,6 +172,13 @@ public class ErrorOriginLogger {
 	 * @param category human-readable error category used in the log message
 	 */
 	private static void report(@Nonnull Throwable error, @Nonnull String category) {
+		if (Boolean.TRUE.equals(REPORTING.get())) {
+			// an evitaDB error was constructed while this method was reporting one, on this very thread. Reporting
+			// it too would re-enter here again, and the recursion would end in a StackOverflowError raised from
+			// inside a constructor. Correctness must not rest on "nothing below ever constructs an error".
+			return;
+		}
+		REPORTING.set(Boolean.TRUE);
 		try {
 			if (!(error instanceof EvitaError evitaError)) {
 				return;
@@ -146,16 +186,7 @@ public class ErrorOriginLogger {
 			final String origin = evitaError.getErrorCode();
 			final AtomicLong counter = OCCURRENCES_BY_ORIGIN.get(origin);
 			if (counter == null) {
-				// a new origin - admit it unless the cap has been reached, and log it with its stack trace
-				if (OCCURRENCES_BY_ORIGIN.size() >= MAX_TRACKED_ORIGINS) {
-					return;
-				}
-				final AtomicLong existing = OCCURRENCES_BY_ORIGIN.putIfAbsent(origin, new AtomicLong(1L));
-				if (existing == null) {
-					logOrigin(error, category, origin, 1L);
-				} else {
-					existing.incrementAndGet();
-				}
+				admitNewOrigin(error, category, origin);
 			} else {
 				final long occurrences = counter.incrementAndGet();
 				if (isPowerOfTen(occurrences)) {
@@ -166,6 +197,37 @@ public class ErrorOriginLogger {
 			// this runs inside an exception constructor: letting anything escape would replace an ordinary,
 			// handleable failure with one thrown from `new SomeException(...)`, which no call site can recover
 			// from. Losing a diagnostic line is the only acceptable outcome here.
+		} finally {
+			REPORTING.set(Boolean.FALSE);
+		}
+	}
+
+	/**
+	 * Records the first occurrence of an origin, provided the tracking cap has not been reached.
+	 *
+	 * The slot is reserved before the insert so the map can never exceed {@link #MAX_TRACKED_ORIGINS}, and given
+	 * back if another thread won the race for the same origin.
+	 *
+	 * @param error    the exception being constructed
+	 * @param category human-readable error category
+	 * @param origin   error code identifying the origin
+	 */
+	private static void admitNewOrigin(@Nonnull Throwable error, @Nonnull String category, @Nonnull String origin) {
+		int reserved;
+		do {
+			reserved = RESERVED_ORIGIN_SLOTS.get();
+			if (reserved >= MAX_TRACKED_ORIGINS) {
+				return;
+			}
+		} while (!RESERVED_ORIGIN_SLOTS.compareAndSet(reserved, reserved + 1));
+
+		final AtomicLong existing = OCCURRENCES_BY_ORIGIN.putIfAbsent(origin, new AtomicLong(1L));
+		if (existing == null) {
+			logOrigin(error, category, origin, 1L);
+		} else {
+			// another thread inserted this same origin first - hand the reserved slot back rather than burning it
+			RESERVED_ORIGIN_SLOTS.decrementAndGet();
+			existing.incrementAndGet();
 		}
 	}
 
