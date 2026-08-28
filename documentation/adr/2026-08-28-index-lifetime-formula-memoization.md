@@ -1,12 +1,12 @@
 ---
 title: Index caches memoize the bitmap, never the formula, because a formula node carries per-query state
 date: 2026-08-28
-updated: 2026-08-28 11:40
+updated: 2026-08-28 13:05
 status: accepted
 kind: fix
 issues: [1458]
 prs: [1459, 1460]
-areas: [evita_engine/io/evitadb/index/attribute, evita_engine/io/evitadb/index/hierarchy, evita_engine/io/evitadb/core/query/algebra]
+areas: [evita_engine/io/evitadb/index/attribute, evita_engine/io/evitadb/index/hierarchy, evita_engine/io/evitadb/index/bitmap, evita_engine/io/evitadb/core/query/algebra]
 supersedes: []
 superseded-by: []
 relates: []
@@ -156,6 +156,22 @@ unrepresentable rather than merely documented and tested.
   `assertNotSame` on formulas is now trivially true and would have silently stopped testing invalidation at
   all: the non-transactional add/remove tests in `FilterIndexTest` and `HierarchyIndexTest`, and the
   unregister test in `UniqueIndexTest`.
+- `BaseBitmapTest.ContentHashTest` pins the content-hash memo from both sides, using a counting
+  `LongHashFunction` delegate so each case distinguishes "answered correctly" from "answered correctly *and*
+  recomputed": one memo-hit test, one foreign-hash-function test, one invalidation test per mutator (nine),
+  and two asserting that a **no-op** `add`/`remove` keeps the memo.
+- The cost the memo removes was measured on a seeded `OwnerFilterIndex`, timing `getAllRecordsFormula()`
+  against `getAllRecords()` over 5 rounds after a 20k-call warmup. Added cost per call:
+
+  | records | bitmap memo alone | bitmap memo + content hash |
+  |--------:|------------------:|---------------------------:|
+  |   1,000 |          1,410 ns |                      68 ns |
+  |  10,000 |         10,240 ns |                     162 ns |
+  | 100,000 |         83,396 ns |                     366 ns |
+  | 500,000 |        308,516 ns |                      60 ns |
+
+  The remainder no longer scales with record count — it is the allocation plus `initFields`' scalars, and the
+  scatter across sizes says it now sits below that harness's noise floor.
 
 ## Consequences & open follow-ups
 
@@ -174,23 +190,57 @@ unrepresentable rather than merely documented and tested.
   divergence rather than a strictly positive one, and the existing non-growth assertion pins that it stays a
   constant. Not chased here: it is a bitmap-accounting question, independent of this leak, and fixing it
   inside a hotfix would put unrelated risk on the release line.
-- **A CPU regression was traded for the memory fix on one path, and it is not small.** `ConstantFormula`
-  hashes a non-transactional delegate's **contents** in its constructor (`AbstractFormula#initFields` computes
-  the hash eagerly). A filter index whose value tree holds more than one bucket memoizes a `BaseBitmap`, which
-  is not a `TransactionalLayerProducer`, so every `getAllRecordsFormula()` call now pays `O(records)` where the
-  old formula memo paid it once. Measured on a seeded `OwnerFilterIndex`: **+1.4 µs at 1k records, +10 µs at
-  10k, +83 µs at 100k, +309 µs at 500k**, against ~1–18 ns for the memoized bitmap alone.
+- **The bitmap now memoizes its own content hash, because Option A on its own was a real CPU regression.**
+  `ConstantFormula` hashes a non-transactional delegate's **contents** in its constructor
+  (`AbstractFormula#initFields` computes the hash eagerly), and it gathers no transactional ids for such a
+  delegate — so that hash is the formula's *sole* cache discriminator, not an optimization. A filter index
+  whose value tree holds more than one bucket memoizes a `BaseBitmap`, which is not a
+  `TransactionalLayerProducer`, so every `getAllRecordsFormula()` call paid `O(records)` where the old formula
+  memo paid it once: **+1.4 µs at 1k records, +10 µs at 100k… +309 µs at 500k**, against ~1–18 ns for the
+  memoized bitmap alone.
 
-  Only two read paths ask for the formula — `AttributeIsTranslator` (an `attributeIs(NULL|NOT_NULL)` filter)
-  and `AttributeHistogramComputer` (once per attribute index in a histogram request). `OwnerUniqueIndex` is
-  **not** affected: its delegate is a `TransactionalBitmap`, so the hash is its transactional id and
-  construction stays `O(1)`. `HierarchyIndex` is not affected in practice because no main-source caller asks
-  it for a formula.
+  Because the index hands out the same `BaseBitmap` **instance** every time, the hash belongs on the bitmap:
+  `Bitmap#getContentHash` defaults to the walk and `BaseBitmap` memoizes it. Zero formula is retained, so the
+  invariant and `IndexFormulaRetentionTest` are untouched, and the cost drops back to one allocation.
 
-  The fix is to memoize the content hash beside the bitmap and hand it to a `ConstantFormula` overload — zero
-  formula retained, so the invariant and its guard test are untouched. Deliberately **not** done here: it adds
-  public API to `ConstantFormula` and the leak was the urgent problem. This was found after both PRs opened
-  and is recorded so the trade is visible rather than discovered in a profile.
+  The alternative considered was a `ConstantFormula` overload taking a precomputed hash, with the index
+  memoizing the hash beside the bitmap. **Rejected because** it adds public API to `ConstantFormula`, needs a
+  sentinel for "no hash supplied", and helps only the two call sites that thread it through — whereas the
+  bitmap-side memo helps every `ConstantFormula` built over a repeated `BaseBitmap` anywhere in the engine.
+
+  Two details a reader will otherwise trip on. The memo is keyed by the **hash function identity**, not
+  assumed global: `CacheEnforcingPolicy` builds its own instance from the same factory as
+  `TransactionalDataRelatedStructure#HASH_FUNCTION`, and a memo that ignored that would answer one function's
+  question with another's hash. And `BaseBitmap` is `@NotThreadSafe` yet the memo is read concurrently — the
+  guard field is written *after* the hash with volatile semantics, so a racing reader either misses the memo
+  and recomputes an identical value or sees a fully published one. Mutation concurrent with reads was already
+  outside the class' contract and stays there; every mutator clears the memo alongside `memoizedCardinality`.
+
+  The invalidation had to be exhaustive, and a sweep confirmed it can be: no site in main sources mutates a
+  `PersistentRoaringBitmap` in place after wrapping it in a `BaseBitmap` — `OrFormula#computeInternal`,
+  `HierarchyIndex#listNodesIncludingParents`, `createAllHierarchyNodesBitmap`, `BitmapChanges#getMergedBitmap`
+  and both sorters' `notFoundRecords` each build a fresh local and wrap it last. `getRoaringBitmap()` hands
+  out the internal reference and would bypass the memo, exactly as it already bypasses `memoizedCardinality`;
+  if that ever changes, this memo must be scoped.
+
+  Only two read paths ever asked for the formula — `AttributeIsTranslator` (an `attributeIs(NULL|NOT_NULL)`
+  filter) and `AttributeHistogramComputer` (once per attribute index in a histogram request).
+  `OwnerUniqueIndex` was never affected: its delegate is a `TransactionalBitmap`, so the key is its
+  transactional id and construction was always `O(1)`. `HierarchyIndex` was not affected in practice because
+  no main-source caller asks it for a formula.
+- **The memo made a heap test fail *warm* while passing cold, and neither cause was the obvious one.** Both
+  were settled against a JOL walk rather than by reasoning, and both are worth knowing before touching
+  `BaseBitmap#getHeapSizeInBytes`:
+  - Adding a `long` field does **not** need an alignment term. A `long` must start 8-aligned and the object
+    header is 12 bytes, so the arithmetic looks like it should charge 4 bytes of padding — but the JVM packs
+    the existing `int` into that gap and the `long` lands aligned for free. Adding the term over-reported by
+    8 bytes per bitmap.
+  - The memo's guard field points at `TransactionalDataRelatedStructure#HASH_FUNCTION`, one instance for the
+    whole JVM. The arithmetic correctly charges nothing for it, but a walk reaches it and charges 16 bytes —
+    and only once the memo is populated, which is why the same fixture passed cold and failed warm. It is now
+    in `IndexHeapSizeAssertions#SHARED_EMPTY_ARRAYS`. It is the first entry there that is absent from a cold
+    index, so a future heap test failing by exactly one object should look here before suspecting its own
+    arithmetic.
 - **`OwnerUniqueIndex` contamination was never observed**, only derived from source. The production dump was
   a truncated 15% prefix, and the 752/752 contaminated memos it did show were all `FilterIndex`. A complete
   dump would confirm it.
