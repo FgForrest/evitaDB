@@ -40,6 +40,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static io.evitadb.index.attribute.ChainIndexAssertions.assertHeadMarksMatchChains;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -82,12 +83,17 @@ class WarmUpSavepointChainIndexRollbackTest {
 	/**
 	 * Releases any savepoint a failing test left bound to this thread, so one failure cannot cascade into every test
 	 * that runs after it on the same thread ({@link WarmUpSavepoint#open()} refuses to nest).
+	 *
+	 * Discarded with {@link WarmUpSavepoint#commit()} rather than replayed with {@link WarmUpSavepoint#rollback()}:
+	 * the journal of an already-failing test is half-built, and replaying it can throw on its own (the removal
+	 * inverse raises when its anchor record is missing), which would replace the real assertion failure with a
+	 * confusing secondary one. The index is thrown away with the test either way.
 	 */
 	@AfterEach
 	void tearDown() {
 		final WarmUpSavepoint leaked = WarmUpSavepoint.getIfOpen();
 		if (leaked != null) {
-			leaked.rollback();
+			leaked.commit();
 		}
 	}
 
@@ -135,6 +141,7 @@ class WarmUpSavepointChainIndexRollbackTest {
 
 		assertArrayEquals(expected, order(index), "Rollback must restore the exact pre-savepoint order.");
 		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
 	}
 
 	@Test
@@ -152,6 +159,7 @@ class WarmUpSavepointChainIndexRollbackTest {
 
 		assertArrayEquals(expected, order(index), "Rollback must restore the exact pre-savepoint order.");
 		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
 	}
 
 	@Test
@@ -169,6 +177,7 @@ class WarmUpSavepointChainIndexRollbackTest {
 
 		assertArrayEquals(expected, order(index), "Rollback must restore every removed record at its position.");
 		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
 	}
 
 	@Test
@@ -190,6 +199,7 @@ class WarmUpSavepointChainIndexRollbackTest {
 
 		assertArrayEquals(expected, order(index), "Rollback must restore the exact pre-savepoint order.");
 		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
 	}
 
 	@Test
@@ -214,6 +224,87 @@ class WarmUpSavepointChainIndexRollbackTest {
 
 		assertArrayEquals(expected, order(index), "Rollback must restore the exact pre-savepoint order.");
 		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
+	}
+
+	@Test
+	@DisplayName("Rollback undoes removals that empty whole leaf pages")
+	void shouldRestoreChainAfterEmptyingLeafPages() {
+		final ChainIndex index = newChain(MULTI_PAGE_LENGTH);
+		final int[] expected = order(index);
+
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		// a contiguous run longer than one 1024-record page, so at least one container is emptied and DETACHED from
+		// the tree - the case where a per-slot inverse has to put a record back into a container that the structural
+		// code removed after that inverse was pushed
+		for (int pk = 600; pk <= 1_900; pk++) {
+			index.removePredecessor(pk);
+		}
+		assertNotEquals(expected.length, order(index).length, "self-check: the removals must have changed the chain");
+		savepoint.rollback();
+
+		assertArrayEquals(expected, order(index), "Rollback must re-attach the emptied pages and refill them.");
+		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
+	}
+
+	@Test
+	@DisplayName("Rollback undoes the removal of every single record")
+	void shouldRestoreChainAfterRemovingEveryRecord() {
+		final ChainIndex index = newChain(MULTI_PAGE_LENGTH);
+		final int[] expected = order(index);
+
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		// empties the tree down to a null root, the deepest structural collapse the chain can undergo
+		for (int pk = 1; pk <= MULTI_PAGE_LENGTH; pk++) {
+			index.removePredecessor(pk);
+		}
+		assertEquals(0, order(index).length, "self-check: the chain must be empty before the rollback");
+		savepoint.rollback();
+
+		assertArrayEquals(expected, order(index), "Rollback must rebuild the whole chain from an empty tree.");
+		assertTrue(index.isConsistent(), "Rollback must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
+	}
+
+	@Test
+	@DisplayName("Rollback undoes the removal of a record that was a chain head")
+	void shouldRestoreChainAfterRemovingChainHeads() {
+		final ChainIndex index = newChain(MULTI_PAGE_LENGTH);
+		// break the single chain into several runs BEFORE the savepoint, so more than one record carries a head mark
+		// and the removals below can take the `wasHead == true` arm of the removal inverse
+		for (int pk = 500; pk <= 2_000; pk += 500) {
+			index.upsertPredecessor(Predecessor.HEAD, pk);
+		}
+		final int[] expected = order(index);
+		assertHeadMarksMatchChains(index);
+
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		for (int pk = 500; pk <= 2_000; pk += 500) {
+			index.removePredecessor(pk);
+		}
+		assertNotEquals(expected.length, order(index).length, "self-check: the removals must have changed the chain");
+		savepoint.rollback();
+
+		assertArrayEquals(expected, order(index), "Rollback must restore every removed head at its position.");
+		assertHeadMarksMatchChains(index);
+	}
+
+	@Test
+	@DisplayName("Rollback leaves an unrelated chain index untouched")
+	void shouldNotTouchUnrelatedChain() {
+		final ChainIndex touched = newChain(SINGLE_PAGE_LENGTH);
+		final ChainIndex untouched = newChain(MULTI_PAGE_LENGTH);
+		final int[] untouchedExpected = order(untouched);
+
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		for (int pk = SINGLE_PAGE_LENGTH + 1; pk <= SINGLE_PAGE_LENGTH + 50; pk++) {
+			touched.upsertPredecessor(new Predecessor(pk - 1), pk);
+		}
+		savepoint.rollback();
+
+		assertArrayEquals(untouchedExpected, order(untouched), "Rollback must not reach an index it never wrote.");
+		assertHeadMarksMatchChains(untouched);
 	}
 
 	@Test
@@ -231,6 +322,7 @@ class WarmUpSavepointChainIndexRollbackTest {
 		assertArrayEquals(afterBurst, order(index), "Commit must not restore anything.");
 		assertEquals(SINGLE_PAGE_LENGTH + 50, order(index).length, "Commit must keep every appended record.");
 		assertTrue(index.isConsistent(), "Commit must leave a consistent chain.");
+		assertHeadMarksMatchChains(index);
 	}
 
 }
