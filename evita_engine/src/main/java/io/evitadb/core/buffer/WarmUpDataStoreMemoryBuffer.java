@@ -23,6 +23,7 @@
 
 package io.evitadb.core.buffer;
 
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
@@ -33,6 +34,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Supplier;
 import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -66,7 +68,21 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
-		this.dataStoreChanges = new DataStoreChanges(persistenceService);
+		this(persistenceService, null);
+	}
+
+	/**
+	 * Creates a warm-up buffer whose savepoint pre-image reads can deserialize entity storage parts.
+	 *
+	 * @param persistenceService   the I/O service records are read from / written to
+	 * @param entitySchemaSupplier supplies the schema those reads deserialize against, or `null` for the catalog-level
+	 *                             buffer, whose parts carry neither references nor prices and need none
+	 */
+	public WarmUpDataStoreMemoryBuffer(
+		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nullable Supplier<EntitySchema> entitySchemaSupplier
+	) {
+		this.dataStoreChanges = new DataStoreChanges(persistenceService, false, entitySchemaSupplier);
 	}
 
 	/**

@@ -39,6 +39,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
@@ -64,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.IntFunction;
 
 import static java.util.Optional.ofNullable;
@@ -159,6 +162,16 @@ public class DataStoreChanges
 	 * pruning against an empty set.
 	 */
 	private final boolean capturesDirtyIndexKeys;
+	/**
+	 * Supplies the {@link EntitySchema} that deserializing THIS changeset's storage parts needs, or `null` when the
+	 * changeset holds catalog-level parts, which carry neither references nor prices and therefore need no schema.
+	 *
+	 * Only {@link #journalPersistedChange} uses it. Every other read on this class is reached through
+	 * `EntityCollection`'s reader, which establishes the context itself for each fetch (see the
+	 * `EntitySchemaContext.executeWithSchemaContext` calls there); the savepoint's pre-image read is the one read on a
+	 * WRITE path, where no such wrapper exists.
+	 */
+	@Nullable private final Supplier<EntitySchema> entitySchemaSupplier;
 
 	/**
 	 * Creates a buffer whose flush captures no dirty-index-key snapshot — the shared warm-up / non-transactional
@@ -167,7 +180,7 @@ public class DataStoreChanges
 	 * @param persistenceService the I/O service records are read from / written to
 	 */
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
-		this(persistenceService, false);
+		this(persistenceService, false, null);
 	}
 
 	/**
@@ -181,8 +194,27 @@ public class DataStoreChanges
 		@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService,
 		boolean capturesDirtyIndexKeys
 	) {
+		this(persistenceService, capturesDirtyIndexKeys, null);
+	}
+
+	/**
+	 * Creates a data store change buffer that can deserialize its own storage parts while a savepoint is open.
+	 *
+	 * @param persistenceService     the I/O service records are read from / written to
+	 * @param capturesDirtyIndexKeys `true` when this instance's flush feeds a pruning merge and must hand it the keys
+	 *                               of the indexes it persisted (see {@link #capturesDirtyIndexKeys})
+	 * @param entitySchemaSupplier   supplies the schema the savepoint's pre-image read deserializes against, or `null`
+	 *                               for a catalog-level changeset whose parts need none (see
+	 *                               {@link #entitySchemaSupplier})
+	 */
+	public DataStoreChanges(
+		@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService,
+		boolean capturesDirtyIndexKeys,
+		@Nullable Supplier<EntitySchema> entitySchemaSupplier
+	) {
 		this.persistenceService = persistenceService;
 		this.capturesDirtyIndexKeys = capturesDirtyIndexKeys;
+		this.entitySchemaSupplier = entitySchemaSupplier;
 	}
 
 	/**
@@ -329,7 +361,17 @@ public class DataStoreChanges
 		long primaryKey,
 		@Nonnull Class<? extends StoragePart> containerType
 	) {
-		final StoragePart previous = this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
+		// deserializing a reference or price part resolves its schema from EntitySchemaContext, and THIS read happens
+		// on the write/commit path, which - unlike EntityCollection's reader - establishes no such context. Without
+		// the wrapper the read throws "Entity schema was not initialized in EntitySchemaContext!" for every entity
+		// that carries references or prices, which is every non-trivial corpus.
+		final Supplier<EntitySchema> schemaSupplier = this.entitySchemaSupplier;
+		final StoragePart previous = schemaSupplier == null ?
+			this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType) :
+			EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType)
+			);
 		if (previous == null) {
 			savepoint.push(
 				() -> this.persistenceService.removeStoragePart(catalogVersion, primaryKey, containerType)

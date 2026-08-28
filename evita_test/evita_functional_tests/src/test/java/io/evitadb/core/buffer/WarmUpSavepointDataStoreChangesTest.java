@@ -25,7 +25,9 @@ package io.evitadb.core.buffer;
 
 import com.carrotsearch.hppc.LongObjectMap;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexActivity;
@@ -118,6 +120,79 @@ class WarmUpSavepointDataStoreChangesTest {
 		final WarmUpSavepoint leaked = WarmUpSavepoint.getIfOpen();
 		if (leaked != null) {
 			leaked.commit();
+		}
+	}
+
+	@Nested
+	@DisplayName("Schema context of the pre-image read")
+	class PreImageSchemaContext {
+
+		/**
+		 * Records whether an {@link EntitySchemaContext} was established at the moment the pre-image was read.
+		 *
+		 * The savepoint captures the pre-image of a record it is about to overwrite by READING it back, and reading a
+		 * `ReferencesStoragePart` or a `PricesStoragePart` deserializes it, which resolves the entity schema from that
+		 * thread-local context. The read happens on the WRITE path, which - unlike `EntityCollection`'s reader, that
+		 * wraps every fetch - establishes no context of its own. A real store would throw here; this stand-in records
+		 * the fact instead, so the test names the invariant rather than a serializer's symptom.
+		 */
+		class SchemaContextRecordingService extends InMemoryStoragePartPersistenceService {
+			/** `TRUE` / `FALSE` once a read has happened, `null` while none has. */
+			@Nullable Boolean schemaContextWasLive;
+
+			@Nullable
+			@Override
+			public <T extends StoragePart> T getStoragePart(
+				long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType
+			) {
+				try {
+					EntitySchemaContext.getEntitySchema();
+					this.schemaContextWasLive = Boolean.TRUE;
+				} catch (RuntimeException ex) {
+					this.schemaContextWasLive = Boolean.FALSE;
+				}
+				return super.getStoragePart(catalogVersion, storagePartPk, containerType);
+			}
+		}
+
+		@Test
+		@DisplayName("The pre-image is read inside the schema context its deserialization needs")
+		void shouldReadPreImageInsideSchemaContext() {
+			final SchemaContextRecordingService store = new SchemaContextRecordingService();
+			final EntitySchema schema = EntitySchema._internalBuild("product");
+			final DataStoreChanges changes = new DataStoreChanges(store, false, () -> schema);
+			// seed the record, so the overwrite below has a pre-image to capture at all
+			changes.putStoragePart(CATALOG_VERSION, new StubStoragePart(1L, "before"));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			changes.putStoragePart(CATALOG_VERSION, new StubStoragePart(1L, "after"));
+			savepoint.rollback();
+
+			assertEquals(
+				Boolean.TRUE, store.schemaContextWasLive,
+				"The savepoint's pre-image read must run inside an EntitySchemaContext - without it every entity " +
+					"carrying references or prices fails to deserialize on the commit path."
+			);
+		}
+
+		@Test
+		@DisplayName("A changeset with no schema supplier still reads its pre-image")
+		void shouldReadPreImageWithoutSupplier() {
+			final SchemaContextRecordingService store = new SchemaContextRecordingService();
+			// the catalog-level changeset holds parts that carry neither references nor prices, so it is given no
+			// supplier - and must keep working rather than failing for want of a context it does not need
+			final DataStoreChanges changes = new DataStoreChanges(store, false, null);
+			changes.putStoragePart(CATALOG_VERSION, new StubStoragePart(1L, "before"));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			changes.putStoragePart(CATALOG_VERSION, new StubStoragePart(1L, "after"));
+			savepoint.rollback();
+
+			assertEquals(
+				"before",
+				store.getStoragePart(CATALOG_VERSION, 1L, StubStoragePart.class).payload(),
+				"Rollback must restore the pre-image even when no schema supplier is configured."
+			);
 		}
 	}
 

@@ -451,7 +451,7 @@ public final class EntityCollection implements
 			// initialize container buffer
 			final StoragePartPersistenceService<StorageDescriptor> storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
 			this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService, this::getInternalSchema) :
 				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 			this.dataStoreReader = new DataStoreReaderBridge(
 				this.dataStoreBuffer,
@@ -558,7 +558,7 @@ public final class EntityCollection implements
 		);
 
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, this.persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -618,7 +618,7 @@ public final class EntityCollection implements
 		this.indexPkSequence = indexPkSequence;
 		this.pricePkSequence = pricePkSequence;
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -2108,7 +2108,8 @@ public final class EntityCollection implements
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
 			),
-			true
+			true,
+			this::getInternalSchema
 		);
 	}
 
