@@ -47,6 +47,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
+import io.evitadb.externalApi.observability.agent.ErrorOriginLogger;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
@@ -219,6 +220,7 @@ public class ObservabilityManager {
 		}
 		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(errorClass.getSimpleName()).inc();
 		EVITA_ERRORS.incrementAndGet();
+		ErrorOriginLogger.reportInternalError(error);
 	}
 
 	/**
@@ -232,6 +234,7 @@ public class ObservabilityManager {
 			return;
 		}
 		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(errorClass.getSimpleName()).inc();
+		ErrorOriginLogger.reportClientError(error);
 	}
 
 	public ObservabilityManager(
@@ -243,6 +246,9 @@ public class ObservabilityManager {
 		this.config = config;
 		this.evita = evita;
 		this.objectMapper = new ObjectMapper();
+		// the error consumers are wired from this class's static initializer, long before any configuration is
+		// read, so the logger starts on its own default and is only narrowed or widened here
+		ErrorOriginLogger.configure(config.getErrorOriginLogging());
 		createAndRegisterPrometheusServlet();
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();

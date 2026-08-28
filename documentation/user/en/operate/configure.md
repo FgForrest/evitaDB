@@ -190,6 +190,7 @@ api:                                              # [see API configuration](#api
         protocol: grpc
       allowedEvents: null
       exportedQueryLabels: null
+      errorOriginLogging: INTERNAL
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1624,6 +1625,24 @@ for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         *nothing* is exported, not everything - see the [label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)
         for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
         `uri`) are reserved and rejected at startup.</p>
+    </dd>
+    <dt>errorOriginLogging</dt>
+    <dd>
+        <p>**Default:** `INTERNAL`</p>
+        <p>Selects which error hierarchies have the place they were created written to the log the first time that
+        place is seen. The error metrics themselves are unaffected - `io_evitadb_errors_total` and
+        `io_evitadb_client_errors_total` are always collected, under exactly the same names and labels, whichever
+        mode is in force.</p>
+        <p>Those metrics count an exception being *constructed* and carry nothing but the class name, so an error
+        that is swallowed - or thrown at a caller that has already disconnected - moves the counter while leaving no
+        failed response, no error span and no log line. This setting is what turns such a counter movement into a
+        location you can open.</p>
+        <p>Possible values are `NONE` (never resolve or log an origin), `INTERNAL` (internal errors only - these are
+        faults by definition and rare) and `ALL` (also client errors, which are raised on ordinary rejection paths
+        and are therefore far more frequent). The first sighting of each place is logged at `WARN` with a full stack
+        trace; after that it is only counted, and re-logged when the count reaches a power of ten. Java errors are
+        never included: the JVM throws pre-allocated `OutOfMemoryError` instances without running a constructor, and
+        allocating a log message inside one is a good way to turn a survivable failure into a fatal one.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
