@@ -147,8 +147,13 @@ public class HierarchyIndex
 	 * of this index would therefore pin the first session that ever used it until the hierarchy is next written to.
 	 *
 	 * Memoizing the bitmap keeps the expensive part — the `O(nodes)` walk in
-	 * {@link #createAllHierarchyNodesBitmap()} — and pays a handful of bytes for a fresh {@link ConstantFormula}
-	 * per call. Do not turn this back into a `Formula` field.
+	 * {@link #createAllHierarchyNodesBitmap()} — and the {@link ConstantFormula} built around it per call is a
+	 * handful of bytes over the shared bitmap. It is not free in CPU: the memo is a `BaseBitmap`, so the formula
+	 * hashes its contents in the constructor, which is `O(nodes)` per call. That matters much less here than for a
+	 * filter index, because no main-source caller asks this index for a formula at all — see
+	 * `FilterIndex#memoizedAllRecords` for the measured figures and the intended fix.
+	 *
+	 * Do not turn this back into a `Formula` field.
 	 */
 	@Nullable private volatile Bitmap memoizedAllNodes;
 

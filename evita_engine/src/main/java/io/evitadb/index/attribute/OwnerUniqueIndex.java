@@ -296,6 +296,13 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * holds — there is nothing left to memoize, because the expensive part was always the bitmap and never the
 	 * few scalars of scaffolding around it.
 	 *
+	 * Building one per call is genuinely cheap **here**, unlike in a filter index: {@link #recordIds} is a
+	 * {@link TransactionalBitmap} and therefore a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}, so `ConstantFormula` hashes its
+	 * transactional id rather than its contents and construction stays `O(1)`. A filter index's multi-bucket memo
+	 * is a plain `BaseBitmap` and pays `O(records)` instead — see `FilterIndex#memoizedAllRecords`. Do not
+	 * "harmonise" the two; they are not the same case.
+	 *
 	 * The formula must not be cached here. A {@link Formula} node carries per-query state:
 	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
 	 * writes the executing query's context onto every node of the plan it joins, and that context transitively

@@ -174,6 +174,23 @@ unrepresentable rather than merely documented and tested.
   divergence rather than a strictly positive one, and the existing non-growth assertion pins that it stays a
   constant. Not chased here: it is a bitmap-accounting question, independent of this leak, and fixing it
   inside a hotfix would put unrelated risk on the release line.
+- **A CPU regression was traded for the memory fix on one path, and it is not small.** `ConstantFormula`
+  hashes a non-transactional delegate's **contents** in its constructor (`AbstractFormula#initFields` computes
+  the hash eagerly). A filter index whose value tree holds more than one bucket memoizes a `BaseBitmap`, which
+  is not a `TransactionalLayerProducer`, so every `getAllRecordsFormula()` call now pays `O(records)` where the
+  old formula memo paid it once. Measured on a seeded `OwnerFilterIndex`: **+1.4 µs at 1k records, +10 µs at
+  10k, +83 µs at 100k, +309 µs at 500k**, against ~1–18 ns for the memoized bitmap alone.
+
+  Only two read paths ask for the formula — `AttributeIsTranslator` (an `attributeIs(NULL|NOT_NULL)` filter)
+  and `AttributeHistogramComputer` (once per attribute index in a histogram request). `OwnerUniqueIndex` is
+  **not** affected: its delegate is a `TransactionalBitmap`, so the hash is its transactional id and
+  construction stays `O(1)`. `HierarchyIndex` is not affected in practice because no main-source caller asks
+  it for a formula.
+
+  The fix is to memoize the content hash beside the bitmap and hand it to a `ConstantFormula` overload — zero
+  formula retained, so the invariant and its guard test are untouched. Deliberately **not** done here: it adds
+  public API to `ConstantFormula` and the leak was the urgent problem. This was found after both PRs opened
+  and is recorded so the trade is visible rather than discovered in a profile.
 - **`OwnerUniqueIndex` contamination was never observed**, only derived from source. The production dump was
   a truncated 15% prefix, and the 752/752 contaminated memos it did show were all `FilterIndex`. A complete
   dump would confirm it.
