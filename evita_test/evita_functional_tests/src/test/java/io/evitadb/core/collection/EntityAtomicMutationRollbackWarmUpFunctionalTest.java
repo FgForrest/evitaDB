@@ -48,8 +48,10 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGrou
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestTags;
@@ -73,6 +75,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -782,6 +785,44 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				return null;
 			}
 		);
+	}
+
+	@Nested
+	@DisplayName("The poison backstop for a rollback that itself failed")
+	class PoisonBackstop {
+
+		/**
+		 * Pins the reach of the last-resort backstop, which is the one thing standing between an unrewindable warm-up
+		 * write and the storage.
+		 *
+		 * The reach is the whole point. {@code LocalMutationExecutorCollector} can enumerate the collections that
+		 * registered a {@code LocalMutationExecutor} with it, and a collection reached only through the index-trigger
+		 * dispatch registers none - so a backstop that poisoned what the collector can see would leave exactly that
+		 * collection free to flush state no rollback could undo, and would do it silently. The sweep is therefore
+		 * catalog-wide, and this asserts it against a collection the poisoning call never names.
+		 */
+		@Test
+		@DisplayName("Poisoning the catalog refuses the flush of every collection it holds")
+		void shouldPoisonEveryEntityCollectionBuffer() {
+			final Catalog catalog = (Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
+				.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			final RuntimeException rollbackFailure = new RuntimeException("simulated warm-up rollback failure");
+
+			catalog.poisonDataStoreBuffer(rollbackFailure);
+
+			for (final String entityType : List.of(Entities.PRODUCT, Entities.PARAMETER, Entities.PARAMETER_GROUP)) {
+				final EntityCollection collection = catalog.getCollectionForEntityOrThrowException(entityType);
+				final GenericEvitaInternalError refusal = assertThrows(
+					GenericEvitaInternalError.class,
+					collection::flush,
+					"Collection `" + entityType + "` must refuse to flush once the catalog has been poisoned."
+				);
+				assertSame(
+					rollbackFailure, refusal.getCause(),
+					"The refusal must carry the rollback failure that caused it, so the log names the real problem."
+				);
+			}
+		}
 	}
 
 	/**

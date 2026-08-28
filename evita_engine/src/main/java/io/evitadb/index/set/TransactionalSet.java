@@ -189,8 +189,11 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public Iterator<K> iterator() {
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return WarmUpSavepoint.getIfOpen() == null ?
-				this.setDelegate.iterator() : new WarmUpJournalingIterator<>(this.setDelegate);
+			// the wrapper is handed out unconditionally rather than only while a savepoint is open, because the
+			// alternative decides at CONSTRUCTION time: an iterator taken before a savepoint opened and removed
+			// through after it opened would reach the delegate unjournalled. remove() re-resolves the savepoint per
+			// call, so outside one the wrapper is transparent apart from its own allocation
+			return new WarmUpJournalingIterator<>(this.setDelegate);
 		} else {
 			return new TransactionalMemorySetIterator<>(this.setDelegate, layer, this);
 		}
@@ -457,13 +460,15 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 
 	/**
 	 * Iterator over the raw delegate that journals every {@link #remove()} into the open warm-up savepoint. It is
-	 * handed out instead of the delegate's own iterator while a savepoint is open, because removing through an iterator
-	 * reaches the delegate without passing through any of this set's mutators - and `removeAll` / `retainAll` /
-	 * `removeIf` on the {@link java.util.Collection} defaults all funnel through it. It is the warm-up counterpart of
-	 * {@link TransactionalMemorySetIterator}, which closes the same hole on the transactional branch.
+	 * handed out instead of the delegate's own iterator on the whole non-transactional branch, because removing
+	 * through an iterator reaches the delegate without passing through any of this set's mutators - and `removeAll` /
+	 * `retainAll` / `removeIf` on the {@link java.util.Collection} defaults all funnel through it. It is the warm-up
+	 * counterpart of {@link TransactionalMemorySetIterator}, which closes the same hole on the transactional branch.
 	 *
-	 * The savepoint is re-resolved at {@link #remove()} time rather than captured at construction, so an iterator that
-	 * outlives the savepoint that justified wrapping it records nothing.
+	 * The savepoint is re-resolved at {@link #remove()} time rather than captured at construction, and this is what
+	 * lets the wrapper be handed out unconditionally: an iterator that outlives the savepoint records nothing, and an
+	 * iterator created BEFORE a savepoint opened still journals into it. Choosing the wrapper at construction time
+	 * would close only the first of those two directions.
 	 *
 	 * @param <K> element type
 	 */

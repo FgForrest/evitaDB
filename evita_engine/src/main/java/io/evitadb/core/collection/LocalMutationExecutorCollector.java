@@ -561,10 +561,19 @@ class LocalMutationExecutorCollector {
 	}
 
 	/**
-	 * Refuses every future flush of the buffers this collector's mutation wrote through, so state that could not be
-	 * rewound can never reach the storage. Both the catalog-level buffer (an entity upsert registers a globally unique
-	 * attribute's catalog index dirty there) and the buffer of every entity collection that took part in this
-	 * (possibly cross-collection) mutation are poisoned.
+	 * Refuses every future flush of the buffers this collector's mutation could have written through, so state that
+	 * could not be rewound can never reach the storage.
+	 *
+	 * {@link Catalog#poisonDataStoreBuffer(Throwable)} does the work and sweeps the catalog-level buffer together with
+	 * **every** entity collection's. The sweep cannot be narrowed to the collections seen here: a collection reached
+	 * only through the index-trigger dispatch registers no {@link LocalMutationExecutor} with this collector, so
+	 * poisoning what the collector can enumerate would leave exactly that collection able to flush unrewindable
+	 * state — the failure mode being silent, which is the one this backstop exists to prevent.
+	 *
+	 * The executor loop stays on top of the sweep because an executor writes through the
+	 * {@code DataStoreUpdater} it was constructed with, which is not, by contract, the buffer its collection holds.
+	 * {@link io.evitadb.core.buffer.DataStoreMemoryBuffer#poison(Throwable)} keeps the FIRST cause, so poisoning the same buffer twice is
+	 * harmless.
 	 *
 	 * Poisoning is a no-op outside warm-up: a transactional buffer is discarded wholesale with its failed transaction.
 	 *

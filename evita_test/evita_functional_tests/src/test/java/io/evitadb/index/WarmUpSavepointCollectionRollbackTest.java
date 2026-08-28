@@ -54,6 +54,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the collection-backed index structures — {@link TransactionalMap}, {@link PersistentTransactionalMap}
@@ -646,6 +647,93 @@ class WarmUpSavepointCollectionRollbackTest {
 			savepoint.commit();
 
 			assertEquals(List.of("b"), new ArrayList<>(list), "Commit must keep the savepoint's writes.");
+		}
+	}
+
+
+	@Nested
+	@DisplayName("Views taken outside the savepoint that brackets the write")
+	class ViewsCrossingTheBracket {
+
+		@Test
+		@DisplayName("A list iterator created before the savepoint opened still journals its writes")
+		void shouldJournalWritesThroughAnIteratorOlderThanTheSavepoint() {
+			final TransactionalList<String> list = new TransactionalList<>(
+				new ArrayList<>(List.of("a", "b", "c"))
+			);
+
+			// the iterator is taken with no savepoint on the thread - the point of the test is that the decision
+			// whether to journal cannot be made here, because it is not yet knowable
+			final ListIterator<String> it = list.listIterator();
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			it.next();
+			it.set("A");
+			it.next();
+			it.remove();
+			assertEquals(List.of("A", "c"), new ArrayList<>(list), "self-check on the in-savepoint state");
+			savepoint.rollback();
+
+			assertEquals(
+				List.of("a", "b", "c"), new ArrayList<>(list),
+				"An iterator that predates the savepoint writes into the same delegate as one taken inside it, so it " +
+					"has to journal into the same savepoint."
+			);
+		}
+
+		@Test
+		@DisplayName("A set iterator created before the savepoint opened still journals its removals")
+		void shouldJournalRemovalsThroughASetIteratorOlderThanTheSavepoint() {
+			final TransactionalSet<String> set = new TransactionalSet<>(new LinkedHashSet<>(List.of("a", "b", "c")));
+
+			final Iterator<String> it = set.iterator();
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			it.next();
+			it.remove();
+			assertEquals(Set.of("b", "c"), new LinkedHashSet<>(set), "self-check on the in-savepoint state");
+			savepoint.rollback();
+
+			assertEquals(
+				Set.of("a", "b", "c"), new LinkedHashSet<>(set),
+				"The removal reached the delegate through an iterator older than the savepoint and must be rewound."
+			);
+		}
+
+		@Test
+		@DisplayName("A sub-list handed out inside a savepoint refuses writes rather than losing them")
+		void shouldRefuseWritesThroughASubListTakenInsideTheSavepoint() {
+			final TransactionalList<String> list = new TransactionalList<>(
+				new ArrayList<>(List.of("a", "b", "c"))
+			);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			final List<String> view = list.subList(0, 2);
+			assertEquals(List.of("a", "b"), view, "The view must still read through to the list.");
+			// a sub-list writes straight into the delegate, past every mutator this class journals through, so the
+			// only two honest options are to journal it or to refuse it - and silently losing it is neither
+			assertThrows(UnsupportedOperationException.class, () -> view.set(0, "z"));
+			assertThrows(UnsupportedOperationException.class, () -> view.add("z"));
+			assertThrows(UnsupportedOperationException.class, () -> view.remove(0));
+			savepoint.rollback();
+
+			assertEquals(List.of("a", "b", "c"), new ArrayList<>(list), "Nothing was written, so nothing is rewound.");
+		}
+
+		@Test
+		@DisplayName("Outside a savepoint a sub-list stays the delegate's own live view")
+		void shouldHandOutALiveSubListOutsideASavepoint() {
+			final TransactionalList<String> list = new TransactionalList<>(
+				new ArrayList<>(List.of("a", "b", "c"))
+			);
+
+			final List<String> view = list.subList(0, 2);
+			view.set(0, "z");
+
+			assertEquals(
+				List.of("z", "b", "c"), new ArrayList<>(list),
+				"With no savepoint to rewind there is nothing to protect, and the live view is the documented result."
+			);
 		}
 	}
 

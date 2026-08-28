@@ -2451,18 +2451,28 @@ public final class Catalog
 	}
 
 	/**
-	 * Reports that the catalog-level state trapped in this catalog's data store buffer could not be reverted and must
-	 * therefore never be flushed (see {@link DataStoreMemoryBuffer#poison(Throwable)}). It is a last-resort backstop
-	 * for a per-entity rollback that itself failed on the warm-up write path: an entity upsert touches the catalog
-	 * buffer too (a globally unique attribute registers its {@link io.evitadb.index.CatalogIndex} dirty there), so
-	 * poisoning only the entity collections' buffers would still let an unrewindable catalog index reach the storage.
+	 * Reports that state trapped in this catalog could not be reverted and must therefore never be flushed (see
+	 * {@link DataStoreMemoryBuffer#poison(Throwable)}). It is a last-resort backstop for a per-entity rollback that
+	 * itself failed on the warm-up write path.
 	 *
-	 * A no-op on the transactional path — that buffer is discarded wholesale with its failed transaction.
+	 * Both the catalog-level buffer and the buffer of **every** entity collection are poisoned. The catalog buffer,
+	 * because an entity upsert touches it too (a globally unique attribute registers its
+	 * {@link io.evitadb.index.CatalogIndex} dirty there), so poisoning only the collections would still let an
+	 * unrewindable catalog index reach the storage. Every collection rather than only the ones the failed mutation is
+	 * known to have written, because a collection reached through the index-trigger dispatch registers no
+	 * {@code LocalMutationExecutor} with the collector and cannot be enumerated from it — and the alternative to
+	 * over-poisoning here is a silently under-poisoned buffer flushing state that no rollback could rewind. By the
+	 * time this runs the write path has already failed twice over; refusing the whole catalog is proportionate.
+	 *
+	 * A no-op on the transactional path — those buffers are discarded wholesale with their failed transaction.
 	 *
 	 * @param cause the rollback failure that made the state untrustworthy
 	 */
 	public void poisonDataStoreBuffer(@Nonnull Throwable cause) {
 		this.dataStoreBuffer.poison(cause);
+		for (final EntityCollection entityCollection : this.entityCollections.values()) {
+			entityCollection.poisonDataStoreBuffer(cause);
+		}
 	}
 
 	/**

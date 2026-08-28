@@ -40,6 +40,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -188,8 +189,7 @@ public class TransactionalList<V> implements
 	public Iterator<V> iterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return warmUpIteratorNeedsJournaling() ?
-				new WarmUpJournalingListIterator<>(this.listDelegate, 0) : this.listDelegate.iterator();
+			return new WarmUpJournalingListIterator<>(this.listDelegate, 0);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
@@ -406,14 +406,16 @@ public class TransactionalList<V> implements
 	}
 
 	/**
-	 * Resolves whether an iterator over the raw delegate has to be handed out journaled - i.e. whether a warm-up
-	 * savepoint brackets the current root entity mutation. Removing, setting or inserting through an iterator reaches
-	 * the delegate without passing through any of this list's own mutators, and `removeAll` / `retainAll` /
-	 * `removeIf` / `replaceAll` / `sort` all funnel through one.
+	 * Resolves whether a warm-up savepoint brackets the current root entity mutation, and therefore whether a raw
+	 * delegate view handed out of this class could carry a write the savepoint would not be able to rewind.
 	 *
-	 * @return `true` when the iterator must journal the writes made through it
+	 * The iterators no longer ask: they are journaled unconditionally on the non-transactional branch, because the
+	 * answer here is only valid at the instant it is asked and an iterator outlives that instant. {@link #subList}
+	 * does ask, because it hands out a view it cannot journal at all and has to refuse writes instead.
+	 *
+	 * @return `true` when a warm-up savepoint is open on this thread
 	 */
-	private static boolean warmUpIteratorNeedsJournaling() {
+	private static boolean warmUpSavepointIsOpen() {
 		return WarmUpSavepoint.getIfOpen() != null;
 	}
 
@@ -454,8 +456,7 @@ public class TransactionalList<V> implements
 	public ListIterator<V> listIterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return warmUpIteratorNeedsJournaling() ?
-				new WarmUpJournalingListIterator<>(this.listDelegate, 0) : this.listDelegate.listIterator();
+			return new WarmUpJournalingListIterator<>(this.listDelegate, 0);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
@@ -466,8 +467,7 @@ public class TransactionalList<V> implements
 	public ListIterator<V> listIterator(int index) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return warmUpIteratorNeedsJournaling() ?
-				new WarmUpJournalingListIterator<>(this.listDelegate, index) : this.listDelegate.listIterator(index);
+			return new WarmUpJournalingListIterator<>(this.listDelegate, index);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, index);
 		}
@@ -478,17 +478,22 @@ public class TransactionalList<V> implements
 	 *
 	 * **Read-only by contract, in both branches.** Inside a transaction this returns a detached copy rather than a
 	 * view, so a write made through it is silently discarded - a caller therefore cannot rely on sub-list writes
-	 * reaching the list, and none does. Outside a transaction the delegate's own live view is returned unchanged: it is
-	 * the only mutable path out of this class that a warm-up savepoint does not journal, and it stays that way
-	 * deliberately, because closing it would mean wrapping the whole positional `List` surface for a write that is not
-	 * part of the contract to begin with.
+	 * reaching the list, and none does.
+	 *
+	 * Outside a transaction the delegate's own live view would reach the delegate without passing any of this class's
+	 * journaling mutators, and journaling it properly would mean wrapping the whole positional `List` surface for a
+	 * write that is not part of the contract to begin with. While a warm-up savepoint is open the view is therefore
+	 * handed out UNMODIFIABLE: the write that a rollback could not have rewound becomes an immediate
+	 * {@link UnsupportedOperationException} instead of state the rollback silently misses. The transactional branch
+	 * already discards such writes, so no caller can have depended on them landing.
 	 */
 	@Nonnull
 	@Override
 	public List<V> subList(int fromIndex, int toIndex) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.listDelegate.subList(fromIndex, toIndex);
+			final List<V> view = this.listDelegate.subList(fromIndex, toIndex);
+			return warmUpSavepointIsOpen() ? Collections.unmodifiableList(view) : view;
 		} else {
 			final List<V> subList = new ArrayList<>(toIndex - fromIndex);
 			// create copy of new list with all changes merged - not entirely fast, but safe

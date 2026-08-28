@@ -2077,6 +2077,24 @@ public final class EntityCollection implements
 		}
 	}
 
+	/**
+	 * Refuses every future flush of this collection's data store buffer, because state written into it could not be
+	 * rewound and must never reach the storage (see {@link DataStoreMemoryBuffer#poison(Throwable)}).
+	 *
+	 * Called by {@link Catalog#poisonDataStoreBuffer(Throwable)} when a per-entity warm-up rollback itself failed. The
+	 * sweep is catalog-wide rather than limited to the collections the failed mutation is known to have written,
+	 * because a collection reached only through the index-trigger dispatch registers no
+	 * {@code LocalMutationExecutor} with the collector and would otherwise be missed - and at this point the process
+	 * is already in a state no flush can be trusted from.
+	 *
+	 * A no-op on the transactional path - that buffer is discarded wholesale with its failed transaction.
+	 *
+	 * @param cause the rollback failure that made the state untrustworthy
+	 */
+	public void poisonDataStoreBuffer(@Nonnull Throwable cause) {
+		this.dataStoreBuffer.poison(cause);
+	}
+
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		attachCatalogShell(catalog);

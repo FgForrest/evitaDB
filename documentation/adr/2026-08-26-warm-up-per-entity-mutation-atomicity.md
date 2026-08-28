@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-28 08:15
+updated: 2026-08-28 09:05
 status: accepted
 kind: feature
 issues: [1432]
@@ -485,22 +485,36 @@ look.
   actually observe — and prove it by stubbing the inverse and watching it fail.
 - The journal is **not** reusable for a partial rollback to a mark; a future feature needing one must
   build its own.
-- **Three silent-failure paths the sibling audit surfaced are knowingly left open**, none able to produce
-  a mass failure, all worth closing when the area is next touched:
-  - `LocalMutationExecutorCollector#poisonDataStoreBuffers` poisons the catalog buffer and every
+- **Three silent-failure paths the sibling audit surfaced are now closed (2026-08-28)**, each in the
+  direction that turns a silent loss into a loud one. None could have produced a mass failure; all three
+  were a write that a rollback would have missed without saying so.
+  - `LocalMutationExecutorCollector#poisonDataStoreBuffers` poisoned the catalog buffer and every
     registered executor, but a collection reached only through the index-trigger dispatch registers no
-    executor and is left un-poisoned — while its JavaDoc promises otherwise. Safe today only because
-    `Catalog#flush` drains the poisoned catalog buffer first, which is a flush-ordering coupling one level
-    away from the backstop rather than a property of it.
-  - `TransactionalList#subList` returns a live delegate view whose writes are not journalled. The campaign
-    chose this deliberately on cost grounds, and the cost argument holds — but it picked the SILENT
-    failure mode. Wrapping the view in `Collections.unmodifiableList` while a savepoint is open would turn
-    an unrewound write into an immediate throw; the in-transaction branch already returns a detached copy,
-    so no caller can depend on those writes working.
-  - `TransactionalMap`/`Set`/`List` view wrappers are chosen at view-CONSTRUCTION time. The stale-view
-    direction is handled (the wrappers re-resolve the savepoint per write); the missing-wrapper direction
-    — a view taken before a savepoint opened and written through after — is not. No live caller retains a
-    view across the bracket, so this wants an assertion rather than a redesign.
+    executor and was left un-poisoned — while its JavaDoc promised otherwise. It was safe only because
+    `Catalog#flush` drains the poisoned catalog buffer first, a flush-ordering coupling one level away
+    from the backstop rather than a property of it. `Catalog#poisonDataStoreBuffer` now sweeps **every**
+    entity collection. The sweep is deliberately wider than the failed mutation's own reach, because the
+    collector cannot enumerate the index-trigger collections at all — and by the time the backstop runs
+    the write path has failed twice over, so refusing the whole catalog is proportionate where
+    under-refusing is not.
+  - `TransactionalList#subList` returned a live delegate view whose writes were not journalled. Journalling
+    it properly would still mean wrapping the whole positional `List` surface for a write that is not part
+    of the contract, so the cost argument that left it open holds — what changed is the failure mode.
+    While a savepoint is open the view is handed out through `Collections.unmodifiableList`: the write a
+    rollback could not have rewound throws where it is attempted. The transactional branch already
+    discarded such writes, so no caller could have depended on them landing.
+  - `TransactionalMap`/`Set`/`List` view wrappers were chosen at view-CONSTRUCTION time. That closed the
+    stale-view direction (the wrappers re-resolve the savepoint per write) and left its opposite open — a
+    view taken before a savepoint opened and written through after it did. The wrappers are now handed out
+    unconditionally on the non-transactional branch, which **removes** the question rather than answering
+    it: correctness no longer depends on when the view was taken. The extra allocation is confined to a
+    path with one production user (`FacetIndex#dirtyIndexes`); `TransactionalList` has no production
+    instantiation at all.
+
+  Each is pinned by a test that fails when its fix is stubbed out — the sub-list and iterator cases in
+  `WarmUpSavepointCollectionRollbackTest.ViewsCrossingTheBracket`, the sweep in
+  `EntityAtomicMutationRollbackWarmUpFunctionalTest.PoisonBackstop`, which asserts against a collection the
+  poisoning call never names.
 
 ## Related work
 
@@ -534,6 +548,8 @@ look.
   chain, range and price leaves found unconverted at up to 97× the converted controls; four structures
   converted to per-slot journalling (−85 % to −92 %), `captureBeforeStructuralChange` added at every split,
   and `WarmUpSavepointChainIndexRollbackTest` written to cover the paged leaf shape nothing had tested
+- **2026-08-28** — the branch reordered so the pre-image fix precedes the switch removal and no commit ships
+  the exposure; the three silent-failure paths above closed
 - **2026-08-27** — the conversions reviewed adversarially (no material defect) and through a four-dimension
   quality pass, which found three journalled writes no test could fail on — including `upsert`'s in-place
   value write, the one the code itself flags as journalled "HERE and nowhere else". Coverage closed and
