@@ -23,52 +23,71 @@
 
 package io.evitadb.externalApi.observability.agent;
 
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.observability.ObservabilityManager;
 import lombok.Setter;
 
-import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
 /**
- * This simple class serves as a mediator between advices in the ErrorMonitoringAgent and the {@link ObservabilityManager},
- * which registers lambda functions to be called when an error is detected.
+ * Mediator between the advice woven in by `ErrorMonitoringAgent` and the observability manager, which registers the
+ * lambdas to be called when an error is constructed.
+ *
+ * ## This class is injected into the bootstrap classloader
+ *
+ * `ErrorMonitoringAgent#premain` injects these bytes into the bootstrap loader, so that the advice - which ends up
+ * inlined into exception constructors loaded by every classloader in the JVM - can always resolve it. A bootstrap
+ * class can only see `java.*`. **No signature or method body here may name a type from `io.evitadb`, from Lombok's
+ * runtime, or from any library**: doing so compiles, passes every unit test, and then fails with
+ * `NoClassDefFoundError` only in an agent-attached server. That is why the parameters below are
+ * `java.lang.Throwable` and `java.util.function.Consumer`, why nothing is annotated, and why the types this class
+ * talks about are named in prose rather than linked - a javadoc `{@link}` would need an import, and an import here
+ * is one careless "optimise imports" away from becoming a real reference.
+ *
+ * Everything that needs to inspect the exception - reading its type, honouring the `io.evitadb.exception.NotMonitored`
+ * opt-out, resolving where it was created - therefore happens on the consumer side, in the observability manager,
+ * which is an ordinary application class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class ErrorMonitor {
-	@Setter private static Consumer<String> javaErrorConsumer;
-	@Setter private static Consumer<String> evitaErrorConsumer;
-	@Setter private static Consumer<String> clientErrorConsumer;
+	@Setter private static Consumer<Throwable> javaErrorConsumer;
+	@Setter private static Consumer<Throwable> evitaErrorConsumer;
+	@Setter private static Consumer<Throwable> clientErrorConsumer;
 
 	/**
-	 * Method is called by the ErrorMonitoringAgent advice when a Java error is detected.
-	 * @param errorType the type of the error
+	 * Called by the agent advice when a JVM error (a `java.lang.VirtualMachineError`) is constructed.
+	 *
+	 * @param error the error being constructed; not yet fully initialised
 	 */
-	public static void registerJavaError(@Nonnull String errorType) {
-		if (javaErrorConsumer != null) {
-			javaErrorConsumer.accept(errorType);
+	public static void registerJavaError(Throwable error) {
+		final Consumer<Throwable> consumer = javaErrorConsumer;
+		if (consumer != null) {
+			consumer.accept(error);
 		}
 	}
 
 	/**
-	 * Method is called by the ErrorMonitoringAgent advice when an Evita {@link EvitaInternalError} is detected.
-	 * @param errorType the type of the error
+	 * Called by the agent advice when an evitaDB internal error (an `io.evitadb.exception.EvitaInternalError`) is
+	 * constructed.
+	 *
+	 * @param error the error being constructed; not yet fully initialised
 	 */
-	public static void registerEvitaError(@Nonnull String errorType) {
-		if (evitaErrorConsumer != null) {
-			evitaErrorConsumer.accept(errorType);
+	public static void registerEvitaError(Throwable error) {
+		final Consumer<Throwable> consumer = evitaErrorConsumer;
+		if (consumer != null) {
+			consumer.accept(error);
 		}
 	}
 
 	/**
-	 * Method is called by the ErrorMonitoringAgent advice when an {@link EvitaInvalidUsageException} is detected.
-	 * @param errorType the type of the error
+	 * Called by the agent advice when a client error (an `io.evitadb.exception.EvitaInvalidUsageException`) is
+	 * constructed.
+	 *
+	 * @param error the error being constructed; not yet fully initialised
 	 */
-	public static void registerClientError(@Nonnull String errorType) {
-		if (clientErrorConsumer != null) {
-			clientErrorConsumer.accept(errorType);
+	public static void registerClientError(Throwable error) {
+		final Consumer<Throwable> consumer = clientErrorConsumer;
+		if (consumer != null) {
+			consumer.accept(error);
 		}
 	}
 
