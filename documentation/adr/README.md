@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459 |
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
 | 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |
