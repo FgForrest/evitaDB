@@ -64,7 +64,10 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage) {
-		this(publicMessage, publicMessage);
+		// deliberately calls `super(...)` rather than delegating to the two-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage);
+		this.publicMessage = publicMessage;
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
@@ -73,7 +76,10 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 	}
 
 	public EvitaInvalidUsageException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		this(publicMessage, publicMessage, cause);
+		// deliberately calls `super(...)` rather than delegating to the three-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage, cause);
+		this.publicMessage = publicMessage;
 	}
 
 	private EvitaInvalidUsageException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
@@ -98,5 +104,18 @@ public class EvitaInvalidUsageException extends IllegalArgumentException impleme
 		}
 		return theErrorCode;
 	}
+
+	/*
+	 * ## No constructor of this class may delegate to another one
+	 *
+	 * The observability agent (`ErrorMonitoringAgent`) counts every client error by instrumenting the constructors
+	 * of this class - the single root that all 122 concrete client-error types pass through exactly once. That
+	 * "exactly once" holds only while no constructor here calls `this(...)`: a delegating constructor enters two
+	 * instrumented constructors for one object, and `io_evitadb_client_errors_total` silently counts it twice. That
+	 * is precisely what used to happen here, and it went unnoticed because nothing fails - the number is merely
+	 * wrong.
+	 *
+	 * `EvitaErrorMonitoringTest` fails if this is reintroduced.
+	 */
 
 }

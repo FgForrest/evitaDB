@@ -59,7 +59,10 @@ public abstract class EvitaInternalError extends IllegalStateException implement
 	}
 
 	protected EvitaInternalError(@Nonnull String publicMessage) {
-		this(publicMessage, publicMessage);
+		// deliberately calls `super(...)` rather than delegating to the two-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage);
+		this.publicMessage = publicMessage;
 	}
 
 	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
@@ -68,7 +71,10 @@ public abstract class EvitaInternalError extends IllegalStateException implement
 	}
 
 	protected EvitaInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		this(publicMessage, publicMessage, cause);
+		// deliberately calls `super(...)` rather than delegating to the three-argument constructor - see the note on
+		// constructor delegation at the bottom of this class
+		super(publicMessage, cause);
+		this.publicMessage = publicMessage;
 	}
 
 	protected EvitaInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull String errorCode) {
@@ -93,5 +99,18 @@ public abstract class EvitaInternalError extends IllegalStateException implement
 		}
 		return theErrorCode;
 	}
+
+	/*
+	 * ## No constructor of this class may delegate to another one
+	 *
+	 * The observability agent (`ErrorMonitoringAgent`) counts every evitaDB error by instrumenting the constructors
+	 * of this class - the single root that every internal error passes through exactly once, whatever its depth in
+	 * the hierarchy. That "exactly once" holds only while no constructor here calls `this(...)`: a delegating
+	 * constructor enters two instrumented constructors for one object, and the error metric silently counts it
+	 * twice. The duplication is invisible in normal use - nothing fails, the number is merely wrong - which is why
+	 * the rule is written here rather than left to be noticed.
+	 *
+	 * `EvitaErrorMonitoringTest` fails if this is reintroduced.
+	 */
 
 }

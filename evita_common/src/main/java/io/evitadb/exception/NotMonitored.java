@@ -40,9 +40,13 @@ import java.lang.annotation.Target;
  * intercepted statement will not be captured - a situation the traffic engine is designed to cope
  * with, and which is tracked properly through dedicated traffic-recorder metrics instead.
  *
- * Retention is {@link RetentionPolicy#RUNTIME}: the agent reads the annotation from the class-file
- * type pool at premain time (Byte Buddy `isAnnotatedWith`), for which `CLASS` retention would already
- * suffice, but `RUNTIME` also keeps the marker discoverable via reflection and removes any ambiguity.
+ * Retention is {@link RetentionPolicy#RUNTIME}, and for the evitaDB hierarchies it must be. The agent
+ * instruments only the two *roots* of those hierarchies - which is what makes it count each error
+ * exactly once whatever its depth - so this marker, sitting on a concrete subtype, is not visible
+ * while instrumenting. It is read reflectively at runtime instead, before any counter moves, so
+ * `CLASS` retention would compile and then silently stop opting anything out. (`VirtualMachineError`
+ * subtypes are still matched per concrete type, and there the marker is read from the class-file type
+ * pool at premain time as before.)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
