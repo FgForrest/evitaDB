@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-26 23:20
+updated: 2026-08-28 08:15
 status: accepted
 kind: feature
 issues: [1432]
@@ -229,6 +229,64 @@ Two things a future conversion must know, both found the hard way here:
   floor, not a memento; the converted control sits at 113 B. This is why further conversion of the chain was
   stopped rather than pushed toward zero.
 
+### The pre-image read and its missing schema context (2026-08-27)
+
+Removing the switch turned the mechanism on for every warm-up write and immediately failed **88 tests
+across 23 classes** with `Entity schema was not initialized in EntitySchemaContext!`. Bisect placed the
+defect in `4e5a306c1` and its exposure in `d6b5f33a6`. The fix is committed immediately BEFORE that one
+(`52cf50509`), so no commit on this branch ever ships the exposure; the commits between `4e5a306c1` and
+the fix carry the defect latently and pass, because the switch defaulted to off.
+
+`DataStoreChanges#journalPersistedChange` captures the pre-image of a record it is about to overwrite by
+**reading it back**. Deserializing a reference or price part resolves the entity schema from a
+thread-local context, and this read sits on the **write/commit path** — which, unlike `EntityCollection`'s
+reader (it wraps every `fetch` in `EntitySchemaContext.executeWithSchemaContext`), establishes no such
+context. The read went straight to the persistence service and bypassed the wrapper entirely.
+
+**The general shape, which is the part worth remembering:** a read placed on a write path inherits none
+of the context the read path sets up. The savepoint mechanism is made of exactly such reads — it exists
+to capture pre-images — so this is a defect class for it rather than a one-off.
+
+**Chosen: wrap at the read.** `DataStoreChanges` takes a nullable `Supplier<EntitySchema>`;
+collection-level buffers pass `this::getInternalSchema`, the catalog-level buffer passes `null` because
+catalog parts carry neither references nor prices and genuinely need no schema. The context is
+established where the deserialization happens.
+
+- **Rejected: wrap at the commit boundary** (`LocalMutationExecutorCollector#commit`). It would have been
+  fewer touch points, but it establishes the context far from the read that needs it, and the collector
+  spans several entity types within one root mutation — so it would have needed the per-part schema
+  anyway, arriving at the same place by a longer route.
+- **Rejected: capture the pre-image as raw bytes** and skip deserialization. `getStoragePartAsBinary`
+  needs no context, but there is no binary *put* to restore through — neither `StoragePartPersistenceService`
+  nor `OffsetIndex` exposes one — so restoring still requires deserialization, and adding that API is a
+  wider change than the one it avoids. Worth revisiting if a binary put ever appears: it would make the
+  inverse cheaper as well as context-free.
+
+Pinned by `WarmUpSavepointDataStoreChangesTest.PreImageSchemaContext`, whose fake records whether the
+context was live **at the instant of the read** — naming the invariant rather than a serializer's
+symptom. Removing the wrapper fails exactly that test and nothing else.
+
+**Measured effect**, full functional suite, same machine and load throughout:
+
+| | tests | failures | errors |
+|---|---|---|---|
+| branch before the fix | 22 023 | 15 | 88 |
+| branch after the fix | 22 025 | 1 | 4 |
+| `dev` at the merge base, for reference | 21 631 | 0 | 9 |
+
+The four classes still failing on the branch under full-suite load — `EvitaTransactionalFunctionalTest`,
+`StaleLeafPageTwinWriterReproductionTest`, `EvitaClientReadWriteTest`, `ExportS3ServiceTest` — **all fail
+on `dev` too**, and all four pass when run in isolation on the branch (114/114). They are a 300-second
+preemptive timeout under fork contention, two CDC subscriber-timing tests, and one requiring a Docker
+environment. `dev` additionally flakes on four classes the branch does not.
+
+**An audit for siblings of this defect class found none.** The campaign makes exactly one call that
+leaves the JVM heap on a write or commit path, and it is the one fixed here; a grep of the whole
+main-source diff for `Kryo|serializ|deserializ|Files\.|EntitySchemaContext|\.fetch\(` adds zero lines
+anywhere else. Both inverses the savepoint pushes were checked against the same criterion and are safe:
+the serializers' `write` halves read no context (only their `read` halves do), and `OffsetIndex#remove`
+never deserializes.
+
 ## Rejected outright
 
 | Option | Rejected because | Revisit if |
@@ -298,6 +356,25 @@ reproducible from this repository; the conclusions are what this record carries.
 The synthetic 50k check that first exposed the allocation problem: ingest-thread allocation
 18.6 → 53.5 GB, about 2.9×.
 
+**The +2.17 % headline is corpus-specific, and the corpus behind it builds no `ChainIndex`.** Measured
+2026-08-27 on the synthetic 50 000-product ingest, four passes, first discarded, both arms built from
+one source state on a quiet machine (`WarmUpAtomicityIngestBenchmark`, `--seed=42`):
+
+| corpus | ingest CPU OFF → ON | cost |
+|---|---|---|
+| price/`validity`-heavy, before the four later conversions | 25.26 → 26.72 s | **+5.78 %** |
+| the same, after them | 25.26 → 25.85 s | **+2.34 %** |
+| **plus a `Predecessor` chain (`--chains`), after them** | **26.05 → 27.12 s** | **+4.11 %** |
+
+Allocation on the chained corpus goes 18.63 → 21.65 GB (+16.2 %); wall clock tracks CPU exactly
+(+4.11 %). So a catalogue that orders anything by `Predecessor` pays close to twice the recorded
+headline even with every structure converted — the chain is the most expensive thing the mechanism has
+to journal, and it was absent from every profile the always-on decision was taken on. The decision still
+holds against its own 5 % bar, but the margin is roughly a third of what the record implied. What the
+chained corpus would have cost BEFORE the conversions was not measured; on the per-structure numbers
+(5 972 B → 890 B marginal) it would have been substantially worse, but that is an inference, not a
+measurement.
+
 **How the CPU cost was attributed**, since the A/B delta alone does not say *what* to fix: same-build
 OFF and ON profiling passes compared per frame in absolute milliseconds. The method was validated by
 reproducing the A/B delta from the profile alone (+9.98 % derived against +10.17 % measured). The tax
@@ -305,6 +382,16 @@ per ~100k entities decomposed as **3,266 ms** = 551 (B+ leaf mementos) + 461 (`I
 dedup) + ~1,100 (storage-serialization growth, i.e. memento heap pressure — confirmed by its
 collapsing when the allocations fell) + 210–310 (bracketing) + noise. After D2 the same decomposition
 read **1,315 ms**: B+ leaf 551 → 100, dedup 461 → 10, storage slice 1,100 → 354.
+
+**What the sweeps quoted below did and did not prove.** Until the switch was removed
+(`d6b5f33a6`), the mechanism was gated on `Boolean.getBoolean("evitadb.warmUpAtomicity.enabled")`,
+which **defaults to false**. The savepoint-specific suites turned it on explicitly and the fuzz suites
+ran both modes, so those numbers mean what they say — but the *broad* functional sweeps quoted here
+ran with the mechanism OFF and are evidence that the campaign broke nothing while dormant, not that
+the mechanism works. The distinction is not academic: making it unconditional surfaced **88 errors
+across 23 test classes** that had been latent for fifteen commits (see *The pre-image read
+and its missing schema context* below — that read had never once executed in the broad suite). Any future "N tests green" claim about a flag-gated mechanism has to say which
+side of the flag it was measured on.
 
 **Tests.** The 32 savepoint fuzz suites are parameterized over *both* savepoint kinds — 38 scenarios,
 the full matrix passing 177/177 in about 27 minutes. Every generation asserts a **mid-savepoint read**
@@ -318,9 +405,38 @@ neither index entries nor a storage body), `AbstractSavepointFuzzTest` (the mode
 harness), `WarmUpRollbackConformanceTest` (the source-level invariants) and `WarmUpRollbackBackstopTest`
 (an undeclared structure mutated inside a savepoint fails loudly).
 
-The one HIGH-severity defect of the campaign was found by adversarial review rather than by tests:
-direct storage-part writes escaped the rollback entirely, and the phase-3 test that should have
-caught it was **vacuous** — it asserted only against the trapped cache, which those writes bypass.
+**The review round on the four later conversions (2026-08-27).** An adversarial review and a
+four-dimension quality pass ran against the conversion commit. The adversarial pass found **no material
+defect** — it independently confirmed that the pushed inverses are key- or record-addressed, that a later
+structural memento restores before the older per-slot inverses replay, and that the steal / merge paths
+still take a whole-node memento through their `...ForUpdate()` accessors rather than relying on one the
+caller took.
+
+What the round *did* find was **three newly-journalled writes that no test could fail on** — and in one
+of them the inverse had not been written at all:
+
+| write | why nothing caught it |
+|---|---|
+| both `upsert` in-place value writes — and `TransactionalIntToLongBPlusTree`'s had **no inverse at all**: the conversion journalled only its `Long` twin, in the very method whose comment says the write is journalled "HERE and nowhere else" | the only in-savepoint `upsert` used each key exactly once, so the existing-key branch was never entered in either tree |
+| `journalHeadBitIfOpen` and the `wasHead` arm of the removal inverse | the chain suite asserts only read paths that never consult the head bitmask |
+| `journalElementReplacementIfOpen` (price tree) | the fixture keyed `Integer` by `Integer::intValue`, so element ≡ key and a lost replacement was **structurally** invisible |
+
+Each is now covered by the six cases added to `WarmUpSavepointBPlusTreeRollbackTest`, and the coverage is
+proven rather than asserted: stubbing either tree's `journalValueReplacementIfOpen` to a no-op fails
+**exactly** that tree's new cases and nothing else in the 491-test sweep of the affected suites — which is
+simultaneously the proof that the tests bite and the proof that nothing covered those inverses beforehand.
+
+The `Long` twin's push also moved inside the `newValue != previousValue` guard. Every production caller
+there is `RangeIndex`, whose updaters mutate and return the SAME instance, so the slot write is a no-op
+and journalling it spent a capturing lambda and a journal slot per write to restore a value that never
+moved. `IntToLong` has no such caller and pushes unconditionally.
+
+Both of the campaign's HIGH-severity defects were found by review rather than by tests, and both were
+holes a green suite could not see. The first: direct storage-part writes escaped the rollback entirely,
+and the phase-3 test that should have caught it was **vacuous** — it asserted only against the trapped
+cache, which those writes bypass. The second is the missing `IntToLong` inverse above. Neither was a
+subtle interaction; both were a write with nothing behind it, sitting under a suite that had no way to
+look.
 
 ## Consequences & open follow-ups
 
@@ -339,18 +455,52 @@ caught it was **vacuous** — it asserted only against the trapped cache, which 
 
 - Measuring the mechanism against its absence is now a **cross-revision** exercise; the protocol lives
   in `WarmUpAtomicityIngestBenchmark`'s JavaDoc.
-- No end-to-end corpus number yet confirms the four later conversions; they rest on the per-structure
-  benchmark and the test sweep. The synthetic `WarmUpAtomicityIngestBenchmark` corpus cannot supply one
-  for the chain as it stands, because `DataGenerator` has no `Predecessor` value generation and therefore
-  never builds a `ChainIndex` — register one via
-  `DataGenerator.Builder#registerValueGenerator(entityType, attributeName, BiFunction<ReferenceKey, Faker, Object>)`
-  before drawing any end-to-end conclusion about chain ordering.
+- The end-to-end corpus now builds a chain, behind `WarmUpAtomicityIngestBenchmark --chains` (default on).
+  It is an ENTITY-attribute chain: one `Predecessor` attribute on `PRODUCT`, appended in generation order,
+  so the collection forms a single run deep enough to span ~49 pages of the paged lookup tree. A
+  per-category `ReferencedEntityPredecessor` chain — closer to how the type is used in production, and the
+  shape that would multiply `ChainIndex` instances per entity write — is **not** reachable: that generator
+  hook is `BiFunction<ReferenceKey, Faker, Object>` and receives the referenced entity's key but never the
+  key of the entity being generated, which is exactly what a chain link has to name. The entity-attribute
+  hook is a plain `Function<Faker, Object>`, and an external ordinal counter closes it (the precedent is
+  `EntityByChainOrderingFunctionalTest`). Do not reach for the `BiFunction` overload for this — it is the
+  wrong one, and an earlier revision of this record said so incorrectly.
+- The chain numbering rests on **generation order being replay order into an empty collection**, since the
+  value generator never sees the primary key the engine will assign. Nothing enforces that; a
+  rearrangement of the benchmark could break it silently, and a broken chain does not fail an ingest — it
+  fragments into runs the index parks in a side map and never writes to the paged tree, understating the
+  very cost the corpus exists to measure while every entity count still checks out. `verifyChain` reads a
+  sample of links back after each pass for exactly this reason.
 - No warm-up rollback test reached the **paged** `UnorderedLookupTree` leaf before this work:
   `WarmUpSavepointUnorderedLookupRollbackTest` builds the three-argument, non-paged shape.
   `WarmUpSavepointChainIndexRollbackTest` now covers the paged one. Treat "the lookup tree is tested" as a
   claim about a specific node shape, not the class.
+- **A rollback suite that asserts only a structure's public read paths can be blind to the invariant it
+  most needs to check.** `WarmUpSavepointChainIndexRollbackTest` originally asserted
+  `getUnorderedLookup().getArray()` and `isConsistent()`; neither consults the position tree's chain-head
+  bitmask (`isConsistent()` is `chains.size() <= 1`, and head resolution goes through `indexOf`), so
+  stubbing `journalHeadBitIfOpen` to a no-op left the whole suite green. `ChainIndexTest` had already
+  documented this in the JavaDoc of its own `assertHeadMarksMatchChains`, which is now shared as
+  `ChainIndexAssertions`. Before trusting a rollback suite, ask which internal state its assertions can
+  actually observe — and prove it by stubbing the inverse and watching it fail.
 - The journal is **not** reusable for a partial rollback to a mark; a future feature needing one must
   build its own.
+- **Three silent-failure paths the sibling audit surfaced are knowingly left open**, none able to produce
+  a mass failure, all worth closing when the area is next touched:
+  - `LocalMutationExecutorCollector#poisonDataStoreBuffers` poisons the catalog buffer and every
+    registered executor, but a collection reached only through the index-trigger dispatch registers no
+    executor and is left un-poisoned — while its JavaDoc promises otherwise. Safe today only because
+    `Catalog#flush` drains the poisoned catalog buffer first, which is a flush-ordering coupling one level
+    away from the backstop rather than a property of it.
+  - `TransactionalList#subList` returns a live delegate view whose writes are not journalled. The campaign
+    chose this deliberately on cost grounds, and the cost argument holds — but it picked the SILENT
+    failure mode. Wrapping the view in `Collections.unmodifiableList` while a savepoint is open would turn
+    an unrewound write into an immediate throw; the in-transaction branch already returns a detached copy,
+    so no caller can depend on those writes working.
+  - `TransactionalMap`/`Set`/`List` view wrappers are chosen at view-CONSTRUCTION time. The stale-view
+    direction is handled (the wrappers re-resolve the savepoint per write); the missing-wrapper direction
+    — a view taken before a savepoint opened and written through after — is not. No live caller retains a
+    view across the bracket, so this wants an assertion rather than a redesign.
 
 ## Related work
 
@@ -384,3 +534,9 @@ caught it was **vacuous** — it asserted only against the trapped cache, which 
   chain, range and price leaves found unconverted at up to 97× the converted controls; four structures
   converted to per-slot journalling (−85 % to −92 %), `captureBeforeStructuralChange` added at every split,
   and `WarmUpSavepointChainIndexRollbackTest` written to cover the paged leaf shape nothing had tested
+- **2026-08-27** — the conversions reviewed adversarially (no material defect) and through a four-dimension
+  quality pass, which found three journalled writes no test could fail on — including `upsert`'s in-place
+  value write, the one the code itself flags as journalled "HERE and nowhere else". Coverage closed and
+  proven by stubbing the inverse; `ChainIndexAssertions` extracted so a chain suite can see the head
+  bitmask its public read paths cannot. The ingest corpus gained a `--chains` dimension, so the structure
+  that costs the most per savepoint is finally on the end-to-end path
