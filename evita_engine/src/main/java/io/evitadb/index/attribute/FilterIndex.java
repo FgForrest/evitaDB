@@ -192,15 +192,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * Memoizing the bitmap keeps the expensive part — the join of all internally held bitmaps — and the
 	 * {@link ConstantFormula} built around it per call is a handful of bytes over the shared bitmap.
 	 *
-	 * It is **not** free in CPU, however, and the cost is worth knowing before touching this. Once the value tree
-	 * holds more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
-	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}, so
-	 * `ConstantFormula#includeAdditionalHash` falls through to hashing the delegate's **contents** — and
-	 * `AbstractFormula#initFields` does that eagerly in the constructor. That is `O(records)` per call where the old
-	 * formula memo paid it once: measured at roughly 1.4 µs for 1k records, 83 µs for 100k and 309 µs for 500k.
-	 * Only the two read paths that ask for a formula pay it — `AttributeIsTranslator` and
-	 * `AttributeHistogramComputer` — and the fix is to memoize the content hash beside the bitmap and hand it to
-	 * the formula, not to memoize the formula again. See issue #1458.
+	 * What keeps that cheap in CPU as well is where the formula's cache key comes from. Once the value tree holds
+	 * more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} and so has no transactional id to key
+	 * on; `ConstantFormula#includeAdditionalHash` falls through to hashing its **contents**, eagerly, in the
+	 * constructor. That would be `O(records)` on every call — measured at roughly 1.4 µs for 1k records, 83 µs for
+	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
+	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
+	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */

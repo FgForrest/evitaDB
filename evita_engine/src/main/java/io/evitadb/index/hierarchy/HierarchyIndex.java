@@ -147,10 +147,10 @@ public class HierarchyIndex
 	 *
 	 * Memoizing the bitmap keeps the expensive part — the `O(nodes)` walk in
 	 * {@link #createAllHierarchyNodesBitmap()} — and the {@link ConstantFormula} built around it per call is a
-	 * handful of bytes over the shared bitmap. It is not free in CPU: the memo is a `BaseBitmap`, so the formula
-	 * hashes its contents in the constructor, which is `O(nodes)` per call. That matters much less here than for a
-	 * filter index, because no main-source caller asks this index for a formula at all — see
-	 * `FilterIndex#memoizedAllRecords` for the measured figures and the intended fix.
+	 * handful of bytes over the shared bitmap. It is cheap in CPU too, but only because the same instance is handed
+	 * out every time: the memo is a `BaseBitmap` with no transactional id, so the formula's cache key comes from
+	 * hashing its contents, and {@link io.evitadb.index.bitmap.Bitmap#getContentHash} memoizes that `O(nodes)` walk
+	 * on the bitmap. See `FilterIndex#memoizedAllRecords` for the measured figures.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */

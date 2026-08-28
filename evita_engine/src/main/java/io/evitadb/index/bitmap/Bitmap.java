@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
+import net.openhft.hashing.LongHashFunction;
+
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.PrimitiveIterator.OfInt;
@@ -150,6 +152,25 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	 * Produces (allocates) new sorted array of the records stored in the bitmap.
 	 */
 	int[] getArray();
+
+	/**
+	 * Returns hash of the record ids this bitmap holds, computed with the passed `hashFunction`.
+	 *
+	 * The hash identifies the bitmap by its **contents**: two bitmaps holding the same record ids answer with
+	 * the same value regardless of their identity, class or internal representation. That is what makes it usable
+	 * as the discriminating part of a formula cache key for bitmaps that carry no transactional identity of their
+	 * own — an aggregated result computed on the fly has no id to key on, only its contents.
+	 *
+	 * The default implementation materializes the whole record id array and is therefore `O(size)`. An
+	 * implementation that is handed out repeatedly — an index memo answering the same query over and over — should
+	 * memoize the result instead of paying the walk per caller; {@link BaseBitmap} does.
+	 *
+	 * @param hashFunction hash function to compute the value with
+	 * @return hash of the record ids stored in this bitmap
+	 */
+	default long getContentHash(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashInts(getArray());
+	}
 
 	/**
 	 * Produces iterator over all record ids.
