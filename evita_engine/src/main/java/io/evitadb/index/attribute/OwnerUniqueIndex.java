@@ -58,7 +58,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.utils.Assert.isTrue;
@@ -119,12 +118,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Keeps information about all record ids present in this index.
 	 */
 	@Nonnull private final TransactionalBitmap recordIds;
-	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
-	 * computed anytime by calling `new ConstantFormula(getRecordIds())`. Original operation
-	 * needs to perform costly creation of new internal bitmap that's why we memoize the result.
-	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
 
 	/**
 	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
@@ -294,17 +287,22 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A **fresh** formula is returned on every call, wrapping the {@link #recordIds} bitmap this index already
+	 * holds — there is nothing left to memoize, because the expensive part was always the bitmap and never the
+	 * few scalars of scaffolding around it.
+	 *
+	 * The formula must not be cached here. A {@link Formula} node carries per-query state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it joins, and that context transitively
+	 * reaches the session and the whole catalog generation the query ran against. An index-lifetime formula would
+	 * pin the first session that ever used it until the index is next written to.
+	 */
 	@Override
 	public Formula getRecordIdsFormula() {
-		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return new ConstantFormula(this.recordIds);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = new ConstantFormula(this.recordIds);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		return new ConstantFormula(this.recordIds);
 	}
 
 	@Nonnull
@@ -578,10 +576,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			registerUniqueKeyValue((T) key, recordId);
 		}
 
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
-
 		this.dirty.setToTrue();
 	}
 
@@ -631,10 +625,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		} else {
 			verifyValue(key);
 			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
 		}
 
 		this.dirty.setToTrue();
