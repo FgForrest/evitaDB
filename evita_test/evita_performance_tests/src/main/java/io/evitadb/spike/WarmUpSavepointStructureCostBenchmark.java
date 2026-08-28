@@ -54,13 +54,26 @@ import java.util.concurrent.TimeUnit;
  * Microbenchmark attributing the cost of the always-on WARM_UP per-entity savepoint
  * {@link WarmUpSavepoint} to the individual index structures that have to journal underneath it.
  *
- * **The question.** Issue #1432 made every WARM_UP entity write atomic, and an optimization campaign brought its cost
- * down to +2.17 % of bulk-ingest CPU — the number that carried the "always on, no switch" decision. Every profile
- * behind that number was taken on a SINGLE corpus, and the campaign converted only three places to cheap per-slot
- * journalling: {@link TransactionalBitmap}, {@link TransactionalBucketBPlusTree}'s bucket-leaf mutators, and
- * `UnorderedLookupTree`'s spine COUNT adjustments. Every other structure still captures a **whole-node memento** the
- * first time a savepoint sees it written. A corpus that leans on one of those structures would pay a cost no profile
- * has ever looked at. This benchmark measures each structure directly instead of hoping a corpus exercises it.
+ * **The question it was written to answer, and the answer it gave.** Making every WARM_UP entity write atomic
+ * (issue #1432) was accepted at a measured +2.17 % of bulk-ingest CPU — the number that carried the "always on, no
+ * switch" decision. Every profile behind it was taken on a SINGLE corpus, and the campaign had converted only three
+ * places to cheap per-slot journalling: {@link TransactionalBitmap}, {@link TransactionalBucketBPlusTree}'s
+ * bucket-leaf mutators, and `UnorderedLookupTree`'s spine COUNT adjustments. This benchmark measured each structure
+ * directly instead of hoping a corpus exercised it, and found the others paying up to **97×** the converted ones.
+ * They were converted in turn — marginal allocation per additional instance touched inside one savepoint:
+ *
+ * | structure | before | after |
+ * |---|---|---|
+ * | {@link #chainIndex} (both backing trees) | 5 972 B | 890 B |
+ * | {@link #rangeIndex} / `TransactionalLongBPlusTree` | 6 576 B | 512 B |
+ * | {@link #priceRecords} / `TransactionalElementBPlusTree` | 320 B | 24 B |
+ * | {@link #bitmap} | 68 B | 68 B |
+ * | {@link #bucketTree} | 116 B | 113 B |
+ *
+ * **What it is for NOW: a regression guard.** All five structures journal per slot today, so **every arm is expected
+ * near-flat** — tens of bytes per additional instance, not hundreds or thousands. An arm that climbs into the
+ * hundreds has regressed to whole-node mementos. Note that this inverts the file's original reading rule: a flat
+ * result across the board used to mean the benchmark was broken, and now means the code is healthy.
  *
  * **The two arms.** Exactly one thing differs between them: whether a savepoint is open. Both arms perform the
  * identical sequence of mutations against identically pre-populated structures, replaying a pre-generated operation
@@ -69,11 +82,13 @@ import java.util.concurrent.TimeUnit;
  * `LocalMutationExecutorCollector` does on the warm-up path — commit rather than rollback, so both arms leave the same
  * structure state behind and only the journalling is added. The delta between the arms IS the mechanism's cost.
  *
- * **What a result means.** Two of the five benchmarks are CONTROLS on already-converted structures
- * ({@link #bucketTree} and {@link #bitmap}); they must come out near flat. They are what proves the benchmark can
- * tell a converted structure from an unconverted one — if a control shows a large delta the benchmark is measuring
- * something else and no conclusion may be drawn from the other three. The remaining three are the unconverted
- * suspects, with the volume each copies per capture:
+ * **How to read an arm.** The measurement to take is the MARGINAL cost per additional instance touched inside one
+ * savepoint — `(alloc@instancesPerEntity=10 − alloc@instancesPerEntity=1) / 9` — never the raw figure. Opening and
+ * committing a savepoint costs a fixed ~800 B/op whatever it brackets, which swamps a converted structure's true
+ * per-instance cost and makes every arm look expensive if read directly.
+ *
+ * The volume each structure would copy if it fell back to a whole-node memento, which is what the "before" column
+ * above is made of and what a regression would resurrect:
  *
  * - {@link #chainIndex} — {@link ChainIndex} over the paged, head-aware position tree behind a `Predecessor`
  *   attribute such as `orderInCategory`; its leaf is `int[1025]` plus a `long[17]` head mask, ≈ 4.2 KB per capture.
@@ -196,9 +211,9 @@ public class WarmUpSavepointStructureCostBenchmark {
 	}
 
 	/**
-	 * CONTROL on {@link TransactionalBucketBPlusTree}, whose bucket-leaf mutators were converted to per-slot
-	 * journalling by the optimization campaign. A near-flat delta here is what licenses reading the three
-	 * unconverted benchmarks as a measurement of the memento rather than of the harness.
+	 * {@link TransactionalBucketBPlusTree}, whose bucket-leaf mutators were the first converted to per-slot
+	 * journalling. It was the reference arm the others were judged against while they were still unconverted, and it
+	 * is a plain regression guard now that they are not.
 	 *
 	 * @param state pre-built bucket trees and the pre-generated churn stream
 	 */
@@ -208,8 +223,8 @@ public class WarmUpSavepointStructureCostBenchmark {
 	}
 
 	/**
-	 * CONTROL on {@link TransactionalBitmap}, converted to per-operation journalling by the optimization campaign.
-	 * Serves the same calibrating purpose as {@link #bucketTree}.
+	 * {@link TransactionalBitmap}, converted to per-operation journalling by the same campaign and serving the same
+	 * purpose as {@link #bucketTree} — the cheapest arm, and the one a harness fault would show up in first.
 	 *
 	 * @param state pre-built bitmaps and the pre-generated churn stream
 	 */

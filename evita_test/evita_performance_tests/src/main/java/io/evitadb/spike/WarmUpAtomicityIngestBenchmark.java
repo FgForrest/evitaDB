@@ -33,11 +33,13 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -56,9 +58,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -111,9 +115,18 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
  * counts and then dropped, so no pass inherits another's indexes or files.
  *
  * Usage: `WarmUpAtomicityIngestBenchmark [--products=N] [--categories=N] [--brands=N] [--stores=N] [--parameters=N]
- * [--parameterGroups=N] [--passes=N] [--seed=N] [--dir=PATH]`. Run it with a heap large enough to hold the
- * materialized mutation stream AND one fully indexed catalog at a time — `-Xmx16g` is comfortable for the default
- * 50 000 products.
+ * [--parameterGroups=N] [--passes=N] [--seed=N] [--chains=true|false] [--dir=PATH]`. Run it with a heap large enough
+ * to hold the materialized mutation stream AND one fully indexed catalog at a time — `-Xmx16g` is comfortable for the
+ * default 50 000 products — and with the module opens the engine's runtime proxying needs, without which it fails on
+ * the first entity before any measurement happens:
+ *
+ * ```
+ * java -Xmx16g \
+ *   --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED \
+ *   --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED \
+ *   -cp evita_test/evita_performance_tests/target/benchmarks.jar \
+ *   io.evitadb.spike.WarmUpAtomicityIngestBenchmark --products=50000
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see WarmUpSavepoint
@@ -126,6 +139,18 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	 * journal and a plain single-collection corpus would never reach.
 	 */
 	private static final String REFERENCE_CATEGORY_PRODUCTS = "products";
+	/**
+	 * Name of the `PRODUCT` attribute holding the manual display order. Typed {@link Predecessor}, which is what routes
+	 * it into a {@link io.evitadb.index.attribute.ChainIndex} instead of a `SortIndex` - the structure no other
+	 * collection of this corpus reaches, and the one that pays the most per savepoint before its conversion to
+	 * per-slot journalling.
+	 */
+	private static final String ATTRIBUTE_ORDER = "order";
+	/**
+	 * Number of products whose chain link is read back after an ingest. A sample rather than the whole collection:
+	 * a numbering that drifts does so for a contiguous stretch, never for one isolated entity.
+	 */
+	private static final int CHAIN_PROBE_SIZE = 200;
 	/**
 	 * Catalog the corpus is generated into. It exists only so {@link DataGenerator} has schemas to generate against and
 	 * is dropped as soon as the mutation stream has been materialized.
@@ -224,7 +249,8 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	@Nonnull
 	private static Map<String, SealedEntitySchema> defineSchemas(
 		@Nonnull EvitaSessionContract session,
-		@Nonnull DataGenerator dataGenerator
+		@Nonnull DataGenerator dataGenerator,
+		boolean chains
 	) {
 		session.updateCatalogSchema(
 			session.getCatalogSchema()
@@ -258,15 +284,58 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			Entities.PRODUCT,
 			dataGenerator.getSampleProductSchema(
 				session,
-				(Consumer<EntitySchemaBuilder>) schemaBuilder -> schemaBuilder.withReferenceToEntity(
-					Entities.PARAMETER,
-					Entities.PARAMETER,
-					Cardinality.ZERO_OR_MORE,
-					whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP).faceted()
-				)
+				(Consumer<EntitySchemaBuilder>) schemaBuilder -> {
+					schemaBuilder.withReferenceToEntity(
+						Entities.PARAMETER,
+						Entities.PARAMETER,
+						Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP).faceted()
+					);
+					if (chains) {
+						schemaBuilder.withAttribute(
+							ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
+						);
+					}
+				}
 			)
 		);
 		return schemas;
+	}
+
+	/**
+	 * Builds the {@link DataGenerator} the corpus is generated with. With `chains` off it is the plain generator and
+	 * the corpus carries no {@link Predecessor} attribute at all; with `chains` on it additionally supplies a value for
+	 * {@link #ATTRIBUTE_ORDER} on every `PRODUCT`, forming ONE chain that runs the length of the whole collection.
+	 *
+	 * **Why an external counter rather than the entity's primary key.** The generator hook is a
+	 * `Function&lt;Faker, Object&gt;` and never sees the entity it is generating a value for, so the ordinal is counted
+	 * here instead. That ordinal equals the primary key the engine will assign only because generation order is
+	 * replay order and every pass starts from an empty collection - an assumption cheap enough to simply verify after
+	 * the ingest, which {@link #verifyChain(EvitaSessionContract, int)} does.
+	 *
+	 * **Why appends rather than random moves.** A chain built by appending stays one resolved run. Random
+	 * `upsertPredecessor` moves fragment it into unreachable segments parked in a side map, which never reach the
+	 * paged lookup tree at all - a corpus built that way understates the chain's cost several-fold and would defeat
+	 * the point of having it.
+	 *
+	 * @param chains whether the corpus carries a `PRODUCT` chain at all
+	 * @return the generator to build the corpus with
+	 */
+	@Nonnull
+	private static DataGenerator chainedDataGenerator(boolean chains) {
+		if (!chains) {
+			return new DataGenerator();
+		}
+		final AtomicInteger productOrdinal = new AtomicInteger();
+		return new DataGenerator.Builder()
+			.registerValueGenerator(
+				Entities.PRODUCT, ATTRIBUTE_ORDER,
+				faker -> {
+					final int ordinal = productOrdinal.incrementAndGet();
+					return ordinal == 1 ? Predecessor.HEAD : new Predecessor(ordinal - 1);
+				}
+			)
+			.build();
 	}
 
 	/**
@@ -457,7 +526,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			final Map<String, List<EntityMutation>> corpus = buildCorpus(evita, options);
 			final List<PassResult> results = new ArrayList<>(options.passes());
 			for (int pass = 0; pass < options.passes(); pass++) {
-				results.add(runPass(evita, corpus, pass));
+				results.add(runPass(evita, corpus, pass, options.chains()));
 			}
 			printReport(options, corpus, results);
 		} finally {
@@ -490,8 +559,8 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		evita.updateCatalog(
 			CORPUS_CATALOG,
 			session -> {
-				final DataGenerator dataGenerator = new DataGenerator();
-				final Map<String, SealedEntitySchema> schemas = defineSchemas(session, dataGenerator);
+				final DataGenerator dataGenerator = chainedDataGenerator(options.chains());
+				final Map<String, SealedEntitySchema> schemas = defineSchemas(session, dataGenerator, options.chains());
 				// every collection is registered up front, so the picker can tell "not generated yet" (counter at
 				// zero) from "not part of this corpus at all" (no entry, which is a programming error)
 				final Map<String, int[]> generatedCounts = new LinkedHashMap<>(8);
@@ -572,7 +641,8 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	private PassResult runPass(
 		@Nonnull Evita evita,
 		@Nonnull Map<String, List<EntityMutation>> corpus,
-		int pass
+		int pass,
+		boolean chains
 	) {
 		final String catalogName = PASS_CATALOG_PREFIX + pass;
 		evita.deleteCatalogIfExists(catalogName);
@@ -581,7 +651,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		evita.updateCatalog(
 			catalogName,
 			session -> {
-				defineSchemas(session, new DataGenerator());
+				defineSchemas(session, new DataGenerator(), chains);
 			}
 		);
 
@@ -634,7 +704,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			}
 		);
 
-		verify(evita, catalogName, corpus);
+		verify(evita, catalogName, corpus, chains);
 		evita.deleteCatalogIfExists(catalogName);
 
 		return holder[0];
@@ -652,7 +722,8 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	private void verify(
 		@Nonnull Evita evita,
 		@Nonnull String catalogName,
-		@Nonnull Map<String, List<EntityMutation>> corpus
+		@Nonnull Map<String, List<EntityMutation>> corpus,
+		boolean chains
 	) {
 		final StringBuilder mismatches = new StringBuilder(128);
 		evita.queryCatalog(
@@ -693,12 +764,55 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 						.append(" categories carries a reflected `").append(REFERENCE_CATEGORY_PRODUCTS)
 						.append("` reference - the corpus is not exercising cross-entity writes");
 				}
+				if (chains) {
+					verifyChain(session, corpus.get(Entities.PRODUCT).size(), mismatches);
+				}
 			}
 		);
 		if (mismatches.length() > 0) {
 			throw new IllegalStateException(
 				"Catalog `" + catalogName + "` does not hold the expected corpus:" + mismatches
 			);
+		}
+	}
+
+	/**
+	 * Checks that the `PRODUCT` chain actually resolved into one unbroken run, by reading back the
+	 * {@link #ATTRIBUTE_ORDER} value of a sample of products and confirming each names its own predecessor.
+	 *
+	 * **What this is really guarding.** {@link #chainedDataGenerator(boolean)} numbers the chain with an external
+	 * ordinal because the generator hook never sees the entity's primary key. That ordinal equals the key the engine
+	 * assigns only while generation order is replay order and every pass starts from an empty collection. Nothing
+	 * enforces that; it is a property of how this program is arranged, and a future rearrangement could break it
+	 * silently. A broken numbering does not fail the ingest - the chain simply fragments into runs that the index
+	 * parks in a side map and never writes to the paged lookup tree at all, which would understate the very cost this
+	 * corpus exists to measure and would do so while every count check above still passed.
+	 *
+	 * @param session      open read session of the populated catalog
+	 * @param productCount number of products the corpus replayed
+	 * @param mismatches   buffer collecting the failures found by the caller
+	 */
+	private static void verifyChain(
+		@Nonnull EvitaSessionContract session,
+		int productCount,
+		@Nonnull StringBuilder mismatches
+	) {
+		final int step = Math.max(1, productCount / CHAIN_PROBE_SIZE);
+		for (int pk = 1; pk <= productCount; pk += step) {
+			final int probedPk = pk;
+			final Predecessor expected = probedPk == 1 ? Predecessor.HEAD : new Predecessor(probedPk - 1);
+			final Predecessor actual = session
+				.getEntity(Entities.PRODUCT, probedPk, attributeContent(ATTRIBUTE_ORDER))
+				.map(entity -> entity.getAttribute(ATTRIBUTE_ORDER, Predecessor.class))
+				.orElse(null);
+			if (!expected.equals(actual)) {
+				mismatches.append(System.lineSeparator())
+					.append("  product ").append(probedPk).append(" carries order `").append(actual)
+					.append("` but the chain numbering requires `").append(expected)
+					.append("` - the generated ordinal no longer matches the assigned primary key, so the chain is ")
+					.append("fragmented and the ChainIndex is not being exercised as intended");
+				return;
+			}
 		}
 	}
 
@@ -787,6 +901,8 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 	 * @param parameterGroupCount number of `PARAMETER_GROUP` entities
 	 * @param passes              number of passes to run; the first is discarded as JIT warm-up
 	 * @param seed                seed of the corpus generation
+	 * @param chains              whether `PRODUCT` carries a {@link Predecessor} order attribute, which is what makes
+	 *                            the corpus build a `ChainIndex` - no other collection of this corpus reaches one
 	 * @param directory           directory the throwaway storage of this run lives under
 	 */
 	private record Options(
@@ -798,6 +914,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 		int parameterGroupCount,
 		int passes,
 		long seed,
+		boolean chains,
 		@Nonnull Path directory
 	) {
 
@@ -822,6 +939,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			int parameterGroupCount = 20;
 			int passes = 6;
 			long seed = 42L;
+			boolean chains = true;
 			Path directory = Path.of(DEFAULT_DIRECTORY);
 
 			for (final String arg : args) {
@@ -829,7 +947,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				if (!arg.startsWith("--") || separator < 0) {
 					throw new IllegalArgumentException(
 						"Unrecognized argument `" + arg + "` - expected `--key=value`. Supported keys: products, " +
-							"categories, brands, stores, parameters, parameterGroups, passes, seed, dir."
+							"categories, brands, stores, parameters, parameterGroups, passes, seed, chains, dir."
 					);
 				}
 				final String key = arg.substring(2, separator);
@@ -843,6 +961,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 					case "parameterGroups" -> parameterGroupCount = Integer.parseInt(value);
 					case "passes" -> passes = Integer.parseInt(value);
 					case "seed" -> seed = Long.parseLong(value);
+					case "chains" -> chains = Boolean.parseBoolean(value);
 					case "dir" -> directory = Path.of(value);
 					default -> throw new IllegalArgumentException(
 						"Unknown option `--" + key + "`. Supported keys: products, categories, brands, stores, " +
@@ -857,7 +976,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			}
 			return new Options(
 				productCount, categoryCount, brandCount, storeCount, parameterCount, parameterGroupCount,
-				passes, seed, directory
+				passes, seed, chains, directory
 			);
 		}
 	}
