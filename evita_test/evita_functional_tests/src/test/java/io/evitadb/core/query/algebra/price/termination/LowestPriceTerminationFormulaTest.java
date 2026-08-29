@@ -581,7 +581,7 @@ class LowestPriceTerminationFormulaTest {
 
 		/**
 		 * The empty-input branch in `LowestPriceTerminationFormula.computeInternal()` must allocate a
-		 * fresh `ResolvedFilteredPriceRecords` rather than alias the shared `FilteredPriceRecords.EMPTY`
+		 * fresh `ResolvedFilteredPriceRecords` rather than alias the shared `ResolvedFilteredPriceRecords.EMPTY`
 		 * singleton — otherwise concurrent histogram queries against empty inputs would race when the
 		 * cache writer thread invokes `prepareForFlattening()` on the shared instance.
 		 */
@@ -600,8 +600,8 @@ class LowestPriceTerminationFormulaTest {
 
 			final FilteredPriceRecords histogramRecords = withHistogram.getFilteredPriceRecordsForHistogram(null);
 			// per-instance allocation prevents the singleton-leak race — the histogram side-output must
-			// never alias the shared FilteredPriceRecords.EMPTY
-			assertNotSame(FilteredPriceRecords.EMPTY, histogramRecords);
+			// never alias the shared ResolvedFilteredPriceRecords.EMPTY
+			assertNotSame(ResolvedFilteredPriceRecords.EMPTY, histogramRecords);
 			// the freshly allocated records must still be empty so downstream consumers see no data points
 			assertInstanceOf(ResolvedFilteredPriceRecords.class, histogramRecords);
 			assertEquals(0, ((ResolvedFilteredPriceRecords) histogramRecords).getPriceRecords().length);

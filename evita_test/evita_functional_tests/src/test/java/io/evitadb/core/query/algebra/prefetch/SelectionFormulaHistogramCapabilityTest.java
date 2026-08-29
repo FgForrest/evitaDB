@@ -179,7 +179,7 @@ class SelectionFormulaHistogramCapabilityTest {
 		/**
 		 * Empty-merge branch: when every inner accessor exposes empty per-inner-record records, the
 		 * merged array has length 0 and `SelectionFormula.getFilteredPriceRecordsForHistogram` returns
-		 * the shared {@link FilteredPriceRecords#EMPTY} singleton. Two flag-on LPs sharing the same
+		 * the shared {@link ResolvedFilteredPriceRecords#EMPTY} singleton. Two flag-on LPs sharing the same
 		 * empty input drive the size>=2 branch through the empty-result path.
 		 */
 		@Test
@@ -200,7 +200,7 @@ class SelectionFormulaHistogramCapabilityTest {
 			// size>=2 branch — merged.length == 0 short-circuits to the shared empty singleton instead
 			// of allocating a fresh ResolvedFilteredPriceRecords; this is the only legitimate use of the
 			// EMPTY singleton on the histogram path
-			assertSame(FilteredPriceRecords.EMPTY, actual);
+			assertSame(ResolvedFilteredPriceRecords.EMPTY, actual);
 		}
 
 		/**
@@ -227,7 +227,7 @@ class SelectionFormulaHistogramCapabilityTest {
 
 			// must produce a non-null FilteredPriceRecords instance — either the EMPTY singleton (when
 			// merged.length == 0) or a freshly allocated ResolvedFilteredPriceRecords carrying the merge
-			final boolean validShape = actual == FilteredPriceRecords.EMPTY
+			final boolean validShape = actual == ResolvedFilteredPriceRecords.EMPTY
 				|| actual instanceof ResolvedFilteredPriceRecords;
 			assertTrue(validShape, "merge must return EMPTY singleton or ResolvedFilteredPriceRecords");
 		}

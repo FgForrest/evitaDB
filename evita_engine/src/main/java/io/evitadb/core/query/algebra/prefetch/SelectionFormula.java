@@ -345,7 +345,7 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 			exposingAccessors, context
 		);
 		if (merged.length == 0) {
-			return FilteredPriceRecords.EMPTY;
+			return ResolvedFilteredPriceRecords.EMPTY;
 		}
 		return new ResolvedFilteredPriceRecords(merged, SortingForm.NOT_SORTED);
 	}
