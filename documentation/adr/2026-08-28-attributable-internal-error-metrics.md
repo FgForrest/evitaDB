@@ -1,7 +1,7 @@
 ---
 title: Count each evitaDB error once, at the hierarchy root, and record where it was created
 date: 2026-08-28
-updated: 2026-08-28 22:10
+updated: 2026-08-29 05:59
 status: accepted
 kind: fix
 issues: [1461]
@@ -221,6 +221,32 @@ distinct sites differ; an assertion failure is attributed to its caller; a wire-
 - **The `Assert` skip list is a maintenance surface.** It has exactly one entry today. If another high-fan-out
   throw helper appears, its frames will become the reported origin for all of its call sites - visibly, in the log,
   rather than silently.
+- **`ErrorMonitoringAgent` deliberately keeps Byte Buddy's default discovery and description strategies, and
+  `EvitaErrorMonitoringTest` deliberately does not.** The test attaches the same matchers to a running surefire
+  fork, and on the defaults that wedged the fork completely: eight hours of no progress, 105 threads blocked on jar
+  and classloader monitors, 56 of them inside the transformer. It now pins
+  `RedefinitionStrategy.DiscoveryStrategy.Explicit` (the two roots only) and `DescriptionStrategy.POOL_ONLY`, and
+  passes the same discovery strategy to `reset` - the two-argument overload runs its own pass on the default
+  strategy, which relocates the hang to `@AfterAll` rather than removing it.
+
+  The divergence is intentional and the production side needs no equivalent change, which is worth stating because
+  the obvious inference from the test is the wrong one. `DescriptionStrategy.HYBRID` does not load classes to
+  describe types: its bytecode describes from the type pool when `classBeingRedefined == null` and from the
+  already-in-hand `Class` otherwise, and the pool reads class files through `getResourceAsStream`, never
+  `loadClass`. The `loadClass` frames in the thread dump are the JVM resolving Byte Buddy's *own* classes on first
+  use. All of that is agent warm-up, and it is paid once - at `premain`, single-threaded, before the application
+  starts. Only attaching mid-flight, into a fork whose threads are already contending on the same jars, turns it
+  into a convoy. Adopting `POOL_ONLY` in production would trade a real behaviour (`HYBRID` describes retransformed
+  types from the loaded `Class`) for no benefit on that path.
+
+  Rejected because: the hazard is a property of mid-flight attachment under concurrency, not of the strategies.
+  Revisit only if the agent ever gains a runtime-attach path, where premain's single-threaded warm-up guarantee
+  disappears.
+- **The functional-test fork does not run the Byte Buddy the reactor pins.** The root pom sets
+  `byteBuddy.version` to `1.17.8` and `evita_engine` resolves exactly that, but the version in the test fork's
+  thread dump is `1.18.3` (matched by line number - `TypePool$LazyFacade.doDescribe` sits at 9994 there and 9436 in
+  1.17.8), most plausibly dragged in transitively by `proxycian_bytebuddy`. Pre-existing and unrelated to this
+  work, but it means the suite exercises instrumentation code that production does not ship. Needs its own ticket.
 
 ## Related work
 
