@@ -262,6 +262,11 @@ class LocalMutationExecutorCollector {
 		final MutationApplicationRecord record;
 		final boolean addToWAL;
 		if (this.level == 0) {
+			// A catalog that can no longer publish its state has nothing to gain from more writes, and after a failed
+			// warm-up rollback its indexes cannot be trusted to receive them. Refusing here stops a bulk load at the
+			// first entity after the failure instead of letting it pour in hours of work that can never be saved -
+			// which is what happened while the refusal lived at the flush entry points alone
+			this.catalog.assertPublishable();
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
@@ -540,9 +545,13 @@ class LocalMutationExecutorCollector {
 	 *
 	 * A failure of this rollback is treated far more seriously than its transactional counterpart, because warm-up
 	 * writes went IN PLACE: there is no diff layer to throw away, so a rewind that fails leaves the live indexes
-	 * half-mutated with no second chance. The data store buffers that would carry that state to disk are therefore
-	 * poisoned before the rollback failure is attached to {@link #exception} as a suppressed cause — the original
-	 * mutation failure stays the one thrown to the caller, but no later flush can persist the corrupted state.
+	 * half-mutated with no second chance. Worse, inverse replay stops at the first inverse that throws, so a shared
+	 * structure can be left inconsistent for entities other than the one that failed.
+	 *
+	 * The catalog is therefore marked unpublishable before the rollback failure is attached to {@link #exception} as
+	 * a suppressed cause — the original mutation failure stays the one thrown to the caller, while every later
+	 * publication route and every later mutation refuses, and the catalog is handed over for deactivation. Nothing
+	 * on disk is harmed: it still holds the last published state, and reloading recovers it completely.
 	 *
 	 * The caller must have already set {@link #exception} to a non-null value, because a rollback failure is recorded
 	 * against it.
@@ -552,38 +561,10 @@ class LocalMutationExecutorCollector {
 			try {
 				this.warmUpSavepoint.rollback();
 			} catch (RuntimeException rollbackEx) {
-				poisonDataStoreBuffers(rollbackEx);
+				this.catalog.markUnpublishable(rollbackEx);
 				this.exception.addSuppressed(rollbackEx);
 			} finally {
 				this.warmUpSavepoint = null;
-			}
-		}
-	}
-
-	/**
-	 * Refuses every future flush of the buffers this collector's mutation could have written through, so state that
-	 * could not be rewound can never reach the storage.
-	 *
-	 * {@link Catalog#poisonDataStoreBuffer(Throwable)} does the work and sweeps the catalog-level buffer together with
-	 * **every** entity collection's. The sweep cannot be narrowed to the collections seen here: a collection reached
-	 * only through the index-trigger dispatch registers no {@link LocalMutationExecutor} with this collector, so
-	 * poisoning what the collector can enumerate would leave exactly that collection able to flush unrewindable
-	 * state — the failure mode being silent, which is the one this backstop exists to prevent.
-	 *
-	 * The executor loop stays on top of the sweep because an executor writes through the
-	 * {@code DataStoreUpdater} it was constructed with, which is not, by contract, the buffer its collection holds.
-	 * {@link io.evitadb.core.buffer.DataStoreMemoryBuffer#poison(Throwable)} keeps the FIRST cause, so poisoning the same buffer twice is
-	 * harmless.
-	 *
-	 * Poisoning is a no-op outside warm-up: a transactional buffer is discarded wholesale with its failed transaction.
-	 *
-	 * @param cause the rollback failure that made the state untrustworthy
-	 */
-	private void poisonDataStoreBuffers(@Nonnull Throwable cause) {
-		this.catalog.poisonDataStoreBuffer(cause);
-		for (final LocalMutationExecutor executor : this.executors) {
-			if (executor instanceof final ContainerizedLocalMutationExecutor containerizedExecutor) {
-				containerizedExecutor.poisonDataStoreBuffer(cause);
 			}
 		}
 	}

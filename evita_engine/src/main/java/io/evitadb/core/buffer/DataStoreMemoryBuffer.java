@@ -103,15 +103,4 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	@Nonnull
 	TrappedChanges popTrappedChanges();
 
-	/**
-	 * Reports that the flush which collected this buffer's trapped changes has FAILED, so the buffer must never serve
-	 * another collect. Defaults to a no-op: only the warm-up buffer needs it, because only a warm-up collect is
-	 * destructive without a transaction to roll it back.
-	 *
-	 * @param cause the failure that broke the flush
-	 */
-	default void poison(@Nonnull Throwable cause) {
-		// no-op: the transactional buffer is discarded wholesale on a failed commit, so it cannot outlive its flush
-	}
-
 }

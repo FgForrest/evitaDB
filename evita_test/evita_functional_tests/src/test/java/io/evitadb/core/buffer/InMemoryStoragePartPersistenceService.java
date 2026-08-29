@@ -102,7 +102,7 @@ class InMemoryStoragePartPersistenceService implements StoragePartPersistenceSer
 	 *
 	 * The failure is aimed at ONE write by its ordinal rather than at a primary key, because a key that fails forever
 	 * would also fail the write a rollback issues to put that key's pre-image back — turning every such test into an
-	 * assertion about the poison backstop instead of about the rollback. A single failing write is also the realistic
+	 * assertion about the catalog barrier instead of about the rollback. A single failing write is also the realistic
 	 * shape: a value the store cannot write does not make the store unusable.
 	 *
 	 * @param ordinal the one-based ordinal of the {@link #putStoragePart} call that must throw

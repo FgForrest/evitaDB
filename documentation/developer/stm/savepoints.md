@@ -297,7 +297,7 @@ calls `DataStoreChanges#putStoragePart` / `#removeStoragePart`, which write the 
 loop can fail part-way through an entity whose body spans several parts -- an attributes part written,
 the references part throwing -- and the parts already written would otherwise stay changed in the trunk
 while the indexes rolled back cleanly, i.e. a half-updated, fetchable entity body. Note that the rollback
-would *report success* in that case: the poison backstop only fires when the rollback itself throws.
+would *report success* in that case: the catalog barrier is only raised when the rollback itself throws.
 
 So each direct write additionally reads the record's pre-image before overwriting it and pushes an
 absolute restore into the open savepoint -- re-put what was there, remove what was not (and for a part
@@ -388,18 +388,29 @@ Lazily created cache helpers (`SortIndexChanges`, `ChainIndexChanges`) installed
 mutation are also left in place. They hold nothing but rebuildable caches -- which journal themselves --
 so an installed instance is indistinguishable from the `null` slot it replaced.
 
-### Rollback failure is fatal
+### Rollback failure is terminal for the catalog
 
 A transactional savepoint whose rollback fails is survivable: the diff layers are thrown away with the
 transaction anyway. A warm-up rollback that fails is not, because the writes went **in place** -- there
-is no layer to discard, and the live indexes are left half-mutated with no second chance.
+is no layer to discard, and the live indexes are left half-mutated with no second chance. Worse, inverse
+replay stops at the first inverse that throws, so a shared structure can be left inconsistent for
+entities *other* than the one that failed.
 
-`LocalMutationExecutorCollector` therefore **poisons the data store buffers** before recording the
-failure: the catalog-level buffer and the buffer of every entity collection that took part in the
-(possibly cross-collection) mutation refuse every future flush, so no later flush can persist state that
-could not be rewound. The original mutation failure stays the exception thrown to the caller; the
-rollback failure is attached to it as a suppressed cause. This is why every journalled inverse must be
-total.
+`LocalMutationExecutorCollector` therefore calls `Catalog#markUnpublishable` before recording the
+failure. That raises one barrier on the catalog, and the barrier refuses every route that would write a
+bootstrap record -- `Catalog#flush`, `Catalog#goLive`, the replace path -- plus the next root entity
+mutation, so a bulk load that can never be saved stops at once. Termination deliberately does *not*
+throw: it skips the futile flush and the header write and still releases every collection. The catalog is
+then handed to the engine's ordinary deactivation, so nothing keeps serving reads that a half-rewound
+index can no longer answer correctly. The original mutation failure stays the exception thrown to the
+caller; the rollback failure is attached to it as a suppressed cause. This is why every journalled inverse
+must be total.
+
+**Nothing on disk is damaged by any of this.** Data files are append-only and nothing in them is reachable
+except through the bootstrap record, which is written last -- so the stored catalog is intact at its last
+published version and reloading recovers it completely. The barrier exists solely to stop a *future*
+publication from deriving a bootstrap record out of state that can no longer be trusted. See
+`.claude/rules/durability-model.md`.
 
 ### Always on -- there is no switch
 

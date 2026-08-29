@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-28 09:05
+updated: 2026-08-28 13:40
 status: accepted
 kind: feature
 issues: [1432]
@@ -71,7 +71,7 @@ and `rollback()` was a silent no-op. Recovery was documented as the caller's pro
 | 2026-08-24 | **Enforcement is a declaration honoured, not a property verified** — `TransactionalLayerCreator#supportsWarmUpRollback()` defaults to `false`, with a runtime backstop at the layer-resolution choke point and a source-scan conformance test | Warm-up has no maintainer to enforce journalling centrally; the false default makes an unported structure fail the first time a bracketed mutation reaches it, instead of being discovered as an index a rollback quietly skipped | `4c7fb4c55`; `WarmUpRollbackBackstopTest`, `WarmUpRollbackConformanceTest` |
 | 2026-08-25 | **`open()` goes last in its branch, with nothing throwable between it and the `try`/`finally`** | Traffic-recording activation can throw, and an exception thrown after the open escapes with no `finally` to detach the savepoint — leaking it onto the thread so the *next* entity fails its own `open()` as a nested one | Found by adversarial review; pinned by `WarmUpRollbackConformanceTest` (`4e5a306c1`) |
 | 2026-08-25 | **Journal record-level inverses for direct storage-part writes** | Root mutations run with `trapChanges == false` and write parts through the persistence service; those writes escaped the rollback entirely, so a multi-part entity could roll its indexes back cleanly and leave a half-updated, fetchable body — while *reporting success* | `DataStoreChanges#journalPersistedChange` (`4e5a306c1`) |
-| 2026-08-24 | **Keep poisoning the data-store buffers as the last-resort backstop** | Warm-up writes went in place, so a rollback that itself throws has no layer to discard; the buffers then refuse every future flush and the rollback failure is attached to the original exception as a suppressed cause | `LocalMutationExecutorCollector#rollbackOpenWarmUpSavepoint` |
+| 2026-08-28 | **One catalog-level barrier that refuses PUBLICATION, replacing the per-buffer poison flags** | Warm-up writes go in place, so a rollback that itself throws has no layer to discard — but the hazard is not the bytes it may still write, it is a *future* bootstrap record derived from untrustworthy state; the barrier therefore sits on the catalog, refuses the four publication routes and the next root mutation, and hands the catalog to the engine's ordinary deactivation | [The barrier](#the-barrier--refusing-publication-not-writes) |
 | 2026-08-26 | **Ship it always on, with no switch at all** — the internal flag, its system property, the test setter, the fencing annotation and the `@Isolated` markers were all deleted | At ~2 % of ingest CPU the consistency is worth more than the knob, and a kill switch would have kept a process-wide mutable static that no longer has any reason to exist | [Always on](#always-on--and-what-that-cost-to-earn) |
 
 ### The bitmap reversal — a measured about-face
@@ -287,6 +287,45 @@ anywhere else. Both inverses the savepoint pushes were checked against the same 
 the serializers' `write` halves read no context (only their `read` halves do), and `OffsetIndex#remove`
 never deserializes.
 
+### The barrier — refusing publication, not writes (2026-08-28)
+
+The mechanism that catches a rollback which itself throws was rebuilt after the premise underneath it
+turned out to be false. It had *poisoned* the data-store buffers so they refused to collect, on the belief
+that state reaching a data file was the danger. It is not. Data files are append-only and nothing in them
+is reachable except through the pointer chain that starts at the bootstrap record — and that record is
+written **last**, after every byte it names is on disk. Unpublished bytes are inert dead space. The full
+model is `.claude/rules/durability-model.md`; `documentation/user/en/deep-dive/storage-model.md` is its
+authority.
+
+So the only hazard a failed warm-up rollback creates is a **future bootstrap record derived from
+untrustworthy in-memory state**, and the refusal belongs where publication happens rather than where bytes
+are written.
+
+**One barrier, on the catalog.** `Catalog#markUnpublishable` records the first failure; `assertPublishable`
+refuses. Four routes publish in warm-up and all four are guarded: `Catalog#flush` (at its *entry*, because
+collecting is destructive and a flush that will be refused must not consume state on the way),
+`Catalog#goLive`, the `Catalog#replace` path, and `terminateInternally` — the last non-throwing, skipping
+the futile flush and header write while still terminating every collection. `LocalMutationExecutorCollector`
+refuses the next root mutation at level 0, so a doomed bulk load stops at the next entity instead of
+discovering it hours later at a session close.
+
+**Two producers, one behaviour.** A failed rollback is the obvious one. The other is a **flush that failed
+after collecting**, which pre-dates this work: collecting is destructive — it hands the pending parts over
+*and* advances every index's change-detection baseline, so a later flush would diff against baselines
+claiming the lost changes are on disk and publish a state silently missing them. The offset index drains its
+own pending entries the same way, so records written since the last successful flush can also become
+unreachable to reads. Both leave the in-memory catalog untrustworthy as a source of a new published state,
+so both raise the same barrier.
+
+**Then the catalog leaves service.** Because reads after a failed rollback can be wrong beyond the entity
+that failed — inverse replay stops at the first inverse that throws, so a shared structure can be left
+half-restored — the barrier hands the catalog to the engine's existing deactivation
+(`SetCatalogStateMutation(name, false)`), which quiesces its sessions, swaps in an `UnusableCatalog(INACTIVE)`
+and terminates the instance. `INACTIVE` is honest: the data is on disk, it is not in memory, and
+`activateCatalog` reloads it at its last published version. The barrier is what covers the window until the
+deactivation lands, because `EvitaSession` holds its `Catalog` by final reference and an engine-state swap
+redirects nothing already running.
+
 ## Rejected outright
 
 | Option | Rejected because | Revisit if |
@@ -307,6 +346,9 @@ never deserializes.
 | A per-savepoint deep-compare oracle in production | Reintroduces the `O(N)` cliff the whole design avoids, in the guise of a safety check | Never in production; this is what the fuzz suites do offline |
 | Public opt-out in `ServerOptions` | A ~2 % ingest cost does not justify a supported way to silently give up per-entity consistency | The cost regresses materially on a workload shape not covered by the two measured corpora |
 | Internal kill-switch system property | A dead configuration surface: correctness rests on the fuzz matrix and the conformance backstop, and keeping it would keep the process-wide mutable static that forced JUnit fencing across 17 test classes | Never; use a revision pair to measure instead |
+| Poison the data-store buffers so they refuse to collect (the design that shipped on this branch until 2026-08-28) | Built on a premise the storage model refutes: bytes reaching a data file were believed dangerous. They are not — files are append-only and nothing in them is reachable until the bootstrap record publishes it, so unpublished bytes are inert. The flag also refused from inside `popTrappedChanges`, an accessor several frames deep in a flush, which aborted `Catalog#terminateInternally` at its first collection and left the rest un-terminated | Never — the only hazard is publication, and publication has four named routes that can be guarded directly |
+| Widen that poison to sweep every entity collection | The width was argued from the same false premise — that a collection left free to flush could carry unrewindable state to disk. A collection flush writes bytes into its own append-only file and returns a header *in memory*; it publishes nothing. The sweep bought nothing and turned the terminate breakage above from "some collections" into "all of them" | Never |
+| Reuse `Evita#markCatalogCorrupted` / `CatalogState.CORRUPTED` for the demotion | `CORRUPTED` means load-time trouble, and `CatalogCorruptedException` tells the operator the catalog "cannot be used - only deleted or repaired" — an operator who obeys that deletes an intact catalog. It also neither quiesces sessions nor terminates the instance, because it was built for a failure where no live instance exists | Never; `SetCatalogStateMutation(name, false)` already does the whole teardown and `INACTIVE` is literally true afterwards |
 
 ## Key technical details
 
@@ -334,8 +376,9 @@ never deserializes.
 - **`TransactionalBitmap#getRoaringBitmap()` stays a no-clone accessor** on the hot read path, with a
   contractual "do not mutate" JavaDoc rather than a defensive copy. Mutating through it bypasses the
   journalling and is a rollback hole.
-- **Rollback failure is fatal by design.** Every journalled inverse must be *total* — it may never
-  throw for a benign reason — because the only thing behind it is poisoning the buffers.
+- **Rollback failure is terminal for the catalog by design.** Every journalled inverse must be *total* —
+  it may never throw for a benign reason — because the only thing behind it is the barrier, which costs
+  the catalog its ability to persist anything and takes it out of service.
 
 ## Verification
 
@@ -485,18 +528,11 @@ look.
   actually observe — and prove it by stubbing the inverse and watching it fail.
 - The journal is **not** reusable for a partial rollback to a mark; a future feature needing one must
   build its own.
-- **Three silent-failure paths the sibling audit surfaced are now closed (2026-08-28)**, each in the
-  direction that turns a silent loss into a loud one. None could have produced a mass failure; all three
-  were a write that a rollback would have missed without saying so.
-  - `LocalMutationExecutorCollector#poisonDataStoreBuffers` poisoned the catalog buffer and every
-    registered executor, but a collection reached only through the index-trigger dispatch registers no
-    executor and was left un-poisoned — while its JavaDoc promised otherwise. It was safe only because
-    `Catalog#flush` drains the poisoned catalog buffer first, a flush-ordering coupling one level away
-    from the backstop rather than a property of it. `Catalog#poisonDataStoreBuffer` now sweeps **every**
-    entity collection. The sweep is deliberately wider than the failed mutation's own reach, because the
-    collector cannot enumerate the index-trigger collections at all — and by the time the backstop runs
-    the write path has failed twice over, so refusing the whole catalog is proportionate where
-    under-refusing is not.
+- **Two silent-failure paths the sibling audit surfaced are now closed (2026-08-28)**, each in the
+  direction that turns a silent loss into a loud one. Neither could have produced a mass failure; both
+  were a write that a rollback would have missed without saying so. (A third finding of that audit — that
+  the buffer poison under-reached collections the collector cannot enumerate — was answered by replacing
+  the whole mechanism instead; see [The barrier](#the-barrier--refusing-publication-not-writes).)
   - `TransactionalList#subList` returned a live delegate view whose writes were not journalled. Journalling
     it properly would still mean wrapping the whole positional `List` surface for a write that is not part
     of the contract, so the cost argument that left it open holds — what changed is the failure mode.
@@ -511,10 +547,10 @@ look.
     path with one production user (`FacetIndex#dirtyIndexes`); `TransactionalList` has no production
     instantiation at all.
 
-  Each is pinned by a test that fails when its fix is stubbed out — the sub-list and iterator cases in
-  `WarmUpSavepointCollectionRollbackTest.ViewsCrossingTheBracket`, the sweep in
-  `EntityAtomicMutationRollbackWarmUpFunctionalTest.PoisonBackstop`, which asserts against a collection the
-  poisoning call never names.
+  Both are pinned by a test that fails when the fix is stubbed out — the sub-list and iterator cases in
+  `WarmUpSavepointCollectionRollbackTest.ViewsCrossingTheBracket`. The barrier that replaced the third has
+  its own suite, `EntityAtomicMutationRollbackWarmUpFunctionalTest.UnpublishableBarrier`, with one test per
+  publication route plus the termination case the poison predecessor actually broke.
 
 ## Related work
 

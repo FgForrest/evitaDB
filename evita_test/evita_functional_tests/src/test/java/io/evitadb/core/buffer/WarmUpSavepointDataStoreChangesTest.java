@@ -434,7 +434,7 @@ class WarmUpSavepointDataStoreChangesTest {
 		void shouldRestoreOverwrittenRecordWhenALaterWriteFails() {
 			// Codex's scenario, and the one this whole group exists for: a root entity whose body spans two parts.
 			// The first write lands, the second throws, the collector rolls the savepoint back - and the rollback
-			// SUCCEEDS, so the poison backstop never fires. Without a captured pre-image the first part would stay
+			// SUCCEEDS, so the catalog barrier never goes up. Without a captured pre-image the first part would stay
 			// changed in the trunk, i.e. a half-updated but perfectly fetchable entity body
 			seedStore(new StubStoragePart(1L, "before"));
 			seedStore(new StubStoragePart(2L, "before"));

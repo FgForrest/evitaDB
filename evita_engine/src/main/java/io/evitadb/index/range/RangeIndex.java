@@ -776,8 +776,8 @@ public class RangeIndex
 	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
 	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
 	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
@@ -951,8 +951,8 @@ public class RangeIndex
 			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
 			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
 			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
-			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
-			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// flush suspends this catalog's transaction processing — on the warm-up path it marks the catalog
+			// unpublishable instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new RangeIndex(

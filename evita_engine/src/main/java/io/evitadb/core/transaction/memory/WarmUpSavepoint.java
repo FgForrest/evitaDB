@@ -517,7 +517,7 @@ public final class WarmUpSavepoint {
 	 * several times inside one savepoint end up at its pre-savepoint value.
 	 *
 	 * The inverse must also be TOTAL — it may never throw for a benign reason. A failing rollback leaves state that
-	 * cannot be trusted and costs the whole bulk load (see the poison backstop in `LocalMutationExecutorCollector`).
+	 * cannot be trusted and costs the whole bulk load (see the barrier raised in `LocalMutationExecutorCollector`).
 	 *
 	 * @param inverse the operation restoring the state the forward mutation is about to overwrite
 	 */
@@ -552,7 +552,7 @@ public final class WarmUpSavepoint {
 	 * warm-up write path continues afterwards as if the bracketed entity mutation had never run.
 	 *
 	 * A failure here means the state could not be rewound and is therefore untrustworthy; the caller is responsible for
-	 * making sure such state can never be flushed (see the poison backstop in `LocalMutationExecutorCollector`).
+	 * making sure such state can never be published (see the barrier raised in `LocalMutationExecutorCollector`).
 	 *
 	 * @throws GenericEvitaInternalError when this savepoint is not the one currently open on this thread
 	 */

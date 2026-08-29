@@ -48,7 +48,9 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGrou
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.exception.CatalogUnpublishableException;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -77,6 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -230,7 +233,7 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 			assertCodeResolvesTo("B", 2);
 			assertCodeResolvesTo("C", 4);
 
-			// a later session still flushes: the rollback completed, so nothing poisoned the warm-up buffers
+			// a later session still flushes: the rollback completed, so nothing raised the catalog's barrier
 			EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -788,40 +791,124 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	}
 
 	@Nested
-	@DisplayName("The poison backstop for a rollback that itself failed")
-	class PoisonBackstop {
+	@DisplayName("The barrier for a warm-up failure that left the catalog unpublishable")
+	class UnpublishableBarrier {
+		private static final String SIMULATED_FAILURE = "simulated warm-up rollback failure";
 
 		/**
-		 * Pins the reach of the last-resort backstop, which is the one thing standing between an unrewindable warm-up
-		 * write and the storage.
+		 * Pins the fail-fast that stops a doomed bulk load at the first entity after the failure.
 		 *
-		 * The reach is the whole point. {@code LocalMutationExecutorCollector} can enumerate the collections that
-		 * registered a {@code LocalMutationExecutor} with it, and a collection reached only through the index-trigger
-		 * dispatch registers none - so a backstop that poisoned what the collector can see would leave exactly that
-		 * collection free to flush state no rollback could undo, and would do it silently. The sweep is therefore
-		 * catalog-wide, and this asserts it against a collection the poisoning call never names.
+		 * Without it a loader keeps writing into a catalog that can never save any of it, and only finds out at the
+		 * next session close - which during a long import can be hours of work later.
+		 *
+		 * The session is opened BEFORE the barrier goes up, because that is the sequence a real loader is in: it is
+		 * already inside a session when its entity fails, and it holds its `Catalog` by final reference. Opening a
+		 * session afterwards is refused a step earlier, by the deactivation this barrier schedules.
 		 */
 		@Test
-		@DisplayName("Poisoning the catalog refuses the flush of every collection it holds")
-		void shouldPoisonEveryEntityCollectionBuffer() {
-			final Catalog catalog = (Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
-				.getCatalogInstanceOrThrowException(TEST_CATALOG);
-			final RuntimeException rollbackFailure = new RuntimeException("simulated warm-up rollback failure");
-
-			catalog.poisonDataStoreBuffer(rollbackFailure);
-
-			for (final String entityType : List.of(Entities.PRODUCT, Entities.PARAMETER, Entities.PARAMETER_GROUP)) {
-				final EntityCollection collection = catalog.getCollectionForEntityOrThrowException(entityType);
-				final GenericEvitaInternalError refusal = assertThrows(
-					GenericEvitaInternalError.class,
-					collection::flush,
-					"Collection `" + entityType + "` must refuse to flush once the catalog has been poisoned."
+		@DisplayName("The next root mutation on an already open session is refused")
+		void shouldRefuseTheNextRootMutation() {
+			final EvitaSessionContract session = EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
+				.createReadWriteSession(TEST_CATALOG);
+			try {
+				unpublishableCatalog();
+				final CatalogUnpublishableException refusal = assertThrows(
+					CatalogUnpublishableException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 999).setAttribute(ATTRIBUTE_CODE, "Z")
+					),
+					"A catalog that can no longer publish must refuse the next root mutation."
 				);
-				assertSame(
-					rollbackFailure, refusal.getCause(),
-					"The refusal must carry the rollback failure that caused it, so the log names the real problem."
+				assertEquals(
+					SIMULATED_FAILURE, refusal.getCause().getMessage(),
+					"The refusal must carry the failure that caused it, so the log names the real problem."
+				);
+			} finally {
+				// closing surfaces the refusal too - the close-time flush is one of the guarded publication routes -
+				// so this both cleans the session up and pins that the failure is never swallowed
+				assertThrows(
+					RuntimeException.class, session::close,
+					"Closing a session on a catalog that can no longer publish must surface the failure."
 				);
 			}
+		}
+
+		/**
+		 * Flush is the ordinary publication route, and the refusal has to land at its ENTRY rather than at the header
+		 * write: collecting the trapped changes is destructive, so a flush that is going to be refused anyway must not
+		 * consume state on its way to being refused.
+		 */
+		@Test
+		@DisplayName("Flushing is refused before anything is collected")
+		void shouldRefuseToFlush() {
+			final Catalog catalog = unpublishableCatalog();
+			assertThrows(
+				CatalogUnpublishableException.class,
+				catalog::flush,
+				"A catalog that can no longer publish must refuse to flush."
+			);
+		}
+
+		/**
+		 * Go-live publishes a bootstrap record of its own AND mints an ALIVE catalog that shares these indexes, so
+		 * letting it through would carry untrustworthy state past every warm-up guard there is. The flush the go-live
+		 * operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse in its place.
+		 */
+		@Test
+		@DisplayName("Going live is refused")
+		void shouldRefuseToGoLive() {
+			final Catalog catalog = unpublishableCatalog();
+			assertThrows(
+				CatalogUnpublishableException.class,
+				catalog::goLive,
+				"A catalog that can no longer publish must refuse to go live."
+			);
+		}
+
+		/**
+		 * The barrier must never cost a resource. Termination skips the flush loop and the header write - both are
+		 * futile once nothing may be published - and still terminates every collection it holds.
+		 *
+		 * This is the failure the buffer-level predecessor of this barrier actually caused: it threw from inside the
+		 * collect, which aborted the terminate loop at its first collection and left the rest un-terminated.
+		 */
+		@Test
+		@DisplayName("Termination still releases every collection")
+		void shouldStillTerminateEveryCollection() {
+			final Catalog catalog = unpublishableCatalog();
+			final List<EntityCollection> collections = List.of(
+				catalog.getCollectionForEntityOrThrowException(Entities.PRODUCT),
+				catalog.getCollectionForEntityOrThrowException(Entities.PARAMETER),
+				catalog.getCollectionForEntityOrThrowException(Entities.PARAMETER_GROUP)
+			);
+
+			assertDoesNotThrow(
+				catalog::terminate,
+				"Terminating a catalog that can no longer publish must not throw - shutdown has to finish."
+			);
+
+			for (final EntityCollection collection : collections) {
+				assertTrue(
+					collection.isTerminated(),
+					"Collection `" + collection.getEntityType() + "` must be terminated even though the catalog " +
+						"could not publish its state."
+				);
+			}
+		}
+
+		/**
+		 * Returns the test catalog with the barrier already raised by a simulated warm-up failure.
+		 *
+		 * @return the catalog under test, marked unpublishable
+		 */
+		@Nonnull
+		private Catalog unpublishableCatalog() {
+			final Catalog catalog = (Catalog) EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
+				.getCatalogInstanceOrThrowException(TEST_CATALOG);
+			assertTrue(catalog.isPublishable(), "The catalog must start out publishable.");
+			catalog.markUnpublishable(new RuntimeException(SIMULATED_FAILURE));
+			assertFalse(catalog.isPublishable(), "Marking the catalog must raise the barrier.");
+			return catalog;
 		}
 	}
 

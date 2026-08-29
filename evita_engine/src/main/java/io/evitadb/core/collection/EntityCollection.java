@@ -2067,32 +2067,18 @@ public final class EntityCollection implements
 					)
 				);
 		} catch (Throwable ex) {
-			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
-			// later flush of it rather than write on top of baselines that claim the lost changes were persisted.
+			// The collected changes are gone and the baselines they were collected against have already advanced, so
+			// no later flush of this catalog can reconstruct them - it would diff against baselines claiming the lost
+			// changes are on disk and publish a state silently missing them. The refusal therefore belongs to the
+			// CATALOG rather than to this collection: publication is catalog-wide, and it is the only thing that has
+			// to be stopped. Nothing on disk is harmed - see `.claude/rules/durability-model.md`.
+			//
 			// Catching Throwable rather than RuntimeException is deliberate: an Error such as an OutOfMemoryError mid
-			// flush must poison too, otherwise a later collect could silently write over baselines. The cause is always
-			// rethrown, so this never uses exceptions for control flow
-			this.dataStoreBuffer.poison(ex);
+			// flush loses the changes just the same. The cause is always rethrown, so this never uses exceptions for
+			// control flow
+			this.catalog.markUnpublishable(ex);
 			throw ex;
 		}
-	}
-
-	/**
-	 * Refuses every future flush of this collection's data store buffer, because state written into it could not be
-	 * rewound and must never reach the storage (see {@link DataStoreMemoryBuffer#poison(Throwable)}).
-	 *
-	 * Called by {@link Catalog#poisonDataStoreBuffer(Throwable)} when a per-entity warm-up rollback itself failed. The
-	 * sweep is catalog-wide rather than limited to the collections the failed mutation is known to have written,
-	 * because a collection reached only through the index-trigger dispatch registers no
-	 * {@code LocalMutationExecutor} with the collector and would otherwise be missed - and at this point the process
-	 * is already in a state no flush can be trusted from.
-	 *
-	 * A no-op on the transactional path - that buffer is discarded wholesale with its failed transaction.
-	 *
-	 * @param cause the rollback failure that made the state untrustworthy
-	 */
-	public void poisonDataStoreBuffer(@Nonnull Throwable cause) {
-		this.dataStoreBuffer.poison(cause);
 	}
 
 	@Override

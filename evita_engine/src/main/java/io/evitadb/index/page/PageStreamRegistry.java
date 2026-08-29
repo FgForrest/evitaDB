@@ -66,7 +66,7 @@ import java.util.Set;
  * **Commit handshake.** A flush stages the next live set for each touched stream ({@link #stage(int, int[])}); the
  * staged sets become live only when the commit is known durable ({@link #publishStaged()}). A failed flush is never
  * followed by another flush of the same data — a failure during trunk incorporation suspends the catalog's transaction
- * processing, and one on the warm-up path poisons the collection's buffer — so a staged set that never publishes is
+ * processing, and one on the warm-up path makes the catalog unpublishable — so a staged set that never publishes is
  * simply abandoned in memory and the registry is rebuilt from disk on restart; nothing ever diffs against it. The
  * high-water, by contrast, advances *live* at allocation time — an aborted transaction never reaches flush so it
  * allocates nothing, while a flush that allocates then crashes before its durable write merely burns an id harmlessly
