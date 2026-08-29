@@ -1,12 +1,12 @@
 ---
 title: Count each evitaDB error once, at the hierarchy root, and record where it was created
 date: 2026-08-28
-updated: 2026-08-29 05:59
+updated: 2026-08-29 08:34
 status: accepted
 kind: fix
 issues: [1461]
-prs: []
-areas: [evita_common/src/main/java/io/evitadb/exception, evita_external_api/evita_external_api_observability]
+prs: [1462, 1463]
+areas: [evita_common/src/main/java/io/evitadb/exception, evita_external_api/evita_external_api_observability, evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver, pom.xml]
 supersedes: []
 superseded-by: []
 relates: [2026-07-23-query-label-prometheus-metrics, 2026-07-24-traffic-discard-reason-attribution]
@@ -19,7 +19,9 @@ made them untrustworthy at once: the counter double-counted, the error code that
 origin was a constant, and nothing anywhere recorded where a counted error actually came from. The agent now
 instruments only the two roots of the error hierarchy (counting each instance exactly once), `getErrorCode()`
 resolves the real construction site lazily, and newly-seen origins are logged with a stack trace under a new
-`errorOriginLogging` setting. The metric names and label sets are unchanged.
+`errorOriginLogging` setting. The metric names and label sets are unchanged. Two adjacent defects found while
+verifying that work are fixed with it: the Java driver could never recover a code from a gRPC status, and the test
+fork ran a different Byte Buddy than production ships.
 
 ## Why
 
@@ -117,6 +119,22 @@ Patch the skip loop in place and keep computing the code in the constructor.
   exist regardless. Given the code must change anyway, moving resolution to first read removes a cost that was
   being paid for a value almost nobody reads.
 
+### Option F — align Byte Buddy upward to 1.18.3 rather than pinning down to 1.17.8 (declined)
+
+Fixing the version split found while debugging the agent test (see *Key technical details*) could go either way:
+manage both `net.bytebuddy` artifacts at the pinned `1.17.8`, or raise `byteBuddy.version` to the `1.18.3` that
+`assertj-core` 3.27.7 drags in.
+
+- **Pros:** keeps AssertJ on the version it asked for, and avoids moving any library backwards across a minor.
+- **Rejected because:** the defect being fixed *is* that tests run instrumentation production does not ship - and
+  raising the property moves more than the test classpath, because it also drives `byte-buddy-maven-plugin` in
+  `evita_engine`, `evita_external_api_graphql` and `evita_store_server`, which `dependencyManagement` does not
+  cover. Pinning down changes only dependency resolution and leaves the plugin alone. The risk it carries is a
+  runtime `NoSuchMethodError` in AssertJ, checked and not found: the codebase uses no `SoftAssertions`,
+  `assertThatThrownBy` or `assertThatExceptionOfType` - the AssertJ surface that proxies through Byte Buddy at all -
+  and 529 AssertJ-using tests pass against the downgrade. **Revisit when** the reactor moves to Byte Buddy 1.18.x
+  for its own reasons, at which point aligning upward is free and this entry is spent.
+
 ## Decision
 
 **Chosen: Option A**, with lazy site resolution (against Option E) and log delivery (against C and D).
@@ -128,6 +146,14 @@ engine is now *cheaper* than before this work, because the eager walk is gone.
 
 Option C would win if operators needed to aggregate origins across a fleet rather than diagnose one server, and if
 a new metric name were acceptable. Option D would win if recordings were routinely running.
+
+Two pre-existing defects surfaced while verifying this work and are fixed alongside it, because both of them are
+ways the *same* value - the error code - fails to arrive where it is needed. **Option F** settles the Byte Buddy
+version split. The Java driver's transport gap is the other: it had no fork worth recording, since matching the
+description as it arrives is the only way the pattern can work, but it is the reason the code is now worth
+transporting at all. Neither is a separate ticket, and neither would have been found without the metrics work -
+until `getErrorCode()` identified a real construction site, a code recovered over gRPC would have identified
+nothing either, so the two defects masked each other for ten months.
 
 ## Key technical details
 
@@ -155,6 +181,19 @@ a new metric name were acceptable. Option D would win if recordings were routine
 - `VirtualMachineError` is deliberately left matched per concrete subtype and excluded from origin logging: the
   JVM throws pre-allocated `OutOfMemoryError` instances without running a constructor, so `jvm_errors_total`
   *under*-counts by nature, and allocating a log message inside an OOM constructor turns a survivable failure fatal.
+- **`EvitaClient#transformStatusRuntimeException` must match the status description *before* anything is prepended
+  to it.** `ERROR_MESSAGE_PATTERN` is whole-string anchored on `(\w+:\w+:\w+): (.*)`, and `\w` does not cover the
+  space in `"INTERNAL: "`, so prepending the status name first - as the method did from 2024-10-25 (`13bcd2d1c`)
+  until now - made the match unsatisfiable for every status code and every description. The trap is that it fails
+  *silently and plausibly*: the fallback branch constructs a real exception with a real-looking code, just one
+  derived from a line of `EvitaClient` rather than from the server. The status name is now prepended only where no
+  code was found. `EvitaClientErrorTransformationTest` pins both branches.
+- **`byteBuddy.version` is applied per direct declaration, which does not pin transitive arrivals.** Before this
+  work `evita_functional_tests` resolved `byte-buddy` 1.18.3 (via `assertj-core` 3.27.7) against `byte-buddy-agent`
+  1.17.8 - two halves of one library, different minor versions, one classpath. It was found by line-number
+  forensics on a thread dump, not by reading the pom: `TypePool$LazyFacade.doDescribe` sits at 9994 in the dump and
+  at 9436 in 1.17.8. Both artifacts are now managed in the root pom's `dependencyManagement`, which is what covers
+  a module that never declares the dependency itself.
 
 ## Verification
 
@@ -187,6 +226,22 @@ distinct sites differ; an assertion failure is attributed to its caller; a wire-
 `ErrorMonitorBootstrapVisibilityTest` (constant-pool purity), `ObservabilityOptionsTest` (default and explicit
 `errorOriginLogging`).
 
+The driver fix was verified red before green. With the status name prepended, the four coded-status assertions in
+`EvitaClientErrorTransformationTest` fail with codes pointing at `EvitaClient`'s own lines rather than the server's -
+and at *different* lines per branch, which is precisely the failure being fixed:
+
+| assertion | before the fix | after |
+| --- | --- | --- |
+| `INTERNAL` carries the server's code | `68cd7afb…:4ecfa3c0…:609` | `deadbeef:cafebabe:412` |
+| `INVALID_ARGUMENT` carries the server's code | `68cd7afb…:4ecfa3c0…:603` | `deadbeef:cafebabe:412` |
+| message is the server's public text | `INTERNAL: deadbeef:cafebabe:412: Entity …` | `Entity …` |
+
+The three uncoded-description tests stay green throughout - that path is unchanged by design.
+
+Byte Buddy alignment: `mvn dependency:tree -Dincludes=net.bytebuddy` over the whole reactor resolves `byte-buddy`
+and `byte-buddy-agent` at 1.17.8 in every module, with no 1.18.x remaining; 529 AssertJ-using tests
+(`*MutationConverterTest`) pass against the downgrade.
+
 ## Consequences & open follow-ups
 
 - **Existing series step.** `io_evitadb_errors_total{error_type="GenericEvitaInternalError"}` is unchanged at one
@@ -195,16 +250,10 @@ distinct sites differ; an assertion failure is attributed to its caller; a wire-
 - **Client-visible error codes change value.** The `hash:hash:line` shape is unchanged, so the gRPC status message
   and the GraphQL/REST error payloads are structurally unaffected, but the values differ. They were constants that
   could not locate anything, so nothing could meaningfully depend on them.
-- **The Java driver does not currently recover the code from a gRPC status, and has not since Dec 2024.** The server
-  sets the status description to `errorCode + ": " + publicMessage`
-  (`GlobalExceptionHandlerInterceptor`), but `EvitaClient#transformStatusRuntimeException` prepends the status name
-  before matching (`statusCode.name() + ": " + description`), so `ERROR_MESSAGE_PATTERN` - anchored on
-  `(\w+:\w+:\w+): (.*)` - cannot match the resulting `"INTERNAL: <code>: <message>"`. The driver therefore falls
-  through to the no-code branch and `createExceptionWithErrorCode` is effectively dead on that path. This is
-  **pre-existing and untouched by this work** - it predates issue #1461 - but it is worth knowing before anyone
-  relies on codes reaching a Java client. GraphQL and REST are unaffected: both expose `errorCode` as a structured
-  JSON field rather than a regex-parsed composite string. Needs its own ticket, because fixing it changes the
-  message text clients see.
+- **Client-visible message text changes where a code is recovered.** Fixing the driver (below) means a Java client
+  now sees the server's public message on its own, where it previously saw `"INTERNAL: <code>: <message>"`. No test
+  asserted on the prefix - every message assertion in the driver suite is a `contains(...)` on a substring of the
+  public message, which survives.
 - `io_evitadb_probe_health_problem{problem_type="EVITA_DB_INTERNAL_ERRORS"}` still flips to 1 whenever the counter
   moves between probes, including for a swallowed exception. It does not affect liveness or readiness
   (`ObservabilityProbesDetector.checkEvitaErrors` uses the `String` constructor, so it never enters the `EnumSet`),
@@ -242,11 +291,17 @@ distinct sites differ; an assertion failure is attributed to its caller; a wire-
   Rejected because: the hazard is a property of mid-flight attachment under concurrency, not of the strategies.
   Revisit only if the agent ever gains a runtime-attach path, where premain's single-threaded warm-up guarantee
   disappears.
-- **The functional-test fork does not run the Byte Buddy the reactor pins.** The root pom sets
-  `byteBuddy.version` to `1.17.8` and `evita_engine` resolves exactly that, but the version in the test fork's
-  thread dump is `1.18.3` (matched by line number - `TypePool$LazyFacade.doDescribe` sits at 9994 there and 9436 in
-  1.17.8), most plausibly dragged in transitively by `proxycian_bytebuddy`. Pre-existing and unrelated to this
-  work, but it means the suite exercises instrumentation code that production does not ship. Needs its own ticket.
+- **The `ErrorInfo` detail the server packs is still discarded.** `GlobalExceptionHandlerInterceptor` attaches an
+  `ErrorInfo` whose `domain` is the *original* exception's class name - `EntityNotFoundException`, not
+  `GenericEvitaInternalError`. The driver reads only the status description, so the concrete type crosses the wire
+  and is thrown away. Recovering it would let the client rebuild a typed exception rather than a generic one, which
+  is a larger change than parsing a code and was deliberately left out of scope here. The structured channel already
+  exists; nobody needs to invent one.
+- **The dev-line functional suite exhausts its 8 GB heap**, on the untouched baseline as well as on this work: 21
+  `OutOfMemoryError` occurrences, a `TestEngine with ID 'junit-jupiter' failed to execute tests` and a 300s timeout.
+  Unrelated to this change and the one follow-up here that still needs its own ticket. Note that an OOM disguises
+  itself - `EvitaSessionProxy.handleUnexpectedInternalError` wraps any unexpected `Throwable` into
+  `GenericEvitaInternalError`, so it surfaces as a wrong-exception-*type* assertion failure.
 
 ## Related work
 
