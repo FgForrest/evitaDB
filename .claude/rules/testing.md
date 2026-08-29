@@ -74,17 +74,38 @@ The test suite is split across four sibling modules under `evita_test/`:
 - **Slow / long-running tests** — `rtk mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
-## Reading test results — three traps
+## Reading test results — the false-green traps
 
-These bite when running a **targeted** class from the command line and reading the outcome. All three make a green, correct change *look* broken or unrun:
+These bite when running a **targeted** class from the command line and reading the outcome. Some make a green,
+correct change *look* broken or unrun; the worse half do the opposite — they print `BUILD SUCCESS` while proving
+nothing at all. Treat every `BUILD SUCCESS` that is suspiciously fast, or that reports a test count you did not
+expect, as unproven until you have read the count.
 
 - **`@Nested`-only classes report `Tests run: 0` in the outer `.txt`.** The convention here is to consolidate methods into `@Nested` inner classes (see above), so most test classes have **no** direct `@Test` methods. Surefire then writes the outer-class report (`target/surefire-reports/io.evitadb.<...>.<Class>.txt`) as `Tests run: 0` and reports each nested class separately under its own `@DisplayName`. **Do not conclude "nothing ran" from the outer `.txt`.** The real number is the run's aggregate stdout line (`[INFO] Tests run: 138, Failures: 0, …`). Capture full stdout to a file and read that aggregate, or sum the per-`@DisplayName` lines — never trust the outer `.txt` alone.
 - **The default reactor skips tests entirely.** The base surefire config sets `skipTests`, flipped on only by a profile — so a bare `mvn -pl evita_test/evita_functional_tests test` (no `-P`) runs **zero** tests and still reports `BUILD SUCCESS`. Always pass `-P unitAndFunctional` (fast loop) for functional/unit tests. Zero-count + success without the profile is the tell.
-- **Stale `~/.m2` engine jar after a signature change.** A dependent test module resolves `evita_engine` from `~/.m2`, not from its freshly-compiled `target/classes`. After any signature / type-parameter / method change in `evita_engine`, reinstall it before running dependent-module tests:
+- **Stale engine jar in the local repository after a signature change.** A dependent test module resolves
+  `evita_engine` from the local repository — see the next bullet for where that actually is — not from its
+  freshly-compiled `target/classes`. After any signature / type-parameter / method change in `evita_engine`,
+  reinstall it before running dependent-module tests:
   ```bash
   rtk mvn -o -pl evita_engine install -DskipTests
   ```
   Skip this and the failure surfaces as a **compile** error in the test module (e.g. `wrong number of type arguments; required 3`, `NoSuchMethodError`) that points at test code which is actually fine — the stale binary is the real cause.
+- **The local repository is not always `~/.m2` — check `MAVEN_OPTS` before you reason about what is installed.**
+  Some environments (sandboxed agent runs among them) configure a **split** local repository, so that a build's own
+  project artifacts land in an isolated directory while third-party jars still resolve from the shared host
+  repository. The mechanism is two properties, normally arriving via `MAVEN_OPTS`:
+  ```
+  -Dmaven.repo.local=/tmp/.maven-cache            # isolated; this project's own artifacts are WRITTEN here
+  -Dmaven.repo.local.tail=<host>/.m2/repository   # read-only fallback for everything else
+  ```
+  When they are set, `mvn install` writes to the isolated directory and **`~/.m2/repository` is never touched** —
+  so "I reinstalled the engine" and "the engine jar under `~/.m2` is fresh" are different claims, and inspecting
+  the wrong one will tell you the opposite of the truth. When they are **not** set (an ordinary developer machine,
+  or an agent running outside its sandbox), only the shared repository exists and `settings.xml` decides it — here
+  `<localRepository>${env.HOME}/.m2/repository</localRepository>`. Do not hard-code either path: read
+  `MAVEN_OPTS`, and if an isolated repository is configured, look there **first**. The directory name is not
+  guaranteed to be `/tmp/.maven-cache`, and it may not exist at all.
 - **`evita_long_running_tests` must be built *with* `evita_functional_tests`, and `install` cannot rescue
   it.** It depends on functional_tests' **test-jar** for shared fixtures, but functional_tests sets
   `maven.install.skip=true`, so that test-jar is *never* refreshed in `~/.m2` — `mvn install` on it prints
@@ -98,8 +119,28 @@ These bite when running a **targeted** class from the command line and reading t
   ```
   The tell is a signature in the error that exists nowhere in the source: compare the compiler's
   `declared in method` line against the current declaration **before** touching a single call site.
-  `javap -cp ~/.m2/.../evita_functional_tests-<version>-tests.jar io.evitadb.utils.AssertionUtils` settles
+  `javap -cp <local-repo>/.../evita_functional_tests-<version>-tests.jar io.evitadb.utils.AssertionUtils` settles
   it in one command.
+- **`mvn test-compile` reports `BUILD SUCCESS` without compiling anything.** After a signature change in an
+  upstream module (`evita_api`, `evita_engine`), the incremental compiler can decide the test sources are current
+  and print `Nothing to compile - all classes are up to date.` — hiding every breakage the new signature caused. It
+  once concealed 36 broken call sites this way. Only `clean test-compile` surfaces them. **After any upstream
+  signature change, `clean` is not optional**, or the compile step proves nothing.
+- **`-Dtest` with exclusions only selects nothing.** A pattern made purely of negations —
+  `-Dtest='!SomeTest,!OtherTest'` — alongside `-Dgroups` matches **no** tests, prints `Tests run: 0` and exits
+  `BUILD SUCCESS`. Read as a pass, it looks like the excluded classes were the whole problem. Always lead with an
+  explicit include: `-Dtest='**/*Test,!**/SomeTest'`, and check the count is the one you expected.
+- **`-DsurefireArgLine` silently replaces JaCoCo's agent rather than appending to it.** The surefire `argLine` is
+  built from `${surefireArgLine}`, which `jacoco:prepare-agent` populates. Passing `-DsurefireArgLine=...` on the
+  command line is a *user property* and therefore **wins outright**, dropping the coverage agent from the forked
+  JVM. Coverage silently reports nothing — and, because the agent changes timing and retained memory, any
+  behaviour that depends on it changes too: at least one heap-accounting assertion only fails when the agent is
+  present. If you need to add a JVM flag, add it without displacing that variable, and state in your findings
+  whether the agent was in the fork.
+- **`unzip` is not installed here, and fails silently through a pipe.** `unzip -l some.jar | grep -c Foo` returns
+  `0` whether or not `Foo` is present, because the pipeline swallows the missing-binary error and `grep` counts an
+  empty stream. That reads as "the class is absent" and can convince you the wrong artifact is installed. Use
+  `jar tf` for archive listings, and `javap` to inspect what a class actually contains.
 
 ## Waiting for concurrency — the asymmetry that decides flakiness
 
