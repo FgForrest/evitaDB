@@ -162,11 +162,14 @@ public class TrigramIndex implements
 	 * ids it would have resolved before one. Nothing about the result depends on how the tree was persisted, which is
 	 * what makes the paged and the inline shapes indistinguishable from here.
 	 *
-	 * Runs outside any transaction, on the single thread loading the catalog, which is what lets
-	 * {@link TrigramPostingAccumulator} build the whole table in bulk instead of growing it one membership at a
-	 * time: nothing else can see the table until it is handed over, so the copy-on-write the write path owes every
-	 * published posting is not owed here. That is the difference between 76.5 s and 3.7 s on the measured flagship
-	 * attribute - see the accumulator for the numbers and for what it costs in transient heap.
+	 * Runs outside any transaction and while nothing writes to `sharedValueTree` - but NOT necessarily on one
+	 * thread. An archived global index is loaded from a leaf `ProgressingFuture`, so this can run on a pool thread,
+	 * concurrently with the same work for other collections; the accumulator's concurrency note has the details.
+	 * What lets {@link TrigramPostingAccumulator} build the whole table in bulk instead of growing it one membership
+	 * at a time is that the table is unpublished - nothing else can see it until it is handed over - so the
+	 * copy-on-write the write path owes every published posting is not owed here. On the measured flagship attribute
+	 * that is the difference between a rebuild measured in minutes and one measured in seconds - see the accumulator
+	 * for the numbers, and for what the bulk build costs in transient heap.
 	 *
 	 * @param attributeIndexKey the attribute and locale the tree belongs to
 	 * @param sharedValueTree   the reloaded tree, already carrying its value ids

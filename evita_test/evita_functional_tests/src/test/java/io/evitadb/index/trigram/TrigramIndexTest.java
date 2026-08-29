@@ -750,6 +750,27 @@ class TrigramIndexTest {
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, NOT_OWNED);
 		}
 
+		@Test
+		@DisplayName("an index rebuilt from the shared value tree reports exactly what a JOL walk finds")
+		void shouldPriceARebuiltIndexExactly() {
+			// every fixture above is grown one membership at a time, but the arithmetic charges a Roaring posting at
+			// its ALLOCATED array lengths and reads the shared spine's length separately - and the bulk writer the
+			// load path builds through leaves different slack there than repeated add() does. So the rebuilt shape is
+			// reachable, priced by the same formula, and would otherwise go unmeasured
+			final TrigramIndex maintained = emptyIndex();
+			final InvertedIndex tree = treeWithDecorrelatedValueIds(
+				4 * TrigramPostings.SMALL_POSTING_THRESHOLD, maintained
+			);
+
+			final TrigramIndex rebuilt = TrigramIndex.rebuildFrom(ATTRIBUTE_KEY, tree);
+
+			assertFalse(
+				postingOf(rebuilt, trigram(SHARED_TRIGRAM)) instanceof int[],
+				"the fixture must carry at least one bitmap posting, which is the arm that grows with the data"
+			);
+			assertMatchesMeasuredHeap(rebuilt.getHeapSizeInBytes(), rebuilt, NOT_OWNED);
+		}
+
 	}
 
 	@Nested
@@ -909,6 +930,35 @@ class TrigramIndexTest {
 				postingOf(rebuiltJustAbove, shared) instanceof int[],
 				"and so must the rebuilt one"
 			);
+		}
+
+		@Test
+		@DisplayName("a posting spanning more than one Roaring container comes back whole")
+		void shouldRebuildAPostingSpanningSeveralRoaringContainers() {
+			// every other fixture here holds a few hundred values, so its widest posting fits inside the FIRST
+			// 65 536-wide Roaring container and the bulk writer never once flushes a chunk and advances its key. That
+			// is the branch that decides which container a posting's members land in, so a suite that never crosses
+			// the boundary would pass just as happily if the writer filed everything under key zero
+			final int count = 65_537;
+			final TrigramIndex maintained = emptyIndex();
+			final InvertedIndex tree = treeWithDecorrelatedValueIds(count, maintained);
+
+			final TrigramIndex rebuilt = TrigramIndex.rebuildFrom(ATTRIBUTE_KEY, tree);
+
+			final long shared = trigram(SHARED_TRIGRAM);
+			final int[] members = rebuilt.getValueIdsOf(shared).getArray();
+			assertEquals(count, members.length);
+			assertTrue(
+				members[members.length - 1] > 0xFFFF,
+				() -> "the fixture must reach past the first container, but its highest value id is " +
+					members[members.length - 1]
+			);
+			assertArrayEquals(
+				maintained.getValueIdsOf(shared).getArray(),
+				members,
+				"a posting split across containers must resolve exactly as the maintained one does"
+			);
+			assertEquals(maintained.getTrigramCount(), rebuilt.getTrigramCount());
 		}
 
 	}
