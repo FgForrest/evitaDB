@@ -26,7 +26,9 @@ package io.evitadb.externalApi.observability.agent;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.NotMonitored;
 import io.evitadb.externalApi.observability.ObservabilityManager;
+import io.evitadb.externalApi.observability.configuration.ErrorOriginLogging;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.utils.Assert;
@@ -36,12 +38,14 @@ import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -53,8 +57,10 @@ import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
 import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -72,6 +78,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("evitaDB error monitoring counts each error once")
 @Tag(OBSERVABILITY_API)
 @Tag(OBSERVABILITY)
+// This class retransforms the two evitaDB error roots process-wide. With
+// junit.jupiter.execution.parallel.mode.classes.default=concurrent and a single reused surefire fork, that
+// weaving would otherwise apply to sibling test classes running at the same time, and their error
+// constructions would land in the counter below. @Isolated forces the class to run alone - the same remedy
+// ConsoleWriterTest uses for the process-global System.out it swaps.
+@Isolated
 public class EvitaErrorMonitoringTest {
 	/**
 	 * Counts advice firings. The advice body is inlined into the instrumented constructors, which live in
@@ -79,6 +91,26 @@ public class EvitaErrorMonitoringTest {
 	 * subject to ordinary access control from the package it lands in, exactly as `ErrorMonitor` is in production.
 	 */
 	public static final AtomicInteger FIRINGS = new AtomicInteger();
+
+	/**
+	 * Thread currently measuring a construction. The advice counts only firings on this thread, so a construction
+	 * on any other thread - a background pool inside an embedded instance, or anything @Isolated does not cover -
+	 * cannot inflate the measurement. Public for the same reason {@link #FIRINGS} is.
+	 */
+	public static volatile Thread probingThread;
+
+	/**
+	 * The only two classes this test ever retransforms.
+	 *
+	 * Shared deliberately between {@link #instrumentErrorRoots()} and {@link #restoreErrorRoots()}: `reset` runs a
+	 * retransformation pass of its own, and if it were left on the default discovery strategy it would re-run the
+	 * very enumerate-every-loaded-class pass the install avoids - moving the hang from `@BeforeAll` to `@AfterAll`
+	 * rather than removing it.
+	 */
+	private static final AgentBuilder.RedefinitionStrategy.DiscoveryStrategy ERROR_ROOTS_ONLY =
+		new AgentBuilder.RedefinitionStrategy.DiscoveryStrategy.Explicit(
+			EvitaInternalError.class, EvitaInvalidUsageException.class
+		);
 
 	/**
 	 * Instrumentation handle, kept so {@link #restoreErrorRoots()} can put the classes back as they were.
@@ -94,12 +126,25 @@ public class EvitaErrorMonitoringTest {
 	 * Instruments the two evitaDB error roots with a counting advice, using the **production** type matchers so
 	 * this test cannot drift away from what the agent actually installs.
 	 *
-	 * Unlike the production agent - which runs at `premain`, before anything is loaded - this attaches to a JVM
-	 * that already has thousands of classes in it, and surefire shares that JVM with every other test in the fork.
-	 * Two consequences are handled deliberately: the ignore matcher excludes the JDK and the instrumentation
-	 * libraries so retransformation touches only what is actually matched, and {@link #restoreErrorRoots()} undoes
-	 * the weaving afterwards. Leaving it in place made a sibling traffic-recorder test fail while passing in
-	 * isolation, which is the kind of cross-test coupling that is very expensive to diagnose later.
+	 * Unlike the production agent - which runs at `premain`, before anything is loaded - this attaches to a JVM that
+	 * already has tens of thousands of classes in it, and surefire shares that JVM with every other test in the
+	 * fork. Left on Byte Buddy's defaults that combination wedges the whole fork, through two *independent*
+	 * mechanisms that each have to be shut off:
+	 *
+	 * - the default discovery strategy enumerates every loaded class and loads it to decide whether it matches.
+	 *   {@link #ERROR_ROOTS_ONLY} replaces that with the two classes actually being woven.
+	 * - the default description strategy (`HYBRID`) resolves a type by calling `ClassLoader#loadClass` - *from
+	 *   inside a class-file transformer*, which is itself invoked during class loading. `POOL_ONLY` reads the
+	 *   class file from the type pool instead and never loads anything.
+	 *
+	 * Scoping the retransformation alone is not enough: `installOn` leaves the transformer on the class-load path
+	 * for every subsequent load regardless of how few classes were retransformed, so the second mechanism keeps
+	 * firing on its own. Observed as a fork that made no progress for eight hours with 105 threads blocked on jar
+	 * and classloader monitors, 56 of them inside this transformer - no deadlock the JVM could report, just a
+	 * convoy that never drains.
+	 *
+	 * {@link #restoreErrorRoots()} then undoes the weaving; leaving it in place made a sibling traffic-recorder
+	 * test fail while passing in isolation.
 	 */
 	@BeforeAll
 	static void instrumentErrorRoots() {
@@ -107,6 +152,8 @@ public class EvitaErrorMonitoringTest {
 		transformer = new AgentBuilder.Default()
 			.disableClassFormatChanges()
 			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+			.with(ERROR_ROOTS_ONLY)
+			.with(AgentBuilder.DescriptionStrategy.Default.POOL_ONLY)
 			.ignore(
 				nameStartsWith("net.bytebuddy.")
 					.or(nameStartsWith("java."))
@@ -124,11 +171,14 @@ public class EvitaErrorMonitoringTest {
 
 	/**
 	 * Removes the weaving again, so the rest of the surefire fork runs against untouched classes.
+	 *
+	 * Passes {@link #ERROR_ROOTS_ONLY} rather than taking the two-argument overload's default discovery strategy -
+	 * see the note on that constant for why the default would reintroduce here exactly what the install avoids.
 	 */
 	@AfterAll
 	static void restoreErrorRoots() {
 		if (transformer != null) {
-			transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
+			transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION, ERROR_ROOTS_ONLY);
 			transformer = null;
 		}
 	}
@@ -141,9 +191,14 @@ public class EvitaErrorMonitoringTest {
 	 */
 	private static int firingsWhenConstructing(@Nonnull Supplier<Throwable> constructor) {
 		FIRINGS.set(0);
-		final Throwable constructed = constructor.get();
-		assertTrue(constructed != null);
-		return FIRINGS.get();
+		probingThread = Thread.currentThread();
+		try {
+			final Throwable constructed = constructor.get();
+			assertNotNull(constructed);
+			return FIRINGS.get();
+		} finally {
+			probingThread = null;
+		}
 	}
 
 	/**
@@ -153,7 +208,9 @@ public class EvitaErrorMonitoringTest {
 
 		@Advice.OnMethodExit
 		public static void after() {
-			FIRINGS.incrementAndGet();
+			if (Thread.currentThread() == EvitaErrorMonitoringTest.probingThread) {
+				FIRINGS.incrementAndGet();
+			}
 		}
 
 	}
@@ -289,6 +346,123 @@ public class EvitaErrorMonitoringTest {
 			final double before = MetricHandler.EVITA_ERRORS_TOTAL.labelValues(label).get();
 			ObservabilityManager.evitaErrorEvent(new GenericEvitaInternalError("Whatever"));
 			assertEquals(before + 1.0d, MetricHandler.EVITA_ERRORS_TOTAL.labelValues(label).get());
+		}
+	}
+
+	@Nested
+	@DisplayName("client errors reach their own counter")
+	class ClientErrorEventTests {
+
+		@Test
+		@DisplayName("Should count an ordinary client error type")
+		void shouldCountOrdinaryClientErrorType() {
+			final String label = EvitaInvalidUsageException.class.getSimpleName();
+			final double before = MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get();
+			ObservabilityManager.clientErrorEvent(new EvitaInvalidUsageException("Whatever"));
+			assertEquals(before + 1.0d, MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get());
+		}
+
+		@Test
+		@DisplayName("Should not count a client error type carrying @NotMonitored")
+		void shouldNotCountNotMonitoredClientErrorType() {
+			final String label = NotMonitoredUsageException.class.getSimpleName();
+			final double before = MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get();
+			ObservabilityManager.clientErrorEvent(new NotMonitoredUsageException("Whatever"));
+			assertEquals(before, MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get());
+		}
+	}
+
+	@Nested
+	@DisplayName("the agent-to-manager hand-off is wired")
+	class MediatorWiringTests {
+
+		@BeforeEach
+		void wireConsumersAndResetOrigins() {
+			// touching the manager runs its static initializer, which is what reflectively installs the three
+			// consumers onto ErrorMonitor - the hand-off under test here
+			ObservabilityManager.evitaErrorEvent(new GenericEvitaInternalError("wiring warm-up"));
+			ErrorOriginLogger.reset();
+			ErrorOriginLogger.configure(ErrorOriginLogging.ALL);
+		}
+
+		@AfterEach
+		void restoreOriginLogging() {
+			ErrorOriginLogger.reset();
+			ErrorOriginLogger.configure(ErrorOriginLogging.INTERNAL);
+		}
+
+		@Test
+		@DisplayName("Should route an internal error from ErrorMonitor to the metric")
+		void shouldRouteInternalErrorFromErrorMonitor() {
+			final String label = GenericEvitaInternalError.class.getSimpleName();
+			final double before = MetricHandler.EVITA_ERRORS_TOTAL.labelValues(label).get();
+			ErrorMonitor.registerEvitaError(new GenericEvitaInternalError("Whatever"));
+			assertEquals(before + 1.0d, MetricHandler.EVITA_ERRORS_TOTAL.labelValues(label).get());
+		}
+
+		@Test
+		@DisplayName("Should route a client error from ErrorMonitor to the metric")
+		void shouldRouteClientErrorFromErrorMonitor() {
+			final String label = EvitaInvalidUsageException.class.getSimpleName();
+			final double before = MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get();
+			ErrorMonitor.registerClientError(new EvitaInvalidUsageException("Whatever"));
+			assertEquals(before + 1.0d, MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(label).get());
+		}
+
+		@Test
+		@DisplayName("Should route a JVM error from ErrorMonitor to the metric")
+		void shouldRouteJavaErrorFromErrorMonitor() {
+			final String label = OutOfMemoryError.class.getSimpleName();
+			final double before = MetricHandler.JAVA_ERRORS_TOTAL.labelValues(label).get();
+			ErrorMonitor.registerJavaError(new OutOfMemoryError("Whatever"));
+			assertEquals(before + 1.0d, MetricHandler.JAVA_ERRORS_TOTAL.labelValues(label).get());
+		}
+
+		@Test
+		@DisplayName("Should record the origin as well as the metric")
+		void shouldRecordOriginAsWellAsMetric() {
+			final GenericEvitaInternalError error = (GenericEvitaInternalError) GenericEvitaInternalError
+				.createExceptionWithErrorCode("Whatever", "wiring:origin:1");
+			ErrorMonitor.registerEvitaError(error);
+			assertEquals(1L, ErrorOriginLogger.occurrencesOf("wiring:origin:1"));
+		}
+
+		@Test
+		@DisplayName("Should contain a failure raised inside a consumer")
+		void shouldContainFailureRaisedInsideConsumer() {
+			// the consumer reads the error's class to honour @NotMonitored and to label the metric; a type whose
+			// accessors misbehave must not turn into a throwable escaping an exception constructor
+			assertDoesNotThrow(() -> ErrorMonitor.registerEvitaError(new HostileError()));
+		}
+	}
+
+	/**
+	 * Client-error counterpart of the traffic recorder's opt-out signal - no production client error carries
+	 * {@link NotMonitored}, so the runtime check needs one of its own to be exercised on that side.
+	 */
+	@NotMonitored
+	private static class NotMonitoredUsageException extends EvitaInvalidUsageException {
+		@Serial private static final long serialVersionUID = 5522177398295163851L;
+
+		NotMonitoredUsageException(@Nonnull String publicMessage) {
+			super(publicMessage);
+		}
+	}
+
+	/**
+	 * Reports a class whose accessor throws, standing in for anything a consumer might call that misbehaves.
+	 */
+	private static class HostileError extends GenericEvitaInternalError {
+		@Serial private static final long serialVersionUID = 8560517319131983842L;
+
+		HostileError() {
+			super("Whatever");
+		}
+
+		@Nonnull
+		@Override
+		public String getErrorCode() {
+			throw new UnsupportedOperationException("Deliberately hostile.");
 		}
 	}
 
