@@ -1,7 +1,7 @@
 ---
 title: Count each evitaDB error once, at the hierarchy root, and record where it was created
 date: 2026-08-28
-updated: 2026-08-29 08:34
+updated: 2026-08-29 08:52
 status: accepted
 kind: fix
 issues: [1461]
@@ -130,9 +130,9 @@ manage both `net.bytebuddy` artifacts at the pinned `1.17.8`, or raise `byteBudd
   raising the property moves more than the test classpath, because it also drives `byte-buddy-maven-plugin` in
   `evita_engine`, `evita_external_api_graphql` and `evita_store_server`, which `dependencyManagement` does not
   cover. Pinning down changes only dependency resolution and leaves the plugin alone. The risk it carries is a
-  runtime `NoSuchMethodError` in AssertJ, checked and not found: the codebase uses no `SoftAssertions`,
-  `assertThatThrownBy` or `assertThatExceptionOfType` - the AssertJ surface that proxies through Byte Buddy at all -
-  and 529 AssertJ-using tests pass against the downgrade. **Revisit when** the reactor moves to Byte Buddy 1.18.x
+  runtime `NoSuchMethodError` in AssertJ, which no compile can surface; the full functional suite passing with the
+  pin in place is what rules it out, and it does so without anyone having to enumerate which AssertJ entry points
+  proxy through Byte Buddy. **Revisit when** the reactor moves to Byte Buddy 1.18.x
   for its own reasons, at which point aligning upward is free and this entry is spent.
 
 ## Decision
@@ -197,8 +197,12 @@ nothing either, so the two defects masked each other for ten months.
 
 ## Verification
 
-Measured with Byte Buddy 1.17.8 on JDK 17 against `evita_common/target/classes`. Advice firings per single
-constructed instance:
+Advice firings per single constructed instance, counted by a standalone harness on JDK 17 against
+`evita_common/target/classes`. The harness is not preserved and the Byte Buddy it resolved cannot now be
+established - at the time the reactor pinned 1.17.8 but the test fork ran 1.18.3 (see *Key technical details*), so
+do not read a version into these numbers. They do not rest on it: `EvitaErrorMonitoringTest` asserts the same
+one-increment-per-instance property through the *production* type matchers, and runs in the suite, which since the
+`dependencyManagement` pin is unambiguously on 1.17.8.
 
 | construction | before | root-only matching | root-only **+ flattened roots** |
 | --- | --- | --- | --- |
@@ -239,8 +243,10 @@ and at *different* lines per branch, which is precisely the failure being fixed:
 The three uncoded-description tests stay green throughout - that path is unchanged by design.
 
 Byte Buddy alignment: `mvn dependency:tree -Dincludes=net.bytebuddy` over the whole reactor resolves `byte-buddy`
-and `byte-buddy-agent` at 1.17.8 in every module, with no 1.18.x remaining; 529 AssertJ-using tests
-(`*MutationConverterTest`) pass against the downgrade.
+and `byte-buddy-agent` at 1.17.8 in every module, with no 1.18.x remaining. The downgrade risk is a runtime
+`NoSuchMethodError` in AssertJ, invisible at build time; the full `evita_functional_tests` suite (21024 tests, and
+only the three pre-existing failures this box always shows) ran with the pin in place, which covers every AssertJ
+entry point the codebase uses rather than only the ones known to proxy through Byte Buddy.
 
 ## Consequences & open follow-ups
 
