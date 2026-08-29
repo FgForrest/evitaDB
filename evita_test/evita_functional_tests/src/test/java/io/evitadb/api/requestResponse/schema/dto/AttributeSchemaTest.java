@@ -185,7 +185,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -207,7 +207,7 @@ class AttributeSchemaTest {
 						Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 					)
 				},
-				null, null,
+				null, null, null,
 				true, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -226,7 +226,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -249,6 +249,7 @@ class AttributeSchemaTest {
 				null,
 				new Scope[]{Scope.LIVE},
 				null,
+				null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -263,7 +264,7 @@ class AttributeSchemaTest {
 		void shouldReportSortable() {
 			final AttributeSchema schema = AttributeSchema._internalBuild(
 				"name",
-				null, null,
+				null, null, null,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
 				false, false, false,
 				String.class, null,
@@ -629,7 +630,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
