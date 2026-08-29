@@ -191,6 +191,11 @@ public final class IndexHeapSizeAssertions {
 	 * charged once by a walk and once **per holder** by the arithmetic, so naming one where nothing contends for it
 	 * does not remove a divergence — it creates one.
 	 *
+	 * A {@link java.util.Locale} no longer needs naming and cannot be re-included by it: `JolHeapSize.JVM_FLYWEIGHT`
+	 * stops every walk at one, because a locale's subgraph grows on its own — see there for why subtracting it as a
+	 * root was not enough. Existing call sites that still name one are stating an ownership fact, not supplying a
+	 * required argument.
+	 *
 	 * @param index          the index to walk
 	 * @param extraRoots     shared objects reached from inside a charged structure
 	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge

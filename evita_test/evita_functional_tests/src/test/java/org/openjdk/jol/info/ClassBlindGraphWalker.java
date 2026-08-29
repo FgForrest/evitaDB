@@ -30,6 +30,7 @@ import org.openjdk.jol.util.SimpleStack;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
+import java.util.function.Predicate;
 
 /**
  * A {@link GraphWalker} that never traverses a {@link Class}, so a class's subgraph cannot claim an object the
@@ -59,6 +60,18 @@ import java.lang.reflect.Field;
  * *only* through a class was never charged and still is not, while one the structure genuinely holds is now always
  * charged to it. Measured figures can therefore only rise, never fall.
  *
+ * # Further opaque boundaries the caller declares
+ *
+ * A {@link Class} is not the only object in a JVM whose subgraph grows behind the walker's back — it is merely the one
+ * every walk reaches. The caller may therefore hand in a predicate marking further objects **opaque**: neither visited
+ * nor descended into, exactly as a class is. That is a statement about *ownership*, so it belongs to whoever is
+ * measuring rather than here — see `JolHeapSize.JVM_FLYWEIGHT` for the one this repository declares and why.
+ *
+ * The distinction from a *borrowed root* matters: a borrowed root is subtracted after the fact, so anything below it
+ * is still reached and still has to be enumerated. An opaque object stops the walk at its boundary, so whatever
+ * materialises beneath it — before, during or after the measurement — can never enter the figure at all. Only the
+ * second of those is hermetic against a lazily populated cache.
+ *
  * # Why it lives in JOL's package
  *
  * {@link AbstractGraphWalker} is package-private and its `getAllReferenceFields` — which caches the reference fields
@@ -68,12 +81,34 @@ import java.lang.reflect.Field;
  * This relies on JOL being a plain classpath jar with no `module-info` (verified for jol-core 0.17). Should JOL ever
  * ship as a named module, this class stops compiling — which is the correct way for that assumption to fail.
  *
+ * **Nothing here is vendored.** JOL is an ordinary Maven dependency (`org.openjdk.jol:jol-core`, version in the root
+ * `pom.xml`); this file is the only thing evitaDB puts under `org.openjdk.jol.**`, and it copies no upstream source.
+ * A JOL upgrade therefore has nothing to re-merge — it can only break this class outright, by changing
+ * {@link AbstractGraphWalker#getAllReferenceFields} or by modularising the jar. Both fail at compile time, which is
+ * what makes the arrangement safe to leave in place.
+ *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */
 public final class ClassBlindGraphWalker extends AbstractGraphWalker {
 
 	/**
-	 * Receives every object the walk reaches, excluding the roots it starts from and every {@link Class}.
+	 * Objects the caller declares opaque on top of {@link Class} — never visited, never descended into.
+	 */
+	private final Predicate<Object> opaque;
+
+	/**
+	 * Walks with class-blindness plus the caller's own opaque boundary. Pass `object -> false` to declare nothing
+	 * beyond a {@link Class} opaque.
+	 *
+	 * @param opaque decides which further objects the walk must stop at, as a class does
+	 */
+	public ClassBlindGraphWalker(@Nonnull Predicate<Object> opaque) {
+		this.opaque = opaque;
+	}
+
+	/**
+	 * Receives every object the walk reaches, excluding the roots it starts from, every {@link Class}, and everything
+	 * the caller's opaque predicate accepts.
 	 */
 	@FunctionalInterface
 	public interface ObjectVisitor {
@@ -95,7 +130,7 @@ public final class ClassBlindGraphWalker extends AbstractGraphWalker {
 	 * them must do so itself, which is what lets it apply its own rules to them.
 	 *
 	 * @param visitor receives every reached object
-	 * @param roots   the objects to walk from; `null` entries and {@link Class} entries are ignored
+	 * @param roots   the objects to walk from; `null`, {@link Class} and opaque entries are ignored
 	 */
 	public void walk(@Nonnull ObjectVisitor visitor, @Nonnull Object... roots) {
 		final SimpleIdentityHashSet visited = new SimpleIdentityHashSet();
@@ -137,7 +172,7 @@ public final class ClassBlindGraphWalker extends AbstractGraphWalker {
 	 * @param visited the identity set of everything already reached
 	 * @param stack   the traversal stack
 	 */
-	private static void reach(
+	private void reach(
 		@Nullable Object object,
 		@Nonnull ObjectVisitor visitor,
 		@Nonnull SimpleIdentityHashSet visited,
@@ -153,10 +188,10 @@ public final class ClassBlindGraphWalker extends AbstractGraphWalker {
 	 * Decides whether the walk may descend into an object at all.
 	 *
 	 * @param object the candidate, possibly null
-	 * @return true when the object exists and is not a {@link Class}
+	 * @return true when the object exists, is not a {@link Class}, and the caller has not declared it opaque
 	 */
-	private static boolean isTraversable(@Nullable Object object) {
-		return object != null && !(object instanceof Class);
+	private boolean isTraversable(@Nullable Object object) {
+		return object != null && !(object instanceof Class) && !this.opaque.test(object);
 	}
 
 }

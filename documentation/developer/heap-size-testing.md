@@ -2,7 +2,7 @@
 
 Any structure that reports its own memory footprint needs a test that compares that report against what the object
 *actually* weighs on the heap. This document is for the person adding such a structure. It covers how to write the
-test, the ownership rules the arithmetic must follow, and five traps that make a correct implementation look broken —
+test, the ownership rules the arithmetic must follow, and seven traps that make a correct implementation look broken —
 or, worse, let a broken one pass.
 
 The tooling is `io.evitadb.utils.JolHeapSize` (test scope), built on
@@ -189,6 +189,31 @@ translators call repeatedly against the same index — the case the JDK's cachin
 
 The same applies to anything else lazily built on first read. Measure cold, or warm deliberately and say so.
 
+## Trap 7 — a borrowed root is not enough when the borrowed thing grows by itself
+
+Naming a shared object as a borrowed root subtracts it **after the fact**: the walk still reaches it, still enumerates
+everything below it, and only then discards what the `sharedRoots` pre-walk had recorded. That is correct for a
+structure another owner maintains, because whatever it holds at the moment of measurement is recorded on both sides
+and cancels.
+
+It is *not* enough when the shared object's own subgraph can grow while the JVM runs. `Locale.toLanguageTag()`
+memoises its result into the locale — a `String` and its `byte[]`, **48 bytes** — and the locales an index holds are
+JVM-wide constants that any code in the fork can touch at any moment, including *between* two walks a test is
+comparing. Whichever of the two walks straddles that moment reads 48 bytes different from the other, and the test
+fails with a number that has nothing to do with the arithmetic it is testing. Both
+`EntityIndexHeapSizeTest.shouldChargeTheHistogramLeafPageBaseline` and
+`CatalogIndexHeapSizeTest.shouldNotAccumulateCachedViewsOnFlush` failed exactly this way, intermittently, for as long
+as they existed — in opposite directions, because one had the locale on its charged side and the other on its borrowed
+side.
+
+The fix is the same shape as Trap 2's: **stop the walk at the object** rather than subtracting it afterwards, so
+nothing beneath it can enter the figure whenever it appears. `JolHeapSize.JVM_FLYWEIGHT` does that for `Locale`,
+which the arithmetic prices at zero anyway (`EvitaDataTypes#estimateSize` — "flyweights owned by the JVM").
+
+Add a type to that predicate when its subgraph can **grow after construction**, not merely because it is shared. The
+neighbouring flyweights the model also prices at zero — `Currency`, enum constants, an interned `ZoneOffset` — are
+immutable once built, so naming them as borrowed roots is sufficient and remains the right thing to do.
+
 ## Checklist for a new structure
 
 1. Implement `getHeapSizeInBytes` following the four ownership rules; charge what your own fields hold.
@@ -206,6 +231,7 @@ The same applies to anything else lazily built on first read. Measure cold, or w
 |---|---|
 | Measurement entry point | `io.evitadb.utils.JolHeapSize` (test scope) |
 | Class-blind walker, and why it exists | `org.openjdk.jol.info.ClassBlindGraphWalker` (test scope) |
+| JDK flyweights the walk stops at | `io.evitadb.utils.JolHeapSize#JVM_FLYWEIGHT` (test scope) |
 | VM layout constants, measured not assumed | `io.evitadb.utils.VMLayout` |
 | Worked example | `io.evitadb.index.LeafIndexHeapSizeTest` |
 

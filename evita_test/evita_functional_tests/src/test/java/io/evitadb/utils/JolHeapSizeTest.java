@@ -29,8 +29,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.DayOfWeek;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -38,6 +42,7 @@ import java.util.function.Function;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -50,13 +55,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * load turns correct production arithmetic into an intermittent failure, and the natural response to such a failure
  * — relaxing the assertion — quietly destroys the only thing that makes these tests worth having.
  *
- * Two hazards were found the hard way and are pinned here:
+ * Three hazards were found the hard way and are pinned here:
  *
  * - JOL's own `GraphLayout.subtract` matches objects **by address**, so a GC between two walks leaves shared objects
  *   unsubtracted and inflates the result by a different amount each run. The helper subtracts by identity instead.
  * - Walking into a `Class` reaches its **lazily populated** reflection cache, which materialises the first time
  *   anything reflects on that class. That made a figure depend on which tests had run before it. The helper excludes
  *   `Class` objects and everything below them.
+ * - Walking into a `Locale` reaches the language tag `Locale#toLanguageTag` memoises into it — 48 bytes that any
+ *   code in the fork can materialise at any moment, including *between* two walks a test is comparing. The helper
+ *   excludes locales and everything below them, for the reasons {@link JolHeapSize} sets out in full.
  *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */
@@ -168,6 +176,91 @@ class JolHeapSizeTest {
 
 			// three reference slots and an array header - nothing else, however heavy those three classes are
 			assertEquals(JolHeapSize.shallowSize(classes), JolHeapSize.ownedSize(classes));
+		}
+	}
+
+	@Nested
+	@DisplayName("never charges for a JDK flyweight the arithmetic prices at zero")
+	class JvmFlyweightsExcluded {
+
+		/**
+		 * A locale nothing else in the JVM uses, so its memoised language tag is guaranteed unmaterialised when the
+		 * first reading is taken.
+		 *
+		 * @return a locale built fresh for one assertion
+		 */
+		@Nonnull
+		private Locale untouchedLocale() {
+			return new Locale("zz", "ZZ", "heapSizeProbe" + UUID.randomUUID());
+		}
+
+		@Test
+		void shouldChargeOnlyTheArrayItselfForAnArrayOfLocales() {
+			final Object[] locales = {Locale.ENGLISH, Locale.GERMAN, untouchedLocale()};
+
+			// three reference slots and an array header. A locale is priced at zero by `EvitaDataTypes#estimateSize`
+			// - "flyweights owned by the JVM" - so a walk that charged one would accuse correct arithmetic of
+			// under-counting, and it charges neither the locale nor the interned `BaseLocale` beneath it
+			assertEquals(JolHeapSize.shallowSize(locales), JolHeapSize.ownedSize(locales));
+		}
+
+		@Test
+		void shouldNotChargeTheLanguageTagOfAReachableLocale() {
+			// `Locale#toLanguageTag` memoises its result INTO the locale, and every locale an index holds is shared
+			// with the rest of the JVM. Whether those 48 bytes exist is therefore a property of the fork's history,
+			// not of the structure being measured - and two walks of one structure taken either side of a concurrent
+			// test that touches the locale would otherwise disagree by exactly that much
+			final Locale probe = untouchedLocale();
+			final Object holder = new Object[]{probe};
+			final long beforeTag = JolHeapSize.ownedSize(holder);
+
+			assertTrue(probe.toLanguageTag().length() > 0);
+			final long afterTag = JolHeapSize.ownedSize(holder);
+
+			assertEquals(
+				beforeTag,
+				afterTag,
+				"materialising a reachable locale's language tag must not change what its holder is charged"
+			);
+		}
+
+		@Test
+		void shouldFindNoLazyCacheInTheOtherZeroPricedFlyweights() {
+			// A TRIPWIRE, not a measurement. `EvitaDataTypes#estimateSize` prices `Currency`, enum constants and an
+			// interned `ZoneOffset` at zero for the same reason it prices a `Locale` at zero - yet only the locale is
+			// in `JVM_FLYWEIGHT`, because only the locale memoises anything into itself. The other three are
+			// immutable once constructed, so naming them as borrowed roots is sufficient and the call sites that do
+			// so are correct as they stand.
+			//
+			// That claim is a property of the JDK, not of this repository, and a future JDK could add a cached field
+			// to any of them - at which point the exact defect this suite just fixed would reappear somewhere else,
+			// wearing a different byte count. This test is the observation that would say so: it exercises the
+			// accessors most likely to memoise and asserts the holder's charge does not move. If it ever fails, the
+			// named type has acquired a lazily populated field and belongs in `JolHeapSize#JVM_FLYWEIGHT`.
+			final Object holder = new Object[]{
+				Currency.getInstance("CZK"), ZoneOffset.UTC, DayOfWeek.MONDAY
+			};
+			final long before = JolHeapSize.ownedSize(holder);
+
+			assertNotNull(Currency.getInstance("CZK").getSymbol(Locale.ENGLISH));
+			assertNotNull(Currency.getInstance("CZK").getDisplayName(Locale.ENGLISH));
+			assertNotNull(ZoneOffset.UTC.getId());
+			assertNotNull(ZoneOffset.UTC.getRules());
+			assertNotNull(DayOfWeek.MONDAY.toString());
+
+			assertEquals(
+				before,
+				JolHeapSize.ownedSize(holder),
+				"a zero-priced flyweight outside JVM_FLYWEIGHT has started caching into itself - it now needs the " +
+					"opaque boundary, for the reason JolHeapSize documents for Locale"
+			);
+		}
+
+		@Test
+		void shouldStillChargeALocaleAskedAboutDirectly() {
+			// a flyweight is free to the structures that merely REFERENCE it, not to a caller who names it as the
+			// thing being measured - `ownedSize(x)` always charges x's own shell, whatever x is
+			assertEquals(JolHeapSize.shallowSize(Locale.ENGLISH), JolHeapSize.ownedSize(Locale.ENGLISH));
 		}
 	}
 
