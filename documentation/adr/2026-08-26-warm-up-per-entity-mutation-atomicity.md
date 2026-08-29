@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-28 13:40
+updated: 2026-08-29 12:30
 status: accepted
 kind: feature
 issues: [1432]
@@ -326,6 +326,68 @@ and terminates the instance. `INACTIVE` is honest: the data is on disk, it is no
 deactivation lands, because `EvitaSession` holds its `Catalog` by final reference and an engine-state swap
 redirects nothing already running.
 
+### Reopening what a compacting warm-up load published (2026-08-29)
+
+The barrier above settles what must not be *published*. Three defects found next to it are the other half:
+a catalog that published perfectly well and then could not be opened again. All three belong to compaction,
+because it is the one warm-up operation that both changes **which file** a collection lives in and **deletes
+the file it used to live in** — and each of those halves fails its own way.
+
+**Retirement is a confirm-phase action.** Everything else in this model says a failed round costs nothing,
+because data files are append-only and unpublished bytes are inert. Compaction is where that reasoning stops:
+it does not append, it replaces, and then unlinks what it replaced. The file it unlinks is still named by the
+**currently published** bootstrap record until the compacting round publishes its own, so unlinking inside
+that window removes a file the pointer chain a reload follows still reaches — a crash there leaves a catalog
+that cannot be opened, with no bootstrap write involved at all. In `WARM_UP` the maintainer purged eagerly,
+having no catalog versions to hold a file against, so the window was open on **every** compacting warm-up
+flush. `retireDataFile` now parks warm-up retirements and `writeCatalogBootstrap` drains them once the record
+that supersedes them is durable; `close()` drops whatever is still parked, because a round that never
+published must not take the files the last published record still names. The general rule this instance
+belongs to is `.claude/rules/durability-model.md`, which this work is the reason for.
+
+**Both copies of "which file" have to advance together.** A collection is addressed by a file index *and* a
+location inside that file, and compaction copies the live records in the same order — so the header record
+routinely lands at the same offset in the new file. The index moves; the location does not. Both write paths
+deduped the collection-header write by comparing the **location alone**, which skipped exactly the compaction
+that mattered. In the ALIVE path the same comparison also gates the catalog-header write, so there both
+copies went stale together — the unrecoverable shape. Comparing the index as well closes both, and the two
+call sites now share one `isCollectionHeaderAlreadyPersisted`.
+
+**And a catalog a pre-fix build already damaged has to open.** The fact lives twice - as a
+`CollectionFileReference` in the catalog header, and as `EntityCollectionFileHeader#entityTypeFileIndex` on
+the collection header - and only the first is written unconditionally, so only the first cannot lag. Readers
+therefore resolve from it and reconcile the other against it, in three outcomes, because only two of them are
+understood: the two agree (or the catalog header recorded no location to compare), pass through; the indexes
+differ and the locations match, take the index from the catalog header and warn; anything else, refuse and
+name both pairs. The middle case is the *only* shape the skipped write could produce, and its location is
+provably right - the write was skipped precisely BECAUSE the location had not moved, so staleness can only
+ever accumulate through steps that changed nothing else. The repair is in memory and self-heals: the next
+flush that changes the collection rewrites its header with the right index through the ordinary path.
+
+**The decision lives in one place because there are four readers, not one.** The first version of this fix put
+it on the catalog load path, which is where it is needed 99 % of the time and which is exactly why the other
+three went unnoticed: both storage-protocol migrations (`Migration_2025_6`, `Migration_2026_2`) reconstruct
+every collection from a stored header before the load path runs, and the historical branch of `BackupTask`
+does the same for a past version. Each would have resolved the stale index on its own. `EntityCollectionHeaderReconciler`
+is the single place that decision is made, and the rule is worth stating plainly: **a path that opens a
+collection from a stored header without passing it through the reconciler reintroduces the defect for that
+path alone.**
+
+**What the repair does not cover.** The historical write skipped the whole record, so in principle every
+mutable field of a stale header is as old as its file index - record count, and the primary-key, index-key and
+internal-price-id high-water marks among them. Only the index is corrected, because the catalog header records
+only the index and the location: there is no second copy of the rest to reconcile against, and an invented
+value would be a worse answer than the stored one. In practice the skip fires only on a compacting flush whose
+rewritten file placed the offset index at a byte-identical position *and* length, which pins both the live part
+count and the live byte total - so a counter divergence needs records substituted for others of exactly the same
+serialized size. The repair is not advertised as more than it is: the warning says the index was resolved, not
+that the rest was verified.
+
+**How rare this actually is.** The damage needs two consecutive compactions whose live sets distil to the same
+size, and today's dominant warm-up shape - a data pump copying from a primary store - writes only new data, so
+its live-record share stays near 1.0 and compaction seldom fires at all. The reproduction manufactures the
+coincidence deliberately. That is why the repair is worth its lines and a migration was not.
+
 ## Rejected outright
 
 | Option | Rejected because | Revisit if |
@@ -349,6 +411,12 @@ redirects nothing already running.
 | Poison the data-store buffers so they refuse to collect (the design that shipped on this branch until 2026-08-28) | Built on a premise the storage model refutes: bytes reaching a data file were believed dangerous. They are not — files are append-only and nothing in them is reachable until the bootstrap record publishes it, so unpublished bytes are inert. The flag also refused from inside `popTrappedChanges`, an accessor several frames deep in a flush, which aborted `Catalog#terminateInternally` at its first collection and left the rest un-terminated | Never — the only hazard is publication, and publication has four named routes that can be guarded directly |
 | Widen that poison to sweep every entity collection | The width was argued from the same false premise — that a collection left free to flush could carry unrewindable state to disk. A collection flush writes bytes into its own append-only file and returns a header *in memory*; it publishes nothing. The sweep bought nothing and turned the terminate breakage above from "some collections" into "all of them" | Never |
 | Reuse `Evita#markCatalogCorrupted` / `CatalogState.CORRUPTED` for the demotion | `CORRUPTED` means load-time trouble, and `CatalogCorruptedException` tells the operator the catalog "cannot be used - only deleted or repaired" — an operator who obeys that deletes an intact catalog. It also neither quiesces sessions nor terminates the instance, because it was built for a failure where no live instance exists | Never; `SetCatalogStateMutation(name, false)` already does the whole teardown and `INACTIVE` is literally true afterwards |
+| Repair the stale index with a migration behind a `STORAGE_PROTOCOL_VERSION` bump | A protocol bump is a compatibility event — it tells every reader the format changed, and older builds stop opening the catalog. Nothing about the format changed here; one integer in one record was wrong. The migration would also have to run before the first collection is opened, which is where the damage is already visible and cheaper to answer | The same duplication ever produces a shape the load path cannot resolve, which would mean the location diverged too |
+| Drop `entityTypeFileIndex` from the collection header now that production resolves the other copy | It is the only route to a collection's data that does not pass through the catalog header, and post-mortem analysis of a catalog whose header is damaged depends on having it — `PostMortemAnalysisTest` is exactly that traversal. A field that is persisted but no longer read on the load path reads as dead weight, so its javadoc now says why it stays | Never while post-mortem traversal is a supported activity |
+| Treat any divergence between the two copies as fatal, index-only included | For the index-only shape the correct answer is knowable rather than guessed: one copy cannot lag and the other can, so precedence is decided. Refusing there would cost a catalog whose records are intact its availability. Every other shape *is* refused | Never for the index-only shape; the other arms already refuse |
+| Rewrite the collection header at load to heal the catalog on disk | Opening a catalog would become a write, and a write on the load path has to be published to mean anything — which turns a read into a bootstrap round. The next ordinary flush that touches the collection already fixes it | Never; publication is not the load path's job |
+| Refuse to open a catalog whose two copies disagree, rather than repairing the index (the adversarial review's recommendation) | The refusal would fall on every divergence, including the overwhelming majority where nothing but the index is stale, and the operator has no repair tool to fall back on — so it converts an almost-certainly-intact catalog into a permanently unopenable one. `durability-model.md` names this exact trade — a guard that refuses work to protect against anything but a bad publication or a premature delete costs availability and buys nothing | A shape is found where the stale metadata is *detectable*; then refusing that shape specifically is right, and refusing the rest still is not |
+| Reconstruct the collection header's counters from the data file before accepting it | There is nothing cheap to reconstruct them from: the catalog header records only the index and the location. `recordCount` and `activeRecordShare` are recomputable once the file is open, but the primary-key, index-key and internal-price-id high-water marks would need a full scan of the collection on every open of a damaged catalog | Sequence reuse is ever observed in the field, in which case seeding the sequences with `max(header, observed)` in `EntityCollection` is the cheaper answer than a scan |
 
 ## Key technical details
 
@@ -481,6 +549,26 @@ cache, which those writes bypass. The second is the missing `IntToLong` inverse 
 subtle interaction; both were a write with nothing behind it, sitting under a suite that had no way to
 look.
 
+**The compaction half (2026-08-29).** `WarmUpCompactionReloadTest` carries one test per defect, and each was
+proven to bite by restoring the code it replaced: putting back the eager unlink fails only the retirement
+test, and stubbing out the load-path resolution fails only the superseded-generation test — with
+`UnexpectedIOException: Header of entity collection 'PRODUCT' addresses bytes up to position 88505 of
+'…/product-1_2.collection', but that file is only 0 bytes long!`, which is the operator-visible shape of the
+whole defect. The third test is the clean-reload control: the same corpus and the same compaction with no
+injected failure. All three manufacture their damage through the real publication path rather than by writing
+bytes, and the superseded-generation test asserts the retired file is gone from disk *before* reopening, so it
+cannot pass by resolving a file that merely happens to still be there.
+
+`EntityCollectionHeaderReconcilerTest` pins the classification itself — five cases, including the two
+divergence shapes that had no test before an adversarial review pointed at them, and the null-location case
+that would otherwise have regressed every catalog whose catalog-header reference carries no location.
+
+Across a 22 033-test sweep the refusal fired **zero** times and the warning fired **exactly once**, in the test
+written to trigger it. Four failures in that sweep were environmental and each passed in isolation: a 62 s
+suite timeout in `EvitaTransactionalFunctionalTest` (2.6 s alone), a 300 s one in
+`StaleLeafPageTwinWriterReproductionTest` (9 s alone), an `OutOfMemoryError` in `ConditionalFacetIndexingTest`
+(88/88 alone) from running the whole reactor in one JVM, and a testcontainers case with no Docker available.
+
 ## Consequences & open follow-ups
 
 **Accepted residues** — a warm-up rollback rewinds index and storage state, and deliberately not these:
@@ -552,6 +640,13 @@ look.
   its own suite, `EntityAtomicMutationRollbackWarmUpFunctionalTest.UnpublishableBarrier`, with one test per
   publication route plus the termination case the poison predecessor actually broke.
 
+- **A pre-fix build can leave a catalog whose two records of "which file" disagree**, and such a catalog now
+  opens with a WARN rather than an `UnexpectedIOException`. The repair is in memory; on disk the stale index
+  survives until the next flush that changes that collection. A catalog that is opened, read and never
+  written again therefore warns on every open — correctly, since nothing has fixed it. The ALIVE variant of
+  the same defect, where both copies went stale together, is **not** recoverable and never was; it is closed
+  at the write side instead.
+
 ## Related work
 
 - **`2026-07-10-more-optimized-data-structures`** — the `#1252` record that made savepoint
@@ -592,3 +687,10 @@ look.
   proven by stubbing the inverse; `ChainIndexAssertions` extracted so a chain suite can see the head
   bitmask its public read paths cannot. The ingest corpus gained a `--chains` dimension, so the structure
   that costs the most per savepoint is finally on the end-to-end path
+- **2026-08-29** — the compaction half: retirement deferred to the confirm phase (`75bbab549`), the
+  collection-header write deduped on the file index as well as the location at both call sites (`ff95d5242`),
+  and the load path taught to resolve the file index from the catalog header and reconcile the collection
+  header against it (`4d29aba6e`). `WarmUpCompactionReloadTest` pins all three, one test each. An adversarial
+  review then found three more readers that reconstruct a collection from a stored header without reaching
+  the load path, so the decision moved into `EntityCollectionHeaderReconciler` and both migrations and the
+  historical backup branch now call it (`24a686dd6`)
