@@ -146,6 +146,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * what a value lifecycle sink has to tell apart, since only the second one is a programming error.
 	 */
 	public static final int NO_DELETED_BUCKET = -1;
+	/**
+	 * Sentinel {@link #leafVersionOf(int)} returns when a value id names nothing live. `0` is safe as the "no answer"
+	 * value because a leaf's version id comes from {@link TransactionalObjectVersion#SEQUENCE}, which never hands one
+	 * out.
+	 */
+	public static final long NO_LEAF_VERSION = 0L;
+	/**
+	 * The packed `(leafId, slot)` entry of a value id the directory holds nothing for. `0` is safe because
+	 * {@link #FIRST_LEAF_ID} is `1`, so a real entry always carries a non-zero leaf id in its high half.
+	 */
+	private static final long NO_LOCATION = 0L;
+	/**
+	 * Isolates the slot out of a packed `(leafId << 32) | slot` directory entry.
+	 */
+	private static final long SLOT_MASK = 0xFFFF_FFFFL;
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -230,31 +245,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private long nextLeafId = FIRST_LEAF_ID;
 	/**
-	 * The `valueId -> (leafId, slot)` directory: the reverse of {@link #valueIdOf}, and the structure that makes
-	 * {@link #valueOf(int)} an `O(1)` probe instead of a scan the tree cannot perform at all (value ids are
-	 * allocation-ordered, so they are not searchable in the tree's key order).
+	 * The `valueId -> value` directory this tree resolves {@link #valueOf(int)} through, or `null` until the tree
+	 * carries value ids at all.
 	 *
-	 * Indexed by value id, packed as `(leafId << 32) | slot`; `0` means "no entry". `null` until the tree carries
-	 * value ids. The entry references a STABLE LEAF ID, never a leaf's position in any array — a positional reference
-	 * would have to be rewritten for every leaf after a split, which is `O(V)` per split and design-ending.
-	 *
-	 * **Derived state.** Nothing here is persisted; the whole directory is rebuilt from the tree, which is what keeps
-	 * the value id feature's storage surface to the id column alone. It is also **immutable once built for a given
-	 * committed version**: it is (re)built at commit against the committed tree, so a reader holding an older index
-	 * version keeps resolving against that version's own directory and MVCC needs no diff layer here. The consequence
-	 * is that ids minted inside a still-open transaction are not resolvable through it until that transaction commits.
+	 * **Published as one immutable unit.** The field is `volatile` and every rebuild constructs a whole new
+	 * {@link ValueIdDirectory} rather than writing into the live one, so a reader that has read this field holds a
+	 * directory whose three parts belong to each other and cannot be overtaken by a concurrent rebuild. That is what
+	 * makes the reverse lookup safe on a query thread — see {@link ValueIdDirectory} for the window this closes and
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#refreshValueIdDirectory()} for the reader-driven rebuild
+	 * that opens it.
 	 */
-	@Nullable private long[] valueIdLocations;
-	/**
-	 * The `leafId -> leaf` indirection the directory resolves through. Rebuilt beside {@link #valueIdLocations}.
-	 */
-	@Nullable private Map<Long, BPlusLeafTreeNode<K>> leafById;
-	/**
-	 * `leafId -> the leaf instance version token last folded into the directory`. Lets a rebuild re-stamp only the
-	 * leaves whose content actually changed, exactly as the page stream registry diffs `pageSequence -> nodeId` — the
-	 * walk stays `O(leaves)` while the stamping stays proportional to what the commit touched.
-	 */
-	@Nullable private Map<Long, Long> directoryVersionByLeafId;
+	@Nullable private volatile ValueIdDirectory<K> valueIdDirectory;
 
 	/**
 	 * Updates the keys in the parent nodes of a B+ tree based on changes in a specific path. Propagates changes up the
@@ -1194,17 +1195,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private void rebuildValueIdDirectory(boolean reuseUnchangedLeaves) {
 		if (this.valueIdMinter == null) {
-			this.valueIdLocations = null;
-			this.leafById = null;
-			this.directoryVersionByLeafId = null;
+			this.valueIdDirectory = null;
 			return;
 		}
+		final ValueIdDirectory<K> previous = this.valueIdDirectory;
 		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
 		final Map<Long, BPlusLeafTreeNode<K>> rebuiltLeafById = CollectionUtils.createHashMap(leaves.size());
 		final Map<Long, Long> rebuiltVersions = CollectionUtils.createHashMap(leaves.size());
 		final Map<Long, Long> previousVersions =
-			this.directoryVersionByLeafId == null ? Map.of() : this.directoryVersionByLeafId;
-		long[] locations = this.valueIdLocations == null ? new long[64] : this.valueIdLocations;
+			previous == null ? Map.of() : previous.directoryVersionByLeafId();
+		// the previous location array is NEVER written into: a reader that has already read the published directory
+		// keeps resolving through it while this rebuild runs, and in-place stamping would let it observe a half-written
+		// array under leaf ids that are stable across the rebuild. The incremental (`reuseUnchangedLeaves`) rebuild
+		// still needs the entries it is skipping, so the array is COPIED rather than started empty - one memcpy per
+		// rebuild against the per-slot walk it preserves
+		long[] locations = previous == null
+			? new long[64] : Arrays.copyOf(previous.valueIdLocations(), previous.valueIdLocations().length);
 		for (final BPlusLeafTreeNode<K> leaf : leaves) {
 			if (leaf.getLeafId() == UNASSIGNED_LEAF_ID) {
 				leaf.assignLeafId(this.nextLeafId++);
@@ -1235,9 +1241,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				locations[valueId] = (leafId << 32) | slot;
 			}
 		}
-		this.valueIdLocations = locations;
-		this.leafById = rebuiltLeafById;
-		this.directoryVersionByLeafId = rebuiltVersions;
+		// published LAST and whole: the volatile write is what makes the three parts above visible to a reader together
+		this.valueIdDirectory = new ValueIdDirectory<>(locations, rebuiltLeafById, rebuiltVersions);
 	}
 
 	/**
@@ -1267,22 +1272,98 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Nullable
 	public K valueOf(int valueId) {
-		final long[] locations = this.valueIdLocations;
-		final Map<Long, BPlusLeafTreeNode<K>> leaves = this.leafById;
-		if (locations == null || leaves == null || valueId <= 0 || valueId >= locations.length) {
+		// ONE read of the volatile: everything below resolves through that single snapshot, so a concurrent rebuild
+		// cannot swap the leaf map out from under the location this thread has already read
+		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		final long location = locationOf(directory, valueId);
+		if (location == NO_LOCATION) {
 			return null;
 		}
-		final long location = locations[valueId];
-		if (location == 0L) {
-			return null;
-		}
-		final BPlusLeafTreeNode<K> leaf = leaves.get(location >>> 32);
+		final BPlusLeafTreeNode<K> leaf = directory.leafById().get(location >>> 32);
 		if (leaf == null) {
 			return null;
 		}
-		final int slot = (int) (location & 0xFFFF_FFFFL);
+		final int slot = (int) (location & SLOT_MASK);
 		// the entry may predate a rebuild of this leaf, so it is believed only when the slot still carries that id
 		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.keyAt(slot) : null;
+	}
+
+	/**
+	 * Resolves a stable value id to the version token of the leaf its bucket lives in — the per-page staleness token a
+	 * consumer folds into a formula cache key, exactly as {@link BucketCursor#currentLeafId()} hands it out on the scan
+	 * path.
+	 *
+	 * Answered from the same directory and with the same slot validation as {@link #valueOf(int)}, and carrying the
+	 * same caller obligation about an open transaction.
+	 *
+	 * @param valueId the id whose leaf is wanted
+	 * @return the leaf's version id, or {@link #NO_LEAF_VERSION} when the id resolves to nothing live
+	 */
+	public long leafVersionOf(int valueId) {
+		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		final long location = locationOf(directory, valueId);
+		if (location == NO_LOCATION) {
+			return NO_LEAF_VERSION;
+		}
+		final BPlusLeafTreeNode<K> leaf = directory.leafById().get(location >>> 32);
+		if (leaf == null) {
+			return NO_LEAF_VERSION;
+		}
+		final int slot = (int) (location & SLOT_MASK);
+		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.getId() : NO_LEAF_VERSION;
+	}
+
+	/**
+	 * Reads one value id's packed `(leafId, slot)` entry out of a directory snapshot.
+	 *
+	 * @param directory the snapshot to read, or `null` when the tree carries no value ids
+	 * @param valueId   the id to look up
+	 * @return the packed entry, or {@link #NO_LOCATION} when the id has none
+	 */
+	private long locationOf(@Nullable ValueIdDirectory<K> directory, int valueId) {
+		if (directory == null) {
+			return NO_LOCATION;
+		}
+		final long[] locations = directory.valueIdLocations();
+		return valueId <= 0 || valueId >= locations.length ? NO_LOCATION : locations[valueId];
+	}
+
+	/**
+	 * The `valueId -> (leafId, slot)` directory: the reverse of {@link #valueIdOf}, and the structure that makes
+	 * {@link #valueOf(int)} an `O(1)` probe instead of a scan the tree cannot perform at all (value ids are
+	 * allocation-ordered, so they are not searchable in the tree's key order).
+	 *
+	 * The entry references a STABLE LEAF ID, never a leaf's position in any array — a positional reference would have
+	 * to be rewritten for every leaf after a split, which is `O(V)` per split and design-ending.
+	 *
+	 * **Derived state.** Nothing here is persisted; the whole directory is rebuilt from the tree, which is what keeps
+	 * the value id feature's storage surface to the id column alone. It is also **immutable once built for a given
+	 * committed version**: it is (re)built at commit against the committed tree, so a reader holding an older index
+	 * version keeps resolving against that version's own directory and MVCC needs no diff layer here. The consequence
+	 * is that ids minted inside a still-open transaction are not resolvable through it until that transaction commits.
+	 *
+	 * ## Why this is a record rather than three fields
+	 *
+	 * The directory is rebuilt on a READ — a query thread that meets the warm-up path's writes catches them up before
+	 * it answers (see `InvertedIndex#getValueById`). Held as three separate fields and stamped in place, a rebuild
+	 * could therefore overtake a reader that had already read the location array and leave it resolving through a leaf
+	 * map belonging to a different generation, or reading a slot that had already been re-stamped. Bundling the three
+	 * into one immutable value published through a single volatile write removes the window outright: a reader either
+	 * sees the whole previous directory or the whole new one, and the rebuild fills a fresh location array rather than
+	 * the live one.
+	 *
+	 * @param valueIdLocations         `valueId -> (leafId << 32) | slot`, `0` meaning "no entry"
+	 * @param leafById                 the `leafId -> leaf` indirection the entries resolve through
+	 * @param directoryVersionByLeafId `leafId -> the leaf instance version token last folded in`, which lets a rebuild
+	 *                                 re-stamp only the leaves whose content actually changed, exactly as the page
+	 *                                 stream registry diffs `pageSequence -> nodeId` — the walk stays `O(leaves)`
+	 *                                 while the stamping stays proportional to what the commit touched
+	 */
+	private record ValueIdDirectory<K extends Comparable<K>>(
+		@Nonnull long[] valueIdLocations,
+		@Nonnull Map<Long, BPlusLeafTreeNode<K>> leafById,
+		@Nonnull Map<Long, Long> directoryVersionByLeafId
+	) {
 	}
 
 	/**
@@ -1311,8 +1392,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return the location array's footprint in bytes, or `0` when the tree carries no value ids
 	 */
 	public long getValueIdDirectoryHeapSizeInBytes() {
-		return this.valueIdLocations == null
-			? 0L : VMLayout.current().sizeOfArray(this.valueIdLocations.length, Long.BYTES);
+		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		return directory == null
+			? 0L : VMLayout.current().sizeOfArray(directory.valueIdLocations().length, Long.BYTES);
 	}
 
 	/**
@@ -1676,9 +1758,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// owned by the index above this tree
 		long ownSize = layout.sizeOfObject(
 			Long.BYTES + 4L * Integer.BYTES + 1L + 7L * layout.referenceSize()
-				// nextLeafId, plus the three value id directory slots (their contents are reported apart, by
-				// getValueIdDirectoryHeapSizeInBytes)
-				+ Long.BYTES + 3L * layout.referenceSize()
+				// nextLeafId, plus the single value id directory slot - the directory is one immutable record behind
+				// one volatile field, and its contents are reported apart, by getValueIdDirectoryHeapSizeInBytes
+				+ Long.BYTES + layout.referenceSize()
 		);
 		// the two TransactionalReference holders are the tree's own, and each wraps an AtomicReference. The `root`
 		// holder addresses the node walked below; the `size` holder addresses a boxed Integer, charged in full -
@@ -1859,15 +1941,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// take its reuse branch. It keys the skip off `directoryVersionByLeafId`, which without this carry is empty on
 		// every merged tree — the incremental rebuild then degrades to a full O(V) re-stamp plus a freshly
 		// doubling-grown long[] on EVERY commit, which is precisely the cost the design exists to avoid.
-		// The version map is only ever READ by the rebuild (it publishes a fresh one at the end), so it carries by
-		// reference. The location array is written into IN PLACE, so it must be COPIED: sharing it would let this
-		// merged tree overwrite the very slots a reader still holding the previous version resolves through — leaf ids
-		// are stable across the merge, so those writes would land on live entries and turn a missing optimization into
-		// an MVCC correctness bug. `leafById` is deliberately NOT carried: the rebuild replaces it wholesale, and an
-		// old map would resolve to the previous version's leaf instances in the window before it runs.
-		merged.directoryVersionByLeafId = this.directoryVersionByLeafId;
-		merged.valueIdLocations = this.valueIdLocations == null
-			? null : Arrays.copyOf(this.valueIdLocations, this.valueIdLocations.length);
+		// Everything carried here is only ever READ: the rebuild that runs before this merged tree is published copies
+		// the location array and publishes fresh maps beside it (see `ValueIdDirectory`), so the previous version's
+		// own directory is never written into and readers still resolving through it are unaffected. `leafById` is
+		// deliberately EMPTY rather than carried: the rebuild replaces it wholesale, and an old map would resolve to
+		// the previous version's leaf instances in the window before it runs.
+		merged.valueIdDirectory = this.valueIdDirectory == null
+			? null
+			: new ValueIdDirectory<>(
+				this.valueIdDirectory.valueIdLocations(), Map.of(), this.valueIdDirectory.directoryVersionByLeafId()
+			);
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
 		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
 		// the merged nodes are fresh or unchanged-and-layer-free, so the descent never consults a diff layer).

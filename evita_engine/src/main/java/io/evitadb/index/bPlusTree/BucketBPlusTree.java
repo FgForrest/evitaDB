@@ -210,6 +210,18 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	K valueOf(int valueId);
 
 	/**
+	 * Resolves a stable value id to the version token of the leaf its bucket lives in — the per-page staleness token a
+	 * consumer folds into a formula cache key, and the reverse-lookup counterpart of the leaf id a forward scan reads
+	 * off its cursor.
+	 *
+	 * The same caller obligation as {@link #valueOf(int)} applies: this method makes no transaction check either.
+	 *
+	 * @param valueId the id whose leaf is wanted
+	 * @return the leaf's version id, or `0` when the id resolves to nothing live
+	 */
+	long leafVersionOf(int valueId);
+
+	/**
 	 * Returns the heap the value id directory's location array occupies, in bytes; `0` when the tree carries none.
 	 *
 	 * @return the directory's dominant heap term

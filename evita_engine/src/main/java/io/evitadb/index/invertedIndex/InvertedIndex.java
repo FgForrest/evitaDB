@@ -948,15 +948,17 @@ public class InvertedIndex implements
 	 * premise exists to rule out. Hence single-flight: the lock admits one rebuilder and the re-check inside it makes
 	 * every thread that queued behind them return without doing the work a second time.
 	 *
-	 * ## What this does NOT make safe
+	 * ## The read-versus-rebuild window, and how it is closed
 	 *
 	 * A reader already past the flag on the fast path — having seen it `false` — can still be inside
-	 * `BucketBPlusTree#valueOf` while a later writer marks the directory stale and the next reader rebuilds it,
-	 * because the rebuild updates its three fields in place rather than publishing an immutable unit. Closing that
-	 * window means representing the directory as one atomically-published record, which is deferred to the increment
-	 * that adds the first production consumer (the trigram substring index) for the same reason the transaction-aware
-	 * overlay in {@link #getValueById(int)} is: the right shape depends on that consumer's access pattern, and until
-	 * it exists nothing reaches this method from a query thread at all.
+	 * `BucketBPlusTree#valueOf` while a later writer marks the directory stale and the next reader rebuilds it. That
+	 * is closed on the tree side rather than here: the directory is a single immutable `ValueIdDirectory` behind one
+	 * volatile field, filled into a FRESH location array and published whole, so such a reader keeps resolving through
+	 * the generation it read and never observes a half-stamped one. Serializing the readers here would not have
+	 * sufficed — the rebuild is not what the overtaken reader is holding.
+	 *
+	 * What the lock still buys is the rebuild's own non-re-entrancy: it advances the plain leaf-id counter and calls
+	 * `assignLeafId`, whose premise refuses a second assignment outright, so two rebuilders remain forbidden.
 	 */
 	private synchronized void refreshValueIdDirectory() {
 		if (this.valueIdDirectoryStale) {

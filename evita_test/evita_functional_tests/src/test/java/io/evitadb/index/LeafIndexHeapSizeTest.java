@@ -209,10 +209,12 @@ class LeafIndexHeapSizeTest {
 		private static void assertIdCarryingHeapMatches(@Nonnull InvertedIndex index) {
 			final Object tree = readField(index, "buckets");
 			final ValueIdAllocator allocator = (ValueIdAllocator) readField(index, "valueIdAllocator");
-			final Map<?, ?> leafById = (Map<?, ?>) readField(tree, "leafById");
-			final Object[] directory = {
-				leafById, readField(tree, "directoryVersionByLeafId"), readField(tree, "valueIdLocations")
-			};
+			// the directory is one immutable record behind one volatile field, so the whole of it is reachable from
+			// that single root - but the leaves it addresses are NOT its own and are held out of its walk, exactly as
+			// when it was three separate fields
+			final Object valueIdDirectory = readField(tree, "valueIdDirectory");
+			final Map<?, ?> leafById = (Map<?, ?>) readField(valueIdDirectory, "leafById");
+			final Object[] directory = {valueIdDirectory};
 			final long directoryBytes = JolHeapSize.ownedSize(directory, leafById.values().toArray())
 				- JolHeapSize.shallowSize(directory);
 

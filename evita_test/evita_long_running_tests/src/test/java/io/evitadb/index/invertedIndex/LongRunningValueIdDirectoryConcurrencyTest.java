@@ -75,11 +75,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * either method: if the counterfactual stops failing, this test has quietly become decorative, and
  * {@link #READER_THREADS} or {@link #ROUNDS} must be raised until it fails again before a green run means anything.
  *
- * **What this test does NOT cover.** A reader that already passed the staleness check — having seen it `false` — can
- * still be inside the tree's `valueOf` while a later reader rebuilds, because the rebuild updates its fields in place
- * rather than publishing an immutable unit. Closing that window is deferred to the increment that adds the first
- * production consumer; see `InvertedIndex#refreshValueIdDirectory`. Every reader here is released against a directory
- * that is already stale, so they contend on the rebuild rather than on a rebuild-versus-read.
+ * **What this test does NOT cover, and why no test does.** A reader that already passed the staleness check — having
+ * seen it `false` — can still be inside the tree's `valueOf` while a later reader rebuilds. That window is closed
+ * STRUCTURALLY rather than by a lock: the directory is one immutable `ValueIdDirectory` behind a single volatile
+ * field, filled into a fresh location array and published whole, so such a reader resolves through the generation it
+ * read (see `TransactionalBucketBPlusTree.ValueIdDirectory`).
+ *
+ * No stress test accompanies that change, and the reason is a measurement rather than an opinion. A harness running
+ * eight readers against a stable key range while a single writer appended and forced rebuilds was run against BOTH
+ * implementations: ~1.9M reads over 4.3K rebuilds on the fixed shape and ~10.5M reads over ~15K rebuilds across three
+ * runs of the PRE-FIX three-field shape, with no failure on either. That is the expected outcome, because the two are
+ * observationally equivalent through `valueOf`: every hit is validated against the slot it lands on
+ * (`leaf.valueIdAt(slot) == valueId`), so any mixture of two generations — and any torn `long[]` read — resolves to
+ * `null` rather than to a wrong value, and `null` is also what a *consistent* read of a stale generation returns for
+ * a value that has moved. A test able to tell them apart would have to observe the mixture itself, which is not
+ * reachable through the public surface.
+ *
+ * What the fix therefore buys is **safe publication**: without it, `leafById` is a freshly built `HashMap` assigned
+ * to a non-volatile field, and a reader with no happens-before edge to that write may observe it partially
+ * constructed — a hazard that does not manifest on x86 and cannot be provoked deliberately. Shipping a stress test
+ * that passes on the broken implementation would have been decorative, which is worse than none. What IS pinned
+ * deterministically is the invariant the fix rests on: `ValueIdTest`'s "a commit leaves the previous version
+ * resolving against its own directory" fails the moment a rebuild writes into an array a published directory handed
+ * out.
+ *
+ * Every reader here is released against a directory that is already stale, so they contend on the rebuild rather
+ * than on a rebuild-versus-read — which is the half a lock really does own.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

@@ -915,14 +915,18 @@ class ValueIdTest {
 		void shouldKeepPreviousVersionResolvingAfterCommitRebuildsTheDirectory() {
 			// The directory is built once per published version and is what buys MVCC here without a diff layer, so
 			// the two versions must own separate location arrays. The commit-merge rebuild reuses the entries of the
-			// leaves it carried forward, which means it starts from the PREVIOUS version's array - and it writes slots
-			// into that array in place.
+			// leaves it carried forward, which means it starts from the PREVIOUS version's array.
 			//
-			// Calibration: carrying `valueIdLocations` onto the merged tree BY REFERENCE instead of as a copy makes
-			// this fail. Both versions then write their own leaf slots into one array under stable leaf ids, so each
-			// read repairs its own version by breaking the other's - which is why the two are read in turn below
-			// rather than once each. Reading only one version cannot fail, because the lazy catch-up in
-			// `getValueById` silently rebuilds whichever version is asked first.
+			// Calibration: dropping the `Arrays.copyOf` from `TransactionalBucketBPlusTree#rebuildValueIdDirectory`
+			// makes this fail. The rebuild then stamps its slots straight into the array the previous version's
+			// published directory still hands out, under leaf ids that are stable across the merge, so each read
+			// repairs its own version by breaking the other's - which is why the two are read in turn below rather
+			// than once each. Reading only one version cannot fail, because the lazy catch-up in `getValueById`
+			// silently rebuilds whichever version is asked first.
+			//
+			// That copy is also what lets the merge carry the previous array BY REFERENCE rather than copying it a
+			// second time: nothing writes into a published location array any more, which is the same property that
+			// closes the reader-versus-rebuild window (see `ValueIdDirectory`).
 			final InvertedIndex index = emptyIndex();
 			index.attachValueIdConsumer(TEST_CONSUMER);
 			// strided keys so the transaction below can insert BETWEEN them and dirty many leaves rather than only the
