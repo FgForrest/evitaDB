@@ -80,9 +80,12 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 	 */
 	private final Long cost;
 	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula, computed on the first call that
+	 * follows the union — never in the constructor, because the divisor is the SIZE OF THE RESULT and reading it there
+	 * would union every bucket while the query is still being planned, defeating the {@link DeferredFormula} this
+	 * supplier exists to be wrapped in.
 	 */
-	private final Long costToPerformance;
+	private Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCardinality()} of this formula.
 	 */
@@ -145,8 +148,9 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 		}
 		this.estimatedCardinality = cardinality;
 		this.estimatedCost = this.estimatedCardinality * getOperationCost();
+		// the cost is derived from the bucket sizes alone, which are exact and allocation-free, so it is known here
+		// without unioning anything - unlike the cost-to-performance ratio, which needs the result and is deferred
 		this.cost = this.estimatedCost;
-		this.costToPerformance = getCost() / (get().size() * getOperationCost());
 		// STALENESS version: the set of leaf-page version ids the slice crossed. A commit that mutates a crossed page
 		// mints a fresh id for that page, invalidating exactly the cached ranges that read it; ranges over untouched
 		// pages stay valid. The set is capped to the single whole-index id for slices spanning too many leaves.
@@ -195,9 +199,27 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 		return 242;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Answered only once the union has actually been paid for; before that it reports
+	 * {@link Long#MAX_VALUE}, the "nobody has paid for this yet" sentinel
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#getCostToPerformanceRatio()} and
+	 * {@link io.evitadb.index.hierarchy.suppliers.AbstractHierarchyBitmapSupplier} both use. Computing it eagerly
+	 * would union every bucket at construction time.
+	 *
+	 * The divisor is floored at `1` because a slice can legitimately union to nothing, and `cost / 0` would throw
+	 * where the metric has a perfectly good reading: everything was paid and nothing came back, which is the extreme
+	 * of the "large input reduced to a small output" case this ratio is meant to reward.
+	 */
 	@Override
 	public long getCostToPerformanceRatio() {
-		Assert.isPremiseValid(this.costToPerformance != null, "The HistogramBitmapSupplier hasn't been initialized!");
+		if (this.costToPerformance == null) {
+			if (this.memoizedResult == null) {
+				return Long.MAX_VALUE;
+			}
+			this.costToPerformance = getCost() / Math.max(1L, (long) this.memoizedResult.size() * getOperationCost());
+		}
 		return this.costToPerformance;
 	}
 
