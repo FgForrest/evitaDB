@@ -101,6 +101,11 @@ public class ErrorOriginLogger {
 	 * logging framework, an appender, or anything this method comes to call in future - is dropped rather than
 	 * recursing back in. Without it the safety of this class would rest on the claim that nothing below ever
 	 * constructs an evitaDB error, which is a claim about code that has not been written yet.
+	 *
+	 * `ErrorMonitor` carries an equivalent guard one level further out, which is what covers the *whole* consumer
+	 * rather than only the part of it that runs after this point. This one is not therefore redundant: these
+	 * methods are public and called directly, and a class in this position should not depend on its caller having
+	 * guarded for it.
 	 */
 	private static final ThreadLocal<Boolean> REPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -188,10 +193,7 @@ public class ErrorOriginLogger {
 			if (counter == null) {
 				admitNewOrigin(error, category, origin);
 			} else {
-				final long occurrences = counter.incrementAndGet();
-				if (isPowerOfTen(occurrences)) {
-					logOrigin(error, category, origin, occurrences);
-				}
+				countKnownOrigin(error, category, origin, counter);
 			}
 		} catch (Throwable ignored) {
 			// this runs inside an exception constructor: letting anything escape would replace an ordinary,
@@ -225,9 +227,30 @@ public class ErrorOriginLogger {
 		if (existing == null) {
 			logOrigin(error, category, origin, 1L);
 		} else {
-			// another thread inserted this same origin first - hand the reserved slot back rather than burning it
+			// another thread inserted this same origin first - hand the reserved slot back rather than burning it,
+			// and count through the same path a known origin takes, so a lost race cannot swallow a milestone line
 			RESERVED_ORIGIN_SLOTS.decrementAndGet();
-			existing.incrementAndGet();
+			countKnownOrigin(error, category, origin, existing);
+		}
+	}
+
+	/**
+	 * Counts one more occurrence of an origin that is already tracked, logging it again at every power of ten.
+	 *
+	 * @param error    the exception being constructed
+	 * @param category human-readable error category
+	 * @param origin   error code identifying the origin
+	 * @param counter  the origin's occurrence counter
+	 */
+	private static void countKnownOrigin(
+		@Nonnull Throwable error,
+		@Nonnull String category,
+		@Nonnull String origin,
+		@Nonnull AtomicLong counter
+	) {
+		final long occurrences = counter.incrementAndGet();
+		if (isPowerOfTen(occurrences)) {
+			logOrigin(error, category, origin, occurrences);
 		}
 	}
 
