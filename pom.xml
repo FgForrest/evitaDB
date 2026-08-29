@@ -258,6 +258,25 @@
 				<artifactId>proxycian_bytebuddy</artifactId>
 				<version>1.4.0</version>
 			</dependency>
+			<!--
+				byteBuddy.version is declared on each direct dependency (evita_engine,
+				evita_external_api_graphql), which leaves it unmanaged wherever byte-buddy arrives only
+				transitively - and there the newest requestor wins. assertj-core 3.27.7 asks for 1.18.3, so
+				evita_functional_tests resolved byte-buddy 1.18.3 against byte-buddy-agent 1.17.8: two halves
+				of one library, at different minor versions, on the same classpath. The agent code under test
+				is instrumentation, so the suite was exercising a Byte Buddy production does not ship. Managing
+				both artifacts here pins them together everywhere, including transitive-only modules.
+			-->
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy</artifactId>
+				<version>${byteBuddy.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy-agent</artifactId>
+				<version>${byteBuddy.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.squareup.okhttp3</groupId>
 				<artifactId>okhttp-jvm</artifactId>
