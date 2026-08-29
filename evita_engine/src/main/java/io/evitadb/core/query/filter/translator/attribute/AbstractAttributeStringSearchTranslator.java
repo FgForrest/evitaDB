@@ -29,23 +29,34 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
+import io.evitadb.index.trigram.TrigramIndex;
+import io.evitadb.index.trigram.TrigramSubstringSearch;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -170,6 +181,77 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
+	 * Tells whether the {@link TrigramIndex} can answer this constraint - i.e. whether a value matching it necessarily
+	 * contains the search term as a contiguous run of code points, which is what makes a trigram intersection a sound
+	 * candidate generator for it.
+	 *
+	 * Default `false`, so a subclass opts in deliberately. `contains` and `ends with` do; `starts with` does not,
+	 * despite qualifying on the soundness test, because its buckets form one contiguous run from an anchor and the
+	 * anchored walk that exploits that beats any candidate generation.
+	 *
+	 * @return whether the trigram substring index may serve this constraint
+	 */
+	protected boolean isServedByTrigramIndex() {
+		return false;
+	}
+
+	/**
+	 * Resolves the records of one entity index, taking the attribute's {@link TrigramIndex} when there is one and it is
+	 * worth taking, and the historical bucket scan otherwise.
+	 *
+	 * The fallback here is the SCAN, never an empty result - an absent, unusable or unprofitable accelerator must
+	 * change how fast the answer arrives and nothing else. The one genuinely empty case, an index the attribute has no
+	 * filter index in at all, is the pre-existing behaviour of `FilterByVisitor#applyOnFilterIndexes` and is kept
+	 * verbatim.
+	 *
+	 * ## Only the global index is accelerated here
+	 *
+	 * A trigram index is hosted once per `(attribute, locale)` of the GLOBAL entity index and never per reduced index -
+	 * of which a large catalog has hundreds of thousands. A reduced index can still be served by it, by composing the
+	 * global per-value record sets with its own entity ids, but that composition is a separate piece of work and until
+	 * it exists a reduced index takes the scan. The `instanceof` below is that boundary; it is also what guarantees the
+	 * trigram index and the shared value tree resolved beside it belong to the same index, since a reduced index's
+	 * filter index wraps its OWN tree whose value ids name nothing in the global postings.
+	 *
+	 * @param filterByVisitor     the filter-by processing context
+	 * @param entityIndex         the entity index being resolved
+	 * @param referenceSchema     the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeDefinition the schema of the attribute being filtered
+	 * @param textToSearch        the raw search term supplied in the query
+	 * @return the matching entity primary keys of that index
+	 */
+	@Nonnull
+	private Formula resolveFromIndex(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntityIndex entityIndex,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull String textToSearch
+	) {
+		final Locale locale = attributeDefinition.isLocalized() ? filterByVisitor.getLocale() : null;
+		final FilterIndex filterIndex = entityIndex.getFilterIndex(referenceSchema, attributeDefinition, locale);
+		if (filterIndex == null) {
+			return EmptyFormula.INSTANCE;
+		}
+		if (isServedByTrigramIndex() && entityIndex instanceof final GlobalEntityIndex globalEntityIndex) {
+			final TrigramIndex trigramIndex = globalEntityIndex.getTrigramIndex(
+				AttributeIndex.createAttributeKey(referenceSchema, attributeDefinition, locale)
+			);
+			if (trigramIndex != null) {
+				final InvertedIndex sharedValueTree = filterIndex.getInvertedIndex();
+				final MatchedBuckets matched = TrigramSubstringSearch.match(
+					trigramIndex, sharedValueTree, textToSearch, this.stringPredicate
+				);
+				if (matched != null) {
+					// EAGER assembly - the one place in this path that presupposes eager evaluation
+					return sharedValueTree.toFormula(matched, TrigramSubstringSearch.versionIdsOf(trigramIndex));
+				}
+			}
+		}
+		return this.filterIndexResolver.apply(filterIndex, textToSearch);
+	}
+
+	/**
 	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a filter index.
 	 * This method is intended for internal use to assist the filtering process by generating an appropriate formula based on the given
 	 * constraints and the current state of the filter visitor.
@@ -198,13 +280,14 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			assertStringType(attributeConstraint, attributeDefinition);
 
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeKey,
-				filterByVisitor.applyOnFilterIndexes(
-					processingScope.getReferenceSchema(),
-					attributeDefinition,
-					index -> this.filterIndexResolver.apply(index, textToSearch)
+				filterByVisitor.applyOnIndexes(
+					entityIndex -> resolveFromIndex(
+						filterByVisitor, entityIndex, referenceSchema, attributeDefinition, textToSearch
+					)
 				)
 			);
 

@@ -65,4 +65,15 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 		return translateInternal(attributeContains, filterByVisitor);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A value containing the search term contains it as a contiguous run of code points, so every trigram of the term
+	 * is a trigram of the value and the intersection cannot lose a match.
+	 */
+	@Override
+	protected boolean isServedByTrigramIndex() {
+		return true;
+	}
+
 }

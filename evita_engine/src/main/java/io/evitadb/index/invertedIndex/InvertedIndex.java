@@ -113,9 +113,9 @@ import java.util.function.Predicate;
  *
  * The value id directory is the one piece of state a READER may write: {@link #getValueById(int)} catches the
  * warm-up path's writes up before it answers. That catch-up is single-flight and its completion is published through
- * the volatile {@link #valueIdDirectoryStale}, so concurrent readers cannot rebuild over one another — but a reader
- * that took the fast path can still be inside the tree's `valueOf` while a later reader rebuilds. See
- * {@link #refreshValueIdDirectory()} for what remains open and why it is deferred.
+ * the volatile {@link #valueIdDirectoryStale}, so concurrent readers cannot rebuild over one another; and the
+ * directory itself is published as one immutable unit, so a reader already past the flag resolves through the
+ * generation it read rather than through one being rebuilt around it. See {@link #refreshValueIdDirectory()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -685,11 +685,14 @@ public class InvertedIndex implements
 	 * populated collection is **deliberately legal**:
 	 * `EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection` refuses *additions* only, on the stated
 	 * grounds that "dropping an index needs no data", and
-	 * `FilterIndexCapabilityRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. Nothing
-	 * reaches this method today because no production code registers a consumer at all — the increment that wires the
-	 * trigram substring index to the SUBSTRING capability is the one that will first make a populated tree reachable
-	 * here, and it owes the missing half rather than a new refusal upstream: unregister, drop the minter, mark every
-	 * leaf page dirty so the columns actually leave the disk, and let {@link #isValueIdHighWaterDirty()} — which
+	 * `FilterIndexCapabilityRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. The trigram
+	 * substring index DOES register a consumer in production — `GlobalEntityIndex#obtainTrigramIndex`, on the first
+	 * write to a capability-declaring attribute — but nothing ever unregisters one: a withdrawn capability drops the
+	 * accelerator through `GlobalEntityIndex#reconcileTrigramIndexAbsence` and leaves the tree's id column standing.
+	 * So this method is still unreachable from production, now for want of a CALLER rather than for want of a
+	 * registration. Whoever writes that caller owes the missing half rather than a new refusal upstream: unregister,
+	 * drop the minter, mark every leaf page dirty so the columns actually leave the disk, and let
+	 * {@link #isValueIdHighWaterDirty()} — which
 	 * already reports the mark's return to {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} — force the root out with it.
 	 * Until that exists the premise below fails loudly, which is the right failure: the alternative is a catalog whose
 	 * persisted root claims ids its pages no longer carry, and the loader refuses to open that at all.
@@ -904,11 +907,14 @@ public class InvertedIndex implements
 	 * for, that means quietly matching fewer entities than the query asked for — a silent under-report is worse than a
 	 * refusal, and evitaDB guarantees a transaction sees its own writes.
 	 *
-	 * Making the reverse lookup transaction-aware is left to the increment that adds the first production consumer (the
-	 * trigram substring index and its translator), because choosing between a transaction-local `valueId -> value`
-	 * overlay, a transaction-local directory rebuilt from the transaction's own leaves, and falling back to the scan
-	 * path needs that consumer's access pattern. Until then a caller that may run inside a transaction must check for
-	 * one and take its fallback rather than probe here.
+	 * The first production consumer — the trigram substring index and its translator — settled this by taking the
+	 * SCAN FALLBACK rather than by making the lookup transaction-aware: `TrigramSubstringSearch` tests
+	 * {@link Transaction#isTransactionAvailable()} before it enters the accelerated path at all, and a query running
+	 * inside a transaction is answered by the same bucket scan that served it before the index existed. A
+	 * transaction-local overlay would have to hold every value the transaction touched to be correct, and it would buy
+	 * an acceleration only for the write session itself — which is a fraction of a percent of substring queries, and
+	 * the one context in which the scan's cost is already dwarfed by the write it accompanies. Any FUTURE caller must
+	 * make the same check and take its own fallback; this method refuses rather than under-report.
 	 *
 	 * @param valueId the id to resolve
 	 * @return the normalized value that id names, or `null` when this tree carries no value ids or the id names
@@ -1378,6 +1384,137 @@ public class InvertedIndex implements
 			}
 		}
 		return toSortedOrFormula(bitmaps, leafVersions.toTokenSet());
+	}
+
+	/**
+	 * Returns the record sets of every bucket named by one of `candidateValueIds` whose value passes `valuePredicate`
+	 * — the reverse-lookup counterpart of {@link #getRecordsMatchingFormula(Predicate)}, and the verification half of
+	 * the trigram substring path.
+	 *
+	 * Where the scan visits every bucket in key order, this visits only the buckets a candidate generator nominated,
+	 * in whatever order it nominated them. Each candidate costs one `O(1)` directory probe; each candidate that
+	 * actually matches costs one further tree descent to read its record set. Candidates that resolve to nothing live
+	 * are SKIPPED rather than refused: the trigram postings are keyed by value id and a value can die between the
+	 * posting being read and this verification running, which is an ordinary race rather than a divergence.
+	 *
+	 * ## Buckets, not a formula
+	 *
+	 * This deliberately stops at the matched buckets rather than folding them into a {@link Formula}. What the answer
+	 * is folded into — an eagerly materialized disjunction, or a lazily evaluated one — is the CALLER's decision, and
+	 * the two shapes want different things: an eager caller consumes {@link MatchedBuckets#leafVersionIds()} as its
+	 * staleness set, while a lazy one cannot (the leaves are only known once verification has already run, which is
+	 * the very thing it defers) and ignores them.
+	 *
+	 * ## Committed state only
+	 *
+	 * Carries the same premise as {@link #getValueById(int)} and for the same reason — the directory has no diff
+	 * layer, so answering inside a transaction would silently under-report. The caller must test for an open
+	 * transaction and take its own fallback; this refuses.
+	 *
+	 * @param candidateValueIds the value ids to verify, in any order; entries beyond `candidateCount` are ignored
+	 * @param candidateCount    how many leading entries of `candidateValueIds` are live
+	 * @param valuePredicate    tests each candidate's (already-normalized) value; a bucket is included when it holds
+	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of the leaves
+	 * those buckets live in
+	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
+	 */
+	@Nonnull
+	public MatchedBuckets getRecordsOfValueIdsMatching(
+		@Nonnull int[] candidateValueIds,
+		int candidateCount,
+		@Nonnull Predicate<Serializable> valuePredicate
+	) {
+		Assert.isPremiseValid(
+			!Transaction.isTransactionAvailable(),
+			"Value ids cannot be verified while a transaction is open on this thread - the directory addresses the " +
+				"last published version of the tree while the leaves it reads are the transaction's own, so the " +
+				"verification would silently under-report. Take the scan fallback instead."
+		);
+		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
+		if (this.valueIdAllocator == null) {
+			// nothing can be verified against a tree that mints no ids; the empty answer is still an answer rather
+			// than a refusal, because the caller gates on the trigram index rather than on this tree
+			return new MatchedBuckets(MatchedBuckets.NO_RECORD_SETS, leafVersions.toTokenSet());
+		}
+		// catch up the warm-up path's writes, exactly as `getValueById` does and for the same reason - the premise
+		// above has already established there is no transaction on this thread
+		if (this.valueIdDirectoryStale) {
+			refreshValueIdDirectory();
+		}
+		final List<Bitmap> bitmaps = new ArrayList<>(Math.min(candidateCount, 64));
+		for (int i = 0; i < candidateCount; i++) {
+			final int valueId = candidateValueIds[i];
+			final Serializable value = (Serializable) this.buckets.valueOf(valueId);
+			if (value == null || !valuePredicate.test(value)) {
+				continue;
+			}
+			// the leaf token is read for MATCHES only: a candidate that fails the predicate contributes no bitmap, so
+			// its leaf is not a page the answer depends on
+			leafVersions.acceptUnordered(this.buckets.leafVersionOf(valueId));
+			bitmaps.add(this.buckets.getRecordsEqualTo((Comparable) value));
+		}
+		return new MatchedBuckets(bitmaps.toArray(MatchedBuckets.NO_RECORD_SETS), leafVersions.toTokenSet());
+	}
+
+	/**
+	 * Folds matched buckets into the natural ascending disjunction of their record ids — the EAGER assembly of
+	 * {@link #getRecordsOfValueIdsMatching}'s answer, and the only part of the substring path that presupposes eager
+	 * evaluation.
+	 *
+	 * `extraVersionIds` carries the staleness tokens of the structures the candidate set itself was derived from — the
+	 * trigram index's own id — which the leaf tokens cannot express: a write that changed which values a pattern's
+	 * postings nominate need not have touched any leaf this answer read.
+	 *
+	 * ## Why the result carries no search-term discriminator, and when that would change
+	 *
+	 * Because selection is EAGER, the formula is content-addressed: its hash is derived from the matched record sets,
+	 * which *are* the answer. Two searches that hash equal therefore compute the same bitmap, so `contains("ab")` and
+	 * `endsWith("ab")` sharing a cache entry is correct rather than a collision, and no search-term or constraint-kind
+	 * discriminator is needed. That argument rests entirely on eagerness. Deferring selection would hash the QUESTION
+	 * instead — see {@link io.evitadb.index.hierarchy.suppliers.HierarchyByParentBitmapSupplier}, the model for a
+	 * {@link io.evitadb.core.query.algebra.deferred.BitmapSupplier} behind
+	 * {@link io.evitadb.core.query.algebra.deferred.DeferredFormula}, with
+	 * {@link io.evitadb.index.trigram.TrigramIndex#minimumCardinalityOf} serving as its cheap cost estimate — and a
+	 * discriminator would become mandatory. Deferring also costs invalidation granularity: the verified leaves are
+	 * unknown until verification has run, so the staleness set collapses to whole-index ids, which is the difference
+	 * between that supplier and {@link io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier}.
+	 *
+	 * @param matched         the verified buckets
+	 * @param extraVersionIds staleness tokens to fold in beside the leaf tokens
+	 * @return the disjunction over the matched buckets' record ids
+	 */
+	@Nonnull
+	public Formula toFormula(@Nonnull MatchedBuckets matched, @Nonnull long[] extraVersionIds) {
+		final long[] leafVersionIds = matched.leafVersionIds();
+		final long[] tokenSet = new long[leafVersionIds.length + extraVersionIds.length];
+		System.arraycopy(leafVersionIds, 0, tokenSet, 0, leafVersionIds.length);
+		System.arraycopy(extraVersionIds, 0, tokenSet, leafVersionIds.length, extraVersionIds.length);
+		Arrays.sort(tokenSet);
+		return toSortedOrFormula(Arrays.asList(matched.recordSets()), tokenSet);
+	}
+
+	/**
+	 * The buckets one candidate-verification pass matched, paired with the staleness tokens of the leaf pages they
+	 * live in.
+	 *
+	 * @param recordSets     the matched buckets' record sets, in the order the candidates were nominated
+	 * @param leafVersionIds the canonical (sorted, deduplicated) leaf-version token set of those buckets' leaves,
+	 *                       collapsed to the single whole-index id when the leaf cap overflowed or nothing matched
+	 */
+	public record MatchedBuckets(@Nonnull Bitmap[] recordSets, @Nonnull long[] leafVersionIds) {
+
+		/**
+		 * Shared empty record-set array, for the answers that matched nothing.
+		 */
+		public static final Bitmap[] NO_RECORD_SETS = new Bitmap[0];
+
+		/**
+		 * @return whether no bucket matched
+		 */
+		public boolean isEmpty() {
+			return this.recordSets.length == 0;
+		}
+
 	}
 
 	/**
@@ -1911,6 +2048,9 @@ public class InvertedIndex implements
 	 * previous one (a consecutive-dedup) yields the distinct leaf set without a hash set. {@link #toTokenSet()} folds
 	 * the gathered ids into the canonical staleness token, collapsing to the single whole-index id when the cap
 	 * overflowed or no leaf was crossed (an empty slice, whose formula never reads the token).
+	 *
+	 * A reverse-lookup consumer meets its leaves in no particular order and so cannot use the consecutive-dedup - see
+	 * {@link #acceptUnordered(long)}, which pays a bounded linear probe for the same result.
 	 */
 	private final class LeafVersionAccumulator {
 		private final long[] leafIds = new long[TransactionalDataRelatedStructure.EXCESSIVE_HIGH_CARDINALITY];
@@ -1932,6 +2072,37 @@ public class InvertedIndex implements
 			}
 			this.lastLeafId = leafId;
 			this.haveLast = true;
+			if (this.leafCount == this.leafIds.length) {
+				this.overflow = true;
+			} else {
+				this.leafIds[this.leafCount++] = leafId;
+			}
+		}
+
+		/**
+		 * Records a leaf version id met in ARBITRARY order - what a reverse lookup produces, since value ids are
+		 * allocation-ordered and say nothing about which leaf their bucket ended up in.
+		 *
+		 * The consecutive-dedup {@link #accept(long)} relies on is kept as the cheap first test (runs of ids from one
+		 * leaf are common enough to be worth it), backed by a linear probe over what has been gathered so far. That
+		 * probe is bounded by {@link TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} entries and stops
+		 * growing the instant the cap overflows, which is what keeps a large match set from paying a quadratic dedup:
+		 * once the collection has overflowed, every further call returns on the first branch.
+		 *
+		 * @param leafId the matched bucket's leaf version id, or {@code 0} when the id resolved to nothing live
+		 */
+		void acceptUnordered(long leafId) {
+			if (this.overflow || leafId == TransactionalBucketBPlusTree.NO_LEAF_VERSION
+				|| (this.haveLast && leafId == this.lastLeafId)) {
+				return;
+			}
+			this.lastLeafId = leafId;
+			this.haveLast = true;
+			for (int i = 0; i < this.leafCount; i++) {
+				if (this.leafIds[i] == leafId) {
+					return;
+				}
+			}
 			if (this.leafCount == this.leafIds.length) {
 				this.overflow = true;
 			} else {

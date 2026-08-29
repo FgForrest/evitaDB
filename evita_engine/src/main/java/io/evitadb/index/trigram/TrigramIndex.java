@@ -34,7 +34,9 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueLifecycleSink;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
@@ -43,6 +45,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -76,10 +79,11 @@ import java.util.Map.Entry;
  *
  * # Hosting
  *
- * One instance per `(attribute, locale)` of the **global** entity index, and never one per reduced index. A reduced
- * index answers by composing this index's value ids with the global per-value record sets and intersecting the
- * result with its own entity ids, so the postings are paid for once per catalog rather than once per reduced index -
- * of which a large catalog has hundreds of thousands.
+ * One instance per `(attribute, locale)` of the **global** entity index, and never one per reduced index - so the
+ * postings are paid for once per catalog rather than once per reduced index, of which a large catalog has hundreds
+ * of thousands. A reduced index is meant to be served by composing this index's value ids with the global per-value
+ * record sets and intersecting the result with its own entity ids; until that composition exists a reduced index
+ * takes the ordinary bucket scan, which {@link TrigramSubstringSearch} states as the boundary it declines at.
  *
  * # Derived state
  *
@@ -95,6 +99,14 @@ import java.util.Map.Entry;
  * {@link #dirty} flag, so an index no transaction touched is carried forward BY REFERENCE, keeping its identity
  * (which is what lets a consumer key a cache on it) and sparing the tree rebuild entirely. Outside a transaction
  * (the warm-up bulk path) the tree is written directly, exactly as every other index does.
+ *
+ * # Thread safety
+ *
+ * `@NotThreadSafe` here carries the meaning it carries on the trees below it: no internal synchronization, and one
+ * writer at a time. Many query threads DO read one instance concurrently - {@link TrigramSubstringSearch} is on the
+ * query path - and that is the same shape {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree} is read
+ * in through {@link InvertedIndex} today. Every read method here allocates its own scratch, so nothing but the
+ * underlying tree is shared between two readers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -296,6 +308,192 @@ public class TrigramIndex implements
 	 */
 	public int cardinalityOf(long trigram) {
 		return TrigramPostings.cardinality(this.store.get(trigram));
+	}
+
+	/**
+	 * Returns the cardinality of the CHEAPEST posting among the given trigrams - the upper bound on how many
+	 * candidates an intersection over them could produce, and the one number the decision to take this index at all is
+	 * made on.
+	 *
+	 * Answered without materializing a single posting, so the whole pattern can be priced before anything is committed
+	 * to. A `0` is the strongest possible answer rather than a degenerate one: a trigram nothing posts against means
+	 * no value contains the pattern, so the intersection is already known to be empty.
+	 *
+	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
+	 * @return the smallest posting cardinality, `0` when any trigram posts against nothing (or when there are no
+	 * trigrams at all, which a caller must have refused before reaching here)
+	 */
+	public int minimumCardinalityOf(@Nonnull long[] trigrams) {
+		int minimum = Integer.MAX_VALUE;
+		for (int i = 0; i < trigrams.length; i++) {
+			final int cardinality = cardinalityOf(trigrams[i]);
+			if (cardinality == 0) {
+				return 0;
+			}
+			if (cardinality < minimum) {
+				minimum = cardinality;
+			}
+		}
+		return minimum == Integer.MAX_VALUE ? 0 : minimum;
+	}
+
+	/**
+	 * Intersects the postings of the given trigrams into the value ids that COULD hold the pattern they came from.
+	 *
+	 * The result is a superset of the true matches and must be verified exactly - membership is all this index holds,
+	 * so a candidate whose value merely contains all the pattern's trigrams in some other arrangement survives to
+	 * here. Measured on production corpora that costs 0.36 false candidates per true match in the worst case, which is
+	 * the whole reason positions were cancelled rather than deferred (see the class javadoc).
+	 *
+	 * ## Two intersection paths, chosen by the smallest posting
+	 *
+	 * The postings are ordered ascending by cardinality first, so the representation of the FIRST one decides the
+	 * chain. An `int[]` means the candidate set starts at {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ids or fewer
+	 * and can only shrink, so it is kept as a small `int[]` and the remaining postings are probed for membership. A
+	 * bitmap means every later posting is a bitmap too (its cardinality is at least this one's), so the chain is a
+	 * sequence of Roaring `and`s and the candidate array is materialized once, at the end.
+	 *
+	 * No early exit is taken: stopping the intersection while candidates remain trades a Roaring `and` for a
+	 * verification pass, and verification is the expensive half (55-87% of query cost on the measured corpora, and
+	 * roughly twice that per candidate for non-ASCII values). The intersection is run to completion for that reason.
+	 *
+	 * Nothing this method touches is mutated - the postings it reads are the index's own and are shared with every
+	 * version that has not rewritten them - and nothing it returns aliases one either, on either path.
+	 *
+	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
+	 * @return the candidate value ids in ascending order, owned by the caller, empty when the pattern cannot occur in
+	 * any value
+	 */
+	@Nonnull
+	public int[] resolveCandidateValueIds(@Nonnull long[] trigrams) {
+		final int trigramCount = trigrams.length;
+		if (trigramCount == 0) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		}
+		final Object[] postings = new Object[trigramCount];
+		final int[] cardinalities = new int[trigramCount];
+		for (int i = 0; i < trigramCount; i++) {
+			final Object posting = this.store.get(trigrams[i]);
+			if (posting == null) {
+				// a query trigram nothing was indexed under means no value can contain the pattern
+				return ArrayUtils.EMPTY_INT_ARRAY;
+			}
+			postings[i] = posting;
+			cardinalities[i] = TrigramPostings.cardinality(posting);
+		}
+		orderByCardinality(postings, cardinalities, trigramCount);
+		return postings[0] instanceof final int[] smallest
+			? intersectFromSmallPosting(smallest, postings, trigramCount)
+			: intersectFromBitmapPosting(postings, trigramCount);
+	}
+
+	/**
+	 * Runs the intersection when the cheapest posting is a sorted `int[]`: the candidate set starts as a copy of it and
+	 * every further posting compacts that copy in place.
+	 *
+	 * The copy is taken UNCONDITIONALLY, before any filtering. Two things need it: the cheapest posting is the index's
+	 * own array, shared by reference with every version that has not rewritten it, so compacting into it would corrupt
+	 * them all; and a single-trigram pattern filters nothing at all, so without the copy this method would hand that
+	 * very array out to the caller. One `Arrays.copyOf` of at most
+	 * {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ints is a small price for a returned array that is
+	 * unambiguously the caller's, whichever intersection path produced it.
+	 *
+	 * @param smallest     the cheapest posting
+	 * @param postings     every posting, ordered ascending by cardinality
+	 * @param trigramCount how many postings there are
+	 * @return the surviving candidate value ids in ascending order
+	 */
+	@Nonnull
+	private static int[] intersectFromSmallPosting(
+		@Nonnull int[] smallest, @Nonnull Object[] postings, int trigramCount
+	) {
+		final int[] candidates = Arrays.copyOf(smallest, smallest.length);
+		int candidateCount = candidates.length;
+		for (int i = 1; i < trigramCount && candidateCount > 0; i++) {
+			candidateCount = retain(candidates, candidateCount, postings[i]);
+		}
+		return candidateCount == candidates.length ? candidates : Arrays.copyOf(candidates, candidateCount);
+	}
+
+	/**
+	 * Runs the intersection when the cheapest posting is a bitmap, and therefore every posting is: the chain is a
+	 * sequence of Roaring `and`s, each of which allocates its own result rather than writing into either operand.
+	 *
+	 * @param postings     every posting, ordered ascending by cardinality
+	 * @param trigramCount how many postings there are
+	 * @return the surviving candidate value ids in ascending order
+	 */
+	@Nonnull
+	private static int[] intersectFromBitmapPosting(@Nonnull Object[] postings, int trigramCount) {
+		PersistentRoaringBitmap accumulator = (PersistentRoaringBitmap) postings[0];
+		for (int i = 1; i < trigramCount && !accumulator.isEmpty(); i++) {
+			accumulator = PersistentRoaringBitmap.and(accumulator, (PersistentRoaringBitmap) postings[i]);
+		}
+		// `toArray` reads the accumulator; when the loop never ran it is the index's own posting, which this leaves
+		// untouched exactly as the contract on `getValueIdsOf` requires
+		return accumulator.toArray();
+	}
+
+	/**
+	 * Filters an ascending candidate array down to the ids the given posting also holds, in place.
+	 *
+	 * @param candidates     the ascending candidate ids, compacted in place
+	 * @param candidateCount how many candidates are currently live
+	 * @param posting        the posting to intersect with
+	 * @return how many candidates survived
+	 */
+	private static int retain(@Nonnull int[] candidates, int candidateCount, @Nonnull Object posting) {
+		int kept = 0;
+		if (posting instanceof final int[] other) {
+			// both sides are ascending, so one merge pass suffices
+			int left = 0;
+			int right = 0;
+			while (left < candidateCount && right < other.length) {
+				final int candidate = candidates[left];
+				final int probe = other[right];
+				if (candidate == probe) {
+					candidates[kept++] = candidate;
+					left++;
+					right++;
+				} else if (candidate < probe) {
+					left++;
+				} else {
+					right++;
+				}
+			}
+			return kept;
+		}
+		final PersistentRoaringBitmap bitmap = (PersistentRoaringBitmap) posting;
+		for (int i = 0; i < candidateCount; i++) {
+			final int candidate = candidates[i];
+			if (bitmap.contains(candidate)) {
+				candidates[kept++] = candidate;
+			}
+		}
+		return kept;
+	}
+
+	/**
+	 * Orders the postings ascending by cardinality. Insertion sort over the two parallel arrays: a pattern of 20 code
+	 * points produces 18 trigrams, so a comparison sort's asymptotics are irrelevant and its allocation is not.
+	 *
+	 * @param postings      the postings to reorder in place
+	 * @param cardinalities their cardinalities, reordered with them
+	 * @param count         how many entries are live
+	 */
+	private static void orderByCardinality(@Nonnull Object[] postings, @Nonnull int[] cardinalities, int count) {
+		for (int i = 1; i < count; i++) {
+			final int cardinality = cardinalities[i];
+			final Object posting = postings[i];
+			int j = i - 1;
+			while (j >= 0 && cardinalities[j] > cardinality) {
+				cardinalities[j + 1] = cardinalities[j];
+				postings[j + 1] = postings[j];
+				j--;
+			}
+			cardinalities[j + 1] = cardinality;
+			postings[j + 1] = posting;
+		}
 	}
 
 	/**
