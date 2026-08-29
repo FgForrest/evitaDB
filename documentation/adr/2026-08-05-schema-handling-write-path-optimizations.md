@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-10 08:45
+updated: 2026-08-29 13:05
 status: accepted
 kind: optimization
 issues: [1390]
@@ -85,8 +85,8 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
-  **Revisit** once the exploration in `specifications/write-path-optimizations/` (on `dev`) has a
-  measured ceiling to compare against.
+  **Revisit** once the placement has a measured ceiling to compare against; the exploration this
+  once pointed at was never carried out, and its notes were retired with the plan folder.
 
 ### Option C — memoize the resolved reference schema on the executor across mutations (declined)
 
@@ -190,13 +190,12 @@ B remains the larger prize and should be sequenced after its exploration produce
   without one: `ReflectedReferenceSchema` overrides `getAttribute` with an availability assert, so a
   null-returning sibling would need a matching override to avoid bypassing it — more surface than
   the single DTO-typed call site justified.
-- **The plan folder must still be retired.** `specifications/write-path-optimizations/` now has only
-  one item left unclaimed: its §1 *Problem B*, which is Option B above. §1 *Problem A* is implemented
-  by this record, and §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
-  `ObjectIntHashMap` size hint by deleting the map) ship as the sibling commit in this same branch,
-  issue #1391. Once the name-canonicalization exploration has a measured ceiling, the folder should
-  leave `specifications/` entirely — either folded into a record or deleted, per
-  `.claude/rules/adr.md`.
+- **The plan folder is retired** (2026-08-29). Nothing was lost with it: §1 *Problem A* is
+  implemented by this record, §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
+  `ObjectIntHashMap` size hint by deleting the map) shipped as the sibling commit in this same
+  branch under issue #1391, §4 is Option D above, and its one unclaimed item — §1 *Problem B*,
+  name canonicalization at the mutation boundary — is Option B above, with its profile numbers and
+  the placement problem that blocks it. That option is the live one; the folder was not.
 
 ## Related work
 
