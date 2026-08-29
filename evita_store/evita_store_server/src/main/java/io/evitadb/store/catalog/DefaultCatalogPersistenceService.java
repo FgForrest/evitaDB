@@ -186,6 +186,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -437,6 +438,21 @@ public class DefaultCatalogPersistenceService
 	 * Obsolete file maintainer takes care of deleting files that are no longer referenced by any of the sessions.
 	 */
 	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
+	/**
+	 * Retirements of WARM_UP data files whose superseding bootstrap record has not been published yet.
+	 *
+	 * In warm-up the maintainer purges eagerly - there are no catalog versions to hold a file against - but the file
+	 * a compaction supersedes is still named by the CURRENTLY published bootstrap record, and that record is only
+	 * replaced at the end of the round. Deleting inside the round therefore unlinks a file the published pointer
+	 * chain still reaches, and a crash before publication leaves a catalog that cannot be loaded at all. Retirement
+	 * is a **confirm-phase** action: it is parked here and released by {@link #writeCatalogBootstrap} once the
+	 * superseding record is durable.
+	 *
+	 * A round that never publishes leaves its entries parked - the next successful publication drains them, and
+	 * {@link #close()} drops them unrun, because a file the last published record still names must survive the
+	 * process that failed to supersede it.
+	 */
+	@Nonnull private final Queue<Runnable> unpublishedRetirements = new ConcurrentLinkedQueue<>();
 	/**
 	 * The single callback through which the history horizon is applied to the files on disk. It is a no-op unless
 	 * {@link StorageOptions#timeTravelEnabled()} is set - without time travel the files are deleted as soon as their
@@ -3800,6 +3816,11 @@ public class DefaultCatalogPersistenceService
 			this.historyHorizonLock.unlock();
 		}
 		if (!alreadyClosed) {
+			// Retirements still parked here name files the LAST PUBLISHED bootstrap record may still reach, because
+			// the round that would have superseded them never published. Dropping them unrun leaves the compacted
+			// generation as dead space and keeps the catalog loadable; running them would delete the very files a
+			// reload follows.
+			this.unpublishedRetirements.clear();
 			// the guard only ever reads and reclaims history, and the flag above has fenced it out by now
 			if (this.timeTravelSizeGuardTask != null) {
 				IOUtils.closeQuietly(this.timeTravelSizeGuardTask::close);
@@ -4423,8 +4444,36 @@ public class DefaultCatalogPersistenceService
 	 * @param removalLambda  lambda releasing the in-memory resources bound to the file
 	 */
 	private void retireDataFile(long catalogVersion, @Nonnull Path path, @Nonnull Runnable removalLambda) {
-		this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
-		scheduleTimeTravelSizeGuard();
+		if (catalogVersion <= 0L) {
+			// WARM_UP. The maintainer would purge this immediately - it has no catalog version to hold the file
+			// against - but the record that supersedes this file is not published yet, so the file is still named by
+			// the pointer chain a reload would follow. Park it and let `writeCatalogBootstrap` release it; see
+			// `unpublishedRetirements`.
+			this.unpublishedRetirements.add(
+				() -> {
+					this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+					scheduleTimeTravelSizeGuard();
+				}
+			);
+		} else {
+			this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+			scheduleTimeTravelSizeGuard();
+		}
+	}
+
+	/**
+	 * Releases every retirement that was waiting for a bootstrap record to supersede the file it names.
+	 *
+	 * Runs only after the record is durable, which is what makes the deletion safe: from that moment the published
+	 * pointer chain names the file that replaced it, so nothing a reload follows can reach the retired one. A round
+	 * that failed before publishing simply leaves its entries parked for the next successful one - the files it
+	 * wrote are unreferenced dead space until then, which costs disk and never correctness.
+	 */
+	private void releaseUnpublishedRetirements() {
+		Runnable retirement;
+		while ((retirement = this.unpublishedRetirements.poll()) != null) {
+			retirement.run();
+		}
 	}
 
 	/**
@@ -5229,6 +5278,12 @@ public class DefaultCatalogPersistenceService
 			// through, deferred checkpoints included - is what makes the budget observe the generation that
 			// scheduling on retirement alone would skip.
 			scheduleTimeTravelSizeGuard();
+
+			// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
+			// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
+			// earlier removes a file the previously published record still reaches, which no bootstrap write is
+			// needed to turn into an unloadable catalog.
+			releaseUnpublishedRetirements();
 
 			return bootstrapRecord;
 		} catch (InterruptedException e) {

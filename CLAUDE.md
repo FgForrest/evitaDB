@@ -30,6 +30,13 @@ stored and what it means; only `evita_store` knows it is a file. SPI types under
 contracts and must execute no IO at all. Scope, the exceptions that are genuinely not catalog storage, and how to
 split a type that violates this: `.claude/rules/module-boundaries.md`
 
+**Nothing is durable until the bootstrap record publishes it.** Data files are append-only and bytes no pointer
+reaches are inert — so "refuse to persist" always means "refuse to publish", and a failure that only wrote
+unpublished bytes has damaged nothing. Read `.claude/rules/durability-model.md` **before** writing any code that
+decides what is safe to persist, any failure handler that refuses work to protect stored data, or any message
+telling an operator their data is damaged. Getting this wrong produces guards that cost availability and protect
+nothing.
+
 ## Decision Records (ADR)
 
 `documentation/adr/` holds one dated record per line of work — what was done, when, why, which

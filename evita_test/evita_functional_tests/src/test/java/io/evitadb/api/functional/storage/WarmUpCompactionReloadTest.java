@@ -30,6 +30,8 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestTags;
 import io.evitadb.utils.StringUtils;
@@ -45,6 +47,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -61,21 +64,29 @@ import static io.evitadb.test.Entities.PRODUCT;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins that a warm-up load which compacts a collection more than once can still be reopened.
+ * Pins both ways a compacting warm-up load can leave a catalog that cannot be opened again.
  *
- * A collection header is addressed by its file index AND its location inside that file. Compaction copies the live
- * records into a fresh file in the same order, so the header record routinely lands at the very offset and length it
- * held in the file it supersedes - which made a location-only "has anything changed?" test report "unchanged" for
- * precisely the rewrite that changed the index. The persisted header then keeps naming a generation that compaction
- * has already retired, and since that header is what a reload resolves the data file from, the catalog cannot be
- * opened at all.
+ * Compaction rewrites a collection into a NEW file and retires the old one, so it is the one operation that both
+ * changes which file the catalog must point at and removes the file it used to point at. Each half has its own way of
+ * going wrong, and the two are independent - the tests below fail for different reasons and against different fixes.
  *
- * It takes TWO compactions of one collection to show. The first moves the header's location and so publishes
- * normally; only from the second onward does the location repeat and the write get skipped. That is why the defect
- * survived - a test-sized corpus compacts once, if at all, and a real bulk load compacts repeatedly.
+ * **The published header must name the new file.** A collection header is addressed by its file index AND its
+ * location inside that file. Compaction copies the live records in the same order, so the header record routinely
+ * lands at the very offset and length it held in the file it supersedes - which made a location-only
+ * "has anything changed?" test report "unchanged" for precisely the rewrite that changed the index. The persisted
+ * header then keeps naming a generation that has been retired, and since that header is what a reload resolves the
+ * data file from, the catalog is unloadable. It takes TWO compactions to show: the first moves the location and
+ * publishes normally, and only from the second does the location hold still.
+ *
+ * **A file the published record still names must not be deleted.** Appends are inert - bytes no bootstrap record
+ * reaches are dead space - but deletes are not. The retired file stays named by the CURRENTLY published record until
+ * the round that supersedes it publishes, so unlinking it inside that round removes a file the pointer chain a reload
+ * follows still reaches. In `WARM_UP` the maintainer purges eagerly, having no catalog versions to hold a file
+ * against, which is where that used to happen.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -109,13 +120,79 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	@Test
+	@Timeout(value = 120, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+	@DisplayName("A round that fails before publishing leaves the previously published generation on disk")
+	void shouldKeepThePublishedGenerationWhenTheSupersedingRoundNeverPublishes() {
+		this.evita.defineCatalog(TEST_CATALOG);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class)
+					.updateVia(session);
+			}
+		);
+
+		// several published rounds, each rewriting the same entities so the previous generation of their storage
+		// parts becomes waste - which is what drives the collection file over the compaction thresholds
+		for (int round = 0; round < PUBLISHED_ROUNDS; round++) {
+			writeBatch(round);
+		}
+
+		// the test is worthless unless compaction actually ran, and a file index above zero is the only observable
+		// proof of it - so assert it rather than assume the thresholds did their job
+		final Set<Integer> indexesBeforeFailure = collectionFileIndexes();
+		assertTrue(
+			indexesBeforeFailure.stream().anyMatch(index -> index > 0),
+			"The corpus must have compacted at least once, otherwise this test asserts nothing. " +
+				"Collection file indexes present: " + indexesBeforeFailure
+		);
+
+		// from here on the catalog can never publish again: the round below compacts, then fails at the header write
+		injectStoreHeaderFailure();
+		assertThrows(
+			RuntimeException.class,
+			() -> writeBatch(PUBLISHED_ROUNDS),
+			"The round whose header write is injected to fail must surface the failure."
+		);
+
+		// restart on the same storage - the reload follows the last PUBLISHED bootstrap record, and every file that
+		// record names must still be there
+		this.evita.close();
+		this.evita = new Evita(compactionEagerConfiguration());
+		// the catalog is loaded on the service pool, so `new Evita` returns while it is still BEING_ACTIVATED -
+		// querying before that settles fails with CatalogTransitioningException and says nothing about the reload
+		this.evita.waitUntilFullyInitialized();
+
+		final int entityCount = assertDoesNotThrow(
+			() -> this.evita.queryCatalog(
+				TEST_CATALOG,
+				(Function<EvitaSessionContract, Integer>) session -> session.getEntityCollectionSize(PRODUCT)
+			),
+			"The catalog must reload from its last published state - the round that failed to publish must not " +
+				"have taken the generation that state names."
+		);
+		assertEquals(
+			BATCH_SIZE, entityCount,
+			"The reloaded catalog must hold exactly what the last successful flush published."
+		);
+	}
+
 	/**
-	 * Writes a corpus that compacts several times over, with nothing failing anywhere, and reopens the engine on the
-	 * same storage.
+	 * The same corpus and the same compaction as the scenario above, but with NO injected failure: every round
+	 * publishes, and the catalog must still come back.
 	 *
-	 * `PUBLISHED_ROUNDS` is sized so the collection compacts more than once, which is what the defect needs;
-	 * {@link #assertCompactionHappened()} refuses to let the test pass vacuously should the corpus or the thresholds
-	 * ever drift to where it stops compacting at all.
+	 * This is the half that catches a published header still naming a superseded generation. It needs the corpus to
+	 * compact more than once - the first compaction moves the header's location and so publishes through a
+	 * location-only change test, and only from the second one onward does the location repeat and the write get
+	 * skipped. `PUBLISHED_ROUNDS` is sized for that, and {@link #assertCompactionHappened()} refuses to let the test
+	 * pass vacuously if it ever stops being.
+	 *
+	 * It also keeps the scenario above honest. If a warm-up catalog that compacted cannot be reloaded even when
+	 * nothing failed, then the retirement is not what broke it, and a failure there would be pointing at the wrong
+	 * thing entirely - which is exactly what happened while this defect was still open.
 	 */
 	@Test
 	@Timeout(value = 120, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
@@ -260,9 +337,42 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Makes every later `storeHeader` call on the live catalog throw, so the round that follows compacts and then
+	 * fails before it can publish a bootstrap record naming the compacted file.
+	 */
+	private void injectStoreHeaderFailure() {
+		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		try {
+			final Field field = Catalog.class.getDeclaredField("persistenceService");
+			field.setAccessible(true);
+			final CatalogPersistenceService<?, ?, ?> real = (CatalogPersistenceService<?, ?, ?>) field.get(catalog);
+			final CatalogPersistenceService<?, ?, ?> failing = (CatalogPersistenceService<?, ?, ?>) Proxy.newProxyInstance(
+				CatalogPersistenceService.class.getClassLoader(),
+				new Class<?>[]{CatalogPersistenceService.class},
+				(proxy, method, args) -> {
+					if ("storeHeader".equals(method.getName())) {
+						throw new UnexpectedIOException(
+							"Injected header-write failure after compaction",
+							"The catalog header could not be written."
+						);
+					}
+					try {
+						return method.invoke(real, args);
+					} catch (InvocationTargetException ex) {
+						throw ex.getCause();
+					}
+				}
+			);
+			field.set(catalog, failing);
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("Failed to inject the storeHeader failure", ex);
+		}
+	}
+
+	/**
 	 * Returns a configuration whose compaction thresholds are low enough that an ordinary warm-up load compacts
 	 * within a handful of session closes, with time travel off - the default, and the configuration in which the
-	 * superseded generation is actually unlinked rather than kept for a historical read.
+	 * retirement actually unlinks the file.
 	 *
 	 * @return the configuration both engine instances of this test are built from
 	 */
