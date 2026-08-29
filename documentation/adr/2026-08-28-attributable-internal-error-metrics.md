@@ -314,3 +314,5 @@ and `byte-buddy-agent` at 1.17.8 in every module, with no 1.18.x remaining; 529 
 
 - **2026-08-27** — production counter growth observed on the FG test cluster
 - **2026-08-28** — investigation, three defects identified and measured; implemented, issue #1461 filed
+- **2026-08-29** — two adjacent defects found while verifying (driver code recovery, Byte Buddy version split) and
+  fixed in the same line of work; PRs #1462 (`master`) and #1463 (`dev`)
