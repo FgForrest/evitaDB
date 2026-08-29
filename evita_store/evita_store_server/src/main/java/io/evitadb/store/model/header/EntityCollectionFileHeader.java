@@ -50,7 +50,16 @@ import static java.util.Optional.ofNullable;
  *                                    collection creation and never changes.
  *                                    The primary key can be used interchangeably to
  *                                    {@link EntitySchema#getName() String entity type}.
- * @param entityTypeFileIndex         Contains index of an entity collection file where the collection contents are stored.
+ * @param entityTypeFileIndex         Contains index of an entity collection file where the collection contents
+ *                                    are stored.
+ *                                    The same fact is recorded a second time, as a
+ *                                    {@link io.evitadb.store.model.header.CollectionFileReference} inside the catalog
+ *                                    header, and THAT copy is what the load path resolves from - it is written
+ *                                    unconditionally and so cannot lag behind a compaction. This copy is kept anyway,
+ *                                    deliberately: it is the only route to a collection's data that does not pass
+ *                                    through the catalog header, which is what post-mortem analysis of a catalog with
+ *                                    an unreadable header depends on. Do not remove it on the grounds that production
+ *                                    reads the other one.
  * @param recordCount                 Contains information about the number of entities in the collection. Servers for
  *                                    informational purposes.
  * @param globalEntityIndexPrimaryKey Contains {@link io.evitadb.index.EntityIndex} id that belongs to the
@@ -157,6 +166,38 @@ public record EntityCollectionFileHeader(
 			storageDescriptor == null ? 1 : storageDescriptor.peakCompressedKeyId(),
 			activeRecordShare,
 			lastModifiedMillis
+		);
+	}
+
+	/**
+	 * Returns a copy of this header addressing the given data file generation, leaving everything else untouched.
+	 *
+	 * Used only to reconcile this header with the catalog header when the two name different files - see
+	 * {@code DefaultCatalogPersistenceService#resolveAgainstCatalogHeader}. Only the index is replaced, because the
+	 * one damage shape that produces such a disagreement provably leaves {@link #fileLocation()} correct.
+	 *
+	 * @param entityTypeFileIndex index of the data file generation the returned header should address
+	 * @return copy of this header naming the given file index
+	 */
+	@Nonnull
+	public EntityCollectionFileHeader withEntityTypeFileIndex(int entityTypeFileIndex) {
+		return new EntityCollectionFileHeader(
+			this.version,
+			this.fileLocation,
+			this.compressedKeys,
+			this.entityType,
+			this.entityTypePrimaryKey,
+			entityTypeFileIndex,
+			this.recordCount,
+			this.lastPrimaryKey,
+			this.lastEntityIndexPrimaryKey,
+			this.lastInternalPriceId,
+			this.storageDescriptor,
+			this.globalEntityIndexPrimaryKey,
+			this.usedEntityIndexPrimaryKeys,
+			this.lastKeyId,
+			this.activeRecordShare,
+			this.lastModifiedMillis
 		);
 	}
 

@@ -25,13 +25,19 @@
 package io.evitadb.api.functional.storage;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
+import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestTags;
 import io.evitadb.utils.StringUtils;
@@ -50,6 +56,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -64,15 +71,16 @@ import static io.evitadb.test.Entities.PRODUCT;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins both ways a compacting warm-up load can leave a catalog that cannot be opened again.
+ * Pins the ways a compacting warm-up load can leave a catalog that cannot be opened again.
  *
  * Compaction rewrites a collection into a NEW file and retires the old one, so it is the one operation that both
  * changes which file the catalog must point at and removes the file it used to point at. Each half has its own way of
- * going wrong, and the two are independent - the tests below fail for different reasons and against different fixes.
+ * going wrong, and they are independent - the tests below fail for different reasons and against different fixes.
  *
  * **The published header must name the new file.** A collection header is addressed by its file index AND its
  * location inside that file. Compaction copies the live records in the same order, so the header record routinely
@@ -87,6 +95,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the round that supersedes it publishes, so unlinking it inside that round removes a file the pointer chain a reload
  * follows still reaches. In `WARM_UP` the maintainer purges eagerly, having no catalog versions to hold a file
  * against, which is where that used to happen.
+ *
+ * The third test is about neither: it takes a catalog a pre-fix build already damaged and requires it to open. The
+ * file a collection lives in is recorded twice - in the catalog header and on the collection header - and only the
+ * first is written unconditionally, so the load path resolves from that one and reconciles the other against it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -177,6 +189,116 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 		assertEquals(
 			BATCH_SIZE, entityCount,
 			"The reloaded catalog must hold exactly what the last successful flush published."
+		);
+	}
+
+	/**
+	 * Reproduces what a build predating the header-index fix left on disk, and requires the catalog to open anyway.
+	 *
+	 * The damage is one stale integer: the collection header naming a data file generation that compaction has
+	 * already replaced and retired, while the catalog header names the current one. It is manufactured through the
+	 * real publication path rather than by writing bytes - the collection header is rewritten to the previous
+	 * generation, and the catalog is then made to publish by a change that does not touch `PRODUCT` at all, so the
+	 * flush skips the collection header exactly as the old comparison would have and the stale value survives into
+	 * the published state.
+	 *
+	 * Without the reconciliation at load this fails on a file that was correctly deleted; with it the catalog
+	 * resolves from the catalog header - the copy written unconditionally - warns, and opens with its data intact.
+	 */
+	@Test
+	@Timeout(value = 120, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
+	@DisplayName("A collection header left naming a superseded generation still reloads")
+	void shouldReloadWhenTheCollectionHeaderNamesASupersededGeneration() {
+		defineProductSchema();
+		for (int round = 0; round < PUBLISHED_ROUNDS; round++) {
+			writeBatch(round);
+		}
+		assertCompactionHappened();
+
+		final int supersededIndex = staleTheCollectionHeader();
+		publishWithoutTouchingProduct();
+
+		assertFalse(
+			collectionFileIndexes().contains(supersededIndex),
+			"The generation the collection header now names must be gone from disk, or the test proves nothing - " +
+				"it would be resolving a file that happens to still be there."
+		);
+
+		this.evita.close();
+		final String storageTree = describeStorageTree();
+		this.evita = new Evita(compactionEagerConfiguration());
+		// the catalog is loaded on the service pool, so `new Evita` returns while it is still BEING_ACTIVATED -
+		// querying before that settles fails with CatalogTransitioningException and says nothing about the reload
+		this.evita.waitUntilFullyInitialized();
+
+		final int entityCount = assertDoesNotThrow(
+			() -> this.evita.queryCatalog(
+				TEST_CATALOG,
+				(Function<EvitaSessionContract, Integer>) session -> session.getEntityCollectionSize(PRODUCT)
+			),
+			"A collection header naming a retired generation must be reconciled against the catalog header, which " +
+				"names the current one. Storage tree: " + storageTree
+		);
+		assertEquals(
+			BATCH_SIZE, entityCount,
+			"Reconciling the file index must not cost any data - the records were never in doubt."
+		);
+	}
+
+	/**
+	 * Rewrites the `PRODUCT` collection header to name the generation before the current one, reproducing what
+	 * a skipped header write used to leave behind.
+	 *
+	 * Only the file index is changed, because that is the only field the historical defect could corrupt: the write
+	 * was skipped precisely because the header record's location had not moved.
+	 *
+	 * @return the file index the collection header now (wrongly) names
+	 */
+	private int staleTheCollectionHeader() {
+		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		try {
+			final Field field = Catalog.class.getDeclaredField("persistenceService");
+			field.setAccessible(true);
+			final DefaultCatalogPersistenceService persistenceService =
+				(DefaultCatalogPersistenceService) field.get(catalog);
+			final CatalogOffsetIndexStoragePartPersistenceService storagePartService =
+				persistenceService.getStoragePartPersistenceService(0L);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
+				storagePartService.getCatalogHeader(0L);
+			final CollectionFileReference reference = catalogHeader
+				.getEntityTypeFileIndexIfExists(PRODUCT)
+				.orElseThrow(() -> new IllegalStateException("Catalog header does not know `PRODUCT` yet!"));
+			final EntityCollectionFileHeader current = Objects.requireNonNull(
+				storagePartService.getStoragePart(
+					0L, reference.entityTypePrimaryKey(), EntityCollectionFileHeader.class
+				),
+				"Collection header for `PRODUCT` is missing!"
+			);
+			final int supersededIndex = current.entityTypeFileIndex() - 1;
+			storagePartService.putStoragePart(0L, current.withEntityTypeFileIndex(supersededIndex));
+			return supersededIndex;
+		} catch (ReflectiveOperationException ex) {
+			throw new IllegalStateException("Failed to stale the collection header", ex);
+		}
+	}
+
+	/**
+	 * Publishes a bootstrap record via a change that leaves `PRODUCT` alone.
+	 *
+	 * This is what carries the staled collection header into the published state. A change to `PRODUCT` would move
+	 * its header record and so cause the flush to rewrite the collection header correctly, undoing the damage; a
+	 * catalog schema change makes the flush publish while `PRODUCT`'s header still compares equal to the one the
+	 * catalog header already holds, which is exactly the condition under which the write is skipped.
+	 */
+	private void publishWithoutTouchingProduct() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute("recoveryProbe", String.class)
+					.updateVia(session);
+			}
 		);
 	}
 
