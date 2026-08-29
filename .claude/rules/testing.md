@@ -130,6 +130,20 @@ expect, as unproven until you have read the count.
   `-Dtest='!SomeTest,!OtherTest'` — alongside `-Dgroups` matches **no** tests, prints `Tests run: 0` and exits
   `BUILD SUCCESS`. Read as a pass, it looks like the excluded classes were the whole problem. Always lead with an
   explicit include: `-Dtest='**/*Test,!**/SomeTest'`, and check the count is the one you expected.
+- **`-Dtest` naming an *abstract* base class selects nothing.** Several functional suites are written as an
+  abstract base with concrete per-scope subclasses (`AbstractEntityByAttributeFilteringFunctionalTest` and its
+  siblings). Surefire matches the pattern against class *names* and then finds nothing runnable, so
+  `-Dtest='AbstractEntityByAttributeFilteringFunctionalTest'` prints `Tests run: 0` and `BUILD SUCCESS` — measured,
+  and `failIfNoTests` does **not** rescue it, since surefire treats "pattern matched a class" as tests having been
+  selected. Name the concrete subclasses instead. Find them with
+  `rg -l 'extends <AbstractClassName>' --glob '*.java'` before you rely on the run.
+- **`-Dtest='Class#method'` selects nothing when the method lives in a `@Nested` class.** Because the convention
+  here is to consolidate methods into `@Nested` inner classes, the method is almost never declared on the outer
+  class, and the outer-class selector therefore matches no method: `Tests run: 0`, `BUILD SUCCESS`, again
+  regardless of `failIfNoTests`. Use the nested wildcard —
+  `-Dtest='TrigramSubstringSearchTest$*#shouldRejectAFalseCandidate'` — which was measured to select exactly the
+  one method (`Tests run: 1`) where the plain `Class#method` form selected zero. Quote the argument so the shell
+  leaves `$*` alone.
 - **`-DsurefireArgLine` silently replaces JaCoCo's agent rather than appending to it.** The surefire `argLine` is
   built from `${surefireArgLine}`, which `jacoco:prepare-agent` populates. Passing `-DsurefireArgLine=...` on the
   command line is a *user property* and therefore **wins outright**, dropping the coverage agent from the forked
