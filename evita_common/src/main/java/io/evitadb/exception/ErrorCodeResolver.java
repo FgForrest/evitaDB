@@ -93,9 +93,13 @@ final class ErrorCodeResolver {
 			return UNKNOWN_ERROR_CODE;
 		}
 		final StackTraceElement origin = stackTrace[index];
+		// a frame compiled without a LineNumberTable reports -1, and a native frame -2; either would put a `-` into
+		// the code and break the `\w+:\w+:\w+` shape the client parses it back out of, so both collapse to 0 - the
+		// class and method hashes still identify the origin as well as they ever could for such a frame
+		final int lineNumber = Math.max(0, origin.getLineNumber());
 		return StringUtils.hashChars(origin.getClassName()) + ":" +
 			StringUtils.hashChars(origin.getMethodName()) + ":" +
-			origin.getLineNumber();
+			lineNumber;
 	}
 
 }

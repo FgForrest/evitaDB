@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.observability.agent;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
@@ -104,44 +106,59 @@ class ErrorMonitorBootstrapVisibilityTest {
 		return utf8Constants;
 	}
 
-	@Test
-	@DisplayName("Should reference no evitaDB type other than itself")
-	void shouldReferenceNoEvitaDbTypeOtherThanItself() throws IOException {
-		final String ownInternalName = ErrorMonitor.class.getName().replace('.', '/');
-		final List<String> offending = new ArrayList<>();
-		for (final String constant : readUtf8Constants(ErrorMonitor.class)) {
-			if (!constant.contains("io/evitadb") && !constant.contains("io.evitadb")) {
-				continue;
-			}
-			// the class names itself in its own `this_class` entry and in `this`-typed descriptors; nothing else
-			// from io.evitadb may appear, because the bootstrap classloader cannot resolve it
-			if (constant.equals(ownInternalName) || constant.equals("L" + ownInternalName + ";")) {
-				continue;
-			}
-			offending.add(constant);
-		}
-		assertTrue(
-			offending.isEmpty(),
-			"ErrorMonitor is injected into the bootstrap classloader and must reference only `java.*` types, but " +
-				"its constant pool names: " + offending
-		);
+	/**
+	 * Constant pool of {@link ErrorMonitor}, parsed once - its bytecode cannot change between the tests below.
+	 */
+	private static List<String> constants;
+
+	@BeforeAll
+	static void readConstantPool() throws IOException {
+		constants = readUtf8Constants(ErrorMonitor.class);
 	}
 
-	@Test
-	@DisplayName("Should reference no third-party library type either")
-	void shouldReferenceNoThirdPartyType() throws IOException {
+	/**
+	 * Asserts that no constant-pool entry names a type the bootstrap classloader could not resolve.
+	 *
+	 * @param offends  decides whether an entry is a forbidden reference
+	 * @param expected what the assertion is protecting, used in the failure message
+	 */
+	private static void assertNoConstantMatches(@Nonnull Predicate<String> offends, @Nonnull String expected) {
 		final List<String> offending = new ArrayList<>();
-		for (final String constant : readUtf8Constants(ErrorMonitor.class)) {
-			// annotations survive as descriptors; Lombok, JSR-305 and Byte Buddy are all equally unreachable from
-			// the bootstrap classloader, and `@Nonnull` on a parameter is the easiest way to add one by accident
-			if (constant.contains("lombok/") || constant.contains("javax/annotation") ||
-				constant.contains("net/bytebuddy") || constant.contains("org/slf4j")) {
+		for (final String constant : constants) {
+			if (offends.test(constant)) {
 				offending.add(constant);
 			}
 		}
 		assertTrue(
 			offending.isEmpty(),
-			"ErrorMonitor must reference only `java.*` types, but its constant pool names: " + offending
+			"ErrorMonitor is injected into the bootstrap classloader and must reference only `java.*` types (" +
+				expected + "), but its constant pool names: " + offending
+		);
+	}
+
+	@Test
+	@DisplayName("Should reference no evitaDB type other than itself")
+	void shouldReferenceNoEvitaDbTypeOtherThanItself() {
+		final String ownInternalName = ErrorMonitor.class.getName().replace('.', '/');
+		assertNoConstantMatches(
+			constant -> (constant.contains("io/evitadb") || constant.contains("io.evitadb"))
+				// the class names itself in its own `this_class` entry and in `this`-typed descriptors; nothing
+				// else from io.evitadb may appear, because the bootstrap classloader cannot resolve it
+				&& !constant.equals(ownInternalName)
+				&& !constant.equals("L" + ownInternalName + ";"),
+			"no evitaDB type other than itself"
+		);
+	}
+
+	@Test
+	@DisplayName("Should reference no third-party library type either")
+	void shouldReferenceNoThirdPartyType() {
+		// annotations survive as descriptors; Lombok, JSR-305 and Byte Buddy are all equally unreachable from the
+		// bootstrap classloader, and `@Nonnull` on a parameter is the easiest way to add one by accident
+		assertNoConstantMatches(
+			constant -> constant.contains("lombok/") || constant.contains("javax/annotation")
+				|| constant.contains("net/bytebuddy") || constant.contains("org/slf4j"),
+			"no third-party type"
 		);
 	}
 }

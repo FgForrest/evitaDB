@@ -23,6 +23,10 @@
 
 package io.evitadb.externalApi.observability.agent;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.observability.configuration.ErrorOriginLogging;
@@ -32,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -46,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Verifies {@link ErrorOriginLogger}: which modes report, that repeated occurrences of one origin collapse onto a
@@ -69,16 +75,24 @@ class ErrorOriginLoggerTest {
 		return (GenericEvitaInternalError) GenericEvitaInternalError.createExceptionWithErrorCode("Whatever", origin);
 	}
 
-	@BeforeEach
-	void resetLogger() {
+	/**
+	 * Clears the logger's static state and puts the mode back to its default.
+	 */
+	private static void resetToDefaults() {
 		ErrorOriginLogger.reset();
 		ErrorOriginLogger.configure(ErrorOriginLogging.INTERNAL);
 	}
 
+	// both hooks are kept even though their bodies are the same: `@BeforeEach` isolates this class from whatever
+	// ran before it, `@AfterEach` protects the sibling classes that share the same static state in this fork
+	@BeforeEach
+	void resetLogger() {
+		resetToDefaults();
+	}
+
 	@AfterEach
 	void restoreDefaults() {
-		ErrorOriginLogger.reset();
-		ErrorOriginLogger.configure(ErrorOriginLogging.INTERNAL);
+		resetToDefaults();
 	}
 
 	@Nested
@@ -209,6 +223,38 @@ class ErrorOriginLoggerTest {
 			assertNotEquals(0L, ErrorOriginLogger.occurrencesOf("a:b:1"));
 			ErrorOriginLogger.reset();
 			assertEquals(0L, ErrorOriginLogger.occurrencesOf("a:b:1"));
+		}
+	}
+
+	@Nested
+	@DisplayName("re-logging is gated to powers of ten")
+	class ReLoggingTests {
+
+		@Test
+		@DisplayName("Should log a known origin again only at powers of ten")
+		void shouldLogKnownOriginOnlyAtPowersOfTen() {
+			final org.slf4j.Logger slf4jLogger = LoggerFactory.getLogger(ErrorOriginLogger.class);
+			assumeTrue(slf4jLogger instanceof Logger, "logback is required to capture the emitted events");
+			final Logger logger = (Logger) slf4jLogger;
+
+			final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+			appender.start();
+			final Level originalLevel = logger.getLevel();
+			logger.setLevel(Level.WARN);
+			logger.addAppender(appender);
+			try {
+				for (int i = 0; i < 11; i++) {
+					ErrorOriginLogger.reportInternalError(errorWithOrigin("relog:origin:1"));
+				}
+			} finally {
+				logger.detachAppender(appender);
+				logger.setLevel(originalLevel);
+				appender.stop();
+			}
+
+			assertEquals(11L, ErrorOriginLogger.occurrencesOf("relog:origin:1"));
+			// the first sighting and the tenth - never one per occurrence, never only the first
+			assertEquals(2, appender.list.size(), "expected exactly the 1st and 10th occurrence to be logged");
 		}
 	}
 
