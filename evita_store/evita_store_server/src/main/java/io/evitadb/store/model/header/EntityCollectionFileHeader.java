@@ -173,8 +173,9 @@ public record EntityCollectionFileHeader(
 	 * Returns a copy of this header addressing the given data file generation, leaving everything else untouched.
 	 *
 	 * Used only to reconcile this header with the catalog header when the two name different files - see
-	 * {@code DefaultCatalogPersistenceService#resolveAgainstCatalogHeader}. Only the index is replaced, because the
-	 * one damage shape that produces such a disagreement provably leaves {@link #fileLocation()} correct.
+	 * {@code EntityCollectionHeaderReconciler}, which is where that decision and its limits are written down. Only the
+	 * index is replaced, because the one damage shape that produces such a disagreement provably leaves
+	 * {@link #fileLocation()} correct, and the catalog header records nothing else to reconcile the rest against.
 	 *
 	 * @param entityTypeFileIndex index of the data file generation the returned header should address
 	 * @return copy of this header naming the given file index

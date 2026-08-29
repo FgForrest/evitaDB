@@ -2467,22 +2467,10 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Returns the collection header addressing the data file the published catalog header names.
 	 *
-	 * Which file a collection lives in is recorded twice, and both copies are written from the same object in the same
-	 * round: once as a {@link CollectionFileReference} inside the catalog header, and once as
-	 * {@link EntityCollectionFileHeader#entityTypeFileIndex()} on the collection header itself. The catalog header's
-	 * copy is written unconditionally, so it cannot lag behind a compaction - which is why the load path resolves from
-	 * it, and why this method exists.
-	 *
-	 * The collection header's copy is deliberately kept rather than removed: it is the only route to a collection's
-	 * data that does not pass through the catalog header, and post-mortem analysis of a catalog whose header is
-	 * unreadable depends on having it.
-	 *
-	 * A disagreement therefore means one of the two was damaged - historically by a flush that skipped the collection
-	 * header write because a compaction had changed the file index while leaving the header record's location unmoved.
-	 * In that shape the location is provably still correct, because the write was skipped precisely on the grounds
-	 * that it had not moved, so the file index alone is corrected and the data is intact. A disagreement that moved
-	 * the location as well belongs to no shape known to be recoverable, and is refused rather than answered with a
-	 * header assembled from two sources.
+	 * The whole decision - which of the two recorded copies wins, and what a disagreement between them means - lives in
+	 * {@link EntityCollectionHeaderReconciler}, because the catalog load path is not the only reader that has to make
+	 * it: both storage protocol migrations and the historical branch of the backup task reconstruct collections from a
+	 * stored header too, and a reader that skips the reconciliation reintroduces the defect for its own path.
 	 *
 	 * @param catalogVersion                catalog version being opened
 	 * @param storedHeader                  collection header as read from the catalog's offset index
@@ -2495,31 +2483,14 @@ public class DefaultCatalogPersistenceService
 		@Nonnull EntityCollectionFileHeader storedHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
 	) {
-		final CollectionFileReference publishedReference = storagePartPersistenceService
-			.getCatalogHeader(catalogVersion)
-			.getEntityTypeFileIndexIfExists(storedHeader.entityType())
-			.orElse(null);
-		if (publishedReference == null || publishedReference.fileIndex() == storedHeader.entityTypeFileIndex()) {
-			return storedHeader;
-		}
-		Assert.isPremiseValid(
-			Objects.equals(publishedReference.fileLocation(), storedHeader.fileLocation()),
-			() -> new GenericEvitaInternalError(
-				"Catalog `" + this.catalogName + "` addresses entity collection `" + storedHeader.entityType() +
-					"` as file index " + publishedReference.fileIndex() + " at " + publishedReference.fileLocation() +
-					" in its catalog header, but as file index " + storedHeader.entityTypeFileIndex() + " at " +
-					storedHeader.fileLocation() + " in the collection header!"
-			)
+		return EntityCollectionHeaderReconciler.reconcile(
+			this.catalogName,
+			storagePartPersistenceService
+				.getCatalogHeader(catalogVersion)
+				.getEntityTypeFileIndexIfExists(storedHeader.entityType())
+				.orElse(null),
+			storedHeader
 		);
-		log.warn(
-			"Entity collection `{}` of catalog `{}` is addressed as file index {} by the catalog header and as {} by" +
-				" its own header, which a flush predating the fix for this left behind. Resolving from the catalog" +
-				" header, which is the copy written unconditionally; the collection's data is intact, and the next" +
-				" flush that changes this collection rewrites its header and clears this.",
-			storedHeader.entityType(), this.catalogName,
-			publishedReference.fileIndex(), storedHeader.entityTypeFileIndex()
-		);
-		return storedHeader.withEntityTypeFileIndex(publishedReference.fileIndex());
 	}
 
 	@Nonnull
