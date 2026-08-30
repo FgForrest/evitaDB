@@ -40,6 +40,11 @@ memory of *reasoning*; the code only remembers outcomes.
   open follow-ups" of every hit — known traps and deliberately-deferred work live there.
 - **After finishing work that clears the bar**, write the record and delete the assignment/plan it
   replaces. Not optional, and not a follow-up task.
+- **Never attribute anything to a customer.** `documentation/adr/` publishes with the source. Keep
+  every number; drop every name — no customer or brand, in prose, filenames, identifiers **or commit
+  messages**, and no verbatim sample values from a customer dataset. Say "a production e-commerce
+  catalog (~157,000 products)" and describe data *shapes*, never the values themselves. Full rule
+  and the substitution vocabulary: `.claude/rules/adr.md`.
 - **In-flight plans live in `specifications/` and are never committed to git.** They are working
   notes, not a deliverable — tracking them puts intent into the history where a later reader cannot
   tell it apart from outcome. `/specifications/` is git-ignored to make this automatic rather than a
