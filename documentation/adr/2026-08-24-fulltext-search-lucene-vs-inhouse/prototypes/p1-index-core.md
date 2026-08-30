@@ -324,8 +324,9 @@ because it means **the formula engine really is not touched**, as §4.3 of the r
   `*.buckets.tsv` files extracted from a real catalog. P1 will repeat exactly this shape.
 - **A JMH harness** for latency has dozens of precedents in the same module
   (`InvertedIndexBlockSizeBenchmark`, `FrontCodedFindKeyBenchmark`, …).
-- **Real data** gets into the measurement by two routes: the JMH states of the production e-commerce state family
-  (`io/evitadb/performance/`), and `WalReplayBenchmark`, which boots an embedded instance from a
+- **Real data** gets into the measurement by two routes: the JMH state family under
+  `io/evitadb/performance/` that drives a production e-commerce catalog, and `WalReplayBenchmark`, which
+  boots an embedded instance from a
   directory snapshot passed by the system properties `evita.replay.catalogName` and
   `evita.replay.pristineDataDir` (`WalReplayState.java:139-265`). The datasets are **not** in the repo —
   they are supplied externally.
@@ -859,7 +860,7 @@ The usual traps of measurement runs recorded in the repo apply: the benchmark mu
 
 ### 7.4 Datasets
 
-**The e-commerce profile.** The real production e-commerce catalog. It is **not** in the repo — it is supplied
+**The e-commerce profile.** A real production e-commerce catalog. It is **not** in the repo — it is supplied
 externally as a directory with a snapshot, the way `WalReplayState` consumes it. Mind the memory: booting a
 real catalog is gigabytes and the measurement run must not take place on a machine where the heap is tight.
 That is precisely why K1 is separated from K2–K4 (§6).

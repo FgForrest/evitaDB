@@ -186,7 +186,7 @@ at the same time the seam by which the two paths can be told apart
 Two things follow:
 
 **First, all index work is done twice.** The census of 2026-07-27 (in the ADR
-`2026-07-27-write-path-performance-tuning`, the file `reports/2026-07-27-wal-replay-rounds.md`)
+`2026-07-27-write-path-performance-tuning`, its WAL-replay rounds report of that date)
 quantifies it: the trunk re-apply is ~38 % of all application CPU and the trunk phase costs 6–7× as much
 as the session apply over the same mutations. Fulltext maintenance therefore pays twice "from the
 factory".

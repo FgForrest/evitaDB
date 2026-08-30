@@ -775,7 +775,8 @@ Fulltext is < 1 % of reads, but index maintenance runs on **every** write of a s
 tax is paid even by those who never query fulltext. Maintenance is incremental: a token diff of the old
 and new value → adjusting postings (diff layers) + COW of the impact sidecar chunks of the affected terms.
 The risky case: an entity with a long description = hundreds of affected terms per mutation. Target: ≤ 10 %
-of commit throughput on a real WAL (P2, harness `WalReplayBenchmark` + the production e-commerce export). Mitigation
+of commit throughput on a real WAL (P2, harness `WalReplayBenchmark` + the production e-commerce export).
+Mitigation
 should the target not hold: the fulltext delta is applied in batch/asynchronously during trunk
 incorporation (the Z3 fallback permits it) — the write path then pays nothing for fulltext beyond
 serializing the mutation.
@@ -935,8 +936,8 @@ A shorter list than in the first version of the research:
   ≤ 25 ms per 1M candidates (1 thread); quality side-by-side against `attributeContains` on ~50 real
   queries.
 - **P2 — transactional maintenance.** COW of sidecar chunks under a real write load; harness
-  `WalReplayBenchmark` + the production e-commerce WAL. Criterion: a drop in commit throughput ≤ 10 %, otherwise activate
-  the fallback of §4.5(3).
+  `WalReplayBenchmark` + the production e-commerce WAL. Criterion: a drop in commit throughput ≤ 10 %,
+  otherwise activate the fallback of §4.5(3).
 - **P7 — rank profiles, boost channel, feature export.** The query-context boost map in phase 1 (an effect
   on the full order, not merely the top-K), the profile as configuration, the feature vector and
   annotations of recognized entities in the `require` response (§1.3). Criteria: a boost demonstrably lifts

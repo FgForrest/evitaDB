@@ -51,11 +51,11 @@ import java.util.Arrays;
  * posting between its allocation and its handover and no posting needs copying at all — and the difference is not
  * marginal. Growing one 444 437-member posting of `article.title` by copy-on-write costs ~491 ns per member
  * against ~2 ns for a bulk append; over a whole attribute the two tree descents per membership compound it
- * further. Measured end to end on a production CMS corpus (943 410 distinct values, 61.7 M memberships, 62 079 trigram
- * keys), with both paths fed by walking a real {@link InvertedIndex} exactly as the load path does, rebuilding
- * that one attribute through the incremental path costs **~135 s** against **~8.8 s** here — the same table,
- * verified member for member across all 62 079 keys — and the result occupies 118 MB against 151 MB, because each
- * container is materialized once at its exact size instead of being grown into.
+ * further. Measured end to end on a production CMS corpus (943 410 distinct values, 61.7 M memberships, 62 079
+ * trigram keys), with both paths fed by walking a real {@link InvertedIndex} exactly as the load path does,
+ * rebuilding that one attribute through the incremental path costs **~135 s** against **~8.8 s** here — the
+ * same table, verified member for member across all 62 079 keys — and the result occupies 118 MB against
+ * 151 MB, because each container is materialized once at its exact size instead of being grown into.
  *
  * # How
  *

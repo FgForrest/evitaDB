@@ -970,8 +970,8 @@ on over 1M vectors; were the raw data pulled onto the heap, it would show immedi
   for BQ.
 - **OP6-8 — a dataset at the target scale.** Which public dataset gives 1M vectors with 768 dimensions, under
   what licence terms and how large is it to download (§10.2)?
-- **OP6-9 — real embeddings from Sage.** Can Sage today produce and export embeddings for a production e-commerce catalog?
-  In §10.2 it is carried as an assumption, not as a fact.
+- **OP6-9 — real embeddings from Sage.** Can Sage today produce and export embeddings for the production
+  e-commerce catalogs? In §10.2 it is carried as an assumption, not as a fact.
 - **OP6-10 — graph degradation under incremental maintenance.** Does the graph need a periodic rebuild after a
   series of deletions, and if so, how does that rebuild meet the storage's compaction (step 6)?
 - **OP6-11 — concurrency.** All the criteria of §1 are measured single-threaded. How does vector search behave

@@ -856,8 +856,8 @@ convergence.
 ### 10.3 Real attribute values
 
 Smoke tests over artificial words will not show how the analyzer behaves on real content. The harness
-therefore needs a sample of real values: product names and short descriptions from a production catalog
-(a production e-commerce catalog, the same datasets P1 will then use) and a sample of long texts for the CMS profile (Z8).
+therefore needs a sample of real values: product names and short descriptions from a production e-commerce
+catalog (the same dataset P1 will then use) and a sample of long texts for the CMS profile (Z8).
 
 The output is not an assert but **material for a manual review**: for every value the terms it decomposed
 into are printed, and a human looks at whether the tokenization did something unexpected. Typical findings

@@ -1826,8 +1826,8 @@ medium pattern 307,180 → 130.7 (2,350×); rare patterns ≈ 1 µs; a **nonexis
   intersection on real corpora is nearly exact (worst 0.36 fp/true match; a 20-code-point `url`
   pattern left 14 false candidates out of 68,831). Phase 2 of §15 is cancelled, not deferred.
 - **§16/§29 posting representation → hybrid, and the threshold is a constant, T = 128.** Sorted
-  `int[]` up to T entries, RoaringBitmap above (−51% postings heap on the demo corpus, −6.4% on the CMS corpus
-  at the knee). The follow-up sweep (2026-08-25, six groups spanning a 31× V range, JOL only)
+  `int[]` up to T entries, RoaringBitmap above (−51% postings heap on the demo corpus, −6.4% on the
+  CMS corpus at the knee). The follow-up sweep (2026-08-25, six groups spanning a 31× V range, JOL only)
   falsified the first-guess scaling rule `T = 32 × ⌈V/65536⌉` — wrong coefficient *and* wrong
   variable; the crossover is linear in the containers a posting *actually spans*
   (`T* ≈ 26 + 103·c`, R² = 0.965, exactly the cost algebra of `4n+16` vs `F + c·C + ~2n`). But the
@@ -1863,7 +1863,7 @@ medium pattern 307,180 → 130.7 (2,350×); rare patterns ≈ 1 µs; a **nonexis
   needs the 4 B/value `(leaf, slot)` directory. Only the rejected packed-blocks layout had the
   claimed property.
 - **§19's "#545 shrinks V and with it K and E" has the emphasis backwards.** Case folding barely
-  merges values (the CMS corpus V −0.5%, E −0.1%) — it collapses the *key space* (K −18.5% overall, −35.5% on
+  merges values (CMS corpus V −0.5%, E −0.1%) — it collapses the *key space* (K −18.5% overall, −35.5% on
   `title`). Still a net saving, never a loss, but the benefit lives in the trigram keys.
 - **§27's cold-cache rows are structurally N/A for now** — the engine is in-memory and the spike
   structures are heap-resident; those rows become live the moment postings are persisted rather than
