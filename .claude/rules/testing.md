@@ -155,6 +155,18 @@ expect, as unproven until you have read the count.
   `0` whether or not `Foo` is present, because the pipeline swallows the missing-binary error and `grep` counts an
   empty stream. That reads as "the class is absent" and can convince you the wrong artifact is installed. Use
   `jar tf` for archive listings, and `javap` to inspect what a class actually contains.
+- **`evita_test/evita_performance_tests` builds only under the `full` profile.** A plain
+  `mvn clean install` never compiles that module, so it reports `BUILD SUCCESS` having compiled *none* of it —
+  a change that does not compile at all looks verified. Measured: a rename touching 63 classes in that module
+  passed a full reactor build that silently skipped every one of them. To actually compile it:
+  `mvn -o -P full -pl evita_test/evita_performance_tests test-compile`. The general form of the trap is that a
+  green reactor build only proves the modules the *active profiles* selected, so whenever a change lands outside
+  the default set, name the module you compiled rather than trusting the top-level result.
+- **A JMH benchmark jar shades its constants at package time.** Editing a constant in `evita_engine` and
+  re-running an existing `benchmarks.jar` measures the OLD value, and the run looks entirely healthy — a gate
+  constant that changed from admitting to declining will silently take the other branch and the two "arms" then
+  measure the same path. Before trusting any benchmark that depends on a constant, `javap -p -constants` the
+  packaged jar and confirm the value, then repackage. This has fired twice.
 
 ## Waiting for concurrency — the asymmetry that decides flakiness
 
