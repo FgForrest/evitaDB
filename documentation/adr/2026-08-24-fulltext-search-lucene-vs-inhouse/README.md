@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-30 07:13
+updated: 2026-08-30 08:03
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -103,8 +103,11 @@ database entirely:
 | 2026-08-29 | The gate prices against the **summed distinct-value count of the whole target set**, with an early exit | The trigram path displaces the scan over every index in the fan-out, not over any one of them: pricing against the global bucket count takes the accelerated path precisely where the scan is cheapest, and pricing against a single partition declines a wide fan-out that clears the floor by summation. Walking the target set in order to decide reads like a bug and is not — the worst case is one `getFilterIndex` plus one `getBucketCount` per index, strictly dominated by the per-index scan being decided against, which resolves those same filter indexes and then visits every bucket of every one of them | `TrigramSubstringSearch#accelerationThreshold`, `AbstractAttributeStringSearchTranslator#sumDistinctValuesUpTo` |
 | 2026-08-29 | One hoisted global operand **per scope**, never one per query | A target set can span LIVE and ARCHIVED, and a `TrigramIndex` is hosted per `GlobalEntityIndex`, hence per scope. A single operand would intersect an archived reduced index's primary keys with the live global answer — a wrong answer, not a slow one. Pinned by a test whose two scopes hold disjoint primary-key ranges, so a cross-scope pairing collapses to empty rather than to something plausible | `AbstractAttributeStringSearchTranslator#hoistGlobalSubstringFormulas` |
 | 2026-08-29 | `match` stays **outside** the per-query memo, and the scanned-value count stays **out of** the memo key | `computeOnlyOnce` stores and initialises a `@Nonnull Formula`, while `match` has three outcomes — declined, provably empty, real buckets — and "declined" has no `Formula` representation that is not already spoken for. The two halves are a matched pair: the memoised fold is a pure function of (trigram index, value tree, pattern, predicate) and the count only decides whether a caller gets far enough to ask for it, but moving `match` into the supplier would drag the *gate* inside a key that cannot tell two target sets apart, so a plan whose own gate declined would inherit the verdict of whichever plan was translated first. A cost gate whose answer depends on candidate ordering is worse than one occasionally paid twice | `AbstractAttributeStringSearchTranslator#createGlobalSubstringFormula`; the seam split that dissolves this is an open follow-up, below |
-| 2026-08-30 | `REQUIRED_NARROWING_FACTOR` raised from **4 to 12** | The shipped 4 admitted a 15–25 % posting-width band where the accelerator ran 1.1–2.3× *slower* than the scan it replaced. The measured crossover is 9.5 % width at n = 100 000 — a required narrowing of 10.5× — and **12 is that plus a margin bought by three conservatisms the benchmark could not measure**, not a number the data states. See the section below | *Verification*; `TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR` |
+| 2026-08-30 | `REQUIRED_NARROWING_FACTOR` raised from **4 to 12** | The shipped 4 admitted a 15–25 % posting-width band where the accelerator ran 1.1–2.3× *slower* than the scan it replaced. The measured crossover is 9.5 % width at n = 100 000 **on the synthetic bisect corpus** — a required narrowing of 10.5× — and **12 is that plus a margin bought by three conservatisms the benchmark could not measure**, not a number the data states. A production corpus later measured its crossover elsewhere entirely (next row); the retune stands, its margin argument is corrected in the section below | *Verification*; `TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR` |
 | 2026-08-30 | The eager fold stays, but **its stated reason is retired rather than confirmed** | "Eager, because an `OrFormula` is cacheable and a `DeferredFormula` is not" is formally true and worth close to nothing: the expensive half — candidate resolution and per-candidate verification — runs during *translation*, so a cache hit skips only the OR, which is exactly what deferring would have skipped. Measured, the substring formula is admitted in **0 of 15** cells at shipped settings, and buys 5–11 % with both admission floors removed — nothing at all on the widest patterns at n = 100 000. Eager stays because the fork is small in both directions and eager is the simpler shape: no new formula type on the path, no deferred-evaluation semantics, and a result that behaves exactly like the scan path's | *Verification*; `InvertedIndex#toFormula` |
+| 2026-08-30 | `REQUIRED_NARROWING_FACTOR` **stays at 12**, although the production-corpus run measures it 30–57 % conservative | Two corpora now point in opposite directions at the same `n` — the synthetic ladder wants a *larger* factor, the production corpus's real values want a *smaller* one (7.6–9.2) — so re-fitting the scalar to whichever corpus was measured most recently is precisely the process that produced the original `4`. What the production run does establish is the asymmetry the constant's own JavaDoc argues from: **0 regressions in 159 real patterns**, and an end-to-end decline costs under 2 %. Lowering to ~9 would recover 1.01–1.33× on a handful of patterns while spending margin bought for false candidates — which real data shows are common (median 0 %, p90 75 %) where the synthetic corpus produced none at all | *Verification*; `TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR` |
+| 2026-08-30 | The gate's next increment is a **second input**, not a different scalar and not a shape in `n` | The production run indicts the quantity the gate reads, not the boundary it compares against: `minimumCardinalityOf` overstates the real intersection by a median of 10–16× and by up to 4 752×, and it is blind to how many candidates survive the exact predicate — the variable that separates a 0.92× loss from a 4.97× win at a **bit-identical** gate input. A shape in `n` cannot see that either, and real data now says `n` is not even the dominant variable over this range | *Verification*; `TrigramSubstringSearch#accelerationThreshold`, `InvertedIndex#minimumCardinalityOf` |
+| 2026-08-30 | The `SUBSTRING` capability requiring its scope to be **`filterable`** is a defect and will be lifted; the builder syntax that expresses it is left open | The capability was bound to `filterable(...)`, which is not the only way to get a filter index: a foldable `unique` attribute has no separate unique store and its values live in the *same* shared filter tree (`AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`), reached through a write-path guard that is already `unique \|\| filterable \|\| sortable`. The cost of the oversight is measured rather than argued — `Product.code` is `unique`-not-`filterable` in production, and it is the single strongest result of the whole production run | `AttributeSchema:700` (`normalizeFilterCapabilities`), `AttributeIndexMutator:177`/`:325`; the three builder options and why none has won are under *Open items* |
 
 ### Why the in-house core won
 
@@ -134,7 +137,10 @@ decision is recorded as durable rather than provisional.
 
 `REQUIRED_NARROWING_FACTOR` admits the accelerated path only while the candidate bound is at most
 `distinctValueCount / D`. It shipped at `D = 4` and was retuned to `12`. Both halves of that are worth
-keeping, because both will be re-derived otherwise.
+keeping, because both will be re-derived otherwise. It shipped under the name
+`CANDIDATE_SELECTIVITY_DIVISOR` and was renamed in `666a4e166`; the old name is worth knowing because
+it is what an older checkout — or a stale packaged jar — will answer to, which is exactly how the
+production run nearly measured the wrong constant.
 
 **How 4 was wrong.** The constant's own JavaDoc derived the right band — "the break-even ratio somewhere
 between a third and a tenth" — and then took the wrong end of it, calling `4` "the conservative end" and
@@ -149,17 +155,29 @@ already promises — the same paragraph that says this constant is a stand-in.
 **Why 12 and not 10.5.** The bisect puts the crossover at 9.52 % posting width at n = 100 000, i.e. a
 required narrowing of **10.5×**; the SCAN arm's ±8–11 % confidence intervals put the crossover at
 9.5 % ± 1 pp, i.e. a factor somewhere between 9.5 and 11.7. **10 sits inside that band and 12 sits
-outside it.** The step past the measurement is bought by three conservatisms the benchmark could not
-measure, all pointing the same way and none pointing back: the corpus produces no
+outside it.** The step past the measurement was bought by three conservatisms the benchmark could not
+measure, all argued to point the same way: the corpus produces no
 false candidates at all (every candidate the intersection nominated survived the predicate, so the
 trigram arm never pays for a rejected one), it is all-ASCII where verification runs ~2× slower per
 candidate on decomposed Czech, and its trigram dictionary saturates at ~1 237 keys, making candidate
-sets tighter than real text would. Sizing one of them: 30 % false candidates on production text raises
-the trigram arm's verification cost ~30 % and moves the crossover from 9.5 % to roughly 7 %, below 12's
-own 8.33 % boundary. The cost of choosing 12 rather than 10 is the forfeited 8.33–10 % band, which wins
+sets tighter than real text would. The cost of choosing 12 rather than 10 is the forfeited 8.33–10 % band, which wins
 1.28–1.53× at n = 10 000 and runs 0.95–1.10× at n = 100 000 — the band where the win was smallest
 anyway. That asymmetry is the constant's own argument, used in the direction its author did not: a
 forfeited 1.3× is invisible, an introduced 1.3× regression is a bug report.
+
+**The first of those three conservatisms is now measured, and it points the other way.** The
+reasoning above sized it as *"30 % false candidates on production text raises the trigram arm's
+verification cost ~30 % and moves the crossover from 9.5 % to roughly 7 %"* — and that sizing is
+**wrong**, on production data, in direction as well as magnitude. False candidates on the production
+corpus are common (median 0 %, p90 **75 %**, max 99.8 %) and the crossover nonetheless came out *higher* than the
+synthetic figure, not lower: **10.85–13.09 %** at n = 116 978 real values. The reason is a cost the
+sizing assumed away — a **rejected** candidate costs a directory probe and a `String#contains` and
+stops there, while a **surviving** one costs a tree descent to read its record set. False candidates
+are therefore cheap, and the expensive variable is survivorship. The conclusion the argument reached
+(12 rather than 10) survives; the middle premise it reached it through does not, and the numbers below
+replace it. The other two conservatisms remain unmeasured, and the third turns out to be
+corpus-shaped rather than synthetic-versus-real: the production corpus's `ean` has **1 132** distinct
+trigrams, fewer than the synthetic corpus's ~1 237, while its `catalogNumber` has 31 867.
 
 **And not from `1 / mean f*`.** `f* = share × speedup` is the break-even share recoverable from every
 cell; seven classes over a 25-fold width range agree on it within ±15 %, which is what makes the model
@@ -197,7 +215,7 @@ dearer than linear costing suggests and the gate should be tighter.
 | **P8** — a flat open-addressing `long[]`/`Object[]` posting table | This is the spike's own §35.2 winner (1.1–1.6 ns/lookup against 4.5–28 ns boxed, 40–60× against binary search) and it still lost: an immutable published table clones both spine arrays on every commit that touches one posting, and the probe advantage is worth under a microsecond on a query whose verification phase runs tens to hundreds of microseconds | Never for the persisted/transactional structure. A flat table remains right for a **rebuilt-on-load, read-only** derived cache, which is what the spike actually measured |
 | **P8** — Shape Q for reduced-index plans (cross into the reduced tree carrying values, probe by value) | **Deferred, not rejected.** It has a real per-index cost advantage — the probes are cheap exactly where Shape P's operand is largest — and an exact precedent in `AttributeInSetTranslator`. But it needs a new `InvertedIndex` accessor, a second typed memo (`computeOnlyOnce` stores `Formula`; Q's artefact is `Serializable[]`) and a hand-seeded staleness token set, which is a lot of new surface for a measurement nobody has taken. The fact that makes it *possible*, and that a re-proposal should not re-derive: a reduced index's normalizer and comparator are provably identical to the global tree's, because both are pure functions of the attribute schema and the `AttributeIndexKey`, and the normalizer is idempotent — so values recovered from the global tree probe into a reduced one with no conversion | Shape P is measured on a real fan-out and the per-index AND shows up as the dominant term. Shape P is the baseline Q has to beat |
 | **P8** — defer the fold and hand back a `DeferredFormula` | Measured worth ~0 % as shipped and 5–11 % at best in the other direction, because the expensive half is spent before any formula exists. The deciding argument is therefore simplicity, not cacheability — and the ceiling on what deferring could save is the OR itself (10–17 % of the path on wide patterns, 39–44 % on rare ones), reached only when a formula is built and then never computed | The `probe`/`isWorthResolving`/`resolve` split lands, at which point deferring and memoising become the same question and the memo answers it better |
-| **P8** — a shaped gate, `w ≤ n / (D₀ + D₁·log n)` | More parameters than there are measured points, fitted around one unexplained knee — and the constant's own comment already names the planner's cost model as its replacement, so a shaped gate would be a second crude stand-in built on top of the first | **This condition is now MET.** The n = 1 000 000 run was executed and `f*` keeps falling rather than plateauing (0.128 → 0.091 → 0.056; `1/f*` = 7.8 → 11.0 → 17.8, accelerating). A constant that has to move with n is not a constant. The rejection above stands only as "not on two cells and not tonight" — the shape, or better the planner cost model, is now the indicated answer rather than a speculative one. See *Consequences* |
+| **P8** — a shaped gate, `w ≤ n / (D₀ + D₁·log n)` | More parameters than there are measured points, fitted around one unexplained knee — and the constant's own comment already names the planner's cost model as its replacement, so a shaped gate would be a second crude stand-in built on top of the first | **The revisit condition was declared met on the synthetic ladder, and the production run has withdrawn it.** The synthetic `1/f*` of 7.8 → 11.0 → 17.8 across n = 10⁴/10⁵/10⁶ reads as a law in `n`; a production corpus's three real attributes want **7.6–9.2 at n = 116 978**, i.e. *less* narrowing at a larger `n` than the synthetic 100 000 cell asked for. A shape fitted in `n` would therefore be a curve through the wrong variable. What the two runs jointly show is that corpus character dominates `n` over this range, and neither a scalar nor a shape in `n` can see it — see the corrected reading in *Verification* |
 | **P8** — `Long.hashCode` as a shard function over packed trigram keys | It discards code points 2 and 3 entirely whenever cp2 < 2048 — i.e. all Latin, Greek, Cyrillic and every NFD combining mark — so the shard *is* the first code point: S = 256 and S = 1024 come out byte-identical, and it scored worse than every other option measured | Never with `Long.hashCode`. A MurmurHash3-mixed variant behaves sanely but is then just coarser key granularity with no upside and no ordered-key locality |
 | **P8** — refuse a capability *withdrawal* at the schema boundary, or clean the value-id column up live | The refusal reverses two written decisions and would leave users no way to switch an index off without deleting their data; the live cleanup is blocked outright, because `removeValueIdMinter` refuses to run inside a transaction on a populated tree. What shipped instead makes the lockstep invariant unconditional at the index level | A reindexing story exists at all — the same prerequisite that gates `searchable()`. The orphaned id column is a memory cost, not a correctness one; see *Consequences* |
 
@@ -364,15 +382,15 @@ its own mini-gate.
 
 ### P8 — measured, not planned
 
-The spike's own gate (2026-08-25) passed on all four criteria on a production CMS corpus and the demo corpus — latency
-against the actual engine scan rather than a re-implementation, memory against the analyzer-confirmed
-budget; the numbers are in [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md)
+The spike's own gate (2026-08-25) passed on all four criteria on a production CMS corpus and the
+public demo corpus — latency against the actual engine scan rather than a re-implementation, memory
+against the analyzer-confirmed budget; the numbers are in [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md)
 §35.1 and are not repeated here, with one exception: the **per-attribute** memory table, which is
 carried below rather than left in the spike's working notes, because the aggregate cannot substitute
 for it.
 
-**Memory, per attribute — the number that decides what to flag.** Measured on a production CMS catalog (972 611
-articles, a production CMS corpus), variant B (`trigram → valueId`), heap by JOL deep-retained walk
+**Memory, per attribute — the number that decides what to flag.** Measured on a production CMS catalog
+(972 611 articles), variant B (`trigram → valueId`), heap by JOL deep-retained walk
 against an empty structure:
 
 | attribute | N/V | heap | serialized | A/B serialized | verdict |
@@ -382,7 +400,7 @@ against an empty structure:
 | `article.authors` | 134 | 2.6 MB | 0.4 MB | **20.99×** | valueId compression shines |
 | `article.url` / `.path` | ~1.0 | ~160 MB each | ~131 MB each | 1.01× | expensive — do not flag |
 | `article.contentHash` | 1.0 | 138.7 MB | 120.3 MB | 1.00× | a hex hash; never flag |
-| `article.externalId` | 1.0 | 92.6 MB | 45.9 MB | 1.00× | a structured id — `startsWith` territory |
+| `article.<external id>` | 1.0 | 92.6 MB | 45.9 MB | 1.00× | a structured id — `startsWith` territory |
 | category / section names | ~1.0 | ~9 MB total | — | ~1.00× | cheap |
 
 The realistic opt-in set (`title` + `keywords` + `authors` + category and section names) is **~184 MB
@@ -428,7 +446,9 @@ corpus-derived oracle, and every TRIGRAM cell prints its exact two-sided posting
 Monotone in width at both sizes, sign change between 8 % and 12 %, crossover interpolated at **9.52 %
 at n = 100 000**. **The n = 100 000 column is the load-bearing one and the two columns must not be
 averaged**: at n = 10 000 the SCAN arm — which should be near-constant across pattern classes — scatters
-by 41 % with confidence intervals up to ±21 %, against 8–11 % and monotone at n = 100 000.
+by 41 % with confidence intervals up to ±21 %, against 8–11 % and monotone at n = 100 000. **This
+crossover is this corpus's, and does not transfer**: a production corpus at a comparable `n` measures
+10.85–13.09 %, for the reasons under *P8 on a production corpus* below.
 
 `MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT = 256` was priced by the same sweep and kept: at 100 distinct
 values every pattern class with a non-empty candidate set ties within its confidence interval — the gate
@@ -481,7 +501,7 @@ never computed: 10.5–16.6 % on 15 % patterns, 11.7–17.3 % on 25 % patterns, 
 two largest absolute folds (1.5 ms and 2.6 ms, both at n = 100 000) belong to the cells `D = 12` no
 longer admits at all.
 
-**Catalog load.** On the real `article/title/cs` of a production CMS catalog (V = 943 410 distinct values,
+**Catalog load.** On the real `article/title/cs` of that CMS catalog (V = 943 410 distinct values,
 K = 62 079 trigram keys, E = 61.7 M memberships), driven through the production structures with values
 arriving in bucket-cursor order as the load path actually delivers them: the incremental rebuild loop
 costs **~77 s**, the ordered-append bulk build **4.0 s** — ~19× — and the two indexes were compared
@@ -535,6 +555,154 @@ data-set setup failures under a 22 k-test parallel run).
   the public surface. What the fix buys is *safe publication* of a freshly built map, which does not
   manifest on x86; the deterministic guard is the rebuild's defensive copy instead.
 
+### P8 on a production corpus — 159 real patterns
+
+**Every latency figure above is synthetic** — the memory and catalog-load figures come from a real
+corpus, but no measurement of the gate itself did. On 2026-08-30 that question was put to a real
+production e-commerce catalog — 157 410 products across 18 collections — over its three
+identifier-shaped `String` attributes. **159 patterns, both arms measured for every one of them, both
+arms verified element-identical for every one of them.** Patterns are real substrings drawn from the
+real corpus at lengths 3, 4, 5, 6 and 8.
+
+Four properties of the harness decide how the numbers may be read. The two arms enter at the seam the
+query engine uses — SCAN is `FilterIndex#getRecordsWhoseValuesContains` then `Formula#compute()`,
+TRIGRAM is `TrigramSubstringSearch#match` then `InvertedIndex#toFormula` then `Formula#compute()`,
+taken verbatim from `AbstractAttributeStringSearchTranslator` — and both fold through the same
+`toSortedOrFormula`, so the fold is not charged to one side. **The gate's verdict is observed, never
+inferred**: each pattern is run once with the real displaced-scan counter and a `null` return is a
+decline. **Both arms exist for every cell**, because the timed trigram arm passes a threshold that
+satisfies the gate unconditionally while executing byte-for-byte the same path — so a cell the gate
+*declined* still carries a trigram number, which is what makes every row a test of whether the gate's
+call was right rather than a report of what it chose. And with no synthetic oracle available on
+production data, **arm parity is the oracle**; it held 159 times out of 159.
+
+**The corpus census — what tells a future reader which attribute shapes suit this index.** All three
+attributes are indexed in `LIVE|ARCHIVED`, so the figures are all-scope:
+
+| attribute | n (distinct) | value shape | trigrams/value | distinct trigrams | hottest trigram | verdict |
+|---|---:|---|---:|---:|---:|---|
+| `Product.code` | 157 410 | 93.6 % exactly 6 chars, ASCII, 99.9 % UPPER | 4.07 | 3 182 | 1 764 = **1.12 % of n** | near-ideal; cannot degenerate |
+| `Product.catalogNumber` | 155 832 | 0–30 chars, separators, Czech diacritics, NBSP | 7.62 | 31 867 | 18 924 = **12.14 %** | the ordinary e-commerce identifier |
+| `Product.ean` | 116 978 | 99.85 % exactly 13 digits, alphabet of 10 | 10.95 | **1 132** | 39 061 = **33.39 %** | the adversarial shape |
+
+The shape that hurts is a **long value over a tiny alphabet**: `ean`'s 13 digits over ten symbols yield
+11 trigrams per value but only 1 132 distinct trigrams, so posting lists are enormous (median 642,
+p99 10 366) and a 3-character query returns a third of the corpus. `Product.code` is the opposite —
+fixed width 6 over 56 ASCII symbols — and the *hottest trigram in its entire alphabet* selects 1.12 %
+of `n`, which is why no pattern on it can degenerate.
+
+**The crossover on real data, and the correction it forces.** Read off the 3-character single-trigram
+rows only — the one shape where the candidate bound, the intersection and the verified set coincide,
+which is the regime the synthetic corpus lived in and therefore the only apples-to-apples comparison:
+
+| attribute | last share still winning | first share already losing | interpolated crossover | implied optimal factor |
+|---|--:|--:|--:|--:|
+| `code` (n = 157 410) | 1.12 % at 8.42× | — (corpus cannot produce one) | not reachable | — |
+| `catalogNumber` (n = 155 832) | 6.82 % at 1.56× | 12.14 % at 0.92× | **11.29 %** | 8.9 |
+| `ean` (n = 116 978), run B | 10.67 % at 1.01× | 18.88 % at 0.72× | **10.85 %** | 9.2 |
+| `ean` (n = 116 978), run A | 10.67 % at 1.15× | 18.88 % at 0.72× | **13.09 %** | 7.6 |
+
+**This falsifies the `n`-scaling reading of the synthetic ladder, and the record above has been
+corrected accordingly.** That ladder — `1/f*` = 7.8 → 11.0 → 17.8 at n = 10⁴/10⁵/10⁶, roughly `n^0.18`
+— predicts the crossover *falls* as `n` grows, so at n ≈ 117 000 it should sit a little **below** the
+synthetic 100 000 figure of 9.5 %. The prediction registered in writing before the run, interpolating
+between the synthetic 10⁵ and 10⁶ cells, was **8.3–8.7 %** — a factor of ~11.5–12, i.e. the shipped
+constant almost exactly, which was the headline claim the run was designed to test. Measured, the
+crossover sits **above** the synthetic figure rather than below it, at 10.85–13.09 %, wanting a factor
+of **7.6–9.2**. The three synthetic points remain three honest
+measurements *within their own corpus*; what is dead is treating them as a scaling law transferable
+across corpora. **Over this range corpus character dominates `n` outright**, which is why the shaped
+gate's revisit condition was withdrawn rather than acted on.
+
+`ean` produces the entire sweep from 0.42 % to 33.4 % with the bound exact throughout, and it is the
+cleanest single ladder in the run — 19.96× at 0.42 %, 7.19× at 1.33 %, 2.22× at 4.17 %, 1.53× at
+6.53 %, 1.27× at 8.12 % (the last admitted cell), then 1.10× / 1.06× / 1.01× across the declined
+9.39–10.67 % band, 0.72× at 18.88 % and 0.44× at 33.39 %. `f*` over every pure-regime row above 1 %
+width across all three attributes is **0.088–0.112** — near-constant, as the model says — and its value
+carries the physical reading the synthetic corpus could not supply: **a candidate costs the trigram
+path roughly ten times what a bucket costs the scan**, because the scan steps a cursor through one
+contiguous sorted array while each candidate costs a directory probe plus, for each survivor, a tree
+descent. `1/f* ≈ 10` *is* the crossover.
+
+**Zero regressions in 159 patterns, and a decline is free.** `admitted-but-slower-than-the-scan` = **0**
+across the whole run. That is exactly the asymmetry `REQUIRED_NARROWING_FACTOR`'s JavaDoc argues from,
+now upheld on real data rather than asserted. The other half of the asymmetry was measured end to end
+through the public query API (a second catalog declaring plain `filterable()` as the SCAN arm, asserted
+to host no accelerator): **every declined cell lands within 2 % of 1.00×**. The cardinality probes and
+the threshold comparison are not measurable against the scan the gate then runs — so the only cost of a
+conservative gate is the forfeited win, never a tax on the queries it declines. The index-level ratios
+also survive the planner — a 4-character `code` prefix measures 13.89× at index level and 13.19× end
+to end, a 3-character `catalogNumber` fragment 3.98× and 3.84×, a three-digit run 1.56× and 1.47×.
+Only extreme ratios compress, because the trigram arm hits a fixed per-query floor while the scan does
+not: a full-length `code` matching exactly one product is 5 898× at index level and 541× end to end.
+That caps how large a reported win can get and never reverses a verdict.
+
+What the gate forfeited: **12 wins** — 8 of them worth 1.01–1.33×, which is invisible, and **4 worth
+1.93×–4.97×**, which is not. All four are the same shape, and they are the strongest evidence in the
+run for a second gate input.
+
+**The strongest evidence for a second gate input: four patterns with a bit-identical gate input and
+five different answers.** A run of zeroes of any length yields the single trigram `000`, so on
+`catalogNumber` these all present the gate with a bound of 18 924 = 12.14 % of `n`:
+
+| pattern | candidates | entities matched | forced-trigram speedup |
+|---|--:|--:|--:|
+| `000` | 18 924 | 19 312 | 0.92× |
+| `0000` | 18 924 | 5 968 | **1.93×** |
+| `00000` | 18 924 | 3 533 | **2.58×** |
+| `000000` | 18 924 | 2 077 | **3.25×** |
+| `00000000` | 18 924 | 159 | **4.97×** |
+
+Same candidate set, same gate input, five answers spanning 5.4×, and the gate declined all five
+identically. **Survivorship decides the win and the gate cannot see it** — each survivor costs a tree
+descent the scan never pays. The four are separable for free, too: they are patterns whose length
+materially exceeds their trigram span, so even bare `pattern.length()` distinguishes them. That is the
+cheap improvement, and it is an *input*, not a boundary.
+
+**How loose the gate's input is.** `minimumCardinalityOf` bounds the intersection from above without
+materializing it, which is what makes it cheap; on real multi-trigram patterns it is also very nearly
+uninformative:
+
+| attribute | multi-trigram rows | bound / actual candidates, median | p90 | max |
+|---|--:|--:|--:|--:|
+| `code` | 24 | **15.9×** | 195× | 234× |
+| `catalogNumber` | 41 | **10.2×** | 90× | 252× |
+| `ean` | 52 | **13.6×** | 483× | **4 752×** |
+
+The synthetic corpus planted one marker token, so its trigrams were perfectly correlated and the bound
+was tight. Real identifiers have near-independent trigrams, so the intersection collapses far below the
+smallest posting: one 6-digit `ean` fragment has a bound of 7 724 (6.6 % of `n`), resolves to **2**
+candidates, and runs 1 144× faster than the scan. Every large `bound/actual` is a row where the gate
+prices a cost that will not be paid.
+
+**`Product.code` — 34 of 34 accelerated, worst case 8.42×.** The widest bound the corpus can produce is
+1.12 % of `n` against a gate admitting at 8.33 %, i.e. 7.4× of headroom, and the worst measured cell —
+a pattern equal to the hottest trigram in the whole alphabet — runs at **8.42×**. Typical cells run 30× (a
+median-width 3-char pattern) to 2 000×–11 000× (6- and 8-char patterns, where the candidate set
+collapses to single digits before verification cost can matter). The attribute exists in **17 of the
+catalog's 18 collections**, is 100 % distinct in every one of them, and is the natural target of a
+"search by product code" box. It is unreachable today for the schema-spelling reason recorded above.
+
+**What was not measured, and where the numbers are soft.** The crossover is a **range, not a point**:
+the sweep was run twice and the *absolute* scan cost moved by up to 25 % between runs (`ean` scan
+5.13 ms in run A, 4.00 ms in run B), because the scan is a linear walk of the whole tree and is
+sensitive to heap layout and GC state; within a run the ratio is stable. `Product.code` **cannot
+bracket a crossover at all** — its hottest trigram covers 1.12 % of `n`, so the corpus cannot produce a
+losing pattern for it. The measured catalog is a **rebuild** from the corpus's real values with the
+capability declared up front (see the migration blocker under *Open items*), and it puts all 157 410
+products in `LIVE`, whereas production splits them into `LIVE` (118 772) and `ARCHIVED` (38 638) —
+one index per scope. That deviation makes **production safer than what was measured**, since a smaller
+`n` moves every cell further from the crossover, never closer. The rebuild's fidelity is checked rather
+than assumed: it refuses to emit a number unless it reproduces the phase-1 census exactly, both the
+distinct value count and the distinct trigram count, per attribute — reproducing a 31 867-symbol
+trigram alphabet to the unit is what says the corpus under measurement is the production one and not a
+lookalike.
+Not measured at all: cold-cache behaviour (both arms ran warm, which if anything *understates* the
+trigram advantage, since the scan touches the whole tree and the trigram path a small working set),
+concurrency, index build time and memory footprint, the formula cache (deliberately out of the loop —
+`SubstringCacheRepeatBenchmark` asks that question), and `attributeEndsWith`, which shares the path but
+was not swept.
+
 ## Consequences & open follow-ups
 
 **What this enables.** Fulltext, facets, prices and hierarchy in one query over one snapshot; a
@@ -553,11 +721,22 @@ now worked examples rather than open questions: a scoped schema capability that 
 engine cannot perform, an MVCC-safe persisted id allocator on the shared value tree, a new index
 component on the global index — which, in the event, needed no persisted form at all, so that part of
 the path-finding came back as a *negative* answer worth having — and the formula-cache contract for an
-accelerator whose work happens during translation. The price is per-attribute memory: the realistic production CMS
-opt-in set is ~184 MB heap on 972 K articles, +25 % over that catalog's existing attribute-index heap,
-against 743 MB if everything were flagged. That is why the capability is per attribute, and why the
+accelerator whose work happens during translation. The price is per-attribute memory: the realistic
+opt-in set on the measured CMS catalog is ~184 MB heap on 972 K articles, +25 % over that catalog's
+existing attribute-index heap, against 743 MB if everything were flagged. That is why the capability is per attribute, and why the
 brief's census names the attributes never to flag (hashes, structured ids, URLs). The gate constant is
 a hand-set stand-in and is known to be one; the planner's cost model is what replaces it.
+
+**What a production corpus then said about it.** The accelerator was measured against a real
+e-commerce catalog on 159 real patterns, and the two properties that decide whether an opt-in
+accelerator is safe to ship both held: **zero regressions**, and a decline that costs under 2 %
+end to end. The win on the shape this is for is large and not fragile — a fixed-width product code
+accelerates on every pattern of three characters or more, worst case 8.42× and typically far more.
+Two costs came with that. The gate is measurably conservative (it forfeits four wins of 1.93–4.97×)
+and the reason is now understood to be its *input* rather than its threshold, which redirects the
+follow-up work. And **no existing catalog can turn the feature on**: the two refusals that make the
+capability safe compose into a lock-out with no reindex path behind it, which is a shipping question
+rather than a tuning one. Both are open items below.
 
 ### Open items — the fulltext core
 
@@ -622,22 +801,89 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
   | 8 % | **1.49× slower** | 0.0537 |
   | 12 % | **2.05× slower** | 0.0585 |
 
-  `f*` ≈ **0.056**, well past the falsifying threshold. It does not plateau — it keeps falling, and the
-  fall accelerates: `1/f*` runs **7.8 → 11.0 → 17.8** across n = 10 000 / 100 000 / 1 000 000, roughly
-  `n^0.18` rather than saturating. The crossover at a million distinct values is ~5.6 % width, wanting a
-  factor near 18.
+  `f*` ≈ **0.056**, well past the falsifying threshold. Within this corpus it does not plateau — it
+  keeps falling, and the crossover at a million distinct values is ~5.6 % width, wanting a factor near
+  18. `REQUIRED_NARROWING_FACTOR = 12` admits up to 8.33 %, so on a corpus of this shape at
+  n = 1 000 000 it admits a 5.6–8.33 % band where the accelerator is up to 1.49× slower. It is a strict
+  improvement on the 4 it replaced — which admitted 5.6–25 % at that size — but it is **not correct at
+  the top of that range**.
 
-  **Consequence for the shipped constant:** `REQUIRED_NARROWING_FACTOR = 12` admits up to 8.33 %, so
-  at n = 1 000 000 it admits a 5.6–8.33 % band where the accelerator is up to 1.49× slower. It is a
-  strict improvement on the 4 it replaced — which admitted 5.6–25 % at that size — but it is **not
-  correct at the top of the range**, and no single scalar can be: 10 000 wants ~8, 100 000 wants ~11,
-  1 000 000 wants ~18.
+  **The reading this originally carried has since been corrected, and the correction is the more
+  useful half.** It was written up as `1/f*` = **7.8 → 11.0 → 17.8** across n = 10⁴/10⁵/10⁶, "roughly
+  `n^0.18`", i.e. as a scaling law in `n` from which a factor at any size could be extrapolated. The
+  production run at n = 116 978 real values wants **7.6–9.2**, less narrowing than the synthetic
+  100 000 cell asked for and far less than the law predicts — so the three points describe *that
+  corpus across sizes*, not a transferable function of `n`. Corpus character dominates `n` over this
+  range. Two consequences follow, and they replace what stood here: the shaped gate in `log n` is a
+  curve through the wrong variable and its revisit condition is **withdrawn, not met**; and a larger
+  scalar as a stopgap is now a worse idea than it looked, because the production corpus wants a
+  *smaller* one. The
+  honest fix remains the planner cost model the constant's own comment names as its replacement — with
+  a better input, per the item below.
+- **An existing catalog cannot adopt the substring index at all, and that is a shipping question.**
+  Two deliberate refusals compose into a hard one: `EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection`
+  refuses any filter capability added to a collection that already holds entities, and
+  `InvertedIndex#enableValueIds` refuses to switch an already-populated shared value tree into
+  id-carrying mode. Each is right on its own terms and each is recorded above as a decision. Together
+  they mean **every production catalog in existence is locked out of the feature**, because there is no
+  reindex path; the only route today is to build a fresh catalog with the capability declared up front
+  and `replaceCatalog` onto it, which is undocumented. This is not a hypothetical — the production
+  measurement could not be taken on the restored production catalog at all and had to rebuild one from
+  its dumped attribute values, with the capability declared before the first upsert. The general
+  reindexing story is listed above as the fulltext core's only genuinely blocking item; this is that
+  item arriving early, for a feature that has already shipped.
+- **The `SUBSTRING` capability is refused on `unique`-not-`filterable` attributes, which is a defect,
+  and the builder syntax that fixes it is undecided.** `AttributeSchema:700`
+  (`normalizeFilterCapabilities`) requires the capability's scope to be `filterable`, but `filterable`
+  is not the only way to get a filter index. A **foldable unique** attribute has no separate unique
+  store at all — its values live in the *same* shared filter tree, which is exactly why
+  `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`, leaving the paired
+  filter write to enforce uniqueness — and the write path reaches that write through a guard that is
+  already `unique || filterable || sortable` (`AttributeIndexMutator:177` on upsert, `:325` on
+  removal). So the structure the accelerator consumes is already there, and the schema refuses to let
+  anyone name it. The core fix is one check —
+  "scope is filterable" becomes "scope has a filter index". **Johnny has ruled the restriction a
+  mistake to fix; what is open is how a user spells it**, between three options:
 
-  It was deliberately **not** retuned again on this evidence. A third crude stand-in chosen from two
-  cells would repeat the mistake that produced the 4, and the finding's real content is structural: the
-  revisit condition on the shaped-gate row below is now **met**, and the honest fix is the planner cost
-  model the constant's own comment already names as its replacement. A larger scalar remains available
-  as a stopgap if catalogs at this scale matter before that lands.
+  | option | spelling | the tension it carries |
+  |---|---|---|
+  | A | `unique(SUBSTRING)` | duplicates the capability argument onto a second builder family, and leaves `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning |
+  | B / B′ | `unique().filterable(SUBSTRING)` | no new syntax at all, but it makes the user declare a flag they did not want in order to reach a structure they already have, and it changes what the schema advertises |
+  | C | a separate `filterIndexCapabilities(...)` declaration | matches the physical truth — the capability belongs to the filter index, not to whichever flag produced it — at the price of a third declaration surface, and it re-opens the 2026-08-25 decision that deliberately declined to mint a second axis over the same physical structure |
+
+  Standing recommendation is **C**, fallback **B′**; the decision is Johnny's and is not taken. The
+  change surface, once it is: `AttributeSchema:700`, `AbstractAttributeSchemaMutation`, the builder,
+  `GrpcSchemaCapability` and its converter, the GraphQL DTOs, and schema serialization — with
+  `FilterCapabilityBackwardCompatibilityTest` guarding compatibility. The value of fixing it is
+  measured rather than argued: `Product.code` is the strongest result of the production run
+  (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` in production, as is `code` in
+  16 of the catalog's other 17 collections.
+- **The gate needs a second input, and the cheapest candidate is already known.** The four
+  `catalogNumber` zero-runs forfeit up to 4.97× at a gate input that is bit-identical to the one cell
+  that genuinely loses, so no threshold placed on that input can separate them. The distinguishing
+  variable is **survivorship** — how many candidates pass the exact predicate, each survivor costing a
+  tree descent the scan never pays — and the four are separable for free by a proxy the gate already
+  holds: a pattern whose length materially exceeds its trigram span (a one-trigram pattern eight
+  characters long) is more selective than its trigrams. Even bare `pattern.length()` splits them.
+  Deriving it properly is the planner's costing of the substring path, which
+  `REQUIRED_NARROWING_FACTOR`'s own JavaDoc already names as the increment that replaces it.
+- **Two census findings that should reach whoever writes the opt-in guidance.** `Product.codeShort` is
+  a **byte-for-byte duplicate of `Product.code`**, verified over all 157 410 products with zero
+  differences — two independent filter indexes carrying identical data, and flagging both would buy a
+  second trigram index for nothing. And `Product.supplierCode` is declared as a filterable `String`
+  but **carries no value on any entity**, which is the schema-time-undetectable case the `countryCode`
+  item below already describes, arriving from the other direction: not "values too short to produce
+  trigrams" but no values at all.
+- **Case sensitivity is load-bearing for identifier attributes, not cosmetic.** The census found case
+  is uniform per attribute and splits by collection: `Product.code`, `PickupPoint.code`,
+  `PriceList.code`, `ShippingMethod.code` and `TagCategory.code` are ~100 % upper case, while
+  `Category.code`, `Group.code`, `ParameterValue.code`, `Parameter.code`, `AdjustedPricePolicy.code`
+  and `Brand.code` are ~95–100 % lower case. With today's case-**sensitive** normalizer, a user typing
+  a product code in lower case matches **nothing** on this catalog. Issue
+  [#545](https://github.com/FgForrest/evitaDB/issues/545)'s case fold is therefore a precondition for
+  the "search by product code" use case the accelerator's strongest result serves, not an independent
+  nicety. The trigram index inherits whatever the shared normalization contract decides, so the two
+  must land in that order.
 - **A withdrawn `SUBSTRING` capability orphans the value-id column.** `detachValueIdConsumer` has no
   production caller, so after a withdrawal plus a restart the tree carries ids with an empty consumer
   registry — its own gate invariant, violated permanently, since the restore path dirties nothing. This
@@ -689,7 +935,10 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
   `query/filtering/string.md`, where `attributeContains` / `attributeEndsWith` are documented without
   any note that an opt-in accelerator now exists, that it is String-only, or that it is refused on a
   non-empty collection. English is the only hand-written source; the Czech mirror is
-  machine-translated.
+  machine-translated. Two things the production run says that page has to carry: **which attribute
+  shapes suit the index** (short values over a wide alphabet; never a long value over a tiny one — the
+  measured worst case is a 13-digit code whose hottest trigram selects a third of the corpus), and
+  that an **existing catalog cannot adopt it** without a rebuild.
 
 ## Related work
 
@@ -719,7 +968,8 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
 - **2026-08-24** — the trigram substring-index brief, originating from a separate discussion, verified
   against primary sources and against the codebase, and adopted as
   `prototypes/p8-trigram-substring-index.md`
-- **2026-08-25** — the P8 spike measured on real corpora (a production CMS catalog, evita-demo-dataset): the performance
+- **2026-08-25** — the P8 spike measured on real corpora (a production CMS catalog, the public demo
+  dataset): the performance
   gate passed on all criteria, the dictionary/positions/posting-representation/early-exit forks
   closed and the brief's falsified claims corrected — recorded as
   `prototypes/p8-trigram-substring-index.md` §35
@@ -734,8 +984,12 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
 - **2026-08-29** — `attributeContains` / `attributeEndsWith` are wired to the accelerator; the
   end-to-end benchmark suite is written and the reduced-index Shape P lands
 - **2026-08-30** — the width bisect pins the crossover, `REQUIRED_NARROWING_FACTOR` is retuned
-  4 → 12, and the eager/lazy fork is settled with its original reason retired; P8 complete on branch
-  `1454-trigram-substring-index`
+  4 → 12 (and renamed from `CANDIDATE_SELECTIVITY_DIVISOR`), and the eager/lazy fork is settled with
+  its original reason retired; P8 complete on branch `1454-trigram-substring-index`
+- **2026-08-30** — the accelerator is measured on a real production e-commerce catalog over 159 real
+  patterns: zero regressions, the `n`-scaling reading of the synthetic ladder falsified, the gate's
+  *input* indicted rather than its threshold, and the `unique`-not-`filterable` refusal and the
+  no-migration lock-out surfaced as the two open questions that matter for shipping
 
 ## Supporting material
 
