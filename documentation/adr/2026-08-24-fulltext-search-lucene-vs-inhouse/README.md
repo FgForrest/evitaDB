@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-30 02:32
+updated: 2026-08-30 02:50
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -197,7 +197,7 @@ dearer than linear costing suggests and the gate should be tighter.
 | **P8** — a flat open-addressing `long[]`/`Object[]` posting table | This is the spike's own §35.2 winner (1.1–1.6 ns/lookup against 4.5–28 ns boxed, 40–60× against binary search) and it still lost: an immutable published table clones both spine arrays on every commit that touches one posting, and the probe advantage is worth under a microsecond on a query whose verification phase runs tens to hundreds of microseconds | Never for the persisted/transactional structure. A flat table remains right for a **rebuilt-on-load, read-only** derived cache, which is what the spike actually measured |
 | **P8** — Shape Q for reduced-index plans (cross into the reduced tree carrying values, probe by value) | **Deferred, not rejected.** It has a real per-index cost advantage — the probes are cheap exactly where Shape P's operand is largest — and an exact precedent in `AttributeInSetTranslator`. But it needs a new `InvertedIndex` accessor, a second typed memo (`computeOnlyOnce` stores `Formula`; Q's artefact is `Serializable[]`) and a hand-seeded staleness token set, which is a lot of new surface for a measurement nobody has taken. The fact that makes it *possible*, and that a re-proposal should not re-derive: a reduced index's normalizer and comparator are provably identical to the global tree's, because both are pure functions of the attribute schema and the `AttributeIndexKey`, and the normalizer is idempotent — so values recovered from the global tree probe into a reduced one with no conversion | Shape P is measured on a real fan-out and the per-index AND shows up as the dominant term. Shape P is the baseline Q has to beat |
 | **P8** — defer the fold and hand back a `DeferredFormula` | Measured worth ~0 % as shipped and 5–11 % at best in the other direction, because the expensive half is spent before any formula exists. The deciding argument is therefore simplicity, not cacheability — and the ceiling on what deferring could save is the OR itself (10–17 % of the path on wide patterns, 39–44 % on rare ones), reached only when a formula is built and then never computed | The `probe`/`isWorthResolving`/`resolve` split lands, at which point deferring and memoising become the same question and the memo answers it better |
-| **P8** — a shaped gate, `w ≤ n / (D₀ + D₁·log n)` | More parameters than there are measured points, fitted around one unexplained knee — and the constant's own comment already names the planner's cost model as its replacement, so a shaped gate would be a second crude stand-in built on top of the first | The n = 1 000 000 run shows `f*` still falling rather than plateauing: a constant that has to move with n is not a constant, and *then* the answer is a shape, not another scalar |
+| **P8** — a shaped gate, `w ≤ n / (D₀ + D₁·log n)` | More parameters than there are measured points, fitted around one unexplained knee — and the constant's own comment already names the planner's cost model as its replacement, so a shaped gate would be a second crude stand-in built on top of the first | **This condition is now MET.** The n = 1 000 000 run was executed and `f*` keeps falling rather than plateauing (0.128 → 0.091 → 0.056; `1/f*` = 7.8 → 11.0 → 17.8, accelerating). A constant that has to move with n is not a constant. The rejection above stands only as "not on two cells and not tonight" — the shape, or better the planner cost model, is now the indicated answer rather than a speculative one. See *Consequences* |
 | **P8** — `Long.hashCode` as a shard function over packed trigram keys | It discards code points 2 and 3 entirely whenever cp2 < 2048 — i.e. all Latin, Greek, Cyrillic and every NFD combining mark — so the shard *is* the first code point: S = 256 and S = 1024 come out byte-identical, and it scored worse than every other option measured | Never with `Long.hashCode`. A MurmurHash3-mixed variant behaves sanely but is then just coarser key granularity with no upside and no ordered-key locality |
 | **P8** — refuse a capability *withdrawal* at the schema boundary, or clean the value-id column up live | The refusal reverses two written decisions and would leave users no way to switch an index off without deleting their data; the live cleanup is blocked outright, because `removeValueIdMinter` refuses to run inside a transaction on a populated tree. What shipped instead makes the lockstep invariant unconditional at the index level | A reindexing story exists at all — the same prerequisite that gates `searchable()`. The orphaned id column is a memory cost, not a correctness one; see *Consequences* |
 
@@ -611,16 +611,33 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
   hierarchy translators do — so a `referenceHaving` plan re-imposes the reference restriction itself
   and ANDs the answer back down to the queried partition. The intersection is the *sole* restriction
   only under a hierarchy plan. The unit suite pins that case today; the end-to-end suite cannot.
-- **One run at n = 1 000 000 to settle whether a single scalar gate can be right at all.** It is the
-  only experiment that separates *the degradation saturates, so a constant is fine past the knee* from
-  *no scalar can be right across the range*: `1/f*` runs 7.1 → 7.5 → 10.0 across n = 256 / 10 000 /
-  100 000, which is flat-then-worse — a working-set signature, not the tree-depth one a `log n`
-  explanation predicts. The prediction is recorded in advance: if the working-set reading holds, `f*`
-  plateaus near 0.09–0.10, so 8 % width still wins by ~1.15–1.25× and 12 % loses by ~1.2–1.35×, much as
-  at n = 100 000. `f*` continuing down to ~0.07 falsifies it, and the answer is then a shaped gate
-  rather than a different scalar. Not run because the fixture has never been built at that size and its
-  heap requirement is an extrapolation; **the divisor is defensible either way**, which is why this is
-  not urgent.
+- **The scalar gate is now known to be insufficient at a million values — RUN, and the plateau is
+  refuted.** This was recorded as an open question with its prediction fixed in advance: if the
+  working-set reading held, `f*` would plateau near 0.09–0.10 and 8 % width would still win by
+  ~1.15–1.25×; `f*` continuing down to ~0.07 would falsify it. Measured at n = 1 000 000, both arms,
+  `-f 3`, both cells confirmed `accelerated=true` at exact planted widths of 80 000 and 120 000:
+
+  | width | speedup | `f*` |
+  |---|---|---|
+  | 8 % | **1.49× slower** | 0.0537 |
+  | 12 % | **2.05× slower** | 0.0585 |
+
+  `f*` ≈ **0.056**, well past the falsifying threshold. It does not plateau — it keeps falling, and the
+  fall accelerates: `1/f*` runs **7.8 → 11.0 → 17.8** across n = 10 000 / 100 000 / 1 000 000, roughly
+  `n^0.18` rather than saturating. The crossover at a million distinct values is ~5.6 % width, wanting a
+  divisor near 18.
+
+  **Consequence for the shipped constant:** `CANDIDATE_SELECTIVITY_DIVISOR = 12` admits up to 8.33 %, so
+  at n = 1 000 000 it admits a 5.6–8.33 % band where the accelerator is up to 1.49× slower. It is a
+  strict improvement on the 4 it replaced — which admitted 5.6–25 % at that size — but it is **not
+  correct at the top of the range**, and no single scalar can be: 10 000 wants ~8, 100 000 wants ~11,
+  1 000 000 wants ~18.
+
+  It was deliberately **not** retuned again on this evidence. A third crude stand-in chosen from two
+  cells would repeat the mistake that produced the 4, and the finding's real content is structural: the
+  revisit condition on the shaped-gate row below is now **met**, and the honest fix is the planner cost
+  model the constant's own comment already names as its replacement. A larger scalar remains available
+  as a stopgap if catalogs at this scale matter before that lands.
 - **A withdrawn `SUBSTRING` capability orphans the value-id column.** `detachValueIdConsumer` has no
   production caller, so after a withdrawal plus a restart the tree carries ids with an empty consumer
   registry — its own gate invariant, violated permanently, since the restore path dirties nothing. This
