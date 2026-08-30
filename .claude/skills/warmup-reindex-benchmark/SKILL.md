@@ -10,7 +10,7 @@ Measures the operation an e-commerce operator calls **publishing**: rebuild a ca
 `WARM_UP` state, then flip it to `ALIVE`. The harness
 (`IsolatedWarmupLoadBenchmark` + `CatalogCopySupport`, package `io.evitadb.performance.warmupload`) is
 dataset-agnostic — the catalog name is a system property, not baked in — so it applies to any
-production export, not just the "senesi" one it was built for.
+production export, not just the one it was built for.
 
 Complements `wal-replay-profiling`: that one measures **transactional commit** cost against an ALIVE
 catalog, this one measures **bulk ingest** into a WARM_UP catalog. They exercise different write paths
@@ -54,10 +54,10 @@ only the perf module afterwards: `mvn -o -P full package -pl evita_test/evita_pe
 The source is a catalog export zip. Unzip it once into a directory that will be treated as read-only:
 
 ```shell
-mkdir -p /var/tmp/senesi-bench/pristine
+mkdir -p /var/tmp/evita-warmup-bench/pristine
 python3 -c "
 import zipfile
-with zipfile.ZipFile('<export>.zip') as z: z.extractall('/var/tmp/senesi-bench/pristine')
+with zipfile.ZipFile('<export>.zip') as z: z.extractall('/var/tmp/evita-warmup-bench/pristine')
 "
 ```
 
@@ -154,7 +154,7 @@ becomes a baseline.
 
 ## 6. Reference measurements
 
-Senesi production export (386,369 entities; 118,772 `Product`, which dominates), writer 23g, reader
+A production e-commerce export (386,369 entities; 118,772 `Product`, which dominates), writer 23g, reader
 14g/8g, all collections, `storage.compress=true`, traffic recording and cache off, loopback gRPC.
 
 Every cell below is a figure the harness printed. Where a run's total was not isolated from the logs

@@ -75,6 +75,7 @@ four digits`), never the value.
 | `documentation/adr/**` | **never** |
 | `documentation/user/**` | **never** |
 | code — identifiers, comments, hardcoded paths, test fixtures | **never** |
+| `.claude/**` — skills, rules, agent definitions | **never** |
 | blog, research, publishing, PR material, `documentation/performance/**` | **allowed** — consent covers these |
 
 The last row is a real exemption, not an oversight: do not "fix" it. Published performance

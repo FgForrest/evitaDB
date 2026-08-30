@@ -23,7 +23,7 @@
 # measurement run. Set JDWP=true if you need it.
 #
 #   ROOT             evitaDB checkout to take the jar from   (default /www/oss/evita/release_2026-2)
-#   TARGET_DATA_DIR  storage dir for the catalog being built (default /var/tmp/senesi-bench/target-data)
+#   TARGET_DATA_DIR  storage dir for the catalog being built (default /var/tmp/evita-warmup-bench/target-data)
 #   XMX / XMS        writer heap                             (default 23g / 23g)
 #   GRPC_PORT        gRPC port to listen on                  (default 5555)
 #   COMPRESS         storage.compress                        (default true, matches run-server.sh)
@@ -39,7 +39,7 @@ set -euo pipefail
 ROOT="${ROOT:-/www/oss/evita/release_2026-2}"
 SERVER_JAR="${ROOT}/evita_server/target/evita-server.jar"
 
-TARGET_DATA_DIR="${TARGET_DATA_DIR:-/var/tmp/senesi-bench/target-data}"
+TARGET_DATA_DIR="${TARGET_DATA_DIR:-/var/tmp/evita-warmup-bench/target-data}"
 XMX="${XMX:-23g}"
 XMS="${XMS:-23g}"
 GRPC_PORT="${GRPC_PORT:-5555}"
@@ -49,7 +49,7 @@ AP_LIB="${AP_LIB:-}"
 JDWP="${JDWP:-false}"
 RESET_DATA="${RESET_DATA:-false}"
 JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-17-openjdk-amd64/bin/java}"
-LOG_DIR="${LOG_DIR:-/var/tmp/senesi-bench/server/$(date +%Y%m%d-%H%M%S)}"
+LOG_DIR="${LOG_DIR:-/var/tmp/evita-warmup-bench/server/$(date +%Y%m%d-%H%M%S)}"
 
 if [[ ! -f "${SERVER_JAR}" ]]; then
 	echo "ERROR: server jar not found at ${SERVER_JAR}" >&2
