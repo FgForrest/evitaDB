@@ -810,7 +810,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): catalog `senesi`,
+		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): a production catalog,
 		 * `ParameterValue` upsert blowing up with `A total of 2 constraints were found in a query,
 		 * but expected is only one!`.
 		 *

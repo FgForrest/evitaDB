@@ -60,7 +60,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * Single-threaded WARM_UP bulk-copy benchmark.
  *
  * Connects to a locally running evitaDB server over gRPC, reads every collection of a source catalog
- * (default `senesi`) and re-inserts an identical copy of every entity into a freshly created catalog
+ * (default `production-catalog`) and re-inserts an identical copy of every entity into a freshly created catalog
  * named `<source>_XXXX` (random 4-hex suffix). The target schema is faithfully reconstructed first (so
  * the write path exercises the same indexes as the original), then the whole dataset is copied on a
  * single thread while the catalog is in WARM_UP mode, and finally the catalog is switched to ALIVE via
@@ -72,7 +72,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * separated from the WARM_UP write cost when driving the server through the remote driver.
  *
  * Usage: {@code WarmupCopyCatalogBenchmark [sourceCatalog] [host] [port] [maxPerCollection]}
- * (defaults: senesi localhost 5555 0). A non-zero {@code maxPerCollection} copies at most that many
+ * (defaults: production-catalog localhost 5555 0). A non-zero {@code maxPerCollection} copies at most that many
  * entities per collection - intended only for a fast end-to-end smoke test; leave it {@code 0} for the
  * real, full-dataset measurement.
  *
@@ -90,7 +90,7 @@ public class WarmupCopyCatalogBenchmark {
 	/**
 	 * Upper bound for a single gRPC response frame (and the enclosing HTTP response) accepted by the client.
 	 * Armeria's default is 10&nbsp;MB, which a full-content read of {@link #BATCH_SIZE} rich entities (e.g.
-	 * senesi `Product` with prices and references) exceeds - the deframer then aborts the whole copy with
+	 * a `Product` with prices and references) exceeds - the deframer then aborts the whole copy with
 	 * `RESOURCE_EXHAUSTED: Frame size ... exceeds maximum: 10485760`. 256&nbsp;MB gives ample headroom while
 	 * still guarding against a runaway response.
 	 */
@@ -111,7 +111,7 @@ public class WarmupCopyCatalogBenchmark {
 			return;
 		}
 
-		final String sourceCatalog = args.length > 0 ? args[0] : "senesi";
+		final String sourceCatalog = args.length > 0 ? args[0] : "production-catalog";
 		final String host = args.length > 1 ? args[1] : "localhost";
 		final int port = args.length > 2 ? Integer.parseInt(args[2]) : 5555;
 		// 0 == unlimited (real measurement); a positive value caps entities per collection for smoke tests

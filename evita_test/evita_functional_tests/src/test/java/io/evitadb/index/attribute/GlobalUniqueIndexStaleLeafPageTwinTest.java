@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Extends the senesi stale-leaf-page-twin reproduction (`documentation/adr/2026-07-18-paged-index-corruption-and-flush-failure-boundary/`) to the
+ * Extends the production-catalog stale-leaf-page-twin reproduction (`documentation/adr/2026-07-18-paged-index-corruption-and-flush-failure-boundary/`) to the
  * catalog-level {@link GlobalUniqueIndex} paged restore path. The value → packed-`(entityType, pk, locale)` map is a
  * UNIQUE bucket tree persisted per leaf page; a frozen stale leaf referenced alongside the page that superseded it
  * (the twin) breaks the strict ascending cross-leaf key order the {@code fromPersistedPages} spine builder now
