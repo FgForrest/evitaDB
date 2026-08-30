@@ -176,8 +176,7 @@ public class GlobalEntityIndex extends EntityIndex
 	/**
 	 * The substring-search accelerators of this index, one per `(attribute, locale)` whose attribute declares
 	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} in this index's scope. Empty - and costing a bare `HashMap`
-	 * object -
-	 * for every collection that declares the accelerator nowhere, which is the overwhelming majority.
+	 * object - for every collection that declares the accelerator nowhere, which is the overwhelming majority.
 	 *
 	 * Hosted here and nowhere else: a reduced index composes its answer out of THIS map's value ids rather than
 	 * keeping trigram postings of its own, so a catalog pays for the postings once instead of once per reduced index.
@@ -447,9 +446,9 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write brings into existence to the attribute's
 	 * {@link TrigramIndex}, creating that index — and switching the shared value tree's value id column on — on the
-	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an attribute
-	 * that
-	 * declares none drops the accelerator a withdrawal left behind before delegating to the base implementation.
+	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an
+	 * attribute that declares none drops the accelerator a withdrawal left behind before delegating to the base
+	 * implementation.
 	 */
 	@Override
 	public void insertFilterAttribute(
@@ -478,9 +477,9 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write takes out of existence to the attribute's
 	 * {@link TrigramIndex}, and drops that index when the removal emptied — and therefore dropped — the shared value
-	 * tree its postings are keyed by. A write to an attribute declaring no {@link
-	 * AttributeFilterAccelerator#SUBSTRING_SEARCH}
-	 * drops the accelerator a withdrawal left behind before delegating to the base implementation.
+	 * tree its postings are keyed by. A write to an attribute declaring no
+	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} drops the accelerator a withdrawal left behind before
+	 * delegating to the base implementation.
 	 */
 	@Override
 	public void removeFilterAttribute(
@@ -510,9 +509,9 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write brings into existence to the attribute's
 	 * {@link TrigramIndex}, creating that index — and switching the shared value tree's value id column on — on the
-	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an attribute
-	 * that
-	 * declares none drops the accelerator a withdrawal left behind before delegating to the base implementation.
+	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an
+	 * attribute that declares none drops the accelerator a withdrawal left behind before delegating to the base
+	 * implementation.
 	 */
 	@Override
 	public void addDeltaFilterAttribute(
@@ -541,9 +540,9 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write takes out of existence to the attribute's
 	 * {@link TrigramIndex}, and drops that index when the removal emptied — and therefore dropped — the shared value
-	 * tree its postings are keyed by. A write to an attribute declaring no {@link
-	 * AttributeFilterAccelerator#SUBSTRING_SEARCH}
-	 * drops the accelerator a withdrawal left behind before delegating to the base implementation.
+	 * tree its postings are keyed by. A write to an attribute declaring no
+	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} drops the accelerator a withdrawal left behind before
+	 * delegating to the base implementation.
 	 */
 	@Override
 	public void removeDeltaFilterAttribute(

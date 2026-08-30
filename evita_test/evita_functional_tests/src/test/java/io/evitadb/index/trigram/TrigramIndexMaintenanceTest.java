@@ -82,8 +82,7 @@ import static org.mockito.Mockito.when;
 /**
  * Verifies that a {@link GlobalEntityIndex} maintains a {@link TrigramIndex} for exactly the attributes that declare
  * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} in its own scope, that the postings it fills are keyed by the
- * value ids the
- * shared value tree mints, and that both structures appear and disappear together.
+ * value ids the shared value tree mints, and that both structures appear and disappear together.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

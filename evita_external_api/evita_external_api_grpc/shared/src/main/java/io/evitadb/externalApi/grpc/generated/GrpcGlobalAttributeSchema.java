@@ -922,9 +922,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> acceleratorsInScopes_;
   /**
    * <pre>
-   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-   * means the attribute is filterable without any optional acceleration.
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+   * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+   * server sends - means no acceleration anywhere.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -935,9 +935,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-   * means the attribute is filterable without any optional acceleration.
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+   * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+   * server sends - means no acceleration anywhere.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -949,9 +949,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-   * means the attribute is filterable without any optional acceleration.
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+   * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+   * server sends - means no acceleration anywhere.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -962,9 +962,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-   * means the attribute is filterable without any optional acceleration.
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+   * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+   * server sends - means no acceleration anywhere.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -975,9 +975,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-   * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-   * means the attribute is filterable without any optional acceleration.
+   * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+   * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+   * server sends - means no acceleration anywhere.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -4909,9 +4909,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -4925,9 +4925,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -4941,9 +4941,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -4957,9 +4957,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -4980,9 +4980,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5000,9 +5000,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5022,9 +5022,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5045,9 +5045,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5065,9 +5065,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5085,9 +5085,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5106,9 +5106,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5125,9 +5125,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5144,9 +5144,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5157,9 +5157,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5173,9 +5173,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5190,9 +5190,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5203,9 +5203,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>
@@ -5217,9 +5217,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
-     * Only scopes listed in `filterableInScopes` may appear here. An empty list - which is what an older server sends -
-     * means the attribute is filterable without any optional acceleration.
+     * The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+     * filter index in - i.e. is filterable or unique in - may appear here. An empty list - which is what an older
+     * server sends - means no acceleration anywhere.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 20;</code>

@@ -78,9 +78,8 @@ public interface MutationSerializationFunctions {
 
 	/**
 	 * Serializes an optional array of {@link ScopedAttributeFilterAccelerators} to the given Kryo output. A leading
-	 * boolean
-	 * marks presence, so a mutation that declares no accelerator at all costs a single byte and - more importantly -
-	 * lets the matching reader know whether the section is there before it starts consuming it.
+	 * boolean marks presence, so a mutation that declares no accelerator at all costs a single byte and - more
+	 * importantly - lets the matching reader know whether the section is there before it starts consuming it.
 	 *
 	 * The field is optional on the wire because it was added after release 2026.2; `null` and an empty array mean the
 	 * same thing to every mutation that carries it (no acceleration anywhere), so both are written as *absent*.
@@ -102,9 +101,9 @@ public interface MutationSerializationFunctions {
 		output.writeVarInt(accelerators.length, true);
 		for (ScopedAttributeFilterAccelerators entry : accelerators) {
 			kryo.writeObject(output, entry.scope());
-			final AttributeFilterAccelerator[] scopeCapabilities = entry.accelerators();
-			output.writeVarInt(scopeCapabilities.length, true);
-			for (AttributeFilterAccelerator accelerator : scopeCapabilities) {
+			final AttributeFilterAccelerator[] scopeAccelerators = entry.accelerators();
+			output.writeVarInt(scopeAccelerators.length, true);
+			for (AttributeFilterAccelerator accelerator : scopeAccelerators) {
 				kryo.writeObject(output, accelerator);
 			}
 		}
@@ -127,12 +126,12 @@ public interface MutationSerializationFunctions {
 		final ScopedAttributeFilterAccelerators[] accelerators = new ScopedAttributeFilterAccelerators[size];
 		for (int i = 0; i < size; i++) {
 			final Scope scope = kryo.readObject(input, Scope.class);
-			final int capabilityCount = input.readVarInt(true);
-			final AttributeFilterAccelerator[] scopeCapabilities = new AttributeFilterAccelerator[capabilityCount];
-			for (int j = 0; j < capabilityCount; j++) {
-				scopeCapabilities[j] = kryo.readObject(input, AttributeFilterAccelerator.class);
+			final int acceleratorCount = input.readVarInt(true);
+			final AttributeFilterAccelerator[] scopeAccelerators = new AttributeFilterAccelerator[acceleratorCount];
+			for (int j = 0; j < acceleratorCount; j++) {
+				scopeAccelerators[j] = kryo.readObject(input, AttributeFilterAccelerator.class);
 			}
-			accelerators[i] = new ScopedAttributeFilterAccelerators(scope, scopeCapabilities);
+			accelerators[i] = new ScopedAttributeFilterAccelerators(scope, scopeAccelerators);
 		}
 		return accelerators;
 	}

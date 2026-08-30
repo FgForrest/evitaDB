@@ -486,6 +486,84 @@ class AttributeSchemaBuilderTest {
 
 			@Test
 			@DisplayName(
+				"should accumulate accelerators declared in two scopes before filterability"
+			)
+			void shouldAccumulateAcceleratorsDeclaredInTwoScopesBeforeFilterability() {
+				// the accumulation the accelerator methods promise, exercised in the order that used to break it:
+				// both scopes are declared before either of them has the filter index that licenses it, so the
+				// delta of the second call has to be resolved without assembling - and therefore validating - the
+				// half-written attribute. Resolving it from the recorded mutations is what makes that possible
+				final EntityAttributeSchemaContract attr =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.acceleratedForInScope(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.acceleratedForInScope(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.LIVE),
+					"the second scope's declaration erased the first one's"
+				);
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.ARCHIVED)
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should accept an accelerator when a state-reading call splits it from its filterability"
+			)
+			void shouldAcceptAcceleratorWhenStateReadingCallSplitsItFromFilterability() {
+				// `withDefaultValue(...)` and the `non*(...)` withdrawals have to read the attribute as it stands in
+				// order to compute their own mutation. They read the assembled-but-unvalidated schema, so an
+				// accelerator waiting for the `filterable()` that licenses it does not make them throw - the chain is
+				// merely unfinished at that point, and only the finished attribute is judged
+				final EntityAttributeSchemaContract viaDefaultValue =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.withDefaultValue("N/A")
+								.filterable()
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					viaDefaultValue.getAcceleratorsInScope(Scope.LIVE)
+				);
+				assertEquals("N/A", viaDefaultValue.getDefaultValue());
+
+				final EntityAttributeSchemaContract viaWithdrawal =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							whichIs -> whichIs
+								.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.nonSortable()
+								.filterable()
+						)
+						.toInstance()
+						.getAttribute("code").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					viaWithdrawal.getAcceleratorsInScope(Scope.LIVE)
+				);
+				assertFalse(viaWithdrawal.isSortableInScope(Scope.LIVE));
+			}
+
+			@Test
+			@DisplayName(
 				"should refuse an accelerator left in a scope with no filter index"
 			)
 			void shouldRefuseAcceleratorLeftInScopeWithoutFilterIndex() {

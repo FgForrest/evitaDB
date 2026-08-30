@@ -44,8 +44,7 @@ import java.util.Map;
 /**
  * This {@link Serializer} implementation reads {@link AttributeSchema} from the binary format shipped by release
  * 2026.2 - the shape that predates the per-scope {@link AttributeFilterAccelerator filter accelerators}. That
- * format
- * ends with the conflict-resolution override and carries no accelerator section at all.
+ * format ends with the conflict-resolution override and carries no accelerator section at all.
  *
  * The substitution for the absent section is `null`, which {@link AttributeSchema} normalizes into an empty map: an
  * attribute stored before accelerators existed is plainly filterable and asks the filter index for no acceleration,

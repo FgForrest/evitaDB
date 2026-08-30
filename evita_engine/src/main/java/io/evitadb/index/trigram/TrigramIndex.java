@@ -201,11 +201,10 @@ public class TrigramIndex implements
 	 * Re-derives the substring-search accelerators of a whole attribute index from the shared value trees it was just
 	 * loaded with — the entry point of the load path, since nothing about this index is persisted.
 	 *
-	 * Only entity-level attributes are considered, because {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} is refused
-	 * on a
-	 * reference attribute at schema-mutation time; and only attributes the schema STILL declares it for. Attaching
-	 * the value id consumer here restores the registration the tree does not persist — the ids themselves came back
-	 * inside the pages, which is why this cannot fall foul of the tree's empty-at-attach premise.
+	 * Only entity-level attributes are considered, because {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} is
+	 * refused on a reference attribute at schema-mutation time; and only attributes the schema STILL declares it for.
+	 * Attaching the value id consumer here restores the registration the tree does not persist — the ids themselves
+	 * came back inside the pages, which is why this cannot fall foul of the tree's empty-at-attach premise.
 	 *
 	 * An attribute whose accelerator was withdrawn therefore gets no accelerator back — but its cost does not leave
 	 * with it. The loader restores a tree's value id column, allocator and directory from the persisted shape alone

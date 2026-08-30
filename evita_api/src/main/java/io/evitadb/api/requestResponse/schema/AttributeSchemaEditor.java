@@ -144,10 +144,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * accelerator costs additional memory and additional write-path work, so read its documentation before declaring
 	 * it; declaring none at all is the default.
 	 *
-	 * **Declare the index first.** Because the requirement is checked against the schema as the builder has it so
-	 * far, `filterable().acceleratedFor(...)` and `unique().acceleratedFor(...)` are accepted while the reverse
-	 * order - `acceleratedFor(...).filterable()` - is refused. The same ordering caveat applies to
-	 * {@link ReferenceSchemaEditor#indexedWithComponentsInScope(Scope, ReferenceIndexedComponents...)}.
+	 * **Declaration order is insignificant.** The requirement is checked on the *assembled* attribute rather than on
+	 * the half-written chain, so `filterable().acceleratedFor(...)` and `acceleratedFor(...).filterable()` are equally
+	 * accepted, whatever else the chain does between the two calls. It is checked **per scope**, and either flag
+	 * satisfies it there - but only there: being {@link #uniqueInScope(Scope...) unique} in {@link Scope#LIVE}
+	 * licenses no accelerator declared in {@link Scope#ARCHIVED}.
 	 *
 	 * @param accelerators the accelerators to maintain in the default scope
 	 * @return builder to continue with configuration

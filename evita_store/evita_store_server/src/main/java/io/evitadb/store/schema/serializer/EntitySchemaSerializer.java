@@ -166,9 +166,9 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		output.writeVarInt(accelerators.size(), true);
 		for (Entry<Scope, Set<AttributeFilterAccelerator>> entry : accelerators.entrySet()) {
 			kryo.writeObject(output, entry.getKey());
-			final Set<AttributeFilterAccelerator> scopeCapabilities = entry.getValue();
-			output.writeVarInt(scopeCapabilities.size(), true);
-			for (AttributeFilterAccelerator accelerator : scopeCapabilities) {
+			final Set<AttributeFilterAccelerator> scopeAccelerators = entry.getValue();
+			output.writeVarInt(scopeAccelerators.size(), true);
+			for (AttributeFilterAccelerator accelerator : scopeAccelerators) {
 				kryo.writeObject(output, accelerator);
 			}
 		}
@@ -189,11 +189,11 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		for (int i = 0; i < outerSize; i++) {
 			final Scope scope = kryo.readObject(input, Scope.class);
 			final int innerSize = input.readVarInt(true);
-			final EnumSet<AttributeFilterAccelerator> scopeCapabilities = EnumSet.noneOf(AttributeFilterAccelerator.class);
+			final EnumSet<AttributeFilterAccelerator> scopeAccelerators = EnumSet.noneOf(AttributeFilterAccelerator.class);
 			for (int j = 0; j < innerSize; j++) {
-				scopeCapabilities.add(kryo.readObject(input, AttributeFilterAccelerator.class));
+				scopeAccelerators.add(kryo.readObject(input, AttributeFilterAccelerator.class));
 			}
-			result.put(scope, scopeCapabilities);
+			result.put(scope, scopeAccelerators);
 		}
 		return result;
 	}

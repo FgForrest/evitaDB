@@ -136,8 +136,8 @@ public enum GrpcSchemaCapability
   /**
    * <pre>
    * The element's filter index also answers substring matching -
-   * `filterable(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and
-   * the trigram index it costs. Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+   * `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
    * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
    * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
    * - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
@@ -238,8 +238,8 @@ public enum GrpcSchemaCapability
   /**
    * <pre>
    * The element's filter index also answers substring matching -
-   * `filterable(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and
-   * the trigram index it costs. Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+   * `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
    * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
    * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
    * - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by

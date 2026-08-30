@@ -94,13 +94,14 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 	PropertyDescriptor ACCELERATORS_IN_SCOPES = PropertyDescriptor.builder()
 		.name("acceleratorsInScopes")
 		.description("""
-			Optional accelerations the filter index should maintain on top of plain filterability, per scope. Each
-			accelerator costs additional memory and additional write-path work, so none of them is implied by making
-			the attribute filterable - only the ones listed here are maintained.
+			Optional accelerations the attribute's filter index should maintain, per scope. Each accelerator costs
+			additional memory and additional write-path work, so none of them is implied by making the attribute
+			filterable or unique - only the ones listed here are maintained.
 
-			The property is optional; when it is omitted the attribute stays filterable without any acceleration, which
-			is the behaviour of every client that predates filter accelerators. A scope may only be named here
-			when the very same mutation also makes the attribute filterable in it.
+			The property is optional; when it is omitted the attribute carries no acceleration anywhere, which is the
+			behaviour of every client that predates filter accelerators. A scope may only be named here when the very
+			same mutation also gives the attribute a filter index there - i.e. makes it filterable or unique in that
+			scope.
 			""")
 		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS))
 		.build();

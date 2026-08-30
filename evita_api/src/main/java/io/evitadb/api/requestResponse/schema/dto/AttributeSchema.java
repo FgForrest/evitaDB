@@ -211,10 +211,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	public static EnumMap<Scope, Set<AttributeFilterAccelerator>> toAcceleratorsEnumMap(
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes
 	) {
-		final EnumMap<Scope, Set<AttributeFilterAccelerator>> theCapabilities = new EnumMap<>(Scope.class);
+		final EnumMap<Scope, Set<AttributeFilterAccelerator>> theAccelerators = new EnumMap<>(Scope.class);
 		if (acceleratorsInScopes != null) {
-			for (final ScopedAttributeFilterAccelerators scopedCapabilities : acceleratorsInScopes) {
-				final AttributeFilterAccelerator[] accelerators = scopedCapabilities.accelerators();
+			for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+				final AttributeFilterAccelerator[] accelerators = scopedAccelerators.accelerators();
 				if (accelerators.length == 0) {
 					// an empty carrier means "filterable, no acceleration" - that is the absence of an entry, not an
 					// entry holding an empty set, so that it stays `equals` to a plain `filterable()` declaration
@@ -222,8 +222,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				}
 				final EnumSet<AttributeFilterAccelerator> theSet = EnumSet.noneOf(AttributeFilterAccelerator.class);
 				Collections.addAll(theSet, accelerators);
-				theCapabilities.merge(
-					scopedCapabilities.scope(), theSet,
+				theAccelerators.merge(
+					scopedAccelerators.scope(), theSet,
 					(existing, added) -> {
 						existing.addAll(added);
 						return existing;
@@ -231,7 +231,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				);
 			}
 		}
-		return theCapabilities;
+		return theAccelerators;
 	}
 
 	/**

@@ -218,13 +218,13 @@ public abstract class SchemaJsonSerializer {
 		final ArrayNode acceleratorsArray = this.objectJsonSerializer.arrayNode();
 		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators = attributeSchema.getAcceleratorsInScopes();
 		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry : accelerators.entrySet()) {
-			final ObjectNode capabilityNode = this.objectJsonSerializer.objectNode();
-			capabilityNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
-			capabilityNode.set(
+			final ObjectNode acceleratorNode = this.objectJsonSerializer.objectNode();
+			acceleratorNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
+			acceleratorNode.set(
 				ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(),
 				this.objectJsonSerializer.serializeArray(entry.getValue().toArray(AttributeFilterAccelerator[]::new))
 			);
-			acceleratorsArray.add(capabilityNode);
+			acceleratorsArray.add(acceleratorNode);
 		}
 		return acceleratorsArray;
 	}

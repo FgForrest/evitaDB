@@ -66,7 +66,6 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
@@ -86,6 +85,8 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	protected MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	protected S updatedSchema;
 	private int lastMutationReflectedInSchema = 0;
+	/** Whether {@link #validate(AttributeSchemaContract)} has already accepted the currently assembled schema. */
+	private boolean updatedSchemaValidated;
 
 	AbstractAttributeSchemaBuilder(
 		@Nullable CatalogSchemaContract catalogSchema,
@@ -109,7 +110,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		@Nullable Serializable defaultValue) {
 		if (defaultValue != null) {
 			final Class<? extends Serializable> wrappedForm = EvitaDataTypes.toWrappedForm(defaultValue.getClass());
-			final S currentSchema = toInstance();
+			final S currentSchema = assembleInstance();
 			final Class<? extends Serializable> expectedType = currentSchema.getType();
 			Assert.isTrue(
 				expectedType.equals(wrappedForm),
@@ -195,8 +196,9 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	 * only the one being changed - after adding or removing the given accelerators in one scope.
 	 *
 	 * The mutation is a full statement by design, because that is what makes combining two of them trivially
-	 * last-one-wins. The delta therefore has to be resolved here, against the schema as the builder currently sees it,
-	 * so that two calls naming different scopes accumulate instead of the second erasing the first.
+	 * last-one-wins. The delta therefore has to be resolved here, against the axis the builder currently declares, so
+	 * that two calls naming different scopes accumulate instead of the second erasing the first. That read goes
+	 * through {@link #assembleInstance()} rather than {@link #toInstance()} - see there for why it must not validate.
 	 *
 	 * @param scope        the scope whose accelerators change
 	 * @param accelerators the accelerators to add or to remove; an empty array leaves the schema as it is
@@ -552,9 +554,37 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	/**
 	 * Creates attribute schema instance.
+	 *
+	 * This is the call that validates: the attribute is assembled by {@link #assembleInstance()} and then checked
+	 * once per assembly, so this is where an attribute whose declarations do not compose is refused.
 	 */
 	@Nonnull
 	public S toInstance() {
+		final S instance = assembleInstance();
+		if (!this.updatedSchemaValidated) {
+			validate(instance);
+			this.updatedSchemaValidated = true;
+		}
+		return instance;
+	}
+
+	/**
+	 * Assembles the attribute schema out of the base schema and the mutations recorded so far, WITHOUT validating it.
+	 *
+	 * Validation is a property of the finished attribute, never of a half-written one. The rules are cross-field - an
+	 * accelerator needs a filter index in the same scope, a sortable attribute needs a comparable type - so checking
+	 * them against an intermediate state would make declaration order significant, and `acceleratedFor(...)` followed
+	 * by the `filterable()` that licenses it would be refused before the licence was ever given.
+	 *
+	 * Every builder method that has to read the current state in order to compute its own mutation therefore reads it
+	 * through this method, and the {@link AttributeSchemaContract} getters this builder exposes are delegated to it
+	 * for the same reason: a getter reports what is currently declared, while {@link #toInstance()} is what hands out
+	 * a validated schema.
+	 *
+	 * @return the attribute schema as currently declared, unvalidated
+	 */
+	@Nonnull
+	protected S assembleInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
 			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
@@ -575,10 +605,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 					throw new GenericEvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
 			}
-			validate(currentSchema);
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
 			this.lastMutationReflectedInSchema = attributeMutations.size();
+			// a freshly assembled schema has not been through validate() yet - toInstance() will run it
+			this.updatedSchemaValidated = false;
 		}
 		return this.updatedSchema;
 	}
@@ -636,24 +667,17 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			!(currentSchema.isFilterableInAnyScope() && currentSchema.isUniqueInAnyScope()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
-		// unlike its neighbours above, this rule is checked **per scope** rather than in any scope: an accelerator
-		// accelerates one particular scope's filter index, so an attribute unique in LIVE does not license an
-		// accelerator declared in ARCHIVED. It composes with the assertion right above rather than contradicting it -
-		// that one forbids declaring both flags, this one accepts either of them as the index the accelerator needs
-		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry :
-			currentSchema.getAcceleratorsInScopes().entrySet()) {
-			final Scope scope = entry.getKey();
-			final Set<AttributeFilterAccelerator> accelerators = entry.getValue();
-			Assert.isTrue(
-				accelerators.isEmpty() || currentSchema.hasFilterIndexInScope(scope),
-				() -> new InvalidSchemaMutationException(
-					"Attribute `" + currentSchema.getName() + "` declares filter accelerators " + accelerators +
-						" in scope `" + scope + "`, but it has no filter index there! Filter accelerators speed up " +
-						"an existing filter index - make the attribute filterable or unique in `" + scope +
-						"`, or drop the accelerators."
-				)
-			);
-		}
+		// the remaining rules are self-contained invariants of the assembled attribute, so they are stated once on
+		// AttributeSchemaContract#validate() and are merely turned into an exception here - the schema-level
+		// validation reads the very same definition and collects the messages instead of throwing them. They compose
+		// with the assertions above rather than contradicting them: the accelerator rule is checked per scope, so an
+		// attribute unique in LIVE does not license an accelerator declared in ARCHIVED, and it accepts either flag
+		// as the filter index an accelerator speeds up, while the assertion right above forbids declaring both
+		currentSchema.validate()
+			.findFirst()
+			.ifPresent(error -> {
+				throw new InvalidSchemaMutationException(error);
+			});
 	}
 
 }

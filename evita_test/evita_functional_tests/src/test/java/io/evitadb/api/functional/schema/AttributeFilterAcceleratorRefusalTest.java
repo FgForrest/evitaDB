@@ -62,11 +62,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Guards the refusal that protects users from a silently-incomplete substring index.
  *
  * The index backing a {@link AttributeFilterAccelerator} is built incrementally as entities are indexed, and no
- * reindexing
- * machinery exists that could back-fill one for entities already stored. Declaring the capability on a populated
- * collection would therefore produce an index that answers only for entities written *after* the schema change -
- * queries would silently return fewer results than they should. The engine refuses instead, at the one place every
- * route into the schema passes through.
+ * reindexing machinery exists that could back-fill one for entities already stored. Declaring the capability on a
+ * populated collection would therefore produce an index that answers only for entities written *after* the schema
+ * change - queries would silently return fewer results than they should. The engine refuses instead, at the one
+ * place every route into the schema passes through.
  *
  * The mirror-image case matters just as much and is asserted here too: declaring the capability **before** any data
  * goes in must work, and so must every schema change that does not add a capability, however populated the collection
@@ -908,6 +907,80 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().nullable())
 						.updateVia(session);
 					session.goLiveAndClose();
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("submitted as a raw schema mutation")
+	class RawMutations {
+
+		@Test
+		@DisplayName("should refuse an accelerator declared on an attribute with no filter index")
+		void shouldRefuseAnAcceleratorDeclaredOnAnAttributeWithNoFilterIndex() {
+			// the builder cannot express this state at all - it refuses the chain while assembling it - so the
+			// mutation has to be submitted raw. Every other route into the schema (gRPC, REST, GraphQL, the WAL)
+			// carries mutations the same way, which is what makes this the shape worth pinning
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable())
+						.updateVia(session);
+				}
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.updateEntitySchema(
+							new ModifyEntitySchemaMutation(
+								Entities.PRODUCT,
+								new SetAttributeSchemaAcceleratedMutation(
+									ATTRIBUTE_CODE,
+									new ScopedAttributeFilterAccelerators(
+										Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+									)
+								)
+							)
+						);
+					}
+				)
+			);
+			// asserted on the message rather than on the type alone: the collection-emptiness refusal throws the
+			// same exception, and it would satisfy a bare assertThrows while proving something else entirely
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
+			assertTrue(exception.getMessage().contains("no filter index"));
+
+			// reopening over the same storage directory is the only honest way to ask what the refused session
+			// actually left behind - the in-memory catalog would answer for a schema that was never written
+			AttributeFilterAcceleratorRefusalTest.this.evita.close();
+			AttributeFilterAcceleratorRefusalTest.this.evita = new Evita(configuration());
+
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// the refusal above precedes the refused session's own write - a warming-up close validates
+					// before `Catalog#flush` - but it cannot take back the schema exchange that
+					// `EntityCollection#updateSchema` has already performed on the running catalog, and warm-up
+					// catalog termination flushes whatever sits in memory without consulting the same rule. So a
+					// clean shutdown still writes the orphan out, and the reopened catalog is past the schema
+					// version gate that decides whether to validate at all, which is why it loads without
+					// complaint. Asserted rather than left to be discovered: closing the gap needs an undo for a
+					// warm-up schema exchange, which does not exist today, and validating each
+					// `updateEntitySchema` batch instead would refuse the legitimate sequence of declaring the
+					// accelerator in one call and the filterability that licenses it in the next. Tracked as #1466 -
+					// flip this assertion to `Set.of()` when that issue is closed
+					assertEquals(
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+						session.getEntitySchemaOrThrow(Entities.PRODUCT)
+							.getAttribute(ATTRIBUTE_CODE).orElseThrow()
+							.getAcceleratorsInScope(Scope.LIVE)
+					);
 				}
 			);
 		}
