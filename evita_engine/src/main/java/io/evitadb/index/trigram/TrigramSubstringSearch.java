@@ -98,20 +98,39 @@ public final class TrigramSubstringSearch {
 	 * The candidate set must cover at most `1 / this` of the attribute's distinct values for the trigram path to be
 	 * taken.
 	 *
-	 * Derived from the same measurements. Brief §35.4's crossovers move by four orders of magnitude across the pattern
-	 * classes - 17,500-68,500 entities for a common pattern, 58-353 for a medium one, 1-2 for a rare one - and they do
-	 * so precisely as the pattern's posting width moves, which is what says the crossover is a RATIO rather than an
-	 * absolute size. Reading the widest of them back: a "common" trigram on that corpus posts against roughly 10-30% of
-	 * the values, and it crosses over at ~68,500 of them, putting the break-even ratio somewhere between a third and a
-	 * tenth. `4` is the conservative end of that band, and deliberately so - being too cautious costs a speedup that
-	 * was never guaranteed, while being too eager costs a regression on a query that used to be fine. Verification is
-	 * 55-87% of this path's cost and runs about twice as slow per candidate on non-ASCII values, so the band's
-	 * pessimistic end is the honest one to sit at.
+	 * Measured end to end against the scan it displaces, on a real embedded instance, one corpus per run
+	 * (`SubstringQueryBenchmark`, seven planted posting widths from 1% to 25%, `-f 3`). Speedup is monotone in width
+	 * and changes sign between 8% and 12%: at 100,000 distinct values the 8% pattern still wins 1.15x while the 12%
+	 * pattern LOSES 1.34x, and interpolating between them puts the crossover at **9.5% of distinct values**, i.e. a
+	 * divisor of 10.5. The whole curve is one invariant - trigram visits `share * n` candidates where the scan visits
+	 * `n` and both run the same predicate, so `share * speedup` is the break-even share, and all seven classes agree
+	 * on it within 15% across a 25-fold range of width.
+	 *
+	 * `12` is therefore the measured 10.5 plus a deliberate margin, and the margin is bought by three things the
+	 * benchmark could not measure, all pushing the true crossover LOWER:
+	 *
+	 * - its corpus produces no false candidates at all - every candidate the intersection nominated survived the
+	 *   predicate. Real text does not do that, and every rejected candidate is verification charged solely to this
+	 *   path. At 30% false candidates the 100,000-value crossover moves from 9.5% to roughly 7%;
+	 * - it is all-ASCII, and verification runs about twice as slow per candidate on non-ASCII values;
+	 * - its trigram dictionary saturates, giving tighter candidate sets than real text would.
+	 *
+	 * The crossover also falls as the catalog grows - 12.75% at 10,000 distinct values against 9.5% at 100,000 - so a
+	 * single scalar must be chosen from the large end to stay correct at scale.
+	 *
+	 * What `12` gives up against `10.5` is patterns covering 8.33-10% of the values, worth 1.28-1.53x at 10,000 values
+	 * and roughly break-even at 100,000. That asymmetry is the point: a forfeited 1.4x is invisible, while an
+	 * introduced 1.4x regression is a bug report against a query that used to be fine.
+	 *
+	 * **This constant was previously `4`, which admitted a band where the accelerator was 1.1-2.1x SLOWER than the
+	 * scan.** The reasoning that chose it had derived the right band - "between a third and a tenth" - and then took
+	 * the wrong end of it, calling `4` conservative when a LARGER divisor is the strict one. Nothing in the code could
+	 * surface that, because a too-eager gate returns slower correct answers rather than failures.
 	 *
 	 * This is a deliberately crude stand-in for a cost model. The query planner's own costing of the substring path is
 	 * the increment after this one; when it lands, this constant is what it replaces.
 	 */
-	public static final int CANDIDATE_SELECTIVITY_DIVISOR = 4;
+	public static final int CANDIDATE_SELECTIVITY_DIVISOR = 12;
 
 	/**
 	 * The answer to a pattern the index can already prove no value contains - distinguished from `null`, which means
