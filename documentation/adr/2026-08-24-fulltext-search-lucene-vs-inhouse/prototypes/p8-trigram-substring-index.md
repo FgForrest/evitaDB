@@ -1,6 +1,7 @@
 # Research Brief: Trigram Indexing for Fast `contains()` Using Distinct Value IDs
 
-**Status:** Research brief, adopted into the fulltext record on 2026-08-24. It originated as a separate
+**Status:** Research brief, adopted into the fulltext record on 2026-08-24 and **implemented in full on
+2026-08-30** — read the 2026-08-30 note at the end of this header first. It originated as a separate
 discussion outside the #258 research line — about accelerating today's naive `attributeContains` /
 `attributeEndsWith` scan — and is adopted here because it converges with the fulltext prototypes on
 substrate, memory risks and open questions; the mapping is in §32–§33. The descriptions of PostgreSQL,
@@ -15,6 +16,56 @@ performance gate. §35 records the measured results, closes the forks this brief
 dictionary shape, §15 positions, §16/§29 posting representation, §17 early exit) and corrects the
 brief's claims that the measurements falsified. Read §35 before acting on §5–§17 — several of their
 hypotheses are now settled, some against the brief's expectation.
+
+**Update 2026-08-30 — IMPLEMENTED. This document is now history, not intent.** The design shipped in
+full as issue [#1454](https://github.com/FgForrest/evitaDB/issues/1454) (a sub-issue of #258): the
+`SUBSTRING` filter capability, the value-id column on the shared value tree, `TrigramIndex` as a
+component of `GlobalEntityIndex`, `attributeContains` / `attributeEndsWith` served from it, and
+reduced-index plans composed through the subset invariant of §34. The outcome — the decisions, the
+options that lost and why, the measured numbers and the open follow-ups — lives in the record's
+[README](../README.md); it is the authority from here on, and **nothing below has been rewritten**. The
+body still reads as it did before implementation, on purpose: it is what was believed at the time, and
+a reader has to be able to tell that apart from what turned out to be true.
+
+**Four things the implementation settled against this brief, §35 included:**
+
+1. **§11 / §35.2 — the posting store is a `TransactionalLongBPlusTree`, not the open-addressing table.**
+   §35.2's 40–60× probe advantage was real and was not the deciding quantity: a published flat table is
+   immutable, so one touched posting clones both spine arrays on every commit — the large short-lived
+   allocation this codebase moved its index structures onto B+ trees to escape; and a pattern issues
+   only 2–15 lookups, so the whole probe penalty is under a microsecond against a query whose
+   verification phase runs for tens to hundreds of them.
+   §35.5's own "the production key structure must be a resizable/persistable tree" already pointed here
+   — the two halves of §35 disagreed with each other.
+2. **§27's cold-cache rows and §35.5's persisted-postings item are closed as *never*, not deferred.**
+   The trigram index has a storage surface of exactly zero and is re-derived on catalog open. The
+   rebuild cost that would have justified persisting it was under-measured: the ~220 ns/insert constant
+   behind the projection came from synthetic corpora whose mean posting holds 25–244 members, applied to
+   an attribute whose largest posting holds 444 437 — the real incremental figure is ~77 s on
+   `article/title/cs`, 3.6× the projection. An ordered-append bulk build does the same work in 4.0 s,
+   after which persistence buys a second of load and costs whole-posting rewrites forever (measured: one
+   new value rewrites ~4.8 MB, 4 285× what a delta journal would append).
+3. **§35.4's crossovers were spike-harness numbers, and the gate constant derived from them was too
+   permissive by a factor of three.** Measured end to end through the real engine, the accelerated path
+   is *slower* than the scan it replaces above ~9.5 % posting width at n = 100 000; the shipped
+   `CANDIDATE_SELECTIVITY_DIVISOR = 4` admitted everything up to 25 %, where it ran 2.1–2.3× slower. It
+   now stands at 12. §35.4's structural reading — that the crossover is a *ratio* and that verification
+   dominates — held; only its calibration did not.
+4. **§21 / §32 / §35.5's missing bucket-death hook now exists**, as `ValueLifecycleSink` — a sink
+   threaded through the write call rather than a listener the index stores, because every commit
+   re-shells the structures a stored listener would have to be re-bound to.
+
+**What held, and was not re-litigated:** §15 (positions never), §13/§14 (tree-attached dictionary),
+§16/§29 (hybrid postings, T = 128 — with demotion at T/2 added for hysteresis), §17 (cardinality-
+ascending intersection mandatory, the verification-cost bound off), §6/§21/§28 (churn on an existing
+value costs zero trigram writes), §5/§8 (the per-attribute flag *is* the memory story, and the budget
+numbers are unchanged), §18 (short patterns fall back), §32 (`startsWith` keeps its anchored path), and
+§34.4's subset invariant, which is exactly what the reduced-index composition was built on.
+
+**Still open, and named in the record rather than here:** `endsWith` shares the whole candidate path and
+its correctness is proven against the engine, but it still has no latency column of its own; localized
+attributes, non-ASCII values and reduced-index plans have functional coverage but no benchmark; and #545
+(§19) was deliberately kept out of this line of work.
 
 ## 1. Goal
 
