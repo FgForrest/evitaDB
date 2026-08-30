@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -111,21 +111,21 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			""")
 		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor FILTER_CAPABILITIES_IN_SCOPES = PropertyDescriptor.builder()
-		.name("filterCapabilitiesInScopes")
+	PropertyDescriptor ACCELERATORS_IN_SCOPES = PropertyDescriptor.builder()
+		.name("acceleratorsInScopes")
 		.description("""
 			Optional accelerations the filter index should maintain on top of plain filterability, per scope. Each
-			capability costs additional memory and additional write-path work, so none of them is implied by making
+			accelerator costs additional memory and additional write-path work, so none of them is implied by making
 			the attribute filterable - only the ones listed here are maintained.
 
 			The property is optional; when it is omitted the attribute stays filterable without any acceleration, which
-			is the behaviour of every client that predates filter index capabilities. A scope may only be named here
+			is the behaviour of every client that predates filter accelerators. A scope may only be named here
 			when the very same mutation also makes the attribute filterable in it.
 			""")
-		.type(nullableListRef(ScopedFilterCapabilitiesDescriptor.THIS))
+		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS))
 		.build();
-	PropertyDescriptor FILTER_CAPABILITIES_IN_SCOPES_INPUT = PropertyDescriptor.from(FILTER_CAPABILITIES_IN_SCOPES)
-		.type(nullableListRef(ScopedFilterCapabilitiesDescriptor.THIS_INPUT))
+	PropertyDescriptor ACCELERATORS_IN_SCOPES_INPUT = PropertyDescriptor.from(ACCELERATORS_IN_SCOPES)
+		.type(nullableListRef(ScopedAttributeFilterAcceleratorsDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor SORTABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("sortableInScopes")
@@ -214,7 +214,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.staticProperty(UNIQUE_IN_SCOPES)
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES)
 		.staticProperty(FILTERABLE_IN_SCOPES)
-		.staticProperty(FILTER_CAPABILITIES_IN_SCOPES)
+		.staticProperty(ACCELERATORS_IN_SCOPES)
 		.staticProperty(SORTABLE_IN_SCOPES)
 		.staticProperty(LOCALIZED)
 		.staticProperty(NULLABLE)
@@ -227,6 +227,6 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 		.name("CreateGlobalAttributeSchemaMutationInput")
 		.staticProperty(UNIQUE_IN_SCOPES_INPUT)
 		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES_INPUT)
-		.staticProperty(FILTER_CAPABILITIES_IN_SCOPES_INPUT)
+		.staticProperty(ACCELERATORS_IN_SCOPES_INPUT)
 		.build();
 }

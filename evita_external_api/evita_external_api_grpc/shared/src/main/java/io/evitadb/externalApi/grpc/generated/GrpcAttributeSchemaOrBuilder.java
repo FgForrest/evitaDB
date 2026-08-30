@@ -689,10 +689,10 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * means the attribute is filterable without any optional acceleration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities> 
-      getFilterCapabilitiesInScopesList();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators> 
+      getAcceleratorsInScopesList();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
@@ -700,9 +700,9 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * means the attribute is filterable without any optional acceleration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities getFilterCapabilitiesInScopes(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators getAcceleratorsInScopes(int index);
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
@@ -710,9 +710,9 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * means the attribute is filterable without any optional acceleration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
    */
-  int getFilterCapabilitiesInScopesCount();
+  int getAcceleratorsInScopesCount();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
@@ -720,10 +720,10 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * means the attribute is filterable without any optional acceleration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder> 
-      getFilterCapabilitiesInScopesOrBuilderList();
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder> 
+      getAcceleratorsInScopesOrBuilderList();
   /**
    * <pre>
    * The optional accelerations the attribute's filter index maintains on top of plain filterability, per scope.
@@ -731,8 +731,8 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * means the attribute is filterable without any optional acceleration.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilities filterCapabilitiesInScopes = 22;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 22;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcScopedFilterCapabilitiesOrBuilder getFilterCapabilitiesInScopesOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
       int index);
 }

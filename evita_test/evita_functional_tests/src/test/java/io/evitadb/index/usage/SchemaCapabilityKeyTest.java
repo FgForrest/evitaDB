@@ -120,19 +120,19 @@ class SchemaCapabilityKeyTest {
 		@Test
 		@DisplayName("An attribute-only capability is rejected at the mint site, not at alignment")
 		void shouldRejectAttributeOnlyCapabilityOnReferenceAndEntity() {
-			// SUBSTRING_FILTERABLE belongs to an attribute alone. A reference or entity key naming it would be
+			// SUBSTRING_ACCELERATED belongs to an attribute alone. A reference or entity key naming it would be
 			// dropped silently at the next schema adoption and its author would never learn of it - so the factory
 			// refuses to mint one, exactly as it does for the other attribute-only flags.
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> SchemaCapabilityKey.reference(
-					REFERENCE_NAME, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+					REFERENCE_NAME, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 				)
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> SchemaCapabilityKey.entity(
-					ENTITY_TYPE, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+					ENTITY_TYPE, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 				)
 			);
 		}

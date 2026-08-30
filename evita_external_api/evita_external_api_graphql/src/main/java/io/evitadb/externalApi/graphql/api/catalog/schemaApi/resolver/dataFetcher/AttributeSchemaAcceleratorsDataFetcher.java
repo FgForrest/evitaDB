@@ -27,7 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -37,33 +37,33 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Provides complete list of {@link AttributeSchemaContract#getFilterCapabilitiesInScopes()} as a list of
- * {@link ScopedFilterCapabilities} carriers for GraphQL schema resolution.
+ * Provides complete list of {@link AttributeSchemaContract#getAcceleratorsInScopes()} as a list of
+ * {@link ScopedAttributeFilterAccelerators} carriers for GraphQL schema resolution.
  *
- * Scopes that declare no capability are not present in the schema's map and therefore are not emitted at all - an
+ * Scopes that declare no accelerator are not present in the schema's map and therefore are not emitted at all - an
  * attribute that is merely filterable resolves to an empty list, which is exactly what every schema looked like
- * before capabilities existed.
+ * before accelerators existed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AttributeSchemaFilterCapabilitiesDataFetcher implements DataFetcher<List<ScopedFilterCapabilities>> {
+public class AttributeSchemaAcceleratorsDataFetcher implements DataFetcher<List<ScopedAttributeFilterAccelerators>> {
 
 	@Nullable
-	private static AttributeSchemaFilterCapabilitiesDataFetcher INSTANCE = null;
+	private static AttributeSchemaAcceleratorsDataFetcher INSTANCE = null;
 
 	@Nonnull
-	public static AttributeSchemaFilterCapabilitiesDataFetcher getInstance() {
+	public static AttributeSchemaAcceleratorsDataFetcher getInstance() {
 		if (INSTANCE == null) {
-			INSTANCE = new AttributeSchemaFilterCapabilitiesDataFetcher();
+			INSTANCE = new AttributeSchemaAcceleratorsDataFetcher();
 		}
 		return INSTANCE;
 	}
 
 	@Override
 	@Nonnull
-	public List<ScopedFilterCapabilities> get(DataFetchingEnvironment environment) throws Exception {
+	public List<ScopedAttributeFilterAccelerators> get(DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaContract attributeSchema = Objects.requireNonNull(environment.getSource());
-		return List.of(AttributeSchema.toFilterCapabilitiesArray(attributeSchema.getFilterCapabilitiesInScopes()));
+		return List.of(AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes()));
 	}
 }

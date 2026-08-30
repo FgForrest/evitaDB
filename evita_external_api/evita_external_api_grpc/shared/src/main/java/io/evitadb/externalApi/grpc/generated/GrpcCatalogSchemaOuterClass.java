@@ -79,7 +79,7 @@ public final class GrpcCatalogSchemaOuterClass {
       "pi.grpc.generated.GrpcConflictResolution" +
       "\032s\n\017AttributesEntry\022\013\n\003key\030\001 \001(\t\022O\n\005valu" +
       "e\030\002 \001(\0132@.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcGlobalAttributeSchema:\0028\001\"\212\n" +
+      "nerated.GrpcGlobalAttributeSchema:\0028\001\"\215\n" +
       "\n\031GrpcGlobalAttributeSchema\022\014\n\004name\030\001 \001(" +
       "\t\0221\n\013description\030\002 \001(\0132\034.google.protobuf" +
       ".StringValue\0227\n\021deprecationNotice\030\003 \001(\0132" +
@@ -109,10 +109,10 @@ public final class GrpcCatalogSchemaOuterClass {
       "rpcScopedGlobalAttributeUniquenessType\022i" +
       "\n\032conflictResolutionOverride\030\023 \001(\0162E.io." +
       "evitadb.externalApi.grpc.generated.GrpcC" +
-      "onflictResolutionOverride\022g\n\032filterCapab" +
-      "ilitiesInScopes\030\024 \003(\0132C.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcScopedFilterCa" +
-      "pabilitiesB\014P\001\252\002\007EvitaDBb\006proto3"
+      "onflictResolutionOverride\022j\n\024accelerator" +
+      "sInScopes\030\024 \003(\0132L.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcScopedAttributeFilte" +
+      "rAcceleratorsB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -138,7 +138,7 @@ public final class GrpcCatalogSchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "UniqueGlobally", "NameVariant", "UniqueInScopes", "FilterableInScopes", "SortableInScopes", "UniqueGloballyInScopes", "ConflictResolutionOverride", "FilterCapabilitiesInScopes", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "UniqueGlobally", "NameVariant", "UniqueInScopes", "FilterableInScopes", "SortableInScopes", "UniqueGloballyInScopes", "ConflictResolutionOverride", "AcceleratorsInScopes", });
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

@@ -32,12 +32,12 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.TestConstants;
@@ -105,8 +105,8 @@ class CatalogSchemaConverterTest {
 						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 					},
 					new Scope[] { Scope.LIVE },
-					new ScopedFilterCapabilities[] {
-						new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+					new ScopedAttributeFilterAccelerators[] {
+						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					},
 					new Scope[] { Scope.LIVE },
 					true,
@@ -162,6 +162,6 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
 		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
-		assertEquals(expected.getFilterCapabilitiesInScopes(), actual.getFilterCapabilitiesInScopes());
+		assertEquals(expected.getAcceleratorsInScopes(), actual.getAcceleratorsInScopes());
 	}
 }

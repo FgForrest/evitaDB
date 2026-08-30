@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.trigram.TrigramSubstringSearch;
@@ -79,7 +79,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * End-to-end proof that declaring {@link FilterIndexCapability#SUBSTRING} on an attribute changes only HOW FAST
+ * End-to-end proof that declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} on an attribute changes only HOW
+ * FAST
  * `attributeContains` and `attributeEndsWith` are answered, never WHAT they answer.
  *
  * Every case runs the identical corpus and the identical query twice - once against a collection whose attribute
@@ -264,7 +265,7 @@ public class AttributeSubstringIndexFunctionalTest implements EvitaTestSupport {
 						whichIs.localized();
 					}
 					if (accelerated) {
-						whichIs.filterable(FilterIndexCapability.SUBSTRING);
+						whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH);
 					} else {
 						whichIs.filterable();
 					}

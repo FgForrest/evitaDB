@@ -23,13 +23,14 @@
 
 package io.evitadb.performance.substring.state;
 
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 
 /**
  * The two arms of the substring A/B, which differ in **one schema flag and nothing else**.
  *
  * The corpus, the entity primary keys, the query and the predicate are identical on both sides; the only difference is
- * whether the `title` attribute declares {@link FilterIndexCapability#SUBSTRING}, which is what decides whether the
+ * whether the `title` attribute declares {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}, which is what decides
+ * whether the
  * global entity index hosts a `TrigramIndex` for it at all. With no trigram index
  * `AbstractAttributeStringSearchTranslator` falls through to `FilterIndex#getRecordsWhoseValuesContains`, a scan over
  * every distinct value - so the arm names the *execution* being measured, not a different dataset.
@@ -43,7 +44,7 @@ import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
 public enum SubstringIndexArm {
 
 	/**
-	 * `title` is `filterable(FilterIndexCapability.SUBSTRING)`, so the attribute keeps a trigram index and
+	 * `title` is `filterable().acceleratedFor(SUBSTRING_SEARCH)`, so the attribute keeps a trigram index and
 	 * `attributeContains` may be answered by candidate generation.
 	 */
 	TRIGRAM,

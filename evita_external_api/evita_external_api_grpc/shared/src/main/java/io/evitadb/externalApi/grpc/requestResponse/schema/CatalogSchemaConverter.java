@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -191,9 +191,9 @@ public class CatalogSchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllFilterCapabilitiesInScopes(
-				toGrpcScopedFilterCapabilities(
-					AttributeSchema.toFilterCapabilitiesArray(attributeSchema.getFilterCapabilitiesInScopes())
+			.addAllAcceleratorsInScopes(
+				toGrpcScopedAttributeFilterAccelerators(
+					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
 			)
 			.setSortable(attributeSchema.isSortable())
@@ -235,8 +235,8 @@ public class CatalogSchemaConverter {
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(attributeSchema.getUniqueGloballyInScopesList(), attributeSchema.getUniqueGlobally());
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
-			toScopedFilterCapabilities(attributeSchema.getFilterCapabilitiesInScopesList());
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(
@@ -246,7 +246,7 @@ public class CatalogSchemaConverter {
 			uniqueInScopes,
 			uniqueGloballyInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			attributeSchema.getLocalized(),
 			attributeSchema.getNullable(),

@@ -37,7 +37,8 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -45,9 +46,10 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
@@ -236,19 +238,19 @@ class WalSerializationServiceTest {
 	@Test
 	@Tag(SERIALIZATION)
 	@Tag(SCHEMA)
-	@DisplayName("should round-trip filter index capabilities on all three mutations that carry them")
-	void shouldRoundTripFilterCapabilitiesOnAttributeMutations() {
+	@DisplayName("should round-trip filter accelerators on all three mutations that carry them")
+	void shouldRoundTripAcceleratorsOnAttributeMutations() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-		final ScopedFilterCapabilities[] substringInLive = {
-			new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+		final ScopedAttributeFilterAccelerators[] substringInLive = {
+			new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 		};
 
 		// the same acceleration expressed through each of the three mutation shapes that transport it - a WAL entry
-		// whose capabilities were dropped on the way out would replay as a plainly filterable attribute, and nothing
+		// whose accelerators were dropped on the way out would replay as a plainly filterable attribute, and nothing
 		// downstream would report a problem
-		final SetAttributeSchemaFilterableMutation setFilterableMutation =
-			SetAttributeSchemaFilterableMutation.fromCapabilities(
-				"name", new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+		final SetAttributeSchemaAcceleratedMutation setAcceleratedMutation =
+			new SetAttributeSchemaAcceleratedMutation(
+				"name", new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			);
 		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
 			"code", null, null, null,
@@ -264,38 +266,64 @@ class WalSerializationServiceTest {
 		);
 
 		assertArrayEquals(
-			substringInLive, roundTrip(walKryo, setFilterableMutation).getFilterCapabilitiesInScopes()
+			substringInLive, roundTrip(walKryo, setAcceleratedMutation).getAcceleratorsInScopes()
 		);
 		assertArrayEquals(
-			substringInLive, roundTrip(walKryo, attributeMutation).getFilterCapabilitiesInScopes()
+			substringInLive, roundTrip(walKryo, attributeMutation).getAcceleratorsInScopes()
 		);
 		assertArrayEquals(
-			substringInLive, roundTrip(walKryo, globalAttributeMutation).getFilterCapabilitiesInScopes()
+			substringInLive, roundTrip(walKryo, globalAttributeMutation).getAcceleratorsInScopes()
 		);
 	}
 
 	@Test
 	@Tag(SERIALIZATION)
 	@Tag(SCHEMA)
-	@DisplayName("should write an empty capability array and an absent one as the very same bytes")
-	void shouldWriteEmptyAndAbsentCapabilityArraysIdentically() {
-		// this equivalence is what lets a reader written before capabilities existed and one written after agree on
-		// the same record: the presence flag collapses both "no carriers" shapes into one, so a mutation issued by an
-		// old client and one issued by a new client that declares nothing are the same bytes and the same mutation
+	@DisplayName("should round-trip an accelerator declared on a unique-only attribute")
+	void shouldRoundTripAcceleratorOnUniqueOnlyCreateMutation() {
+		// the attribute is never made filterable - `unique()` alone supplies the filter index the accelerator rides
+		// on. The create mutation validates that at construction time from its own payload, so this is what proves
+		// the mutation-side rule agrees with the schema-side one, and that the pair survives a WAL round-trip
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-		final SetAttributeSchemaFilterableMutation fromEmptyArray = new SetAttributeSchemaFilterableMutation(
-			"name", Scope.DEFAULT_SCOPES, ScopedFilterCapabilities.EMPTY
+		final ScopedAttributeFilterAccelerators[] substringInLive = {
+			new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		};
+		final ScopedAttributeUniquenessType[] uniqueInLive = {
+			new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+		};
+
+		final CreateAttributeSchemaMutation uniqueOnly = new CreateAttributeSchemaMutation(
+			"code", null, null, uniqueInLive,
+			Scope.NO_SCOPE, substringInLive, Scope.NO_SCOPE,
+			false, false, false, String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
 		);
-		final SetAttributeSchemaFilterableMutation fromAbsentField = new SetAttributeSchemaFilterableMutation(
-			"name", Scope.DEFAULT_SCOPES, null
+
+		final CreateAttributeSchemaMutation roundTripped = roundTrip(walKryo, uniqueOnly);
+		assertArrayEquals(substringInLive, roundTripped.getAcceleratorsInScopes());
+		assertArrayEquals(Scope.NO_SCOPE, roundTripped.getFilterableInScopes());
+		assertArrayEquals(uniqueInLive, roundTripped.getUniqueInScopes());
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should write an empty accelerator array and an absent one as the very same bytes")
+	void shouldWriteEmptyAndAbsentAcceleratorArraysIdentically() {
+		// this equivalence is what lets a client that declares nothing and one that declares an explicitly empty axis
+		// agree on the same record: the presence flag collapses both "no carriers" shapes into one, so they are the
+		// same bytes and the same mutation
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final SetAttributeSchemaAcceleratedMutation fromEmptyArray = new SetAttributeSchemaAcceleratedMutation(
+			"name", ScopedAttributeFilterAccelerators.EMPTY
 		);
-		final SetAttributeSchemaFilterableMutation plain = new SetAttributeSchemaFilterableMutation(
-			"name", Scope.DEFAULT_SCOPES
+		final SetAttributeSchemaAcceleratedMutation fromAbsentField = new SetAttributeSchemaAcceleratedMutation(
+			"name", (ScopedAttributeFilterAccelerators[]) null
 		);
 
 		assertArrayEquals(serialize(walKryo, fromEmptyArray), serialize(walKryo, fromAbsentField));
-		assertEquals(plain, roundTrip(walKryo, fromEmptyArray));
-		assertEquals(plain, roundTrip(walKryo, fromAbsentField));
+		assertEquals(fromEmptyArray, roundTrip(walKryo, fromEmptyArray));
+		assertEquals(fromEmptyArray, roundTrip(walKryo, fromAbsentField));
 	}
 
 	@Test

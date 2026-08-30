@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaEditor;
@@ -40,7 +40,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
@@ -778,7 +778,7 @@ class SchemaCapabilityUsageRegistryTest {
 				assertTrue(
 					holds(
 						SchemaCapabilityKey.entityAttribute(
-							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+							ATTRIBUTE_EAN, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 						)
 					),
 					"The declared acceleration got no row of its own: " + theRegistry.listUsages()
@@ -813,7 +813,7 @@ class SchemaCapabilityUsageRegistryTest {
 				assertFalse(
 					holds(
 						SchemaCapabilityKey.entityAttribute(
-							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+							ATTRIBUTE_EAN, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 						)
 					),
 					"The row of an acceleration the schema stopped declaring survived"
@@ -835,10 +835,11 @@ class SchemaCapabilityUsageRegistryTest {
 					schemaWith(
 						builder -> builder.withAttribute(
 							ATTRIBUTE_EAN, String.class,
-							thatIs -> thatIs.filterableInScope(
-								new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING),
-								new ScopedFilterCapabilities(Scope.ARCHIVED)
-							)
+							thatIs -> thatIs
+								.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+								.acceleratedForInScope(
+									Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+								)
 						)
 					)
 				);
@@ -846,7 +847,7 @@ class SchemaCapabilityUsageRegistryTest {
 				assertTrue(
 					holds(
 						SchemaCapabilityKey.entityAttribute(
-							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+							ATTRIBUTE_EAN, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 						)
 					),
 					"The scope declaring the acceleration got no row: " + theRegistry.listUsages()
@@ -858,7 +859,7 @@ class SchemaCapabilityUsageRegistryTest {
 				assertFalse(
 					holds(
 						SchemaCapabilityKey.entityAttribute(
-							ATTRIBUTE_EAN, Capability.SUBSTRING_FILTERABLE, Scope.ARCHIVED
+							ATTRIBUTE_EAN, Capability.SUBSTRING_ACCELERATED, Scope.ARCHIVED
 						)
 					),
 					"A scope declaring no acceleration was seeded one anyway: " + theRegistry.listUsages()
@@ -874,7 +875,7 @@ class SchemaCapabilityUsageRegistryTest {
 				final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 				theRegistry.resolve(
 					new SchemaCapabilityKey(
-						ElementKind.REFERENCE, null, REFERENCE_STOCKS, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+						ElementKind.REFERENCE, null, REFERENCE_STOCKS, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 					)
 				);
 
@@ -883,7 +884,7 @@ class SchemaCapabilityUsageRegistryTest {
 				final SchemaCapabilityUsageRegistry entityRegistry = new SchemaCapabilityUsageRegistry();
 				entityRegistry.resolve(
 					new SchemaCapabilityKey(
-						ElementKind.ENTITY, null, Entities.PRODUCT, Capability.SUBSTRING_FILTERABLE, Scope.LIVE
+						ElementKind.ENTITY, null, Entities.PRODUCT, Capability.SUBSTRING_ACCELERATED, Scope.LIVE
 					)
 				);
 
@@ -901,9 +902,9 @@ class SchemaCapabilityUsageRegistryTest {
 				return schemaWith(
 					builder -> builder.withAttribute(
 						ATTRIBUTE_EAN, String.class,
-						thatIs -> thatIs.filterableInScope(
-							new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
-						)
+						thatIs -> thatIs
+							.filterableInScope(Scope.LIVE)
+							.acceleratedForInScope(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					)
 				);
 			}

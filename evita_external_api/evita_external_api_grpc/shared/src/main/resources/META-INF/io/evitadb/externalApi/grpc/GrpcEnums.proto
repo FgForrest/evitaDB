@@ -84,21 +84,22 @@ enum GrpcGlobalAttributeUniquenessType {
   UNIQUE_WITHIN_CATALOG_LOCALE = 2;
 }
 
-// An optional acceleration an attribute's filter index maintains on top of plain filterability. Each member costs
-// extra memory and extra write-path work, which is why none of them is implied by `filterable` alone - an attribute
-// declares the ones its workload actually queries and pays for nothing else.
+// An optional acceleration an attribute's filter index maintains on top of the plain index that `filterable` or
+// `unique` already provides. Each member costs extra memory and extra write-path work, which is why none of them is
+// implied by those declarations - an attribute declares the ones its workload actually queries and nothing else.
 //
 // A capability is always declared together with filterability and per scope, carried by
-// `GrpcScopedFilterCapabilities`. "Accelerated but not filterable" is not a representable state - a mutation arriving
+// `GrpcScopedAttributeFilterAccelerators`. "Accelerated but not filterable" is not a representable state - a mutation
+// arriving
 // over the wire that names a scope the attribute is not filterable in is refused by the server.
 //
 // The members name the capability the index *gains*, never the physical structure that provides it - the structure is
 // an engine implementation detail that may change without the schema changing.
-enum GrpcFilterIndexCapability {
+enum GrpcAttributeFilterAccelerator {
 
   // Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
-  // an empty `capabilities` list, not by this member, so an explicit zero on the wire is always a client mistake.
-  FILTER_INDEX_CAPABILITY_UNSPECIFIED = 0;
+  // an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
+  ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;
   // Substring matching against the attribute's values is served from a dedicated index instead of scanning every
   // distinct value of the attribute.
   //
@@ -112,8 +113,8 @@ enum GrpcFilterIndexCapability {
   //
   // Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
   // Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
-  // are indexed, so the capability must be declared before the data is inserted.
-  FILTER_INDEX_CAPABILITY_SUBSTRING = 1;
+  // are indexed, so the accelerator must be declared before the data is inserted.
+  ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;
 
 }
 
@@ -1217,13 +1218,14 @@ enum GrpcSchemaCapability {
   // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
   // `SCHEMA_ELEMENT_KIND_ENTITY` row.
   SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
-  // The element's filter index also answers substring matching - `filterable(FilterIndexCapability.SUBSTRING)`, and
+  // The element's filter index also answers substring matching -
+  // `filterable(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and
   // the trigram index it costs. Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
   // `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
   // carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
   // - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
   // `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
   // while keeping the attribute filterable.
-  SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE = 9;
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
 
 }

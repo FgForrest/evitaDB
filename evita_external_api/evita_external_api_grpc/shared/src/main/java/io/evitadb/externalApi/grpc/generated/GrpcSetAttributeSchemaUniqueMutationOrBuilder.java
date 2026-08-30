@@ -60,7 +60,7 @@ public interface GrpcSetAttributeSchemaUniqueMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=303
+   *     See GrpcAttributeSchemaMutations.proto;l=313
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -73,7 +73,7 @@ public interface GrpcSetAttributeSchemaUniqueMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.unique is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=303
+   *     See GrpcAttributeSchemaMutations.proto;l=313
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();

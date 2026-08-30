@@ -75,10 +75,10 @@ public class EntitySchemaObjectBuilder {
 			this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
-			ScopedFilterCapabilitiesDescriptor.THIS.to(this.objectBuilderTransformer).build()
+			ScopedAttributeFilterAcceleratorsDescriptor.THIS.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
-			ScopedFilterCapabilitiesDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+			ScopedAttributeFilterAcceleratorsDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
 		this.buildingContext.registerType(
 			ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build()

@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -33,37 +33,37 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing the scope-specific optional accelerations an attribute's filter index maintains.
- * It is used to represent both input ({@link ScopedFilterCapabilities}) in mutations and output in schemas.
+ * Descriptor representing the scope-specific optional accelerators an attribute's filter index maintains.
+ * It is used to represent both input ({@link ScopedAttributeFilterAccelerators}) in mutations and output in schemas.
  *
  * Note: this descriptor has static structure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public interface ScopedFilterCapabilitiesDescriptor extends ScopedDataDescriptor {
+public interface ScopedAttributeFilterAcceleratorsDescriptor extends ScopedDataDescriptor {
 
-	PropertyDescriptor CAPABILITIES = PropertyDescriptor.builder()
-		.name("capabilities")
+	PropertyDescriptor ACCELERATORS = PropertyDescriptor.builder()
+		.name("accelerators")
 		.description("""
-			Optional accelerations the filter index maintains in the given scope on top of plain filterability. Each
-			capability costs additional memory and additional write-path work, so none of them is implied by marking
-			the attribute filterable - only the ones listed here are maintained.
+			Optional accelerations the attribute's filter index maintains in the given scope. Each accelerator costs
+			additional memory and additional write-path work, so none of them is implied by marking the attribute
+			filterable or unique - only the ones listed here are maintained.
 
-			An empty array means the attribute is filterable in the scope without any optional acceleration, which is
-			the default and the behaviour of every attribute that never declares a capability.
+			An empty array means no acceleration in the scope, which is the default and what every attribute declared
+			before this axis existed has.
 			""")
-		.type(nonNull(FilterIndexCapability[].class))
+		.type(nonNull(AttributeFilterAccelerator[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ScopedFilterCapabilities")
+		.name("ScopedAttributeFilterAccelerators")
 		.description("""
-			Represents combination of filter index capabilities and entity scope they should be maintained in.
+			Represents combination of filter accelerators and the entity scope they should be maintained in.
 			""")
-		.staticProperties(List.of(SCOPE, CAPABILITIES))
+		.staticProperties(List.of(SCOPE, ACCELERATORS))
 		.build();
 
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
-		.name("InputScopedFilterCapabilities")
+		.name("InputScopedAttributeFilterAccelerators")
 		.build();
 }

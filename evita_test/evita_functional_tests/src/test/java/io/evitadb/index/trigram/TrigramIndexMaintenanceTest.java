@@ -32,13 +32,13 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
@@ -81,7 +81,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Verifies that a {@link GlobalEntityIndex} maintains a {@link TrigramIndex} for exactly the attributes that declare
- * {@link FilterIndexCapability#SUBSTRING} in its own scope, that the postings it fills are keyed by the value ids the
+ * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} in its own scope, that the postings it fills are keyed by the
+ * value ids the
  * shared value tree mints, and that both structures appear and disappear together.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -131,20 +132,26 @@ class TrigramIndexMaintenanceTest {
 	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
 		CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
 	)
-		.withAttribute(ATTRIBUTE_TITLE, String.class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
-		.withAttribute(ATTRIBUTE_TAGS, String[].class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
+		.withAttribute(ATTRIBUTE_TITLE, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
+		.withAttribute(ATTRIBUTE_TAGS, String[].class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
 		.withAttribute(ATTRIBUTE_PLAIN, String.class, AttributeSchemaEditor::filterable)
 		.withAttribute(
 			ATTRIBUTE_LOCALIZED_TITLE, String.class,
-			thatIs -> thatIs.localized().filterable(FilterIndexCapability.SUBSTRING)
+			thatIs -> thatIs.localized().filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 		)
 		.withAttribute(
 			ATTRIBUTE_ARCHIVED_ONLY, String.class,
-			thatIs -> thatIs.filterableInScope(
-				new ScopedFilterCapabilities(Scope.ARCHIVED, FilterIndexCapability.SUBSTRING)
-			)
+			thatIs -> thatIs
+				.filterableInScope(Scope.ARCHIVED)
+				.acceleratedForInScope(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 		)
-		.withAttribute(ATTRIBUTE_ACCENTED, String.class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
+		.withAttribute(ATTRIBUTE_ACCENTED, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
 		.toInstance();
 
 	/**

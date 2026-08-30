@@ -26,7 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -58,8 +58,8 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(mutation.getUniqueGloballyInScopesList(), mutation.getUniqueGlobally());
 		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
 		// absent on the wire for an older client - proto3 renders that as an empty list, which converts to `null`
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
-			toScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopesList());
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			toScopedAttributeFilterAccelerators(mutation.getAcceleratorsInScopesList());
 		final Scope[] sortableInScopes = toBooleanScopes(mutation.getSortableInScopesList(), mutation.getSortable());
 
 		return new CreateGlobalAttributeSchemaMutation(
@@ -69,7 +69,7 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			uniqueInScopes,
 			uniqueGloballyInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),
@@ -113,8 +113,8 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllFilterCapabilitiesInScopes(
-				toGrpcScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopes())
+			.addAllAcceleratorsInScopes(
+				toGrpcScopedAttributeFilterAccelerators(mutation.getAcceleratorsInScopes())
 			)
 			.setSortable(mutation.isSortable())
 			.addAllSortableInScopes(

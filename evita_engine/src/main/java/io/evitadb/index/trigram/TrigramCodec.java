@@ -235,8 +235,8 @@ public final class TrigramCodec {
 	/**
 	 * Extracts the distinct trigrams of a value that is known to be a `String`, refusing anything else.
 	 *
-	 * The refusal is the point: the SUBSTRING capability is accepted by the schema only on `String` / `String[]`
-	 * attributes, so a value of any other type arriving here means the capability was maintained for an attribute
+	 * The refusal is the point: the SUBSTRING accelerator is accepted by the schema only on `String` / `String[]`
+	 * attributes, so a value of any other type arriving here means the accelerator was maintained for an attribute
 	 * it was never allowed on, and silently indexing its `toString()` would produce an index that answers plausible
 	 * nonsense.
 	 *
@@ -249,7 +249,7 @@ public final class TrigramCodec {
 		Assert.isPremiseValid(
 			normalizedValue instanceof String,
 			() -> "The trigram index can only index String values, but was handed a `" +
-				normalizedValue.getClass().getName() + "` - the SUBSTRING filter capability is accepted by the " +
+				normalizedValue.getClass().getName() + "` - the SUBSTRING filter accelerator is accepted by the " +
 				"schema on String and String[] attributes only, so this attribute should never have reached it."
 		);
 		return extractUniqueTrigrams((String) normalizedValue);

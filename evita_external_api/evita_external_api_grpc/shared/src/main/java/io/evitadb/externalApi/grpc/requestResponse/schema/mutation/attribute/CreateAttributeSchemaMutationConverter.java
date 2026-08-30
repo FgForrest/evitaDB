@@ -26,7 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation;
@@ -43,9 +43,9 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toB
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toConflictResolutionOverride;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScopedFilterCapabilities;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScopedAttributeFilterAccelerators;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeUniquenessTypes;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedFilterCapabilities;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeFilterAccelerators;
 
 /**
  * Converts between {@link CreateAttributeSchemaMutation} and {@link GrpcCreateAttributeSchemaMutation} in both directions.
@@ -61,8 +61,8 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 		final ScopedAttributeUniquenessType[] uniqueInScopes = toScopedAttributeUniquenessTypes(mutation.getUniqueInScopesList(), mutation.getUnique());
 		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
 		// absent on the wire for an older client - proto3 renders that as an empty list, which converts to `null`
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
-			toScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopesList());
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			toScopedAttributeFilterAccelerators(mutation.getAcceleratorsInScopesList());
 		final Scope[] sortableInScopes = toBooleanScopes(mutation.getSortableInScopesList(), mutation.getSortable());
 
 		return new CreateAttributeSchemaMutation(
@@ -71,7 +71,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
 			uniqueInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),
@@ -104,8 +104,8 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllFilterCapabilitiesInScopes(
-				toGrpcScopedFilterCapabilities(mutation.getFilterCapabilitiesInScopes())
+			.addAllAcceleratorsInScopes(
+				toGrpcScopedAttributeFilterAccelerators(mutation.getAcceleratorsInScopes())
 			)
 			.setSortable(mutation.isSortable())
 			.addAllSortableInScopes(

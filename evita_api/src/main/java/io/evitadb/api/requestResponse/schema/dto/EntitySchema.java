@@ -475,7 +475,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
-				AttributeSchema.toFilterCapabilitiesArray(attributeSchemaContract.getFilterCapabilitiesInScopes()),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -512,7 +512,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
-				AttributeSchema.toFilterCapabilitiesArray(attributeSchemaContract.getFilterCapabilitiesInScopes()),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -963,20 +963,27 @@ public final class EntitySchema implements EntitySchemaContract {
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		Stream<String> attributeErrors = Stream.empty();
 		for (EntityAttributeSchemaContract attribute : this.attributes.values()) {
 			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
+			// accumulated rather than thrown, so that a schema with several broken attributes reports all of them
+			// in one exception alongside the reference errors gathered below
+			attributeErrors = Stream.concat(attributeErrors, attribute.validate());
 		}
-		final List<String> errors = getReferences()
-			.values()
-			.stream()
-			.flatMap(ref -> {
-				try {
-					ref.validate(catalogSchema, this);
-					return Stream.empty();
-				} catch (SchemaAlteringException e) {
-					return Stream.of(e.getMessage());
-				}
-			})
+		final List<String> errors = Stream.concat(
+				attributeErrors,
+				getReferences()
+					.values()
+					.stream()
+					.flatMap(ref -> {
+						try {
+							ref.validate(catalogSchema, this);
+							return Stream.empty();
+						} catch (SchemaAlteringException e) {
+							return Stream.of(e.getMessage());
+						}
+					})
+			)
 			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {

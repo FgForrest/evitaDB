@@ -37,7 +37,8 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -49,7 +50,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -186,24 +187,29 @@ class SchemaSerializationServiceTest {
 	}
 
 	@Test
-	@DisplayName("should round-trip per-scope filter index capabilities through the schema serializers")
-	void shouldRoundTripFilterIndexCapabilities() {
+	@DisplayName("should round-trip per-scope filter accelerators through the schema serializers")
+	void shouldRoundTripFilterAccelerators() {
 		// every attribute of the shared fixture below is either plainly filterable or not filterable at all, so the
-		// capability section is only ever written empty there - these three attributes are what puts a non-empty map
+		// accelerator section is only ever written empty there - these attributes are what puts a non-empty map
 		// through the writer and the reader
 		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
 			.withAttribute(
 				"name", String.class,
-				whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+				whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			)
 			.withAttribute(
 				"tags", String[].class,
-				whichIs -> whichIs.filterableInScope(
-					new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING),
-					new ScopedFilterCapabilities(Scope.ARCHIVED)
-				)
+				whichIs -> whichIs
+					.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.acceleratedForInScope(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			)
 			.withAttribute("ean", String.class, whichIs -> whichIs.filterable())
+			// the case the filterability-bound validation used to reject: `unique()` provides the filter index the
+			// accelerator needs, so the attribute never has to be declared filterable to carry one
+			.withAttribute(
+				"code", String.class,
+				whichIs -> whichIs.unique().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			)
 			.toInstance();
 
 		final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
@@ -214,25 +220,33 @@ class SchemaSerializationServiceTest {
 		// read explicitly rather than relying on the equality above: a writer and a reader that both dropped the
 		// field would still compare equal, since the absent map is a perfectly valid state
 		assertEquals(
-			Set.of(FilterIndexCapability.SUBSTRING),
-			deserialized.getAttribute("name").orElseThrow().getFilterCapabilitiesInScope(Scope.LIVE)
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			deserialized.getAttribute("name").orElseThrow().getAcceleratorsInScope(Scope.LIVE)
 		);
 		// a String[] attribute carries the capability just as a String one does …
 		assertEquals(
-			Set.of(FilterIndexCapability.SUBSTRING),
-			deserialized.getAttribute("tags").orElseThrow().getFilterCapabilitiesInScope(Scope.LIVE)
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			deserialized.getAttribute("tags").orElseThrow().getAcceleratorsInScope(Scope.LIVE)
 		);
 		// … while its archived scope stays filterable with no acceleration declared, which is a different state from
 		// "not filterable" and must survive as such
 		assertTrue(deserialized.getAttribute("tags").orElseThrow().isFilterableInScope(Scope.ARCHIVED));
 		assertEquals(
 			Set.of(),
-			deserialized.getAttribute("tags").orElseThrow().getFilterCapabilitiesInScope(Scope.ARCHIVED)
+			deserialized.getAttribute("tags").orElseThrow().getAcceleratorsInScope(Scope.ARCHIVED)
 		);
 		// the size-prefixed empty section a plain `filterable()` writes must not read back as a spurious entry
 		assertTrue(
-			deserialized.getAttribute("ean").orElseThrow().getFilterCapabilitiesInScopes().isEmpty(),
-			"a plainly filterable attribute came back carrying a capability entry"
+			deserialized.getAttribute("ean").orElseThrow().getAcceleratorsInScopes().isEmpty(),
+			"a plainly filterable attribute came back carrying an accelerator entry"
+		);
+		// the unique-only attribute keeps both its uniqueness and the accelerator riding on the uniqueness index
+		final AttributeSchemaContract uniqueOnly = deserialized.getAttribute("code").orElseThrow();
+		assertFalse(uniqueOnly.isFilterableInScope(Scope.LIVE));
+		assertTrue(uniqueOnly.isUniqueInScope(Scope.LIVE));
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			uniqueOnly.getAcceleratorsInScope(Scope.LIVE)
 		);
 	}
 

@@ -29,31 +29,32 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * An optional acceleration an attribute's filter index maintains on top of plain filterability. Each member costs
- * extra memory and extra write-path work, which is why none of them is implied by `filterable` alone - an attribute
- * declares the ones its workload actually queries and pays for nothing else.
+ * An optional acceleration an attribute's filter index maintains on top of the plain index that `filterable` or
+ * `unique` already provides. Each member costs extra memory and extra write-path work, which is why none of them is
+ * implied by those declarations - an attribute declares the ones its workload actually queries and nothing else.
  *
  * A capability is always declared together with filterability and per scope, carried by
- * `GrpcScopedFilterCapabilities`. "Accelerated but not filterable" is not a representable state - a mutation arriving
+ * `GrpcScopedAttributeFilterAccelerators`. "Accelerated but not filterable" is not a representable state - a mutation
+ * arriving
  * over the wire that names a scope the attribute is not filterable in is refused by the server.
  *
  * The members name the capability the index *gains*, never the physical structure that provides it - the structure is
  * an engine implementation detail that may change without the schema changing.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcFilterIndexCapability}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeFilterAccelerator}
  */
-public enum GrpcFilterIndexCapability
+public enum GrpcAttributeFilterAccelerator
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
    * Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
-   * an empty `capabilities` list, not by this member, so an explicit zero on the wire is always a client mistake.
+   * an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
    * </pre>
    *
-   * <code>FILTER_INDEX_CAPABILITY_UNSPECIFIED = 0;</code>
+   * <code>ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;</code>
    */
-  FILTER_INDEX_CAPABILITY_UNSPECIFIED(0),
+  ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED(0),
   /**
    * <pre>
    * Substring matching against the attribute's values is served from a dedicated index instead of scanning every
@@ -69,24 +70,24 @@ public enum GrpcFilterIndexCapability
    *
    * Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
    * Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
-   * are indexed, so the capability must be declared before the data is inserted.
+   * are indexed, so the accelerator must be declared before the data is inserted.
    * </pre>
    *
-   * <code>FILTER_INDEX_CAPABILITY_SUBSTRING = 1;</code>
+   * <code>ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;</code>
    */
-  FILTER_INDEX_CAPABILITY_SUBSTRING(1),
+  ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH(1),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
    * Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
-   * an empty `capabilities` list, not by this member, so an explicit zero on the wire is always a client mistake.
+   * an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
    * </pre>
    *
-   * <code>FILTER_INDEX_CAPABILITY_UNSPECIFIED = 0;</code>
+   * <code>ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;</code>
    */
-  public static final int FILTER_INDEX_CAPABILITY_UNSPECIFIED_VALUE = 0;
+  public static final int ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED_VALUE = 0;
   /**
    * <pre>
    * Substring matching against the attribute's values is served from a dedicated index instead of scanning every
@@ -102,12 +103,12 @@ public enum GrpcFilterIndexCapability
    *
    * Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
    * Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
-   * are indexed, so the capability must be declared before the data is inserted.
+   * are indexed, so the accelerator must be declared before the data is inserted.
    * </pre>
    *
-   * <code>FILTER_INDEX_CAPABILITY_SUBSTRING = 1;</code>
+   * <code>ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;</code>
    */
-  public static final int FILTER_INDEX_CAPABILITY_SUBSTRING_VALUE = 1;
+  public static final int ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH_VALUE = 1;
 
 
   public final int getNumber() {
@@ -124,7 +125,7 @@ public enum GrpcFilterIndexCapability
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcFilterIndexCapability valueOf(int value) {
+  public static GrpcAttributeFilterAccelerator valueOf(int value) {
     return forNumber(value);
   }
 
@@ -132,23 +133,23 @@ public enum GrpcFilterIndexCapability
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcFilterIndexCapability forNumber(int value) {
+  public static GrpcAttributeFilterAccelerator forNumber(int value) {
     switch (value) {
-      case 0: return FILTER_INDEX_CAPABILITY_UNSPECIFIED;
-      case 1: return FILTER_INDEX_CAPABILITY_SUBSTRING;
+      case 0: return ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED;
+      case 1: return ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcFilterIndexCapability>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcAttributeFilterAccelerator>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcFilterIndexCapability> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcFilterIndexCapability>() {
-          public GrpcFilterIndexCapability findValueByNumber(int number) {
-            return GrpcFilterIndexCapability.forNumber(number);
+      GrpcAttributeFilterAccelerator> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcAttributeFilterAccelerator>() {
+          public GrpcAttributeFilterAccelerator findValueByNumber(int number) {
+            return GrpcAttributeFilterAccelerator.forNumber(number);
           }
         };
 
@@ -169,9 +170,9 @@ public enum GrpcFilterIndexCapability
     return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(3);
   }
 
-  private static final GrpcFilterIndexCapability[] VALUES = values();
+  private static final GrpcAttributeFilterAccelerator[] VALUES = values();
 
-  public static GrpcFilterIndexCapability valueOf(
+  public static GrpcAttributeFilterAccelerator valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -185,10 +186,10 @@ public enum GrpcFilterIndexCapability
 
   private final int value;
 
-  private GrpcFilterIndexCapability(int value) {
+  private GrpcAttributeFilterAccelerator(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcFilterIndexCapability)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcAttributeFilterAccelerator)
 }
 

@@ -25,7 +25,7 @@ package io.evitadb.index.trigram;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -201,12 +201,13 @@ public class TrigramIndex implements
 	 * Re-derives the substring-search accelerators of a whole attribute index from the shared value trees it was just
 	 * loaded with — the entry point of the load path, since nothing about this index is persisted.
 	 *
-	 * Only entity-level attributes are considered, because {@link FilterIndexCapability#SUBSTRING} is refused on a
+	 * Only entity-level attributes are considered, because {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} is refused
+	 * on a
 	 * reference attribute at schema-mutation time; and only attributes the schema STILL declares it for. Attaching
 	 * the value id consumer here restores the registration the tree does not persist — the ids themselves came back
 	 * inside the pages, which is why this cannot fall foul of the tree's empty-at-attach premise.
 	 *
-	 * An attribute whose capability was withdrawn therefore gets no accelerator back — but its cost does not leave
+	 * An attribute whose accelerator was withdrawn therefore gets no accelerator back — but its cost does not leave
 	 * with it. The loader restores a tree's value id column, allocator and directory from the persisted shape alone
 	 * (it must not consult the schema, because the column is engine infrastructure that outlives whichever consumer
 	 * asked for it), so such a tree comes back id-carrying with an EMPTY consumer registry, and nothing reclaims that
@@ -215,17 +216,17 @@ public class TrigramIndex implements
 	 * the name — {@link InvertedIndex#detachValueIdConsumer(String)} returns silently when no registry was ever
 	 * created.
 	 *
-	 * A tree that turns out to be unusable — populated, capability declared, yet carrying no ids — FAILS THE LOAD.
+	 * A tree that turns out to be unusable — populated, accelerator declared, yet carrying no ids — FAILS THE LOAD.
 	 * See the comment at the site for why degrading to a silently absent accelerator is the worse of the two.
 	 *
 	 * Runs on the single-writer catalog load path with no transaction open, which is what makes both the attach and
 	 * the `O(values)` walk behind it legal here.
 	 *
-	 * @param entitySchema       the schema saying which attributes declare the capability
+	 * @param entitySchema       the schema saying which attributes declare the accelerator
 	 * @param scope              the scope of the index being loaded
 	 * @param sharedValueIndexes the reloaded shared value trees, keyed by attribute and locale
-	 * @return one index per `(attribute, locale)` that declares the capability, empty when none does
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when an attribute whose schema declares the capability
+	 * @return one index per `(attribute, locale)` that declares the accelerator, empty when none does
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when an attribute whose schema declares the accelerator
 	 * comes back with a tree that carries no value ids
 	 */
 	@Nonnull
@@ -249,7 +250,7 @@ public class TrigramIndex implements
 				.getAttribute(key.attributeName())
 				.orElse(null);
 			if (attributeSchema == null
-				|| !attributeSchema.getFilterCapabilitiesInScope(scope).contains(FilterIndexCapability.SUBSTRING)) {
+				|| !attributeSchema.getAcceleratorsInScope(scope).contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
 				continue;
 			}
 			final InvertedIndex sharedValueTree = entry.getValue();

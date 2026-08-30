@@ -23,14 +23,10 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaFilterableMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -45,7 +41,6 @@ import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -128,74 +123,8 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 					.e(MutationDescriptor.MUTATION_TYPE.name(), SetAttributeSchemaFilterableMutation.class.getSimpleName())
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), new String[] { Scope.LIVE.name() })
-					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list())
 					.build()
 			);
 	}
 
-	@Test
-	void shouldResolveInputWithFilterCapabilities() {
-		final SetAttributeSchemaFilterableMutation expectedMutation =
-			SetAttributeSchemaFilterableMutation.fromCapabilities(
-				"code",
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
-			);
-
-		final SetAttributeSchemaFilterableMutation convertedFromEnums = this.converter.convertFromInput(
-			map()
-				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
-					.i(Scope.LIVE))
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
-					.i(map()
-						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
-						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
-							.i(FilterIndexCapability.SUBSTRING))))
-				.build()
-		);
-		assertEquals(expectedMutation, convertedFromEnums);
-
-		final SetAttributeSchemaFilterableMutation convertedFromStrings = this.converter.convertFromInput(
-			map()
-				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
-					.i(Scope.LIVE.name()))
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
-					.i(map()
-						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
-						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
-							.i(FilterIndexCapability.SUBSTRING.name()))))
-				.build()
-		);
-		assertEquals(expectedMutation, convertedFromStrings);
-	}
-
-	@Test
-	void shouldResolveInputWithoutFilterCapabilities() {
-		// an old client never sends the property at all - the mutation must come out filterable with no acceleration
-		// rather than refusing the input
-		final SetAttributeSchemaFilterableMutation converted = this.converter.convertFromInput(
-			map()
-				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
-					.i(Scope.LIVE))
-				.build()
-		);
-		assertEquals(new SetAttributeSchemaFilterableMutation("code", new Scope[] { Scope.LIVE }), converted);
-		assertNotNull(converted.getFilterCapabilitiesInScopes());
-		assertEquals(0, converted.getFilterCapabilitiesInScopes().length);
-	}
-
-	@Test
-	void shouldRoundTripFilterCapabilities() {
-		final SetAttributeSchemaFilterableMutation inputMutation =
-			SetAttributeSchemaFilterableMutation.fromCapabilities(
-				"code",
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
-			);
-
-		final SetAttributeSchemaFilterableMutation roundTripped =
-			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
-		assertEquals(inputMutation, roundTripped);
-	}
 }

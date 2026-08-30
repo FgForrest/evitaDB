@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * This is the definition object for {@link Attributes} that is stored along with
@@ -257,44 +258,98 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	Set<Scope> getFilterableInScopes();
 
 	/**
-	 * The optional {@link FilterIndexCapability filter index capabilities} this attribute declares in the default
-	 * (i.e. {@link Scope#DEFAULT_SCOPE}) scope.
+	 * Whether this attribute has a **filter index** in the given scope - the structure an
+	 * {@link AttributeFilterAccelerator} accelerates.
 	 *
-	 * An **empty set is the norm** and means plain filterability - exactly what `filterable()` has always produced.
-	 * Each capability present in the set buys an additional acceleration at the price of additional memory and
-	 * additional write-path work, so nothing is enabled implicitly.
+	 * Two declarations produce one: `filterable()` asks for the index directly, and `unique()` gets it implicitly,
+	 * because a uniqueness guarantee is maintained by a lookup structure a filter can be served from - which is why
+	 * a filter may reach a `unique()`-only attribute without it ever having been declared filterable. An accelerator
+	 * therefore only needs *one* of the two, and this method is the single place that spells that rule out so the
+	 * schema, the mutations and the engine cannot drift apart on it.
 	 *
-	 * @return capabilities declared in the default scope, empty when the attribute is plainly filterable or not
-	 * filterable at all
+	 * @param scope the scope to check
+	 * @return true when the attribute is filterable or unique in that scope
 	 */
-	@Nonnull
-	default Set<FilterIndexCapability> getFilterCapabilities() {
-		return getFilterCapabilitiesInScope(Scope.DEFAULT_SCOPE);
+	default boolean hasFilterIndexInScope(@Nonnull Scope scope) {
+		return isFilterableInScope(scope) || isUniqueInScope(scope);
 	}
 
 	/**
-	 * The optional {@link FilterIndexCapability filter index capabilities} this attribute declares in a particular
-	 * scope - see {@link #getFilterCapabilities()} for what an empty result means.
+	 * The optional {@link AttributeFilterAccelerator accelerators} this attribute declares in the default (i.e.
+	 * {@link Scope#DEFAULT_SCOPE}) scope.
 	 *
-	 * The result is always empty for a scope the attribute is not
-	 * {@link #isFilterableInScope(Scope) filterable} in, because a capability without a filter index to accelerate is
-	 * not a representable state.
+	 * An **empty set is the norm** and means the attribute's filter index is plain - exactly what an attribute
+	 * declared before this axis existed has. Each accelerator present in the set buys an additional acceleration at
+	 * the price of additional memory and additional write-path work, so nothing is enabled implicitly.
 	 *
-	 * @param scope the scope to read the capabilities of
-	 * @return capabilities declared in that scope, never null
+	 * @return accelerators declared in the default scope, empty when the attribute declares none there
 	 */
 	@Nonnull
-	Set<FilterIndexCapability> getFilterCapabilitiesInScope(@Nonnull Scope scope);
+	default Set<AttributeFilterAccelerator> getAccelerators() {
+		return getAcceleratorsInScope(Scope.DEFAULT_SCOPE);
+	}
 
 	/**
-	 * Retrieves the capabilities declared per scope. Scopes the attribute is filterable in without any optional
-	 * acceleration may be absent from the map or map to an empty set - both readings are equivalent, and
-	 * {@link #getFilterableInScopes()} remains the authority on *whether* the attribute is filterable.
+	 * The optional {@link AttributeFilterAccelerator accelerators} this attribute declares in a particular scope - see
+	 * {@link #getAccelerators()} for what an empty result means.
 	 *
-	 * @return map of scope to the capabilities maintained in it, never null
+	 * The result is always empty for a scope the attribute has no {@link #hasFilterIndexInScope(Scope) filter index}
+	 * in, because an accelerator without an index to accelerate is not a representable state.
+	 *
+	 * @param scope the scope to read the accelerators of
+	 * @return accelerators declared in that scope, never null
 	 */
 	@Nonnull
-	Map<Scope, Set<FilterIndexCapability>> getFilterCapabilitiesInScopes();
+	Set<AttributeFilterAccelerator> getAcceleratorsInScope(@Nonnull Scope scope);
+
+	/**
+	 * Retrieves the accelerators declared per scope. A scope declaring none may be absent from the map or map to an
+	 * empty set - both readings are equivalent.
+	 *
+	 * @return map of scope to the accelerators maintained in it, never null
+	 */
+	@Nonnull
+	Map<Scope, Set<AttributeFilterAccelerator>> getAcceleratorsInScopes();
+
+	/**
+	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
+	 *
+	 * The accumulating shape mirrors
+	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceSchema}'s own validation: a caller gathers the
+	 * messages of every attribute and every reference and reports them together, so a user fixing a schema sees all
+	 * of the problems at once rather than peeling them off one exception at a time.
+	 *
+	 * It takes **no arguments on purpose**. The only rule it enforces is self-contained on the attribute, so widening
+	 * the signature to carry a catalog or an entity schema - as the reference-level validation must - would buy
+	 * nothing and would tie every future caller to state it does not need.
+	 *
+	 * **This runs on an assembled schema only.** It is called after a batch of mutations has been applied, never
+	 * between two of them, which is what lets it check a cross-field invariant that any single mutation is entitled
+	 * to leave temporarily broken.
+	 *
+	 * @return one message per consistency problem, empty when the attribute is valid
+	 */
+	@Nonnull
+	default Stream<String> validate() {
+		Stream<String> errors = Stream.empty();
+		// an accelerator speeds up a filter index, so it needs one to exist in its own scope - `filterable()` or
+		// `unique()` in *that* scope, since either builds the index a filter is served from
+		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry : getAcceleratorsInScopes().entrySet()) {
+			final Scope scope = entry.getKey();
+			if (!entry.getValue().isEmpty() && !hasFilterIndexInScope(scope)) {
+				errors = Stream.concat(
+					errors,
+					Stream.of(
+						"Attribute `" + getName() + "` declares filter accelerators " + entry.getValue() +
+							" in scope `" + scope + "`, but it has no filter index there! Filter accelerators speed " +
+							"up an existing filter index - make the attribute filterable or unique in `" + scope +
+							"`, or drop the accelerators."
+					)
+				);
+			}
+		}
+		return errors;
+	}
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute

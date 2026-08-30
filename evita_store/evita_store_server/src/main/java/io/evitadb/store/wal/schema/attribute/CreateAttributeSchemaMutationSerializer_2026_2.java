@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -38,16 +38,16 @@ import java.io.Serializable;
 
 /**
  * Reads {@link CreateAttributeSchemaMutation} from the WAL format shipped by release 2026.2 - the shape that predates
- * the per-scope {@link FilterIndexCapability filter index capabilities}. Such a record ends with the
- * conflict-resolution override and carries no capability section, not even its presence flag.
+ * the per-scope {@link AttributeFilterAccelerator filter accelerators}. Such a record ends with the
+ * conflict-resolution override and carries no accelerator section, not even its presence flag.
  *
- * The mutation is therefore reconstructed with `null` capabilities, which it normalizes into the empty array - exactly
- * the behaviour every attribute creation had before capabilities existed.
+ * The mutation is therefore reconstructed with `null` accelerators, which it normalizes into the empty array - exactly
+ * the behaviour every attribute creation had before accelerators existed.
  *
  * This serializer only reads - writes always go through the current {@link CreateAttributeSchemaMutationSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
- * @deprecated kept for backward compatibility; can be removed once no WAL written before filter index capabilities
+ * @deprecated kept for backward compatibility; can be removed once no WAL written before filter accelerators
  *             were introduced is still replayed.
  */
 @Deprecated(since = "2026.2", forRemoval = true)

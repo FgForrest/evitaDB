@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -253,8 +253,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		dtoBuilder
 			.e(AttributeSchemaDescriptor.FILTERABLE.name(), createFlagInScopesDto(attributeSchema::isFilterableInScope))
 			.e(
-				AttributeSchemaDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(),
-				createFilterCapabilitiesDto(attributeSchema)
+				AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+				createAcceleratorsDto(attributeSchema)
 			)
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
@@ -475,17 +475,17 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	 * @return a list of maps, where each map represents a scoped set of filter index capabilities
 	 */
 	@Nonnull
-	protected static List<Map<String, Object>> createFilterCapabilitiesDto(
+	protected static List<Map<String, Object>> createAcceleratorsDto(
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
-		return attributeSchema.getFilterCapabilitiesInScopes()
+		return attributeSchema.getAcceleratorsInScopes()
 			.entrySet()
 			.stream()
 			.map(entry -> map()
 				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
 				.e(
-					ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(),
-					entry.getValue().stream().map(FilterIndexCapability::name).toList()
+					ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(),
+					entry.getValue().stream().map(AttributeFilterAccelerator::name).toList()
 				)
 				.build())
 			.toList();

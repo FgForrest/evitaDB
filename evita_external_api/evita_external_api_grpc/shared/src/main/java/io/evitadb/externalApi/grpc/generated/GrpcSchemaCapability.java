@@ -135,7 +135,8 @@ public enum GrpcSchemaCapability
   SCHEMA_CAPABILITY_PRICE_INDEXED(8),
   /**
    * <pre>
-   * The element's filter index also answers substring matching - `filterable(FilterIndexCapability.SUBSTRING)`, and
+   * The element's filter index also answers substring matching -
+   * `filterable(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and
    * the trigram index it costs. Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
    * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
    * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
@@ -144,9 +145,9 @@ public enum GrpcSchemaCapability
    * while keeping the attribute filterable.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE = 9;</code>
+   * <code>SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;</code>
    */
-  SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE(9),
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED(9),
   UNRECOGNIZED(-1),
   ;
 
@@ -236,7 +237,8 @@ public enum GrpcSchemaCapability
   public static final int SCHEMA_CAPABILITY_PRICE_INDEXED_VALUE = 8;
   /**
    * <pre>
-   * The element's filter index also answers substring matching - `filterable(FilterIndexCapability.SUBSTRING)`, and
+   * The element's filter index also answers substring matching -
+   * `filterable(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and
    * the trigram index it costs. Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
    * `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
    * carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
@@ -245,9 +247,9 @@ public enum GrpcSchemaCapability
    * while keeping the attribute filterable.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE = 9;</code>
+   * <code>SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;</code>
    */
-  public static final int SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE_VALUE = 9;
+  public static final int SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED_VALUE = 9;
 
 
   public final int getNumber() {
@@ -283,7 +285,7 @@ public enum GrpcSchemaCapability
       case 6: return SCHEMA_CAPABILITY_BUCKETED;
       case 7: return SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
       case 8: return SCHEMA_CAPABILITY_PRICE_INDEXED;
-      case 9: return SCHEMA_CAPABILITY_SUBSTRING_FILTERABLE;
+      case 9: return SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED;
       default: return null;
     }
   }

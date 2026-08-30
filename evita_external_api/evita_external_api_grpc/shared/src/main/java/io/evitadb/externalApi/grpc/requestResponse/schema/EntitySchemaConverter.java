@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
@@ -302,9 +302,9 @@ public class EntitySchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
-			.addAllFilterCapabilitiesInScopes(
-				toGrpcScopedFilterCapabilities(
-					AttributeSchema.toFilterCapabilitiesArray(attributeSchema.getFilterCapabilitiesInScopes())
+			.addAllAcceleratorsInScopes(
+				toGrpcScopedAttributeFilterAccelerators(
+					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
 				)
 			)
 			.setSortable(attributeSchema.isSortable())
@@ -673,8 +673,8 @@ public class EntitySchemaConverter {
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(attributeSchema.getUniqueGloballyInScopesList(), attributeSchema.getUniqueGlobally());
 		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
-			toScopedFilterCapabilities(attributeSchema.getFilterCapabilitiesInScopesList());
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
@@ -688,7 +688,7 @@ public class EntitySchemaConverter {
 					uniqueInScopes,
 					uniqueGloballyInScopes,
 					filterableInScopes,
-					filterCapabilitiesInScopes,
+					acceleratorsInScopes,
 					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
@@ -711,7 +711,7 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
 					uniqueInScopes,
 					filterableInScopes,
-					filterCapabilitiesInScopes,
+					acceleratorsInScopes,
 					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
@@ -734,7 +734,7 @@ public class EntitySchemaConverter {
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
 					uniqueInScopes,
 					filterableInScopes,
-					filterCapabilitiesInScopes,
+					acceleratorsInScopes,
 					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),

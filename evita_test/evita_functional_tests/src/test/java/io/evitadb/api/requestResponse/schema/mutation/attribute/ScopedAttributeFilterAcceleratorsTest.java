@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test for {@link ScopedFilterCapabilities}.
+ * Test for {@link ScopedAttributeFilterAccelerators}.
  *
  * The record carries an **array** component, which records compare by reference unless the class says otherwise -
  * and every mutation-combination and schema-diffing path in the codebase relies on value equality here. Those are the
@@ -50,12 +50,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("ScopedFilterCapabilities")
+@DisplayName("ScopedAttributeFilterAccelerators")
 @Tag(CONTRACT)
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
 @Tag(FILTER)
-class ScopedFilterCapabilitiesTest {
+class ScopedAttributeFilterAcceleratorsTest {
 
 	@Nested
 	@DisplayName("Equality and hash code")
@@ -64,11 +64,11 @@ class ScopedFilterCapabilitiesTest {
 		@Test
 		@DisplayName("Should compare two distinct arrays holding the same capabilities as equal")
 		void shouldCompareDistinctArraysWithSameContentsAsEqual() {
-			final ScopedFilterCapabilities first = new ScopedFilterCapabilities(
-				Scope.LIVE, FilterIndexCapability.SUBSTRING
+			final ScopedAttributeFilterAccelerators first = new ScopedAttributeFilterAccelerators(
+				Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
 			);
-			final ScopedFilterCapabilities second = new ScopedFilterCapabilities(
-				Scope.LIVE, new FilterIndexCapability[]{FilterIndexCapability.SUBSTRING}
+			final ScopedAttributeFilterAccelerators second = new ScopedAttributeFilterAccelerators(
+				Scope.LIVE, new AttributeFilterAccelerator[]{AttributeFilterAccelerator.SUBSTRING_SEARCH}
 			);
 			assertEquals(first, second);
 			assertEquals(first.hashCode(), second.hashCode());
@@ -78,8 +78,8 @@ class ScopedFilterCapabilitiesTest {
 		@DisplayName("Should not treat carriers of different scopes as equal")
 		void shouldNotTreatCarriersOfDifferentScopesAsEqual() {
 			assertNotEquals(
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING),
-				new ScopedFilterCapabilities(Scope.ARCHIVED, FilterIndexCapability.SUBSTRING)
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH),
+				new ScopedAttributeFilterAccelerators(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			);
 		}
 
@@ -87,8 +87,8 @@ class ScopedFilterCapabilitiesTest {
 		@DisplayName("Should not treat an empty carrier as equal to one declaring a capability")
 		void shouldNotTreatEmptyCarrierAsEqualToDeclaringOne() {
 			assertNotEquals(
-				new ScopedFilterCapabilities(Scope.LIVE),
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+				new ScopedAttributeFilterAccelerators(Scope.LIVE),
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			);
 		}
 
@@ -99,14 +99,17 @@ class ScopedFilterCapabilitiesTest {
 			// whose identity drives mutation combination and change detection - a caller that kept the array it
 			// passed in would otherwise be able to change a validated carrier's contents, and the hash code of any
 			// mutation already filed in a hash-keyed collection along with it
-			final FilterIndexCapability[] source = {FilterIndexCapability.SUBSTRING};
-			final ScopedFilterCapabilities carrier = new ScopedFilterCapabilities(Scope.LIVE, source);
+			final AttributeFilterAccelerator[] source = {AttributeFilterAccelerator.SUBSTRING_SEARCH};
+			final ScopedAttributeFilterAccelerators carrier = new ScopedAttributeFilterAccelerators(Scope.LIVE, source);
 			final int hashCodeBeforeMutation = carrier.hashCode();
 
 			source[0] = null;
 
-			assertEquals(FilterIndexCapability.SUBSTRING, carrier.capabilities()[0]);
-			assertEquals(new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING), carrier);
+			assertEquals(AttributeFilterAccelerator.SUBSTRING_SEARCH, carrier.accelerators()[0]);
+			assertEquals(
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH),
+				carrier
+			);
 			assertEquals(hashCodeBeforeMutation, carrier.hashCode());
 		}
 	}
@@ -118,9 +121,9 @@ class ScopedFilterCapabilitiesTest {
 		@Test
 		@DisplayName("Should accept a carrier declaring no capability at all")
 		void shouldAcceptCarrierDeclaringNoCapability() {
-			final ScopedFilterCapabilities carrier = new ScopedFilterCapabilities(Scope.LIVE);
+			final ScopedAttributeFilterAccelerators carrier = new ScopedAttributeFilterAccelerators(Scope.LIVE);
 			assertEquals(Scope.LIVE, carrier.scope());
-			assertEquals(0, carrier.capabilities().length);
+			assertEquals(0, carrier.accelerators().length);
 		}
 
 		@Test
@@ -131,15 +134,15 @@ class ScopedFilterCapabilitiesTest {
 			// NullPointerException from anywhere else in construction
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new ScopedFilterCapabilities(null, FilterIndexCapability.SUBSTRING)
+				() -> new ScopedAttributeFilterAccelerators(null, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			);
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new ScopedFilterCapabilities(Scope.LIVE, (FilterIndexCapability[]) null)
+				() -> new ScopedAttributeFilterAccelerators(Scope.LIVE, (AttributeFilterAccelerator[]) null)
 			);
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new ScopedFilterCapabilities(Scope.LIVE, new FilterIndexCapability[]{null})
+				() -> new ScopedAttributeFilterAccelerators(Scope.LIVE, new AttributeFilterAccelerator[]{null})
 			);
 		}
 	}
@@ -151,11 +154,11 @@ class ScopedFilterCapabilitiesTest {
 		@Test
 		@DisplayName("Should render both the scope and the capabilities in toString")
 		void shouldRenderScopeAndCapabilitiesInToString() {
-			final String rendered = new ScopedFilterCapabilities(
-				Scope.LIVE, FilterIndexCapability.SUBSTRING
+			final String rendered = new ScopedAttributeFilterAccelerators(
+				Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
 			).toString();
 			assertTrue(rendered.contains(Scope.LIVE.name()));
-			assertTrue(rendered.contains(FilterIndexCapability.SUBSTRING.name()));
+			assertTrue(rendered.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			// the default record rendering of an array component is an unhelpful identity hash - guard against a
 			// future edit accidentally reinstating it
 			assertFalse(rendered.contains("[Lio.evitadb"));

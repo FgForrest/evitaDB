@@ -53,7 +53,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -229,8 +229,9 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			SetAttributeSchemaFilterableMutation.class,
 			new SerialVersionBasedSerializer<>(new SetAttributeSchemaFilterableMutationSerializer(), SetAttributeSchemaFilterableMutation.class)
-				.addBackwardCompatibleSerializer(2640270593395210307L, new SetAttributeSchemaFilterableMutationSerializer_2024_11())
-				.addBackwardCompatibleSerializer(-382658973541254821L, new SetAttributeSchemaFilterableMutationSerializer_2026_2()),
+				.addBackwardCompatibleSerializer(
+					2640270593395210307L, new SetAttributeSchemaFilterableMutationSerializer_2024_11()
+				),
 			index++
 		);
 		kryo.register(
@@ -482,10 +483,17 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the attribute filter index capabilities are decomposed into scope + capability pairs by the mutation
-		// serializers (exactly as ScopedAttributeUniquenessType is), so only the enum itself needs a registration;
-		// appended last so that it does not shift the registration ids of everything above it
-		kryo.register(FilterIndexCapability.class, new EnumNameSerializer<>(), index++);
+		// the attribute filter accelerators are decomposed into scope + accelerator pairs by the mutation serializers
+		// (exactly as ScopedAttributeUniquenessType is), so only the enum itself needs a registration; appended last
+		// so that it does not shift the registration ids of everything above it
+		kryo.register(AttributeFilterAccelerator.class, new EnumNameSerializer<>(), index++);
+		kryo.register(
+			SetAttributeSchemaAcceleratedMutation.class,
+			new SerialVersionBasedSerializer<>(
+				new SetAttributeSchemaAcceleratedMutationSerializer(), SetAttributeSchemaAcceleratedMutation.class
+			),
+			index++
+		);
 
 		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}

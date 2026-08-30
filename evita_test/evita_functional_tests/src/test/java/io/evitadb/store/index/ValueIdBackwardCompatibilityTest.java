@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ## How the "old bytes" are produced
  *
  * There is no checked-in binary fixture. A legacy record is synthesized the way
- * `FilterCapabilityBackwardCompatibilityTest` synthesizes one: the pre-change serial version is written by hand,
+ * `AcceleratorBackwardCompatibilityTest` synthesizes one: the pre-change serial version is written by hand,
  * followed by the payload rendered by the CURRENT serializer. That is a genuine old record precisely *because* the
  * new section is appended — the pre-change payload is a byte-exact prefix of the current one, so the registered
  * backward-compatible reader stops short of the trailing bytes and reproduces exactly what it would have read from

@@ -76,5 +76,8 @@ message GrpcLocalCatalogSchemaMutation {
     GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;
     // Mutation is responsible for setting value to a `CatalogSchema.conflictResolution` in `CatalogSchema`.
     GrpcModifyCatalogSchemaConflictResolutionMutation modifyCatalogSchemaConflictResolutionMutation = 35;
+    // Mutation is responsible for setting the filter accelerators of a `GlobalAttributeSchema` in `CatalogSchema`.
+    // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+    GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;
   }
 }

@@ -25,14 +25,12 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link SetAttributeSchemaFilterableMutation}.
@@ -55,23 +53,6 @@ public interface SetAttributeSchemaFilterableMutationDescriptor extends Attribut
 		.type(nullable(Scope[].class))
 		.build();
 
-	PropertyDescriptor FILTER_CAPABILITIES_IN_SCOPES = PropertyDescriptor.builder()
-		.name("filterCapabilitiesInScopes")
-		.description("""
-			Optional accelerations the filter index should maintain on top of plain filterability, per scope. Each
-			capability costs additional memory and additional write-path work, so none of them is implied by making
-			the attribute filterable - only the ones listed here are maintained.
-
-			The property is optional; when it is omitted the attribute stays filterable without any acceleration, which
-			is the behaviour of every client that predates filter index capabilities. A scope may only be named here
-			when the very same mutation also makes the attribute filterable in it.
-			""")
-		.type(nullableListRef(ScopedFilterCapabilitiesDescriptor.THIS))
-		.build();
-	PropertyDescriptor FILTER_CAPABILITIES_IN_SCOPES_INPUT = PropertyDescriptor.from(FILTER_CAPABILITIES_IN_SCOPES)
-		.type(nullableListRef(ScopedFilterCapabilitiesDescriptor.THIS_INPUT))
-		.build();
-
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(SetAttributeSchemaFilterableMutation.class)
 		.description("""
@@ -82,10 +63,8 @@ public interface SetAttributeSchemaFilterableMutationDescriptor extends Attribut
 			""")
 		.staticProperty(NAME)
 		.staticProperty(FILTERABLE_IN_SCOPES)
-		.staticProperty(FILTER_CAPABILITIES_IN_SCOPES)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetAttributeSchemaFilterableMutationInput")
-		.staticProperty(FILTER_CAPABILITIES_IN_SCOPES_INPUT)
 		.build();
 }

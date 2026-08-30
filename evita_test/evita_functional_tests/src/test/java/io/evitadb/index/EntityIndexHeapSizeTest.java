@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -137,8 +137,14 @@ class EntityIndexHeapSizeTest {
 		.withAttribute("language", Locale.class, AttributeSchemaEditor::filterable)
 		// two SUBSTRING attributes, so a global index can be measured with a populated trigram map and again with one
 		// entry taken out of it - the only fixture in this file that reaches the map's per-entry charge at all
-		.withAttribute(SUBSTRING_CODE, String.class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
-		.withAttribute(SUBSTRING_NAME, String.class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
+		.withAttribute(
+			SUBSTRING_CODE, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
+		.withAttribute(
+			SUBSTRING_NAME, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
 		.toInstance();
 
 	@Nonnull

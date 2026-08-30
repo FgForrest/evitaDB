@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -147,8 +147,8 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	}
 
 	/**
-	 * Serializes the per-scope {@link FilterIndexCapability filter index capabilities} of an attribute schema to the
-	 * given Kryo output. The map is written as its size followed by one scope and its capability set per entry, which
+	 * Serializes the per-scope {@link AttributeFilterAccelerator filter accelerators} of an attribute schema to the
+	 * given Kryo output. The map is written as its size followed by one scope and its accelerator set per entry, which
 	 * keeps the layout identical in shape to every other scoped collection in this file.
 	 *
 	 * The map an attribute schema exposes is already normalized - it never holds an empty value and every key is also
@@ -156,42 +156,42 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	 *
 	 * @param kryo         the Kryo instance to use for serialization
 	 * @param output       the Output instance to write to
-	 * @param capabilities the per-scope capabilities to serialize, never null but possibly empty
+	 * @param accelerators the per-scope accelerators to serialize, never null but possibly empty
 	 */
-	static void writeFilterCapabilities(
+	static void writeAccelerators(
 		@Nonnull Kryo kryo,
 		@Nonnull Output output,
-		@Nonnull Map<Scope, Set<FilterIndexCapability>> capabilities
+		@Nonnull Map<Scope, Set<AttributeFilterAccelerator>> accelerators
 	) {
-		output.writeVarInt(capabilities.size(), true);
-		for (Entry<Scope, Set<FilterIndexCapability>> entry : capabilities.entrySet()) {
+		output.writeVarInt(accelerators.size(), true);
+		for (Entry<Scope, Set<AttributeFilterAccelerator>> entry : accelerators.entrySet()) {
 			kryo.writeObject(output, entry.getKey());
-			final Set<FilterIndexCapability> scopeCapabilities = entry.getValue();
+			final Set<AttributeFilterAccelerator> scopeCapabilities = entry.getValue();
 			output.writeVarInt(scopeCapabilities.size(), true);
-			for (FilterIndexCapability capability : scopeCapabilities) {
-				kryo.writeObject(output, capability);
+			for (AttributeFilterAccelerator accelerator : scopeCapabilities) {
+				kryo.writeObject(output, accelerator);
 			}
 		}
 	}
 
 	/**
-	 * Reads the per-scope {@link FilterIndexCapability filter index capabilities} previously written by
-	 * {@link #writeFilterCapabilities(Kryo, Output, Map)}.
+	 * Reads the per-scope {@link AttributeFilterAccelerator filter accelerators} previously written by
+	 * {@link #writeAccelerators(Kryo, Output, Map)}.
 	 *
 	 * @param kryo  the Kryo instance to use for deserialization
 	 * @param input the Input instance to read from
-	 * @return the per-scope capabilities that were read from the input, never null but possibly empty
+	 * @return the per-scope accelerators that were read from the input, never null but possibly empty
 	 */
 	@Nonnull
-	static Map<Scope, Set<FilterIndexCapability>> readFilterCapabilities(@Nonnull Kryo kryo, @Nonnull Input input) {
+	static Map<Scope, Set<AttributeFilterAccelerator>> readAccelerators(@Nonnull Kryo kryo, @Nonnull Input input) {
 		final int outerSize = input.readVarInt(true);
-		final EnumMap<Scope, Set<FilterIndexCapability>> result = new EnumMap<>(Scope.class);
+		final EnumMap<Scope, Set<AttributeFilterAccelerator>> result = new EnumMap<>(Scope.class);
 		for (int i = 0; i < outerSize; i++) {
 			final Scope scope = kryo.readObject(input, Scope.class);
 			final int innerSize = input.readVarInt(true);
-			final EnumSet<FilterIndexCapability> scopeCapabilities = EnumSet.noneOf(FilterIndexCapability.class);
+			final EnumSet<AttributeFilterAccelerator> scopeCapabilities = EnumSet.noneOf(AttributeFilterAccelerator.class);
 			for (int j = 0; j < innerSize; j++) {
-				scopeCapabilities.add(kryo.readObject(input, FilterIndexCapability.class));
+				scopeCapabilities.add(kryo.readObject(input, AttributeFilterAccelerator.class));
 			}
 			result.put(scope, scopeCapabilities);
 		}

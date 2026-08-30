@@ -24,19 +24,19 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
@@ -248,7 +248,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
-					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list())
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
@@ -271,8 +271,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			null,
 			null,
 			new Scope[] { Scope.LIVE },
-			new ScopedFilterCapabilities[] {
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			new ScopedAttributeFilterAccelerators[] {
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
 			null,
 			false,
@@ -290,11 +290,11 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list()
 					.i(map()
 						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
-						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
-							.i(FilterIndexCapability.SUBSTRING))))
+						.e(ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(), list()
+							.i(AttributeFilterAccelerator.SUBSTRING_SEARCH))))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedFromEnums);
@@ -305,11 +305,11 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), "String")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(), list()
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list()
 					.i(map()
 						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
-						.e(ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(), list()
-							.i(FilterIndexCapability.SUBSTRING.name()))))
+						.e(ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(), list()
+							.i(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()))))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedFromStrings);
@@ -327,8 +327,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 					.i(Scope.LIVE))
 				.build()
 		);
-		assertNotNull(converted.getFilterCapabilitiesInScopes());
-		assertEquals(0, converted.getFilterCapabilitiesInScopes().length);
+		assertNotNull(converted.getAcceleratorsInScopes());
+		assertEquals(0, converted.getAcceleratorsInScopes().length);
 	}
 
 	@Test
@@ -340,8 +340,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			null,
 			null,
 			new Scope[] { Scope.LIVE },
-			new ScopedFilterCapabilities[] {
-				new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+			new ScopedAttributeFilterAccelerators[] {
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
 			null,
 			false,

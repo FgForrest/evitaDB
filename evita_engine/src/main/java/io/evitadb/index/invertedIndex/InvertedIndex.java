@@ -655,7 +655,7 @@ public class InvertedIndex implements
 	 * must never be called from a query or background thread, nor concurrently with another writer on the same index.
 	 * {@link ValueIdConsumerRegistry} names the two moments at which it legitimately happens — the entity write path
 	 * when the tree is first created, and the catalog load path — and why neither of them is the schema mutation that
-	 * declared the capability.
+	 * declared the accelerator.
 	 *
 	 * @param consumerName the consumer's stable name, e.g. `trigram-substring-index`
 	 * @see #detachValueIdConsumer(String)
@@ -681,13 +681,13 @@ public class InvertedIndex implements
 	 *
 	 * ## The schema boundary does NOT refuse this, and is not going to
 	 *
-	 * Do not read the restriction above as "someone upstream already prevents it". Removing a filter capability from a
+	 * Do not read the restriction above as "someone upstream already prevents it". Removing a filter accelerator from a
 	 * populated collection is **deliberately legal**:
-	 * `EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection` refuses *additions* only, on the stated
+	 * `EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection` refuses *additions* only, on the stated
 	 * grounds that "dropping an index needs no data", and
-	 * `FilterIndexCapabilityRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. The trigram
+	 * `AttributeFilterAcceleratorRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. The trigram
 	 * substring index DOES register a consumer in production — `GlobalEntityIndex#obtainTrigramIndex`, on the first
-	 * write to a capability-declaring attribute — but nothing ever unregisters one: a withdrawn capability drops the
+	 * write to an accelerator-declaring attribute — but nothing ever unregisters one: a withdrawn accelerator drops the
 	 * accelerator through `GlobalEntityIndex#reconcileTrigramIndexAbsence` and leaves the tree's id column standing.
 	 * So this method is still unreachable from production, now for want of a CALLER rather than for want of a
 	 * registration. Whoever writes that caller owes the missing half rather than a new refusal upstream: unregister,
@@ -715,8 +715,8 @@ public class InvertedIndex implements
 			"The last value id consumer can only leave while the tree is still empty - dropping the id columns of a " +
 				"populated tree dirties no leaf page, so the ids already persisted would survive on disk and a " +
 				"reload would resurrect them. The schema boundary does NOT refuse this (removing a filter " +
-				"capability from a populated collection is deliberately legal), so whoever wires a consumer to a " +
-				"capability owes the drop path: unregister, drop the minter, and mark every leaf page dirty so the " +
+				"accelerator from a populated collection is deliberately legal), so whoever wires a consumer to a " +
+				"accelerator owes the drop path: unregister, drop the minter, and mark every leaf page dirty so the " +
 				"columns really leave the disk."
 		);
 		if (this.valueIdConsumers.unregister(consumerName)) {
@@ -735,8 +735,8 @@ public class InvertedIndex implements
 	 * present, but that back-fill would live in memory only: it writes the id columns of leaves nothing marks dirty, so
 	 * the emitter never rewrites their pages, the ids never reach disk, and a reload would mint different ids for
 	 * exactly the values a consumer had already recorded ids for. The constraint costs nothing in practice because a
-	 * filter capability cannot be declared on a collection that already holds entities
-	 * (`EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection`), so the tree a consumer attaches to has
+	 * filter accelerator cannot be declared on a collection that already holds entities
+	 * (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`), so the tree a consumer attaches to has
 	 * nothing in it yet.
 	 *
 	 * @param allocator the allocator to mint from
@@ -747,7 +747,7 @@ public class InvertedIndex implements
 				this.buckets.size() == 0,
 				"Value ids can only be switched on while the tree is still empty - back-filling the values already " +
 					"present dirties no leaf page, so the ids would never reach disk and a reload would hand those " +
-					"values different ones. A filter capability cannot be declared on a collection that already " +
+					"values different ones. A filter accelerator cannot be declared on a collection that already " +
 					"holds entities, so a consumer always attaches to an empty tree."
 			);
 			this.valueIdAllocator = allocator;

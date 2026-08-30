@@ -91,7 +91,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -1082,7 +1082,7 @@ public final class EntityCollection implements
 
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
-			verifyNoFilterCapabilityAddedToNonEmptyCollection(originalSchema, updatedSchema);
+			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
@@ -2504,7 +2504,7 @@ public final class EntityCollection implements
 
 	/**
 	 * Dry-runs the given mutations against this collection's current schema and raises the
-	 * capability-on-populated-collection refusal **without exchanging anything**.
+	 * accelerator-on-populated-collection refusal **without exchanging anything**.
 	 *
 	 * This exists because a catalog-level change to a global attribute fans out into one
 	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
@@ -2519,7 +2519,7 @@ public final class EntityCollection implements
 	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
 	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
 	 *   Surfacing those here would turn a working schema change into a spurious rejection.
-	 * - The refusals the mutations raise themselves - wrong data type, capability on a reference attribute - depend
+	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
 	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
 	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
 	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
@@ -2527,7 +2527,7 @@ public final class EntityCollection implements
 	 *
 	 * @param catalogSchema  the catalog schema the mutations are applied against
 	 * @param schemaMutation the mutations that are about to be applied
-	 * @throws InvalidSchemaMutationException when a capability would be added to this non-empty collection
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
 	 */
 	public void verifySchemaMutationsApplicable(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -2560,54 +2560,55 @@ public final class EntityCollection implements
 			// (c) Only one verdict actually needs this preflight, and reaching it does not depend on the exception:
 			//     the non-empty-collection refusal is the sole rule whose answer differs PER COLLECTION, which is
 			//     what lets a cascade accept collection A and then refuse collection B. Every other refusal - wrong
-			//     data type, capability on a reference attribute - depends only on the attribute, so a cascade fires
+			//     data type, accelerator on a reference attribute - depends only on the attribute, so a cascade fires
 			//     it on the first collection visited, before anything has been exchanged, and is already atomic.
 			return;
 		}
-		verifyNoFilterCapabilityAddedToNonEmptyCollection(originalSchema, updatedSchema);
+		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 	}
 
 	/**
 	 * Refuses a schema change that would newly declare a
-	 * {@link io.evitadb.api.requestResponse.schema.FilterIndexCapability} on a collection that already holds entities.
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator} on a collection that already holds
+	 * entities.
 	 *
-	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter capability are built incrementally
+	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
 	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
 	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
 	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
 	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
-	 * declare the capability before the data goes in.
+	 * declare the accelerator before the data goes in.
 	 *
 	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
 	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
-	 * attribute created with capabilities already on it, a reference attribute, and whatever combination the mutation
+	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
 	 * pipeline collapses those into.
 	 *
 	 * **Attributes are matched by name, and that is correct even across a rename.**
 	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
 	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
 	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
-	 * does end up with a second attribute carrying the capability. That second attribute needs its own index built
+	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
 	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
 	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
 	 * the schema and this per-name comparison would need to follow the attribute through it - see
-	 * `FilterIndexCapabilityRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
 	 *
-	 * {@link #isEmpty()} is consulted **only when a capability was actually added**, because it is a storage read and
+	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
 	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
 	 * transaction's own writes: {@link #isEmpty()} goes through the collection's {@link DataStoreReader}, which is
 	 * backed by {@link io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer} once the catalog is live, and
 	 * {@link io.evitadb.core.buffer.DataStoreChanges#countStorageParts} layers the transaction's trapped inserts and
 	 * removals over the persisted count. An entity upserted earlier in the same transaction therefore makes the
-	 * collection non-empty here, and the capability is refused - proven by the `AfterGoingLive` group of
-	 * `FilterIndexCapabilityRefusalTest`, whose same-transaction upsert case is refused while its otherwise
+	 * collection non-empty here, and the accelerator is refused - proven by the `AfterGoingLive` group of
+	 * `AttributeFilterAcceleratorRefusalTest`, whose same-transaction upsert case is refused while its otherwise
 	 * identical empty-collection counterfactual is accepted.
 	 *
 	 * @param originalSchema the schema as it stood before the mutations were applied
 	 * @param updatedSchema  the schema the mutations produced
-	 * @throws InvalidSchemaMutationException when a capability would be added to a collection that is not empty
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
 	 */
-	private void verifyNoFilterCapabilityAddedToNonEmptyCollection(
+	private void verifyNoAcceleratorAddedToNonEmptyCollection(
 		@Nonnull EntitySchema originalSchema,
 		@Nonnull EntitySchema updatedSchema
 	) {
@@ -2617,7 +2618,7 @@ public final class EntityCollection implements
 			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
 		}
 		// this reference loop is defence in depth today - nothing it walks can currently fail it, because
-		// `AbstractAttributeSchemaMutation#verifyCapabilityNotOnReferenceAttribute` refuses a filter capability on ANY
+		// `AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute` refuses a filter accelerator on ANY
 		// reference attribute before it can reach a schema at all. That restriction is documented as liftable once the
 		// index learns to host reference attribute values, and on the day it is lifted this loop becomes the live
 		// guard - so it has to be correct for reflected references already. They are the awkward shape here: a
@@ -2670,15 +2671,15 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * The per-attribute half of {@link #verifyNoFilterCapabilityAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
-	 * - compares one attribute's capabilities before and after, scope by scope, and refuses any addition while the
-	 * collection holds entities. A capability being *removed* is always allowed: dropping an index needs no data.
+	 * The per-attribute half of {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * - compares one attribute's accelerators before and after, scope by scope, and refuses any addition while the
+	 * collection holds entities. An accelerator being *removed* is always allowed: dropping an index needs no data.
 	 *
 	 * @param originalAttribute the attribute as it stood before, or null when the mutation creates it
 	 * @param updatedAttribute  the attribute the mutations produced
 	 * @param entityType        the entity type, for the error message
 	 * @param referenceName     the reference the attribute belongs to, or null for an entity-level attribute
-	 * @throws InvalidSchemaMutationException when a capability would be added to a collection that is not empty
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
 	 */
 	private void assertNoCapabilityAdded(
 		@Nullable AttributeSchemaContract originalAttribute,
@@ -2686,24 +2687,24 @@ public final class EntityCollection implements
 		@Nonnull String entityType,
 		@Nullable String referenceName
 	) {
-		final Map<Scope, Set<FilterIndexCapability>> updatedCapabilities =
-			updatedAttribute.getFilterCapabilitiesInScopes();
+		final Map<Scope, Set<AttributeFilterAccelerator>> updatedCapabilities =
+			updatedAttribute.getAcceleratorsInScopes();
 		if (updatedCapabilities.isEmpty()) {
 			return;
 		}
-		for (final Entry<Scope, Set<FilterIndexCapability>> entry : updatedCapabilities.entrySet()) {
-			final Set<FilterIndexCapability> alreadyDeclared = originalAttribute == null ?
-				Set.of() : originalAttribute.getFilterCapabilitiesInScope(entry.getKey());
-			for (final FilterIndexCapability capability : entry.getValue()) {
-				if (!alreadyDeclared.contains(capability) && !isEmpty()) {
+		for (final Entry<Scope, Set<AttributeFilterAccelerator>> entry : updatedCapabilities.entrySet()) {
+			final Set<AttributeFilterAccelerator> alreadyDeclared = originalAttribute == null ?
+				Set.of() : originalAttribute.getAcceleratorsInScope(entry.getKey());
+			for (final AttributeFilterAccelerator accelerator : entry.getValue()) {
+				if (!alreadyDeclared.contains(accelerator) && !isEmpty()) {
 					throw new InvalidSchemaMutationException(
-						"Cannot declare filter index capability `" + capability + "` on attribute `" +
+						"Cannot declare filter accelerator `" + accelerator + "` on attribute `" +
 							updatedAttribute.getName() + "`" +
 							(referenceName == null ? "" : " of reference `" + referenceName + "`") +
 							" in entity `" + entityType + "` scope `" + entry.getKey() + "`, because the collection " +
-							"already contains entities! The index backing this capability is built as entities are " +
+							"already contains entities! The index backing this accelerator is built as entities are " +
 							"indexed and there is no way to build it for entities that are already stored - " +
-							"declare the capability before inserting data, or remove the existing entities first."
+							"declare the accelerator before inserting data, or remove the existing entities first."
 					);
 				}
 			}

@@ -28,7 +28,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -148,11 +148,11 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		// registered last so that adding them does not shift the registration ids of the entries above (which would
 		// break already persisted schemas); name-based serialization keeps them resilient to future enum evolution
 		// (e.g. the transitional granular constants of ConflictPolicy that are scheduled for removal, and any future
-		// FilterIndexCapability constant)
+		// AttributeFilterAccelerator constant)
 		kryo.register(ConflictResolutionOverride.class, new EnumNameSerializer<>(), index++);
 		kryo.register(ConflictPolicy.class, new EnumNameSerializer<>(), index++);
 		kryo.register(GranularConflictPolicy.class, new EnumNameSerializer<>(), index++);
-		kryo.register(FilterIndexCapability.class, new EnumNameSerializer<>(), index++);
+		kryo.register(AttributeFilterAccelerator.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

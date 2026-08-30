@@ -29,7 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.dataType.Scope;
@@ -56,6 +56,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
+import java.io.ObjectStreamClass;
 import java.io.ByteArrayOutputStream;
 
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -68,7 +69,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies backward-compatible deserialization of the schema types and schema mutations that gained the per-scope
- * {@link FilterIndexCapability} field. Adding it bumped the `serialVersionUID` of every affected class, so any record
+ * {@link AttributeFilterAccelerator} field. Adding it bumped the `serialVersionUID` of every affected class, so any
+ * record
  * persisted by the immediately-preceding format must still be readable through the version-routing
  * {@link io.evitadb.store.entity.serializer.SerialVersionBasedSerializer} - reading back as an attribute that is
  * filterable exactly as it was, with no acceleration declared anywhere.
@@ -87,12 +89,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Filter capability backward compatibility")
+@DisplayName("Filter accelerator backward compatibility")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 @Tag(WAL)
 @Tag(SCHEMA)
-class FilterCapabilityBackwardCompatibilityTest {
+class AcceleratorBackwardCompatibilityTest {
 
 	/**
 	 * Pre-capability `serialVersionUID` of {@link AttributeSchema} (storage), covered by its `_2026_2` reader.
@@ -127,8 +129,8 @@ class FilterCapabilityBackwardCompatibilityTest {
 	 * The carriers every subject in this test is built from - one scope, one capability, so the appended section is
 	 * never empty.
 	 */
-	private static final ScopedFilterCapabilities[] SUBSTRING_IN_LIVE = {
-		new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+	private static final ScopedAttributeFilterAccelerators[] SUBSTRING_IN_LIVE = {
+		new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 	};
 
 	@Test
@@ -241,7 +243,7 @@ class FilterCapabilityBackwardCompatibilityTest {
 		// written immediately before the capability section - proves byte alignment rather than a lucky default
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
-		assertEquals(0, deserialized.getFilterCapabilitiesInScopes().length);
+		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
 	}
 
 	@Test
@@ -270,34 +272,40 @@ class FilterCapabilityBackwardCompatibilityTest {
 		assertEquals(ATTRIBUTE_URL, deserialized.getName());
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
-		assertEquals(0, deserialized.getFilterCapabilitiesInScopes().length);
+		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
 	}
 
 	@Test
-	@DisplayName("pre-capability SetAttributeSchemaFilterableMutation (WAL) is indistinguishable from a plain one")
-	void shouldReadPreCapabilitySetFilterableMutationAsAPlainFilterableMutation() {
+	@DisplayName("SetAttributeSchemaFilterableMutation still writes the released format, byte for byte")
+	void shouldWriteSetFilterableMutationInTheReleasedFormat() {
+		// the accelerator axis was lifted out of this mutation before it ever shipped, which is what lets it keep the
+		// released serialVersionUID and lets its released serializer read what today's writer produces without any
+		// backward-compatible reader in between. This test is what keeps that claim honest: the payload must be
+		// exactly the name and the scope array, with nothing appended after them.
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-		final SetAttributeSchemaFilterableMutation mutation = SetAttributeSchemaFilterableMutation.fromCapabilities(
-			ATTRIBUTE_NAME, new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+		final SetAttributeSchemaFilterableMutation mutation = new SetAttributeSchemaFilterableMutation(
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 
-		final SetAttributeSchemaFilterableMutation deserialized = readThroughBackwardCompatibleRoute(
-			walKryo,
-			SET_FILTERABLE_MUTATION_PRE_CAPABILITY_UID,
-			new SetAttributeSchemaFilterableMutationSerializer(),
-			SetAttributeSchemaFilterableMutation.class,
-			mutation
-		);
+		final ByteArrayOutputStream written = new ByteArrayOutputStream(64);
+		try (final Output output = new Output(written)) {
+			new SetAttributeSchemaFilterableMutationSerializer().write(walKryo, output, mutation);
+		}
 
-		assertEquals(ATTRIBUTE_NAME, deserialized.getName());
-		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
-		assertEquals(0, deserialized.getFilterCapabilitiesInScopes().length);
-		// the property WAL replay depends on: a record written before capabilities existed and a plain filterable
-		// mutation issued today must be the *same* mutation, or a replayed WAL would combine them differently than
-		// the schema-diffing path that produced them
+		final ByteArrayOutputStream expected = new ByteArrayOutputStream(64);
+		try (final Output output = new Output(expected)) {
+			output.writeString(ATTRIBUTE_NAME);
+			output.writeVarInt(Scope.DEFAULT_SCOPES.length, true);
+			for (final Scope scope : Scope.DEFAULT_SCOPES) {
+				walKryo.writeObject(output, scope);
+			}
+		}
+
+		assertArrayEquals(expected.toByteArray(), written.toByteArray());
 		assertEquals(
-			new SetAttributeSchemaFilterableMutation(ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES),
-			deserialized
+			SET_FILTERABLE_MUTATION_PRE_CAPABILITY_UID,
+			ObjectStreamClass.lookup(SetAttributeSchemaFilterableMutation.class).getSerialVersionUID(),
+			"the released serialVersionUID must be intact - a changed one would orphan every stored WAL record"
 		);
 	}
 
@@ -320,7 +328,7 @@ class FilterCapabilityBackwardCompatibilityTest {
 		assertEquals(expectedOverride, deserialized.getConflictResolutionOverride());
 		assertTrue(deserialized.isFilterableInScope(Scope.LIVE), "the filterability itself must survive intact");
 		// … and the trailing capability section reads back as absent, which is what a plain `filterable()` means
-		assertTrue(deserialized.getFilterCapabilitiesInScopes().isEmpty());
+		assertTrue(deserialized.getAcceleratorsInScopes().isEmpty());
 	}
 
 	/**

@@ -87,6 +87,7 @@ private static final long serialVersionUID = 0L;
     SETATTRIBUTESCHEMAUNIQUEMUTATION(15),
     USEGLOBALATTRIBUTESCHEMAMUTATION(16),
     SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION(17),
+    SETATTRIBUTESCHEMAACCELERATEDMUTATION(18),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -119,6 +120,7 @@ private static final long serialVersionUID = 0L;
         case 15: return SETATTRIBUTESCHEMAUNIQUEMUTATION;
         case 16: return USEGLOBALATTRIBUTESCHEMAMUTATION;
         case 17: return SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION;
+        case 18: return SETATTRIBUTESCHEMAACCELERATEDMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -779,6 +781,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation.getDefaultInstance();
   }
 
+  public static final int SETATTRIBUTESCHEMAACCELERATEDMUTATION_FIELD_NUMBER = 18;
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+   * @return Whether the setAttributeSchemaAcceleratedMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaAcceleratedMutation() {
+    return mutationCase_ == 18;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+   * @return The setAttributeSchemaAcceleratedMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation getSetAttributeSchemaAcceleratedMutation() {
+    if (mutationCase_ == 18) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder getSetAttributeSchemaAcceleratedMutationOrBuilder() {
+    if (mutationCase_ == 18) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -837,6 +882,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 17) {
       output.writeMessage(17, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_);
+    }
+    if (mutationCase_ == 18) {
+      output.writeMessage(18, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -906,6 +954,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 17) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(17, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaConflictResolutionOverrideMutation) mutation_);
+    }
+    if (mutationCase_ == 18) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(18, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -984,6 +1036,10 @@ private static final long serialVersionUID = 0L;
         if (!getSetAttributeSchemaConflictResolutionOverrideMutation()
             .equals(other.getSetAttributeSchemaConflictResolutionOverrideMutation())) return false;
         break;
+      case 18:
+        if (!getSetAttributeSchemaAcceleratedMutation()
+            .equals(other.getSetAttributeSchemaAcceleratedMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1058,6 +1114,10 @@ private static final long serialVersionUID = 0L;
       case 17:
         hash = (37 * hash) + SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaConflictResolutionOverrideMutation().hashCode();
+        break;
+      case 18:
+        hash = (37 * hash) + SETATTRIBUTESCHEMAACCELERATEDMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaAcceleratedMutation().hashCode();
         break;
       case 0:
       default:
@@ -1242,6 +1302,9 @@ private static final long serialVersionUID = 0L;
       if (setAttributeSchemaConflictResolutionOverrideMutationBuilder_ != null) {
         setAttributeSchemaConflictResolutionOverrideMutationBuilder_.clear();
       }
+      if (setAttributeSchemaAcceleratedMutationBuilder_ != null) {
+        setAttributeSchemaAcceleratedMutationBuilder_.clear();
+      }
       mutationCase_ = 0;
       mutation_ = null;
       return this;
@@ -1342,6 +1405,10 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 17 &&
           setAttributeSchemaConflictResolutionOverrideMutationBuilder_ != null) {
         result.mutation_ = setAttributeSchemaConflictResolutionOverrideMutationBuilder_.build();
+      }
+      if (mutationCase_ == 18 &&
+          setAttributeSchemaAcceleratedMutationBuilder_ != null) {
+        result.mutation_ = setAttributeSchemaAcceleratedMutationBuilder_.build();
       }
     }
 
@@ -1448,6 +1515,10 @@ private static final long serialVersionUID = 0L;
         }
         case SETATTRIBUTESCHEMACONFLICTRESOLUTIONOVERRIDEMUTATION: {
           mergeSetAttributeSchemaConflictResolutionOverrideMutation(other.getSetAttributeSchemaConflictResolutionOverrideMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMAACCELERATEDMUTATION: {
+          mergeSetAttributeSchemaAcceleratedMutation(other.getSetAttributeSchemaAcceleratedMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -1585,6 +1656,13 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 17;
               break;
             } // case 138
+            case 146: {
+              input.readMessage(
+                  getSetAttributeSchemaAcceleratedMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 18;
+              break;
+            } // case 146
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -4285,6 +4363,184 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 17;
       onChanged();
       return setAttributeSchemaConflictResolutionOverrideMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder> setAttributeSchemaAcceleratedMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     * @return Whether the setAttributeSchemaAcceleratedMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaAcceleratedMutation() {
+      return mutationCase_ == 18;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     * @return The setAttributeSchemaAcceleratedMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation getSetAttributeSchemaAcceleratedMutation() {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        if (mutationCase_ == 18) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 18) {
+          return setAttributeSchemaAcceleratedMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    public Builder setSetAttributeSchemaAcceleratedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation value) {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaAcceleratedMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 18;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    public Builder setSetAttributeSchemaAcceleratedMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.Builder builderForValue) {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaAcceleratedMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 18;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    public Builder mergeSetAttributeSchemaAcceleratedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation value) {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        if (mutationCase_ == 18 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 18) {
+          setAttributeSchemaAcceleratedMutationBuilder_.mergeFrom(value);
+        } else {
+          setAttributeSchemaAcceleratedMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 18;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    public Builder clearSetAttributeSchemaAcceleratedMutation() {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        if (mutationCase_ == 18) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 18) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaAcceleratedMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.Builder getSetAttributeSchemaAcceleratedMutationBuilder() {
+      return getSetAttributeSchemaAcceleratedMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder getSetAttributeSchemaAcceleratedMutationOrBuilder() {
+      if ((mutationCase_ == 18) && (setAttributeSchemaAcceleratedMutationBuilder_ != null)) {
+        return setAttributeSchemaAcceleratedMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 18) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder> 
+        getSetAttributeSchemaAcceleratedMutationFieldBuilder() {
+      if (setAttributeSchemaAcceleratedMutationBuilder_ == null) {
+        if (!(mutationCase_ == 18)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.getDefaultInstance();
+        }
+        setAttributeSchemaAcceleratedMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 18;
+      onChanged();
+      return setAttributeSchemaAcceleratedMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -23,10 +23,16 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
@@ -36,6 +42,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -68,6 +76,118 @@ class CatalogSchemaTest {
 			return Optional.empty();
 		}
 	};
+
+	@Nested
+	@DisplayName("Accelerator validation of externally-submitted mutations")
+	class AcceleratorValidation {
+
+		/**
+		 * Builds a catalog schema holding one global `String` attribute, exactly as a batch of externally-submitted
+		 * mutations would leave it - no builder involved, so no builder-side validation has run.
+		 *
+		 * @param uniqueInScopes       uniqueness to declare, may be null
+		 * @param filterableInScopes   filterability to declare
+		 * @param acceleratorsInScopes accelerators to declare
+		 * @return the catalog schema carrying that attribute
+		 */
+		@Nonnull
+		private CatalogSchema catalogWithGlobalAttribute(
+			@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+			@Nonnull Scope[] filterableInScopes,
+			@Nonnull ScopedAttributeFilterAccelerators[] acceleratorsInScopes
+		) {
+			return CatalogSchema._internalBuild(
+				1,
+				"testCatalog",
+				NamingConvention.generate("testCatalog"),
+				null,
+				null,
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				Map.of(
+					"code",
+					GlobalAttributeSchema._internalBuild(
+						"code", null, null,
+						uniqueInScopes,
+						(ScopedGlobalAttributeUniquenessType[]) null,
+						filterableInScopes,
+						acceleratorsInScopes,
+						Scope.NO_SCOPE,
+						false, false, false,
+						String.class, null, 0,
+						ConflictResolutionOverride.INHERITED
+					)
+				),
+				EMPTY_PROVIDER
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse an accelerator on an attribute with no filter index")
+		void shouldRefuseAcceleratorWithoutFilterIndex() {
+			// this is the shape an externally-submitted SetAttributeSchemaAccelerated leaves behind. Such a mutation
+			// never passes through a schema builder, so AbstractAttributeSchemaBuilder#validate cannot see it - this
+			// post-alteration validation is the only thing standing between the client and a trigram index being
+			// maintained for an attribute that has no filter index to accelerate
+			final CatalogSchema schema = catalogWithGlobalAttribute(
+				null,
+				Scope.NO_SCOPE,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				}
+			);
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				schema::validate
+			);
+			assertTrue(exception.getMessage().contains("code"));
+			assertTrue(exception.getMessage().contains(Scope.LIVE.name()));
+		}
+
+		@Test
+		@DisplayName("should refuse an accelerator in a scope that is unique only in the other scope")
+		void shouldRefuseAcceleratorInScopeUniqueOnlyElsewhere() {
+			// the per-scope half of the rule survives the move to post-alteration validation
+			final CatalogSchema schema = catalogWithGlobalAttribute(
+				new ScopedAttributeUniquenessType[]{
+					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+				},
+				Scope.NO_SCOPE,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				}
+			);
+
+			assertThrows(InvalidSchemaMutationException.class, schema::validate);
+		}
+
+		@Test
+		@DisplayName("should accept an accelerator riding on a unique-only attribute")
+		void shouldAcceptAcceleratorOnUniqueOnlyAttribute() {
+			// the positive control - the validation must not refuse the very case the axis move exists to allow
+			final CatalogSchema schema = catalogWithGlobalAttribute(
+				new ScopedAttributeUniquenessType[]{
+					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+				},
+				Scope.NO_SCOPE,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				}
+			);
+
+			assertDoesNotThrow(schema::validate);
+		}
+
+		@Test
+		@DisplayName("should accept an attribute declaring no accelerator at all")
+		void shouldAcceptAttributeWithoutAccelerators() {
+			assertDoesNotThrow(
+				() -> catalogWithGlobalAttribute(
+					null, Scope.DEFAULT_SCOPES, ScopedAttributeFilterAccelerators.EMPTY
+				).validate()
+			);
+		}
+	}
 
 	@Nested
 	@DisplayName("Construction")

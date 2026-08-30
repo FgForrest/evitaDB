@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
@@ -35,7 +35,7 @@ import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFa
 import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
@@ -100,16 +100,16 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			)
 		);
 
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes = input.getOptionalProperty(
-			CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(),
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes = input.getOptionalProperty(
+			CreateGlobalAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(),
 			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
-				CreateGlobalAttributeSchemaMutationDescriptor.FILTER_CAPABILITIES_IN_SCOPES,
-				ScopedFilterCapabilities.class,
-				nestedInput -> new ScopedFilterCapabilities(
+				CreateGlobalAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES,
+				ScopedAttributeFilterAccelerators.class,
+				nestedInput -> new ScopedAttributeFilterAccelerators(
 					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
-					nestedInput.getProperty(ScopedFilterCapabilitiesDescriptor.CAPABILITIES)
+					nestedInput.getProperty(ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS)
 				)
 			)
 		);
@@ -121,7 +121,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 			uniqueInScopes,
 			uniqueGloballyInScopes,
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),

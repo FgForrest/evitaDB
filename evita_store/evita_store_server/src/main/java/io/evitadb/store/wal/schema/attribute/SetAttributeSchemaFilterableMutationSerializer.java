@@ -28,7 +28,6 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
-import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
@@ -42,19 +41,13 @@ public class SetAttributeSchemaFilterableMutationSerializer extends Serializer<S
 	public void write(Kryo kryo, Output output, SetAttributeSchemaFilterableMutation mutation) {
 		output.writeString(mutation.getName());
 		writeScopeArray(kryo, output, mutation.getFilterableInScopes());
-		// appended last - the release-2026.2 reader (SetAttributeSchemaFilterableMutationSerializer_2026_2) stops
-		// before this point and never looks for the presence flag
-		writeScopedFilterCapabilitiesArray(kryo, output, mutation.getFilterCapabilitiesInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaFilterableMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaFilterableMutation> type) {
-		final String name = input.readString();
-		final Scope[] filterableInScopes = readScopeArray(kryo, input);
 		return new SetAttributeSchemaFilterableMutation(
-			name,
-			filterableInScopes,
-			readScopedFilterCapabilitiesArray(kryo, input)
+			input.readString(),
+			readScopeArray(kryo, input)
 		);
 	}
 

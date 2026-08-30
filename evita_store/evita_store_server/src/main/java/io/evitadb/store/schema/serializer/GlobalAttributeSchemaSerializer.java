@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
@@ -98,7 +98,7 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
 		// appended last, mirroring how the conflict-resolution override was added - the release-2026.2 reader
 		// (GlobalAttributeSchemaSerializer_2026_2) simply stops before this point
-		EntitySchemaSerializer.writeFilterCapabilities(kryo, output, attributeSchema.getFilterCapabilitiesInScopes());
+		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
@@ -134,14 +134,14 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
-		final Map<Scope, Set<FilterIndexCapability>> filterCapabilities =
-			EntitySchemaSerializer.readFilterCapabilities(kryo, input);
+		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators =
+			EntitySchemaSerializer.readAccelerators(kryo, input);
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			unique,
 			uniqueGlobally,
 			filterable,
-			filterCapabilities,
+			accelerators,
 			sortable,
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride

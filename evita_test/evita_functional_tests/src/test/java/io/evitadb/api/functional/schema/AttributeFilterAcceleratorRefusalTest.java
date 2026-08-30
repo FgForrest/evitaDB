@@ -28,10 +28,10 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
@@ -61,7 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Guards the refusal that protects users from a silently-incomplete substring index.
  *
- * The index backing a {@link FilterIndexCapability} is built incrementally as entities are indexed, and no reindexing
+ * The index backing a {@link AttributeFilterAccelerator} is built incrementally as entities are indexed, and no
+ * reindexing
  * machinery exists that could back-fill one for entities already stored. Declaring the capability on a populated
  * collection would therefore produce an index that answers only for entities written *after* the schema change -
  * queries would silently return fewer results than they should. The engine refuses instead, at the one place every
@@ -78,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(SCHEMA)
 @Tag(ATTRIBUTE)
 @Tag(FILTER)
-class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
+class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_CODE = "code";
@@ -98,7 +99,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		this.paths = createTestPaths("FilterIndexCapabilityRefusal");
+		this.paths = createTestPaths("AttributeFilterAcceleratorRefusal");
 		this.evita = new Evita(configuration());
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
@@ -118,14 +119,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should accept the capability on an empty collection and keep it after entities arrive")
 		void shouldAcceptCapabilityOnEmptyCollectionAndKeepIt() {
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(
 							ATTRIBUTE_NAME, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 						)
 						.updateVia(session);
 					session.upsertEntity(
@@ -134,14 +135,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertEquals(
-						Set.of(FilterIndexCapability.SUBSTRING),
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities()
+							.getAccelerators()
 					);
 				}
 			);
@@ -150,7 +151,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should accept the capability on a collection emptied of all its entities")
 		void shouldAcceptCapabilityOnEmptiedCollection() {
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
@@ -163,21 +164,21 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 			// removing the existing entities is the documented way out of the refusal - prove it actually works
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.deleteEntity(Entities.PRODUCT, 1);
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
 						.openForWrite()
 						.withAttribute(
 							ATTRIBUTE_NAME, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 						)
 						.updateVia(session);
 				}
@@ -196,20 +197,20 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.openForWrite()
 							.withAttribute(
 								ATTRIBUTE_NAME, String.class,
-								whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+								whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 							)
 							.updateVia(session);
 					}
 				)
 			);
-			assertTrue(exception.getMessage().contains(FilterIndexCapability.SUBSTRING.name()));
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			assertTrue(exception.getMessage().contains(ATTRIBUTE_NAME));
 			// the message has to say what to do about it, not merely that it was refused
 			assertTrue(exception.getMessage().contains("before inserting data"));
@@ -222,14 +223,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.openForWrite()
 							.withAttribute(
 								"description", String.class,
-								whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+								whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 							)
 							.updateVia(session);
 					}
@@ -244,19 +245,18 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.openForWrite()
 							.withAttribute(
 								ATTRIBUTE_NAME, String.class,
-								whichIs -> whichIs.filterableInScope(
-									new ScopedFilterCapabilities(
-										Scope.ARCHIVED, FilterIndexCapability.SUBSTRING
-									),
-									new ScopedFilterCapabilities(Scope.LIVE)
-								)
+								whichIs -> whichIs
+									.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+									.acceleratedForInScope(
+										Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH
+									)
 							)
 							.updateVia(session);
 					}
@@ -277,7 +277,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// global index and never sees reference attribute values, so an empty collection is refused just the same
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.defineEntitySchema(Entities.CATEGORY)
@@ -291,7 +291,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 									.indexedForFilteringAndPartitioning()
 									.withAttribute(
 										ATTRIBUTE_CODE, String.class,
-										thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+										thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 									)
 							)
 							.updateVia(session);
@@ -299,7 +299,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				)
 			);
 			assertTrue(exception.getMessage().contains(REFERENCE_CATEGORIES));
-			assertTrue(exception.getMessage().contains(FilterIndexCapability.SUBSTRING.name()));
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			// the message must point at the way out, not merely refuse
 			assertTrue(exception.getMessage().contains("entity attributes only"));
 		}
@@ -311,7 +311,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
@@ -320,7 +320,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 								REFERENCE_CATEGORIES, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 								whichIs -> whichIs.withAttribute(
 									ATTRIBUTE_CODE, String.class,
-									thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+									thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 								)
 							)
 							.updateVia(session);
@@ -337,7 +337,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// on a populated collection and all
 			populateWithFilterableReferenceAttribute();
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertTrue(
@@ -363,7 +363,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// refusal from the *second* collection could not undo the first, leaving the catalog saying "failed"
 			// while one collection kept the capability. CATEGORY is deliberately empty and PRODUCT populated, so the
 			// refusal comes from the second one visited under at least one legal iteration order.
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -387,13 +387,15 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.updateCatalogSchema(
-							SetAttributeSchemaFilterableMutation.fromCapabilities(
+							new SetAttributeSchemaAcceleratedMutation(
 								ATTRIBUTE_NAME,
-								new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+								new ScopedAttributeFilterAccelerators(
+									Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+								)
 							)
 						);
 					}
@@ -402,25 +404,25 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			// the whole cascade must have been refused - not the catalog schema only, and not "all but the first
 			// collection visited". Every one of the three schemas has to read exactly as it did before.
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertTrue(
 						session.getCatalogSchema()
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities().isEmpty(),
+							.getAccelerators().isEmpty(),
 						"the catalog schema must not keep the refused capability"
 					);
 					assertTrue(
 						session.getEntitySchemaOrThrow(Entities.CATEGORY)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities().isEmpty(),
+							.getAccelerators().isEmpty(),
 						"the empty collection must not keep the capability the populated one refused"
 					);
 					assertTrue(
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities().isEmpty(),
+							.getAccelerators().isEmpty(),
 						"the populated collection must be unchanged"
 					);
 				}
@@ -431,7 +433,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		@DisplayName("should apply the cascade to every collection when all of them are empty")
 		void shouldApplyCascadeToEveryCollectionWhenAllAreEmpty() {
 			// the positive control - the preflight must not turn a legal cascade into a refusal
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -449,32 +451,34 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.updateCatalogSchema(
-						SetAttributeSchemaFilterableMutation.fromCapabilities(
+						new SetAttributeSchemaAcceleratedMutation(
 							ATTRIBUTE_NAME,
-							new ScopedFilterCapabilities(Scope.LIVE, FilterIndexCapability.SUBSTRING)
+							new ScopedAttributeFilterAccelerators(
+								Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
 						)
 					);
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertEquals(
-						Set.of(FilterIndexCapability.SUBSTRING),
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
 						session.getEntitySchemaOrThrow(Entities.CATEGORY)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities()
+							.getAccelerators()
 					);
 					assertEquals(
-						Set.of(FilterIndexCapability.SUBSTRING),
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities()
+							.getAccelerators()
 					);
 				}
 			);
@@ -491,7 +495,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			populateWithPlainFilterableAttribute();
 
 			// nothing here adds a capability, so the refusal must not fire however populated the collection is
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
@@ -512,7 +516,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// the refusal check must skip such a reference rather than walk it. Before the skip existed this block
 			// threw "Attributes of the reflected reference are inherited from the target reference, but the
 			// reflected reference is not available!" from inside the refusal walk
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.CATEGORY)
@@ -539,7 +543,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			);
 
 			// and an ordinary, capability-free schema change on the reflecting collection must still go through
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.CATEGORY)
@@ -549,7 +553,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					final EntitySchemaContract schema = session.getEntitySchemaOrThrow(Entities.CATEGORY);
@@ -564,14 +568,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should allow removing the capability from a populated collection")
 		void shouldAllowRemovingCapabilityFromPopulatedCollection() {
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(
 							ATTRIBUTE_NAME, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 						)
 						.updateVia(session);
 					session.upsertEntity(
@@ -580,24 +584,31 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			// dropping an index needs no data, so the refusal is deliberately one-directional
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			// dropping an index needs no data, so the refusal is deliberately one-directional. Withdrawal has to be
+			// stated explicitly though - restating `filterable()` says nothing about the accelerator axis, which is
+			// exactly what stops an unrelated schema edit from silently deleting an index
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+						.withAttribute(
+							ATTRIBUTE_NAME, String.class,
+							whichIs -> whichIs
+								.filterable()
+								.nonAcceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+						)
 						.updateVia(session);
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertTrue(
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities().isEmpty()
+							.getAccelerators().isEmpty()
 					);
 				}
 			);
@@ -614,14 +625,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// index is attached to SUBSTRING, this test starts failing on that premise - which is the intent: the
 			// drop path (unregister, drop the minter, dirty every leaf page, let the high-water force the root out)
 			// has to land in the same breath as the wiring, not afterwards.
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(
 							ATTRIBUTE_NAME, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING)
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 						)
 						.updateVia(session);
 					session.upsertEntity(
@@ -630,7 +641,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
@@ -645,7 +656,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertEquals(
@@ -674,14 +685,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// filter index capabilities - but it is what makes the refusal below correct rather than a false
 			// positive, so it is pinned here. Fix the duplication and this test fails, which is the intent: the
 			// refusal below has to be revisited in the same breath.
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(
 							ATTRIBUTE_CODE, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 						)
 						.updateVia(session);
 					// renamed while still empty, so the refusal cannot be what we observe here
@@ -694,14 +705,14 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					final EntitySchemaContract schema = session.getEntitySchemaOrThrow(Entities.PRODUCT);
 					assertTrue(
 						schema.getAttribute("productCode").orElseThrow()
-							.getFilterCapabilitiesInScope(Scope.LIVE)
-							.contains(FilterIndexCapability.SUBSTRING)
+							.getAcceleratorsInScope(Scope.LIVE)
+							.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					);
 					assertTrue(
 						schema.getAttribute(ATTRIBUTE_CODE).isPresent(),
@@ -720,7 +731,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// one's index would have to be built over entities that are already stored. Refusing is the only honest
 			// answer available while the rename duplicates. The advice in the message is what reads oddly here, and
 			// that is a symptom of the duplication rather than of this check.
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					// declared while the collection is still empty, which is the supported way to get the capability
@@ -728,7 +739,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(
 							ATTRIBUTE_CODE, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 						)
 						.updateVia(session);
 					session.upsertEntity(
@@ -739,7 +750,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.updateEntitySchema(
@@ -774,21 +785,21 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.openForWrite()
 							.withAttribute(
 								ATTRIBUTE_NAME, String.class,
-								whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+								whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 							)
 							.updateVia(session);
 					},
 					CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
 				)
 			);
-			assertTrue(exception.getMessage().contains(FilterIndexCapability.SUBSTRING.name()));
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 		}
 
 		@Test
@@ -798,28 +809,28 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			// refusal that fired unconditionally in transactional mode, which would be the worse of the two bugs
 			goLiveWithEmptyProductCollection();
 
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
 						.openForWrite()
 						.withAttribute(
 							ATTRIBUTE_NAME, String.class,
-							whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 						)
 						.updateVia(session);
 				},
 				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
 			);
 
-			FilterIndexCapabilityRefusalTest.this.evita.queryCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertEquals(
-						Set.of(FilterIndexCapability.SUBSTRING),
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_NAME).orElseThrow()
-							.getFilterCapabilities()
+							.getAccelerators()
 					);
 				}
 			);
@@ -841,7 +852,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 
 			final InvalidSchemaMutationException exception = assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.upsertEntity(
@@ -851,7 +862,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 							.openForWrite()
 							.withAttribute(
 								ATTRIBUTE_NAME, String.class,
-								whichIs -> whichIs.filterable(FilterIndexCapability.SUBSTRING).nullable()
+								whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).nullable()
 							)
 							.updateVia(session);
 					},
@@ -860,7 +871,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 			);
 			// asserted on the message, not on the type alone: a transactional session has other reasons to refuse a
 			// schema alteration, and any of them would satisfy a bare `assertThrows` while proving nothing
-			assertTrue(exception.getMessage().contains(FilterIndexCapability.SUBSTRING.name()));
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			assertTrue(exception.getMessage().contains("already contains entities"));
 		}
 
@@ -869,7 +880,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		 * catalog live, so that a test meets the transactional emptiness read rather than the warm-up one.
 		 */
 		private void goLiveWithPlainFilterableAttributeAndOneEntity() {
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
@@ -889,7 +900,7 @@ class FilterIndexCapabilityRefusalTest implements EvitaTestSupport {
 		 * storing anything, so that the collection is empty on the transactional side.
 		 */
 		private void goLiveWithEmptyProductCollection() {
-			FilterIndexCapabilityRefusalTest.this.evita.updateCatalog(
+			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)

@@ -28,9 +28,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -101,13 +101,13 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 */
 	@Getter protected final Set<Scope> filterableInScopes;
 	/**
-	 * Optional accelerations the filter index maintains on top of plain filterability, per scope. Scopes carrying no
-	 * capability are **absent** from the map rather than mapped to an empty set, so that a plainly filterable
-	 * attribute is `equals` to one declared with an explicitly empty capability list. Every key is necessarily also
-	 * present in {@link #filterableInScopes} - the constructor refuses any other combination. See
-	 * {@link AttributeSchemaContract#getFilterCapabilitiesInScope(Scope)}.
+	 * Optional accelerations the attribute's filter index maintains, per scope. Scopes declaring no accelerator are
+	 * **absent** from the map rather than mapped to an empty set, so that an attribute declaring none is `equals` to
+	 * one declared with an explicitly empty accelerator list. Every key necessarily has a filter index - it is either
+	 * in {@link #filterableInScopes} or unique per {@link #uniquenessTypeInScopes}, and the constructor refuses any
+	 * other combination. See {@link AttributeSchemaContract#getAcceleratorsInScope(Scope)}.
 	 */
-	@Getter protected final Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes;
+	@Getter protected final Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes;
 	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
 	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
@@ -201,27 +201,27 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 
 	/**
 	 * Converts the scoped carriers a mutation transports into the per-scope map the schema keeps. A `null` array and
-	 * an empty one are the same thing - no capability anywhere - because the field is optional on the wire and an old
+	 * an empty one are the same thing - no accelerator anywhere - because the field is optional on the wire and an old
 	 * client simply never sends it.
 	 *
-	 * @param filterCapabilitiesInScopes carriers to convert, may be null
-	 * @return map of scope to the capabilities declared in it, never null and never containing an empty value
+	 * @param acceleratorsInScopes carriers to convert, may be null
+	 * @return map of scope to the accelerators declared in it, never null and never containing an empty value
 	 */
 	@Nonnull
-	public static EnumMap<Scope, Set<FilterIndexCapability>> toFilterCapabilitiesEnumMap(
-		@Nullable ScopedFilterCapabilities[] filterCapabilitiesInScopes
+	public static EnumMap<Scope, Set<AttributeFilterAccelerator>> toAcceleratorsEnumMap(
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes
 	) {
-		final EnumMap<Scope, Set<FilterIndexCapability>> theCapabilities = new EnumMap<>(Scope.class);
-		if (filterCapabilitiesInScopes != null) {
-			for (final ScopedFilterCapabilities scopedCapabilities : filterCapabilitiesInScopes) {
-				final FilterIndexCapability[] capabilities = scopedCapabilities.capabilities();
-				if (capabilities.length == 0) {
+		final EnumMap<Scope, Set<AttributeFilterAccelerator>> theCapabilities = new EnumMap<>(Scope.class);
+		if (acceleratorsInScopes != null) {
+			for (final ScopedAttributeFilterAccelerators scopedCapabilities : acceleratorsInScopes) {
+				final AttributeFilterAccelerator[] accelerators = scopedCapabilities.accelerators();
+				if (accelerators.length == 0) {
 					// an empty carrier means "filterable, no acceleration" - that is the absence of an entry, not an
 					// entry holding an empty set, so that it stays `equals` to a plain `filterable()` declaration
 					continue;
 				}
-				final EnumSet<FilterIndexCapability> theSet = EnumSet.noneOf(FilterIndexCapability.class);
-				Collections.addAll(theSet, capabilities);
+				final EnumSet<AttributeFilterAccelerator> theSet = EnumSet.noneOf(AttributeFilterAccelerator.class);
+				Collections.addAll(theSet, accelerators);
 				theCapabilities.merge(
 					scopedCapabilities.scope(), theSet,
 					(existing, added) -> {
@@ -235,29 +235,30 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	/**
-	 * The inverse of {@link #toFilterCapabilitiesEnumMap(ScopedFilterCapabilities[])} - turns the schema's per-scope
+	 * The inverse of {@link #toAcceleratorsEnumMap(ScopedAttributeFilterAccelerators[])} - turns the schema's per-scope
 	 * map back into the carriers a mutation or an external API transports. Used wherever an existing schema has to be
 	 * re-expressed as a mutation (schema diffing, gRPC/REST/GraphQL conversion).
 	 *
-	 * @param filterCapabilitiesInScopes the schema's per-scope capabilities
-	 * @return one carrier per scope that declares at least one capability, in {@link Scope} declaration order
+	 * @param acceleratorsInScopes the schema's per-scope accelerators
+	 * @return one carrier per scope that declares at least one accelerator, in {@link Scope} declaration order
 	 */
 	@Nonnull
-	public static ScopedFilterCapabilities[] toFilterCapabilitiesArray(
-		@Nullable Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes
+	public static ScopedAttributeFilterAccelerators[] toAcceleratorsArray(
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes
 	) {
-		if (filterCapabilitiesInScopes == null || filterCapabilitiesInScopes.isEmpty()) {
-			return ScopedFilterCapabilities.EMPTY;
+		if (acceleratorsInScopes == null || acceleratorsInScopes.isEmpty()) {
+			return ScopedAttributeFilterAccelerators.EMPTY;
 		}
-		final ScopedFilterCapabilities[] result = new ScopedFilterCapabilities[filterCapabilitiesInScopes.size()];
+		final ScopedAttributeFilterAccelerators[] result =
+			new ScopedAttributeFilterAccelerators[acceleratorsInScopes.size()];
 		int index = 0;
 		for (final Scope scope : Scope.values()) {
-			final Set<FilterIndexCapability> capabilities = filterCapabilitiesInScopes.get(scope);
-			if (capabilities == null || capabilities.isEmpty()) {
+			final Set<AttributeFilterAccelerator> accelerators = acceleratorsInScopes.get(scope);
+			if (accelerators == null || accelerators.isEmpty()) {
 				continue;
 			}
-			result[index++] = new ScopedFilterCapabilities(
-				scope, capabilities.toArray(FilterIndexCapability[]::new)
+			result[index++] = new ScopedAttributeFilterAccelerators(
+				scope, accelerators.toArray(AttributeFilterAccelerator[]::new)
 			);
 		}
 		return index == result.length ? result : Arrays.copyOf(result, index);
@@ -301,7 +302,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nonnull String name,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
-		@Nullable ScopedFilterCapabilities[] filterCapabilitiesInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -325,7 +326,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			null, null,
 			theUniquenessType,
 			theFilterableInScopes,
-			toFilterCapabilitiesEnumMap(filterCapabilitiesInScopes),
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -347,7 +348,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable String deprecationNotice,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
-		@Nullable ScopedFilterCapabilities[] filterCapabilitiesInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -366,7 +367,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			description, deprecationNotice,
 			theUniquenessType,
 			theFilterableInScopes,
-			toFilterCapabilitiesEnumMap(filterCapabilitiesInScopes),
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -388,7 +389,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
-		@Nullable Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -403,7 +404,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			description, deprecationNotice,
 			uniquenessTypeInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -426,7 +427,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
-		@Nullable Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -441,7 +442,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			description, deprecationNotice,
 			uniquenessTypeInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -464,7 +465,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable String deprecationNotice,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
-		@Nullable ScopedFilterCapabilities[] filterCapabilitiesInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -483,7 +484,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			description, deprecationNotice,
 			theUniquenessType,
 			theFilterableInScopes,
-			toFilterCapabilitiesEnumMap(filterCapabilitiesInScopes),
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -499,7 +500,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
-		@Nullable Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -523,8 +524,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		this.filterableInScopes = CollectionUtils.toUnmodifiableSet(
 			filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes
 		);
-		this.filterCapabilitiesInScopes = normalizeFilterCapabilities(
-			name, EvitaDataTypes.toWrappedForm(type), this.filterableInScopes, filterCapabilitiesInScopes
+		this.acceleratorsInScopes = normalizeAccelerators(
+			name, EvitaDataTypes.toWrappedForm(type), acceleratorsInScopes
 		);
 		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(
 			sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes
@@ -617,14 +618,14 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 
 	@Nonnull
 	@Override
-	public Set<FilterIndexCapability> getFilterCapabilitiesInScope(@Nonnull Scope scope) {
+	public Set<AttributeFilterAccelerator> getAcceleratorsInScope(@Nonnull Scope scope) {
 		// plain null-check instead of Optional wrapping - this accessor is consulted per attribute while planning
-		final Set<FilterIndexCapability> capabilities = this.filterCapabilitiesInScopes.get(scope);
-		return capabilities == null ? Collections.emptySet() : capabilities;
+		final Set<AttributeFilterAccelerator> accelerators = this.acceleratorsInScopes.get(scope);
+		return accelerators == null ? Collections.emptySet() : accelerators;
 	}
 
 	/**
-	 * Refuses a capability the attribute's declared type cannot support.
+	 * Refuses an accelerator the attribute's declared type cannot support.
 	 *
 	 * The mutations validate this too, with far more actionable messages - this is the **last line of defence for the
 	 * very same rule**, making the invariant hold for every construction path, including a schema rebuilt directly
@@ -635,25 +636,25 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 *
 	 * @param name         attribute name, used only to make the error message locatable
 	 * @param type         the attribute's declared type, already in wrapped form
-	 * @param capabilities the capabilities declared for one scope
-	 * @throws InvalidSchemaMutationException when a capability is not applicable to the type
+	 * @param accelerators the accelerators declared for one scope
+	 * @throws InvalidSchemaMutationException when an accelerator is not applicable to the type
 	 */
-	private static void verifyCapabilitiesApplicableToType(
+	private static void verifyAcceleratorsApplicableToType(
 		@Nonnull String name,
 		@Nonnull Class<?> type,
-		@Nonnull Set<FilterIndexCapability> capabilities
+		@Nonnull Set<AttributeFilterAccelerator> accelerators
 	) {
 		final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
-		for (final FilterIndexCapability capability : capabilities) {
+		for (final AttributeFilterAccelerator accelerator : accelerators) {
 			// a switch *expression* rather than a statement: it is the expression form that the compiler requires to
-			// be exhaustive, so a future capability added without teaching this method which type carries it is
+			// be exhaustive, so a future accelerator added without teaching this method which type carries it is
 			// a compile error here - a switch statement would have let it through silently
-			final Class<?> requiredType = switch (capability) {
-				case SUBSTRING -> String.class;
+			final Class<?> requiredType = switch (accelerator) {
+				case SUBSTRING_SEARCH -> String.class;
 			};
 			if (!requiredType.equals(plainType)) {
 				throw new InvalidSchemaMutationException(
-					"Attribute `" + name + "` declares filter index capability `" + capability +
+					"Attribute `" + name + "` declares filter accelerator `" + accelerator +
 						"`, which is only supported on attributes of type `" + requiredType.getSimpleName() +
 						"` or `" + requiredType.getSimpleName() + "[]` - but its type is `" + type.getName() + "`!"
 				);
@@ -662,50 +663,45 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	/**
-	 * Drops scopes declaring no capability and refuses any scope that is not filterable, so that the field's two
-	 * invariants - *no empty values* and *keys are a subset of {@link #filterableInScopes}* - hold for every instance
-	 * however it was constructed.
+	 * Drops scopes declaring no accelerator, so that the field's *no empty values* invariant holds for every instance
+	 * however it was constructed, and refuses an accelerator the declared type cannot support.
 	 *
-	 * The subset rule is enforced here as the **last line of defence for the very same rule** the mutations enforce,
-	 * rather than as the only one: a mutation arriving over the wire is validated first and fails with a far more
-	 * actionable message, and this throw exists so that no other construction path can slip past it silently. It
-	 * therefore throws {@link InvalidSchemaMutationException} - the type the mutations throw - so that one `catch`
-	 * covers the rule however it was reached.
+	 * **The "every accelerator has a filter index in its scope" rule is deliberately NOT enforced here.** That is a
+	 * cross-field invariant of an *assembled* schema, and this DTO is also what the builder materializes after each
+	 * individual mutation - so it legitimately represents intermediate states in which a filterability change has not
+	 * been applied yet. Enforcing it here made the order of the builder calls significant, and worse, made it depend
+	 * on how mutation *combination* happened to reorder them. Every other cross-field invariant of an attribute
+	 * schema - sortable-versus-array, unique-versus-filterable, the `Comparable` requirement - is enforced in
+	 * {@link io.evitadb.api.requestResponse.schema.builder.AbstractAttributeSchemaBuilder}'s `validate` on the final
+	 * schema for exactly this reason, and the accelerator rule now sits with them. The create mutations check it at
+	 * construction time as well, because they carry the whole attribute in a single payload.
 	 *
-	 * @param name                       attribute name, used only to make the error message locatable
-	 * @param type                       the attribute's declared type, already in wrapped form
-	 * @param filterableInScopes         the scopes the attribute is filterable in, already normalized
-	 * @param filterCapabilitiesInScopes the declared capabilities, may be null
-	 * @return an unmodifiable, normalized per-scope capability map, never null
-	 * @throws InvalidSchemaMutationException when a capability is declared in a scope that is not filterable
+	 * The type rule below stays, because it is a property of the value itself rather than of the surrounding fields:
+	 * no intermediate state can make `SUBSTRING_SEARCH` legal on an `Integer`.
+	 *
+	 * @param name                 attribute name, used only to make the error message locatable
+	 * @param type                 the attribute's declared type, already in wrapped form
+	 * @param acceleratorsInScopes the declared accelerators, may be null
+	 * @return an unmodifiable, normalized per-scope accelerator map, never null
+	 * @throws InvalidSchemaMutationException when an accelerator is not applicable to the declared type
 	 */
 	@Nonnull
-	private static Map<Scope, Set<FilterIndexCapability>> normalizeFilterCapabilities(
+	private static Map<Scope, Set<AttributeFilterAccelerator>> normalizeAccelerators(
 		@Nonnull String name,
 		@Nonnull Class<?> type,
-		@Nonnull Set<Scope> filterableInScopes,
-		@Nullable Map<Scope, Set<FilterIndexCapability>> filterCapabilitiesInScopes
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes
 	) {
-		if (filterCapabilitiesInScopes == null || filterCapabilitiesInScopes.isEmpty()) {
+		if (acceleratorsInScopes == null || acceleratorsInScopes.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		final EnumMap<Scope, Set<FilterIndexCapability>> normalized = new EnumMap<>(Scope.class);
-		for (final Map.Entry<Scope, Set<FilterIndexCapability>> entry : filterCapabilitiesInScopes.entrySet()) {
-			final Set<FilterIndexCapability> capabilities = entry.getValue();
-			if (capabilities == null || capabilities.isEmpty()) {
+		final EnumMap<Scope, Set<AttributeFilterAccelerator>> normalized = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry : acceleratorsInScopes.entrySet()) {
+			final Set<AttributeFilterAccelerator> accelerators = entry.getValue();
+			if (accelerators == null || accelerators.isEmpty()) {
 				continue;
 			}
-			verifyCapabilitiesApplicableToType(name, type, capabilities);
-			final Scope scope = entry.getKey();
-			if (!filterableInScopes.contains(scope)) {
-				throw new InvalidSchemaMutationException(
-					"Attribute `" + name + "` declares filter index capabilities " + capabilities +
-						" in scope `" + scope + "`, but it is not filterable in that scope! Filter index " +
-						"capabilities accelerate an existing filter index and cannot be declared without one - " +
-						"make the attribute filterable in `" + scope + "` or drop the capabilities."
-				);
-			}
-			normalized.put(scope, CollectionUtils.toUnmodifiableSet(EnumSet.copyOf(capabilities)));
+			verifyAcceleratorsApplicableToType(name, type, accelerators);
+			normalized.put(entry.getKey(), CollectionUtils.toUnmodifiableSet(EnumSet.copyOf(accelerators)));
 		}
 		return normalized.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(normalized);
 	}
@@ -731,7 +727,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.deprecationNotice,
 				this.uniquenessTypeInScopes,
 				this.filterableInScopes,
-				this.filterCapabilitiesInScopes,
+				this.acceleratorsInScopes,
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
@@ -749,7 +745,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.deprecationNotice,
 				this.uniquenessTypeInScopes,
 				this.filterableInScopes,
-				this.filterCapabilitiesInScopes,
+				this.acceleratorsInScopes,
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
@@ -773,8 +769,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			", unique=(" + join(this.uniquenessTypeInScopes) + ")" +
 			", filterable=" +
 			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
-			(this.filterCapabilitiesInScopes.isEmpty() ?
-				"" : ", filterCapabilities=(" + joinCapabilities(this.filterCapabilitiesInScopes) + ")") +
+			(this.acceleratorsInScopes.isEmpty() ?
+				"" : ", accelerators=(" + joinAccelerators(this.acceleratorsInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +
@@ -815,14 +811,16 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	/**
-	 * Renders the per-scope filter index capabilities as `SCOPE: CAP_A, CAP_B; SCOPE: ...` for {@link #toString()}.
+	 * Renders the per-scope accelerators as `SCOPE: ACC_A, ACC_B; SCOPE: ...` for {@link #toString()}.
 	 *
-	 * @param capabilitiesInScopes the per-scope capabilities, never null
+	 * @param acceleratorsInScopes the per-scope accelerators, never null
 	 * @return a non-null, human readable rendering of the map
 	 */
 	@Nonnull
-	protected static String joinCapabilities(@Nonnull Map<Scope, Set<FilterIndexCapability>> capabilitiesInScopes) {
-		return capabilitiesInScopes.entrySet().stream()
+	protected static String joinAccelerators(
+		@Nonnull Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes
+	) {
+		return acceleratorsInScopes.entrySet().stream()
 			.map(it -> it.getKey() + ": " + it.getValue().stream().map(Enum::name).collect(Collectors.joining(", ")))
 			.collect(Collectors.joining("; "));
 	}

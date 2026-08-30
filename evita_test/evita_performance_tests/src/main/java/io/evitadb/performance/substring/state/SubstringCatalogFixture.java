@@ -30,7 +30,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -325,7 +325,7 @@ public final class SubstringCatalogFixture {
 						ATTRIBUTE_TITLE, String.class,
 						whichIs -> {
 							if (key.arm() == SubstringIndexArm.TRIGRAM) {
-								whichIs.filterable(FilterIndexCapability.SUBSTRING);
+								whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH);
 							} else {
 								whichIs.filterable();
 							}
@@ -401,7 +401,7 @@ public final class SubstringCatalogFixture {
 	private static void verifyArmTookEffect(@Nonnull FixtureKey key, @Nullable TrigramIndex trigramIndex) {
 		if (key.arm() == SubstringIndexArm.TRIGRAM && trigramIndex == null) {
 			throw new GenericEvitaInternalError(
-				"The `TRIGRAM` arm declared `FilterIndexCapability.SUBSTRING` but the attribute has no trigram "
+				"The `TRIGRAM` arm declared `AttributeFilterAccelerator.SUBSTRING_SEARCH` but the attribute has no trigram "
 					+ "index - the arm would silently measure the scan and report a speedup of exactly one!",
 				"The trigram arm has no trigram index!"
 			);

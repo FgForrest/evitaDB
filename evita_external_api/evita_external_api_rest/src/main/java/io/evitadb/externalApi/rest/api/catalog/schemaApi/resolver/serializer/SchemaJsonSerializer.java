@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -51,7 +51,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquen
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFilterCapabilitiesDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
@@ -117,8 +117,8 @@ public abstract class SchemaJsonSerializer {
 		}
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
 		attributeSchemaNode.putIfAbsent(
-			AttributeSchemaDescriptor.FILTER_CAPABILITIES_IN_SCOPES.name(),
-			serializeFilterCapabilities(attributeSchema)
+			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+			serializeAccelerators(attributeSchema)
 		);
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
@@ -203,30 +203,30 @@ public abstract class SchemaJsonSerializer {
 	}
 
 	/**
-	 * Serializes the optional filter index capabilities of the given {@link AttributeSchemaContract} into a JSON array
+	 * Serializes the optional filter accelerators of the given {@link AttributeSchemaContract} into a JSON array
 	 * structure. Each entry in the resulting array represents one scope together with the array of
-	 * {@link FilterIndexCapability} values maintained in it.
+	 * {@link AttributeFilterAccelerator} values maintained in it.
 	 *
-	 * A scope that declares no capability is absent from the schema's map and is therefore not emitted at all - an
+	 * A scope that declares no accelerator is absent from the schema's map and is therefore not emitted at all - an
 	 * attribute that is merely filterable serializes as an empty array.
 	 *
-	 * @param attributeSchema the attribute schema containing the filter capabilities to be serialized
-	 * @return an {@link ArrayNode} representing the serialized filter index capabilities
+	 * @param attributeSchema the attribute schema containing the filter accelerators to be serialized
+	 * @return an {@link ArrayNode} representing the serialized filter accelerators
 	 */
 	@Nonnull
-	protected ArrayNode serializeFilterCapabilities(@Nonnull AttributeSchemaContract attributeSchema) {
-		final ArrayNode filterCapabilitiesArray = this.objectJsonSerializer.arrayNode();
-		final Map<Scope, Set<FilterIndexCapability>> capabilities = attributeSchema.getFilterCapabilitiesInScopes();
-		for (final Map.Entry<Scope, Set<FilterIndexCapability>> entry : capabilities.entrySet()) {
+	protected ArrayNode serializeAccelerators(@Nonnull AttributeSchemaContract attributeSchema) {
+		final ArrayNode acceleratorsArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators = attributeSchema.getAcceleratorsInScopes();
+		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry : accelerators.entrySet()) {
 			final ObjectNode capabilityNode = this.objectJsonSerializer.objectNode();
 			capabilityNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
 			capabilityNode.set(
-				ScopedFilterCapabilitiesDescriptor.CAPABILITIES.name(),
-				this.objectJsonSerializer.serializeArray(entry.getValue().toArray(FilterIndexCapability[]::new))
+				ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(),
+				this.objectJsonSerializer.serializeArray(entry.getValue().toArray(AttributeFilterAccelerator[]::new))
 			);
-			filterCapabilitiesArray.add(capabilityNode);
+			acceleratorsArray.add(capabilityNode);
 		}
-		return filterCapabilitiesArray;
+		return acceleratorsArray;
 	}
 
 	/**

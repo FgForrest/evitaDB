@@ -56,7 +56,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
@@ -154,8 +154,8 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
 			assertEquals(expectedAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			assertEquals(expectedAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
-			assertFilterCapabilities(
-				expectedAttributeSchema, actualAttributeSchema.getFilterCapabilitiesInScopesList()
+			assertAccelerators(
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
 			);
 		}
 	}
@@ -168,21 +168,21 @@ public class GrpcAssertions {
 	 * @param expectedAttributeSchema  the schema the gRPC message was built from
 	 * @param actualFilterCapabilities the scoped carriers the gRPC message holds
 	 */
-	private static void assertFilterCapabilities(
+	private static void assertAccelerators(
 		@Nonnull AttributeSchemaContract expectedAttributeSchema,
-		@Nonnull List<GrpcScopedFilterCapabilities> actualFilterCapabilities
+		@Nonnull List<GrpcScopedAttributeFilterAccelerators> actualFilterCapabilities
 	) {
 		final String attributeName = expectedAttributeSchema.getName();
-		final EnumMap<Scope, Set<FilterIndexCapability>> actualCapabilitiesInScopes = new EnumMap<>(Scope.class);
-		for (final GrpcScopedFilterCapabilities scopedCapabilities : actualFilterCapabilities) {
+		final EnumMap<Scope, Set<AttributeFilterAccelerator>> actualCapabilitiesInScopes = new EnumMap<>(Scope.class);
+		for (final GrpcScopedAttributeFilterAccelerators scopedCapabilities : actualFilterCapabilities) {
 			assertFalse(
-				scopedCapabilities.getCapabilitiesList().isEmpty(),
+				scopedCapabilities.getAcceleratorsList().isEmpty(),
 				"Attribute `" + attributeName + "` emitted an empty capability carrier for scope `" +
 					scopedCapabilities.getScope() + "` - no acceleration is expressed by omitting the carrier!"
 			);
-			final Set<FilterIndexCapability> capabilities = EnumSet.noneOf(FilterIndexCapability.class);
-			for (final GrpcFilterIndexCapability capability : scopedCapabilities.getCapabilitiesList()) {
-				capabilities.add(EvitaEnumConverter.toFilterIndexCapability(capability));
+			final Set<AttributeFilterAccelerator> capabilities = EnumSet.noneOf(AttributeFilterAccelerator.class);
+			for (final GrpcAttributeFilterAccelerator capability : scopedCapabilities.getAcceleratorsList()) {
+				capabilities.add(EvitaEnumConverter.toAttributeFilterAccelerator(capability));
 			}
 			actualCapabilitiesInScopes.put(EvitaEnumConverter.toScope(scopedCapabilities.getScope()), capabilities);
 		}
@@ -192,7 +192,7 @@ public class GrpcAssertions {
 		);
 		for (final Scope scope : Scope.values()) {
 			assertEquals(
-				expectedAttributeSchema.getFilterCapabilitiesInScope(scope),
+				expectedAttributeSchema.getAcceleratorsInScope(scope),
 				actualCapabilitiesInScopes.getOrDefault(scope, Set.of()),
 				"Filter capabilities of attribute `" + attributeName + "` in scope `" + scope + "` differ!"
 			);
@@ -234,8 +234,8 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
 			assertEquals(EvitaDataTypesConverter.toGrpcEvitaDataType(expectedAttributeSchema.getType()), actualAttributeSchema.getType());
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
-			assertFilterCapabilities(
-				expectedAttributeSchema, actualAttributeSchema.getFilterCapabilitiesInScopesList()
+			assertAccelerators(
+				expectedAttributeSchema, actualAttributeSchema.getAcceleratorsInScopesList()
 			);
 		}
 	}

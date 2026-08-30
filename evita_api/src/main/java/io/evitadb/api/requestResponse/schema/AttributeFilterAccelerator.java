@@ -26,27 +26,28 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEndsWith;
 import io.evitadb.api.query.filter.AttributeStartsWith;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
 import io.evitadb.dataType.Scope;
 
 /**
- * Optional accelerations an attribute's filter index may be asked to maintain **on top of** plain
- * {@link AttributeSchemaContract#isFilterableInScope(Scope) filterability}. Each constant costs additional memory and
- * additional write-path work, which is why none of them is implied by `filterable()` alone - an attribute declares the
- * ones its workload actually queries and pays for nothing else.
+ * Optional accelerations an attribute's filter index may be asked to maintain **on top of** the plain filter index that
+ * {@link AttributeSchemaContract#isFilterableInScope(Scope) filterable()} or
+ * {@link AttributeSchemaContract#isUniqueInScope(Scope) unique()} already provides. Each constant costs additional
+ * memory and additional write-path work, which is why none of them is implied by those declarations alone - an
+ * attribute declares the ones its workload actually queries and pays for nothing else.
  *
- * A capability is always declared *together with* filterability and *per scope*, so "accelerated but not filterable"
- * is not a representable state - the builder folds it into the `filterable()` call and a mutation arriving over the
- * wire that separates the two is refused - see
- * {@link AttributeSchemaEditor#filterableInScope(ScopedFilterCapabilities, ScopedFilterCapabilities...)}.
+ * An accelerator is declared *per scope*, on its **own builder axis** - see
+ * {@link AttributeSchemaEditor#acceleratedFor(AttributeFilterAccelerator...)} - and is therefore orthogonal to
+ * filterability rather than folded into it. What it is not orthogonal to is the existence of a filter index: an
+ * accelerator speeds up an index that must already be there, so a scope declaring one without either `filterable()` or
+ * `unique()` is refused - see {@link AttributeSchemaContract#hasFilterIndexInScope(Scope)}.
  *
- * The enum names the *capability the index gains*, not the physical structure that provides it - the structure is an
+ * The enum names the *accelerator the index gains*, not the physical structure that provides it - the structure is an
  * implementation detail the engine is free to change, and the schema must not pin it down.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
- * @see AttributeSchemaContract#getFilterCapabilitiesInScope(Scope)
+ * @see AttributeSchemaContract#getAcceleratorsInScope(Scope)
  */
-public enum FilterIndexCapability {
+public enum AttributeFilterAccelerator {
 
 	/**
 	 * Substring matching against the attribute's values is served from a dedicated index instead of scanning every
@@ -55,16 +56,16 @@ public enum FilterIndexCapability {
 	 * **What it accelerates.** {@link AttributeContains} and {@link AttributeEndsWith}, and only those two.
 	 * {@link AttributeStartsWith} is deliberately excluded: it already has an anchored range-scan fast path over the
 	 * shared value tree with an early break, so routing it through this index would trade a cheap prefix walk for a
-	 * more expensive one. Declaring this capability never changes what a query *matches* - the predicate semantics are
+	 * more expensive one. Declaring this accelerator never changes what a query *matches* - the predicate semantics are
 	 * identical with and without it, only the way the candidates are found differs.
 	 *
 	 * **When it does not help.** Patterns shorter than three code points cannot be decomposed into a trigram and fall
 	 * back to the ordinary value scan, so an attribute queried only with one- or two-character patterns gains nothing
-	 * from this capability while still paying its memory and its write-path cost.
+	 * from this accelerator while still paying its memory and its write-path cost.
 	 *
 	 * **Where it is allowed.** Only on attributes whose type is `String` or `String[]`; any other type is refused at
 	 * schema-mutation time. Enabling it on an entity collection that already holds data is refused as well - the index
-	 * is built as entities are indexed and no reindexing machinery exists, so the capability must be declared before
+	 * is built as entities are indexed and no reindexing machinery exists, so the accelerator must be declared before
 	 * the data is inserted. It is also **entity-level attributes only**, including catalog-shared global ones:
 	 * declaring it on a *reference* attribute is refused, because the index serving it is maintained on the entity's
 	 * global index and never sees reference attribute values. That last restriction is expected to be lifted once the
@@ -75,6 +76,6 @@ public enum FilterIndexCapability {
 	 * representation threshold, and the memory-per-value figures - are recorded in
 	 * `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse/prototypes/p8-trigram-substring-index.md` §35.
 	 */
-	SUBSTRING
+	SUBSTRING_SEARCH
 
 }

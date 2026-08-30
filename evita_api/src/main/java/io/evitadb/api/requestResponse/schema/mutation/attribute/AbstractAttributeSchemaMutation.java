@@ -29,7 +29,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
@@ -39,6 +40,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
@@ -63,10 +65,10 @@ import java.util.stream.Stream;
  *   type is present in the {@link ConflictGenerationContext}) or to the catalog as a whole (when no
  *   entity type is present). This allows the conflict resolver to detect and serialize concurrent
  *   schema changes that would otherwise clash
- * - filter index capability verification: {@link #verifyCapabilityScopesAreFilterable}, {@link
- *   #verifyCapabilityNotOnReferenceAttribute} and {@link #verifyCapabilitiesApplicableToType} are the
- *   shared refusal checks that every mutation carrying a {@link ScopedFilterCapabilities} array (create
- *   and set-filterable mutations, both at entity and catalog level) runs against it
+ * - filter accelerator verification: {@link #verifyAcceleratorScopesHaveFilterIndex}, {@link
+ *   #verifyAcceleratorNotOnReferenceAttribute} and {@link #verifyAcceleratorsApplicableToType} are the
+ *   shared refusal checks that every mutation carrying a {@link ScopedAttributeFilterAccelerators} array (the create
+ *   and the set-accelerated mutations, both at entity and catalog level) runs against it
  *
  * Characteristics:
  *
@@ -140,16 +142,16 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 	}
 
 	/**
-	 * Renders the filter index capability carriers as `SCOPE: CAP_A, CAP_B; SCOPE: ...` for `toString()`.
+	 * Renders the accelerator carriers as `SCOPE: ACC_A, ACC_B; SCOPE: ...` for `toString()`.
 	 *
 	 * @param scopes the carriers to render; must not be null
 	 * @return a comma-separated rendering of the carriers; never null
 	 */
 	@Nonnull
-	protected static String join(@Nonnull ScopedFilterCapabilities[] scopes) {
+	protected static String join(@Nonnull ScopedAttributeFilterAccelerators[] scopes) {
 		return Arrays.stream(scopes)
 			.map(
-				it -> it.scope() + ": " + Arrays.stream(it.capabilities())
+				it -> it.scope() + ": " + Arrays.stream(it.accelerators())
 					.map(Enum::name)
 					.collect(Collectors.joining(", "))
 			)
@@ -157,113 +159,145 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 	}
 
 	/**
-	 * Refuses a mutation that would leave a filter index capability behind in a scope the attribute is not filterable
-	 * in.
+	 * Refuses a mutation that would leave an accelerator behind in a scope with no filter index to accelerate.
 	 *
-	 * The builder cannot express that combination at all - it folds the capabilities into the `filterable()` call -
-	 * but a mutation reaching the engine over gRPC, REST or GraphQL is assembled field by field and can, so it is
-	 * checked here rather than trusted. The alternative, silently dropping the orphaned capability, would let a client
-	 * believe it had enabled an acceleration it will never get.
+	 * The rule is about the **index**, not about filterability: `unique()` provides a filter index implicitly, so an
+	 * accelerator on a `unique()`-only attribute is legal - see
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract#hasFilterIndexInScope(Scope)}, which states
+	 * the same rule for a schema that already exists. Callers here work from a mutation instead, so they compute the
+	 * scope set themselves and pass it in.
 	 *
-	 * A carrier declaring **no** capability is deliberately accepted for any scope: it orphans nothing, and
-	 * `nonFilterableInScope(...)` legitimately emits such carriers.
+	 * The alternative to refusing - silently dropping the orphaned accelerator - would let a client believe it had
+	 * enabled an acceleration it will never get, so a mutation assembled field by field over gRPC, REST or GraphQL is
+	 * checked rather than trusted.
 	 *
-	 * @param name                       name of the altered attribute, for the error message
-	 * @param filterableInScopes         the scopes the mutation makes the attribute filterable in
-	 * @param filterCapabilitiesInScopes the capability carriers the mutation transports
-	 * @throws InvalidSchemaMutationException when a carrier names a scope outside `filterableInScopes`
+	 * A carrier declaring **no** accelerator is deliberately accepted for any scope: it orphans nothing.
+	 *
+	 * @param name                   name of the altered attribute, for the error message
+	 * @param scopesWithFilterIndex  the scopes the attribute has a filter index in once the mutation is applied
+	 * @param acceleratorsInScopes   the accelerator carriers the mutation transports
+	 * @throws InvalidSchemaMutationException when a carrier names a scope outside `scopesWithFilterIndex`
 	 */
-	protected static void verifyCapabilityScopesAreFilterable(
+	protected static void verifyAcceleratorScopesHaveFilterIndex(
 		@Nonnull String name,
-		@Nonnull Scope[] filterableInScopes,
-		@Nonnull ScopedFilterCapabilities[] filterCapabilitiesInScopes
+		@Nonnull Set<Scope> scopesWithFilterIndex,
+		@Nonnull ScopedAttributeFilterAccelerators[] acceleratorsInScopes
 	) {
-		if (filterCapabilitiesInScopes.length == 0) {
+		if (acceleratorsInScopes.length == 0) {
 			return;
 		}
-		final EnumSet<Scope> filterable = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
-		for (final ScopedFilterCapabilities scopedCapabilities : filterCapabilitiesInScopes) {
-			if (scopedCapabilities.capabilities().length > 0 && !filterable.contains(scopedCapabilities.scope())) {
+		for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+			if (scopedAccelerators.accelerators().length > 0 &&
+				!scopesWithFilterIndex.contains(scopedAccelerators.scope())) {
 				throw new InvalidSchemaMutationException(
-					"Attribute `" + name + "` is asked to maintain filter index capabilities " +
-						Arrays.toString(scopedCapabilities.capabilities()) + " in scope `" +
-						scopedCapabilities.scope() + "`, but the same mutation does not make it filterable there! " +
-						"Filter index capabilities accelerate an existing filter index - add `" +
-						scopedCapabilities.scope() + "` to the filterable scopes, or drop the capabilities."
+					"Attribute `" + name + "` is asked to maintain filter accelerators " +
+						Arrays.toString(scopedAccelerators.accelerators()) + " in scope `" +
+						scopedAccelerators.scope() + "`, but it has no filter index there! Filter accelerators speed " +
+						"up an existing filter index - make the attribute filterable or unique in `" +
+						scopedAccelerators.scope() + "`, or drop the accelerators."
 				);
 			}
 		}
 	}
 
 	/**
-	 * Refuses a filter index capability declared on a **reference attribute**.
+	 * Collects the scopes in which an attribute has a filter index, given the two declarations that produce one.
 	 *
-	 * The index backing a capability is hosted on the entity's global index, while a reference attribute's values live
+	 * This is the mutation-side counterpart of
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract#hasFilterIndexInScope(Scope)}: a create
+	 * mutation states both halves itself and has no schema to ask, so the rule has to be evaluated over its own
+	 * payload. Keeping it here rather than inline in each create mutation is what stops the two from drifting apart.
+	 *
+	 * @param filterableInScopes the scopes the mutation makes the attribute filterable in, may be null
+	 * @param uniqueInScopes     the uniqueness the mutation declares, may be null
+	 * @return the scopes carrying a filter index; never null
+	 */
+	@Nonnull
+	protected static EnumSet<Scope> scopesWithFilterIndex(
+		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes
+	) {
+		final EnumSet<Scope> result = filterableInScopes == null ?
+			EnumSet.noneOf(Scope.class) : ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		if (uniqueInScopes != null) {
+			for (final ScopedAttributeUniquenessType scopedUniqueness : uniqueInScopes) {
+				if (scopedUniqueness.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE) {
+					result.add(scopedUniqueness.scope());
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Refuses an accelerator declared on a **reference attribute**.
+	 *
+	 * The index backing an accelerator is hosted on the entity's global index, while a reference attribute's values live
 	 * in the reduced and referenced-type indexes - so nothing would ever serve the declaration. Accepting it would sell
 	 * the user schema ceremony and a memory bill in exchange for a silent full scan, which is worse than being told no.
 	 *
 	 * This is a **restriction that can be lifted compatibly** once the index learns to host reference-attribute values;
 	 * the reverse - shipping the permission and withdrawing it later - could not be, which is why it goes in now.
 	 *
-	 * @param name                       name of the altered attribute, for the error message
-	 * @param referenceName              name of the reference the attribute belongs to, for the error message
-	 * @param entityTypeName             name of the entity declaring the reference, for the error message
-	 * @param filterCapabilitiesInScopes the capability carriers the mutation transports
-	 * @throws InvalidSchemaMutationException when any carrier declares a capability
+	 * @param name                 name of the altered attribute, for the error message
+	 * @param referenceName        name of the reference the attribute belongs to, for the error message
+	 * @param entityTypeName       name of the entity declaring the reference, for the error message
+	 * @param acceleratorsInScopes the accelerator carriers the mutation transports
+	 * @throws InvalidSchemaMutationException when any carrier declares an accelerator
 	 */
-	protected static void verifyCapabilityNotOnReferenceAttribute(
+	protected static void verifyAcceleratorNotOnReferenceAttribute(
 		@Nonnull String name,
 		@Nonnull String referenceName,
 		@Nonnull String entityTypeName,
-		@Nonnull ScopedFilterCapabilities[] filterCapabilitiesInScopes
+		@Nonnull ScopedAttributeFilterAccelerators[] acceleratorsInScopes
 	) {
-		for (final ScopedFilterCapabilities scopedCapabilities : filterCapabilitiesInScopes) {
-			if (scopedCapabilities.capabilities().length > 0) {
+		for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+			if (scopedAccelerators.accelerators().length > 0) {
 				throw new InvalidSchemaMutationException(
-					"Filter index capabilities " + Arrays.toString(scopedCapabilities.capabilities()) +
+					"Filter accelerators " + Arrays.toString(scopedAccelerators.accelerators()) +
 						" cannot be declared on attribute `" + name + "` of reference `" + referenceName +
 						"` in entity `" + entityTypeName + "`! They are supported on entity attributes only " +
 						"(including catalog-shared global ones), because the index that serves them is maintained " +
 						"on the entity's global index and never sees reference attribute values. Declare the " +
-						"capability on an entity attribute, or filter this one without the acceleration."
+						"accelerator on an entity attribute, or filter this one without the acceleration."
 				);
 			}
 		}
 	}
 
 	/**
-	 * Refuses a filter index capability the attribute's data type cannot support.
+	 * Refuses an accelerator the attribute's data type cannot support.
 	 *
-	 * Every route that can attach a capability to an attribute of the wrong type passes through here: the dedicated
+	 * Every route that can attach an accelerator to an attribute of the wrong type passes through here: the dedicated
 	 * set mutation, which learns the type only when it meets the schema it alters, and the two create mutations, which
 	 * carry the type themselves and can therefore check at construction time.
 	 *
 	 * @param name         name of the altered attribute, for the error message
 	 * @param type         the attribute's data type
-	 * @param capabilities the capabilities the mutation asks for, per scope
-	 * @throws InvalidSchemaMutationException when a capability is not applicable to the type
+	 * @param accelerators the accelerators the mutation asks for, per scope
+	 * @throws InvalidSchemaMutationException when an accelerator is not applicable to the type
 	 */
-	protected static void verifyCapabilitiesApplicableToType(
+	protected static void verifyAcceleratorsApplicableToType(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
-		@Nonnull Map<Scope, Set<FilterIndexCapability>> capabilities
+		@Nonnull Map<Scope, Set<AttributeFilterAccelerator>> accelerators
 	) {
-		if (capabilities.isEmpty()) {
+		if (accelerators.isEmpty()) {
 			return;
 		}
 		final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
-		for (final Set<FilterIndexCapability> scopedCapabilities : capabilities.values()) {
-			for (final FilterIndexCapability capability : scopedCapabilities) {
+		for (final Set<AttributeFilterAccelerator> scopedAccelerators : accelerators.values()) {
+			for (final AttributeFilterAccelerator accelerator : scopedAccelerators) {
 				// a switch *expression* rather than a statement: it is the expression form that the compiler requires
-				// to be exhaustive, so a future capability added without teaching this method - the only place that
-				// knows which data types a capability can be maintained for - is a compile error here
-				final Class<?> requiredType = switch (capability) {
-					case SUBSTRING -> String.class;
+				// to be exhaustive, so a future accelerator added without teaching this method - the only place that
+				// knows which data types an accelerator can be maintained for - is a compile error here
+				final Class<?> requiredType = switch (accelerator) {
+					case SUBSTRING_SEARCH -> String.class;
 				};
 				Assert.isTrue(
 					requiredType.equals(plainType),
 					() -> new InvalidSchemaMutationException(
-						"Filter index capability `" + capability + "` can only be declared on attributes of type `" +
+						"Filter accelerator `" + accelerator + "` can only be declared on attributes of type `" +
 							requiredType.getSimpleName() + "` or `" + requiredType.getSimpleName() +
 							"[]`, but attribute `" + name + "` is of type `" + type.getName() + "`!"
 					)

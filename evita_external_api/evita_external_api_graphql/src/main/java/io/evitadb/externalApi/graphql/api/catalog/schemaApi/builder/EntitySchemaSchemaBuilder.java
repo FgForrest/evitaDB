@@ -219,8 +219,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			AttributeSchemaDescriptor.THIS,
-			AttributeSchemaDescriptor.FILTER_CAPABILITIES_IN_SCOPES,
-			AttributeSchemaFilterCapabilitiesDataFetcher.getInstance()
+			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES,
+			AttributeSchemaAcceleratorsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			AttributeSchemaDescriptor.THIS,
@@ -252,8 +252,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			AttributeSchemaDescriptor.FILTER_CAPABILITIES_IN_SCOPES,
-			AttributeSchemaFilterCapabilitiesDataFetcher.getInstance()
+			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES,
+			AttributeSchemaAcceleratorsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
@@ -290,8 +290,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			AttributeSchemaDescriptor.FILTER_CAPABILITIES_IN_SCOPES,
-			AttributeSchemaFilterCapabilitiesDataFetcher.getInstance()
+			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES,
+			AttributeSchemaAcceleratorsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,

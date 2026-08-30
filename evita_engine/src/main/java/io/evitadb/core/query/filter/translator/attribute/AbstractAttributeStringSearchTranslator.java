@@ -298,7 +298,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * ## Confinement to entity-level attributes
 	 *
 	 * The trigram path stays behind `referenceSchema == null`. Today a reference attribute can never carry a trigram
-	 * index - the schema layer refuses any filter capability on one, and `GlobalEntityIndex#maintainsTrigramIndex`
+	 * index - the schema layer refuses any filter accelerator on one, and `GlobalEntityIndex#maintainsTrigramIndex`
 	 * asserts the same premise on the write side - but that schema restriction is documented as liftable, and the
 	 * `instanceof GlobalEntityIndex` test that used to close the hole incidentally is gone. Were it lifted, global
 	 * postings for a reference attribute would mean "the owner carries this value on SOME reference of that type",

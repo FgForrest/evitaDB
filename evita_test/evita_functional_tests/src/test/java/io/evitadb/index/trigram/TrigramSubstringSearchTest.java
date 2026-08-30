@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -165,10 +165,12 @@ class TrigramSubstringSearchTest {
 	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
 		CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
 	)
-		.withAttribute(ATTRIBUTE_TITLE, String.class, thatIs -> thatIs.filterable(FilterIndexCapability.SUBSTRING))
+		.withAttribute(ATTRIBUTE_TITLE, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
 		.withAttribute(
 			ATTRIBUTE_LOCALIZED_TITLE, String.class,
-			thatIs -> thatIs.localized().filterable(FilterIndexCapability.SUBSTRING)
+			thatIs -> thatIs.localized().filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 		)
 		.toInstance();
 

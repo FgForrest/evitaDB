@@ -43,7 +43,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * **The end-to-end A/B of the trigram substring index.** One `attributeContains` query, executed through the public
  * query API against a real embedded evitaDB, measured once with the attribute declaring
- * `FilterIndexCapability.SUBSTRING` and once without it - same corpus, same primary keys, same query, two schemas.
+ * `AttributeFilterAccelerator.SUBSTRING_SEARCH` and once without it - same corpus, same primary keys, same query, two
+ * schemas.
  *
  * # What the matrix is for
  *

@@ -26,7 +26,7 @@ package io.evitadb.index.usage;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -138,7 +138,7 @@ public final class SchemaCapabilityUsageRegistry {
 	 * other element's vocabulary therefore leaves this loop alone, which is the point.
 	 */
 	private static final Capability[] ATTRIBUTE_CAPABILITIES = {
-		Capability.FILTERABLE, Capability.SUBSTRING_FILTERABLE, Capability.SORTABLE, Capability.UNIQUE
+		Capability.FILTERABLE, Capability.SUBSTRING_ACCELERATED, Capability.SORTABLE, Capability.UNIQUE
 	};
 
 	/**
@@ -623,8 +623,8 @@ public final class SchemaCapabilityUsageRegistry {
 			// the bare declaration, deliberately not conjoined with FILTERABLE: the two are separate rows because
 			// they are separately droppable, and the schema already refuses a capability without filterability, so
 			// re-testing it here would only hide a corrupt schema rather than report one
-			case SUBSTRING_FILTERABLE -> attributeSchema.getFilterCapabilitiesInScope(scope)
-				.contains(FilterIndexCapability.SUBSTRING);
+			case SUBSTRING_ACCELERATED -> attributeSchema.getAcceleratorsInScope(scope)
+				.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH);
 			case SORTABLE -> attributeSchema.isSortableInScope(scope);
 			// covers both uniqueness flavours - within the collection and within a locale - because both cost a
 			// uniqueness index, which is what the entry measures
@@ -676,7 +676,7 @@ public final class SchemaCapabilityUsageRegistry {
 			case BUCKETED -> maintainsHistogramIn(referenceSchema, scope);
 			// a reference declares none of these - the first three belong to its attributes, the last two to the
 			// entity - so such a key could never match any schema and dropping it silently would hide its author
-			case FILTERABLE, SUBSTRING_FILTERABLE, SORTABLE, UNIQUE, HIERARCHICAL, PRICED ->
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, HIERARCHICAL, PRICED ->
 				throw new GenericEvitaInternalError(
 					"Reference `" + referenceSchema.getName() + "` cannot carry capability " + capability + "."
 				);
@@ -705,7 +705,7 @@ public final class SchemaCapabilityUsageRegistry {
 			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
 			// the entity declares none of these directly - they belong to its attributes, its compounds or its
 			// references - so such a key could never match any schema and dropping it silently would hide its author
-			case FILTERABLE, SUBSTRING_FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED ->
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED ->
 				throw new GenericEvitaInternalError(
 					"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
 				);

@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -99,7 +99,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
 		// appended last - the release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops before
 		// this point and never looks for the presence flag
-		writeScopedFilterCapabilitiesArray(kryo, output, mutation.getFilterCapabilitiesInScopes());
+		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 	}
 
 	@Override
@@ -122,15 +122,15 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		final int indexedDecimalPlaces = input.readVarInt(true);
 		final ConflictResolutionOverride conflictResolutionOverride =
 			kryo.readObject(input, ConflictResolutionOverride.class);
-		final ScopedFilterCapabilities[] filterCapabilitiesInScopes =
-			readScopedFilterCapabilitiesArray(kryo, input);
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			readScopedAcceleratorsArray(kryo, input);
 		return new CreateAttributeSchemaMutation(
 			name,
 			description,
 			deprecationNotice,
 			uniqueInScopes,
 			filterableInScopes,
-			filterCapabilitiesInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized,
 			nullable,

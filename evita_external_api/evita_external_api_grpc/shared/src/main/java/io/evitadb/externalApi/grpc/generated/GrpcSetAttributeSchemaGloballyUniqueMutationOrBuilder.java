@@ -60,7 +60,7 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=234
+   *     See GrpcAttributeSchemaMutations.proto;l=244
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -73,7 +73,7 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=234
+   *     See GrpcAttributeSchemaMutations.proto;l=244
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();

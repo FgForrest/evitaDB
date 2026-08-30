@@ -184,7 +184,7 @@ public record SchemaCapabilityKey(
 		switch (capability) {
 			case INDEXED, FACETED, BUCKETED -> {
 			}
-			case FILTERABLE, SUBSTRING_FILTERABLE, SORTABLE, UNIQUE, HIERARCHICAL, PRICED ->
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, HIERARCHICAL, PRICED ->
 				throw new GenericEvitaInternalError(
 					"Reference `" + referenceName + "` cannot carry capability " + capability + "."
 				);
@@ -215,7 +215,7 @@ public record SchemaCapabilityKey(
 		switch (capability) {
 			case HIERARCHICAL, PRICED -> {
 			}
-			case FILTERABLE, SUBSTRING_FILTERABLE, SORTABLE, UNIQUE, INDEXED, FACETED, BUCKETED ->
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, INDEXED, FACETED, BUCKETED ->
 				throw new GenericEvitaInternalError(
 					"Entity `" + entityType + "` cannot carry capability " + capability + " directly."
 				);

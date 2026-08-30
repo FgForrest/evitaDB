@@ -29,7 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
@@ -43,18 +43,19 @@ import java.util.Map;
 
 /**
  * This {@link Serializer} implementation reads {@link EntityAttributeSchema} from the binary format shipped by release
- * 2026.2 - the shape that predates the per-scope {@link FilterIndexCapability filter index capabilities}. That format
- * ends with the conflict-resolution override and carries no capability section at all.
+ * 2026.2 - the shape that predates the per-scope {@link AttributeFilterAccelerator filter accelerators}. That
+ * format
+ * ends with the conflict-resolution override and carries no accelerator section at all.
  *
  * The substitution for the absent section is `null`, which {@link EntityAttributeSchema} normalizes into an empty map:
- * an attribute stored before capabilities existed is plainly filterable and asks the filter index for no acceleration,
+ * an attribute stored before accelerators existed is plainly filterable and asks the filter index for no acceleration,
  * which is exactly what an empty map means.
  *
  * This serializer only reads - writes always go through the current {@link EntityAttributeSchemaSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated kept for backward compatibility; can be removed once no catalog written before filter index
- *             capabilities were introduced is still in use.
+ *             accelerators were introduced is still in use.
  */
 @Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor

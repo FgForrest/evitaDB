@@ -26,7 +26,7 @@ package io.evitadb.index;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -175,8 +175,9 @@ public class GlobalEntityIndex extends EntityIndex
 
 	/**
 	 * The substring-search accelerators of this index, one per `(attribute, locale)` whose attribute declares
-	 * {@link FilterIndexCapability#SUBSTRING} in this index's scope. Empty - and costing a bare `HashMap` object -
-	 * for every collection that declares the capability nowhere, which is the overwhelming majority.
+	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} in this index's scope. Empty - and costing a bare `HashMap`
+	 * object -
+	 * for every collection that declares the accelerator nowhere, which is the overwhelming majority.
 	 *
 	 * Hosted here and nowhere else: a reduced index composes its answer out of THIS map's value ids rather than
 	 * keeping trigram postings of its own, so a catalog pays for the postings once instead of once per reduced index.
@@ -261,7 +262,7 @@ public class GlobalEntityIndex extends EntityIndex
 		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.priceIndex = new PriceSuperIndex();
 		addComponent(new PriceIndexComponent(this.priceIndex));
-		// a HashMap allocates its table on the first put, so an index whose collection declares the capability
+		// a HashMap allocates its table on the first put, so an index whose collection declares the accelerator
 		// nowhere is charged the map object alone
 		this.trigramIndex = new TransactionalMap<>(new HashMap<>(), TrigramIndex.class, Function.identity());
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
@@ -446,7 +447,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write brings into existence to the attribute's
 	 * {@link TrigramIndex}, creating that index — and switching the shared value tree's value id column on — on the
-	 * first write to an attribute declaring {@link FilterIndexCapability#SUBSTRING}. A write to an attribute that
+	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an attribute
+	 * that
 	 * declares none drops the accelerator a withdrawal left behind before delegating to the base implementation.
 	 */
 	@Override
@@ -476,7 +478,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write takes out of existence to the attribute's
 	 * {@link TrigramIndex}, and drops that index when the removal emptied — and therefore dropped — the shared value
-	 * tree its postings are keyed by. A write to an attribute declaring no {@link FilterIndexCapability#SUBSTRING}
+	 * tree its postings are keyed by. A write to an attribute declaring no {@link
+	 * AttributeFilterAccelerator#SUBSTRING_SEARCH}
 	 * drops the accelerator a withdrawal left behind before delegating to the base implementation.
 	 */
 	@Override
@@ -507,7 +510,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write brings into existence to the attribute's
 	 * {@link TrigramIndex}, creating that index — and switching the shared value tree's value id column on — on the
-	 * first write to an attribute declaring {@link FilterIndexCapability#SUBSTRING}. A write to an attribute that
+	 * first write to an attribute declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH}. A write to an attribute
+	 * that
 	 * declares none drops the accelerator a withdrawal left behind before delegating to the base implementation.
 	 */
 	@Override
@@ -537,7 +541,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * The global index additionally reports the distinct values this write takes out of existence to the attribute's
 	 * {@link TrigramIndex}, and drops that index when the removal emptied — and therefore dropped — the shared value
-	 * tree its postings are keyed by. A write to an attribute declaring no {@link FilterIndexCapability#SUBSTRING}
+	 * tree its postings are keyed by. A write to an attribute declaring no {@link
+	 * AttributeFilterAccelerator#SUBSTRING_SEARCH}
 	 * drops the accelerator a withdrawal left behind before delegating to the base implementation.
 	 */
 	@Override
@@ -567,16 +572,17 @@ public class GlobalEntityIndex extends EntityIndex
 	/**
 	 * Returns the substring-search accelerator of one attribute and locale, when this index maintains one.
 	 *
-	 * The capability is read at WRITE time, not here: this accessor answers from the map alone, and the map is
+	 * The accelerator is read at WRITE time, not here: this accessor answers from the map alone, and the map is
 	 * reconciled with the schema by the next write to that attribute
 	 * ({@link #reconcileTrigramIndexAbsence(ReferenceSchemaContract, AttributeSchemaContract, Locale)}). An index whose
-	 * capability was withdrawn is therefore handed out until that write happens — never afterwards, and never with
+	 * accelerator was withdrawn is therefore handed out until that write happens — never afterwards, and never with
 	 * postings that drifted from the tree in the meantime, because the write that ends the drift is the same one that
 	 * drops the entry.
 	 *
 	 * @param attributeIndexKey the attribute and locale to look up
 	 * @return the trigram index, or `null` when the attribute has never been written to, when its
-	 * {@link FilterIndexCapability#SUBSTRING} capability was withdrawn and written to since, or when its shared value
+	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} accelerator was withdrawn and written to since, or when its
+	 * shared value
 	 * tree has been dropped
 	 */
 	@Nullable
@@ -602,7 +608,7 @@ public class GlobalEntityIndex extends EntityIndex
 	 * attribute may legitimately share a name with an entity one. Nothing here would skip such a key, so a
 	 * reference-scoped write would build postings the next catalog open silently discards — substring queries would
 	 * under-report after a restart with nothing saying why. The schema layer makes that unreachable today
-	 * (`AbstractAttributeSchemaMutation#verifyCapabilityNotOnReferenceAttribute` refuses a filter capability on any
+	 * (`AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute` refuses a filter accelerator on any
 	 * reference attribute), and it documents the refusal as a restriction liftable once the index learns to host
 	 * reference attribute values. The premise below is what makes the day it is lifted loud rather than silent: the
 	 * two guards are one decision expressed twice, and this is the half that fails fast instead of dropping data.
@@ -615,14 +621,14 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
-		if (!attributeSchema.getFilterCapabilitiesInScope(this.indexKey.scope())
-			.contains(FilterIndexCapability.SUBSTRING)) {
+		if (!attributeSchema.getAcceleratorsInScope(this.indexKey.scope())
+			.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
 			return false;
 		}
 		Assert.isPremiseValid(
 			referenceSchema == null,
 			() -> "Attribute `" + attributeSchema.getName() + "` of reference `" + referenceSchema.getName() +
-				"` declares the SUBSTRING filter capability, which the schema layer refuses on a reference " +
+				"` declares the SUBSTRING filter accelerator, which the schema layer refuses on a reference " +
 				"attribute. Maintaining it here would build postings that the load path discards, so lifting that " +
 				"schema restriction means teaching TrigramIndex#rebuildAll about reference-scoped keys first."
 		);
@@ -633,16 +639,16 @@ public class GlobalEntityIndex extends EntityIndex
 	 * Drops the trigram index of an attribute this index no longer maintains one for — the reconciliation every write
 	 * that takes the non-maintaining branch performs before delegating.
 	 *
-	 * Withdrawing a filter capability from a POPULATED collection is deliberately legal (the schema boundary refuses
-	 * additions only, see {@link EntityCollection}), and the capability is read on every write, so the withdrawal takes
+	 * Withdrawing a filter accelerator from a POPULATED collection is deliberately legal (the schema boundary refuses
+	 * additions only, see {@link EntityCollection}), and the accelerator is read on every write, so the withdrawal takes
 	 * effect at the very next one. Without this the entry would survive a gate that can never open again: nothing
 	 * would maintain it, {@link #dropTrigramIndexWithItsSharedValueTree} sits on the branch the write no longer takes,
 	 * and the index would keep its heap, keep answering {@link #getTrigramIndex} with postings drifting further from
-	 * the tree with every write, and — once the tree emptied out and the capability came back — be found by
+	 * the tree with every write, and — once the tree emptied out and the accelerator came back — be found by
 	 * {@link #obtainTrigramIndex} as an entry whose tree no longer mints ids, failing an ordinary entity upsert on the
 	 * tree's own premise.
 	 *
-	 * The map is empty for every collection that declares the capability nowhere, which is the overwhelming majority:
+	 * The map is empty for every collection that declares the accelerator nowhere, which is the overwhelming majority:
 	 * those pay one boolean read here and never compute a key at all. The membership test before the removal keeps a
 	 * write to a plain attribute of a capable collection from opening a transactional layer over a map it does not
 	 * change.
@@ -677,9 +683,9 @@ public class GlobalEntityIndex extends EntityIndex
 	 * The attach is reached only when the map holds no index yet, which is what keeps this off the steady-state write
 	 * path: an entry in the map exists only because the attach that created it succeeded, and the entry is dropped
 	 * both in lockstep with the tree it belongs to ({@link #dropTrigramIndexWithItsSharedValueTree}) and with the
-	 * capability that asked for it
+	 * accelerator that asked for it
 	 * ({@link #reconcileTrigramIndexAbsence(ReferenceSchemaContract, AttributeSchemaContract, Locale)}) — the two
-	 * halves of the same invariant, and both are needed, since a withdrawn capability makes the drop hook unreachable.
+	 * halves of the same invariant, and both are needed, since a withdrawn accelerator makes the drop hook unreachable.
 	 * A tree that somehow lost its ids while its entry survived is caught loudly by the tree's own premise on the very
 	 * next value born, rather than silently indexing everything under the unassigned id.
 	 *

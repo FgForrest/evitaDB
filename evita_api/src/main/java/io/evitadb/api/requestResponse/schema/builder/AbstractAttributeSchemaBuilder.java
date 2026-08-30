@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.FilterIndexCapability;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -39,7 +39,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedFilterCapabilities;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
@@ -60,10 +61,13 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -150,21 +154,18 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T filterableInScope(
-		@Nonnull ScopedFilterCapabilities first,
-		@Nonnull ScopedFilterCapabilities... rest
-	) {
-		final ScopedFilterCapabilities[] inScope = new ScopedFilterCapabilities[rest.length + 1];
-		inScope[0] = first;
-		System.arraycopy(rest, 0, inScope, 1, rest.length);
+	@Override
+	public T nonFilterableInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				SetAttributeSchemaFilterableMutation.fromCapabilities(
+				new SetAttributeSchemaFilterableMutation(
 					this.baseSchema.getName(),
-					inScope
+					Arrays.stream(Scope.values())
+						.filter(it -> isFilterableInScope(it) && !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
 				)
 			)
 		);
@@ -173,23 +174,67 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T nonFilterableInScope(@Nonnull Scope... inScope) {
-		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+	public T acceleratedForInScope(
+		@Nonnull Scope scope,
+		@Nonnull AttributeFilterAccelerator... accelerators
+	) {
+		return setAcceleratorsInScope(scope, accelerators, true);
+	}
+
+	@Nonnull
+	@Override
+	public T nonAcceleratedForInScope(
+		@Nonnull Scope scope,
+		@Nonnull AttributeFilterAccelerator... accelerators
+	) {
+		return setAcceleratorsInScope(scope, accelerators, false);
+	}
+
+	/**
+	 * Emits a {@link SetAttributeSchemaAcceleratedMutation} stating the **whole** accelerator axis - every scope, not
+	 * only the one being changed - after adding or removing the given accelerators in one scope.
+	 *
+	 * The mutation is a full statement by design, because that is what makes combining two of them trivially
+	 * last-one-wins. The delta therefore has to be resolved here, against the schema as the builder currently sees it,
+	 * so that two calls naming different scopes accumulate instead of the second erasing the first.
+	 *
+	 * @param scope        the scope whose accelerators change
+	 * @param accelerators the accelerators to add or to remove; an empty array leaves the schema as it is
+	 * @param add          true to declare the accelerators, false to withdraw them
+	 * @return this builder, for fluent chaining
+	 */
+	@Nonnull
+	private T setAcceleratorsInScope(
+		@Nonnull Scope scope,
+		@Nonnull AttributeFilterAccelerator[] accelerators,
+		boolean add
+	) {
+		final Scope[] allScopes = Scope.values();
+		final ScopedAttributeFilterAccelerators[] carriers = new ScopedAttributeFilterAccelerators[allScopes.length];
+		int index = 0;
+		for (final Scope theScope : allScopes) {
+			final Set<AttributeFilterAccelerator> declared = getAcceleratorsInScope(theScope);
+			final EnumSet<AttributeFilterAccelerator> updated = declared.isEmpty() ?
+				EnumSet.noneOf(AttributeFilterAccelerator.class) : EnumSet.copyOf(declared);
+			if (theScope == scope) {
+				if (add) {
+					Collections.addAll(updated, accelerators);
+				} else {
+					Arrays.asList(accelerators).forEach(updated::remove);
+				}
+			}
+			if (!updated.isEmpty()) {
+				carriers[index++] = new ScopedAttributeFilterAccelerators(
+					theScope, updated.toArray(AttributeFilterAccelerator[]::new)
+				);
+			}
+		}
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				SetAttributeSchemaFilterableMutation.fromCapabilities(
+				new SetAttributeSchemaAcceleratedMutation(
 					this.baseSchema.getName(),
-					// the surviving scopes keep the capabilities they already declared - dropping filterability from
-					// one scope must not silently strip an acceleration from another
-					Arrays.stream(Scope.values())
-						.filter(it -> isFilterableInScope(it) && !excludedScopes.contains(it))
-						.map(
-							it -> new ScopedFilterCapabilities(
-								it, getFilterCapabilitiesInScope(it).toArray(FilterIndexCapability[]::new)
-							)
-						)
-						.toArray(ScopedFilterCapabilities[]::new)
+					index == carriers.length ? carriers : Arrays.copyOf(carriers, index)
 				)
 			)
 		);
@@ -591,6 +636,24 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			!(currentSchema.isFilterableInAnyScope() && currentSchema.isUniqueInAnyScope()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
+		// unlike its neighbours above, this rule is checked **per scope** rather than in any scope: an accelerator
+		// accelerates one particular scope's filter index, so an attribute unique in LIVE does not license an
+		// accelerator declared in ARCHIVED. It composes with the assertion right above rather than contradicting it -
+		// that one forbids declaring both flags, this one accepts either of them as the index the accelerator needs
+		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry :
+			currentSchema.getAcceleratorsInScopes().entrySet()) {
+			final Scope scope = entry.getKey();
+			final Set<AttributeFilterAccelerator> accelerators = entry.getValue();
+			Assert.isTrue(
+				accelerators.isEmpty() || currentSchema.hasFilterIndexInScope(scope),
+				() -> new InvalidSchemaMutationException(
+					"Attribute `" + currentSchema.getName() + "` declares filter accelerators " + accelerators +
+						" in scope `" + scope + "`, but it has no filter index there! Filter accelerators speed up " +
+						"an existing filter index - make the attribute filterable or unique in `" + scope +
+						"`, or drop the accelerators."
+				)
+			);
+		}
 	}
 
 }

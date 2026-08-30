@@ -311,7 +311,7 @@ public final class TrigramSubstringSearch {
 	/**
 	 * Reads a candidate's stored value as the `String` the exact predicate needs.
 	 *
-	 * A value of any other type means the SUBSTRING capability was maintained for an attribute the schema accepts it
+	 * A value of any other type means the SUBSTRING accelerator was maintained for an attribute the schema accepts it
 	 * on only as `String` / `String[]`, so the accelerator was built over something it cannot describe -
 	 * {@link TrigramCodec#extractUniqueTrigramsOfValue} refuses the same divergence on the write side.
 	 *
@@ -324,7 +324,7 @@ public final class TrigramSubstringSearch {
 		Assert.isPremiseValid(
 			normalizedValue instanceof String,
 			() -> "The trigram substring path resolved a candidate to a `" + normalizedValue.getClass().getName() +
-				"` - the SUBSTRING filter capability is accepted by the schema on String and String[] attributes " +
+				"` - the SUBSTRING filter accelerator is accepted by the schema on String and String[] attributes " +
 				"only, so this attribute should never have been given a trigram index."
 		);
 		return (String) normalizedValue;
