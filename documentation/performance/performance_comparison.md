@@ -83,7 +83,7 @@ to Java itself as possible. This is controlled by following option in `.gitlab-c
 BENCHMARK_JAVA_OPTS: "-Xmx9g"
 ```
 
-Senesi dataset requires 9GB or RAM and thus 16GB configuration is required for performance tests.
+The price-heavy dataset requires 9GB or RAM and thus 16GB configuration is required for performance tests.
 According to Digital Ocean documentation for Kubernetes there is recommended memory usages for each of available HW configurations.
 This is copied into an internal document: `src/do_k8s_automation/do_size_slug.txt`
 For 16GB spec, there should be 13GB usable by the "aplication" - we've tested that we can assign only 9-10GB to Java for that spec
@@ -114,7 +114,7 @@ max_locks_per_transaction = 120
 ```
 Default of `64` is too small for bulk inserts of datasets with large quantities of prices and attributes.
 
-Senesi dataset requires at least 7 GB or RAM and therefore 16GB configuration is required for performance tests if
+The price-heavy dataset requires at least 7 GB or RAM and therefore 16GB configuration is required for performance tests if
 running in Digital Ocean environment as some of the RAM is reserved by Digital Ocean as described in this file
 `src/do_k8s_automation/do_size_slug.txt`.
 

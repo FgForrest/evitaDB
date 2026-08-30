@@ -57,7 +57,7 @@ java -cp evita_test/evita_performance_tests/target/benchmarks.jar org.openjdk.jm
 
 ## The persistence write-amplification win (the actual goal — not a JMH op)
 
-The decodoma gate flagged `PriceSuper.priceRecords` as the **dominant rewritten storage part** (~50–75 MiB on the
+The re-measure gate flagged `PriceSuper.priceRecords` as the **dominant rewritten storage part** (~50–75 MiB on the
 B2B 7.6M-price axis), because the previous flat array re-serialised **every** record on **every** commit. With the
 element tree under the granular layout a single-price commit rewrites only:
 

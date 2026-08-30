@@ -359,7 +359,7 @@ relations.
             <Td>683295</Td>
         </Tr>
         <Tr>
-            <Td>**keramikaSoukup**</Td>
+            <Td>**singlePriceCatalog**</Td>
             <Td>13380</Td>
             <Td>10260</Td>
             <Td>268088</Td>
@@ -367,7 +367,7 @@ relations.
             <Td>56967</Td>
         </Tr>
         <Tr>
-            <Td>**senesi**</Td>
+            <Td>**priceHeavyCatalog**</Td>
             <Td>117475</Td>
             <Td>3361040</Td>
             <Td>3848705</Td>
@@ -375,7 +375,7 @@ relations.
             <Td>967553</Td>
         </Tr>
         <Tr>
-            <Td>**signal**</Td>
+            <Td>**variantHeavyCatalog**</Td>
             <Td>15723</Td>
             <Td>120358</Td>
             <Td>527280</Td>
@@ -395,33 +395,30 @@ to the brand, category, store, and parameter entity. The parameter entity is gro
 The products hone at average 6 relations to those entities. Each product has 13 prices on average. The data is randomly
 generated with uniform distribution.
 
-### Keramika Soukup
+### Single-price catalog
 
-This dataset with over 10 thousand products is the smallest of all used datasets. It represents a generic e-commerce
-store catalog of ceramics manufacturers and bathroom equipment. You can see it live
-at:[ https://www.keramikasoukup.cz/](https://www.keramikasoukup.cz/)
+This dataset with over 10 thousand products is the smallest of all used datasets. It represents a generic production e-commerce
+store catalog.
 
 Each product has a single price and there is no or very small count of specialties like master/variant products or
 product sets (that require special computation of selling price). It has 20 attributes and 4 relations to other entities
 per entity on average.
 
-### Senesi
+### Price-heavy catalog
 
 This dataset is the largest one in the testing suite. It contains over 100 thousand products with over 3 million prices.
-It represents the real dataset from the B2B e-commerce store focused on bathroom equipment and plumbing
-supplies:[ https://www.senesi.cz/](https://www.senesi.cz/)
+It represents a real dataset from a production B2B e-commerce store.
 
 The entities have 32 attributes, 8 relations to other entities, and 28 prices per entity on average. The entities also
 have a considerably large amount of associated data that carry information about images, technical datasheets, texts,
 and other accompanying information in JSON format. The products have no variants, but the dataset includes a moderate
 amount of product sets (where you can buy multiple interrelated products).
 
-### Signál nábytek
+### Variant-heavy catalog
 
-The dataset is larger than the Keramika Soukup one, but has much more detailed data about the products and also contains
-a large amount of master/variant combinations with specific selling price computation processes. It represents the real
-dataset from the B2C manufacturer and reseller of furniture and home
-furnishings:[ https://www.signal-nabytek.cz/](https://www.signal-nabytek.cz/)
+The dataset is larger than the single-price one, but has much more detailed data about the products and also contains
+a large amount of master/variant combinations with specific selling price computation processes. It represents a real
+dataset from a production B2C manufacturer and reseller.
 
 The entities have 35 attributes, 7 relations to other entities, and 8 prices per entity on average. The dataset contains
 around 1,500 master products having 8 variants on average. It means that with 8 prices per product, it needs to
@@ -459,15 +456,15 @@ as single points outside the standard range.
     <Tbody>
         <Tr>
             <Td>**Data**</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
         </Tr>
         <Tr>
             <Td>**Average**</Td>
@@ -496,11 +493,11 @@ as single points outside the standard range.
     </Tbody>
 </Table>
 
-![alt_text](assets/image18.png "Visualized KeramikaSoukup throughput with standard deviation")
+![alt_text](assets/image18.png "Visualized single-price-catalog throughput with standard deviation")
 
-![alt_text](assets/image4.png "Visualized Senesi throughput with standard deviation")
+![alt_text](assets/image4.png "Visualized price-heavy-catalog throughput with standard deviation")
 
-![alt_text](assets/image12.png "Visualized SignalNabytek throughput with standard deviation")
+![alt_text](assets/image12.png "Visualized variant-heavy-catalog throughput with standard deviation")
 
 <Table caption="Latency Benchmark (s/op, lower is better)">
     <Thead>
@@ -514,15 +511,15 @@ as single points outside the standard range.
     <Tbody>
         <Tr>
             <Td>**DATA**</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
-            <Td>Ker.S.</Td>
-            <Td>Senesi</Td>
-            <Td>Signal</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
+            <Td>Single-p.</Td>
+            <Td>Price-h.</Td>
+            <Td>Variant-h.</Td>
         </Tr>
         <Tr>
             <Td>**Average**</Td>
@@ -551,11 +548,11 @@ as single points outside the standard range.
     </Tbody>
 </Table>
 
-![alt_text](assets/image13.png "Visualized KeramikaSoukup latency with standard deviation")
+![alt_text](assets/image13.png "Visualized single-price-catalog latency with standard deviation")
 
-![alt_text](assets/image17.png "Visualized Senesi latency with standard deviation")
+![alt_text](assets/image17.png "Visualized price-heavy-catalog latency with standard deviation")
 
-![alt_text](assets/image9.png "Visualized SignalNabytek latency with standard deviation")
+![alt_text](assets/image9.png "Visualized variant-heavy-catalog latency with standard deviation")
 
 #### Set 2 - All tests
 
@@ -798,24 +795,24 @@ Only the syntheticTest, with the following settings:
 * Warmup: 2 iterations, 10 s each
 * Measurement: 5 iterations, 60 s each
 
-![alt_text](assets/image15.png "Scaling results for KeramikaSoukup dataset (4 - 32CPU)")
+![alt_text](assets/image15.png "Scaling results for the single-price dataset (4 - 32CPU)")
 
-![alt_text](assets/image3.png "Scaling results for Senesi dataset (4 - 32CPU)")
+![alt_text](assets/image3.png "Scaling results for the price-heavy dataset (4 - 32CPU)")
 
-![alt_text](assets/image8.png "Scaling results for SignalNabytek dataset (4 - 32CPU)")
+![alt_text](assets/image8.png "Scaling results for the variant-heavy dataset (4 - 32CPU)")
 
 The following plots show the scalability in relation to the average of each implementation instead of the absolute
 numbers for a better view of the scalability of lower-performing implementations.
 
 ![alt_text](assets/image16.png "Scaling gains (average)")
 
-![alt_text](assets/image7.png "Scaling gains KeramikaSoukup")
+![alt_text](assets/image7.png "Scaling gains single-price catalog")
 
-![alt_text](assets/image6.png "Scaling gains Senesi")
+![alt_text](assets/image6.png "Scaling gains price-heavy catalog")
 
-![alt_text](assets/image11.png "Scaling gains SignalNabytek")
+![alt_text](assets/image11.png "Scaling gains variant-heavy catalog")
 
-It is obvious that the initial in-memory implementation runs at scaling problems with the Senesi dataset on the most
+It is obvious that the initial in-memory implementation runs at scaling problems with the price-heavy dataset on the most
 powerful configuration and there is probably a reserve for further optimizations. The in-memory implementation has one
 advantage over the other implementations. Since it runs as an embedded database, it is not slowed down by
 encoding/decoding and transferring the data over the virtual network adapter (all databases run locally along with the
@@ -832,12 +829,12 @@ resource utilization.
 
 Each run consists of 6 tests:
 
-* Keramika Soukup - throughput benchmark synthetic test
-* Senesi - throughput benchmark synthetic test
-* Signál nábytek - throughput benchmark synthetic test
-* Keramika Soukup - latency benchmark synthetic test
-* Senesi - latency benchmark synthetic test
-* Signál nábytek - latency benchmark synthetic test
+* Single-price catalog - throughput benchmark synthetic test
+* Price-heavy catalog - throughput benchmark synthetic test
+* Variant-heavy catalog - throughput benchmark synthetic test
+* Single-price catalog - latency benchmark synthetic test
+* Price-heavy catalog - latency benchmark synthetic test
+* Variant-heavy catalog - latency benchmark synthetic test
 
 Each test consists of:
 
@@ -953,7 +950,7 @@ Let us repeat our evaluation priorities:
 1. the prototype meets all necessary functions of the specification (100 pts.)
 	* each non-passing test will discard 5 pts.
 2. prototype maximizes performance for read operations (65 pts.)
-	* measured as a sum of average queries per second (throughput) for all three production datasets: Senesi, Keramika Soukup, and Signal
+	* measured as a sum of average queries per second (throughput) for all three production datasets: the price-heavy, single-price and variant-heavy catalogs
 	* maximum amount of points will be assigned to the winner in the category, other implementations receive the appropriate share
 3. the prototype meets the optional features of the specification (40 pts.)
 	* each non-passing test will discard 5 pts.

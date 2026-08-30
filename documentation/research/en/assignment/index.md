@@ -152,7 +152,7 @@ The final evaluation of the reseach is [available here](../evaluation/evaluation
 
 Our performance tests are run on data sets that are similar to these:
 
-| Entity                                                              | Senesi.cz | Signal-nabytek.cz | Fjallraven CZ | Rako CZ | Kili CZ |
+| Entity                                                              | Catalog A | Catalog B | Catalog C | Catalog D | Catalog E |
 |---------------------------------------------------------------------|-----------|-------------------|---------------|---------|---------|
 | <Term name="entity: adjustedPricePolicy">adjustedPricePolicy</Term> | 2         | 2                 | 3             | 1       | 110     |
 | <Term name="entity: brand">brand</Term>                             | 158       | 42                | 0             | 0       | 76      |
@@ -193,13 +193,13 @@ Our performance tests are run on data sets that are similar to these:
 </UsedTerms>
 
 <Note type="info">
-The final datasets were reduced to only Senesi.cz, Signal-nabytek.cz and the new dataset, KeramikaSoukup.cz, was added.
+The final datasets were reduced to only catalogs A and B, and a new single-price catalog was added.
 The record cardinalities in some of those datasets were enlarged considerably (see [evaluation results here](../evaluation/evaluation#data)).
 </Note>
 
 ### Connected data cardinalities:
 
-| Type of data        | Senesi.cz | Signal-nabytek.cz | Fjallraven CZ | Rako CZ | Kili CZ |
+| Type of data        | Catalog A | Catalog B | Catalog C | Catalog D | Catalog E |
 |---------------------|-----------|-------------------|---------------|---------|---------|
 | price               | 68522     | 59018             | 193680        | 15885   | 1594502 |
 | associated data     | 479246    | 326205            | 209694        | 23535   | 298963  |
@@ -211,7 +211,7 @@ The record cardinalities in some of those datasets were enlarged considerably (s
 Localized texts are a part of associated data and they are counted separately, so that Evita knows how big of a part
 they play in the associated data set. Localized texts are not counted in the associated data row.
 
-The final datasets were reduced to only Senesi.cz, Signal-nabytek.cz and the new dataset, KeramikaSoukup.cz, was added.
+The final datasets were reduced to only catalogs A and B, and a new single-price catalog was added.
 The record cardinalities in some of those datasets were enlarged considerably (see [evaluation results here](../evaluation/evaluation#data)).
 </Note>
 
@@ -625,7 +625,7 @@ and you need to set limits for the width, length and height of the refrigerator.
 
 Example:
 
-[![Faceted search on Senesi.cz](assets/faceted_search_interval.png "Faceted search on Senesi.cz")](https://www.senesi.cz/umyvadla)
+![Faceted search on a production e-commerce catalog](assets/faceted_search_interval.png "Faceted search on a production e-commerce catalog")
 
 **The search engine must:**
 

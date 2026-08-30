@@ -134,8 +134,8 @@ The main bottleneck was due to the complexity of entity breakdown to several tab
 it is widely used when storing objects in relational DBs. However, in our case, each entity holds large quantities of
 data in one-to-many collections (such as attributes, prices, etc.). Therefore, this approach was not ideal.
 
-To better demonstrate the problem, some statistics concerning the Senesi dataset are presented below. Please note that
-all data were from the 31.5.2022 version of the Senesi dataset.
+To better demonstrate the problem, some statistics concerning the price-heavy dataset are presented below. Please note that
+all data were from the 31.5.2022 version of the price-heavy dataset.
 
 | Collection                  | Count     |
 | --------------------------- | --------- |
@@ -145,7 +145,7 @@ all data were from the 31.5.2022 version of the Senesi dataset.
 | Associated data of entities | 698,095   |
 | References of entities      | 967,553   |
 
-In addition, table below shows the average entity from the Senesi dataset.
+In addition, table below shows the average entity from the price-heavy dataset.
 
 | Entity inner dataset | Count |
 | -------------------- | ----- |
@@ -173,14 +173,14 @@ difficult and time-demanding to implement and we simply did not have enough reso
 #### Utilization of the Kryo library and optimizations
 
 The initial implementation that inserts data as they arrive, line by line, was quite slow. It took around 4 hours to
-store the largest of our datasets (Senesi). Therefore, we firstly focused on the implementation of our own functionality
+store the largest of our datasets (the price-heavy one). Therefore, we firstly focused on the implementation of our own functionality
 called insert buffers. The insert buffer is an in-memory list of the data in
 SQL [INSERT](https://www.postgresql.org/docs/14/sql-insert.html) format, which will be inserted into the DB. We created
 several such buffers for inner dataset tables. Each item represents data for a single DB table row. The data of each
 buffer are then inserted into the DB using the JDBC batch inserts.
 
 This reduced overhead for the insertion and thus improved the insertion performance from around 240 minutes (4 hours) to
-approximately 85 minutes (1.25 hours), tested on the Senesi dataset on the same local machine.
+approximately 85 minutes (1.25 hours), tested on the price-heavy dataset on the same local machine.
 
 As it has been stated above, our initial intention was to use our own conversion between Java and DB. However, this
 proved to be rather slow to the point of unusability. In search of how to solve this problem, we acquired inspiration
@@ -238,10 +238,10 @@ instances, this approach led to up to an approximately 50% of performance boost.
 
 In the case of the entity updates, there exist other problems. At first, we tried to update modified items of each
 entity individually as there is no batch update functionality in PostgreSQL. This approach turned out to be working
-quite well until we tried it out on the Senesi dataset where we once again encountered problems with large entities,
+quite well until we tried it out on the price-heavy dataset where we once again encountered problems with large entities,
 same as the ones mentioned before. Therefore, we tried out another commonly used way of updating objects to relational
 DB, which consisted of deleting all data of the existing entity from DB and afterwards inserting new data. This enabled
-us to use the insert buffers even for updating, which led to decent results on the Senesi dataset. The final tested
+us to use the insert buffers even for updating, which led to decent results on the price-heavy dataset. The final tested
 approach consisted of first fetching information about what items and in what versions had been already stored in DB and
 subsequently comparing this information with the items of the updating entity. Each item was then inserted (using the
 insert buffers), updated or deleted only when there was a new version or the item was missing. This final approach
@@ -252,9 +252,9 @@ use of this simple solution, allowing fast operation with minimal to no drawback
 structure.
 
 Finally, to better illustrate the size of the entities Kryo handles in our implementation, we provide data on the size
-of the Senesi entities. Please note that all data were from the 31.5.2022 version of the Senesi dataset.
+of the price-heavy catalog's entities. Please note that all data were from the 31.5.2022 version of the price-heavy dataset.
 
-| Single serialized Senesi entity | Size (bytes) |
+| Single serialized price-heavy entity | Size (bytes) |
 | ------------------------------- | ------------ |
 | average                         | 1,791        |
 | min                             | 341          |
@@ -271,26 +271,26 @@ in the future by scripts or our implementation of Evita itself.
 ### Warming up state - bulk insertion
 
 Even with the previously mentioned optimizations, inserting large amounts of data was painfully slow, as it has been
-mentioned above with the Senesi dataset. Therefore we focused on properly implementing the Warming up state. This
+mentioned above with the price-heavy dataset. Therefore we focused on properly implementing the Warming up state. This
 initial insertion-only state allowed us to fully focus on the insertion regardless of the data retrieval.
 
 We improved upon our insert buffers strategy, originally made only for the insertion of the data of a single entity, to
 be shared between multiple entities. The improved buffers strategy in conjunction with the insert batching led to a
 rather significant speed improvement for saving entities, all without affecting normal Evita functioning thanks to the
-“warming up” state. To provide a specific example, while testing the Senesi dataset included in the integration testing
+“warming up” state. To provide a specific example, while testing the price-heavy dataset included in the integration testing
 suite in a local environment, this change led to a time improvement for full insertion from 85 minutes to 15 minutes.
 
 Another important optimization in the “warming up” state is related to the data indexing. At the beginning, there were
 only a few indexes, therefore we updated the indexes with every inserted entity. At that time, it was a sufficient
 solution. Unfortunately, later with a more complex structure and more indexes, we had to rethink our approach as the
-time of the initial bulk insertion of the Senesi dataset nearly tripled. Initially, we created indexes at the creation
+time of the initial bulk insertion of the price-heavy dataset nearly tripled. Initially, we created indexes at the creation
 of the catalog and its collections, which led to continuous index updating during the “warming up” state. However, we
 did not need the indexes since the reads do not occur in the warming-up phase. After realizing this, we decided to
 create just the table structure at the start and create the DB indexes for those tables when the “warming up” state is
 terminated and the DB switches to a transactional state (this can only happen once for a catalog, there is no going back
 to “warming up” state after such a switch). This means that data are only indexed once, vastly increasing the “warming
 up” state indexing performance (tested in a local environment, this optimalization led to a decrease in time of
-indexation from several hours to approximately 40 minutes on the Senesi dataset).
+indexation from several hours to approximately 40 minutes on the price-heavy dataset).
 
 In addition to this delayed indexing, we let the DB analyze its tables and indexes with
 the [ANALYZE](https://www.postgresql.org/docs/14/sql-analyze.html) command after all data are indexed and all indexes
@@ -572,7 +572,7 @@ schema. This means that for the attributes with the same name, there was a singl
 size of the attribute DB indexes to the necessary minimum because each entity collection usually has hundreds of
 thousands of attributes and when querying by attributes, each attribute constraint always specifies a name so we only
 search through attributes with that name. The unfortunate side effect of this approach is a disproportionate number of
-indexes, for the Senesi dataset, it led to around 12k DB indexes just for the attributes alone. This had a significant
+indexes, for the price-heavy dataset, it led to around 12k DB indexes just for the attributes alone. This had a significant
 effect on slowing down the insertion of data as there were a lot of indexes to update. In comparison to a single DB
 index for all attributes (which included the attribute names), we detected no gain in querying entities by attributes.
 These dynamic indexes sometimes performed even worse (approximately by a few percent) than the single index. Therefore,
@@ -1057,7 +1057,7 @@ selected facet SQL conditions.
 Although the temporary table caching works as expected, it does not solve the number of the necessary SQL queries for
 calculating the facet differences. To optimize this use case, we utilized the SQL construct UNION to join all facet SQL
 queries into a single one and its results are then correctly extracted by individual facets. Although such a query is
-quite extensive (it can exceed 2k lines for big datasets like Senesi), with a
+quite extensive (it can exceed 2k lines for big datasets like the price-heavy one), with a
 proper [GIN index](https://www.postgresql.org/docs/14/gin.html) created on every temporary table, it performs quite
 well, especially if compared to individual calls.
 

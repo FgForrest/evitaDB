@@ -14,7 +14,7 @@ relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-
 
 # Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 
-The Senesi WARM_UP profile of `2026.2.2` attributes 18.7% of write-path CPU to resolving facts from
+The production-catalog WARM_UP profile of `2026.2.2` attributes 18.7% of write-path CPU to resolving facts from
 immutable schema objects and 18.24% of write-path allocation to `AttributeKey` instances. Both are
 volume, not body cost: the accessors are already plain map lookups, and the keys are re-derived from
 a schema that cannot change while the mutation is being applied. This record covers the resulting
@@ -168,7 +168,7 @@ B remains the larger prize and should be sequenced after its exploration produce
   **against the old implementation first**, so it pins the historical semantics rather than the
   rewrite's.
 - Full `evita_functional_tests` suite: see the PR run.
-- **No performance number is claimed here.** The Senesi WARM_UP re-run named in #1390's
+- **No performance number is claimed here.** The production-catalog WARM_UP re-run named in #1390's
   verification section has not been executed for this change; the percentages quoted above are the
   measured cost of the *previous* code, from the profile that motivated the issue. The expected wins
   are argued from reading each site.
@@ -203,12 +203,12 @@ B remains the larger prize and should be sequenced after its exploration produce
 - `2026-07-27-write-path-performance-tuning` — same write path, same profile lineage; that record
   spent the collation-cache and trunk-merge levers, this one spends the schema-handling lever.
 - `2026-08-01-bplustree-cursor-free-insert-path` — the other allocation-removal record from the same
-  round of Senesi profiling, on the index side rather than the schema side.
+  round of production-catalog profiling, on the index side rather than the schema side.
 - `2026-08-10-stored-value-normalization-split` — same attribute-mutation write path; that record
   constrains what a mutation may do to the value itself, where this one speeds up how the schema
   around it is resolved.
 
 ## Timeline
 
-- **2026-08-05** — issue #1390 filed from the Senesi WARM_UP profile of `2026.2.2`
+- **2026-08-05** — issue #1390 filed from the production-catalog WARM_UP profile of `2026.2.2`
 - **2026-08-05** — implemented on `1390-schema-handling-write-path-optimizations`

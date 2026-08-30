@@ -58,7 +58,7 @@ to land first, or the numbers would have blanked.
 | 2026-08-10 | An index is addressed by its **integer primary key**, not by the browse row's discriminator | The discriminator is a *rendering*: injective, so two rows never collide, but it prints representative values through `toString` and cannot be turned back into an index key. The engine already identifies indexes by an int | `BrowsedIndex#indexPrimaryKey` |
 | 2026-08-10 | A browse row carries **`entityCount`** and no derived weight | — see *Rejected outright* | `BrowsedIndex#entityCount` |
 | 2026-08-10 | Withdraw the `MEMORY_FOOTPRINT` component; **no collection-level component can be refused** | Once the heap figure is per-index there is nothing for a per-collection component to be, and `MEMORY_FOOTPRINT` was the only arm that ever declined a collection-level request | `EntityCollectionStatistics.Builder` |
-| 2026-08-10 | An index walk **never asks a map for an accessor**; both transactional map decorators override `forEach` so it does not either | Measuring the catalog is what found it: a `HashMap` keeps the `keySet`/`values`/`entrySet` view it hands out, so a walk on a construction or flush path costs sixteen retained bytes on every index in the catalog rather than nothing. Fourteen such views per entity index, seventeen once flushed — ~117 MB on senesi, now zero | `TransactionalMap#forEach`, `AttributeIndex#collectKeys` |
+| 2026-08-10 | An index walk **never asks a map for an accessor**; both transactional map decorators override `forEach` so it does not either | Measuring the catalog is what found it: a `HashMap` keeps the `keySet`/`values`/`entrySet` view it hands out, so a walk on a construction or flush path costs sixteen retained bytes on every index in the catalog rather than nothing. Fourteen such views per entity index, seventeen once flushed — ~117 MB on the production catalog, now zero | `TransactionalMap#forEach`, `AttributeIndex#collectKeys` |
 | 2026-08-10 | The price index's two **query** accessors keep handing out a cached view | They are called repeatedly against the same index by the price translators, which is what the JDK's caching is for. Converting them would trade one retained view for a fresh walk per query — the one place where removing a view is the wrong direction | `PriceIndexReadContract#getPriceListAndCurrencyIndexes` |
 | 2026-08-10 | Drop `ComponentAvailability.NOT_SUPPORTED` rather than keep it for a future producer | It never had one, and the retention argument was backwards: **adding** an enum value is the wire-compatible direction, so it can return the day something declines, whereas keeping it makes every client branch on an outcome no server sends | `ComponentAvailability`, `GrpcEnums.proto` (`reserved 4`) |
 | 2026-08-10 | **One `EntityIndexType`**, in `evita_api`, rather than an engine enum plus an API mirror | The mirror's only divergence was a value deprecated since 2024.12; with that gone the two were identical, and two identical enums joined by a mapping can only drift. The API module must not depend on `evita_engine`, so the shared half moves down rather than the engine reaching up | `io.evitadb.api.index.EntityIndexType` |
@@ -82,8 +82,8 @@ to land first, or the numbers would have blanked.
 | Option | Rejected because | Revisit if |
 |--------|------------------|------------|
 | `BY_MEMORY_DESC` — order the index browse by measured heap | Ordering on the exact figure means measuring *every* index on every call, which is the one cost this surface exists to avoid | A genuinely `O(1)` proxy for heap is found. Entity count is not one — see the row below |
-| A light weight, `entityCount × k`, on the browse row | `k` is heap-bytes-per-entity, and that is a property of the customer's schema and data rather than of evitaDB: senesi measured ~8.7 KB/entity for a `GLOBAL` index against ~2.4 KB for a large `REFERENCED_ENTITY` one. A constant shipped in the engine would be wrong in an unknown direction on every other dataset — and being a monotone transform of `entityCount`, it could not reorder anything within a kind anyway | A coefficient can be *derived from the running catalog* instead of shipped — e.g. calibrated from indexes the operator has already measured |
-| A call that measures a whole collection | 1.25 s for senesi's Product collection, and **not amortizable**: the warm second pass was slower than the cold one, because the walk is CPU-bound traversal of live structure with no cache to warm | Never as a hidden cost. A client wanting a total issues detail calls in parallel and sums them, which keeps the price visible to whoever chose to pay it |
+| A light weight, `entityCount × k`, on the browse row | `k` is heap-bytes-per-entity, and that is a property of the customer's schema and data rather than of evitaDB: the production catalog measured ~8.7 KB/entity for a `GLOBAL` index against ~2.4 KB for a large `REFERENCED_ENTITY` one. A constant shipped in the engine would be wrong in an unknown direction on every other dataset — and being a monotone transform of `entityCount`, it could not reorder anything within a kind anyway | A coefficient can be *derived from the running catalog* instead of shipped — e.g. calibrated from indexes the operator has already measured |
+| A call that measures a whole collection | 1.25 s for the production catalog's Product collection, and **not amortizable**: the warm second pass was slower than the cold one, because the walk is CPU-bound traversal of live structure with no cache to warm | Never as a hidden cost. A client wanting a total issues detail calls in parallel and sums them, which keeps the price visible to whoever chose to pay it |
 | Memoizing the heap walk | There is nothing to memoize that would not immediately be stale, and the measurement shows no warm-up benefit to trade against that staleness | The walk stops being traversal of live structure |
 | A deprecated no-arg `getStatistics()` kept "for safety" | The compiler catches every Java call site, so it buys nothing and leaves two shapes to maintain | Never for Java. The gRPC *message* was kept for exactly the inverse reason — its clients have no compiler |
 | A catalog-level form of the per-collection `INDEX_CARDINALITY` walk | It means paying the per-collection cost for every collection of the catalog at once | Never. The catalog level reports something different and cheaper under the same name — the catalog index's global unique indexes, whose count grows with neither entity nor collection count |
@@ -142,7 +142,7 @@ against the catalog, which is what makes the identity a pair rather than an inte
 
 Heap arithmetic is verified against JOL per class rather than in aggregate, with
 `-Djol.magicFieldOffset=true` on the surefire `argLine`. The end-to-end check that the per-class
-arithmetic composes into something true is the senesi measurement: **11.55 GB of reported index
+arithmetic composes into something true is the production-catalog measurement: **11.55 GB of reported index
 footprint against a 12.87 GB live heap**, with the ~1.3 GB remainder the right size for the offset
 index, schemas, buffers and class metadata. No fixture could have shown that.
 
@@ -183,7 +183,7 @@ neither of which belongs to this feature.
 **All ~117 MB of cached map views is gone, and the accounting convention that hid it with it.** A
 `HashMap` keeps the `keySet`/`values`/`entrySet` view it hands out, so an accessor asked for on a
 construction or flush path is sixteen retained bytes on every index in the catalog — fourteen per entity
-index, seventeen once flushed, across senesi's 523,290. Every such walk now goes through `forEach`, and
+index, seventeen once flushed, across the production catalog's 523,290. Every such walk now goes through `forEach`, and
 both transactional map decorators override it to delegate to the backing map instead of iterating the
 `entrySet()` the `Map` default would request. Every empty entity index of every kind now measures
 *exactly* against JOL, where the suite previously had to subtract a documented constant.
@@ -233,12 +233,12 @@ later start resolving. That is a genuine weakening of the "can only fail to reso
 `BrowsedIndex#indexPrimaryKey` and on `IndexNotFoundException`, and it is why the handle alone is not the
 identity.
 
-**`CatalogIndex` now prices itself, and the senesi 11.55 GB figure still covers entity indexes only.**
+**`CatalogIndex` now prices itself, and the production-catalog 11.55 GB figure still covers entity indexes only.**
 The roll-up was the piece missing from the footprint campaign — `GlobalUniqueIndex` already priced
 itself, and every structure beneath it. It is charged exactly, with an empty index asserted to the byte;
 what a seeded one carries above the measurement is its children's, and `CatalogIndexHeapSizeTest` pins
 that as one boxed locale id at a single leaf and as a term tracking leaves rather than values beyond one.
-The senesi total predates the roll-up and was not re-measured, so it remains an entity-index figure; a
+The production-catalog total predates the roll-up and was not re-measured, so it remains an entity-index figure; a
 catalog index is bounded by (globally-unique attributes × locales in use) and cannot move a
 twelve-gigabyte total materially.
 
@@ -273,7 +273,7 @@ select it. Reversing that would reverse the cost argument the whole browse surfa
 - **2026-08-05** — per-collection last-modified stamps, checkpoint retention, `INDEX_CARDINALITY` at both
   levels, paginated index browse
 - **2026-08-06** — heap-footprint arithmetic across the bitmap, B+ tree, container and index layers,
-  verified against JOL; measured against the senesi catalog
+  verified against JOL; measured against the production catalog
 - **2026-08-10** — surface decided: per-index detail call addressed by primary key, `entityCount` with no
   coefficient, `MEMORY_FOOTPRINT` withdrawn along with collection-level refusal
 - **2026-08-12** — browse and detail unified across both owners behind a nullable `entityType`; catalog index

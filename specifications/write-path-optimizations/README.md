@@ -1,8 +1,8 @@
-# evitaDB write-path optimizations — three proposals from the Senesi WARM_UP profile
+# evitaDB write-path optimizations — three proposals from the production-catalog WARM_UP profile
 
-> **Status: proposals only — nothing here is implemented.** Extracted from the Senesi
+> **Status: proposals only — nothing here is implemented.** Extracted from the production catalog
 > 2026.2.0-vs-2026.2.2 regression check (`FINAL-REPORT.md`, 2026-08-05), which lives in the
-> `senesi-warmup-bench` worktree whose pom versions must never merge — hence this standalone copy.
+> `warmup-bench` worktree whose pom versions must never merge — hence this standalone copy.
 > Percentages are the measured cost of the **current** code; the expected wins are argued from
 > reading each site, not demonstrated.
 >
