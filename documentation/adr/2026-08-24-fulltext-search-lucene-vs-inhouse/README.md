@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-30 02:15
+updated: 2026-08-30 02:32
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -213,6 +213,16 @@ keys, and every existing paged family gets away with it because its key is insid
 carries no key, so a long-keyed accessor or a boxed `(trigram, posting)` entry has to be decided before
 any page builder is written.
 
+Three more of the same kind, expensive to rediscover and cheap to write down. **Removals are
+mandatory**: the append-only OffsetIndex never reclaims a record that is neither superseded nor
+explicitly removed, and page ids are never re-keyed, so a page left unremoved is copied forward by every
+compaction forever. **`TrappedChanges` does not de-duplicate**, which makes emission order load-bearing
+rather than incidental — pages, then freed-page removals, then the root, with collapse-path removals
+emitted *before* `forgetPageStream`. And **the KeyCompressor entry is per stream** — per (entity index,
+attribute, locale, type) — never per page and never per key, which is precisely why a per-key stream
+design would be catastrophic while a per-sub-index one is free; that asymmetry is invisible unless you
+already know where the compressor's entries come from.
+
 ## Key technical details
 
 Shallow pointers only — the depth is in the supporting files.
@@ -357,7 +367,43 @@ its own mini-gate.
 The spike's own gate (2026-08-25) passed on all four criteria on a production CMS corpus and the demo corpus — latency
 against the actual engine scan rather than a re-implementation, memory against the analyzer-confirmed
 budget; the numbers are in [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md)
-§35.1 and are not repeated here. What follows is what the **shipped** implementation measured.
+§35.1 and are not repeated here, with one exception: the **per-attribute** memory table, which is
+carried below rather than left in the spike's working notes, because the aggregate cannot substitute
+for it.
+
+**Memory, per attribute — the number that decides what to flag.** Measured on a production CMS catalog (972 611
+articles, a production CMS corpus), variant B (`trigram → valueId`), heap by JOL deep-retained walk
+against an empty structure:
+
+| attribute | N/V | heap | serialized | A/B serialized | verdict |
+|---|---|---|---|---|---|
+| `article.title` (cs) | 1.03 | **158.8 MB** | 114.3 MB | 1.02× | the attribute one would actually flag |
+| `article.keywords` | 17.5 | 21.1 MB | 8.2 MB | **8.27×** | valueId compression works |
+| `article.authors` | 134 | 2.6 MB | 0.4 MB | **20.99×** | valueId compression shines |
+| `article.url` / `.path` | ~1.0 | ~160 MB each | ~131 MB each | 1.01× | expensive — do not flag |
+| `article.contentHash` | 1.0 | 138.7 MB | 120.3 MB | 1.00× | a hex hash; never flag |
+| `article.externalId` | 1.0 | 92.6 MB | 45.9 MB | 1.00× | a structured id — `startsWith` territory |
+| category / section names | ~1.0 | ~9 MB total | — | ~1.00× | cheap |
+
+The realistic opt-in set (`title` + `keywords` + `authors` + category and section names) is **~184 MB
+heap**, and ~25 MB without `title`; flagging everything would be **743 MB**, almost all of it wasted on
+hashes, ids and URLs. That contrast *is* the argument for a per-attribute capability, and this table is
+what a user needs to make the choice — the aggregate on its own does not say which attribute is which.
+
+Four things must travel with these figures:
+
+- **They are one catalog's shape, not a universal ratio.** The same measurement on two e-commerce
+  corpora totals 10.5 MB and 2.4 MB serialized, at very different `N/V`.
+- **`A/B` is bounded by `N/V` sub-linearly and is never equal to it** — 134 → 21×, 17.5 → 8.3×, 8.1 →
+  4.0×, ~1.0 → 1.00–1.14×. Any cost model predicting the ratio from `N/V` alone is wrong in both
+  directions; the residual advantage at `N/V ≈ 1` comes from dense value ids producing fewer Roaring
+  containers than sparse entity primary keys.
+- **Heap is 1.1×–3.2× serialized** depending on container density, so a budget stated in serialized
+  bytes understates by up to three times. State budgets in heap. The JOL figures also assume the
+  compressed-oops regime, which flips above a 32 GB heap (+~9 % object overhead).
+- **They calibrate P1's own estimates**, which is the forward-looking reason to keep them: P1's gate
+  criterion is RAM ≤ 150 MB per 1M products and language, and this is the only measurement of
+  comparable structures on a real corpus at that scale.
 
 **End-to-end query latency.** `SubstringQueryBenchmark` in `evita_performance_tests`: a real embedded
 Evita, formula cache disabled, `Mode.AverageTime` in µs/op, `@Threads(1)`, `-f 3 -wi 5 -w 2s -i 5 -r 2s`
@@ -397,6 +443,28 @@ shape of the win: at n = 100 000 a ~1 % pattern is **9.35×** faster, a handful-
 **730×**, and a pattern the index proves absent **1 674×** — while the 15 % and 25 % cells, both
 admitted by `D = 4` and both confirmed `accelerated=true`, ran **1.52×** and **2.10×** slower. At
 `D = 12` those two decline and take the scan.
+
+**The losing cells genuinely took the accelerated path — checked, not assumed.** This table exists to
+refute the one objection that would make the whole retune meaningless: that a "slower" TRIGRAM arm had
+quietly declined and run the scan under a trigram label, leaving the comparison measuring nothing. The
+fixture prints each cell's exact two-sided posting width and its `accelerated` flag, and for every
+losing cell it reads `true`. Ratios are the five-class matrix's, so the column is one run:
+
+| pattern class | n | posting width | width / n | `accelerated` | result |
+|---|---|---|---|---|---|
+| `COMMON` | 256 | 38 | 14.8 % | **true** | 1.24× slower |
+| `COMMON` | 10 000 | 1 500 | 15.0 % | **true** | 1.14× slower |
+| `COMMON` | 100 000 | 15 000 | 15.0 % | **true** | 1.52× slower |
+| `THRESHOLD` | 256 | 64 | 25.0 % | **true** | 1.61× slower |
+| `THRESHOLD` | 10 000 | 2 500 | 25.0 % | **true** | 1.79× slower |
+| `THRESHOLD` | 100 000 | 25 000 | 25.0 % | **true** | 2.10× slower |
+
+The bisect confirms it independently on its own corpus: **all fourteen** of its TRIGRAM cells reported
+`accelerated=true` at exact widths, including the sign-change cell that decided the retune — 12 %
+width, 12 000 postings over 100 000 values, 1.34× slower.
+
+The same flag confirms the floor from the other side: every `n = 100` cell with a non-empty candidate
+set reports `accelerated=false`, which is the distinct-value floor declining exactly as it should.
 
 **The formula cache does not earn the eager fold.** `SubstringCacheRepeatBenchmark`, cache ENABLED at
 shipped settings, 15 cells (5 pattern classes × n ∈ {1 000, 10 000, 100 000}): `admitted=false` in **all

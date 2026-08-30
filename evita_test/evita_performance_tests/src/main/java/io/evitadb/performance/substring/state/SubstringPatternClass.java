@@ -43,9 +43,13 @@ import javax.annotation.Nonnull;
  * # Where the widths sit relative to the two constants
  *
  * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} admits a pattern whose cheapest posting covers at most
- * `1/4` of the distinct values:
+ * `1/D` of the distinct values, where `D` is that constant - 12 today, and 4 when this matrix was first measured:
  *
- * - {@link #COMMON} - 15%, comfortably inside the gate and the widest candidate set the matrix measures routinely;
+ * - {@link #COMMON} - 15%, which sat comfortably inside the gate at `D = 4` and is **declined** at any `D` above
+ *   ~6.7, hence at today's 12. Its label therefore means something different either side of that retune: before it,
+ *   this class measured an acceleration that lost; after it, it measures the gate correctly refusing. A cell-by-cell
+ *   comparison of a pre-retune matrix against a post-retune one reads backwards for this row, and for
+ *   {@link #THRESHOLD}, which follows the constant by definition;
  * - {@link #THRESHOLD} - exactly 25%, the widest candidate set the gate admits **at all**. This class exists only to
  *   price the divisor: if the trigram path is still faster than the scan here, the divisor is too cautious, and if it
  *   is slower, the divisor is too permissive. Neither question can be asked from inside the comfortable region;
