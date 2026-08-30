@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.function.BiPredicate;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Answers one `attributeContains` / `attributeEndsWith` from a {@link TrigramIndex} instead of from a scan over every
@@ -66,8 +67,9 @@ import java.util.function.BiPredicate;
  * - a transaction is open on the calling thread, so the reverse lookup would silently under-report
  *   ({@link InvertedIndex#getValueById(int)} states why);
  * - the pattern is shorter than {@link TrigramCodec#MINIMAL_INDEXABLE_LENGTH} code points and has no trigram at all;
- * - the attribute keeps no trigram index, or the query targets a reduced index whose accelerator lives elsewhere -
- *   both resolved by the caller, before it reaches here;
+ * - the attribute keeps no trigram index at all - resolved by the caller, before it reaches here. A plan targeting
+ *   reduced indexes does reach here, but with the GLOBAL index's accelerator and tree: the accelerator is hosted once
+ *   per collection and the caller composes its answer with each target index's own primary keys;
  * - the pattern is not selective enough for the intersection to beat the scan, see below.
  *
  * # The A/B decision
@@ -76,6 +78,9 @@ import java.util.function.BiPredicate;
  * candidates and applies the SAME predicate to each, then pays one tree descent per value that actually matched. Per
  * unit of work the two are therefore comparable, and the decision reduces to how much of the corpus the candidate set
  * covers - which {@link TrigramIndex#minimumCardinalityOf} bounds from above without materializing anything.
+ *
+ * "The corpus" is whatever scan the one intersection displaces, and that is the CALLER's to state - see the
+ * `scannedDistinctValueCounter` overload of {@link #match}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -173,6 +178,52 @@ public final class TrigramSubstringSearch {
 		@Nonnull String rawPattern,
 		@Nonnull BiPredicate<String, String> exactPredicate
 	) {
+		// the tree's own bucket count is a field read, so there is nothing for the threshold to cut short
+		return match(
+			trigramIndex, sharedValueTree, rawPattern, exactPredicate,
+			threshold -> sharedValueTree.getBucketCount()
+		);
+	}
+
+	/**
+	 * The {@link #match(TrigramIndex, InvertedIndex, String, BiPredicate)} above, with the size of the scan this path
+	 * is being weighed against supplied by the caller instead of read off `sharedValueTree`.
+	 *
+	 * The two coincide only when the answer is consumed by the very index the tree belongs to. A plan whose targets are
+	 * reduced indexes hoists ONE computation over the global tree and amortizes it across the whole fan-out, so what it
+	 * displaces is the sum of the target set's own scans - each over its own, far smaller tree - and pricing that plan
+	 * against the global tree's bucket count would take the accelerated path precisely where the scan is cheapest.
+	 * The caller therefore owns the comparison; see
+	 * {@link io.evitadb.core.query.filter.translator.attribute.AbstractAttributeStringSearchTranslator}.
+	 *
+	 * ## Why the count arrives as a function of a threshold
+	 *
+	 * A caller summing a fan-out is answering a threshold question, not producing a total, and the fan-out can run to
+	 * hundreds of thousands of indexes. The counter is therefore handed {@link #accelerationThreshold} and may stop as
+	 * soon as its running total reaches it - anything at or above the threshold decides the comparison identically, so
+	 * a truncated total and the true one are interchangeable HERE and nowhere else. The counter is also not invoked at
+	 * all when the decision is already settled: an open transaction, a pattern with no trigram, or a pattern the index
+	 * proves nothing contains all return before it is consulted.
+	 *
+	 * @param trigramIndex                the attribute's substring accelerator
+	 * @param sharedValueTree             the value tree whose value ids `trigramIndex` posts against - it MUST be the
+	 *                                    very tree the index was built from, or the ids name different values
+	 * @param rawPattern                  the search term as the query supplied it, unnormalized
+	 * @param exactPredicate              the exact test the scan path applies, given
+	 *                                    `(normalizedValue, normalizedPattern)`
+	 * @param scannedDistinctValueCounter given the threshold the total is compared against, how many distinct values
+	 *                                    the scan this path replaces would visit - summed over every index the one
+	 *                                    computation is amortized across, and free to stop counting at the threshold
+	 * @return the matched buckets, empty when nothing matches, or `null` when the caller must take the scan instead
+	 */
+	@Nullable
+	public static MatchedBuckets match(
+		@Nonnull TrigramIndex trigramIndex,
+		@Nonnull InvertedIndex sharedValueTree,
+		@Nonnull String rawPattern,
+		@Nonnull BiPredicate<String, String> exactPredicate,
+		@Nonnull LongUnaryOperator scannedDistinctValueCounter
+	) {
 		// pre-flight rather than catch: the reverse lookup REFUSES inside a transaction, and the answer to that refusal
 		// is this fallback, so the condition is tested before anything commits to the accelerated path
 		if (Transaction.isTransactionAvailable()) {
@@ -191,7 +242,8 @@ public final class TrigramSubstringSearch {
 			// which is the cheapest outcome either path can produce
 			return NO_MATCH;
 		}
-		if (!isWorthAccelerating(candidateUpperBound, sharedValueTree.getBucketCount())) {
+		final long threshold = accelerationThreshold(candidateUpperBound);
+		if (scannedDistinctValueCounter.applyAsLong(threshold) < threshold) {
 			return null;
 		}
 		final int[] candidates = trigramIndex.resolveCandidateValueIds(trigrams);
@@ -219,14 +271,40 @@ public final class TrigramSubstringSearch {
 	 * Decides whether an intersection bounded at `candidateUpperBound` candidates is worth running against a scan over
 	 * `distinctValueCount` values. Exposed so the threshold can be exercised without building a corpus around it.
 	 *
+	 * `distinctValueCount` is the size of the scan the ONE intersection displaces, which is not always one tree's
+	 * bucket count: when a single computation over the global tree is amortized across a fan-out of reduced indexes,
+	 * it is the sum over that fan-out. Below {@link #MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT} the displaced scan is at
+	 * most one contiguous leaf block and unbeatable, whichever way the total was arrived at.
+	 *
 	 * @param candidateUpperBound the most candidates the intersection could produce, i.e. the cheapest posting's
 	 *                            cardinality
 	 * @param distinctValueCount  how many distinct values the scan would have to visit
 	 * @return whether the trigram path should be taken
 	 */
 	public static boolean isWorthAccelerating(int candidateUpperBound, int distinctValueCount) {
-		return distinctValueCount >= MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
-			&& candidateUpperBound <= distinctValueCount / CANDIDATE_SELECTIVITY_DIVISOR;
+		return distinctValueCount >= accelerationThreshold(candidateUpperBound);
+	}
+
+	/**
+	 * The number of distinct values the displaced scan must reach for {@link #isWorthAccelerating} to say yes - the
+	 * floor and the selectivity ratio folded into ONE target, so that a caller summing a fan-out can stop the moment
+	 * its running total reaches it.
+	 *
+	 * The fold is exact rather than approximate. For non-negative integers and a positive divisor,
+	 * `candidateUpperBound <= distinctValueCount / CANDIDATE_SELECTIVITY_DIVISOR` (floor division) holds exactly when
+	 * `candidateUpperBound * CANDIDATE_SELECTIVITY_DIVISOR <= distinctValueCount`, so requiring the total to reach the
+	 * larger of that product and {@link #MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT} is the same predicate written as a
+	 * single comparison. The product is computed in `long` because a pathological cardinality could overflow `int`
+	 * where the original division could not.
+	 *
+	 * @param candidateUpperBound the most candidates the intersection could produce
+	 * @return the smallest displaced-scan size at which the trigram path is taken
+	 */
+	public static long accelerationThreshold(int candidateUpperBound) {
+		return Math.max(
+			MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT,
+			(long) candidateUpperBound * CANDIDATE_SELECTIVITY_DIVISOR
+		);
 	}
 
 	/**

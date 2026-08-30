@@ -106,19 +106,33 @@ class TrigramSubstringSearchTest {
 	private static final int INDEX_PK = 1;
 
 	/**
-	 * Filler values, carrying none of the searched patterns. Their count alone is what puts the corpus above
-	 * {@link TrigramSubstringSearch#MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT}, so a pattern that IS selective enough
-	 * is actually accelerated instead of silently taking the scan and proving nothing.
-	 */
-	private static final int FILLER_VALUES = 700;
-
-	/**
 	 * Values planted with the `zebra` pattern. Deliberately above
 	 * {@link io.evitadb.core.query.response.TransactionalDataRelatedStructure#EXCESSIVE_HIGH_CARDINALITY} (100), which
 	 * is the bitmap count at which the folded formula stops keying on its individual buckets and falls back to the
 	 * index-level token set - the only shape in which the trigram index's own identity is observable.
+	 *
+	 * It is also the widest candidate set any test here searches for, so it is what {@link #FILLER_VALUES} has to be
+	 * sized against. This value must NOT be lowered to make that sizing cheaper - the cache-key assertions depend on
+	 * it clearing the high-cardinality threshold, and the filler is the free side of the ratio.
 	 */
 	private static final int ZEBRA_VALUES = 120;
+
+	/**
+	 * Filler values, carrying none of the searched patterns. Their count alone is what puts the corpus past the gate,
+	 * so a pattern that IS selective enough is actually accelerated instead of silently taking the scan and proving
+	 * nothing.
+	 *
+	 * Past the whole gate, not merely past
+	 * {@link TrigramSubstringSearch#MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT}: `zebra` is planted in
+	 * {@link #ZEBRA_VALUES} values, so the corpus must also reach
+	 * {@link TrigramSubstringSearch#accelerationThreshold} for that bound or the accelerated path declines and every
+	 * parity case here compares the scan against itself. Derived rather than written down because
+	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} is a measured constant expected to be retuned;
+	 * the floor of 700 keeps the corpus exactly what it was at the divisor this fixture was first written for.
+	 */
+	private static final int FILLER_VALUES = Math.max(
+		700, (int) TrigramSubstringSearch.accelerationThreshold(ZEBRA_VALUES)
+	);
 
 	/**
 	 * Values containing `omega` - three of which end with it. Deliberately BELOW the high-cardinality threshold, so
@@ -654,9 +668,10 @@ class TrigramSubstringSearchTest {
 		@Test
 		@DisplayName("a pattern covering too much of the corpus declines")
 		void shouldDeclineAnUnselectivePattern() {
-			// `item` is carried by every filler value, so its cheapest posting covers far more than a quarter of the
-			// corpus - the scan visits each of those values once, while the trigram path would visit them once AND
-			// pay a directory probe and a bucket descent on top
+			// `item` is carried by every filler value, so its cheapest posting covers all but a handful of the corpus
+			// - far past whatever share CANDIDATE_SELECTIVITY_DIVISOR admits, at any value it is ever retuned to. The
+			// scan visits each of those values once, while the trigram path would visit them once AND pay a directory
+			// probe and a bucket descent on top
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			assertNull(
 				TrigramSubstringSearch.match(
@@ -712,6 +727,70 @@ class TrigramSubstringSearchTest {
 			final int share = corpusSize / TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR;
 			assertTrue(TrigramSubstringSearch.isWorthAccelerating(share, corpusSize));
 			assertFalse(TrigramSubstringSearch.isWorthAccelerating(share + 1, corpusSize));
+		}
+
+		@Test
+		@DisplayName("this suite's own corpus still clears the gate it is calibrated against")
+		void shouldKeepTheCorpusAboveTheGate() {
+			// named and asserted separately so that a retune of CANDIDATE_SELECTIVITY_DIVISOR reddens THIS case first,
+			// saying the fixture needs resizing - rather than reddening a dozen Parity and CacheKey cases, which reads
+			// as "the retune broke the accelerator" to whoever sees it next
+			final int corpusSize = corpus().size();
+			assertTrue(
+				TrigramSubstringSearch.isWorthAccelerating(ZEBRA_VALUES, corpusSize),
+				"`zebra` is planted in " + ZEBRA_VALUES + " of " + corpusSize + " values, which no longer clears the "
+					+ "gate - FILLER_VALUES derives from the threshold precisely so this cannot happen, so if it has "
+					+ "the derivation is wrong rather than the corpus"
+			);
+		}
+
+		@Test
+		@DisplayName("the single-comparison threshold decides exactly what the two-part formula did")
+		void shouldAgreeWithTheTwoPartFormulaItReplaces() {
+			// `isWorthAccelerating` is now one comparison against `accelerationThreshold`, so that a caller summing a
+			// fan-out can stop the moment its running total reaches that target instead of walking every index. The
+			// fold relies on `c <= n / d` and `c * d <= n` being the same predicate under floor division - true, but
+			// exactly the kind of identity that is wrong at one boundary and right everywhere else, so it is swept
+			// rather than spot-checked. Deliberately including the corner where n is NOT a multiple of the divisor.
+			for (int distinctValueCount = 0; distinctValueCount <= 2_048; distinctValueCount++) {
+				for (int candidateUpperBound = 0; candidateUpperBound <= 600; candidateUpperBound += 7) {
+					final boolean asWrittenBefore =
+						distinctValueCount >= TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
+							&& candidateUpperBound
+							<= distinctValueCount / TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR;
+					assertEquals(
+						asWrittenBefore,
+						TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, distinctValueCount),
+						"the two forms of the gate disagree at candidateUpperBound=" + candidateUpperBound
+							+ ", distinctValueCount=" + distinctValueCount
+					);
+				}
+			}
+		}
+
+		/**
+		 * NOTE, so nobody mistakes this for protection it does not give: this case derives the corpus it expects
+		 * from `accelerationThreshold` itself, so it pins the RELATIONSHIP between that method and
+		 * `isWorthAccelerating` and not the value either produces. It survives any self-consistent corruption of
+		 * the threshold - measured: adding `+ 1` to the product inside `accelerationThreshold` leaves this case
+		 * green, and leaves the pre-existing `shouldRefuseAnUnselectiveCandidateBound` green too, because 4000 is
+		 * not divisible by the divisor and the slack absorbs it. `shouldAgreeWithTheTwoPartFormulaItReplaces` is
+		 * the only guard on the arithmetic, because it compares against a formula written out independently.
+		 */
+		@Test
+		@DisplayName("the threshold is the smallest corpus the bound is accepted against")
+		void shouldReportTheSmallestAcceptedCorpus() {
+			final int candidateUpperBound = 500;
+			final long threshold = TrigramSubstringSearch.accelerationThreshold(candidateUpperBound);
+			assertTrue(threshold <= Integer.MAX_VALUE, "the sweep below needs the threshold to fit an int");
+			assertTrue(
+				TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, (int) threshold),
+				"the threshold itself must be accepted"
+			);
+			assertFalse(
+				TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, (int) threshold - 1),
+				"one distinct value short of the threshold must be refused"
+			);
 		}
 	}
 
