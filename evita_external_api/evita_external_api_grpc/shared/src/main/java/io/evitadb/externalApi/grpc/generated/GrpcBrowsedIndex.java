@@ -562,16 +562,6 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.BoolValue measured_;
   /**
    * <pre>
-   * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-   * window, "now" a zero-length one.
-   *
-   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -594,16 +584,6 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-   * window, "now" a zero-length one.
-   *
-   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -626,16 +606,6 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-   * window, "now" a zero-length one.
-   *
-   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -659,6 +629,19 @@ private static final long serialVersionUID = 0L;
   public static final int OBSERVEDSINCE_FIELD_NUMBER = 13;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
   /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    * @return Whether the observedSince field is set.
    */
@@ -667,6 +650,19 @@ private static final long serialVersionUID = 0L;
     return ((bitField0_ & 0x00000200) != 0);
   }
   /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    * @return The observedSince.
    */
@@ -675,6 +671,19 @@ private static final long serialVersionUID = 0L;
     return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
   }
   /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    */
   @java.lang.Override
@@ -3151,16 +3160,6 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> measuredBuilder_;
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3182,16 +3181,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3217,16 +3206,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3257,16 +3236,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3295,16 +3264,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3340,16 +3299,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3377,16 +3326,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3409,16 +3348,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3444,16 +3373,6 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * When observation of this index began - the start of the window the two counters and the two stamps above are read
-     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-     * window, "now" a zero-length one.
-     *
-     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
      * Whether the readings above were taken at all. False on a server started with
      * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
      * nor the write path reach for one.
@@ -3487,6 +3406,19 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> observedSinceBuilder_;
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      * @return Whether the observedSince field is set.
      */
@@ -3494,6 +3426,19 @@ private static final long serialVersionUID = 0L;
       return ((bitField0_ & 0x00002000) != 0);
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      * @return The observedSince.
      */
@@ -3505,6 +3450,19 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public Builder setObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -3521,6 +3479,19 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public Builder setObservedSince(
@@ -3535,6 +3506,19 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public Builder mergeObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -3556,6 +3540,19 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public Builder clearObservedSince() {
@@ -3569,6 +3566,19 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getObservedSinceBuilder() {
@@ -3577,6 +3587,19 @@ private static final long serialVersionUID = 0L;
       return getObservedSinceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder() {
@@ -3588,6 +3611,19 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

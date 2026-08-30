@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-10 08:45
+updated: 2026-08-24 10:15
 status: accepted
 kind: optimization
 issues: [1390]
@@ -79,14 +79,35 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
 
 - **Pros:** strictly higher leverage than anything in Option A — it fixes `getReference`, the `hppc`
   maps in the cardinality verifier and the reference indexes together.
-- **Cons:** the obvious placement (canonicalize against `references.keySet()`) does not fit the
-  site — the gRPC converters have no schema or catalog context and live in the module shared with
-  the client; the alternative placement trades that for a later, larger blast radius.
+- **Cons:** there are two viable placements, they pull in opposite directions, and neither has been
+  measured. *At the converter* — a module-private `ConcurrentHashMap<String, String>` filled with
+  `computeIfAbsent(raw, Function.identity())` — catches the name where it is created and works on
+  both sides of the wire, but the gRPC converters have no schema or catalog context and live in the
+  module shared with the client, so they cannot reject an unknown name in the same step. *At first
+  schema contact* server-side, `references.keySet()` **is** in hand and validation comes free, but
+  the raw string survives longer and the blast radius is larger.
+- **`String.intern()` is not a third placement.** It is a JVM-wide native table with its own
+  contention and GC behaviour, carrying that cost for a domain of a few dozen reference names per
+  catalog. That structural argument is the recorded reason and it needs no measurement. An
+  intern-based attempt was *reported* as tried and declined before this work, and it left no
+  artifact in the places that were checked: no `.intern()` call is reachable from any ref in this
+  repository (`git log --all -S'.intern()' -- '*.java'` is empty), and neither #1390 nor #1395
+  mentions one. That is absence where it was looked for, **not** proof the trial
+  did not happen — an experiment run in a scratch worktree, like the since-removed
+  `warmup-bench`, leaves nothing behind at all. Treat the report as corroboration of the
+  structural argument, and if this is revisited, reach for a bounded application-owned table rather
+  than the JVM's.
+- **The exploration #1390 defers to is not recoverable.** That issue points at
+  `specifications/write-path-optimizations/exploration-name-canonicalization.md`; no such file was
+  ever tracked — the folder's only committed file was its `README.md`, retired once the shipped
+  items landed. Since `/specifications/` is git-ignored, it may have been written on disk and lost
+  rather than never written; either way nothing of it survives, which is why the ceiling below is
+  still unmeasured.
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
-  **Revisit** once the exploration in `specifications/write-path-optimizations/` (on `dev`) has a
-  measured ceiling to compare against.
+  **Revisit** once a profile puts a ceiling on it — the two candidate placements are named above,
+  and the starting point is a fresh measurement rather than a document.
 
 ### Option C — memoize the resolved reference schema on the executor across mutations (declined)
 
@@ -190,13 +211,12 @@ B remains the larger prize and should be sequenced after its exploration produce
   without one: `ReflectedReferenceSchema` overrides `getAttribute` with an availability assert, so a
   null-returning sibling would need a matching override to avoid bypassing it — more surface than
   the single DTO-typed call site justified.
-- **The plan folder must still be retired.** `specifications/write-path-optimizations/` now has only
-  one item left unclaimed: its §1 *Problem B*, which is Option B above. §1 *Problem A* is implemented
-  by this record, and §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
-  `ObjectIntHashMap` size hint by deleting the map) ship as the sibling commit in this same branch,
-  issue #1391. Once the name-canonicalization exploration has a measured ceiling, the folder should
-  leave `specifications/` entirely — either folded into a record or deleted, per
-  `.claude/rules/adr.md`.
+- **The exploration folder that motivated this record has been retired.** Its §1 *Problem A* is
+  implemented here; §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
+  `ObjectIntHashMap` size hint by deleting the map) shipped as the sibling commit in this same
+  branch, issue #1391, whose commit message carries the run-length scan's reasoning. Only §1
+  *Problem B* was never written — it is Option B above, and that is now the only surviving record of
+  it. The `ComparableReferenceKey` half of its §4 is Option D, still gated on #1392.
 
 ## Related work
 

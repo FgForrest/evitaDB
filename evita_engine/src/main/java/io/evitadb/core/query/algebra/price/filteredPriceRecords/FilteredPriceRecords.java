@@ -49,6 +49,7 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -78,27 +79,60 @@ public interface FilteredPriceRecords extends Serializable {
 	FilteredPriceRecords EMPTY = new ResolvedFilteredPriceRecords();
 
 	/**
-	 * Returns `true` when every accessor in the supplied collection exposes the per-inner-record
+	 * Returns `true` when **at least one** accessor in the supplied collection exposes the per-inner-record
 	 * histogram side-output (see {@link FilteredPriceRecordAccessor#exposesPerInnerRecordHistogramRecords()}).
-	 * An empty collection returns `false` because there is no histogram-aware contributor — the
-	 * caller must fall back to its non-histogram path.
+	 * An empty collection returns `false` because there is no histogram-aware contributor at all.
+	 *
+	 * The probe is deliberately *any*, not *all*. A single `filterBy` produces one price branch per
+	 * {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling} present in the catalog, and only
+	 * the `LOWEST_PRICE` branch has per-inner-record data points to contribute — `NONE` and `SUM` correctly
+	 * contribute one price for sale per entity. An all-or-nothing rule therefore discarded the whole
+	 * per-inner-record contribution as soon as the candidate pool mixed handling modes (issue #1433);
+	 * callers now merge the exposing accessors' side-output and route the remaining entities through the
+	 * per-entity collector.
 	 *
 	 * Centralises the capability probe so the histogram producer and wrapper formulas like
-	 * `SelectionFormula` cannot drift on the "all-or-nothing" rule.
+	 * `SelectionFormula` cannot drift apart on the rule.
 	 *
 	 * @param accessors accessors to probe
-	 * @return `true` iff the collection is non-empty and every accessor exposes the side-output
+	 * @return `true` iff at least one accessor exposes the side-output
 	 */
-	static boolean allAccessorsExposePerInnerRecordHistogram(@Nonnull Collection<FilteredPriceRecordAccessor> accessors) {
-		if (accessors.isEmpty()) {
-			return false;
-		}
+	static boolean anyAccessorExposesPerInnerRecordHistogram(
+		@Nonnull Collection<FilteredPriceRecordAccessor> accessors
+	) {
 		for (final FilteredPriceRecordAccessor accessor : accessors) {
-			if (!accessor.exposesPerInnerRecordHistogramRecords()) {
-				return false;
+			if (accessor.exposesPerInnerRecordHistogramRecords()) {
+				return true;
 			}
 		}
-		return true;
+		return false;
+	}
+
+	/**
+	 * Returns the subset of `accessors` that expose the per-inner-record histogram side-output, preserving
+	 * the input order. Only these accessors may be passed to
+	 * {@link #mergePerInnerRecordHistogramRecords(Collection, QueryExecutionContext)} — calling the merge on
+	 * a non-exposing accessor would either trip its histogram-collection guard or silently contribute
+	 * per-entity records a second time.
+	 *
+	 * @param accessors accessors to partition
+	 * @return the exposing accessors; an empty list when none of them expose the side-output
+	 */
+	@Nonnull
+	static List<FilteredPriceRecordAccessor> collectPerInnerRecordHistogramAccessors(
+		@Nonnull Collection<FilteredPriceRecordAccessor> accessors
+	) {
+		List<FilteredPriceRecordAccessor> exposing = null;
+		for (final FilteredPriceRecordAccessor accessor : accessors) {
+			if (accessor.exposesPerInnerRecordHistogramRecords()) {
+				// lazily allocated — the common non-histogram query never reaches this branch at all
+				if (exposing == null) {
+					exposing = new ArrayList<>(accessors.size());
+				}
+				exposing.add(accessor);
+			}
+		}
+		return exposing == null ? List.of() : exposing;
 	}
 
 	/**

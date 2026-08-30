@@ -149,6 +149,7 @@ api:
       tlsMode: ${api.endpoints.gRPC.tlsMode:null}
       keepAlive: ${api.endpoints.gRPC.keepAlive:null}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
+      streamingRequestTimeoutInMillis: ${api.endpoints.gRPC.streamingRequestTimeoutInMillis:300K}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:null}

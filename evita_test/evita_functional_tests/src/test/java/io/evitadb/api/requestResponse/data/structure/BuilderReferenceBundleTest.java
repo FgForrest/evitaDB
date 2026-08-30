@@ -449,4 +449,76 @@ class BuilderReferenceBundleTest {
 		bundle.upsertWithDuplicateReferenceConversion(dupl, key -> prev);
 		assertThrows(InvalidMutationException.class, () -> bundle.upsertWithDuplicateReferenceConversion(colliding, key -> prev));
 	}
+
+	@Test
+	@DisplayName("shouldStopReportingReferenceKeyOnceAllDuplicatesAreRemoved")
+	void shouldStopReportingReferenceKeyOnceAllDuplicatesAreRemoved() {
+		final BuilderReferenceBundle bundle = new BuilderReferenceBundle(2);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		Mockito.when(referenceSchema.getAttributes()).thenReturn(representativeSchema());
+
+		final ReferenceContract prev = mockReference(1001, referenceSchema, Collections.singletonMap("country", "CZ"));
+		final ReferenceContract next = mockReference(2002, referenceSchema, Collections.singletonMap("country", "US"));
+
+		bundle.upsertNonDuplicateReference(prev);
+		bundle.convertToDuplicateReference(next, prev);
+		assertTrue(bundle.containsReferenceKey(prev.getReferenceKey()));
+
+		bundle.removeDuplicateReference(next);
+		assertTrue(bundle.containsReferenceKey(prev.getReferenceKey()));
+
+		// the business key holds two references, so exactly two removals must retire it - the conversion
+		// must not count the incoming reference twice
+		bundle.removeDuplicateReference(prev);
+		assertEquals(0, bundle.count());
+		assertFalse(bundle.containsReferenceKey(prev.getReferenceKey()));
+	}
+
+	@Test
+	@DisplayName("shouldNotCountRepeatedUpsertsOfTheSameDuplicateReference")
+	void shouldNotCountRepeatedUpsertsOfTheSameDuplicateReference() {
+		final BuilderReferenceBundle bundle = new BuilderReferenceBundle(2);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		Mockito.when(referenceSchema.getAttributes()).thenReturn(representativeSchema());
+
+		final ReferenceContract prev = mockReference(1001, referenceSchema, Collections.singletonMap("country", "CZ"));
+		final ReferenceContract next = mockReference(2002, referenceSchema, Collections.singletonMap("country", "US"));
+
+		bundle.upsertNonDuplicateReference(prev);
+		bundle.convertToDuplicateReference(next, prev);
+
+		// committing the very same reference again is an update, not an insertion - builders re-register a
+		// reference on every commit, and each re-registration must leave the reference count alone
+		bundle.upsertDuplicateReference(next);
+		bundle.upsertDuplicateReference(next);
+		assertEquals(2, bundle.count());
+
+		bundle.removeDuplicateReference(next);
+		bundle.removeDuplicateReference(prev);
+		assertEquals(0, bundle.count());
+		assertFalse(bundle.containsReferenceKey(prev.getReferenceKey()));
+	}
+
+	@Test
+	@DisplayName("shouldNotCountReKeyingOfAnAlreadyRegisteredDuplicateReference")
+	void shouldNotCountReKeyingOfAnAlreadyRegisteredDuplicateReference() {
+		final BuilderReferenceBundle bundle = new BuilderReferenceBundle(2);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		Mockito.when(referenceSchema.getAttributes()).thenReturn(representativeSchema());
+
+		final ReferenceContract prev = mockReference(1001, referenceSchema, Collections.singletonMap("country", "CZ"));
+		final ReferenceContract next = mockReference(2002, referenceSchema, Collections.singletonMap("country", "US"));
+		// same internal primary key as `next`, but a different representative value
+		final ReferenceContract reKeyed = mockReference(2002, referenceSchema, Collections.singletonMap("country", "SK"));
+
+		bundle.upsertNonDuplicateReference(prev);
+		bundle.convertToDuplicateReference(next, prev);
+		bundle.upsertDuplicateReference(reKeyed);
+		assertEquals(2, bundle.count());
+
+		bundle.removeDuplicateReference(reKeyed);
+		bundle.removeDuplicateReference(prev);
+		assertEquals(0, bundle.count());
+		assertFalse(bundle.containsReferenceKey(prev.getReferenceKey()));
+	}
 }
