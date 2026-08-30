@@ -42,7 +42,7 @@ import javax.annotation.Nonnull;
  *
  * # Where the widths sit relative to the two constants
  *
- * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} admits a pattern whose cheapest posting covers at most
+ * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} admits a pattern whose cheapest posting covers at most
  * `1/D` of the distinct values, where `D` is that constant - 12 today, and 4 when this matrix was first measured:
  *
  * - {@link #COMMON} - 15%, which sat comfortably inside the gate at `D = 4` and is **declined** at any `D` above
@@ -51,8 +51,8 @@ import javax.annotation.Nonnull;
  *   comparison of a pre-retune matrix against a post-retune one reads backwards for this row, and for
  *   {@link #THRESHOLD}, which follows the constant by definition;
  * - {@link #THRESHOLD} - exactly 25%, the widest candidate set the gate admits **at all**. This class exists only to
- *   price the divisor: if the trigram path is still faster than the scan here, the divisor is too cautious, and if it
- *   is slower, the divisor is too permissive. Neither question can be asked from inside the comfortable region;
+ *   price the factor: if the trigram path is still faster than the scan here, the factor is too cautious, and if it
+ *   is slower, the factor is too permissive. Neither question can be asked from inside the comfortable region;
  * - {@link #MEDIUM} - 1%, the mid-selectivity case the spike's crossover measurements were taken on;
  * - {@link #RARE} - at most four values, where the intersection is nearly free;
  * - {@link #NONEXISTENT} - zero, which `TrigramSubstringSearch#match` answers from the cardinality probes alone,
@@ -89,7 +89,7 @@ import javax.annotation.Nonnull;
  * what makes the identity worth trusting - and they put the crossover at roughly **13% at 10k and 10% at 100k**.
  * That is above every member of this group except {@link #WIDTH_12_PCT}, which is therefore predicted to win
  * narrowly at 10k and lose at 100k. If it does, the crossover demonstrably moves with corpus size and no single
- * scalar divisor can express it; if it wins or loses at both, the identity is wrong somewhere and that is worth
+ * scalar factor can express it; if it wins or loses at both, the identity is wrong somewhere and that is worth
  * more than a confirmation.
  *
  * Unlike {@link #THRESHOLD}, none of the four asserts that the selectivity gate admits it. They sit well inside a
@@ -122,14 +122,14 @@ public enum SubstringPatternClass {
 
 	/**
 	 * A pattern planted into exactly one quarter of the distinct values - the widest candidate set
-	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} still admits. The A/B at this cell is the direct
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} still admits. The A/B at this cell is the direct
 	 * evidence for or against that constant's value.
 	 */
 	THRESHOLD("kumquat") {
 		@Override
 		public int plantingCount(int distinctValueCount) {
-			// exactly the gate: `candidateUpperBound <= distinctValueCount / CANDIDATE_SELECTIVITY_DIVISOR`
-			return Math.max(1, distinctValueCount / TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR);
+			// exactly the gate: `candidateUpperBound <= distinctValueCount / REQUIRED_NARROWING_FACTOR`
+			return Math.max(1, distinctValueCount / TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR);
 		}
 
 		@Override
@@ -140,7 +140,7 @@ public enum SubstringPatternClass {
 				throw new GenericEvitaInternalError(
 					"`THRESHOLD` is planted at the selectivity gate itself and must be ADMITTED by it, but a width of "
 						+ measuredMinimum + " over " + distinctValueCount + " distinct values was declined - the class "
-						+ "would then measure the scan on both arms and prove nothing about the divisor!",
+						+ "would then measure the scan on both arms and prove nothing about the factor!",
 					"The threshold pattern class fell outside the selectivity gate!"
 				);
 			}

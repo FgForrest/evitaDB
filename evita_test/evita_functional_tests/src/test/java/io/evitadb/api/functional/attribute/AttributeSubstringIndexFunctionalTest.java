@@ -122,7 +122,7 @@ public class AttributeSubstringIndexFunctionalTest implements EvitaTestSupport {
 	 * gate: past the floor below which the accelerated path declines outright, and past the selectivity ratio the
 	 * `zebra` bound is priced against. Never below 400, so the counts the cases below assert stay what they were,
 	 * and never below the threshold, so a retune of
-	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} cannot quietly drop the corpus under the gate.
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} cannot quietly drop the corpus under the gate.
 	 */
 	private static final int FILLER_PRODUCTS = Math.max(
 		400, (int) TrigramSubstringSearch.accelerationThreshold(ZEBRA_PRODUCTS)
@@ -130,8 +130,8 @@ public class AttributeSubstringIndexFunctionalTest implements EvitaTestSupport {
 
 	/**
 	 * The size of displaced scan the queried brand's partition must reach before the gate admits it - derived, not
-	 * written down, because {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} is a measured constant that
-	 * is expected to move. A fixture sized against today's value would at a larger divisor stop clearing the gate,
+	 * written down, because {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} is a measured constant that
+	 * is expected to move. A fixture sized against today's value would at a larger factor stop clearing the gate,
 	 * and because these cases have no acceleration observable of their own they would go on passing while quietly
 	 * comparing the scan against itself. `shouldStayAboveTheGate` asserts that has not happened.
 	 */
@@ -450,7 +450,7 @@ public class AttributeSubstringIndexFunctionalTest implements EvitaTestSupport {
 	void shouldStayAboveTheGate() {
 		// EVERY case in this class compares an accelerated catalog against a scanning one, and the two agree by
 		// construction - so a corpus that stopped clearing the gate would not fail anything here, it would quietly
-		// compare the scan against itself and keep reporting success. `CANDIDATE_SELECTIVITY_DIVISOR` is a measured
+		// compare the scan against itself and keep reporting success. `REQUIRED_NARROWING_FACTOR` is a measured
 		// constant expected to be retuned, which makes that a live hazard rather than a theoretical one. This case is
 		// the only thing standing between a retune and a suite that passes while testing nothing.
 		assertTrue(

@@ -132,13 +132,13 @@ class ReducedIndexSubstringAccelerationTest {
 	 * selectivity ratio, rounded down to a multiple of {@link #PARTITION_COUNT} so the matches spread evenly and a
 	 * strict subset of the partitions holds a strict subset of them, and never below one per partition. Derived this
 	 * way the corpus stays the same size whatever
-	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} is retuned to, instead of growing with it until a
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} is retuned to, instead of growing with it until a
 	 * partition would clear the floor on its own and stop testing what it claims.
 	 */
 	private static final int ZEBRA_VALUES = Math.max(
 		PARTITION_COUNT,
 		(TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
-			/ TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR
+			/ TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR
 			/ PARTITION_COUNT) * PARTITION_COUNT
 	);
 
@@ -146,8 +146,8 @@ class ReducedIndexSubstringAccelerationTest {
 	 * The size of displaced scan this fixture's pattern has to reach before the gate admits it.
 	 *
 	 * EVERY size below is derived from this rather than written down, because
-	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} is a measured constant that is expected to move.
-	 * A fixture sized against today's value would, at a larger divisor, stop clearing the gate - and since the
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} is a measured constant that is expected to move.
+	 * A fixture sized against today's value would, at a larger factor, stop clearing the gate - and since the
 	 * accelerated and scanning paths agree by construction, the cases would go on passing while testing nothing.
 	 */
 	private static final long GATE_THRESHOLD = TrigramSubstringSearch.accelerationThreshold(ZEBRA_VALUES);

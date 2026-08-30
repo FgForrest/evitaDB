@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-30 02:50
+updated: 2026-08-30 07:13
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -103,7 +103,7 @@ database entirely:
 | 2026-08-29 | The gate prices against the **summed distinct-value count of the whole target set**, with an early exit | The trigram path displaces the scan over every index in the fan-out, not over any one of them: pricing against the global bucket count takes the accelerated path precisely where the scan is cheapest, and pricing against a single partition declines a wide fan-out that clears the floor by summation. Walking the target set in order to decide reads like a bug and is not — the worst case is one `getFilterIndex` plus one `getBucketCount` per index, strictly dominated by the per-index scan being decided against, which resolves those same filter indexes and then visits every bucket of every one of them | `TrigramSubstringSearch#accelerationThreshold`, `AbstractAttributeStringSearchTranslator#sumDistinctValuesUpTo` |
 | 2026-08-29 | One hoisted global operand **per scope**, never one per query | A target set can span LIVE and ARCHIVED, and a `TrigramIndex` is hosted per `GlobalEntityIndex`, hence per scope. A single operand would intersect an archived reduced index's primary keys with the live global answer — a wrong answer, not a slow one. Pinned by a test whose two scopes hold disjoint primary-key ranges, so a cross-scope pairing collapses to empty rather than to something plausible | `AbstractAttributeStringSearchTranslator#hoistGlobalSubstringFormulas` |
 | 2026-08-29 | `match` stays **outside** the per-query memo, and the scanned-value count stays **out of** the memo key | `computeOnlyOnce` stores and initialises a `@Nonnull Formula`, while `match` has three outcomes — declined, provably empty, real buckets — and "declined" has no `Formula` representation that is not already spoken for. The two halves are a matched pair: the memoised fold is a pure function of (trigram index, value tree, pattern, predicate) and the count only decides whether a caller gets far enough to ask for it, but moving `match` into the supplier would drag the *gate* inside a key that cannot tell two target sets apart, so a plan whose own gate declined would inherit the verdict of whichever plan was translated first. A cost gate whose answer depends on candidate ordering is worse than one occasionally paid twice | `AbstractAttributeStringSearchTranslator#createGlobalSubstringFormula`; the seam split that dissolves this is an open follow-up, below |
-| 2026-08-30 | `CANDIDATE_SELECTIVITY_DIVISOR` raised from **4 to 12** | The shipped 4 admitted a 15–25 % posting-width band where the accelerator ran 1.1–2.3× *slower* than the scan it replaced. The measured crossover is 9.5 % width at n = 100 000 — a divisor of 10.5 — and **12 is that plus a margin bought by three conservatisms the benchmark could not measure**, not a number the data states. See the section below | *Verification*; `TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR` |
+| 2026-08-30 | `REQUIRED_NARROWING_FACTOR` raised from **4 to 12** | The shipped 4 admitted a 15–25 % posting-width band where the accelerator ran 1.1–2.3× *slower* than the scan it replaced. The measured crossover is 9.5 % width at n = 100 000 — a required narrowing of 10.5× — and **12 is that plus a margin bought by three conservatisms the benchmark could not measure**, not a number the data states. See the section below | *Verification*; `TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR` |
 | 2026-08-30 | The eager fold stays, but **its stated reason is retired rather than confirmed** | "Eager, because an `OrFormula` is cacheable and a `DeferredFormula` is not" is formally true and worth close to nothing: the expensive half — candidate resolution and per-candidate verification — runs during *translation*, so a cache hit skips only the OR, which is exactly what deferring would have skipped. Measured, the substring formula is admitted in **0 of 15** cells at shipped settings, and buys 5–11 % with both admission floors removed — nothing at all on the widest patterns at n = 100 000. Eager stays because the fork is small in both directions and eager is the simpler shape: no new formula type on the path, no deferred-evaluation semantics, and a result that behaves exactly like the scan path's | *Verification*; `InvertedIndex#toFormula` |
 
 ### Why the in-house core won
@@ -132,14 +132,14 @@ decision is recorded as durable rather than provisional.
 
 ### The trigram gate constant, and the failure mode of a hand-set threshold
 
-`CANDIDATE_SELECTIVITY_DIVISOR` admits the accelerated path only while the candidate bound is at most
+`REQUIRED_NARROWING_FACTOR` admits the accelerated path only while the candidate bound is at most
 `distinctValueCount / D`. It shipped at `D = 4` and was retuned to `12`. Both halves of that are worth
 keeping, because both will be re-derived otherwise.
 
 **How 4 was wrong.** The constant's own JavaDoc derived the right band — "the break-even ratio somewhere
 between a third and a tenth" — and then took the wrong end of it, calling `4` "the conservative end" and
 arguing the asymmetry correctly: over-caution costs a speedup that was never guaranteed, over-eagerness
-costs a regression on a query that used to be fine. But a **larger** divisor is the strict one, so within
+costs a regression on a query that used to be fine. But a **larger** factor is the strict one, so within
 a band running from `D = 3` to `D = 10` the cautious end is 10, and 4 sits one step from the most
 permissive end of the band the author had just written down. Nothing in the code could show it: a
 too-eager cost gate produces slower correct answers, never failures. That is the failure mode of a
@@ -147,10 +147,10 @@ hand-set threshold, and it is the argument for the planner cost model the consta
 already promises — the same paragraph that says this constant is a stand-in.
 
 **Why 12 and not 10.5.** The bisect puts the crossover at 9.52 % posting width at n = 100 000, i.e. a
-divisor of **10.5**; the SCAN arm's ±8–11 % confidence intervals put the crossover at 9.5 % ± 1 pp, i.e.
-a divisor somewhere between 9.5 and 11.7. **10 sits inside that band and 12 sits outside it.** The step
-past the measurement is bought by three conservatisms the benchmark could not measure, all pointing the
-same way and none pointing back: the corpus produces no
+required narrowing of **10.5×**; the SCAN arm's ±8–11 % confidence intervals put the crossover at
+9.5 % ± 1 pp, i.e. a factor somewhere between 9.5 and 11.7. **10 sits inside that band and 12 sits
+outside it.** The step past the measurement is bought by three conservatisms the benchmark could not
+measure, all pointing the same way and none pointing back: the corpus produces no
 false candidates at all (every candidate the intersection nominated survived the predicate, so the
 trigram arm never pays for a rejected one), it is all-ASCII where verification runs ~2× slower per
 candidate on decomposed Czech, and its trigram dictionary saturates at ~1 237 keys, making candidate
@@ -509,7 +509,7 @@ as ~3.5–4.8 MB rather than sharply, because the holdout skews long.
 and all nine of the reduced-index counterfactuals (gate priced against the global tree, no early exit,
 price one partition, un-hoist, one operand for all scopes, drop the intersection, drop the confinement,
 off-by-one threshold, AND the global plan too) reddened exactly the cases predicted for them, with 44
-tests running each time at the shipped divisor. Broad regression sweeps
+tests running each time at the shipped factor. Broad regression sweeps
 `-Dgroups='(indexing | storage) & !slow & !flaky'` ended at **6 382 tests, 0 failures, 0 errors, 27
 skipped**, and one full `unitAndFunctional` sweep at **22 113 tests**, whose two failures were a
 pre-existing `_internalBuild` arity defect introduced by the value-id increment — Java inherits statics,
@@ -625,9 +625,9 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
   `f*` ≈ **0.056**, well past the falsifying threshold. It does not plateau — it keeps falling, and the
   fall accelerates: `1/f*` runs **7.8 → 11.0 → 17.8** across n = 10 000 / 100 000 / 1 000 000, roughly
   `n^0.18` rather than saturating. The crossover at a million distinct values is ~5.6 % width, wanting a
-  divisor near 18.
+  factor near 18.
 
-  **Consequence for the shipped constant:** `CANDIDATE_SELECTIVITY_DIVISOR = 12` admits up to 8.33 %, so
+  **Consequence for the shipped constant:** `REQUIRED_NARROWING_FACTOR = 12` admits up to 8.33 %, so
   at n = 1 000 000 it admits a 5.6–8.33 % band where the accelerator is up to 1.49× slower. It is a
   strict improvement on the 4 it replaced — which admitted 5.6–25 % at that size — but it is **not
   correct at the top of the range**, and no single scalar can be: 10 000 wants ~8, 100 000 wants ~11,
@@ -733,7 +733,7 @@ a hand-set stand-in and is known to be one; the planner's cost model is what rep
   instead
 - **2026-08-29** — `attributeContains` / `attributeEndsWith` are wired to the accelerator; the
   end-to-end benchmark suite is written and the reduced-index Shape P lands
-- **2026-08-30** — the width bisect pins the crossover, `CANDIDATE_SELECTIVITY_DIVISOR` is retuned
+- **2026-08-30** — the width bisect pins the crossover, `REQUIRED_NARROWING_FACTOR` is retuned
   4 → 12, and the eager/lazy fork is settled with its original reason retired; P8 complete on branch
   `1454-trigram-substring-index`
 

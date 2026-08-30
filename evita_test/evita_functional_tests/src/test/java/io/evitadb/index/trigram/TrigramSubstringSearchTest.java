@@ -127,8 +127,8 @@ class TrigramSubstringSearchTest {
 	 * {@link #ZEBRA_VALUES} values, so the corpus must also reach
 	 * {@link TrigramSubstringSearch#accelerationThreshold} for that bound or the accelerated path declines and every
 	 * parity case here compares the scan against itself. Derived rather than written down because
-	 * {@link TrigramSubstringSearch#CANDIDATE_SELECTIVITY_DIVISOR} is a measured constant expected to be retuned;
-	 * the floor of 700 keeps the corpus exactly what it was at the divisor this fixture was first written for.
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR} is a measured constant expected to be retuned;
+	 * the floor of 700 keeps the corpus exactly what it was at the factor this fixture was first written for.
 	 */
 	private static final int FILLER_VALUES = Math.max(
 		700, (int) TrigramSubstringSearch.accelerationThreshold(ZEBRA_VALUES)
@@ -669,7 +669,7 @@ class TrigramSubstringSearchTest {
 		@DisplayName("a pattern covering too much of the corpus declines")
 		void shouldDeclineAnUnselectivePattern() {
 			// `item` is carried by every filler value, so its cheapest posting covers all but a handful of the corpus
-			// - far past whatever share CANDIDATE_SELECTIVITY_DIVISOR admits, at any value it is ever retuned to. The
+			// - far past whatever share REQUIRED_NARROWING_FACTOR admits, at any value it is ever retuned to. The
 			// scan visits each of those values once, while the trigram path would visit them once AND pay a directory
 			// probe and a bucket descent on top
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
@@ -724,7 +724,7 @@ class TrigramSubstringSearchTest {
 		@DisplayName("the candidate bound must stay within its share of the corpus")
 		void shouldRefuseAnUnselectiveCandidateBound() {
 			final int corpusSize = 4_000;
-			final int share = corpusSize / TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR;
+			final int share = corpusSize / TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR;
 			assertTrue(TrigramSubstringSearch.isWorthAccelerating(share, corpusSize));
 			assertFalse(TrigramSubstringSearch.isWorthAccelerating(share + 1, corpusSize));
 		}
@@ -732,7 +732,7 @@ class TrigramSubstringSearchTest {
 		@Test
 		@DisplayName("this suite's own corpus still clears the gate it is calibrated against")
 		void shouldKeepTheCorpusAboveTheGate() {
-			// named and asserted separately so that a retune of CANDIDATE_SELECTIVITY_DIVISOR reddens THIS case first,
+			// named and asserted separately so that a retune of REQUIRED_NARROWING_FACTOR reddens THIS case first,
 			// saying the fixture needs resizing - rather than reddening a dozen Parity and CacheKey cases, which reads
 			// as "the retune broke the accelerator" to whoever sees it next
 			final int corpusSize = corpus().size();
@@ -751,13 +751,13 @@ class TrigramSubstringSearchTest {
 			// fan-out can stop the moment its running total reaches that target instead of walking every index. The
 			// fold relies on `c <= n / d` and `c * d <= n` being the same predicate under floor division - true, but
 			// exactly the kind of identity that is wrong at one boundary and right everywhere else, so it is swept
-			// rather than spot-checked. Deliberately including the corner where n is NOT a multiple of the divisor.
+			// rather than spot-checked. Deliberately including the corner where n is NOT a multiple of the factor.
 			for (int distinctValueCount = 0; distinctValueCount <= 2_048; distinctValueCount++) {
 				for (int candidateUpperBound = 0; candidateUpperBound <= 600; candidateUpperBound += 7) {
 					final boolean asWrittenBefore =
 						distinctValueCount >= TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT
 							&& candidateUpperBound
-							<= distinctValueCount / TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR;
+							<= distinctValueCount / TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR;
 					assertEquals(
 						asWrittenBefore,
 						TrigramSubstringSearch.isWorthAccelerating(candidateUpperBound, distinctValueCount),
@@ -774,7 +774,7 @@ class TrigramSubstringSearchTest {
 		 * `isWorthAccelerating` and not the value either produces. It survives any self-consistent corruption of
 		 * the threshold - measured: adding `+ 1` to the product inside `accelerationThreshold` leaves this case
 		 * green, and leaves the pre-existing `shouldRefuseAnUnselectiveCandidateBound` green too, because 4000 is
-		 * not divisible by the divisor and the slack absorbs it. `shouldAgreeWithTheTwoPartFormulaItReplaces` is
+		 * not divisible by the factor and the slack absorbs it. `shouldAgreeWithTheTwoPartFormulaItReplaces` is
 		 * the only guard on the arithmetic, because it compares against a formula written out independently.
 		 */
 		@Test

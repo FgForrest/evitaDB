@@ -140,7 +140,7 @@ public class SubstringEagerFoldState {
 					+ "measure the refusal twice and report a saving of zero. The floor is "
 					+ TrigramSubstringSearch.MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT + " distinct values and the "
 					+ "selectivity gate is one candidate in "
-					+ TrigramSubstringSearch.CANDIDATE_SELECTIVITY_DIVISOR + ".",
+					+ TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR + ".",
 				"The accelerated path declines this cell, so its fold cannot be priced!"
 			);
 		}

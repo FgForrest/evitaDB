@@ -48,7 +48,7 @@ a reader has to be able to tell that apart from what turned out to be true.
 3. **§35.4's crossovers were spike-harness numbers, and the gate constant derived from them was too
    permissive by a factor of three.** Measured end to end through the real engine, the accelerated path
    is *slower* than the scan it replaces above ~9.5 % posting width at n = 100 000; the shipped
-   `CANDIDATE_SELECTIVITY_DIVISOR = 4` admitted everything up to 25 %, where it ran 2.1–2.3× slower. It
+   `REQUIRED_NARROWING_FACTOR = 4` admitted everything up to 25 %, where it ran 2.1–2.3× slower. It
    now stands at 12. §35.4's structural reading — that the crossover is a *ratio* and that verification
    dominates — held; only its calibration did not.
 4. **§21 / §32 / §35.5's missing bucket-death hook now exists**, as `ValueLifecycleSink` — a sink

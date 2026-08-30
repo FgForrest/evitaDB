@@ -100,16 +100,17 @@ public final class TrigramSubstringSearch {
 	public static final int MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT = 256;
 
 	/**
-	 * The candidate set must cover at most `1 / this` of the attribute's distinct values for the trigram path to be
-	 * taken.
+	 * How much the index must narrow the field before the trigram path is worth taking: the candidate set it nominates
+	 * must cover at most `1 / this` of the attribute's distinct values. A planner gate on whether the accelerator
+	 * earns the work it adds - it sizes no structure and bounds no allocation.
 	 *
 	 * Measured end to end against the scan it displaces, on a real embedded instance, one corpus per run
 	 * (`SubstringQueryBenchmark`, seven planted posting widths from 1% to 25%, `-f 3`). Speedup is monotone in width
 	 * and changes sign between 8% and 12%: at 100,000 distinct values the 8% pattern still wins 1.15x while the 12%
 	 * pattern LOSES 1.34x, and interpolating between them puts the crossover at **9.5% of distinct values**, i.e. a
-	 * divisor of 10.5. The whole curve is one invariant - trigram visits `share * n` candidates where the scan visits
-	 * `n` and both run the same predicate, so `share * speedup` is the break-even share, and all seven classes agree
-	 * on it within 15% across a 25-fold range of width.
+	 * required narrowing of 10.5x. The whole curve is one invariant - trigram visits `share * n` candidates where the
+	 * scan visits `n` and both run the same predicate, so `share * speedup` is the break-even share, and all seven
+	 * classes agree on it within 15% across a 25-fold range of width.
 	 *
 	 * `12` is therefore the measured 10.5 plus a deliberate margin, and the margin is bought by three things the
 	 * benchmark could not measure, all pushing the true crossover LOWER:
@@ -129,13 +130,13 @@ public final class TrigramSubstringSearch {
 	 *
 	 * **This constant was previously `4`, which admitted a band where the accelerator was 1.1-2.1x SLOWER than the
 	 * scan.** The reasoning that chose it had derived the right band - "between a third and a tenth" - and then took
-	 * the wrong end of it, calling `4` conservative when a LARGER divisor is the strict one. Nothing in the code could
+	 * the wrong end of it, calling `4` conservative when a LARGER factor is the strict one. Nothing in the code could
 	 * surface that, because a too-eager gate returns slower correct answers rather than failures.
 	 *
 	 * This is a deliberately crude stand-in for a cost model. The query planner's own costing of the substring path is
 	 * the increment after this one; when it lands, this constant is what it replaces.
 	 */
-	public static final int CANDIDATE_SELECTIVITY_DIVISOR = 12;
+	public static final int REQUIRED_NARROWING_FACTOR = 12;
 
 	/**
 	 * The answer to a pattern the index can already prove no value contains - distinguished from `null`, which means
@@ -290,9 +291,9 @@ public final class TrigramSubstringSearch {
 	 * floor and the selectivity ratio folded into ONE target, so that a caller summing a fan-out can stop the moment
 	 * its running total reaches it.
 	 *
-	 * The fold is exact rather than approximate. For non-negative integers and a positive divisor,
-	 * `candidateUpperBound <= distinctValueCount / CANDIDATE_SELECTIVITY_DIVISOR` (floor division) holds exactly when
-	 * `candidateUpperBound * CANDIDATE_SELECTIVITY_DIVISOR <= distinctValueCount`, so requiring the total to reach the
+	 * The fold is exact rather than approximate. For non-negative integers and a positive factor,
+	 * `candidateUpperBound <= distinctValueCount / REQUIRED_NARROWING_FACTOR` (floor division) holds exactly when
+	 * `candidateUpperBound * REQUIRED_NARROWING_FACTOR <= distinctValueCount`, so requiring the total to reach the
 	 * larger of that product and {@link #MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT} is the same predicate written as a
 	 * single comparison. The product is computed in `long` because a pathological cardinality could overflow `int`
 	 * where the original division could not.
@@ -303,7 +304,7 @@ public final class TrigramSubstringSearch {
 	public static long accelerationThreshold(int candidateUpperBound) {
 		return Math.max(
 			MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT,
-			(long) candidateUpperBound * CANDIDATE_SELECTIVITY_DIVISOR
+			(long) candidateUpperBound * REQUIRED_NARROWING_FACTOR
 		);
 	}
 

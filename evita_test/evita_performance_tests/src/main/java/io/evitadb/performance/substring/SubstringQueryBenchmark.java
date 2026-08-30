@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  * # What the matrix is for
  *
  * `TrigramSubstringSearch` carries two constants derived from a spike rather than from the engine:
- * `MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT` (256) and `CANDIDATE_SELECTIVITY_DIVISOR` (4). This benchmark exists so
+ * `MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT` (256) and `REQUIRED_NARROWING_FACTOR` (4). This benchmark exists so
  * they can be checked against real end-to-end numbers, which is why the axes deliberately bracket them rather than
  * staying in the comfortable region:
  *
