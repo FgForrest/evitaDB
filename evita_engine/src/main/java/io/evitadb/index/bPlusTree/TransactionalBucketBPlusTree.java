@@ -62,6 +62,8 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -1311,6 +1313,77 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 		final int slot = (int) (location & SLOT_MASK);
 		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.getId() : NO_LEAF_VERSION;
+	}
+
+	/**
+	 * Resolves `valueId`, tests the value it names, and returns that bucket's record set on a match - from ONE
+	 * resolution of the location, where the chain this replaces resolved it three times.
+	 *
+	 * `valueOf(int)` and {@link #leafVersionOf(int)} are byte-for-byte the same probe up to their final expression,
+	 * and {@link #getRecordsEqualTo} then discards the slot both of them found in order to re-find it by a
+	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. The leaf's columns are
+	 * slot-parallel, so the single probe below answers all three questions off the slot it has already validated -
+	 * which is what {@link SingleLeafBucketCursor} does at one index on the scan path.
+	 *
+	 * The fusion also removes a disagreement rather than merely a cost: chained, the second probe could observe a
+	 * directory rebuild the first one missed and resolve the same id to a different leaf. Here there is one probe,
+	 * so the value, the version token and the record set necessarily describe the same bucket.
+	 *
+	 * @param valueId         the candidate id to resolve
+	 * @param valuePredicate  the exact test applied to the value the id names
+	 * @param leafVersionSink receives the matched bucket's leaf version token, and is not called otherwise
+	 * @return the matched bucket's record set, or `null` when the id names nothing live or the predicate rejected it
+	 */
+	@Nullable
+	@Override
+	public Bitmap recordsOfMatchingValueId(
+		int valueId,
+		@Nonnull Predicate<K> valuePredicate,
+		@Nonnull LongConsumer leafVersionSink
+	) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
+		// the obligation `valueOf(int)` documents, stated as a premise here because this method - unlike that one -
+		// exists solely for the candidate-verifying consumer that must not silently under-report
+		Assert.isPremiseValid(
+			!Transaction.isTransactionAvailable(),
+			"Value ids cannot be resolved while a transaction is open on this thread - the directory addresses the " +
+				"last published version of the tree while the leaves it reads are the transaction's own."
+		);
+		// ONE read of the volatile, exactly as `valueOf` does: a concurrent rebuild cannot swap the leaf map out from
+		// under the location this thread has already read
+		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		final long location = locationOf(directory, valueId);
+		if (location == NO_LOCATION) {
+			return null;
+		}
+		final BPlusLeafTreeNode<K> leaf = directory.leafById().get(location >>> 32);
+		if (leaf == null) {
+			return null;
+		}
+		final int slot = (int) (location & SLOT_MASK);
+		// the entry may predate a rebuild of this leaf, so it is believed only when the slot still carries that id
+		if (slot >= leaf.size() || leaf.valueIdAt(slot) != valueId) {
+			return null;
+		}
+		// EVERY slot-dependent read happens HERE, before either piece of caller-supplied code runs. The slot was
+		// validated a moment ago and nothing between that validation and these three reads can invalidate it; once
+		// they are done the slot is never touched again, so the window in which `valuePredicate` or `leafVersionSink`
+		// could shift it out from under this method does not exist. That is not a hypothetical tidiness: reading the
+		// records after the predicate would let a predicate that inserts a lower key into this very leaf slide the
+		// parallel columns along and hand back a NEIGHBOURING bucket's records, and a predicate that binds a
+		// transaction to this thread would make the read resolve the transaction's own columns against a slot the
+		// PUBLISHED directory addressed. The chain this method replaces was immune to both for a different reason -
+		// it re-found the bucket by key afterwards - so the immunity has to be re-established rather than inherited.
+		final K value = leaf.keyAt(slot);
+		final long leafVersion = leaf.getId();
+		final Bitmap records = leaf.getRecordsAt(slot);
+		if (!valuePredicate.test(value)) {
+			return null;
+		}
+		// reported for MATCHES only: a candidate that fails the predicate contributes no record set, so its leaf is
+		// not a page the answer depends on and must not widen the staleness token set
+		leafVersionSink.accept(leafVersion);
+		return records;
 	}
 
 	/**
@@ -5483,6 +5556,32 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return theOverflow[index];
 			}
 			return new SingleRecordBitmap(theRecords.intAt(index));
+		}
+
+		/**
+		 * Returns the record set at a slot the caller has ALREADY located and validated - the slot-addressed sibling
+		 * of {@link #getRecords(Comparable)}, whose binary search over the key column exists only to find that very
+		 * slot.
+		 *
+		 * Reads the same columns {@link #getRecords(Comparable)} resolves and returns the same two shapes: the live
+		 * {@link TransactionalBitmap} for a multi bucket, a fresh {@link SingleRecordBitmap} for a single one. It
+		 * cannot return {@link EmptyBitmap#INSTANCE}, because a validated slot always carries a bucket - where the
+		 * key-addressed sibling has to allow for a value that is not in this leaf at all.
+		 *
+		 * @param slot the validated slot
+		 * @return the record set at that slot, never null
+		 */
+		@Nonnull
+		public Bitmap getRecordsAt(int slot) {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			final RecordColumn theRecords = layer == null ? this.records : layer.records;
+			final TransactionalBitmap[] theOverflow = layer == null ? this.overflow : layer.overflow;
+			if (theOverflow != null && theOverflow[slot] != null) {
+				return theOverflow[slot];
+			}
+			return new SingleRecordBitmap(theRecords.intAt(slot));
 		}
 
 		/**

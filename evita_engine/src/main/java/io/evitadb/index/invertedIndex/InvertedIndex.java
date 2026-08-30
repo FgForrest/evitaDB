@@ -74,6 +74,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 
@@ -1392,8 +1393,10 @@ public class InvertedIndex implements
 	 * the trigram substring path.
 	 *
 	 * Where the scan visits every bucket in key order, this visits only the buckets a candidate generator nominated,
-	 * in whatever order it nominated them. Each candidate costs one `O(1)` directory probe; each candidate that
-	 * actually matches costs one further tree descent to read its record set. Candidates that resolve to nothing live
+	 * in whatever order it nominated them. Each candidate costs ONE `O(1)` directory probe, whether it matches or not:
+	 * {@link IntRecordBucketTree#recordsOfMatchingValueId} answers the value, the leaf version token and the record set
+	 * off the single slot that probe resolves, so a match no longer pays a second probe and a root-to-leaf descent to
+	 * re-find a bucket already located. Candidates that resolve to nothing live
 	 * are SKIPPED rather than refused: the trigram postings are keyed by value id and a value can die between the
 	 * posting being read and this verification running, which is an ordinary race rather than a divergence.
 	 *
@@ -1442,16 +1445,23 @@ public class InvertedIndex implements
 			refreshValueIdDirectory();
 		}
 		final List<Bitmap> bitmaps = new ArrayList<>(Math.min(candidateCount, 64));
-		for (int i = 0; i < candidateCount; i++) {
-			final int valueId = candidateValueIds[i];
-			final Serializable value = (Serializable) this.buckets.valueOf(valueId);
-			if (value == null || !valuePredicate.test(value)) {
-				continue;
+		// the two adapters are hoisted out of the loop so the fused probe allocates nothing per candidate, and are
+		// created inside this guard so that the provable-empty answer - the cheapest outcome this path produces, and
+		// the one a pattern no value contains takes - allocates nothing at all
+		if (candidateCount > 0) {
+			final Predicate<Comparable> matches = value -> valuePredicate.test((Serializable) value);
+			final LongConsumer leafVersionSink = leafVersions::acceptUnordered;
+			for (int i = 0; i < candidateCount; i++) {
+				// ONE resolution of the bucket's location answers all three questions this loop used to ask
+				// separately - what value the id names, which leaf page the answer depends on, and what records the
+				// bucket holds. The leaf token still reaches the accumulator for MATCHES only; see the tree method
+				final Bitmap records = this.buckets.recordsOfMatchingValueId(
+					candidateValueIds[i], matches, leafVersionSink
+				);
+				if (records != null) {
+					bitmaps.add(records);
+				}
 			}
-			// the leaf token is read for MATCHES only: a candidate that fails the predicate contributes no bitmap, so
-			// its leaf is not a page the answer depends on
-			leafVersions.acceptUnordered(this.buckets.leafVersionOf(valueId));
-			bitmaps.add(this.buckets.getRecordsEqualTo((Comparable) value));
 		}
 		return new MatchedBuckets(bitmaps.toArray(MatchedBuckets.NO_RECORD_SETS), leafVersions.toTokenSet());
 	}

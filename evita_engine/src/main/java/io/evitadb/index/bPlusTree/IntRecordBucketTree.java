@@ -28,6 +28,8 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 
 /**
  * The write surface of an `int` record-set bucket tree: each key maps to a set of `int` record ids (a lean single-record
@@ -90,6 +92,39 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	 */
 	@Nonnull
 	Bitmap getRecordsEqualTo(@Nullable K value);
+
+	/**
+	 * Resolves one candidate value id, tests the value it names against `valuePredicate`, and returns that value's
+	 * record set when the test passes - all from a SINGLE resolution of the bucket's location.
+	 *
+	 * This is the fused sibling of `valueOf(id)` + `leafVersionOf(id)` + {@link #getRecordsEqualTo(Comparable)}, which
+	 * a candidate-verifying caller would otherwise have to chain. That chain resolves the same location three times:
+	 * the first two probes are byte-for-byte identical, and the third throws the located slot away to re-find it by a
+	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. Everything the caller needs is
+	 * slot-parallel in the leaf the first probe already landed on, so one probe answers all three questions.
+	 *
+	 * The leaf version reaches `leafVersionSink` for MATCHES ONLY, exactly as a caller chaining the three calls would
+	 * arrange: a candidate that fails the predicate contributes no record set, so its leaf is not a page the answer
+	 * depends on and must not enter the staleness token set.
+	 *
+	 * ## The caller owes the transaction check
+	 *
+	 * The same obligation `valueOf(int)` documents applies unchanged, and for the same reason: the location is
+	 * resolved through the value id directory, which describes the last PUBLISHED version of the tree. Under an open
+	 * transaction the directory and the leaves disagree, so this method refuses rather than reporting a silent
+	 * under-count.
+	 *
+	 * @param valueId         the candidate id to resolve
+	 * @param valuePredicate  the exact test applied to the value the id names
+	 * @param leafVersionSink receives the version token of the matched bucket's leaf, and is not called otherwise
+	 * @return the matched value's record set, or `null` when the id names nothing live or the predicate rejected it
+	 */
+	@Nullable
+	Bitmap recordsOfMatchingValueId(
+		int valueId,
+		@Nonnull Predicate<K> valuePredicate,
+		@Nonnull LongConsumer leafVersionSink
+	);
 
 	/**
 	 * Computes the record id that precedes the would-be position of `recordId` under `value` in the global sort order
