@@ -195,7 +195,7 @@ public class SortIndexTimingBenchmark {
 	 * already reports honestly. If you want the insert path's allocation, build a harness whose fixture is not
 	 * 10-100x the measurement.
 	 *
-	 * (The `anchor` scenario additionally needs `/var/tmp/decodoma-bench/sort-anchor.txt`, a real dataset export
+	 * (The `anchor` scenario additionally needs `/var/tmp/catalog-bench/sort-anchor.txt`, a real dataset export
 	 * absent from a clean checkout; it fails in `@Setup`.)
 	 */
 	@Benchmark

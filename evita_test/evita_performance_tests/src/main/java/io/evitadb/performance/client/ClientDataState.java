@@ -80,7 +80,7 @@ public abstract class ClientDataState implements CatalogSetup, TestConstants, Ev
 	 */
 	protected SealedEntitySchema productSchema;
 	/**
-	 * Iterator that produces products from Senesi catalog.
+	 * Iterator that produces products from the client catalog.
 	 */
 	protected Iterator<EntityBuilder> productIterator;
 	/**

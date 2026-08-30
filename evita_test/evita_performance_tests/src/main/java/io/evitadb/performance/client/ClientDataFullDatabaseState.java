@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.performance.senesi.SenesiBenchmark;
+import io.evitadb.performance.priceHeavyCatalog.PriceHeavyCatalogBenchmark;
 import io.evitadb.utils.StringUtils;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -46,7 +46,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static java.util.Optional.of;
 
 /**
- * Base state class for {@link SenesiBenchmark} tests.
+ * Base state class for {@link PriceHeavyCatalogBenchmark} tests.
  * See benchmark description on the methods.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

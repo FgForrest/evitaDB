@@ -55,7 +55,7 @@ public class DefaultPolicy implements PlanningPolicy {
 	 * We've performed benchmark of reading data from disk - using Linux file cache the reading performance was:
 	 *
 	 * Benchmark                                Mode  Cnt       Score   Error  Units
-	 * SenesiThroughputBenchmark.memTableRead  thrpt       140496.829          ops/s
+	 * PriceHeavyCatalogThroughputBenchmark.memTableRead  thrpt       140496.829          ops/s
 	 *
 	 * For two storage parts - this means 280992 reads / sec. When the linux cache would be empty it would require I/O
 	 * which may be 40x times slower (source: https://www.quora.com/Is-the-speed-of-SSD-and-RAM-the-same) for 4kB payload

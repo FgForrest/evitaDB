@@ -101,9 +101,9 @@ import java.util.function.Function;
 final class SortIndexBenchSupport {
 
 	/**
-	 * The real `decodoma` ean anchor exported by {@link SortAnchorExtractor}.
+	 * The real production-catalog ean anchor exported by {@link SortAnchorExtractor}.
 	 */
-	static final Path ANCHOR_FILE = Path.of("/var/tmp/decodoma-bench/sort-anchor.txt");
+	static final Path ANCHOR_FILE = Path.of("/var/tmp/catalog-bench/sort-anchor.txt");
 	/**
 	 * The owning entity index primary key (mirrors the round-trip test fixture so stream ids line up).
 	 */

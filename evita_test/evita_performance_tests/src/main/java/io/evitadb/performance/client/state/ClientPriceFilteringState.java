@@ -45,7 +45,7 @@ public abstract class ClientPriceFilteringState extends ClientDataFullDatabaseSt
 	implements RandomQueryGenerator {
 
 	/**
-	 * Senesi entity type of product.
+	 * Entity type of product.
 	 */
 	public static final String PRODUCT_ENTITY_TYPE = "Product";
 	/**

@@ -43,7 +43,7 @@ import java.util.function.Function;
 public abstract class ClientBulkWriteState extends ClientDataState {
 
 	/**
-	 * Senesi entity type of product.
+	 * Entity type of product.
 	 */
 	public static final String PRODUCT_ENTITY_TYPE = "Product";
 	/**
