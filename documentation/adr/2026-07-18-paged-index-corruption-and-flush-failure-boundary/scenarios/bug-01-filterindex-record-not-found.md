@@ -9,7 +9,7 @@
 > (why single-op probes passed, §Isolation below); the miss needs DIVERGED twins, i.e. live churn
 > after the twin froze — exactly the incident's bulk re-publish.
 >
-> Distilled failing reproduction (no senesi needed):
+> Distilled failing reproduction (no production dataset needed):
 > `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/attribute/StaleLeafPageTwinReproductionTest.java`
 > (`shouldSurviveFilterRemovalOverTwinCorruptedTree` — fails with exactly
 > `Sanity check - record not found!`).
@@ -39,7 +39,7 @@ key that the live removal path re-derives differently, OR the record was already
 ## Evidence — incident client stacktrace (production re-publish job)
 ```
 Failed to finalize entity change EntityChange(idCatalogEntity=18368, entityType=PRODUCT) in catalog
-senesi due to: INVALID_ARGUMENT: <hash>:<hash>:117: Sanity check - record not found!
+<catalog> due to: INVALID_ARGUMENT: <hash>:<hash>:117: Sanity check - record not found!
 io.evitadb.exception.EvitaInvalidUsageException: INVALID_ARGUMENT: ...: Sanity check - record not found!
 	at io.evitadb.driver.EvitaClient.transformStatusRuntimeException(EvitaClient.java:312)
 	at io.evitadb.driver.EvitaClient.transformException(EvitaClient.java:261)
@@ -60,19 +60,19 @@ negative internal ids). `18368` has **no** reorder, so the culprit is common to 
 > `AttributeIndex.removeFilterAttribute` ← reduced-index removal ← `ReferenceIndexMutator`. Capture it
 > per PLAN.md §3.4 once the fuzzer reproduces it.
 
-## Trigger (senesi, from the incident)
+## Trigger (production catalog, from the incident)
 Failing entities: PRODUCT **18368, 33786, 33808** (and more), re-published by
 `com.fg.eshop.evita.publishing.EvitaIncrementalIndexJob.reconcileReferencesToSamePageRemovals`. Each
 failing entity mutation mixes: reference removals (`stocks`,`tags`,`relatedProducts`,
 `bonusVisibilities`,`stockVisibilities`), a `relatedProducts` reorder (remove-all + reinsert with
 new internal ids), entity-attribute upserts (`urlInactive`,`changed`,`published`,`relatedFiles`,
-`senesiOrdering`), and reference-attribute upserts (`assignmentValidity`). The full mutation for
+`productOrdering`), and reference-attribute upserts (`assignmentValidity`). The full mutation for
 18368/33786/33808 is captured verbatim in the incident report (see PLAN.md §1).
 
 ## Isolation status — NOT yet reproduced in isolation
 Every single-op probe on a warm-up-built value **commits cleanly** (from pristine, one op per fresh
 txn): remove `stocks`/`quantityOnStock` (BigDecimal), change `assignmentValidity` (DateTimeRange[]),
-change `changed` (OffsetDateTime), change `senesiOrdering` (String sort), change `name` (String).
+change `changed` (OffsetDateTime), change `productOrdering` (String sort), change `name` (String).
 ⇒ **combination/volume-dependent.** Reproduction requires the full mutation shape or the bulk
 (500/txn) fuzzer. See PLAN.md §5 for the fuzz+bisect procedure that must minimize this.
 
@@ -87,7 +87,7 @@ change `changed` (OffsetDateTime), change `senesiOrdering` (String sort), change
 
 ## Fix acceptance
 - A minimal test reproduces `record not found` on the same code path, and fails before the fix.
-- After the fix, replaying the captured failing op-log against senesi **from pristine** commits clean
+- After the fix, replaying the captured failing op-log against the production catalog **from pristine** commits clean
   (no `record not found`), and the fuzzer no longer surfaces this signature.
 
 ## JDWP capture recipe (fill in once reproduced)
