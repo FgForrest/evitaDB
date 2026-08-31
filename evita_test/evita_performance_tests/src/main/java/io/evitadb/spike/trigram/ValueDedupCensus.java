@@ -104,8 +104,14 @@ import java.util.TreeSet;
  * unrecognised kind rather than skipping it - a silently dropped kind would understate every number in the table.
  *
  * Canonical owner resolution, in order: the GLOBAL filter tree for the same key; else the reference-type filter tree
- * for the same key under the reduced index's own reference; else the GLOBAL owner-sort tree; else `MISSING`. A
- * `MISSING` row is reported, never dropped - those rows are the interesting failures of the union-owner assumption.
+ * for the same key under the reduced index's own reference; else the GLOBAL owner-sort tree; else the reference-type
+ * owner-sort tree; else `MISSING`. A `MISSING` row is reported, never dropped - those rows are the interesting
+ * failures of the union-owner assumption.
+ *
+ * The fourth step is an addition to the plan's three-plus-`MISSING` chain, appended last so it is strictly additive.
+ * The plan looks for sort owners only in the GLOBAL index, which by construction holds no sort tree for a *reference*
+ * attribute, so every reference-level sort-only domain reported `MISSING` regardless of the catalog's health - nine of
+ * seventy-five on the demo dataset. See `OwnerRegistry#resolve`.
  *
  * # The ledger
  *
@@ -546,18 +552,21 @@ public class ValueDedupCensus {
 			}
 		}
 
-		if (role == IndexRole.GLOBAL_OWNER) {
-			for (final AttributeIndexKey key : attributeIndex.getSortIndexes()) {
-				final SortIndex sortIndex = attributeIndex.getSortIndex(key);
-				if (sortIndex == null) {
-					throw new GenericEvitaInternalError(
-						"Sort index key `" + key + "` resolves to no sort index!",
-						"Sort index key resolves to no sort index!"
-					);
-				}
-				if (sortIndex instanceof final OwnerSortIndex ownerSortIndex) {
-					registry.globalSortOwners.putIfAbsent(
-						new OwnerKey(scope, null, key), ownedTreeOf(ownerSortIndex)
+		for (final AttributeIndexKey key : attributeIndex.getSortIndexes()) {
+			final SortIndex sortIndex = attributeIndex.getSortIndex(key);
+			if (sortIndex == null) {
+				throw new GenericEvitaInternalError(
+					"Sort index key `" + key + "` resolves to no sort index!",
+					"Sort index key resolves to no sort index!"
+				);
+			}
+			if (sortIndex instanceof final OwnerSortIndex ownerSortIndex) {
+				final InvertedIndex ownedTree = ownedTreeOf(ownerSortIndex);
+				if (role == IndexRole.GLOBAL_OWNER) {
+					registry.globalSortOwners.putIfAbsent(new OwnerKey(scope, null, key), ownedTree);
+				} else {
+					registry.referenceTypeSortOwners.putIfAbsent(
+						new OwnerKey(scope, referenceName, key), ownedTree
 					);
 				}
 			}
@@ -1834,6 +1843,8 @@ public class ValueDedupCensus {
 		REF_TYPE,
 		/** The GLOBAL index's owner-mode sort tree, for a sort-only or compound domain. */
 		GLOBAL_SORT,
+		/** A reference-type index's owner-mode sort tree, for a reference-level sort-only or compound domain. */
+		REF_TYPE_SORT,
 		/** No canonical owner exists - the union-owner assumption does not hold for this domain. */
 		MISSING
 	}
@@ -1912,11 +1923,21 @@ public class ValueDedupCensus {
 		private final Map<OwnerKey, InvertedIndex> referenceTypeFilterOwners = new HashMap<>(64);
 		/** GLOBAL index owner-mode sort trees, keyed by scope and attribute key. */
 		private final Map<OwnerKey, InvertedIndex> globalSortOwners = new HashMap<>(32);
+		/** Reference-type index owner-mode sort trees, keyed by scope, reference name and attribute key. */
+		private final Map<OwnerKey, InvertedIndex> referenceTypeSortOwners = new HashMap<>(32);
 
 		/**
 		 * Resolves the canonical owner of a domain, in the order the design fixes: the GLOBAL filter tree first
 		 * (entity-level attributes), then the reference-type filter tree of the reduced index's own reference
-		 * (reference-level attributes), then the GLOBAL owner-sort tree (sort-only and compound domains).
+		 * (reference-level attributes), then the GLOBAL owner-sort tree (sort-only and compound domains), and
+		 * finally the reference-type owner-sort tree.
+		 *
+		 * That last step is an addition to the plan's four, and it is deliberately **last** so that it is strictly
+		 * additive: no domain that resolved under the plan's chain resolves differently, and the only rows it can
+		 * change are ones that would otherwise have reported `MISSING`. It exists because the plan's chain consults
+		 * the GLOBAL index for sort owners, and an entity-level GLOBAL index holds no sort tree for a *reference*
+		 * attribute - so a reference-level sort-only attribute could never resolve, no matter how healthy the
+		 * catalog. On the demo dataset that mislabelled nine domains as owner-less.
 		 *
 		 * @param domainKey     the domain being resolved
 		 * @param referenceName the reference the reduced index belongs to
@@ -1942,6 +1963,12 @@ public class ValueDedupCensus {
 			final InvertedIndex globalSort = this.globalSortOwners.get(globalKey);
 			if (globalSort != null && sameValueFamily(domainSample, sampleValueOf(globalSort))) {
 				return new OwnerBinding(OwnerRole.GLOBAL_SORT, globalSort);
+			}
+			final InvertedIndex referenceTypeSort = this.referenceTypeSortOwners.get(
+				new OwnerKey(domainKey.scope(), referenceName, domainKey.attributeKey())
+			);
+			if (referenceTypeSort != null && sameValueFamily(domainSample, sampleValueOf(referenceTypeSort))) {
+				return new OwnerBinding(OwnerRole.REF_TYPE_SORT, referenceTypeSort);
 			}
 			return new OwnerBinding(OwnerRole.MISSING, null);
 		}
