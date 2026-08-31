@@ -1,8 +1,8 @@
 ---
 title: Drop the netty version override instead of pinning tcnative to take netty 4.2.17
 date: 2026-08-31
-updated: 2026-08-31 14:28
-status: proposed
+updated: 2026-08-31 14:52
+status: accepted
 kind: infrastructure
 issues: []
 prs: [1474]
