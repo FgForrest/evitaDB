@@ -177,9 +177,15 @@ class LocalMutationExecutorCollector {
 	 * normalise to the same histogram bucket.
 	 *
 	 * Keying by the mutation works because {@link ReevaluateExpressionMutation}'s identity covers only the four
-	 * core fields, so the pre-pass envelope and the dispatched one compare equal. Entries are inserted with
-	 * put-if-absent semantics: when the same trigger is provoked both by the batch's own mutations and by an
-	 * implicit mutation derived from them, the earlier (truly pre-batch) capture is the correct one.
+	 * core fields, so the pre-pass envelope and the dispatched one compare equal. **The target entity type has to
+	 * be part of the key as well**, because it is deliberately *not* part of that identity: two owner entity types
+	 * that declare a trigger on the same reference name, dependency type and scope produce two envelopes carrying
+	 * mutations that compare equal, and their condition state is evaluated against different collections. Keyed by
+	 * the mutation alone, the second envelope would silently inherit the first collection's answer and suppress
+	 * removals it should perform, leaving stale histogram entries — the very failure this class exists to prevent.
+	 *
+	 * Entries are inserted with put-if-absent semantics: a collector is shared with the nested invocations spawned
+	 * for external mutations, and the first capture within one root batch is the truly pre-batch one.
 	 *
 	 * **Lifetime is what makes put-if-absent safe.** A collector is constructed per root entity mutation (see
 	 * `EntityCollection#applyMutations`) and its nested invocations — implicit and external mutations derived from
@@ -190,7 +196,22 @@ class LocalMutationExecutorCollector {
 	 *
 	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
 	 */
-	@Nullable private Map<ReevaluateExpressionMutation, Map<String, Bitmap>> preMutationConditionState;
+	@Nullable private Map<ConditionStateKey, Map<String, Bitmap>> preMutationConditionState;
+
+	/**
+	 * Key of {@link #preMutationConditionState} — a captured condition answer belongs to one trigger *in one
+	 * target collection*, and {@link ReevaluateExpressionMutation} alone cannot express that: its identity
+	 * deliberately excludes the target entity type so that the pre-pass envelope and the dispatched one compare
+	 * equal, which means two owner entity types sharing a reference name, dependency type and scope collide.
+	 *
+	 * @param entityType target collection the state was evaluated against
+	 * @param mutation   the cross-entity re-evaluation signal the state belongs to
+	 */
+	private record ConditionStateKey(
+		@Nonnull String entityType,
+		@Nonnull ReevaluateExpressionMutation mutation
+	) {
+	}
 
 	/**
 	 * Evaluates the histogram conditions of every cross-entity trigger the supplied mutations are about to fire,
@@ -224,8 +245,9 @@ class LocalMutationExecutorCollector {
 				if (!(candidate instanceof ReevaluateExpressionMutation reevaluation)) {
 					continue;
 				}
+				final ConditionStateKey key = new ConditionStateKey(indexMutation.entityType(), reevaluation);
 				if (this.preMutationConditionState != null
-					&& this.preMutationConditionState.containsKey(reevaluation)) {
+					&& this.preMutationConditionState.containsKey(key)) {
 					// an earlier capture in this batch is the true pre-mutation state — keep it
 					continue;
 				}
@@ -238,7 +260,7 @@ class LocalMutationExecutorCollector {
 					if (this.preMutationConditionState == null) {
 						this.preMutationConditionState = CollectionUtils.createHashMap(8);
 					}
-					this.preMutationConditionState.put(reevaluation, conditionState);
+					this.preMutationConditionState.put(key, conditionState);
 				}
 			}
 		}
@@ -259,13 +281,16 @@ class LocalMutationExecutorCollector {
 		if (this.preMutationConditionState == null) {
 			return entityIndexMutation;
 		}
+		final String entityType = entityIndexMutation.entityType();
 		final IndexMutation[] mutations = entityIndexMutation.mutations();
 		IndexMutation[] enriched = null;
 		for (int i = 0; i < mutations.length; i++) {
 			if (!(mutations[i] instanceof ReevaluateExpressionMutation reevaluation)) {
 				continue;
 			}
-			final Map<String, Bitmap> conditionState = this.preMutationConditionState.get(reevaluation);
+			final Map<String, Bitmap> conditionState = this.preMutationConditionState.get(
+				new ConditionStateKey(entityType, reevaluation)
+			);
 			if (conditionState == null) {
 				continue;
 			}
@@ -446,11 +471,6 @@ class LocalMutationExecutorCollector {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
 				);
-				// implicit mutations can provoke triggers of their own — capture their pre-state too, before
-				// they are applied. Put-if-absent keeps an earlier (pre-batch) capture for triggers both fire.
-				capturePreMutationConditionState(
-					session, entityIndexUpdater, List.of(implicitMutations.localMutations()), false
-				);
 				// immediately apply all local mutations
 				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
 					for (final LocalMutationExecutor executor : orderedExecutors) {
@@ -493,6 +513,11 @@ class LocalMutationExecutorCollector {
 			// so that storage state is fully consistent before cross-entity triggers read it. Index
 			// mutations are never written to WAL — they are regenerated deterministically on replay.
 			// The dispatch is synchronous and bounded by the number of affected entities.
+			//
+			// `localMutations` is deliberately the same list the condition pre-pass above was given: trigger
+			// discovery runs over the *root* batch only, so every dispatched envelope has a captured counterpart
+			// and none is left to fall back on unrestricted histogram removal. Widening this to cover implicit
+			// local mutations means widening the pre-pass with it, in the same commit.
 			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(localMutations);
 			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
 				// route each envelope to the target collection's thin dispatcher — bypasses

@@ -264,10 +264,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				trigger, mutation, target, affected, allAffectedOwnerPKs
 			);
 			// materialize the result — the mutations this pre-pass runs ahead of are about to modify the very
-			// indexes a passthrough filter plan may hand back by reference, and this bitmap has to survive them
+			// indexes a passthrough filter plan may hand back by reference, and this bitmap has to survive them.
+			// The copy constructor clones the compressed representation when the source is roaring-backed (it
+			// always is here); going through `getArray()` would spend an int[] of the full cardinality to
+			// rebuild the same thing.
 			result.put(
 				trigger.getHistogramIndexName(),
-				new BaseBitmap(split.shouldBeIndexed().getArray())
+				new BaseBitmap(split.shouldBeIndexed())
 			);
 		}
 		return result;

@@ -1,11 +1,11 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-08-31 11:20
+updated: 2026-08-31 11:48
 status: accepted
 kind: fix
 issues: [1467]
-prs: []
+prs: [1468, 1469]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
@@ -147,15 +147,31 @@ format rework that can absorb the histogram rebuild.
 - **The pre-pass must stay read-only.** Every `resolveAffected` path it reaches uses
   `findReferencedTypeEntityIndex` / `getIndexByPrimaryKeyIfExists`, never a `getOrCreate…` variant.
   A future resolution path that creates an index would make the pre-pass mutate state.
-- **Bitmaps are materialised** (`new BaseBitmap(split.shouldBeIndexed().getArray())`) because the
-  mutations the pre-pass runs ahead of are about to modify the very indexes a passthrough filter plan
-  may hand back by reference.
+- **Bitmaps are materialised** (`new BaseBitmap(split.shouldBeIndexed())`) because the mutations the
+  pre-pass runs ahead of are about to modify the very indexes a passthrough filter plan may hand back
+  by reference. The copy constructor clones the compressed representation; going through `getArray()`
+  would spend an `int[]` of the full cardinality to rebuild the same bitmap.
 - **`ReevaluateExpressionMutation` identity still covers only its four core fields.** That is what
-  lets the pre-pass key its captures by the mutation itself and match them to the dispatched copy —
-  and it is why `preMutationConditionState` uses put-if-absent: a collector is constructed per root
-  entity mutation and shared by its nested invocations, so the first capture is the genuinely
-  pre-batch one. **Do not** clear that map on the dispatch path; a nested invocation would wipe the
-  enclosing one's captures before it dispatches.
+  lets the pre-pass match its captures to the dispatched copy — but it is *also* why the capture map
+  cannot be keyed by the mutation alone. The identity excludes the target entity type, while
+  `groupByTargetEntityType` emits one envelope per owner collection: two owner types declaring a
+  trigger on the same reference name, dependency type and scope produce mutations that compare equal
+  in two different envelopes, evaluated against two different collections. Keyed by the mutation
+  alone, the second envelope inherits the first collection's owner PKs, the restriction narrows to
+  empty, and a removal that should happen is suppressed — a stale histogram entry, the exact failure
+  this record exists to prevent. Hence `preMutationConditionState` is keyed by
+  `ConditionStateKey(entityType, mutation)`, covered by
+  `shouldDropContributionsInEveryOwnerCollectionSharingReferenceName`.
+- **Put-if-absent on the capture map** is deliberate: a collector is constructed per root entity
+  mutation and shared by its nested invocations, so the first capture is the genuinely pre-batch one.
+  **Do not** clear that map on the dispatch path; a nested invocation would wipe the enclosing one's
+  captures before it dispatches.
+- **Capture and dispatch read the same list.** Trigger discovery runs over the *root* batch only —
+  `popIndexImplicitMutations(localMutations)` — so the pre-pass is given exactly that list and nothing
+  can be dispatched without a captured counterpart. Widening dispatch to cover implicit local
+  mutations means widening the pre-pass in the same commit. An earlier revision of this work also
+  captured `implicitMutations.localMutations()`; that was dead weight, since no envelope derived from
+  them is ever dispatched (see *Consequences* for the gap that implies).
 - **The unrestricted fallback is unreachable in production.** `LocalMutationExecutorCollector` is the
   sole caller of `EntityCollection.applyIndexMutations` and always attaches the captured state; the
   `null` branch in `restrictToPreviouslyIndexed` exists for tests that construct a mutation directly.
@@ -184,9 +200,17 @@ format rework that can absorb the histogram rebuild.
   `null`-versus-empty contract and the mutation's identity-ignores-payload property directly. Worth
   knowing: the class's 28 pre-existing tests construct mutations without the captured state, so they
   exercise the *fallback* branch, not the guard.
+- `shouldDropContributionsInEveryOwnerCollectionSharingReferenceName` pins the collection-scoped key.
+  Two owner types (`product` PK 1, `bundle` PK 7 — deliberately disjoint, so neither collection's
+  captured set can cover the other's owner by coincidence) declare a trigger on the same reference
+  name, dependency type and scope; one mutation of the referenced entity must drop both
+  contributions. With the key reduced to the mutation alone it fails on **both** catalog states —
+  `Owner PK 7 should NOT be in ungrouped histogram 'statusHistogram' ==> expected: <false> but was:
+  <true>` — confirming it discriminates rather than merely passing.
 - Regression sweep: `ConditionalBucketIndexingTest`, `ConditionalFacetIndexingTest`,
   `ConditionalBucketQueryTest`, `ReevaluateExpressionExecutorTest`, `ReferencedTypeEntityIndexTest`,
   `ReducedGroupEntityIndexTest` — 395 tests, 0 failures, 0 errors.
+  `ConditionalBucketIndexingTest` re-run after the collection-scoped key: 101 tests, 0 failures.
 
 ## Consequences & open follow-ups
 
@@ -197,6 +221,26 @@ format rework that can absorb the histogram rebuild.
   Mutations that fire none allocate nothing (the pre-pass short-circuits on an empty trigger
   collection), so the cost is confined to catalogs using `bucketedPartially`. Not measured — if
   cross-entity fan-out shows up on a write profile, this is the first thing to look at.
+- **The captured state is owner-grained, which is coarser than a contribution.** A GROUP mutation can
+  resolve several `(referencedEntityPK, groupPK)` contributions for one owner, and a condition mixing
+  a group attribute with a referenced-entity predicate may hold for only some of them. The pre-pass
+  marks the owner once, so within one owner it cannot separate a qualifying reference from a
+  non-qualifying sibling. This does **not** regress anything: `restrictToPreviouslyIndexed` returns
+  `allAffectedOwnerPKs`, `EmptyBitmap`, or their intersection — always a subset of the set removal
+  used before this change — so it can only ever suppress a removal, never authorise one. The residual
+  over-removal it fails to close is the pre-existing behaviour. Closing it means capturing per
+  contribution tuple rather than per owner, and reusing that split for additions too. Tracked as
+  #1470 (milestone 2026.3), with the fixture that can express the asymmetry.
+- **Implicit local mutations do not fire cross-entity triggers at all — pre-existing, not introduced
+  here.** `popIndexImplicitMutations` has always scanned only the root batch, so an `AttributeMutation`
+  or `ReferenceAttributeMutation` synthesised by `GENERATE_ATTRIBUTES` /
+  `GENERATE_REFERENCE_ATTRIBUTES` never reaches trigger discovery, even when it writes an attribute a
+  trigger watches. The mechanism is confirmed by reading the dispatch path; no failing case has been
+  constructed, and the `GENERATE_ATTRIBUTES` half looks benign because it only runs for a *new*
+  entity, which no owner can reference yet. The `GENERATE_REFERENCE_ATTRIBUTES` half is the one worth
+  chasing. Deliberately left out of scope here — closing it means widening dispatch, and the pre-pass
+  must widen with it or the new triggers fall straight through to unrestricted removal. Tracked as
+  #1470 (milestone 2026.3).
 - **The pre-pass evaluates a superset of triggers**, since it cannot yet know which attribute writes
   turn out to be no-ops. Cheap to tighten if it ever matters; deliberately not done, because
   narrowing it requires duplicating the executor's no-op detection before the executor runs.
