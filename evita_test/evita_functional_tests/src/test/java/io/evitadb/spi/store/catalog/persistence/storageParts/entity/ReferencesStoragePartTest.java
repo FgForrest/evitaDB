@@ -174,6 +174,98 @@ class ReferencesStoragePartTest {
 	}
 
 	@Test
+	@DisplayName("should re-sort when an assigned id overtakes an already numbered duplicate")
+	void shouldReSortWhenAssignedIdOvertakesAlreadyNumberedDuplicate() {
+		// `assignMissingIdsAndSort` only re-sorts when the assignment actually disturbed the ordering. This is
+		// the shape where it genuinely does: a brand new reference sorts *before* its already numbered duplicates
+		// (its internal primary key is still negative), but the id it receives is drawn from the counter and is
+		// therefore *higher* than theirs - so the container comes out of the assignment loop unsorted.
+		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part =
+			new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
+				2, 10,
+				new Reference[]{
+					newRef("B", 1, 1, null, false),
+					newRef("D", 1, 4, null, false),
+					newRef("D", 1, 6, null, false),
+					newRef("E", 1, 7, null, false)
+				},
+				128
+			);
+
+		// inserted at the head of the `D` cluster, because -3 precedes both 4 and 6
+		part.replaceOrAddReference(
+			new ReferenceKey("D", 1, -3),
+			existing -> newRef("D", 1, -3, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+
+		final Map<?, ?> assignedKeys = part.assignMissingIdsAndSort();
+		assertEquals(1, assignedKeys.size(), "Exactly one reference had a missing internal primary key");
+
+		final ReferenceContract[] references = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertEquals(5, references.length);
+		// the whole container must be sorted again - the newly numbered reference now belongs behind its duplicates
+		for (int i = 1; i < references.length; i++) {
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(
+					references[i - 1].getReferenceKey(), references[i].getReferenceKey()
+				) < 0,
+				"References must stay sorted, but `" + references[i - 1].getReferenceKey() +
+					"` is followed by `" + references[i].getReferenceKey() + "`"
+			);
+		}
+		// the assigned id continues the container's own counter
+		assertEquals(11, references[3].getReferenceKey().internalPrimaryKey());
+		assertEquals("D", references[3].getReferenceName());
+	}
+
+	@Test
+	@DisplayName("should keep order without re-sorting when appended references are numbered in place")
+	void shouldKeepOrderWhenAppendedReferencesAreNumberedInPlace() {
+		// the counterpart of the test above and the ordinary path: every inserted reference is numbered in array
+		// order from a monotonically growing counter, so the container leaves the assignment loop already sorted
+		// and the re-sort is skipped. The observable outcome must be identical either way.
+		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part =
+			new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
+				3, 10,
+				new Reference[]{
+					newRef("A", 1, 1, null, false),
+					newRef("C", 1, 2, null, false)
+				},
+				128
+			);
+
+		part.replaceOrAddReference(
+			new ReferenceKey("B", 5, -1),
+			existing -> newRef("B", 5, -1, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+		part.replaceOrAddReference(
+			new ReferenceKey("B", 2, -2),
+			existing -> newRef("B", 2, -2, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
+
+		assertEquals(2, part.assignMissingIdsAndSort().size());
+
+		final ReferenceContract[] references = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertEquals(4, references.length);
+		for (int i = 1; i < references.length; i++) {
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(
+					references[i - 1].getReferenceKey(), references[i].getReferenceKey()
+				) < 0,
+				"References must stay sorted, but `" + references[i - 1].getReferenceKey() +
+					"` is followed by `" + references[i].getReferenceKey() + "`"
+			);
+			assertTrue(
+				references[i].getReferenceKey().isKnownInternalPrimaryKey(),
+				"Every reference must end up with a terminal internal primary key"
+			);
+		}
+	}
+
+	@Test
 	@DisplayName("should replace existing reference when internal key known and keep order")
 	void shouldReplaceExistingReferenceWhenInternalKeyKnownAndMaintainOrder() {
 		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part = new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
