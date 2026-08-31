@@ -1418,7 +1418,7 @@ public class InvertedIndex implements
 	 * @param candidateCount    how many leading entries of `candidateValueIds` are live
 	 * @param valuePredicate    tests each candidate's (already-normalized) value, or `null` when the caller has
 	 *                          established that EVERY candidate matches and no value need be decoded to prove it; a
-	 *                          bucket is included when it holds
+	 *                          bucket is included when the predicate accepts the value its id names
 	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of the leaves
 	 * those buckets live in
 	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
@@ -1442,10 +1442,15 @@ public class InvertedIndex implements
 	 * pre-filtering for it. `valuePredicate` is still required, and still answers for every column that cannot match
 	 * bytes.
 	 *
+	 * **A null predicate with a non-null pattern is refused**, because the two say opposite things: the null predicate
+	 * asserts every candidate is already known to match, while the pattern asks for each of them to be re-tested - and
+	 * a column that cannot match bytes would then fall back to a predicate that is not there. There is no reading of
+	 * that pair that both arguments agree on, so it is a caller error rather than a shorthand.
+	 *
 	 * @param candidateValueIds   the candidate ids to resolve
 	 * @param candidateCount      how many leading entries of `candidateValueIds` are live
 	 * @param valuePredicate      tests each candidate's (already-normalized) value, or `null` when every candidate is
-	 *                            known to match
+	 *                            known to match - which requires `containsPatternUtf8` to be `null` too
 	 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, or `null` to always take the predicate
 	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of their leaves
 	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
@@ -1457,6 +1462,12 @@ public class InvertedIndex implements
 		@Nullable Predicate<Serializable> valuePredicate,
 		@Nullable byte[] containsPatternUtf8
 	) {
+		Assert.isPremiseValid(
+			valuePredicate != null || containsPatternUtf8 == null,
+			"A byte pattern was offered together with a null predicate - the first asks for every candidate to be " +
+				"verified and the second states that none needs to be. Pass the predicate the pattern stands in for, " +
+				"or drop the pattern."
+		);
 		Assert.isPremiseValid(
 			!Transaction.isTransactionAvailable(),
 			"Value ids cannot be verified while a transaction is open on this thread - the directory addresses the " +

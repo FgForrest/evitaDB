@@ -60,6 +60,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -613,6 +614,42 @@ class TrigramSubstringSearchTest {
 			assertTrue(
 				error.getPrivateMessage().contains("containment"),
 				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("a byte pattern offered without a predicate is refused as the contradiction it is")
+		void shouldRefuseABytePatternWithoutAPredicate() {
+			// The two arguments say opposite things. A null predicate is the caller stating that every candidate it
+			// hands over is ALREADY known to match, so nothing need be decoded; a byte pattern asks for each of them
+			// to be re-tested against the column's stored bytes. Worse, the byte path applies only where the key
+			// column can match bytes - anywhere else the call would fall back to the predicate that is not there.
+			// There is no reading of the pair both arguments agree on, so it is refused rather than resolved.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final int[] candidates = trigramIndexOf(index, ATTRIBUTE_TITLE, null)
+				.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("omega"));
+			assertTrue(candidates.length > 0, "the pattern must nominate something or this test proves nothing");
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.getRecordsOfValueIdsMatching(
+					candidates, candidates.length, null, "omega".getBytes(StandardCharsets.UTF_8)
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("null predicate"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+
+			// and the same call with the predicate the pattern stands in for is accepted, and answers
+			assertTrue(
+				tree.getRecordsOfValueIdsMatching(
+					candidates, candidates.length,
+					value -> String.valueOf(value).contains("omega"),
+					"omega".getBytes(StandardCharsets.UTF_8)
+				).recordSets().length > 0,
+				"the refusal must be scoped to the contradiction, not to the byte path itself"
 			);
 		}
 
