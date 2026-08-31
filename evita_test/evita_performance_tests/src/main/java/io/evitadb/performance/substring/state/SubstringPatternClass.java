@@ -280,6 +280,82 @@ public enum SubstringPatternClass {
 			assertExactWidth(this, measuredMinimum, measuredMaximum, distinctValueCount);
 			assertShareWithin(this, measuredMinimum, distinctValueCount, 0.10d, 0.14d);
 		}
+	},
+
+	/**
+	 * 20% of the distinct values.
+	 *
+	 * This and the three below exist to OBSERVE the crossover rather than extrapolate to it. The band up to 15% was
+	 * enough while the accelerated path lost somewhere around 9-10%; it no longer is, because the per-candidate cost
+	 * has since fallen far enough that no planted width in the old range loses at all, and a curve that never changes
+	 * sign cannot locate the point where it would. A production corpus measured over the same code puts the crossover
+	 * past 34% of distinct values without reaching it either, so these widths are chosen to bracket that region and
+	 * to keep going until the scan actually wins.
+	 *
+	 * None of the four is expected to be admitted by the gate, and none asserts that it is: they are measured with
+	 * both arms forced, and the whole purpose is to say where the gate SHOULD sit.
+	 */
+	WIDTH_20_PCT("sphinx") {
+		@Override
+		public int plantingCount(int distinctValueCount) {
+			return plantByShare(0.20d, distinctValueCount);
+		}
+
+		@Override
+		public void verifyPostingWidth(int measuredMinimum, int measuredMaximum, int distinctValueCount) {
+			assertExactWidth(this, measuredMinimum, measuredMaximum, distinctValueCount);
+			assertShareWithin(this, measuredMinimum, distinctValueCount, 0.18d, 0.22d);
+		}
+	},
+
+	/**
+	 * 30% of the distinct values - just under the widest pattern a production corpus was observed to produce.
+	 */
+	WIDTH_30_PCT("jackdaw") {
+		@Override
+		public int plantingCount(int distinctValueCount) {
+			return plantByShare(0.30d, distinctValueCount);
+		}
+
+		@Override
+		public void verifyPostingWidth(int measuredMinimum, int measuredMaximum, int distinctValueCount) {
+			assertExactWidth(this, measuredMinimum, measuredMaximum, distinctValueCount);
+			assertShareWithin(this, measuredMinimum, distinctValueCount, 0.28d, 0.32d);
+		}
+	},
+
+	/**
+	 * 40% of the distinct values - past anything a production corpus was observed to produce, and therefore past the
+	 * point where the measurement stops being an extrapolation.
+	 */
+	WIDTH_40_PCT("obelisk") {
+		@Override
+		public int plantingCount(int distinctValueCount) {
+			return plantByShare(0.40d, distinctValueCount);
+		}
+
+		@Override
+		public void verifyPostingWidth(int measuredMinimum, int measuredMaximum, int distinctValueCount) {
+			assertExactWidth(this, measuredMinimum, measuredMaximum, distinctValueCount);
+			assertShareWithin(this, measuredMinimum, distinctValueCount, 0.38d, 0.42d);
+		}
+	},
+
+	/**
+	 * 55% of the distinct values. Deliberately past half the corpus: if the scan does not win here it does not win
+	 * anywhere this gate can reach, and that is itself the answer.
+	 */
+	WIDTH_55_PCT("vortex") {
+		@Override
+		public int plantingCount(int distinctValueCount) {
+			return plantByShare(0.55d, distinctValueCount);
+		}
+
+		@Override
+		public void verifyPostingWidth(int measuredMinimum, int measuredMaximum, int distinctValueCount) {
+			assertExactWidth(this, measuredMinimum, measuredMaximum, distinctValueCount);
+			assertShareWithin(this, measuredMinimum, distinctValueCount, 0.53d, 0.57d);
+		}
 	};
 
 	/**

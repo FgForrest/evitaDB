@@ -116,39 +116,49 @@ public final class TrigramSubstringSearch {
 	 * must cover at most `1 / this` of the attribute's distinct values. A planner gate on whether the accelerator
 	 * earns the work it adds - it sizes no structure and bounds no allocation.
 	 *
-	 * Measured end to end against the scan it displaces, on a real embedded instance, one corpus per run
-	 * (`SubstringQueryBenchmark`, seven planted posting widths from 1% to 25%, `-f 3`). Speedup is monotone in width
-	 * and changes sign between 8% and 12%: at 100,000 distinct values the 8% pattern still wins 1.15x while the 12%
-	 * pattern LOSES 1.34x, and interpolating between them puts the crossover at **9.5% of distinct values**, i.e. a
-	 * required narrowing of 10.5x. The whole curve is one invariant - trigram visits `share * n` candidates where the
-	 * scan visits `n` and both run the same predicate, so `share * speedup` is the break-even share, and all seven
-	 * classes agree on it within 15% across a 25-fold range of width.
+	 * ## Where the crossover actually is
 	 *
-	 * `12` is therefore the measured 10.5 plus a deliberate margin, and the margin is bought by three things the
-	 * benchmark could not measure, all pushing the true crossover LOWER:
+	 * Measured end to end against the scan it displaces, on a real embedded instance
+	 * (`SubstringQueryBenchmark`, planted widths of 12/15/20/30/40/55% of distinct values, `-f 2 -wi 3 -i 5`, with the
+	 * gate itself forced open so the accelerated arm is genuinely taken at widths this constant would refuse). At
+	 * 100,000 distinct values the trigram path wins 3.00x at 12%, 1.88x at 20%, 1.35x at 30%, 1.18x at 40% and ties
+	 * the scan at **55%**. That is the crossover, observed rather than extrapolated to.
 	 *
-	 * - its corpus produces no false candidates at all - every candidate the intersection nominated survived the
-	 *   predicate. Real text does not do that, and every rejected candidate is verification charged solely to this
-	 *   path. At 30% false candidates the 100,000-value crossover moves from 9.5% to roughly 7%;
-	 * - it is all-ASCII, and verification runs about twice as slow per candidate on non-ASCII values;
-	 * - its trigram dictionary saturates, giving tighter candidate sets than real text would.
+	 * It falls as the corpus grows, and the fall is accelerating: still winning 1.33x at 55% with 1,000 distinct
+	 * values, 1.25x with 10,000, exactly 1.00x with 100,000. Extrapolating one further decade puts it near 40-45%,
+	 * which is what the margin below is bought against - a single scalar must stay correct at the large end.
 	 *
-	 * The crossover also falls as the catalog grows - 12.75% at 10,000 distinct values against 9.5% at 100,000 - so a
-	 * single scalar must be chosen from the large end to stay correct at scale.
+	 * A production retail catalog agrees and is the LESS strict of the two: over 171 real patterns on three attributes
+	 * (86,455-118,772 distinct values), the scan beats the accelerated path on none of them, and the widest pattern the
+	 * corpus could produce - covering 34.23% of distinct values - still wins 2.17x. The synthetic curve above is the
+	 * conservative one because its patterns are whole words of 4+ trigrams, which pay full verification; a three-code
+	 * point search skips verification entirely (see {@link #verificationIsRedundant}) and sits well above it.
 	 *
-	 * What `12` gives up against `10.5` is patterns covering 8.33-10% of the values, worth 1.28-1.53x at 10,000 values
-	 * and roughly break-even at 100,000. That asymmetry is the point: a forfeited 1.4x is invisible, while an
-	 * introduced 1.4x regression is a bug report against a query that used to be fine.
+	 * ## Why `4`, and why that is not a return to a discredited value
 	 *
-	 * **This constant was previously `4`, which admitted a band where the accelerator was 1.1-2.1x SLOWER than the
-	 * scan.** The reasoning that chose it had derived the right band - "between a third and a tenth" - and then took
-	 * the wrong end of it, calling `4` conservative when a LARGER factor is the strict one. Nothing in the code could
-	 * surface that, because a too-eager gate returns slower correct answers rather than failures.
+	 * `4` admits patterns covering up to 25% of distinct values, where the conservative curve still wins about 1.6x -
+	 * margin against the crossover falling at corpus sizes beyond the harness, against false candidates, and against
+	 * non-ASCII values verifying more slowly per candidate.
 	 *
-	 * This is a deliberately crude stand-in for a cost model. The query planner's own costing of the substring path is
-	 * the increment after this one; when it lands, this constant is what it replaces.
+	 * This constant WAS `4`, then `12`, and the history matters because the number has come back to where it started
+	 * for an entirely different reason. `4` was wrong for the code that existed then: the crossover was measured at
+	 * 9.5% of distinct values, so admitting 25% admitted a band where the accelerator ran 1.1-2.1x SLOWER than the
+	 * scan, and `12` was the correct correction. What changed since is not the judgement but the cost being judged -
+	 * resolving a candidate's bucket once instead of three times, reading each trigram's postings once instead of
+	 * twice, and skipping a verification pass that is provably the identity for a one-trigram pattern together cut the
+	 * per-candidate cost by roughly six-fold. The crossover moved from 9.5% to 55% underneath a constant that did not
+	 * move, which is why `12` had come to refuse patterns worth 2.2x-5.8x while preventing nothing at all: on the
+	 * production corpus every one of the 14 patterns it declined would have been faster accelerated, and none of the
+	 * 139 it admitted lost.
+	 *
+	 * The asymmetry that argued for `12` still holds and still points at margin rather than at the crossover: a
+	 * forfeited win is invisible, an introduced regression is a bug report against a query that used to be fine. `4`
+	 * is the crossover halved and then some, not the crossover.
+	 *
+	 * A gate that re-measures itself would need none of this. This is a deliberately crude stand-in for a cost model,
+	 * and the query planner's own costing of the substring path is what replaces it.
 	 */
-	public static final int REQUIRED_NARROWING_FACTOR = 12;
+	public static final int REQUIRED_NARROWING_FACTOR = 4;
 
 	/**
 	 * The answer to a pattern the index can already prove no value contains - distinguished from `null`, which means
