@@ -195,18 +195,33 @@ more likely and can never cause a false failure. Say which one it is in a commen
 **A stress loop belongs in `evita_long_running_tests`, never in the fast loop.** When an interleaving
 cannot be hit deterministically — no seam exists between the two statements that race — the answer is not
 to give up on coverage, and not to sweep the loop into `evita_functional_tests` either. In the fast loop a
-probabilistic test fails once per few hundred CI runs and teaches everyone to press re-run; the *same*
-test, `@Disabled` in the long-running module and executed deliberately on a quiet machine, is real
-evidence. That module exists precisely for tests that need time and an idle box. Mark it
-`@Disabled("<why> - enable manually when needed")`, `@Tag(SLOW)`, and in order of preference:
+probabilistic test fails once per few hundred CI runs and teaches everyone to press re-run. That module
+exists precisely for tests that need time and an idle box. Tag it `@Tag(SLOW)`, and in order of preference:
 
 1. **Introduce a real seam** and test it deterministically in the fast loop, if one can exist.
-2. **Stress test in `evita_long_running_tests`, `@Disabled`** — sweep the timing rather than fixing it,
+2. **Stress test in `evita_long_running_tests`, ENABLED** — sweep the timing rather than fixing it,
    and **state the calibration**: what counterfactual makes it fail, and how fast. A stress test that no
    longer fails when the guarded code is removed has silently become decorative, and only a recorded
    calibration lets the next person notice.
 3. **Leave it uncovered and say so in a comment at the site**, so the next reader does not delete it as
    dead code — last resort, and only when even a sweep cannot reach it.
+
+**`@Disabled` is not the default here, and it used to be.** The module is reached only by the weekly
+`long-running-tests` workflow, which already *is* the isolation the fast-loop objection asks for; disabling
+on top of that buys nothing but invisibility. It cost exactly that once: a stress test whose javadoc said
+"enable after touching X" was not run by the change that touched X, and by the time anyone did, its race
+window had narrowed and it no longer failed on its own counterfactual. Reserve `@Disabled` for a test that
+genuinely cannot run unattended — one that needs a truly idle box to mean anything, or that runs long
+enough to blow the workflow's budget — and say which in the annotation. Tests already carrying `@Disabled`
+are worth revisiting **one at a time**, not bulk-enabling: each needs its counterfactual re-measured first,
+because a disabled test has had no opportunity to tell you it went blunt.
+
+**Split the obligation, because running it more often does not cover all of it.** Weekly CI catches the
+guarded code being removed or weakened. It cannot catch the test going blunt — a narrowed window passes
+just as green — and nothing automatic can, short of mutation-testing the guarded method. So the
+calibration is a standing human obligation, and it has to be stated **at the guarded code**, not only in
+the test: whoever edits that method is not reading your test's javadoc. Name the test, give the command
+that runs it, and say that making the code *faster* can be enough to decalibrate it.
 
 Either way, name the reachable neighbour that *is* covered in the fast loop. See the `finally` re-check in
 `SerialCdcExecutor.drain()` and `LongRunningSerialCdcExecutorStressTest` for the worked example.

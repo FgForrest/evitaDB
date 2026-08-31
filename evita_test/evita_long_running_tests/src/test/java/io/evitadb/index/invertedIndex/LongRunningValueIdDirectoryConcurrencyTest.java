@@ -25,7 +25,6 @@ package io.evitadb.index.invertedIndex;
 
 import io.evitadb.index.attribute.FilterIndex;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -64,9 +63,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * resolving against its own directory" — and this test covers the remainder the only way it can be covered: by
  * releasing many readers onto the same stale directory at once, over enough rounds that the race is hit repeatedly.
  *
- * **It lives here, disabled, on purpose.** A probabilistic test in the fast loop fails once every few hundred CI runs
- * and trains everyone to press re-run; the same test on a quiet machine, run deliberately, is real evidence. Enable
- * it after touching `InvertedIndex#refreshValueIdDirectory` or the tree's `rebuildValueIdDirectory`.
+ * **It lives here, and it runs.** A probabilistic test in the fast loop fails once every few hundred CI runs and
+ * trains everyone to press re-run - but this module is not the fast loop. It is reached only by the weekly
+ * `long-running-tests` workflow, which is the isolation that concern actually asks for; disabling it on top of that
+ * bought nothing except invisibility, and a run costs ~2 s.
+ *
+ * **What running it weekly does and does not buy.** It catches the regression that matters most and is easiest to
+ * commit: someone removing or weakening the `synchronized` on `InvertedIndex#refreshValueIdDirectory`. It cannot
+ * catch this test going BLUNT - a narrowed race window passes just as green as a healthy one - and nothing automatic
+ * can, short of mutation-testing that one method. So the calibration below is a human obligation, and it is stated
+ * at both guarded methods rather than only here: change either of them and re-run the COUNTERFACTUAL, not just the
+ * test.
  *
  * **Calibration (measured, not estimated).** With `synchronized` removed from
  * `InvertedIndex#refreshValueIdDirectory` the run fails 3 times out of 3, latest observed at round 417 of
@@ -118,7 +125,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(SLOW)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
-@Disabled("Probabilistic stress test - needs a quiet machine; enable manually after touching the value id directory")
 @DisplayName("Long-running value id directory concurrency tests")
 class LongRunningValueIdDirectoryConcurrencyTest {
 
