@@ -969,11 +969,16 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// every suffix byte is a suffix byte of exactly one entry (a shared prefix traces back to the restart entry
 		// that first wrote it as its own suffix), so this single scan covers the whole corpus once - no separate pass
 		boolean bmpSafe = true;
-		// the same scan also answers whether any key carries a WTF-8 encoded surrogate. Scanning SUFFIXES is
-		// sufficient even though a shared prefix can cut through the middle of a three-byte sequence: the previous
-		// key then holds those same bytes at those same positions, and a key never ends mid-sequence, so that key
-		// holds the sequence WHOLE - and chaining back within the restart block terminates at the restart entry,
-		// whose suffix is its whole key.
+		// the same loop also answers whether any key carries a WTF-8 encoded surrogate - but over the WHOLE key
+		// rather than only its suffix, unlike `bmpSafe` above. The difference is not an oversight and the cheaper
+		// suffix-only form is WRONG here: `bmpSafe` tests a single byte (`>= 0xF0`) and a shared prefix boundary
+		// cannot hide a single byte from every suffix, whereas "is this an encoded surrogate" is a JOINT condition
+		// on a lead byte AND its successor, and a boundary can fall exactly between the two. `"a\uD7FF"` and
+		// `"a\uD800"` are adjacent sorted keys encoding to `61 ED 9F BF` and `61 ED A0 80`: they share `61 ED`, so
+		// the second key's suffix is `A0 80` with no lead byte of its own, while the first key's suffix carries a
+		// lead byte that is legitimately NOT a surrogate. Both suffix scans answer "no" and the flag would close the
+		// decode gate on a blob that needs it, handing back U+FFFD - the very corruption this codec removes. Pinned
+		// by `FrontCodedStringColumnTest.UnpairedSurrogates#shouldRoundTripWhenAPrefixBoundarySplitsASurrogateSequence`.
 		boolean hasEncodedSurrogate = false;
 		for (int i = 0; i < n; i++) {
 			final int start = offsets[i];
@@ -994,7 +999,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 				bmpSafe = isBmpSafe(flat, start + shared, suffixLen);
 			}
 			if (!hasEncodedSurrogate) {
-				hasEncodedSurrogate = Wtf8.containsEncodedSurrogate(flat, start + shared, suffixLen);
+				hasEncodedSurrogate = Wtf8.containsEncodedSurrogate(flat, start, keyLen);
 			}
 			len += suffixLen;
 			prevStart = start;

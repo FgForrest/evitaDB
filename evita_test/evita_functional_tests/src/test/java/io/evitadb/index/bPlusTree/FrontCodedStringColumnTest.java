@@ -1716,12 +1716,13 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
-		@DisplayName("a surrogate key survives prefix sharing with its neighbours")
-		void shouldRoundTripWhenTheSurrogateSitsInSharedPrefixBytes() {
-			// Front coding stores most keys as (shared prefix length, remaining bytes), and a shared prefix can cut
-			// through the MIDDLE of a three-byte surrogate sequence - here every key shares "a\uD800" and differs only
-			// in the trailing character. That is the case the encode-time surrogate scan reasons about: it inspects
-			// suffixes only, and relies on the restart entry holding the sequence whole.
+		@DisplayName("a surrogate wholly inside the shared prefix survives")
+		void shouldRoundTripWhenTheSurrogateSitsWhollyInsideTheSharedPrefix() {
+			// Front coding stores most keys as (shared prefix length, remaining bytes). Here the sequence sits
+			// ENTIRELY inside the shared prefix - every key shares the complete "a\uD800" and differs only in the
+			// trailing character - so only the restart entry carries it in a suffix of its own. The neighbouring case,
+			// where the boundary falls INSIDE the three-byte sequence, is a different and much sharper one and is
+			// pinned separately by `shouldRoundTripWhenAPrefixBoundarySplitsASurrogateSequence`.
 			final String[] keys = {"a\uD800a", "a\uD800b", "a\uD800c", "a\uD800d"};
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			column.bulkLoad(keys, keys.length);
@@ -1729,6 +1730,27 @@ class FrontCodedStringColumnTest {
 			for (int i = 0; i < keys.length; i++) {
 				assertEquals(keys[i], column.keyAt(i), "prefix-shared key " + i + " must round-trip");
 			}
+		}
+
+		@Test
+		@DisplayName("a prefix boundary that splits a surrogate sequence still round-trips")
+		void shouldRoundTripWhenAPrefixBoundarySplitsASurrogateSequence() {
+			// U+D7FF and U+D800 are adjacent code points that encode to `ED 9F BF` and `ED A0 80` - they SHARE the
+			// lead byte and differ in the second, which is the byte that decides whether the sequence is a surrogate
+			// at all. Front coding therefore ends the shared prefix INSIDE the three-byte sequence: the second key's
+			// suffix is just `A0 80`, holding no `ED` of its own, while the first key's suffix holds an `ED` that is
+			// legitimately not a surrogate. A scan that looks only at suffixes sees no surrogate anywhere and leaves
+			// the column's decode gate closed, so the key decodes through the JDK's UTF-8 decoder and comes back as
+			// U+FFFD - the exact corruption this codec exists to remove, reintroduced through a narrower door.
+			final String[] keys = {"a\ud7ff", "a\ud800"};
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.bulkLoad(keys, keys.length);
+
+			assertEquals(keys[0], column.keyAt(0), "the non-surrogate neighbour must round-trip");
+			assertEquals(
+				keys[1], column.keyAt(1),
+				"the surrogate must round-trip even though the shared prefix ends between its lead and second byte"
+			);
 		}
 
 		@Test

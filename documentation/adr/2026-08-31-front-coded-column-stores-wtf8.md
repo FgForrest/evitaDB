@@ -1,7 +1,7 @@
 ---
 title: Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry
 date: 2026-08-31
-updated: 2026-08-31 15:10
+updated: 2026-08-31 15:40
 status: accepted
 kind: fix
 issues: [1454]
@@ -153,10 +153,16 @@ about this column, and it would supersede this record.
   is `false` for essentially every column, so the common decode is still `new String(bytes, UTF_8)`.
   A stale `true` is merely slower; a stale `false` would be wrong, which is why the flag is
   recomputed by every `encode` rather than being sticky.
-- **That scan inspects suffixes only, and a shared prefix can cut through the middle of a three-byte
-  sequence.** It is still exact: the previous key then holds the same bytes at the same positions,
-  and a key never ends mid-sequence, so that key holds the sequence whole — chaining back within a
-  restart block terminates at the restart entry, whose suffix is its entire key.
+- **That scan covers each WHOLE key, not just its suffix, and the difference is load-bearing.**
+  `bmpSafe` tests a single byte (`>= 0xF0`) and a shared-prefix boundary cannot hide a single byte
+  from every suffix. "Is this an encoded surrogate" is a **joint** condition on a lead byte *and* its
+  successor, and a boundary can fall exactly between them: `"a\uD7FF"` and `"a\uD800"` are adjacent
+  sorted keys encoding to `61 ED 9F BF` and `61 ED A0 80`, sharing `61 ED`, so the second key's suffix
+  is `A0 80` with no lead byte and the first key's suffix carries a lead byte that is legitimately not
+  a surrogate. Both suffix scans answer "no". A future optimizer tempted back toward a suffix-local
+  scan needs to handle that straddle explicitly — scanning from `shared - 2` would be sufficient,
+  since a straddling sequence starts at most two bytes before the boundary — and should measure
+  first, because the whole-key form was chosen deliberately over it.
 - **Ordering invariant, and its exact bound.** Byte order agrees with `String#compareTo` only while
   *both* operands consist solely of code points at or below `U+FFFF`. A lone surrogate satisfies
   that and stays on the fast path; a well-formed **pair** does not, and is excluded by the existing
@@ -176,6 +182,12 @@ about this column, and it would supersede this record.
 - `FrontCodedStringColumnTest.UnpairedSurrogates` — 8 tests. The two that reproduced the defect are
   green unchanged in intent; added coverage for `bulkLoad`, prefix-shared surrogate keys, lookup and
   ordering against BMP neighbours, distinctness from `"a?c"`, and the flag surviving `duplicate()`.
+- **Adversarial review found this wrong the first time, and the fix is pinned.** The flag originally
+  scanned suffixes only, on an argument that looked sound and was not; the counterexample above
+  returned `U+FFFD` for a stored key — the same class of corruption this record exists to remove,
+  through a narrower door. `shouldRoundTripWhenAPrefixBoundarySplitsASurrogateSequence` fails without
+  the fix. A sibling test covers the genuinely different case where the sequence sits wholly inside
+  the shared prefix.
 - **Counterfactual run, not just a green one.** With the codec neutered back to plain UTF-8,
   **7 of the 8** surrogate tests fail; the eighth is the normalization pin, which asserts a property
   of `Normalizer` and correctly does not depend on the column. The file was restored byte-identical
