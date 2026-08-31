@@ -25,12 +25,15 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1332,4 +1335,73 @@ class FrontCodedStringColumnTest {
 			};
 		}
 	}
+
+	@Nested
+	@DisplayName("unpaired surrogates do not survive the column")
+	class UnpairedSurrogates {
+
+		/**
+		 * A lone high surrogate. Legal in a Java `String`, and something a client can genuinely send - a UTF-16 string
+		 * truncated mid-pair by an upstream system is the usual way one arrives.
+		 */
+		private static final String LONE_SURROGATE_VALUE = "a\uD800c";
+
+		@Disabled("reproduces an OPEN defect - the column stores keys as UTF-8, which cannot carry an unpaired surrogate; enable when the encoding is fixed, see documentation/developer/front-coded-column-surrogate-defect.md")
+		@Test
+		@DisplayName("REPRODUCTION: a stored key comes back as a different string")
+		void shouldRoundTripAnUnpairedSurrogate() {
+			// The column stores keys as `String#getBytes(UTF_8)`. An unpaired surrogate is not a Unicode scalar
+			// value, so UTF-8 encoding cannot represent it and silently substitutes `0x3F` ('?'). The key that comes
+			// back is therefore a DIFFERENT string from the one inserted, and nothing on the write path notices.
+			//
+			// This is not a trigram or substring problem - it is the column's own round trip, and it is why
+			// `InvertedIndex#notifyValueCreated` then fails to resolve the id of the bucket it just created: it
+			// re-probes with the original string, which is no longer what the tree holds.
+			//
+			// Documented in `documentation/developer/front-coded-column-surrogate-defect.md`.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.insertKeyAt(0, LONE_SURROGATE_VALUE);
+
+			assertEquals(
+				LONE_SURROGATE_VALUE, column.keyAt(0),
+				"the column must return the key it was given; it currently returns `a?c`, having replaced the "
+					+ "unpaired surrogate during UTF-8 encoding"
+			);
+		}
+
+		@Disabled("reproduces an OPEN defect - an unpaired surrogate is silently replaced by '?'; enable when the value is either carried faithfully or refused at the boundary, see documentation/developer/front-coded-column-surrogate-defect.md")
+		@Test
+		@DisplayName("the corruption is silent - the column reports success and the value is simply wrong")
+		void shouldNotSilentlyAlterAStoredKey() {
+			// Pinned separately from the round trip because the two failures have different fixes: the round trip
+			// needs an encoding that can carry a lone surrogate (WTF-8, CESU-8, or UTF-16 code units), whereas THIS
+			// one is satisfied by refusing the value at the boundary instead of storing something else.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.insertKeyAt(0, LONE_SURROGATE_VALUE);
+
+			assertNotEquals(
+				"a?c", column.keyAt(0),
+				"an unpaired surrogate was replaced by '?' - a value the caller never supplied, stored without any "
+					+ "error, and indistinguishable afterwards from a value that really did contain a question mark"
+			);
+		}
+
+		@Test
+		@DisplayName("normalization is the wrong lever - NFC and NFD both preserve the surrogate")
+		void shouldShowNormalizationDoesNotAffectTheDefect() {
+			// Recorded because it is the natural first guess and it is wrong. An unpaired surrogate participates in
+			// no canonical composition or decomposition, so neither form touches it; the loss happens strictly at the
+			// UTF-8 encoding step below normalization. Changing the tree's normalization form would not help.
+			assertEquals(
+				LONE_SURROGATE_VALUE, Normalizer.normalize(LONE_SURROGATE_VALUE, Normalizer.Form.NFD),
+				"NFD must leave a lone surrogate untouched"
+			);
+			assertEquals(
+				LONE_SURROGATE_VALUE, Normalizer.normalize(LONE_SURROGATE_VALUE, Normalizer.Form.NFC),
+				"NFC must leave a lone surrogate untouched"
+			);
+		}
+
+	}
+
 }
