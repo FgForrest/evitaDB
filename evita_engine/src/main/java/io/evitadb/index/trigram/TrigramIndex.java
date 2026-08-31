@@ -43,6 +43,7 @@ import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -311,34 +312,50 @@ public class TrigramIndex implements
 	}
 
 	/**
-	 * Returns the cardinality of the CHEAPEST posting among the given trigrams - the upper bound on how many
-	 * candidates an intersection over them could produce, and the one number the decision to take this index at all is
-	 * made on.
+	 * Reads the postings of every trigram in the pattern and hands them back ordered ascending by cardinality - or
+	 * answers `null` when the pattern provably occurs in no value at all.
 	 *
-	 * Answered without materializing a single posting, so the whole pattern can be priced before anything is committed
-	 * to. A `0` is the strongest possible answer rather than a degenerate one: a trigram nothing posts against means
-	 * no value contains the pattern, so the intersection is already known to be empty.
+	 * This is the ONE place an accelerated query reads its postings. The cheapest posting's cardinality, which the
+	 * returned carrier exposes as {@link PatternPostings#candidateUpperBound}, is the upper bound on how many
+	 * candidates an intersection could produce and therefore the single number the decision to take this index at all
+	 * is made on - so that decision is now made from the very carrier
+	 * {@link #resolveCandidateValueIds(PatternPostings)} goes on to consume, instead of from a separate pricing pass
+	 * that looked every posting up and threw it away. A pattern's trigrams are looked up once per query, not twice.
+	 *
+	 * A `null` is the strongest possible answer rather than a degenerate one: a trigram nothing posts against means no
+	 * value contains the pattern, so the answer is already known and no intersection has to run. The pass is abandoned
+	 * at the first such trigram, so the remaining ones are never looked up - the cheapest outcome this index can
+	 * produce stays the cheapest.
 	 *
 	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
-	 * @return the smallest posting cardinality, `0` when any trigram posts against nothing (or when there are no
-	 * trigrams at all, which a caller must have refused before reaching here)
+	 * @return the pattern's postings ordered by cardinality, or `null` when some trigram posts against nothing - and
+	 * likewise when there are no trigrams at all, which a caller must have refused before reaching here
 	 */
-	public int minimumCardinalityOf(@Nonnull long[] trigrams) {
-		int minimum = Integer.MAX_VALUE;
-		for (int i = 0; i < trigrams.length; i++) {
-			final int cardinality = cardinalityOf(trigrams[i]);
-			if (cardinality == 0) {
-				return 0;
-			}
-			if (cardinality < minimum) {
-				minimum = cardinality;
-			}
+	@Nullable
+	public PatternPostings pricePattern(@Nonnull long[] trigrams) {
+		final int trigramCount = trigrams.length;
+		if (trigramCount == 0) {
+			return null;
 		}
-		return minimum == Integer.MAX_VALUE ? 0 : minimum;
+		final Object[] postings = new Object[trigramCount];
+		final int[] cardinalities = new int[trigramCount];
+		for (int i = 0; i < trigramCount; i++) {
+			final Object posting = this.store.get(trigrams[i]);
+			// covers the absent key and the (unreachable) emptied posting alike - the store drops a trigram that lost
+			// its last value id rather than parking an empty posting under it
+			final int cardinality = TrigramPostings.cardinality(posting);
+			if (cardinality == 0) {
+				return null;
+			}
+			postings[i] = posting;
+			cardinalities[i] = cardinality;
+		}
+		orderByCardinality(postings, cardinalities, trigramCount);
+		return new PatternPostings(postings, cardinalities);
 	}
 
 	/**
-	 * Intersects the postings of the given trigrams into the value ids that COULD hold the pattern they came from.
+	 * Intersects an already-read pattern's postings into the value ids that COULD hold the pattern they came from.
 	 *
 	 * The result is a superset of the true matches and must be verified exactly - membership is all this index holds,
 	 * so a candidate whose value merely contains all the pattern's trigrams in some other arrangement survives to
@@ -347,7 +364,8 @@ public class TrigramIndex implements
 	 *
 	 * ## Two intersection paths, chosen by the smallest posting
 	 *
-	 * The postings are ordered ascending by cardinality first, so the representation of the FIRST one decides the
+	 * The postings arrive already ordered ascending by cardinality - {@link #pricePattern} orders them, because the
+	 * gate reads the cheapest one's cardinality off the front - so the representation of the FIRST one decides the
 	 * chain. An `int[]` means the candidate set starts at {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ids or fewer
 	 * and can only shrink, so it is kept as a small `int[]` and the remaining postings are probed for membership. A
 	 * bitmap means every later posting is a bitmap too (its cardinality is at least this one's), so the chain is a
@@ -360,31 +378,36 @@ public class TrigramIndex implements
 	 * Nothing this method touches is mutated - the postings it reads are the index's own and are shared with every
 	 * version that has not rewritten them - and nothing it returns aliases one either, on either path.
 	 *
+	 * @param patternPostings the pattern's postings, as {@link #pricePattern} produced them
+	 * @return the candidate value ids in ascending order, owned by the caller, empty when the pattern cannot occur in
+	 * any value
+	 */
+	@Nonnull
+	public int[] resolveCandidateValueIds(@Nonnull PatternPostings patternPostings) {
+		final Object[] postings = patternPostings.postings();
+		final int trigramCount = postings.length;
+		return postings[0] instanceof final int[] smallest
+			? intersectFromSmallPosting(smallest, postings, trigramCount)
+			: intersectFromBitmapPosting(postings, trigramCount);
+	}
+
+	/**
+	 * The {@link #resolveCandidateValueIds(PatternPostings)} above, pricing the pattern itself rather than taking a
+	 * carrier a caller already holds.
+	 *
+	 * A query path takes the two-step form instead, because the gate sits between the two halves and decides on
+	 * {@link PatternPostings#candidateUpperBound} whether the intersection is worth running at all. This one-step form
+	 * is for callers that have already committed to the intersection and hold nothing but the trigrams.
+	 *
 	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
 	 * @return the candidate value ids in ascending order, owned by the caller, empty when the pattern cannot occur in
 	 * any value
 	 */
 	@Nonnull
 	public int[] resolveCandidateValueIds(@Nonnull long[] trigrams) {
-		final int trigramCount = trigrams.length;
-		if (trigramCount == 0) {
-			return ArrayUtils.EMPTY_INT_ARRAY;
-		}
-		final Object[] postings = new Object[trigramCount];
-		final int[] cardinalities = new int[trigramCount];
-		for (int i = 0; i < trigramCount; i++) {
-			final Object posting = this.store.get(trigrams[i]);
-			if (posting == null) {
-				// a query trigram nothing was indexed under means no value can contain the pattern
-				return ArrayUtils.EMPTY_INT_ARRAY;
-			}
-			postings[i] = posting;
-			cardinalities[i] = TrigramPostings.cardinality(posting);
-		}
-		orderByCardinality(postings, cardinalities, trigramCount);
-		return postings[0] instanceof final int[] smallest
-			? intersectFromSmallPosting(smallest, postings, trigramCount)
-			: intersectFromBitmapPosting(postings, trigramCount);
+		final PatternPostings patternPostings = pricePattern(trigrams);
+		return patternPostings == null ?
+			ArrayUtils.EMPTY_INT_ARRAY : resolveCandidateValueIds(patternPostings);
 	}
 
 	/**

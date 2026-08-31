@@ -77,7 +77,8 @@ import java.util.function.LongUnaryOperator;
  * The scan visits every distinct value of the attribute and applies the predicate to each. This path visits only the
  * candidates and applies the SAME predicate to each, then pays one tree descent per value that actually matched. Per
  * unit of work the two are therefore comparable, and the decision reduces to how much of the corpus the candidate set
- * covers - which {@link TrigramIndex#minimumCardinalityOf} bounds from above without materializing anything.
+ * covers - which {@link PatternPostings#candidateUpperBound} bounds from above, off the postings the intersection
+ * would go on to use anyway.
  *
  * "The corpus" is whatever scan the one intersection displaces, and that is the CALLER's to state - see the
  * `scannedDistinctValueCounter` overload of {@link #match}.
@@ -236,18 +237,20 @@ public final class TrigramSubstringSearch {
 			// under three code points after normalization - the index holds nothing that could bound the search
 			return null;
 		}
-		final int candidateUpperBound = trigramIndex.minimumCardinalityOf(trigrams);
-		if (candidateUpperBound == 0) {
+		// ONE read of the pattern's postings serves both the pricing below and the intersection further down - the
+		// carrier the gate decides on IS the one the intersection consumes
+		final PatternPostings patternPostings = trigramIndex.pricePattern(trigrams);
+		if (patternPostings == null) {
 			// a trigram of the pattern posts against no value at all, so no value contains the pattern. This bypasses
-			// the selectivity gate on purpose: the answer is already known and cost nothing but the cardinality probes,
-			// which is the cheapest outcome either path can produce
+			// the selectivity gate on purpose: the answer is already known and cost nothing but the postings read up to
+			// the empty trigram, which is the cheapest outcome either path can produce
 			return NO_MATCH;
 		}
-		final long threshold = accelerationThreshold(candidateUpperBound);
+		final long threshold = accelerationThreshold(patternPostings.candidateUpperBound());
 		if (scannedDistinctValueCounter.applyAsLong(threshold) < threshold) {
 			return null;
 		}
-		final int[] candidates = trigramIndex.resolveCandidateValueIds(trigrams);
+		final int[] candidates = trigramIndex.resolveCandidateValueIds(patternPostings);
 		return sharedValueTree.getRecordsOfValueIdsMatching(
 			candidates, candidates.length,
 			normalizedValue -> exactPredicate.test(asString(normalizedValue), normalizedPattern)

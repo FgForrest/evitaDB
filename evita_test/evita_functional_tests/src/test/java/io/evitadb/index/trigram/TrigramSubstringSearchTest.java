@@ -605,7 +605,7 @@ class TrigramSubstringSearchTest {
 		@Test
 		@DisplayName("a pattern under three code points declines")
 		void shouldDeclineAPatternShorterThanATrigram() {
-			// CALIBRATION: without this guard the pattern yields NO trigrams, `minimumCardinalityOf` answers 0, and
+			// CALIBRATION: without this guard the pattern yields NO trigrams, `pricePattern` answers null, and
 			// the empty-posting short circuit below it would return EmptyFormula - i.e. `contains("it")` would match
 			// nothing at all instead of the 700 filler values the scan finds. The assertion on the scan's own answer
 			// is what makes that counterfactual visible here.

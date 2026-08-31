@@ -1484,7 +1484,7 @@ public class InvertedIndex implements
 	 * instead — see {@link io.evitadb.index.hierarchy.suppliers.HierarchyByParentBitmapSupplier}, the model for a
 	 * {@link io.evitadb.core.query.algebra.deferred.BitmapSupplier} behind
 	 * {@link io.evitadb.core.query.algebra.deferred.DeferredFormula}, with
-	 * {@link io.evitadb.index.trigram.TrigramIndex#minimumCardinalityOf} serving as its cheap cost estimate — and a
+	 * {@link io.evitadb.index.trigram.PatternPostings#candidateUpperBound} serving as its cheap cost estimate — and a
 	 * discriminator would become mandatory. Deferring also costs invalidation granularity: the verified leaves are
 	 * unknown until verification has run, so the staleness set collapses to whole-index ids, which is the difference
 	 * between that supplier and {@link io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier}.
