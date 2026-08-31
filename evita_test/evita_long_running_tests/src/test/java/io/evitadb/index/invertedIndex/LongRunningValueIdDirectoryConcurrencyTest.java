@@ -69,11 +69,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * it after touching `InvertedIndex#refreshValueIdDirectory` or the tree's `rebuildValueIdDirectory`.
  *
  * **Calibration (measured, not estimated).** With `synchronized` removed from
- * `InvertedIndex#refreshValueIdDirectory` the run fails around round 11 of {@link #ROUNDS}, in 0.11 s, on a live
- * value resolving to `null` — `assignLeafId`'s "assigned once and never reassigned" premise is the other shape the
- * same race takes. With the guard in place all {@link #ROUNDS} rounds pass in 0.32 s. Re-measure after changing
- * either method: if the counterfactual stops failing, this test has quietly become decorative, and
- * {@link #READER_THREADS} or {@link #ROUNDS} must be raised until it fails again before a green run means anything.
+ * `InvertedIndex#refreshValueIdDirectory` the run fails 3 times out of 3, latest observed at round 417 of
+ * {@link #ROUNDS} — either on a live value resolving to `null`, or on `assignLeafId`'s "assigned once and never
+ * reassigned" premise, which are the two shapes the same race takes. With the guard in place all {@link #ROUNDS}
+ * rounds pass in ~2 s, 3 times out of 3. Re-measure after changing either method: if the counterfactual stops
+ * failing, this test has quietly become decorative, and {@link #READER_THREADS} or {@link #ROUNDS} must be raised
+ * until it fails again before a green run means anything.
+ *
+ * **That has already happened once, which is why the numbers above are the second set.** At the original 500 rounds
+ * the counterfactual passed outright: the race window had narrowed under an unrelated optimization — the
+ * directory's leaf table moved from a boxed `Map<Long, …>` to a primitive one, which makes the rebuild this test
+ * races against measurably shorter. Across a recalibration sweep the failing round clustered at 267-450 whatever
+ * the reader count was, so the window opens with tree SIZE rather than with the number of lottery tickets drawn;
+ * 2000 rounds is that worst case with a margin of about four. Raising {@link #READER_THREADS} to 16 or 24 also
+ * restores the failure and is the knob to reach for next, but it did not move the failing round — it buys overlap,
+ * not margin.
  *
  * **What this test does NOT cover, and why no test does.** A reader that already passed the staleness check — having
  * seen it `false` — can still be inside the tree's `valueOf` while a later reader rebuilds. That window is closed
@@ -91,7 +101,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * a value that has moved. A test able to tell them apart would have to observe the mixture itself, which is not
  * reachable through the public surface.
  *
- * What the fix therefore buys is **safe publication**: without it, `leafById` is a freshly built `HashMap` assigned
+ * What the fix therefore buys is **safe publication**: without it, `leafById` is a freshly built map assigned
  * to a non-volatile field, and a reader with no happens-before edge to that write may observe it partially
  * constructed — a hazard that does not manifest on x86 and cannot be provoked deliberately. Shipping a stress test
  * that passes on the broken implementation would have been decorative, which is worse than none. What IS pinned
@@ -129,7 +139,7 @@ class LongRunningValueIdDirectoryConcurrencyTest {
 	/**
 	 * Independent races. Each round dirties the directory afresh and releases a new wave of readers at it.
 	 */
-	private static final int ROUNDS = 500;
+	private static final int ROUNDS = 2000;
 	/**
 	 * Readers released simultaneously per round. More than the core count on purpose: the readers must genuinely
 	 * overlap rather than take turns.
