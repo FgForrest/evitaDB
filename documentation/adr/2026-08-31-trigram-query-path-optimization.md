@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 11:20
+updated: 2026-08-31 11:50
 status: accepted
 kind: optimization
 issues: [1454]
@@ -58,6 +58,9 @@ return true.
 | 5 | **Leave `REQUIRED_NARROWING_FACTOR` at 12** (`5fc572b58`, reverted by `681494300`) | Lower it to 4 on a measured crossover of 55% | The crossover run forced the gate by **lowering the constant being measured**, which also re-plants a benchmark class sized on `n / factor` into the shared corpus; and "admits at most 1/factor of the corpus" is false for fan-out (below) |
 | 6 | **Fold the intersection into an accumulator the query owns** (`3ebcf184f`, `aa1d3c0ab`) | Keep allocating a fresh Roaring result per posting | A chain of static `and`s allocates a bitmap, its `RoaringArray` and its containers per trigram and drops the previous set immediately. Only the first is needed: `and` is the ownership boundary, and everything after it folds in place. Also demotes to the `int[]` path once the accumulator is narrow enough, since a bitmap `and` costs work proportional to the wider side |
 | 7 | **Answer a posting lookup with `null`** (`5e169cb9b`) | Leave the `Optional` | It was unwrapped immediately, once per trigram per query, and escape analysis is not guaranteed across the polymorphic descent. No fork worth the name — recorded only so the measured +22 ns of decision 2 is not later misattributed to this wrapper |
+| 8 | **Key the value id directory by primitive longs** (`67dffdb0a`, test fix `b5a2d59dc`) | Wait for a measurement | The leaf indirection was a `Map<Long, …>` keyed by a value that is already a `long`, so every candidate boxed one — and leaf ids pass the `Long` cache's 127 almost at once, several hundred leaves per attribute here. Taken on mechanism: an allocation removed is workload-independent, unlike a threshold retune |
+| 9 | **Verify containment against the stored UTF-8 bytes** (`88b48fe9f`) | Refine `StringSearchShape` into `CONTAINS`/`PREFIX`/`SUFFIX` so anchored predicates could match bytes too | The enum's `ANCHORED` is documented as the safe answer for a caller that is unsure, and splitting it destroys that. Containment alone needs no change to it, and anchored predicates keep verifying as before |
+| 10 | **Fold an OR's single-record operands inside `computeInternal`** (`16e0e1959`) | Coalesce what `MatchedBuckets` carries | Wrong twice: tests legitimately assert `recordSets().length` is the number of buckets answered, and collapsing the operand array to one entry takes `toSortedOrFormula`'s `ConstantFormula` branch, which carries **no leaf-version token set** — an allocation win traded for a staleness-tracking hole |
 
 A fifth change was not a decision but a defect found on the way: `intersectFromBitmapPosting` assumed
 a posting's representation followed its cardinality and cast every later posting to a bitmap
@@ -113,7 +116,7 @@ flat **+22 ns per trigram** (p25 +17, p75 +35); the verification short-circuit s
 candidate** (p25 +51, p75 +56), about 40% of the 129-141 ns those rows spend per candidate, matching
 what is removed — a front-coded restart-point walk, a `String` allocation and a `contains` call.
 
-**Decisions 6 and 7 are not measured, and are not claimed to be.** Their predicted effect is well under 1% of
+**Decisions 6 to 10 are not measured, and are not claimed to be.** Their predicted effect is well under 1% of
 a whole workload — below what the end-to-end harness resolves — so a benchmark run would have produced a number
 that means nothing. They are justified mechanically instead: both do strictly less allocation for an identical
 answer. Do not cite either as a measured win.
@@ -125,6 +128,16 @@ from `postings[0]`) reddens it alone, with the index's own posting shrunk from 1
 safety was verified by enumeration, not by reading the javadoc: all 18 `and`/`iand` implementations in the three
 vendored container classes were checked, and none returns its argument, so no posting's container can alias into
 an accumulator that has already declared itself sole owner.
+
+Decisions 9 and 10 rest on equivalence claims that are asserted rather than argued. The byte matcher is checked
+against `String#contains` over a cross product of keys and patterns covering NFD combining marks, precomposed
+forms, supplementary characters and three-byte sequences — the claim being that byte containment and code-point
+containment are one predicate, because UTF-8 is self-synchronizing and a continuation byte can never begin a
+sequence. **Inverting the matcher reddens 13 of 30 substring tests**, which is what establishes the query path
+reaches it at all; without that check a wired-but-unreached change passes every suite and reads as finished.
+Corrupting decision 10's folded ids reddens 3 of its 4 tests, the fourth being the single-operand case that
+deliberately takes the unfolded path. The `OrFormula` change was verified against **5201 tests** across the query,
+cache and index suites rather than the substring ones, because that class is shared by the whole engine.
 
 Correctness: `Tests run: 478, Failures: 0` across the B+tree, inverted-index, trigram and substring
 suites. Every guard added here is **calibrated by counterfactual** — reverting the cast fix reddens
@@ -172,6 +185,17 @@ verified per pattern across four runs.
   singleton-coalescing idea — ranked lowest of the four — the one aimed squarely at the actual hot spot. Cost
   tracks **hits** (0.412 µs) more closely than candidates (0.357 µs). Regrouping by leaf straddles zero at the
   candidate widths this corpus produces and should be instrumented before it is built.
+- **A targeted test run is scoped by where a class sits, not by what it touches.** Decision 8 shipped green and
+  broke `LeafIndexHeapSizeTest`, which reaches the directory reflectively and cast its leaf table to
+  `java.util.Map`. The suites it was verified against were the tree, inverted-index and trigram ones; that test
+  lives under `io.evitadb.index` and was not among them. When a change alters a type that anything reads
+  reflectively, the net has to be drawn around the *readers*, and reflection makes those invisible to the compiler.
+- **What remains after these: deferring the record set until a candidate matches.** The byte matcher settles a
+  candidate without touching its records, so a rejected candidate need not have a bucket materialised at all —
+  worth 30–60 ns on the patterns whose false-positive rate runs to 58–89%. It is not taken here because it means
+  reading the records *after* a match test, and the ordering of those reads is a load-bearing invariant against a
+  mutating predicate (see `recordsOfMatchingValueId`). A built-in matcher cannot mutate, so the exception is sound
+  — but it must be written down as an exception rather than discovered later as an inconsistency.
 - **Under an unmeasurable workload, prefer the optimizations whose benefit does not depend on the workload.** A
   per-candidate cost reduction — one less allocation, one less `String` built — pays the same fraction of its
   own stage whatever mix of queries arrives, and is provable on the corpus at hand by arm parity plus a
