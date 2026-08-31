@@ -34,8 +34,10 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1339,6 +1341,13 @@ class FrontCodedStringColumnTest {
 		}
 	}
 
+	/**
+	 * Verifies {@link FrontCodedStringColumn#containsUtf8At}: the byte-level containment test the substring path
+	 * uses in place of decoding a candidate's key into a {@link String}. What it has to be right about is that byte
+	 * containment of two well-formed UTF-8 encodings IS code-point containment, that the decode it reads is bounded
+	 * by the key's own length rather than by whatever the reused scratch buffer still holds, and that a column which
+	 * does not store UTF-8 refuses the question instead of guessing at it.
+	 */
 	@Nested
 	@DisplayName("matching a pattern against the stored bytes")
 	class Utf8Matching {
@@ -1361,8 +1370,10 @@ class FrontCodedStringColumnTest {
 
 		/**
 		 * Patterns deliberately including ones that share a first byte with a key but do not occur, an empty pattern,
-		 * a pattern longer than every key, and HALVES of multi-byte characters' text - the case that would false-match
-		 * if UTF-8 were not self-synchronizing.
+		 * a pattern longer than every key, and multi-byte characters on their own - a combining mark and a
+		 * supplementary character - which can only be found whole, at a character boundary, because UTF-8 is
+		 * self-synchronizing. (A pattern that is HALF of a character is not expressible here and never will be: every
+		 * entry is a well-formed Java `String`.)
 		 */
 		private static final String[] PATTERNS = {
 			"", "a", "abc", "bca", "abcd", "X", "code-", "0002", "00020", "-0001",
@@ -1398,23 +1409,166 @@ class FrontCodedStringColumnTest {
 
 		@Test
 		@DisplayName("a key longer than the decode scratch is matched against the grown buffer, not the discarded one")
-		void shouldMatchAKeyThatOutgrowsTheDecodeScratch() {
+		void shouldMatchAKeyThatOutgrowsTheDecodeScratch() throws InterruptedException {
 			// `decodeAtBytes` REPLACES `scratch.cur` when a key outgrows it, so a matcher that read the buffer
 			// reference before the call would search the discarded array. The decode scratch starts at 48 bytes; these
 			// keys are far past that, and the needle sits at the very end so a short/stale buffer cannot contain it.
-			final String longKey = "x".repeat(400) + "NEEDLE";
-			final String[] sorted = {longKey, "y" + "z".repeat(500)};
-			Arrays.sort(sorted);
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(sorted.length, true);
-			for (int i = 0; i < sorted.length; i++) {
-				column.insertKeyAt(i, sorted[i]);
-			}
-			final int longKeySlot = Arrays.asList(sorted).indexOf(longKey);
-			assertTrue(
-				column.containsUtf8At(longKeySlot, "NEEDLE".getBytes(StandardCharsets.UTF_8)),
-				"the needle sits beyond the initial scratch capacity and must still be found"
+			//
+			// Run on a FRESH thread, and that is load-bearing rather than tidy: the scratch is a static
+			// `ThreadLocal` that keeps whatever buffer it has grown to, across columns and across tests. Any earlier
+			// test on this thread that decoded a key this long would leave the buffer already large enough, the
+			// replacement would never happen, and this test would silently guard nothing while staying green.
+			runOnAFreshThread(() -> {
+				final int scratchBefore = decodeScratchLength();
+				final String longKey = "x".repeat(400) + "NEEDLE";
+				final String[] sorted = {longKey, "y" + "z".repeat(500)};
+				Arrays.sort(sorted);
+				final ValueColumn<String> column = new FrontCodedStringColumn<>(sorted.length, true);
+				for (int i = 0; i < sorted.length; i++) {
+					column.insertKeyAt(i, sorted[i]);
+				}
+				final int longKeySlot = Arrays.asList(sorted).indexOf(longKey);
+				assertTrue(
+					column.containsUtf8At(longKeySlot, "NEEDLE".getBytes(StandardCharsets.UTF_8)),
+					"the needle sits beyond the initial scratch capacity and must still be found"
+				);
+				assertFalse(column.containsUtf8At(longKeySlot, "ABSENT".getBytes(StandardCharsets.UTF_8)));
+				assertTrue(
+					decodeScratchLength() > scratchBefore,
+					"the buffer must really have been replaced, or the defect this test is named for cannot occur "
+						+ "and the assertions above prove nothing"
+				);
+			});
+		}
+
+		@Test
+		@DisplayName("a short key does not match a pattern left in the scratch by a longer predecessor")
+		void shouldNotMatchStaleTailBytesOfALongerPredecessor() {
+			// A slot is decoded by walking forward from its restart point, so reading slot 1 first decodes slot 0 into
+			// the same buffer. The two keys share no prefix, so the short one is written over the leading bytes only
+			// and the long one's tail is still sitting behind it - `indexOfBytes` is bounded by the decoded LENGTH and
+			// must never see it. This is the byte-path analogue of the stale-tail guard the `String` path carries.
+			final String longKey = "a" + "q".repeat(400) + "TAILNEEDLE";
+			final String shortKey = "b-short";
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.insertKeyAt(0, longKey);
+			column.insertKeyAt(1, shortKey);
+
+			final byte[] needle = "TAILNEEDLE".getBytes(StandardCharsets.UTF_8);
+			assertTrue(column.containsUtf8At(0, needle), "the long key really does end with the needle");
+			assertFalse(
+				column.containsUtf8At(1, needle),
+				"the short key must be searched to its own length, not into the tail its predecessor left behind"
 			);
-			assertFalse(column.containsUtf8At(longKeySlot, "ABSENT".getBytes(StandardCharsets.UTF_8)));
+			assertEquals(shortKey, column.keyAt(1), "and the key itself must be unaffected either way");
+		}
+
+		@Test
+		@DisplayName("byte matching still agrees with String#contains after removals have re-encoded the blob")
+		void shouldAgreeWithStringContainsAfterMutations() {
+			// Every other case here reads a column built by consecutive inserts alone. A removal re-encodes the blob
+			// and rebuilds the restart offsets, and the byte path resolves a slot against those offsets on every
+			// call - so a column that has been mutated is the shape most likely to expose a stale resolution.
+			final String[] patterns = {"sku-", "-01", "café", "😀", "zzz"};
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(64, true);
+			final ValueColumn<String> oracle = new BoxedObjectColumn<>(String.class, 64);
+			final Random rnd = new Random(20_260_831L);
+			int size = 0;
+			for (int op = 0; op < 400; op++) {
+				final boolean insert = size == 0 || (size < 64 && rnd.nextInt(100) < 60);
+				if (insert) {
+					final int pos = rnd.nextInt(size + 1);
+					final String key = mutationKey(rnd);
+					front.insertKeyAt(pos, key);
+					oracle.insertKeyAt(pos, key);
+					size++;
+				} else {
+					final int pos = rnd.nextInt(size);
+					front.removeKeyAt(pos);
+					oracle.removeKeyAt(pos);
+					size--;
+					front.clearAt(size);
+					oracle.clearAt(size);
+				}
+				for (final String pattern : patterns) {
+					final byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
+					for (int slot = 0; slot < size; slot++) {
+						final int reportedSlot = slot;
+						final int reportedOp = op;
+						assertEquals(
+							oracle.keyAt(slot).contains(pattern), front.containsUtf8At(slot, patternBytes),
+							() -> "byte match diverged from String#contains at slot " + reportedSlot + " after op "
+								+ reportedOp + " for pattern [" + pattern + "]"
+						);
+					}
+				}
+			}
+		}
+
+		/**
+		 * @param rnd the workload's RNG
+		 * @return a key mixing ASCII, a two-byte accent, a supplementary character and long shared prefixes, so the
+		 * front coding really front-codes and the byte comparison meets every sequence length
+		 */
+		@Nonnull
+		private static String mutationKey(@Nonnull Random rnd) {
+			final int bucket = rnd.nextInt(200);
+			return switch (rnd.nextInt(4)) {
+				case 0 -> "sku-" + String.format("%03d", bucket);
+				case 1 -> "café-" + bucket;
+				case 2 -> "😀-" + bucket;
+				default -> "shared-prefix-" + String.format("%03d", bucket) + "-tail";
+			};
+		}
+
+		/**
+		 * Runs `body` on a thread of its own and joins it, rethrowing whatever it threw.
+		 *
+		 * The decode scratch is a static {@link ThreadLocal} that keeps the buffer it has grown to for the life of the
+		 * thread, so a test about the buffer being REPLACED can only observe that on a thread whose scratch is still
+		 * the initial one.
+		 *
+		 * @param body the assertions to run in isolation
+		 * @throws InterruptedException when the join is interrupted
+		 */
+		private static void runOnAFreshThread(@Nonnull Runnable body) throws InterruptedException {
+			final Throwable[] failure = new Throwable[1];
+			final Thread thread = new Thread(
+				() -> {
+					try {
+						body.run();
+					} catch (Throwable ex) {
+						failure[0] = ex;
+					}
+				},
+				"fc-fresh-scratch"
+			);
+			thread.start();
+			thread.join();
+			if (failure[0] instanceof final AssertionError assertionError) {
+				throw assertionError;
+			} else if (failure[0] != null) {
+				throw new GenericEvitaInternalError("the isolated body failed", failure[0]);
+			}
+		}
+
+		/**
+		 * @return the current capacity of the calling thread's decode scratch buffer
+		 */
+		private static int decodeScratchLength() {
+			try {
+				final Field scratchHolder = FrontCodedStringColumn.class.getDeclaredField("SCRATCH");
+				scratchHolder.setAccessible(true);
+				final Object scratch = ((ThreadLocal<?>) scratchHolder.get(null)).get();
+				final Field buffer = scratch.getClass().getDeclaredField("cur");
+				buffer.setAccessible(true);
+				return ((byte[]) buffer.get(scratch)).length;
+			} catch (ReflectiveOperationException ex) {
+				throw new GenericEvitaInternalError(
+					"the decode scratch is no longer shaped as this test reads it, so it can no longer tell a grown "
+						+ "buffer from an initial one.", ex
+				);
+			}
 		}
 
 		@Test
@@ -1446,17 +1600,30 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
-		@DisplayName("a column that does not store UTF-8 says so, and refuses rather than guessing")
+		@DisplayName("no other column claims to store UTF-8, and each refuses rather than guessing")
 		void shouldRefuseByteMatchingWhereKeysAreNotUtf8() {
+			// `ValueColumn` is sealed and the front-coded one is the only implementation holding its keys as UTF-8,
+			// so the capability default and the refusing default apply to every OTHER implementation. Each is checked
+			// here rather than one standing in for the rest: they are what the fallback to the predicate rests on.
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
 			boxed.insertKeyAt(0, "abc");
-			assertFalse(boxed.supportsUtf8Matching());
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> boxed.containsUtf8At(0, "abc".getBytes(StandardCharsets.UTF_8)),
-				"the default must throw rather than silently answer, so a caller that skips the capability check "
-					+ "fails loudly instead of returning a wrong answer"
-			);
+			final ValueColumn<?>[] columns = {
+				boxed,
+				new IntValueColumn<Integer>(new int[BLOCK_SIZE]),
+				new LongValueColumn<Integer>(LongKeyCodec.forType(Integer.class), new long[BLOCK_SIZE]),
+				new InstantValueColumn<Instant>(new long[BLOCK_SIZE], new int[BLOCK_SIZE])
+			};
+			final byte[] pattern = "abc".getBytes(StandardCharsets.UTF_8);
+			for (final ValueColumn<?> column : columns) {
+				final String name = column.getClass().getSimpleName();
+				assertFalse(column.supportsUtf8Matching(), name + " stores no UTF-8 keys and must say so");
+				assertThrows(
+					GenericEvitaInternalError.class,
+					() -> column.containsUtf8At(0, pattern),
+					"the default must throw rather than silently answer, so a caller that skips the capability check "
+						+ "fails loudly instead of returning a wrong answer - " + name
+				);
+			}
 		}
 
 	}

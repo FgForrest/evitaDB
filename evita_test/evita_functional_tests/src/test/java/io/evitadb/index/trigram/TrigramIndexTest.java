@@ -39,6 +39,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Random;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
@@ -518,6 +519,318 @@ class TrigramIndexTest {
 			);
 		}
 
+		@Test
+		@DisplayName("a one-trigram pattern over a promoted posting answers it whole, in an array the caller owns")
+		void shouldAnswerAOneTrigramPatternFromTheBitmapPostingAlone() {
+			// A single trigram has nothing to intersect against, so the bitmap branch materializes the posting and
+			// returns that - there is no accumulator for the query to own. What still has to hold is that the array
+			// IS the caller's: the returned array is handed on to verification and to the caller beyond it, and if it
+			// ever aliased the index's own posting, every version sharing that posting would be exposed to whoever
+			// writes into it next.
+			final TrigramIndex index = emptyIndex();
+			final int promoted = TrigramPostings.SMALL_POSTING_THRESHOLD + 20;
+			for (int valueId = 1; valueId <= promoted; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			final long abc = trigram("abc");
+			assertTrue(
+				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+				"the posting must have promoted, or the one-trigram case of the BITMAP branch is never entered"
+			);
+
+			final int[] expected = new int[promoted];
+			for (int i = 0; i < expected.length; i++) {
+				expected[i] = i + 1;
+			}
+			final int[] candidates = index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abc"));
+			assertArrayEquals(expected, candidates, "one trigram filters nothing, so the whole posting is the answer");
+
+			// the answer is the caller's array to do as it likes with; the index must not notice
+			Arrays.fill(candidates, -1);
+			assertArrayEquals(
+				expected, index.getValueIdsOf(abc).getArray(),
+				"writing into the returned array must not reach the index's own posting"
+			);
+			assertArrayEquals(
+				expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abc")),
+				"and a repeated query must answer identically, which an aliased posting could not"
+			);
+		}
+
+		@Test
+		@DisplayName("a bitmap-led intersection whose two cheapest postings share nothing stops without the third")
+		void shouldAbandonABitmapLedIntersectionOnceTheAccumulatorIsEmpty() {
+			// The intersection is run to completion on purpose - stopping early trades a Roaring `and` for a
+			// verification pass, and verification is the expensive half - but an accumulator that has reached ZERO
+			// has nothing left for a later posting to remove, so that one case does return early. Three postings are
+			// needed to reach it at all: with two, the loop never runs and the empty answer comes back through the
+			// ordinary materialization instead.
+			final TrigramIndex index = emptyIndex();
+
+			// `abc`, `bcd` and `cde` are the trigrams of `abcde`; each is planted in its own disjoint id range, so
+			// the two cheapest share NO id and the accumulator is empty before the third is ever consulted
+			for (int valueId = 1; valueId <= 200; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 300; valueId < 600; valueId++) {
+				index.valueCreated(valueId, "zbcdz");
+			}
+			for (int valueId = 700; valueId < 1100; valueId++) {
+				index.valueCreated(valueId, "zcdez");
+			}
+
+			assertTrue(
+				postingOf(index, trigram("abc")) instanceof PersistentRoaringBitmap,
+				"the cheapest posting must be a bitmap, or this is the small-posting path instead"
+			);
+			assertEquals(200, index.cardinalityOf(trigram("abc")));
+			assertEquals(300, index.cardinalityOf(trigram("bcd")));
+			assertEquals(400, index.cardinalityOf(trigram("cde")));
+
+			assertArrayEquals(
+				new int[0], index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+				"no value holds all three trigrams, so the honest answer is empty"
+			);
+		}
+
+		@Test
+		@DisplayName("a bitmap accumulator narrowed past the threshold finishes on the small-posting path")
+		void shouldDemoteANarrowedBitmapAccumulatorToTheSmallPath() {
+			// Once the accumulator holds no more than the small-posting threshold it is materialized once and the
+			// remaining postings are applied by membership probing instead of by further Roaring `and`s. That tail is
+			// the cheaper one - a bitmap `and` costs container work proportional to the WIDER side however narrow the
+			// accumulator has become, and the probing path consumes an `int[]` posting as it stands.
+			final TrigramIndex index = emptyIndex();
+
+			// `abcde` is what carries all three trigrams; the other three values each add bulk to exactly one of
+			// them, so the postings order abc < bcd < cde and the first `and` lands on the 100 shared ids alone
+			for (int valueId = 1; valueId <= 100; valueId++) {
+				index.valueCreated(valueId, "abcde");
+			}
+			for (int valueId = 200; valueId < 400; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 400; valueId < 700; valueId++) {
+				index.valueCreated(valueId, "zbcdy");
+			}
+			for (int valueId = 700; valueId < 1100; valueId++) {
+				index.valueCreated(valueId, "zcdey");
+			}
+
+			final long abc = trigram("abc");
+			final long bcd = trigram("bcd");
+			final long cde = trigram("cde");
+			assertTrue(
+				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+				"the cheapest posting must be a bitmap, or this is the small-posting path instead"
+			);
+			assertEquals(300, index.cardinalityOf(abc));
+			assertEquals(400, index.cardinalityOf(bcd));
+			assertEquals(500, index.cardinalityOf(cde));
+
+			// THE DEMOTION PRECONDITION, stated rather than assumed: the two cheapest postings must intersect to
+			// something non-empty but no wider than the threshold, or the accumulator never demotes and this test
+			// quietly stops exercising the branch it is named for - which is exactly what a later change to the
+			// threshold would do to it.
+			final int[] bcdIds = index.getValueIdsOf(bcd).getArray();
+			int shared = 0;
+			for (final int candidate : index.getValueIdsOf(abc).getArray()) {
+				if (Arrays.binarySearch(bcdIds, candidate) >= 0) {
+					shared++;
+				}
+			}
+			assertTrue(
+				shared > 0 && shared <= TrigramPostings.SMALL_POSTING_THRESHOLD,
+				"the two cheapest postings must intersect to between 1 and " + TrigramPostings.SMALL_POSTING_THRESHOLD
+					+ " ids for the accumulator to demote, but they share " + shared
+			);
+
+			final int[] expected = new int[100];
+			for (int i = 0; i < expected.length; i++) {
+				expected[i] = i + 1;
+			}
+			assertArrayEquals(
+				expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+				"the demoted tail must reach the same answer the bitmap fold would have"
+			);
+
+			// the demoted tail compacts an array in place, so it is exactly where a posting handed over by mistake
+			// would be corrupted
+			assertArrayEquals(
+				new int[]{1, 2, 3}, Arrays.copyOf(index.getValueIdsOf(cde).getArray(), 3),
+				"the postings the demoted tail probed must be exactly as it found them"
+			);
+			assertEquals(500, index.cardinalityOf(cde));
+			assertEquals(400, index.cardinalityOf(bcd));
+			assertEquals(300, index.cardinalityOf(abc));
+		}
+
+		@Test
+		@DisplayName("a bitmap-led intersection over dense, multi-container postings leaves them untouched too")
+		void shouldNotMutateDenseMultiContainerPostingsAnIntersectionReads() {
+			// The ownership claim the sibling above defends is tested there for ArrayContainer against ArrayContainer
+			// inside ONE Roaring container - the narrowest shape it has. Roaring switches a container to a bitmap
+			// representation past 4096 members and files ids into a new container every 65 536, and the static `and`
+			// has its own code path per container-pair shape. This fixture is dense enough for bitmap containers and
+			// spread widely enough to span several container keys, so the intersection meets both.
+			final TrigramIndex index = emptyIndex();
+
+			// the shared prefix of the answer: 5 000 ids in the first container, well past the 4 096 members at which
+			// Roaring stops storing a container as a sorted array
+			for (int valueId = 1; valueId <= 5_000; valueId++) {
+				index.valueCreated(valueId, "abcde");
+			}
+			// each trigram then gets bulk of its own, in a container key no other trigram writes into
+			for (int valueId = 100_000; valueId < 105_000; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 200_000; valueId < 207_000; valueId++) {
+				index.valueCreated(valueId, "zbcdy");
+			}
+			for (int valueId = 300_000; valueId < 309_000; valueId++) {
+				index.valueCreated(valueId, "zcdey");
+			}
+
+			final long abc = trigram("abc");
+			final long bcd = trigram("bcd");
+			final long cde = trigram("cde");
+			assertTrue(
+				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+				"the cheapest posting must be a bitmap, or the bitmap branch is never entered"
+			);
+			assertEquals(10_000, index.cardinalityOf(abc));
+			assertEquals(12_000, index.cardinalityOf(bcd));
+			assertEquals(14_000, index.cardinalityOf(cde));
+
+			final int[] abcBefore = index.getValueIdsOf(abc).getArray();
+			final int[] bcdBefore = index.getValueIdsOf(bcd).getArray();
+			final int[] cdeBefore = index.getValueIdsOf(cde).getArray();
+			assertTrue(
+				abcBefore[abcBefore.length - 1] > 0xFFFF,
+				"the cheapest posting must reach past the first container, or the multi-container claim is untested"
+			);
+
+			final int[] expected = new int[5_000];
+			for (int i = 0; i < expected.length; i++) {
+				expected[i] = i + 1;
+			}
+			assertArrayEquals(expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")));
+
+			assertArrayEquals(abcBefore, index.getValueIdsOf(abc).getArray(),
+				"the cheapest posting was folded into the answer, not overwritten by it");
+			assertArrayEquals(bcdBefore, index.getValueIdsOf(bcd).getArray());
+			assertArrayEquals(cdeBefore, index.getValueIdsOf(cde).getArray());
+			assertArrayEquals(
+				expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+				"a second identical query must answer identically, which a mutated posting could not"
+			);
+		}
+
+		@Test
+		@DisplayName("the intersection agrees with a brute-force one over randomized corpora, and writes into nothing")
+		void shouldAgreeWithABruteForceIntersectionOverRandomizedCorpora() {
+			// Each hand-built fixture above reaches ONE branch. This drives them together - the small-led chain, the
+			// bitmap-led fold, the demotion into the small path, the empty accumulator, and the 65..128 window where a
+			// posting may legitimately be either representation - against an oracle built from the index's own
+			// per-trigram postings, which is the definition the intersection is supposed to implement.
+			//
+			// Every posting each query reads is snapshotted before and after, so an in-place corruption in a container
+			// shape none of the hand-built fixtures thought of is caught here. The seed is fixed, so a failure names
+			// the exact corpus it happened on.
+			final Random rnd = new Random(20_260_831L);
+			for (int round = 0; round < 20; round++) {
+				final int valueCount = 40 + rnd.nextInt(400);
+				final int alphabet = 3 + rnd.nextInt(3);
+				final TrigramIndex index = emptyIndex();
+				final String[] values = new String[valueCount];
+				for (int i = 0; i < valueCount; i++) {
+					values[i] = randomWord(rnd, alphabet, 4 + rnd.nextInt(5));
+					index.valueCreated(i + 1, values[i]);
+				}
+
+				for (int probe = 0; probe < 10; probe++) {
+					final String pattern = rnd.nextBoolean()
+						? substringOf(rnd, values[rnd.nextInt(valueCount)])
+						: randomWord(rnd, alphabet, 3 + rnd.nextInt(4));
+					final long[] trigrams = TrigramCodec.extractUniqueTrigrams(pattern);
+					final int[][] postingsBefore = new int[trigrams.length][];
+					for (int i = 0; i < trigrams.length; i++) {
+						postingsBefore[i] = index.getValueIdsOf(trigrams[i]).getArray();
+					}
+					final int[] expected = intersectAll(postingsBefore);
+					final String context = "round " + round + ", pattern `" + pattern + "`";
+
+					assertArrayEquals(expected, index.resolveCandidateValueIds(trigrams), context);
+					assertArrayEquals(
+						expected, index.resolveCandidateValueIds(trigrams),
+						context + " - a repeated query answered differently, so something was written into"
+					);
+					for (int i = 0; i < trigrams.length; i++) {
+						assertArrayEquals(
+							postingsBefore[i], index.getValueIdsOf(trigrams[i]).getArray(),
+							context + " - posting of `" + TrigramCodec.toDisplayString(trigrams[i])
+								+ "` was written into"
+						);
+					}
+				}
+			}
+		}
+
+		/**
+		 * @param rnd      the workload's RNG
+		 * @param alphabet how many distinct letters the word may use - a small alphabet is what makes trigrams
+		 *                 collide often enough for postings to grow and promote
+		 * @param length   the word's length
+		 * @return a random lower-case word
+		 */
+		@Nonnull
+		private static String randomWord(@Nonnull Random rnd, int alphabet, int length) {
+			final StringBuilder word = new StringBuilder(length);
+			for (int i = 0; i < length; i++) {
+				word.append((char) ('a' + rnd.nextInt(alphabet)));
+			}
+			return word.toString();
+		}
+
+		/**
+		 * @param rnd   the workload's RNG
+		 * @param value the value to cut from
+		 * @return a substring of `value` at least one trigram wide, so it is a pattern the index can answer
+		 */
+		@Nonnull
+		private static String substringOf(@Nonnull Random rnd, @Nonnull String value) {
+			if (value.length() <= TrigramCodec.MINIMAL_INDEXABLE_LENGTH) {
+				return value;
+			}
+			final int length = TrigramCodec.MINIMAL_INDEXABLE_LENGTH
+				+ rnd.nextInt(value.length() - TrigramCodec.MINIMAL_INDEXABLE_LENGTH + 1);
+			return value.substring(rnd.nextInt(value.length() - length + 1)).substring(0, length);
+		}
+
+		/**
+		 * The definition the intersection implements, written the slow and obvious way: the ids every posting holds.
+		 *
+		 * @param postings the ascending postings to intersect
+		 * @return the ascending ids common to all of them, empty when there are none or when there is no posting
+		 */
+		@Nonnull
+		private static int[] intersectAll(@Nonnull int[][] postings) {
+			if (postings.length == 0) {
+				return new int[0];
+			}
+			int[] surviving = postings[0].clone();
+			for (int i = 1; i < postings.length; i++) {
+				int kept = 0;
+				for (final int candidate : surviving) {
+					if (Arrays.binarySearch(postings[i], candidate) >= 0) {
+						surviving[kept++] = candidate;
+					}
+				}
+				surviving = Arrays.copyOf(surviving, kept);
+			}
+			return surviving;
+		}
+
 	}
 
 	@Nested
@@ -663,6 +976,68 @@ class TrigramIndexTest {
 						publishedCardinality, original.cardinalityOf(trigram("abc")),
 						"the published bitmap must not have been mutated in place"
 					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an intersection run on the committed version leaves the previous version's postings untouched")
+		void shouldNotLeakAnIntersectionIntoThePreviousVersion() {
+			// The accumulator is owned only from the static `and` onwards precisely because `postings[0]` is shared BY
+			// REFERENCE with every index version that can still read it. That hazard is cross-version, and the
+			// existing leak guard covers the WRITE path - a transaction mutating a posting. This is the READ path: a
+			// commit that touched an unrelated trigram carries these postings forward by reference, so both versions
+			// hold the very same bitmaps while the intersection runs on the newer one.
+			final TrigramIndex index = emptyIndex();
+			for (int valueId = 1; valueId <= 150; valueId++) {
+				index.valueCreated(valueId, "abcde");
+			}
+			for (int valueId = 300; valueId < 330; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 400; valueId < 500; valueId++) {
+				index.valueCreated(valueId, "zbcdy");
+			}
+			for (int valueId = 500; valueId < 600; valueId++) {
+				index.valueCreated(valueId, "zcdey");
+			}
+			final long abc = trigram("abc");
+			final long bcd = trigram("bcd");
+			final long cde = trigram("cde");
+			assertTrue(
+				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+				"the cheapest posting must be a bitmap, or the shared-by-reference hazard does not arise"
+			);
+			final int[] abcBefore = index.getValueIdsOf(abc).getArray();
+			final int[] bcdBefore = index.getValueIdsOf(bcd).getArray();
+			final int[] cdeBefore = index.getValueIdsOf(cde).getArray();
+
+			assertStateAfterCommit(
+				index,
+				// a trigram sharing nothing with the pattern below, so the postings it reads are carried forward
+				original -> original.valueCreated(9_000, "wxyz"),
+				(original, committed) -> {
+					assertSame(
+						postingOf(original, abc), postingOf(committed, abc),
+						"the untouched posting must have been carried forward by reference, or the two versions do "
+							+ "not share the bitmap this test is about"
+					);
+
+					final int[] expected = new int[150];
+					for (int i = 0; i < expected.length; i++) {
+						expected[i] = i + 1;
+					}
+					assertArrayEquals(
+						expected, committed.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+						"the newer version must answer the intersection correctly"
+					);
+
+					assertArrayEquals(
+						abcBefore, original.getValueIdsOf(abc).getArray(),
+						"a query on the newer version must not have written into a posting the older one still reads"
+					);
+					assertArrayEquals(bcdBefore, original.getValueIdsOf(bcd).getArray());
+					assertArrayEquals(cdeBefore, original.getValueIdsOf(cde).getArray());
 				}
 			);
 		}

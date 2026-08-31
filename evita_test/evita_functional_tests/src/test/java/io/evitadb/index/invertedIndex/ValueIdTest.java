@@ -30,7 +30,9 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.LeafPage;
+import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
 import io.evitadb.index.page.PageEmission;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,10 +41,13 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -51,6 +56,7 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -1200,6 +1206,138 @@ class ValueIdTest {
 			final InvertedIndex index = indexWithIds(5);
 
 			assertThrows(GenericEvitaInternalError.class, () -> index.restoreValueIds(500));
+		}
+	}
+
+	@Nested
+	@DisplayName("Verifying candidates by their value ids")
+	class CandidateVerification {
+
+		@Test
+		@DisplayName("the four-argument form without a byte pattern answers exactly as the three-argument one")
+		void shouldDelegateToTheThreeArgumentFormWithoutAPattern() {
+			// the three-argument overload is now a delegation, and nothing else pins it - so a later edit that gave
+			// the two forms different defaults would go unnoticed
+			final InvertedIndex index = indexWithIds(10, 20, 30, 40);
+			final int[] candidates = {
+				index.getValueId(10), index.getValueId(20), index.getValueId(30), index.getValueId(40)
+			};
+			final Predicate<Serializable> divisibleByTwenty = value -> ((Integer) value) % 20 == 0;
+
+			final MatchedBuckets threeArgument = index.getRecordsOfValueIdsMatching(
+				candidates, candidates.length, divisibleByTwenty
+			);
+			final MatchedBuckets fourArgument = index.getRecordsOfValueIdsMatching(
+				candidates, candidates.length, divisibleByTwenty, null
+			);
+
+			assertEquals(2, threeArgument.recordSets().length, "two of the four values must match, or this is vacuous");
+			assertMatchesAgree(threeArgument, fourArgument);
+		}
+
+		@Test
+		@DisplayName("a byte pattern returns exactly what the predicate it stands in for returns")
+		void shouldAnswerAByteFormExactlyAsItsPredicateWould() {
+			// The byte form REPLACES the predicate where it applies rather than pre-filtering for it, so the two must
+			// be the same question - an obligation the method's javadoc places on the caller and nothing at this level
+			// checked. A String-keyed index is what makes the byte path apply at all: its key column stores UTF-8.
+			final InvertedIndex index = stringIndexWithIds(
+				"alpha item", "beta widget", "an item of gamma", "delta", "itemised"
+			);
+			final int[] candidates = valueIdsOf(
+				index, "alpha item", "beta widget", "an item of gamma", "delta", "itemised"
+			);
+			final Predicate<Serializable> containsItem = value -> String.valueOf(value).contains("item");
+
+			final MatchedBuckets viaPredicate = index.getRecordsOfValueIdsMatching(
+				candidates, candidates.length, containsItem
+			);
+			final MatchedBuckets viaBytes = index.getRecordsOfValueIdsMatching(
+				candidates, candidates.length, containsItem, "item".getBytes(StandardCharsets.UTF_8)
+			);
+
+			assertEquals(
+				3, viaPredicate.recordSets().length,
+				"three of the five values contain the pattern, so both a match and a rejection are exercised"
+			);
+			assertMatchesAgree(viaPredicate, viaBytes);
+		}
+
+		@Test
+		@DisplayName("a key column that cannot match bytes falls back to the predicate rather than refusing")
+		void shouldFallBackToThePredicateWhereBytesCannotBeMatched() {
+			// The byte path applies only where the key column stores UTF-8, and an `Integer`-keyed tree does not - so
+			// the pattern is ignored and the predicate answers. Nothing reaches this arm through the trigram path,
+			// because every `String` key is given a front-coded column; it is reachable only by asking directly, and
+			// it is what the requirement to pass a predicate ALONGSIDE a pattern exists for.
+			final InvertedIndex index = indexWithIds(10, 20, 30);
+			final int[] candidates = {index.getValueId(10), index.getValueId(20), index.getValueId(30)};
+			final Predicate<Serializable> isTwenty = value -> ((Integer) value).intValue() == 20;
+
+			final MatchedBuckets matched = index.getRecordsOfValueIdsMatching(
+				candidates, candidates.length, isTwenty, "20".getBytes(StandardCharsets.UTF_8)
+			);
+
+			assertEquals(1, matched.recordSets().length, "the predicate, not the pattern, must have decided");
+			assertArrayEquals(new int[]{2}, matched.recordSets()[0].getArray());
+		}
+
+		/**
+		 * Builds a `String`-keyed index already carrying value ids, one record per value in insertion order. The key
+		 * column of such a tree is the front-coded one, which is the only implementation able to match bytes.
+		 *
+		 * @param values the values to insert, one record each
+		 * @return the populated, id-carrying index
+		 */
+		@Nonnull
+		private InvertedIndex stringIndexWithIds(@Nonnull String... values) {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
+			final InvertedIndex index = new InvertedIndex(
+				String.class,
+				FilterIndex.getNormalizer(String.class, 0),
+				FilterIndex.getComparator(key, String.class),
+				0
+			);
+			index.attachValueIdConsumer(TEST_CONSUMER);
+			for (int i = 0; i < values.length; i++) {
+				index.addRecord(values[i], i + 1);
+			}
+			return index;
+		}
+
+		/**
+		 * @param index  the index to resolve against
+		 * @param values the values whose ids are wanted
+		 * @return the values' ids, in the order they were named
+		 */
+		@Nonnull
+		private int[] valueIdsOf(@Nonnull InvertedIndex index, @Nonnull String... values) {
+			final int[] ids = new int[values.length];
+			for (int i = 0; i < values.length; i++) {
+				ids[i] = index.getValueId(values[i]);
+				assertTrue(ids[i] > 0, "`" + values[i] + "` must be in the index or the candidate set is a fiction");
+			}
+			return ids;
+		}
+
+		/**
+		 * Asserts two answers hold the same buckets, in the same order, with the same staleness token set.
+		 *
+		 * @param expected the answer to compare against
+		 * @param actual   the answer under test
+		 */
+		private void assertMatchesAgree(@Nonnull MatchedBuckets expected, @Nonnull MatchedBuckets actual) {
+			assertEquals(expected.recordSets().length, actual.recordSets().length, "different bucket counts");
+			for (int i = 0; i < expected.recordSets().length; i++) {
+				assertArrayEquals(
+					expected.recordSets()[i].getArray(), actual.recordSets()[i].getArray(),
+					"bucket " + i + " differs"
+				);
+			}
+			assertArrayEquals(
+				expected.leafVersionIds(), actual.leafVersionIds(),
+				"the two forms must depend on exactly the same leaves, or they would not share a cache entry"
+			);
 		}
 	}
 }

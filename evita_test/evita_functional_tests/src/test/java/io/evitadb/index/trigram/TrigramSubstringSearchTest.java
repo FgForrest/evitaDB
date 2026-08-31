@@ -596,6 +596,67 @@ class TrigramSubstringSearchTest {
 		}
 
 		@Test
+		@DisplayName("a containment candidate is settled from the stored bytes, so the predicate is consulted once")
+		void shouldSettleContainmentCandidatesFromTheStoredBytes() {
+			// Parity cannot see this: the byte comparison answers exactly what the predicate answers, so every parity
+			// case in this class stays green with the whole byte path deleted. What the byte path changes is WHO
+			// answers, so the predicate is COUNTED instead. Under `CONTAINMENT` it must be consulted exactly ONCE -
+			// the check that it really is containment - and all 120 candidates then settled off the column's stored
+			// bytes, decoding no `String` at all.
+			//
+			// `zebra` rather than a three-code-point pattern on purpose: at three code points verification is skipped
+			// outright, and a count of 1 would then prove only that. This pattern is three trigrams wide, so
+			// verification genuinely runs - just not through the predicate.
+			//
+			// CALIBRATION: dropping the byte pattern, or making the key column report that it cannot match bytes,
+			// turns the first count from 1 into 120.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			assertEquals(
+				ZEBRA_VALUES,
+				trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("zebra")).length,
+				"the pattern must nominate every planted value, or 1-versus-N is not the comparison being made"
+			);
+
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, pattern) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, pattern);
+			};
+
+			final MatchedBuckets fromBytes = TrigramSubstringSearch.match(
+				trigramIndex, tree, "zebra", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(fromBytes);
+			assertEquals(ZEBRA_VALUES, fromBytes.recordSets().length, "every candidate must still be answered");
+			assertEquals(
+				1, invocations[0],
+				"the predicate must be consulted ONCE - the check that it really is containment - and never per "
+					+ "candidate; anything scaling with the candidate count means the stored bytes did not answer"
+			);
+
+			// the same query declared anchored has no byte form to answer from and must decode every candidate, which
+			// pins the counter as a working instrument rather than one that never fires, and shows what the byte path
+			// actually removes
+			invocations[0] = 0;
+			final MatchedBuckets fromStrings = TrigramSubstringSearch.match(
+				trigramIndex, tree, "zebra", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.ANCHORED
+			);
+			assertNotNull(fromStrings);
+			assertEquals(
+				ZEBRA_VALUES, invocations[0],
+				"the anchored form must consult the predicate once per candidate"
+			);
+			assertEquals(
+				fromBytes.recordSets().length, fromStrings.recordSets().length,
+				"and must reach the very same answer, which is why answering from the bytes is safe"
+			);
+		}
+
+		@Test
 		@DisplayName("a predicate that is not containment is refused rather than trusted")
 		void shouldRefuseAContainmentClaimItsPredicateDoesNotSupport() {
 			// `StringSearchShape` is the caller's word about a predicate this class cannot introspect, and acting on
@@ -608,6 +669,29 @@ class TrigramSubstringSearchTest {
 				GenericEvitaInternalError.class,
 				() -> TrigramSubstringSearch.match(
 					trigramIndexOf(index, ATTRIBUTE_TITLE, null), tree, "abc", ENDS_WITH,
+					threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("containment"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("a containment claim the BYTE path would have acted on is refused just as loudly")
+		void shouldRefuseAContainmentClaimTheBytePathWouldHaveActedOn() {
+			// The witness fires for two reasons now - verification skipped outright, OR verification answered from the
+			// stored bytes - and the sibling above reaches only the first, because its three-code-point pattern is
+			// self-verifying and would fire the witness with or without a byte pattern. `abcd` is two trigrams wide,
+			// so verification genuinely runs and the claim is acted on ONLY because a byte pattern was built for it.
+			// That is the arm this covers, and without it the widened condition would be untested.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null), tree, "abcd", ENDS_WITH,
 					threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
 				)
 			);

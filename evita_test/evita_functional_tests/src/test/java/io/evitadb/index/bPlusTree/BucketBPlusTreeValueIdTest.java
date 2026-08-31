@@ -29,8 +29,11 @@ import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.utils.CollectionUtils;
+import com.carrotsearch.hppc.LongArrayList;
+import com.carrotsearch.hppc.LongLongHashMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -38,14 +41,21 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Predicate;
 
+import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -456,6 +466,229 @@ class BucketBPlusTreeValueIdTest {
 				2, tree.valueOf(idOfTwo),
 				"the unconditional rebuild is the one that picks an in-place mutation up"
 			);
+		}
+
+		@Test
+		@DisplayName("a leaf the previous directory never held is restamped rather than skipped")
+		void shouldRestampALeafThePreviousDirectoryNeverHeld() {
+			// The reuse check asks `indexOf`/`indexExists` rather than `get` with a sentinel, precisely so that a leaf
+			// ABSENT from the previous table is told apart from one whose recorded token happens to be zero. Only the
+			// present-and-equal arm was covered; this reaches the absent one, which is what a split between two
+			// rebuilds produces - the new leaf has no previous entry at all and its entries must be stamped.
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE - 1);
+			tree.rebuildValueIdDirectory();
+			final int leavesBefore = directoryLeafCount(tree);
+			assertEquals(1, leavesBefore, "the fixture must start as a single leaf, or nothing splits");
+
+			// the value that fills the block splits the leaf, so the tree gains a leaf the previous directory has
+			// never seen while the original instance is carried forward unchanged
+			tree.addRecord(LEAF_BLOCK_SIZE - 1, LEAF_BLOCK_SIZE);
+			final int newValueId = tree.valueIdOf(LEAF_BLOCK_SIZE - 1);
+			assertTrue(newValueId > 0, "the new value must have been minted an id");
+			assertNull(
+				tree.valueOf(newValueId),
+				"the published directory predates the split, so the new id resolves to nothing until it is rebuilt"
+			);
+
+			tree.rebuildValueIdDirectoryAfterMerge();
+
+			assertTrue(
+				directoryLeafCount(tree) > leavesBefore,
+				"the split must have produced a leaf the previous directory never held, or the absent arm of the "
+					+ "reuse check is not the one being exercised"
+			);
+			assertEquals(
+				LEAF_BLOCK_SIZE - 1, tree.valueOf(newValueId),
+				"a leaf with no previous entry cannot be skipped as unchanged - it has to be stamped"
+			);
+		}
+
+		@Test
+		@DisplayName("the shared empty leaf-version table a first rebuild probes is never written into")
+		void shouldNeverWriteIntoTheSharedEmptyLeafVersionTable() {
+			// A tree with no previous directory probes a SHARED static table, whose javadoc says it is never written.
+			// Nothing enforced that, and a later edit that put into the probe map instead of reading it would corrupt
+			// every other tree's first rebuild - a cross-tree failure with no local symptom at all.
+			final TransactionalBucketBPlusTree<Integer> first = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			first.rebuildValueIdDirectory();
+			assertTrue(sharedEmptyLeafVersions().isEmpty(), "the unconditional first rebuild wrote into it");
+
+			final TransactionalBucketBPlusTree<Integer> second = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			second.rebuildValueIdDirectoryAfterMerge();
+			assertTrue(sharedEmptyLeafVersions().isEmpty(), "the incremental first rebuild wrote into it");
+
+			// and a tree whose first rebuild came second still resolves everything, which it could not if the shared
+			// table had picked up another tree's leaf ids
+			final TransactionalBucketBPlusTree<Integer> third = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			third.rebuildValueIdDirectoryAfterMerge();
+			for (int value = 0; value < LEAF_BLOCK_SIZE + 2; value++) {
+				assertEquals(value, third.valueOf(third.valueIdOf(value)));
+			}
+		}
+
+		/**
+		 * @param tree the tree whose published directory to inspect
+		 * @return how many leaves the published directory's version table holds
+		 */
+		private int directoryLeafCount(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final Object directory = Objects.requireNonNull(
+				readField(tree, "valueIdDirectory"), "the directory has not been built yet"
+			);
+			return ((LongLongHashMap) Objects.requireNonNull(
+				readField(directory, "directoryVersionByLeafId")
+			)).size();
+		}
+
+		/**
+		 * @return the shared empty leaf-version table every first rebuild probes against
+		 */
+		@Nonnull
+		private LongLongHashMap sharedEmptyLeafVersions() {
+			try {
+				final Field field = TransactionalBucketBPlusTree.class.getDeclaredField("EMPTY_LEAF_VERSIONS");
+				field.setAccessible(true);
+				return (LongLongHashMap) Objects.requireNonNull(field.get(null));
+			} catch (ReflectiveOperationException ex) {
+				throw new GenericEvitaInternalError(
+					"the shared empty leaf-version table is gone, so this guard no longer guards anything.", ex
+				);
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Settling a candidate off the slot its id resolves to")
+	class CandidateResolution {
+
+		@Test
+		@DisplayName("with no predicate and no pattern the bucket comes back and its leaf reaches the sink")
+		void shouldAnswerWithoutReadingTheKeyAtAll() {
+			// A null predicate is the caller stating that every id it hands over is already known to match, so the key
+			// is never decoded. What is observable from here is the rest of the contract: the records come back and
+			// the leaf the answer depends on is reported, because the answer would go stale with that leaf.
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			tree.rebuildValueIdDirectory();
+			final LongArrayList reportedLeaves = new LongArrayList();
+
+			final Bitmap records = tree.recordsOfMatchingValueId(
+				tree.valueIdOf(3), null, null, reportedLeaves::add
+			);
+
+			assertNotNull(records, "the id names a live bucket, so it must answer");
+			assertArrayEquals(new int[]{4}, records.getArray());
+			assertEquals(1, reportedLeaves.size(), "exactly the one leaf the answer was read from must be reported");
+		}
+
+		@Test
+		@DisplayName("a byte pattern settles the candidate itself, so the predicate beside it is never consulted")
+		void shouldSettleTheCandidateFromTheStoredBytes() {
+			// The byte form REPLACES the predicate wherever the key column can match bytes - it does not pre-filter
+			// for it - and a `String`-keyed tree is front-coded, so this is where that applies. Counting the predicate
+			// is what tells the two apart: parity alone would look the same with the byte path deleted.
+			final TransactionalBucketBPlusTree<String> tree = stringTreeWithIds(
+				"alpha item", "beta widget", "gamma item"
+			);
+			final int[] invocations = new int[1];
+			final Predicate<String> counting = value -> {
+				invocations[0]++;
+				return value.contains("item");
+			};
+			final LongArrayList reportedLeaves = new LongArrayList();
+
+			final Bitmap matched = tree.recordsOfMatchingValueId(
+				tree.valueIdOf("gamma item"), counting, "item".getBytes(StandardCharsets.UTF_8),
+				reportedLeaves::add
+			);
+			assertNotNull(matched, "the value contains the pattern, so the bucket must come back");
+			assertArrayEquals(new int[]{3}, matched.getArray());
+			assertEquals(1, reportedLeaves.size(), "a match must report the leaf it was read from");
+			assertEquals(0, invocations[0], "the stored bytes must have answered, not the predicate");
+
+			final Bitmap rejected = tree.recordsOfMatchingValueId(
+				tree.valueIdOf("beta widget"), counting, "item".getBytes(StandardCharsets.UTF_8),
+				reportedLeaves::add
+			);
+			assertNull(rejected, "the value does not contain the pattern, so nothing comes back");
+			assertEquals(
+				1, reportedLeaves.size(),
+				"a rejected candidate contributes no record set, so its leaf must NOT widen the staleness set"
+			);
+			assertEquals(0, invocations[0], "and the rejection must have come from the bytes as well");
+		}
+
+		@Test
+		@DisplayName("a key column that cannot match bytes falls back to the predicate rather than refusing")
+		void shouldFallBackToThePredicateWhereBytesCannotBeMatched() {
+			// `Integer` keys are stored in a primitive column, which reports it cannot match bytes - so the pattern is
+			// ignored and the predicate answers. Nothing reaches this arm through the trigram path, because every
+			// `String` key is given a front-coded column; it is why the predicate stays required beside the pattern.
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			tree.rebuildValueIdDirectory();
+			final int[] invocations = new int[1];
+			final Predicate<Integer> counting = value -> {
+				invocations[0]++;
+				return value == 3;
+			};
+			final LongArrayList reportedLeaves = new LongArrayList();
+
+			final Bitmap matched = tree.recordsOfMatchingValueId(
+				tree.valueIdOf(3), counting, "3".getBytes(StandardCharsets.UTF_8), reportedLeaves::add
+			);
+
+			assertNotNull(matched, "the predicate accepts the value, so the bucket must come back");
+			assertArrayEquals(new int[]{4}, matched.getArray());
+			assertEquals(1, invocations[0], "the predicate must have been consulted exactly once, per candidate");
+			assertEquals(1, reportedLeaves.size());
+		}
+
+		@Test
+		@DisplayName("an id naming nothing live answers nothing and reports no leaf")
+		void shouldAnswerNothingForAnIdNamingNothingLive() {
+			// The trigram postings are keyed by value id and a value can die between the posting being read and this
+			// verification running, so an id that resolves to nothing is an ordinary race rather than a divergence -
+			// and it must not widen the staleness set on the way past.
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(LEAF_BLOCK_SIZE + 2);
+			tree.rebuildValueIdDirectory();
+			final int deadId = tree.valueIdOf(3);
+			tree.removeRecord(3, 4);
+			final LongArrayList reportedLeaves = new LongArrayList();
+
+			assertNull(
+				tree.recordsOfMatchingValueId(deadId, null, null, reportedLeaves::add),
+				"the slot no longer carries that id, so the stale entry must not be believed"
+			);
+			assertNull(
+				tree.recordsOfMatchingValueId(Integer.MAX_VALUE, null, null, reportedLeaves::add),
+				"an id the directory has no entry for at all resolves to nothing"
+			);
+			assertTrue(reportedLeaves.isEmpty(), "nothing matched, so no leaf may enter the staleness set");
+		}
+
+		/**
+		 * Builds a `String`-keyed tree already carrying value ids, one record per value in the order given. A `String`
+		 * key column is the front-coded one, which is the only implementation able to match bytes.
+		 *
+		 * @param values the values to insert, one record each
+		 * @return the populated, id-carrying tree with its directory built
+		 */
+		@Nonnull
+		@SuppressWarnings("unchecked")
+		private TransactionalBucketBPlusTree<String> stringTreeWithIds(@Nonnull String... values) {
+			// built the way `InvertedIndex` builds it, with the column the key type actually selects: the plain
+			// test-facing constructor installs the boxed column instead, and a boxed column cannot match bytes - so
+			// on one of those this test would take the predicate fallback and quietly assert nothing about the bytes
+			final ValueColumnFactory<String> frontCoded =
+				(ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null);
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				LEAF_BLOCK_SIZE, LEAF_BLOCK_SIZE / 2, LEAF_BLOCK_SIZE, LEAF_BLOCK_SIZE / 2,
+				String.class, null, frontCoded
+			);
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+			for (int i = 0; i < values.length; i++) {
+				tree.addRecord(values[i], i + 1);
+			}
+			tree.rebuildValueIdDirectory();
+			return tree;
 		}
 	}
 }
