@@ -1429,6 +1429,34 @@ public class InvertedIndex implements
 		int candidateCount,
 		@Nullable Predicate<Serializable> valuePredicate
 	) {
+		return getRecordsOfValueIdsMatching(candidateValueIds, candidateCount, valuePredicate, null);
+	}
+
+	/**
+	 * The {@link #getRecordsOfValueIdsMatching(int[], int, Predicate)} above, additionally offering the verification
+	 * a form of the test it can apply WITHOUT decoding each candidate's key into a `String`.
+	 *
+	 * `containsPatternUtf8` is the pattern's UTF-8 bytes, and is used only where the bucket tree's key column stores
+	 * its keys as UTF-8 too. It must be the same question `valuePredicate` asks - plain containment, and a pattern
+	 * that survives UTF-8 encoding unchanged - because where it applies it REPLACES the predicate rather than
+	 * pre-filtering for it. `valuePredicate` is still required, and still answers for every column that cannot match
+	 * bytes.
+	 *
+	 * @param candidateValueIds   the candidate ids to resolve
+	 * @param candidateCount      how many leading entries of `candidateValueIds` are live
+	 * @param valuePredicate      tests each candidate's (already-normalized) value, or `null` when every candidate is
+	 *                            known to match
+	 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, or `null` to always take the predicate
+	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of their leaves
+	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
+	 */
+	@Nonnull
+	public MatchedBuckets getRecordsOfValueIdsMatching(
+		@Nonnull int[] candidateValueIds,
+		int candidateCount,
+		@Nullable Predicate<Serializable> valuePredicate,
+		@Nullable byte[] containsPatternUtf8
+	) {
 		Assert.isPremiseValid(
 			!Transaction.isTransactionAvailable(),
 			"Value ids cannot be verified while a transaction is open on this thread - the directory addresses the " +
@@ -1461,7 +1489,7 @@ public class InvertedIndex implements
 				// separately - what value the id names, which leaf page the answer depends on, and what records the
 				// bucket holds. The leaf token still reaches the accumulator for MATCHES only; see the tree method
 				final Bitmap records = this.buckets.recordsOfMatchingValueId(
-					candidateValueIds[i], matches, leafVersionSink
+					candidateValueIds[i], matches, containsPatternUtf8, leafVersionSink
 				);
 				if (records != null) {
 					bitmaps.add(records);

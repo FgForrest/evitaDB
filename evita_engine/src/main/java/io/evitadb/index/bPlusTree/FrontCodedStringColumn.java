@@ -581,6 +581,62 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		return new String(scratch.cur, 0, len, StandardCharsets.UTF_8);
 	}
 
+	@Override
+	public boolean supportsUtf8Matching() {
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Decodes the slot with {@link #decodeAtBytes} - the same restart-point walk {@link #decodeAtString} performs -
+	 * and searches the raw bytes, so the only work this omits relative to the `String` path is the copy into a fresh
+	 * {@link String} and the predicate call on it. The restart walk itself is still paid.
+	 */
+	@Override
+	public boolean containsUtf8At(int index, @Nonnull byte[] patternUtf8) {
+		final DecodeScratch scratch = SCRATCH.get();
+		final int length = decodeAtBytes(scratch, index);
+		// read AFTER the call: `decodeAtBytes` grows and REPLACES `scratch.cur` when a key outgrows the buffer, so a
+		// reference fetched beforehand can address the discarded array
+		return indexOfBytes(scratch.cur, length, patternUtf8) >= 0;
+	}
+
+	/**
+	 * Finds the first occurrence of `needle` within the first `haystackLength` bytes of `haystack`.
+	 *
+	 * A plain scan with a first-byte guard rather than anything cleverer: the keys this column is built for are
+	 * identifier-like and short, so the win being chased is the {@link String} that is no longer allocated, not a
+	 * faster inner loop. {@link Arrays#equals(byte[], int, int, byte[], int, int)} carries the comparison so the
+	 * vectorised intrinsic does the per-byte work.
+	 *
+	 * @param haystack       the buffer to search, valid to `haystackLength`
+	 * @param haystackLength how much of `haystack` holds the decoded key
+	 * @param needle         the bytes to find
+	 * @return the offset of the first occurrence, or `-1`
+	 */
+	private static int indexOfBytes(@Nonnull byte[] haystack, int haystackLength, @Nonnull byte[] needle) {
+		final int needleLength = needle.length;
+		if (needleLength == 0) {
+			// `"x".contains("")` is true, and the byte path must answer the same
+			return 0;
+		}
+		if (needleLength > haystackLength) {
+			return -1;
+		}
+		final byte first = needle[0];
+		final int lastStart = haystackLength - needleLength;
+		for (int i = 0; i <= lastStart; i++) {
+			if (haystack[i] != first) {
+				continue;
+			}
+			if (Arrays.equals(haystack, i, i + needleLength, needle, 0, needleLength)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
 	/**
 	 * Decodes the key at the given live index by seeking the enclosing restart point and walking forward, leaving the
 	 * result in {@link DecodeScratch#cur} instead of wrapping it in a {@link String}: {@link #decodeAtString} wraps

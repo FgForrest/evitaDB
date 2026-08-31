@@ -119,6 +119,12 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	 *                        every id it passes matches - in which case the key is never read off the slot at all,
 	 *                        which on a front-coded column saves a walk back to a restart point and a `String`
 	 *                        allocation per candidate
+	 * @param containsPatternUtf8 when non-`null`, the UTF-8 bytes a matching key must CONTAIN, applied against the
+	 *                            column's stored bytes instead of `valuePredicate` wherever the column can answer that
+	 *                            way ({@link ValueColumn#supportsUtf8Matching}). It is the same test the predicate
+	 *                            would apply, minus the {@link String} the predicate would need built for it; the
+	 *                            caller owes the guarantee that the two agree, including that the pattern survives
+	 *                            UTF-8 encoding unchanged
 	 * @param leafVersionSink receives the version token of the matched bucket's leaf, and is not called otherwise
 	 * @return the matched value's record set, or `null` when the id names nothing live or the predicate rejected it
 	 */
@@ -126,6 +132,7 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	Bitmap recordsOfMatchingValueId(
 		int valueId,
 		@Nullable Predicate<K> valuePredicate,
+		@Nullable byte[] containsPatternUtf8,
 		@Nonnull LongConsumer leafVersionSink
 	);
 

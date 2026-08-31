@@ -24,6 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1334,6 +1337,128 @@ class FrontCodedStringColumnTest {
 				default -> "𐀀-" + bucket;                // supplementary U+10000, NOT BMP-safe
 			};
 		}
+	}
+
+	@Nested
+	@DisplayName("matching a pattern against the stored bytes")
+	class Utf8Matching {
+
+		/**
+		 * Keys chosen to cover what the byte comparison has to be right about: plain ASCII, a precomposed accent and
+		 * the SAME text decomposed (NFD, which is the form the index actually stores), a supplementary character
+		 * encoded as a surrogate pair, and keys sharing long prefixes so the front coding really front-codes.
+		 */
+		private static final String[] KEYS = {
+			"", "A", "abc", "abcabc", "aXbc",
+			"code-0001", "code-0002", "code-000200", "code-01",
+			"cafe\u0301 latte",                 // NFD: e + combining acute
+			"caf\u00e9 latte",                  // NFC: precomposed e-acute
+			"na\u00efve", "na\u0131ve",
+			"emoji \uD83D\uDE00 tail",         // supplementary, as a surrogate pair
+			"\uD83D\uDE00\uD83D\uDE01",      // two supplementary characters, nothing else
+			"\u4f60\u597d\u4e16\u754c"       // three-byte sequences throughout
+		};
+
+		/**
+		 * Patterns deliberately including ones that share a first byte with a key but do not occur, an empty pattern,
+		 * a pattern longer than every key, and HALVES of multi-byte characters' text - the case that would false-match
+		 * if UTF-8 were not self-synchronizing.
+		 */
+		private static final String[] PATTERNS = {
+			"", "a", "abc", "bca", "abcd", "X", "code-", "0002", "00020", "-0001",
+			"\u0301", "e\u0301", "\u00e9", "caf", " latte",
+			"\uD83D\uDE00", "\uD83D\uDE01", "emoji", "\u597d", "\u4e16\u754c",
+			"this pattern is longer than any key in the fixture"
+		};
+
+		@Test
+		@DisplayName("the byte match answers exactly what String#contains answers, for every key and pattern")
+		void shouldAgreeWithStringContains() {
+			// The whole optimization rests on one claim - byte containment of two well-formed UTF-8 encodings is the
+			// same predicate as code-point containment, because UTF-8 is self-synchronizing and a continuation byte
+			// can never begin a sequence. This asserts that claim over the cross product rather than arguing it.
+			final String[] sorted = KEYS.clone();
+			Arrays.sort(sorted);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(sorted.length, true);
+			for (int i = 0; i < sorted.length; i++) {
+				column.insertKeyAt(i, sorted[i]);
+			}
+			assertTrue(column.supportsUtf8Matching(), "the front-coded column is the one that can match bytes");
+
+			for (final String pattern : PATTERNS) {
+				final byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
+				for (int slot = 0; slot < sorted.length; slot++) {
+					assertEquals(
+						sorted[slot].contains(pattern), column.containsUtf8At(slot, patternBytes),
+						() -> "byte match diverged from String#contains for pattern [" + pattern + "]"
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a key longer than the decode scratch is matched against the grown buffer, not the discarded one")
+		void shouldMatchAKeyThatOutgrowsTheDecodeScratch() {
+			// `decodeAtBytes` REPLACES `scratch.cur` when a key outgrows it, so a matcher that read the buffer
+			// reference before the call would search the discarded array. The decode scratch starts at 48 bytes; these
+			// keys are far past that, and the needle sits at the very end so a short/stale buffer cannot contain it.
+			final String longKey = "x".repeat(400) + "NEEDLE";
+			final String[] sorted = {longKey, "y" + "z".repeat(500)};
+			Arrays.sort(sorted);
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(sorted.length, true);
+			for (int i = 0; i < sorted.length; i++) {
+				column.insertKeyAt(i, sorted[i]);
+			}
+			final int longKeySlot = Arrays.asList(sorted).indexOf(longKey);
+			assertTrue(
+				column.containsUtf8At(longKeySlot, "NEEDLE".getBytes(StandardCharsets.UTF_8)),
+				"the needle sits beyond the initial scratch capacity and must still be found"
+			);
+			assertFalse(column.containsUtf8At(longKeySlot, "ABSENT".getBytes(StandardCharsets.UTF_8)));
+		}
+
+		@Test
+		@DisplayName("every restart block offset decodes and matches, not only the restart points themselves")
+		void shouldMatchAtEveryOffsetWithinARestartBlock() {
+			// a slot is decoded by seeking its restart point and walking forward, so the walk length varies from 0 to
+			// RESTART_INTERVAL - 1 across the block; a matcher fed a partially-walked buffer would pass at offset 0
+			// and fail further in
+			final int count = 40;
+			final String[] keys = new String[count];
+			for (int i = 0; i < count; i++) {
+				keys[i] = String.format("shared-prefix-%03d-suffix", i);
+			}
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(count, true);
+			for (int i = 0; i < count; i++) {
+				column.insertKeyAt(i, keys[i]);
+			}
+			for (int i = 0; i < count; i++) {
+				final String own = String.format("-%03d-", i);
+				assertTrue(
+					column.containsUtf8At(i, own.getBytes(StandardCharsets.UTF_8)),
+					"slot " + i + " must contain its own ordinal"
+				);
+				assertFalse(
+					column.containsUtf8At(i, String.format("-%03d-", (i + 1) % count).getBytes(StandardCharsets.UTF_8)),
+					"slot " + i + " must not contain a neighbour's ordinal"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a column that does not store UTF-8 says so, and refuses rather than guessing")
+		void shouldRefuseByteMatchingWhereKeysAreNotUtf8() {
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			boxed.insertKeyAt(0, "abc");
+			assertFalse(boxed.supportsUtf8Matching());
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> boxed.containsUtf8At(0, "abc".getBytes(StandardCharsets.UTF_8)),
+				"the default must throw rather than silently answer, so a caller that skips the capability check "
+					+ "fails loudly instead of returning a wrong answer"
+			);
+		}
+
 	}
 
 	@Nested

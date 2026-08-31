@@ -1352,6 +1352,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	public Bitmap recordsOfMatchingValueId(
 		int valueId,
 		@Nullable Predicate<K> valuePredicate,
+		@Nullable byte[] containsPatternUtf8,
 		@Nonnull LongConsumer leafVersionSink
 	) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
@@ -1387,13 +1388,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// transaction to this thread would make the read resolve the transaction's own columns against a slot the
 		// PUBLISHED directory addressed. The chain this method replaces was immune to both for a different reason -
 		// it re-found the bucket by key afterwards - so the immunity has to be re-established rather than inherited.
-		// a null predicate is the caller stating that every id it hands over is already known to match, so the key is
-		// never decoded - on a front-coded column that decode walks back to a restart point and allocates a String,
-		// which is the single most expensive thing this method would otherwise do per candidate
-		final K value = valuePredicate == null ? null : leaf.keyAt(slot);
+		// three ways to settle a candidate, cheapest first. A null predicate is the caller stating that every id it
+		// hands over is already known to match, so the key is never touched. A byte pattern is the caller stating
+		// that the predicate is containment and the column can answer it from its stored bytes - which on a
+		// front-coded column still walks back to a restart point, but no longer allocates the String that walk fed.
+		// Only the last case decodes a key into an object.
+		final ValueColumn<K> keyColumn = leaf.getKeyColumn();
+		final boolean matchBytes = containsPatternUtf8 != null && keyColumn.supportsUtf8Matching();
+		final K value = matchBytes || valuePredicate == null ? null : leaf.keyAt(slot);
 		final long leafVersion = leaf.getId();
 		final Bitmap records = leaf.getRecordsAt(slot);
-		if (valuePredicate != null && !valuePredicate.test(value)) {
+		if (matchBytes) {
+			// safe to run AFTER the reads above, unlike `valuePredicate`: this is the column's own code and cannot
+			// mutate the tree, so it cannot shift the slot the reads have already resolved
+			if (!keyColumn.containsUtf8At(slot, containsPatternUtf8)) {
+				return null;
+			}
+		} else if (valuePredicate != null && !valuePredicate.test(value)) {
 			return null;
 		}
 		// reported for MATCHES only: a candidate that fails the predicate contributes no record set, so its leaf is

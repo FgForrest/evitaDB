@@ -32,6 +32,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.function.BiPredicate;
 import java.util.function.LongUnaryOperator;
 
@@ -349,7 +350,13 @@ public final class TrigramSubstringSearch {
 		}
 		final int[] candidates = trigramIndex.resolveCandidateValueIds(patternPostings);
 		final boolean skipVerification = verificationIsRedundant(normalizedPattern, shape);
-		if (skipVerification) {
+		// containment is the one shape the bucket tree can settle from a candidate's stored bytes, and a pattern that
+		// does not survive UTF-8 encoding unchanged must not be offered for it - see `encodesWithoutLoss`
+		final byte[] containsPatternUtf8 = !skipVerification
+			&& shape == StringSearchShape.CONTAINMENT
+			&& encodesWithoutLoss(normalizedPattern)
+			? normalizedPattern.getBytes(StandardCharsets.UTF_8) : null;
+		if (skipVerification || containsPatternUtf8 != null) {
 			// `shape` is the caller's word about a predicate this class cannot introspect, and taking that word on
 			// trust is the one way this optimization returns wrong answers. So the word is CHECKED before it is acted
 			// on: a predicate satisfied by an occurrence flanked on both sides accepts the pattern anywhere, which is
@@ -358,16 +365,58 @@ public final class TrigramSubstringSearch {
 			Assert.isPremiseValid(
 				exactPredicate.test(FLANK + normalizedPattern + FLANK, normalizedPattern),
 				"The exact predicate refused a value that merely CONTAINS the pattern, so it is not the containment " +
-					"predicate `" + StringSearchShape.CONTAINMENT + "` declares it to be - verification cannot be " +
-					"skipped for it. Pass `" + StringSearchShape.ANCHORED + "` for any predicate that requires the " +
-					"pattern to sit at a particular end of the value."
+					"predicate `" + StringSearchShape.CONTAINMENT + "` declares it to be - neither skipping " +
+					"verification nor answering it from the stored bytes is sound for it. Pass `" +
+					StringSearchShape.ANCHORED + "` for any predicate that requires the pattern to sit at a " +
+					"particular end of the value."
 			);
 		}
 		return sharedValueTree.getRecordsOfValueIdsMatching(
 			candidates, candidates.length,
 			skipVerification ?
-				null : normalizedValue -> exactPredicate.test(asString(normalizedValue), normalizedPattern)
+				null : normalizedValue -> exactPredicate.test(asString(normalizedValue), normalizedPattern),
+			containsPatternUtf8
 		);
+	}
+
+	/**
+	 * Answers whether `pattern` survives a round trip through UTF-8 unchanged.
+	 *
+	 * A Java `String` is a sequence of UTF-16 code units, so a lone surrogate is a perfectly legal one - and
+	 * {@link String#getBytes(java.nio.charset.Charset)} has no encoding for it and substitutes `0x3F` (`'?'`). A
+	 * pattern carrying one would therefore be matched as though the user had typed a question mark, finding values
+	 * that {@link String#contains} refuses. Such a pattern takes the predicate path, which compares UTF-16 code units
+	 * and is unaffected.
+	 *
+	 * Checked on the pattern only. A stored VALUE carrying a lone surrogate was already stored as `'?'` by the column
+	 * and is decoded back as `'?'` by the predicate path, so both paths see the same thing and neither is more wrong
+	 * than the other - a separate, pre-existing defect recorded in
+	 * `documentation/developer/front-coded-column-surrogate-defect.md`.
+	 *
+	 * **This guard is defence in depth rather than a reachable branch today, and is kept because the reason it is
+	 * unreachable is a coincidence of two other mechanisms.** A pattern's trigrams are cut from its code points, so a
+	 * pattern carrying a lone surrogate produces trigrams carrying it too, and those can only intersect the postings
+	 * of a value that carries it as well - which on an attribute declaring this accelerator cannot be indexed at all,
+	 * because the value-id sink's own premise fails first. Remove either of those and the divergence becomes live, so
+	 * the equivalence this method protects must not be left resting on them.
+	 *
+	 * @param pattern the normalized pattern
+	 * @return whether every code unit of the pattern is representable in UTF-8
+	 */
+	private static boolean encodesWithoutLoss(@Nonnull String pattern) {
+		for (int i = 0; i < pattern.length(); i++) {
+			final char codeUnit = pattern.charAt(i);
+			if (Character.isHighSurrogate(codeUnit)) {
+				if (i + 1 == pattern.length() || !Character.isLowSurrogate(pattern.charAt(i + 1))) {
+					return false;
+				}
+				// a well-formed pair, so step over its low half rather than meeting it as a lone low surrogate
+				i++;
+			} else if (Character.isLowSurrogate(codeUnit)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

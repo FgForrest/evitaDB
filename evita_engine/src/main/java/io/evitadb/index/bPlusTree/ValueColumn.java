@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.VMLayout;
 
@@ -103,6 +104,50 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 */
 	@Nonnull
 	M keyAt(int index);
+
+	/**
+	 * Whether {@link #containsUtf8At} can answer for this column without materialising the key as an `M`.
+	 *
+	 * Consulted once per query rather than per candidate, because it is a property of the column's storage rather
+	 * than of the slot. Only {@link FrontCodedStringColumn} answers `true`: it is the only implementation that
+	 * already holds its keys as UTF-8 bytes, so it is the only one for which byte matching avoids work rather than
+	 * inventing it.
+	 *
+	 * @return whether byte-level matching is available on this column
+	 */
+	default boolean supportsUtf8Matching() {
+		return false;
+	}
+
+	/**
+	 * Answers whether the key at `index` contains `patternUtf8` as a contiguous run of bytes, without materialising
+	 * the key.
+	 *
+	 * ## Why a byte comparison answers a question about characters
+	 *
+	 * UTF-8 is self-synchronizing: a continuation byte can never begin a sequence, so a byte-level occurrence of one
+	 * well-formed encoding inside another can only start at a character boundary. Byte containment and code-point
+	 * containment are therefore the same predicate, and the answer holds for supplementary characters and for
+	 * combining marks alike - the column's stored keys and the pattern have both passed through the same NFD
+	 * normalizer before they reach here.
+	 *
+	 * **The caller must rule out an unpaired surrogate in the pattern.** `String#getBytes` substitutes `0x3F` (`'?'`)
+	 * for one, so a pattern carrying one would match values that literally contain a question mark - a divergence
+	 * from `String#contains`, which compares UTF-16 code units and would refuse them. A pattern that cannot be
+	 * encoded faithfully must take the predicate path instead. The same substitution in a stored VALUE needs no
+	 * guard, because the column already stored `'?'` and the `String` path decodes that same `'?'` back out; see
+	 * `documentation/developer/front-coded-column-surrogate-defect.md`.
+	 *
+	 * @param index       the live slot whose key is tested
+	 * @param patternUtf8 the pattern's UTF-8 bytes, already normalized exactly as the stored keys are
+	 * @return whether the key at `index` contains the pattern
+	 */
+	default boolean containsUtf8At(int index, @Nonnull byte[] patternUtf8) {
+		throw new GenericEvitaInternalError(
+			"This column stores no UTF-8 keys, so it cannot match bytes - `supportsUtf8Matching` says so and must " +
+				"be consulted before this method is called."
+		);
+	}
 
 	/**
 	 * Inserts {@code value} at {@code index}, shifting the tail one slot to the right (the leaf grows {@code peek}
