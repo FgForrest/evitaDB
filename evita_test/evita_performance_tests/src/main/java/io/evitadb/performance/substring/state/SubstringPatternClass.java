@@ -294,6 +294,14 @@ public enum SubstringPatternClass {
 	 *
 	 * None of the four is expected to be admitted by the gate, and none asserts that it is: they are measured with
 	 * both arms forced, and the whole purpose is to say where the gate SHOULD sit.
+	 *
+	 * Two things about measuring with them. **Adding them changed every generated corpus**, because every class in
+	 * this enum is planted into the one shared corpus whether or not the run selects it - so a score taken with these
+	 * present may not be spliced against one taken without them, and a crossover measured here cannot be compared
+	 * against an older curve to attribute a movement to anything. **And the gate must never be forced by lowering**
+	 * {@link TrigramSubstringSearch#REQUIRED_NARROWING_FACTOR}: {@link #THRESHOLD} plants into
+	 * `n / REQUIRED_NARROWING_FACTOR` values, so lowering it widens that class across the shared corpus and lengthens
+	 * every value, changing the very cost under measurement. Force the arm at the call site instead.
 	 */
 	WIDTH_20_PCT("sphinx") {
 		@Override

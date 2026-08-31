@@ -116,49 +116,60 @@ public final class TrigramSubstringSearch {
 	 * must cover at most `1 / this` of the attribute's distinct values. A planner gate on whether the accelerator
 	 * earns the work it adds - it sizes no structure and bounds no allocation.
 	 *
-	 * ## Where the crossover actually is
+	 * ## Why it is still `12`, and what is known against it
 	 *
-	 * Measured end to end against the scan it displaces, on a real embedded instance
-	 * (`SubstringQueryBenchmark`, planted widths of 12/15/20/30/40/55% of distinct values, `-f 2 -wi 3 -i 5`, with the
-	 * gate itself forced open so the accelerated arm is genuinely taken at widths this constant would refuse). At
-	 * 100,000 distinct values the trigram path wins 3.00x at 12%, 1.88x at 20%, 1.35x at 30%, 1.18x at 40% and ties
-	 * the scan at **55%**. That is the crossover, observed rather than extrapolated to.
+	 * `12` was measured against a crossover of 9.5% of distinct values, on code whose per-candidate cost has since
+	 * fallen roughly six-fold. There is strong evidence that the crossover moved a long way out from under it, and
+	 * therefore that `12` now refuses work worth taking - but not yet evidence good enough to move a planner gate on.
 	 *
-	 * It falls as the corpus grows, and the fall is accelerating: still winning 1.33x at 55% with 1,000 distinct
-	 * values, 1.25x with 10,000, exactly 1.00x with 100,000. Extrapolating one further decade puts it near 40-45%,
-	 * which is what the margin below is bought against - a single scalar must stay correct at the large end.
+	 * **What is established.** On a production retail catalog (three identifier-like ASCII attributes, 86,455-118,772
+	 * distinct values, 171 `attributeContains` patterns, both arms forced and compared bitmap-by-bitmap), the scan
+	 * beats the accelerated path on NONE of them, and the widest pattern the corpus could produce - covering 34.23% of
+	 * distinct values - still wins over 2x. Every one of the 14 patterns `12` declines would have been faster
+	 * accelerated. That is a real cost, and it is why this constant should not be assumed correct merely because it is
+	 * current.
 	 *
-	 * A production retail catalog agrees and is the LESS strict of the two: over 171 real patterns on three attributes
-	 * (86,455-118,772 distinct values), the scan beats the accelerated path on none of them, and the widest pattern the
-	 * corpus could produce - covering 34.23% of distinct values - still wins 2.17x. The synthetic curve above is the
-	 * conservative one because its patterns are whole words of 4+ trigrams, which pay full verification; a three-code
-	 * point search skips verification entirely (see {@link #verificationIsRedundant}) and sits well above it.
+	 * **Why that is not sufficient.** It measures one shape of workload: ASCII, identifier-like, `contains`, around
+	 * 100,000 distinct values, single-index targets. Four exposures are unmeasured, and each is a way `4` could be
+	 * worse than `12` rather than better:
 	 *
-	 * ## Why `4`, and why that is not a return to a discredited value
+	 * - **Fan-out breaks the "share of the corpus" reading entirely.** The gate compares the GLOBAL candidate bound
+	 *   against `sumDistinctValuesUpTo`, which sums each target index's own bucket count - and those counts overlap,
+	 *   because a value in twenty reduced indexes is counted twenty times. A fan-out whose sum reaches `k` times the
+	 *   global distinct count admits a posting covering `k / factor` of the whole attribute, so the smaller the factor
+	 *   the wider that hole. Whatever this constant becomes, this is the part that needs a second input rather than a
+	 *   smaller scalar.
+	 * - **A million distinct values.** The crossover falls as the corpus grows, and an earlier run at that size put it
+	 *   at 5.6% on the pre-optimization code. Nothing has re-measured it since.
+	 * - **The scalar cannot see pattern cost.** Admission reads only the cheapest posting's cardinality, so a long
+	 *   boilerplate phrase whose many common trigrams intersect wide presents exactly the same gate input as a short
+	 *   selective one while doing far more work.
+	 * - **Localized and non-ASCII attributes**, where verification runs about twice as slow per candidate.
 	 *
-	 * `4` admits patterns covering up to 25% of distinct values, where the conservative curve still wins about 1.6x -
-	 * margin against the crossover falling at corpus sizes beyond the harness, against false candidates, and against
-	 * non-ASCII values verifying more slowly per candidate.
+	 * ## What would settle it
 	 *
-	 * This constant WAS `4`, then `12`, and the history matters because the number has come back to where it started
-	 * for an entirely different reason. `4` was wrong for the code that existed then: the crossover was measured at
-	 * 9.5% of distinct values, so admitting 25% admitted a band where the accelerator ran 1.1-2.1x SLOWER than the
-	 * scan, and `12` was the correct correction. What changed since is not the judgement but the cost being judged -
-	 * resolving a candidate's bucket once instead of three times, reading each trigram's postings once instead of
-	 * twice, and skipping a verification pass that is provably the identity for a one-trigram pattern together cut the
-	 * per-candidate cost by roughly six-fold. The crossover moved from 9.5% to 55% underneath a constant that did not
-	 * move, which is why `12` had come to refuse patterns worth 2.2x-5.8x while preventing nothing at all: on the
-	 * production corpus every one of the 14 patterns it declined would have been faster accelerated, and none of the
-	 * 139 it admitted lost.
+	 * A retune needs a genuine sign change bracketed with confidence intervals - a width that WINS and a wider one
+	 * that LOSES - at `n >= 1_000_000`, on a corpus that does not change between the arms, plus a fan-out case and a
+	 * long multi-trigram pattern. Forcing the gate by lowering this constant is NOT a valid way to obtain it:
+	 * `SubstringPatternClass.THRESHOLD` plants into `n / REQUIRED_NARROWING_FACTOR` values and every class plants into
+	 * the one shared corpus, so lowering the constant lengthens every value and changes the very cost being measured.
+	 * Force the arm instead, as `TrigramArmSweep` does, by supplying a counter that answers `Long.MAX_VALUE`.
 	 *
-	 * The asymmetry that argued for `12` still holds and still points at margin rather than at the crossover: a
-	 * forfeited win is invisible, an introduced regression is a bug report against a query that used to be fine. `4`
-	 * is the crossover halved and then some, not the crossover.
+	 * ## History, because this constant has been wrong in both directions
 	 *
-	 * A gate that re-measures itself would need none of this. This is a deliberately crude stand-in for a cost model,
-	 * and the query planner's own costing of the substring path is what replaces it.
+	 * It shipped as `4`, which admitted a band running 1.1-2.1x SLOWER than the scan, and was corrected to `12`. The
+	 * reasoning that chose `4` had derived the right band and then taken the wrong end of it, calling `4`
+	 * conservative when a LARGER factor is the strict one. Nothing in the code could surface that, because a too-eager
+	 * gate returns slower correct answers rather than failures - which is exactly why the bar for moving it is a
+	 * measured sign change and not a plausible argument.
+	 *
+	 * The asymmetry that argued for `12` still holds: a forfeited win is invisible, an introduced regression is a bug
+	 * report against a query that used to be fine.
+	 *
+	 * This is a deliberately crude stand-in for a cost model. The query planner's own costing of the substring path is
+	 * what replaces it, and would answer the fan-out case that no scalar can.
 	 */
-	public static final int REQUIRED_NARROWING_FACTOR = 4;
+	public static final int REQUIRED_NARROWING_FACTOR = 12;
 
 	/**
 	 * The answer to a pattern the index can already prove no value contains - distinguished from `null`, which means
