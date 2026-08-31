@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 13:30
+updated: 2026-08-31 13:45
 status: accepted
 kind: optimization
 issues: [1454]
@@ -267,12 +267,18 @@ verified per pattern across four runs.
   it races**, which is exactly the class of change an optimization campaign consists of. The sweep also
   showed the failing round clusters at 267-450 whatever the reader count, so the window opens with tree
   size, and more readers buy overlap rather than margin.
-- **`evita_test/evita_long_running_tests` does not compile**, and has not since `a79fe5ea1` (which
-  predates this campaign) changed `AssertionUtils#assertStateAfterCommit`'s signature under it. Every
-  test in that module is therefore unreachable through Maven, including the one above — it was run by
-  compiling the single class against the module's resolved classpath and launching it with the JUnit
-  console. Nothing here fixes it; it is recorded so the next person to reach for that module knows why
-  `mvn test -pl evita_test/evita_long_running_tests` fails on files they did not touch.
+- **`evita_test/evita_long_running_tests` must be built in a shared reactor with
+  `evita_test/evita_functional_tests`, never alone**, and building it alone fails in a way that
+  convincingly accuses the wrong code. It consumes the functional module's `test-jar`, and that module
+  sets `maven.install.skip=true`, so the jar is never refreshed in the local repository — `-pl
+  evita_test/evita_long_running_tests` therefore resolves whatever `-tests` jar is lying in `~/.m2`,
+  possibly months old, and reports dozens of compile errors against `AssertionUtils` signatures in test
+  code that is perfectly correct. `mvn install` on the functional module does not help; only a shared
+  reactor does, because only that resolves the sibling's `target/` output:
+  `mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test`. All of this is
+  documented at the dependency declaration in that module's own `pom.xml`, and this campaign read the
+  error before it read the pom — concluding the module was broken on the mainline, which it is not. **A
+  compile error in code you did not touch is a classpath question first and a code question second.**
 - **Two defects survived into the campaign's own commits and were caught by review, not by tests.** An
   `upsert` whose updater returned `null` stored it, and the `Optional.ofNullable` introduced by decision 2
   then reported the key as ABSENT — a silent wrong answer where the previous `Optional.of` would have
