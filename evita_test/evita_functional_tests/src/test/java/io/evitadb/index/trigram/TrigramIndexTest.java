@@ -397,6 +397,57 @@ class TrigramIndexTest {
 			assertEquals(0L, TrigramPostings.heapSizeInBytes(emptied));
 		}
 
+		@Test
+		@DisplayName("an intersection led by an eroded bitmap still accepts a small posting behind it")
+		void shouldIntersectABitmapLedPatternWhoseLaterPostingIsStillCompact() {
+			// The two thresholds differ ON PURPOSE - a posting promotes at SMALL_POSTING_THRESHOLD but demotes only
+			// at half of it - so representation is NOT a function of cardinality: across 65..128 a posting may be
+			// either form. This builds exactly that overlap and asks for an intersection over it.
+			//
+			// CALIBRATION: reverting `intersectFromBitmapPosting` to cast every later posting to a bitmap makes this
+			// throw ClassCastException. It is the whole point of the test - the old code inferred the later
+			// postings' representation from the cheapest one's, which this state disproves.
+			final TrigramIndex index = emptyIndex();
+
+			// `abcz` posts against `abc`: promote past the threshold, then erode back to 100 - above the demotion
+			// threshold, so the posting stays a bitmap it no longer needs to be
+			final int promoted = TrigramPostings.SMALL_POSTING_THRESHOLD + 1;
+			for (int valueId = 1; valueId <= promoted; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 101; valueId <= promoted; valueId++) {
+				index.valueRemoved(valueId, "abcz");
+			}
+
+			// `zbcd` posts against `bcd`: a compact posting that is LARGER than the eroded bitmap but never promoted
+			final int compactCardinality = TrigramPostings.SMALL_POSTING_THRESHOLD - 8;
+			for (int valueId = 1000; valueId < 1000 + compactCardinality; valueId++) {
+				index.valueCreated(valueId, "zbcd");
+			}
+
+			assertEquals(
+				100, index.cardinalityOf(trigram("abc")),
+				"the eroded posting must sit above the demotion threshold"
+			);
+			assertEquals(compactCardinality, index.cardinalityOf(trigram("bcd")));
+			assertTrue(
+				compactCardinality > 100,
+				"the compact posting must be the DEARER of the two, so ordering puts the bitmap first and the "
+					+ "bitmap branch is the one that has to cope with it"
+			);
+
+			// `abcd` draws exactly those two trigrams; no value holds both, so the honest answer is empty
+			assertArrayEquals(
+				new int[0], index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcd"))
+			);
+
+			// and the same shape must still find a real intersection rather than merely not throwing
+			index.valueCreated(2000, "abcd");
+			assertArrayEquals(
+				new int[]{2000}, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcd"))
+			);
+		}
+
 	}
 
 	@Nested

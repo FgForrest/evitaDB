@@ -332,13 +332,14 @@ public class TrigramIndex implements
 	 * likewise when there are no trigrams at all, which a caller must have refused before reaching here
 	 */
 	@Nullable
-	public PatternPostings pricePattern(@Nonnull long[] trigrams) {
+	PatternPostings pricePattern(@Nonnull long[] trigrams) {
 		final int trigramCount = trigrams.length;
 		if (trigramCount == 0) {
 			return null;
 		}
 		final Object[] postings = new Object[trigramCount];
 		final int[] cardinalities = new int[trigramCount];
+		int candidateUpperBound = Integer.MAX_VALUE;
 		for (int i = 0; i < trigramCount; i++) {
 			final Object posting = this.store.get(trigrams[i]);
 			// covers the absent key and the (unreachable) emptied posting alike - the store drops a trigram that lost
@@ -349,9 +350,13 @@ public class TrigramIndex implements
 			}
 			postings[i] = posting;
 			cardinalities[i] = cardinality;
+			if (cardinality < candidateUpperBound) {
+				candidateUpperBound = cardinality;
+			}
 		}
-		orderByCardinality(postings, cardinalities, trigramCount);
-		return new PatternPostings(postings, cardinalities);
+		// deliberately NOT ordered here: the gate needs only this minimum, and a declined pattern must not be charged
+		// for an ordering it never uses - see the class javadoc of PatternPostings
+		return new PatternPostings(postings, cardinalities, candidateUpperBound);
 	}
 
 	/**
@@ -364,12 +369,15 @@ public class TrigramIndex implements
 	 *
 	 * ## Two intersection paths, chosen by the smallest posting
 	 *
-	 * The postings arrive already ordered ascending by cardinality - {@link #pricePattern} orders them, because the
-	 * gate reads the cheapest one's cardinality off the front - so the representation of the FIRST one decides the
-	 * chain. An `int[]` means the candidate set starts at {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ids or fewer
+	 * The postings are ordered ascending by cardinality here rather than by {@link #pricePattern}, so that a declined
+	 * pattern never pays for it, and the representation of the FIRST one then decides the chain.
+	 * An `int[]` means the candidate set starts at {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ids or fewer
 	 * and can only shrink, so it is kept as a small `int[]` and the remaining postings are probed for membership. A
-	 * bitmap means every later posting is a bitmap too (its cardinality is at least this one's), so the chain is a
-	 * sequence of Roaring `and`s and the candidate array is materialized once, at the end.
+	 * bitmap means the chain is a sequence of Roaring `and`s and the candidate array is materialized once, at the end.
+	 *
+	 * Neither branch may infer a later posting's REPRESENTATION from its cardinality - the promotion and demotion
+	 * thresholds differ deliberately, so both forms occur across cardinalities 65..128. Both branches therefore
+	 * dispatch on what each posting actually is; see {@link #intersectFromBitmapPosting}.
 	 *
 	 * No early exit is taken: stopping the intersection while candidates remain trades a Roaring `and` for a
 	 * verification pass, and verification is the expensive half (55-87% of query cost on the measured corpora, and
@@ -383,9 +391,12 @@ public class TrigramIndex implements
 	 * any value
 	 */
 	@Nonnull
-	public int[] resolveCandidateValueIds(@Nonnull PatternPostings patternPostings) {
+	int[] resolveCandidateValueIds(@Nonnull PatternPostings patternPostings) {
 		final Object[] postings = patternPostings.postings();
 		final int trigramCount = postings.length;
+		// ordering belongs to this half, not to the pricing half: it is what makes `postings[0]` the cheapest, and a
+		// pattern the gate declined never gets here and never pays for it
+		orderByCardinality(postings, patternPostings.cardinalities(), trigramCount);
 		return postings[0] instanceof final int[] smallest
 			? intersectFromSmallPosting(smallest, postings, trigramCount)
 			: intersectFromBitmapPosting(postings, trigramCount);
@@ -439,8 +450,23 @@ public class TrigramIndex implements
 	}
 
 	/**
-	 * Runs the intersection when the cheapest posting is a bitmap, and therefore every posting is: the chain is a
-	 * sequence of Roaring `and`s, each of which allocates its own result rather than writing into either operand.
+	 * Runs the intersection when the cheapest posting is a bitmap: the chain is a sequence of Roaring `and`s, each of
+	 * which allocates its own result rather than writing into either operand.
+	 *
+	 * ## A later posting may still be an `int[]`, and this must not assume otherwise
+	 *
+	 * The tempting reasoning - *the cheapest posting is a bitmap, and every later one is at least as large, so every
+	 * later one is a bitmap too* - is FALSE, because a posting's representation is not a function of its cardinality.
+	 * {@link TrigramPostings#SMALL_POSTING_DEMOTION_THRESHOLD} is deliberately half of
+	 * {@link TrigramPostings#SMALL_POSTING_THRESHOLD}, so that a value id added and removed at the boundary does not
+	 * rebuild the posting on every write. That hysteresis leaves an overlap: across cardinalities 65..128 a posting
+	 * may legitimately be EITHER form - an `int[]` that has grown to 128 without ever promoting, or a bitmap that
+	 * promoted at 129 and has since eroded without yet demoting.
+	 *
+	 * A pattern whose cheapest posting is an eroded bitmap of 100 and whose next posting is an `int[]` of 120 is
+	 * therefore an ordinary, reachable state, and casting that `int[]` to a bitmap threw `ClassCastException` on a
+	 * plain query. The small-posting path never had this bug because {@link #retain} always dispatched on the actual
+	 * representation; only this branch reasoned from cardinality instead of looking.
 	 *
 	 * @param postings     every posting, ordered ascending by cardinality
 	 * @param trigramCount how many postings there are
@@ -450,7 +476,15 @@ public class TrigramIndex implements
 	private static int[] intersectFromBitmapPosting(@Nonnull Object[] postings, int trigramCount) {
 		PersistentRoaringBitmap accumulator = (PersistentRoaringBitmap) postings[0];
 		for (int i = 1; i < trigramCount && !accumulator.isEmpty(); i++) {
-			accumulator = PersistentRoaringBitmap.and(accumulator, (PersistentRoaringBitmap) postings[i]);
+			final Object posting = postings[i];
+			// the small form is converted rather than the accumulator demoted: this arises only in the narrow
+			// promotion/demotion overlap, so it is not worth a second accumulator representation
+			accumulator = PersistentRoaringBitmap.and(
+				accumulator,
+				posting instanceof final int[] small
+					? PersistentRoaringBitmap.bitmapOf(small)
+					: (PersistentRoaringBitmap) posting
+			);
 		}
 		// `toArray` reads the accumulator; when the loop never ran it is the index's own posting, which this leaves
 		// untouched exactly as the contract on `getValueIdsOf` requires

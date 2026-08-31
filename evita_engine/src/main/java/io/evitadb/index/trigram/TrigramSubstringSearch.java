@@ -215,7 +215,13 @@ public final class TrigramSubstringSearch {
 	 *                                    `(normalizedValue, normalizedPattern)`
 	 * @param scannedDistinctValueCounter given the threshold the total is compared against, how many distinct values
 	 *                                    the scan this path replaces would visit - summed over every index the one
-	 *                                    computation is amortized across, and free to stop counting at the threshold
+	 *                                    computation is amortized across, and free to stop counting at the threshold.
+	 *                                    It MUST be a pure count: it is invoked between the read of the pattern's
+	 *                                    postings and the intersection over them, so a counter that wrote to this
+	 *                                    index would have its write silently excluded from the answer - the postings
+	 *                                    already in hand are the ones intersected. Counting is all any caller needs,
+	 *                                    and the alternative (re-reading the postings afterwards) would reinstate the
+	 *                                    doubled lookup this seam exists to remove
 	 * @return the matched buckets, empty when nothing matches, or `null` when the caller must take the scan instead
 	 */
 	@Nullable
@@ -248,6 +254,29 @@ public final class TrigramSubstringSearch {
 		}
 		final long threshold = accelerationThreshold(patternPostings.candidateUpperBound());
 		if (scannedDistinctValueCounter.applyAsLong(threshold) < threshold) {
+			// THE ESCALATING GATE, deliberately not implemented - measured worthless here, kept because the shape it
+			// needs is one another corpus could easily have, and rediscovering it costs more than reading this.
+			//
+			// The bound above is the CHEAPEST posting's cardinality, which is pessimistic: a value must contain every
+			// trigram, so the true candidate count can be far smaller. Rather than declining outright, this is where
+			// a second, tighter estimate would be bought - intersect only the two cheapest postings and count the
+			// result, then re-ask the gate with that. Safe by subset algebra: the true candidate set is contained in
+			// that pairwise intersection, so the estimate can never be an UNDER-count and the gate can never be
+			// tricked into accelerating something it should have refused. A zero would even answer NO_MATCH outright.
+			// The cost is bounded and paid only here, on a path already committed to a full scan.
+			//
+			// Measured on a production retail catalog (three attributes, 171 patterns): it would have flipped ZERO of
+			// the 14 declined patterns. Ten of them carry a single trigram, so there is no second posting to
+			// intersect and the bound is already exact; the other four are 4-13% loose and still miss the threshold
+			// by an order of magnitude. The reason is structural rather than accidental - a loose bound needs several
+			// trigrams whose postings overlap poorly, but such a pattern is selective and has therefore ALREADY
+			// passed the gate. Patterns that decline here decline because they are genuinely wide.
+			//
+			// Worth building when a workload appears whose DECLINED patterns are multi-trigram - each trigram common,
+			// the combination rare. Until then it would be hot-path code paying for a population that does not exist.
+			// Note this is not the fix for a gate that declines winnable patterns: on that same corpus all 14 would
+			// have run 1.4x-4.8x faster accelerated, which is REQUIRED_NARROWING_FACTOR being mistuned, not the
+			// bound being loose.
 			return null;
 		}
 		final int[] candidates = trigramIndex.resolveCandidateValueIds(patternPostings);
