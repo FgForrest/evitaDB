@@ -552,28 +552,27 @@ class LeafIndexHeapSizeTest {
 		}
 
 		@Test
-		void shouldStepUpOnceTheAllRecordsFormulaIsMemoizedAndStayExactBothTimes() {
+		void shouldNotGrowAtAllWhenTheRecordIdsFormulaIsRequested() {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			final long cold = index.getHeapSizeInBytes();
 			assertMatchesMeasuredHeap(cold, index, OWNER_EXCLUSIONS);
 
 			index.getRecordIdsFormula();
 
+			// This index memoizes NOTHING for a formula request: `getRecordIdsFormula` wraps the record set it
+			// already holds in a fresh ConstantFormula that dies with the query it served. Answering a query must
+			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
+			// scaffolding to price at an upper bound.
+			//
+			// This is the accounting face of the leak fixed in #1458: a formula node carries the execution context
+			// of the first query to initialize it, so an index that kept one pinned that query's session and its
+			// whole catalog generation. A step up here would mean a memo came back.
 			final long warm = index.getHeapSizeInBytes();
-			assertTrue(warm > cold, "the memoized formula must show up as additional occupancy");
-			// The formula wraps the very record set already charged above, and its own `memoizedResult` resolves to
-			// that same instance - so neither is followed, and a walk finds no second bitmap. What the arithmetic
-			// DOES read high is the formula's cost bookkeeping: `initFields` runs in the constructor and populates
-			// four of the six memo fields, while `cost` and `costToPerformance` stay null until something asks what
-			// the formula costs. Which are populated cannot be read from outside, so all five boxed Longs are
-			// charged - the higher of two defensible figures - leaving the arithmetic exactly two boxes above the
-			// measurement, forever, however large the index grows
-			final long excess = warm - measuredHeapOf(index, OWNER_EXCLUSIONS);
-			assertTrue(excess > 0 && excess < 128, "the formula's over-charge must stay small - was " + excess);
+			assertEquals(cold, warm, "asking for the record-ids formula must not change the footprint");
+			assertMatchesMeasuredHeap(warm, index, OWNER_EXCLUSIONS);
 
-			// and it must be a CONSTANT, not a term that grows: an index holding more records over-charges by the
-			// same handful of bytes, which is what makes charging the upper bound harmless. Both fixtures stay
-			// inside one leaf block, so neither carries the separate separator-key over-report
+			// and it must hold however large the index grows - both fixtures stay inside one leaf block, so neither
+			// carries the separate separator-key over-report
 			final OwnerUniqueIndex larger = ownerUniqueIndex(250);
 			larger.getRecordIdsFormula();
 			assertDivergenceDoesNotGrowWithTheData(

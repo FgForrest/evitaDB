@@ -200,21 +200,58 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	@Nonnull private final Comparator<? extends Comparable> comparator;
 	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
+	 * This field speeds up all requests for all data in this index (which happens quite often). This bitmap can be
 	 * computed anytime by calling `((InvertedIndex) this.histogram).getSortedRecords(null, null)`. Original operation
 	 * needs to perform costly join of all internally held bitmaps and that's why we memoize the result.
+	 *
+	 * # Only the bitmap is memoized, never the formula wrapping it
+	 *
+	 * A {@link Formula} node carries **per-query** state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it is part of, and that context transitively
+	 * reaches the {@link io.evitadb.api.EvitaSessionContract} and the entire catalog generation the query ran
+	 * against. A formula held for the lifetime of this index would therefore pin the first session that ever used
+	 * it — and everything that session reached — until the index is written to again, which on a read-mostly index
+	 * is never.
+	 *
+	 * Memoizing the bitmap keeps the expensive part — the join of all internally held bitmaps — and the
+	 * {@link ConstantFormula} built around it per call is a handful of bytes over the shared bitmap.
+	 *
+	 * What keeps that cheap in CPU as well is where the formula's cache key comes from. Once the value tree holds
+	 * more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} and so has no transactional id to key
+	 * on; `ConstantFormula#includeAdditionalHash` falls through to hashing its **contents**, eagerly, in the
+	 * constructor. That would be `O(records)` on every call — measured at roughly 1.4 µs for 1k records, 83 µs for
+	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
+	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
+	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
+	 * See the ADR for issue #1458.
+	 *
+	 * Do not turn this back into a `Formula` field.
 	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
+	@Nullable private transient Bitmap memoizedAllRecords;
 	/**
 	 * Memoized result of {@link #getRangeHistogramOfAllRecords(Class, int)}. The cached subset is keyed implicitly
 	 * by the leaf's {@link RangeIndex} state — the steady-state query path against an unchanged leaf pays zero
 	 * allocation. Set to `null` whenever the index is mutated outside a transaction (mirrors
-	 * {@link #memoizedAllRecordsFormula}); the merged-transactional copy starts fresh.
+	 * {@link #memoizedAllRecords}); the merged-transactional copy starts fresh.
 	 *
 	 * The inner numeric type passed by callers is invariant for a given leaf — it is derived from
 	 * {@link #attributeType} via {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} — so it does not
 	 * need to be tracked alongside the cached subset; a fail-fast assertion in
 	 * {@link #getRangeHistogramOfAllRecords(Class, int)} guards against schema/index drift.
+	 *
+	 * # {@link InvertedIndexSubSet#getFormula()} must never be called on this subset
+	 *
+	 * This is the one subset in the codebase that lives as long as its index, and
+	 * {@link InvertedIndexSubSet#getFormula()} memoizes the formula it builds. Calling it here would park a
+	 * query-lifetime formula node in an index-lifetime structure and pin the calling session's whole catalog
+	 * generation — the leak {@link #memoizedAllRecords} documents. Its only consumer,
+	 * `AttributeHistogramComputer`, reads {@link InvertedIndexSubSet#getBuckets()} instead, which is stateless.
+	 *
+	 * The bitmap treatment applied to {@link #memoizedAllRecords} is not available here: the subset's aggregation
+	 * lambda may legitimately return a lazy `DeferredFormula`, so materializing a bitmap eagerly would change
+	 * behaviour rather than preserve it.
 	 */
 	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
 
@@ -579,12 +616,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *
 	 * The memos are charged where they hold something nothing else does:
 	 *
-	 * - {@link #memoizedAllRecordsFormula} contributes its scaffolding (see
-	 *   {@link IndexHeapSize#memoizedFormulaSizeInBytes}) plus the union it wraps — but only once the value tree
-	 *   holds **more than one** bucket. With exactly one, the aggregation short-circuits and the union IS that
-	 *   bucket's own bitmap, charged already by the tree; with more, it is a bitmap this index materialized and
-	 *   nothing else holds. Leaving it out would be a shortfall that grows with the data, which is the one shape a
-	 *   deliberate divergence must never have.
+	 * - {@link #memoizedAllRecords} contributes the union it holds — but only once the value tree holds **more than
+	 *   one** bucket. With exactly one, the aggregation short-circuits and the union IS that bucket's own bitmap,
+	 *   charged already by the tree; with more, it is a bitmap this index materialized and nothing else holds.
+	 *   Leaving it out would be a shortfall that grows with the data, which is the one shape a deliberate
+	 *   divergence must never have. No formula scaffolding is charged because none is retained — the memo is the
+	 *   bitmap alone, and the {@link ConstantFormula} wrapping it is built fresh per call and dies with the query.
 	 * - {@link #memoizedRangeHistogramSubSet} contributes **in full**, buckets included. Unlike a slice off the value
 	 *   tree, the range histogram materializes a fresh {@link ValueToRecordBitmap} per range point, each carrying a
 	 *   `clone()` of the running active-set bitmap, and nothing else in the catalog holds those. On a range
@@ -596,16 +633,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
-		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
+		// memoizedAllRecords / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
 		long size = layout.sizeOfObject(
 			8L * layout.referenceSize() + Integer.BYTES + ownFieldBytes
 		);
-		size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
-		if (this.memoizedAllRecordsFormula instanceof final ConstantFormula unionFormula
-			&& this.invertedIndex.getBucketCount() > 1) {
+		if (this.memoizedAllRecords != null && this.invertedIndex.getBucketCount() > 1) {
 			// more than one bucket, so the memoized union was computed rather than short-circuited to a bucket's own
 			// bitmap - this index materialized it and nothing else in the catalog holds it
-			size += unionFormula.getDelegate().getHeapSizeInBytes();
+			size += this.memoizedAllRecords.getHeapSizeInBytes();
 		}
 		if (this.memoizedRangeHistogramSubSet != null) {
 			size += this.memoizedRangeHistogramSubSet.getHeapSizeInBytes(RANGE_HISTOGRAM_BUCKET_SIZER);
@@ -748,7 +783,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -791,7 +826,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -839,7 +874,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -882,7 +917,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -939,7 +974,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * `starts` / `ends` bitmaps are still applied to the rolling active set so that records with open-ended
 	 * ranges (`from == null` / `to == null`) participate in / exit the appropriate buckets. The result is
 	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
-	 * invalidated alongside {@link #memoizedAllRecordsFormula}.
+	 * invalidated alongside {@link #memoizedAllRecords}.
 	 *
 	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
 	 *
@@ -1037,7 +1072,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
-		return getAllRecordsFormula().compute();
+		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
+		if (isTransactionAvailable() && isDirty()) {
+			return getHistogramOfAllRecords().getFormula().compute();
+		}
+		if (this.memoizedAllRecords == null) {
+			this.memoizedAllRecords = getHistogramOfAllRecords().getFormula().compute();
+		}
+		return this.memoizedAllRecords;
 	}
 
 	/**
@@ -1048,20 +1090,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
 	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
+	 *
+	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
+	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.
 	 */
 	public Formula getAllRecordsFormula() {
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && isDirty()) {
-			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-				this.memoizedAllRecordsFormula = allRecords.isEmpty() ?
-					EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		final Bitmap allRecords = getAllRecords();
+		return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 	}
 
 	/**
