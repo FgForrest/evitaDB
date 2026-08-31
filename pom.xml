@@ -144,7 +144,7 @@
 		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
-		<okhttp.version>5.4.0</okhttp.version>
+		<okhttp.version>5.5.0</okhttp.version>
 		<opentelemetry.version>1.65.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
