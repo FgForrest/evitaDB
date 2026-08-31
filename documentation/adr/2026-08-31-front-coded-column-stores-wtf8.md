@@ -1,7 +1,7 @@
 ---
 title: Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry
 date: 2026-08-31
-updated: 2026-08-31 15:40
+updated: 2026-08-31 16:35
 status: accepted
 kind: fix
 issues: [1454]
@@ -153,6 +153,11 @@ about this column, and it would supersede this record.
   is `false` for essentially every column, so the common decode is still `new String(bytes, UTF_8)`.
   A stale `true` is merely slower; a stale `false` would be wrong, which is why the flag is
   recomputed by every `encode` rather than being sticky.
+- **One scan answers both corpus flags.** `Wtf8.classify(byte[], int, int)` returns `NOT_BMP_SAFE` and
+  `HAS_ENCODED_SURROGATE` as a bitmask in a single pass, early-exiting once both bits are set;
+  `SUPPLEMENTARY_LEAD_BYTE` lives in `Wtf8` with the surrogate constants rather than in the column. That
+  is cheaper than the two scans it replaced (`keyLen` instead of `suffixLen + keyLen` per entry) and puts
+  every UTF-8 encoding fact in the one class that owns them.
 - **That scan covers each WHOLE key, not just its suffix, and the difference is load-bearing.**
   `bmpSafe` tests a single byte (`>= 0xF0`) and a shared-prefix boundary cannot hide a single byte
   from every suffix. "Is this an encoded surrogate" is a **joint** condition on a lead byte *and* its
@@ -162,7 +167,11 @@ about this column, and it would supersede this record.
   a surrogate. Both suffix scans answer "no". A future optimizer tempted back toward a suffix-local
   scan needs to handle that straddle explicitly — scanning from `shared - 2` would be sufficient,
   since a straddling sequence starts at most two bytes before the boundary — and should measure
-  first, because the whole-key form was chosen deliberately over it.
+  first, because the whole-key form was chosen deliberately over it. The fusion makes this sharper, not
+  safer: the range is now a single call argument that reads like a free parameter, so `@param
+  hasEncodedSurrogate` on `finishEncode` states explicitly why it may not be narrowed, and
+  `shouldRoundTripWhenAPrefixBoundarySplitsASurrogateSequence` plus
+  `shouldRoundTripASurrogateCorpusAcrossARestartBoundary` are what catch the edit if someone tries.
 - **Ordering invariant, and its exact bound.** Byte order agrees with `String#compareTo` only while
   *both* operands consist solely of code points at or below `U+FFFF`. A lone surrogate satisfies
   that and stays on the fast path; a well-formed **pair** does not, and is excluded by the existing

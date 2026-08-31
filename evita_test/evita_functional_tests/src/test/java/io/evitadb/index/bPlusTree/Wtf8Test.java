@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
+import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.describe;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -42,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the {@link Wtf8} codec {@link FrontCodedStringColumn} stores its keys with.
+ * Verifies the {@link Wtf8} codec that {@link FrontCodedStringColumn} stores its keys with.
  *
  * Three properties carry the whole design and each has its own nested class: the encoding is **byte-identical to
  * UTF-8** for every input UTF-8 can represent (which is why the column's blob size, prefix sharing and fast-path
@@ -163,6 +164,10 @@ class Wtf8Test {
 		void shouldLoseUnderUtf8ExactlyWhereItIsUnpaired() {
 			// Pins the boundary from both sides, so a future change that widens or narrows `hasUnpairedSurrogate`
 			// cannot pass unnoticed: the predicate must agree, value for value, with whether UTF-8 actually loses it.
+			//
+			// What it does NOT guard, so nobody reads it as the codec's safety net: it touches only the predicate and
+			// the JDK's own codec, never `encode` or `decode`, and stays green with WTF-8 reverted to plain UTF-8. The
+			// round-trip cases above are what fail then.
 			for (final String value : WELL_FORMED) {
 				assertFalse(Wtf8.hasUnpairedSurrogate(value), describe(value) + " must not be flagged");
 				assertEquals(value, utf8RoundTrip(value), "UTF-8 must already carry " + describe(value));
@@ -200,6 +205,24 @@ class Wtf8Test {
 		}
 
 		@Test
+		@DisplayName("a surrogate between two multi-byte runs disturbs neither of them")
+		void shouldDecodeASurrogateBetweenTwoMultiByteRuns() {
+			// `decode` hands each surrogate-free run to the JDK whole and copies the result in at a running output
+			// offset, so a value carrying a MULTI-BYTE run on BOTH sides of a surrogate is the shape where an offset
+			// accumulated in the wrong unit - bytes counted where code units were meant, or the reverse - would show.
+			// Every shape in `UNPAIRED` has at most one such run, where that accumulation is trivially right.
+			final String[] values = {
+				"\u4f60\ud800\u597d",                   // 3-byte CJK either side
+				"\ud800\u4f60\ud800",                   // a multi-byte run delimited by surrogates on both sides
+				"caf\u00e9\ud800caf\u00e9",             // 2-byte runs either side
+				"\ud83d\ude00\ud800\ud83d\ude00"          // 4-byte supplementary runs either side
+			};
+			for (final String value : values) {
+				assertEquals(value, roundTrip(value), "must round-trip " + describe(value));
+			}
+		}
+
+		@Test
 		@DisplayName("decoding honours the offset and length rather than the whole array")
 		void shouldDecodeASubRange() {
 			// The column decodes out of a reused scratch buffer whose tail holds stale bytes from a longer
@@ -210,6 +233,40 @@ class Wtf8Test {
 			System.arraycopy(value, 0, padded, 3, value.length);
 
 			assertEquals("a\ud800c", Wtf8.decode(padded, 3, value.length), "only the named range may be decoded");
+		}
+
+		@Test
+		@DisplayName("detection honours the offset and length too, including a range that stops mid-sequence")
+		void shouldDetectAnEncodedSurrogateWithinASubRange() {
+			// The column never asks the detector about a whole array: it asks about ONE key inside a shared flat
+			// buffer, at a non-zero offset and for fewer bytes than the buffer holds. An offset bug here would be
+			// invisible in this class and would surface only as a mis-decoded column key.
+			final byte[] surrogate = Wtf8.encode("\ud800");
+			final byte[] plain = Wtf8.encode("\ud7ff");
+			final byte[] buffer = new byte[plain.length + surrogate.length + plain.length];
+			System.arraycopy(plain, 0, buffer, 0, plain.length);
+			System.arraycopy(surrogate, 0, buffer, plain.length, surrogate.length);
+			System.arraycopy(plain, 0, buffer, plain.length + surrogate.length, plain.length);
+
+			assertTrue(
+				Wtf8.containsEncodedSurrogate(buffer, plain.length, surrogate.length),
+				"the range holding the surrogate must be reported"
+			);
+			assertFalse(
+				Wtf8.containsEncodedSurrogate(buffer, 0, plain.length),
+				"a range stopping short of the surrogate must not be reported"
+			);
+			assertFalse(
+				Wtf8.containsEncodedSurrogate(buffer, plain.length + surrogate.length, plain.length),
+				"a range starting after the surrogate must not be reported"
+			);
+			// and the property the column's whole-key scan is built on: a range ending INSIDE the sequence reports
+			// nothing, because only a complete three-byte sequence counts. That is precisely why the column may not
+			// scan suffixes - a front-coded suffix is exactly such a partial range
+			assertFalse(
+				Wtf8.containsEncodedSurrogate(buffer, 0, plain.length + 1),
+				"a range ending inside the surrogate's own sequence must not report a whole one"
+			);
 		}
 
 	}
@@ -242,6 +299,10 @@ class Wtf8Test {
 			// The agreement above holds only while every code point stays at or below U+FFFF. A well-formed PAIR is one
 			// code point ABOVE it, and there UTF-8 byte order and String#compareTo famously disagree - which is exactly
 			// why the column gates its byte-compare fast path on the `>= 0xF0` supplementary lead byte.
+			//
+			// This case is about that gate, not about the codec: substitute `0x3F` for the lone surrogate and all four
+			// assertions still hold, so it stays green with WTF-8 reverted to plain UTF-8. That is deliberate - what it
+			// pins is the threshold the column admits a lone surrogate through, which the codec did not introduce.
 			final String lone = "\udafb";                 // a lone HIGH surrogate - one BMP code point
 			final String supplementary = "\ud99e\udc59";  // a WELL-FORMED pair - one code point above the BMP
 
@@ -375,22 +436,6 @@ class Wtf8Test {
 			}
 		}
 		return left.length - right.length;
-	}
-
-	/**
-	 * Renders `value` as its UTF-16 code units, so a failure message distinguishes shapes that would otherwise all
-	 * print as the same unprintable glyph.
-	 *
-	 * @param value the value to describe
-	 * @return the value's code units in hex
-	 */
-	@Nonnull
-	private static String describe(@Nonnull String value) {
-		final StringBuilder result = new StringBuilder(value.length() * 5 + 2);
-		for (int i = 0; i < value.length(); i++) {
-			result.append(String.format("%04X ", (int) value.charAt(i)));
-		}
-		return "[" + result.toString().trim() + "]";
 	}
 
 }

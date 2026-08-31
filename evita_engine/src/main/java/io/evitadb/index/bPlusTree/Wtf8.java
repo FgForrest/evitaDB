@@ -71,15 +71,15 @@ import java.util.Arrays;
  *
  * {@link FrontCodedStringColumn}'s fast path compares raw bytes and must agree with {@link String#compareTo}, which
  * compares UTF-16 code units. The two disagree for supplementary characters, which is why the column excludes any
- * byte `>= 0xF0` from the fast path (see {@code FrontCodedStringColumn#isBmpSafe(byte[], int, int)}).
+ * byte `>= 0xF0` from the fast path (see {@link #SUPPLEMENTARY_LEAD_BYTE} and {@link #classify}).
  *
  * A WTF-8 lone surrogate encodes below that threshold (`ED ...`) and therefore stays on the fast path — correctly,
  * because as long as **both** operands consist only of code points at or below `U+FFFF`, UTF-8 byte order **is**
  * code-point order, which **is** UTF-16 code-unit order:
  *
  * ```
- * "a\uD800c" vs "a\uE000"   String.compareTo: D800 < E000        → first
- *                           WTF-8 bytes     : ED A0 80 < EE 80 80 → first   ✓ agree
+ * "a\uD800c" vs "a\uE000"   String.compareTo: D800 &lt; E000        → first
+ *                           WTF-8 bytes     : ED A0 80 &lt; EE 80 80 → first   ✓ agree
  * ```
  *
  * The restriction to the BMP is load-bearing rather than decorative, and a lone surrogate does not weaken it — a
@@ -101,8 +101,8 @@ import java.util.Arrays;
  * - {@link #encode(String)} encodes through the JDK and only re-encodes by hand when the result betrays a
  *   substitution — see the method's own note on why that test is exact;
  * - decoding is gated by the caller: {@link FrontCodedStringColumn} records once per encode whether the blob holds
- *   any surrogate sequence at all (a byte scan it was performing anyway), and calls {@link #decode} only when it
- *   does. Every other column keeps calling {@code new String(bytes, UTF_8)} directly.
+ *   any surrogate sequence at all, as one bit of the same {@link #classify} scan it makes for BMP-safety, and calls
+ *   {@link #decode} only when it does. Every other column keeps calling {@code new String(bytes, UTF_8)} directly.
  *
  * The class is public but its codec is not: only {@link #hasUnpairedSurrogate} is exported, because the question
  * "would UTF-8 lose this string?" is asked outside this package too — {@code TrigramSubstringSearch} has to answer it
@@ -126,6 +126,17 @@ public final class Wtf8 {
 	 * `U+D000-U+D7FF`, which are ordinary BMP characters and not surrogates.
 	 */
 	private static final int SURROGATE_SECOND_BYTE_FLOOR = 0xA0;
+	/**
+	 * The lowest UTF-8 lead byte of a 4-byte (supplementary-plane) sequence — the CORPUS-side BMP-safety threshold
+	 * {@link #classify} tests every key byte against. Lives here, next to the surrogate-byte constants above,
+	 * rather than on {@link FrontCodedStringColumn}, so this class owns every byte-level UTF-8/WTF-8 fact the column
+	 * needs instead of splitting them across two classes.
+	 */
+	static final int SUPPLEMENTARY_LEAD_BYTE = 0xF0;
+	/** {@link #classify} bit: the scanned range holds a byte {@code >=} {@link #SUPPLEMENTARY_LEAD_BYTE}. */
+	static final int NOT_BMP_SAFE = 1;
+	/** {@link #classify} bit: the scanned range holds an encoded surrogate (see {@link #containsEncodedSurrogate}). */
+	static final int HAS_ENCODED_SURROGATE = 2;
 
 	private Wtf8() {
 		throw new UnsupportedOperationException("Utility class - not instantiable.");
@@ -200,11 +211,48 @@ public final class Wtf8 {
 	}
 
 	/**
-	 * Answers whether `bytes[offset, offset + length)` contains any encoded surrogate, i.e. whether {@link #decode}
-	 * would produce a different answer from {@code new String(bytes, offset, length, UTF_8)}.
+	 * Scans `bytes[offset, offset + length)` once and answers both questions {@link FrontCodedStringColumn#encode}
+	 * needs about a key — whether it is free of any supplementary-plane lead byte (BMP-safe) and whether it contains
+	 * an encoded surrogate — instead of the two independently-scanning calls that would otherwise be needed over the
+	 * same bytes. A bitmask return keeps this hot-path call allocation-free.
 	 *
-	 * {@link FrontCodedStringColumn} folds this test into the single suffix-byte scan its encode pass already makes,
-	 * and caches the answer for the whole blob — so the decode side pays one boolean check rather than a scan.
+	 * The {@link #NOT_BMP_SAFE} bit answers the CORPUS-side half of {@link FrontCodedStringColumn}'s BMP-safe
+	 * byte-compare fast path (see that class's javadoc) and deliberately DISAGREES with the PROBE-side
+	 * {@code FrontCodedStringColumn#isBmpSafe(String)} on a lone surrogate: this method asks what the already-stored
+	 * WTF-8 bytes encode, and a lone surrogate is written in three bytes below {@link #SUPPLEMENTARY_LEAD_BYTE} — so
+	 * it is reported BMP-safe, correctly, because a lone surrogate IS a BMP code point and unsigned byte order over
+	 * the BMP agrees with {@link String#compareTo}. The PROBE-side check instead asks whether the probe will survive
+	 * {@link String#getBytes(java.nio.charset.Charset)}, which still substitutes a lone surrogate with {@code '?'},
+	 * so it must disqualify one. Neither answer is the other's bug.
+	 *
+	 * @param bytes  the backing array
+	 * @param offset the range's start offset
+	 * @param length the range's length in bytes
+	 * @return {@link #NOT_BMP_SAFE} and/or {@link #HAS_ENCODED_SURROGATE}, OR'd together; {@code 0} if neither applies
+	 */
+	static int classify(@Nonnull byte[] bytes, int offset, int length) {
+		int flags = 0;
+		final int end = offset + length;
+		for (int i = offset; i < end; i++) {
+			final int lead = bytes[i] & 0xFF;
+			if (lead >= SUPPLEMENTARY_LEAD_BYTE) {
+				flags |= NOT_BMP_SAFE;
+			} else if ((flags & HAS_ENCODED_SURROGATE) == 0 && isEncodedSurrogateAt(bytes, i, end)) {
+				flags |= HAS_ENCODED_SURROGATE;
+			}
+			if (flags == (NOT_BMP_SAFE | HAS_ENCODED_SURROGATE)) {
+				break;
+			}
+		}
+		return flags;
+	}
+
+	/**
+	 * Answers whether `bytes[offset, offset + length)` contains any encoded surrogate, i.e. whether {@link #decode}
+	 * would produce a different answer from {@code new String(bytes, offset, length, UTF_8)}. Implemented via
+	 * {@link #classify} so the byte-scanning logic exists in exactly one place; {@link FrontCodedStringColumn#encode}
+	 * calls {@link #classify} directly (it needs the BMP-safety bit too, and caches this answer for the whole blob
+	 * so the decode side pays one boolean check rather than a scan) — this method itself is exercised by tests only.
 	 *
 	 * @param bytes  the backing array
 	 * @param offset the range's start offset
@@ -212,13 +260,7 @@ public final class Wtf8 {
 	 * @return {@code true} if the range holds at least one encoded surrogate
 	 */
 	static boolean containsEncodedSurrogate(@Nonnull byte[] bytes, int offset, int length) {
-		final int end = offset + length;
-		for (int i = offset; i < end; i++) {
-			if (isEncodedSurrogateAt(bytes, i, end)) {
-				return true;
-			}
-		}
-		return false;
+		return (classify(bytes, offset, length) & HAS_ENCODED_SURROGATE) != 0;
 	}
 
 	/**

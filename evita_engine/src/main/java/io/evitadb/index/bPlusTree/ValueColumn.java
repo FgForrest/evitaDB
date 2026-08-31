@@ -110,8 +110,8 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 *
 	 * Consulted once per query rather than per candidate, because it is a property of the column's storage rather
 	 * than of the slot. Only {@link FrontCodedStringColumn} answers `true`: it is the only implementation that
-	 * already holds its keys as UTF-8 bytes, so it is the only one for which byte matching avoids work rather than
-	 * inventing it.
+	 * already holds its keys as WTF-8 bytes (see {@code Wtf8}), so it is the only one for which byte matching
+	 * avoids work rather than inventing it.
 	 *
 	 * @return whether byte-level matching is available on this column
 	 */

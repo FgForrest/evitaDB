@@ -48,6 +48,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.assertTreeMatchesOracle;
+import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.describe;
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.verifyConsistent;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.COMPARATOR;
@@ -70,8 +71,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * production varint length encoding for keys longer than 255 bytes, and multi-byte UTF-8 values); the
  * {@link ValueColumnFactory} selects it for every {@link String} key regardless of the comparator; an end-to-end
  * randomized workload on a String-keyed {@link TransactionalBucketBPlusTree} matches a {@link TreeMap} oracle in both
- * natural codepoint order and locale-collation order; and the column survives an MVCC commit / rollback that splits and
- * merges leaves (so its deep-copy duplicate / range-move re-encode paths run across a real transaction layer).
+ * natural codepoint order and locale-collation order; the column survives an MVCC commit / rollback that splits and
+ * merges leaves (so its deep-copy duplicate / range-move re-encode paths run across a real transaction layer); and an
+ * unpaired UTF-16 surrogate, which the column's WTF-8 storage keeps distinct from its old {@code '?'}-substituted
+ * value, round-trips and orders correctly across every one of those same paths.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -1013,6 +1016,60 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
+		@DisplayName("preserves keys carrying an unpaired surrogate across the same commit")
+		@Tag(TRANSACTION)
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldPreserveSurrogateKeyedTreeAcrossCommit() {
+			// The transactional path re-encodes through `duplicate()` and `copyRangeTo`, so a leaf that splits, steals
+			// or merges builds its new blob out of raw bytes that never pass back through a `String`. Every other
+			// surrogate case in this class hands the column a `String` first, which is why this is the only one that
+			// exercises a column ACQUIRING an encoding it was not told about - and it does so across a real
+			// transaction layer, against the same `TreeMap` oracle the ordinary commit case is checked with.
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, null);
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, String.class, null, factory
+			);
+
+			final List<String> baseKeys = surrogateKeys(0, 40);
+			final TreeMap<String, TreeSet<Integer>> baseOracle = new TreeMap<>();
+			for (int i = 0; i < baseKeys.size(); i++) {
+				tree.addRecord(baseKeys.get(i), i + 1_000);
+				baseOracle.computeIfAbsent(baseKeys.get(i), k -> new TreeSet<>()).add(i + 1_000);
+			}
+
+			final List<String> addedKeys = surrogateKeys(41, 90);
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int i = 0; i < addedKeys.size(); i++) {
+						tested.addRecord(addedKeys.get(i), i + 5_000);
+						tested.addRecord(addedKeys.get(i), i + 6_000);
+					}
+					for (int i = 0; i < 26; i++) {
+						tested.removeRecord(baseKeys.get(i), i + 1_000);
+					}
+				},
+				(original, committed) -> {
+					final TreeMap<String, TreeSet<Integer>> oracle = new TreeMap<>(baseOracle);
+					for (int i = 0; i < addedKeys.size(); i++) {
+						final TreeSet<Integer> set = new TreeSet<>();
+						set.add(i + 5_000);
+						set.add(i + 6_000);
+						oracle.put(addedKeys.get(i), set);
+					}
+					for (int i = 0; i < 26; i++) {
+						oracle.remove(baseKeys.get(i));
+					}
+					assertTreeMatchesOracle(committed, oracle);
+					verifyConsistent(committed);
+
+					// the pre-commit base tree is unchanged - the transaction layer was decoupled
+					assertTreeMatchesOracle(original, baseOracle);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("discards String-keyed mutations on rollback, leaving the base tree untouched")
 		@Tag(TRANSACTION)
 		@SuppressWarnings({"unchecked", "rawtypes"})
@@ -1044,6 +1101,31 @@ class FrontCodedStringColumnTest {
 					verifyConsistent(original);
 				}
 			);
+		}
+
+		/**
+		 * Builds the ascending key sequence the surrogate commit case drives, for the numbers `from` to `to` inclusive.
+		 *
+		 * Every fourth number contributes two keys beyond the plain one: the same stem followed by U+D7FF and by
+		 * U+D800. Those two encode to `... ED 9F BF` and `... ED A0 80`, so they sort adjacent and front-code with the
+		 * shared prefix ending INSIDE the three-byte sequence. Spreading them across the whole range puts one in most
+		 * leaves, so the splits, steals and merges the commit forces really do move them.
+		 *
+		 * @param from the first number, inclusive
+		 * @param to   the last number, inclusive
+		 * @return the keys in ascending natural order
+		 */
+		@Nonnull
+		private static List<String> surrogateKeys(int from, int to) {
+			final List<String> keys = new ArrayList<>((to - from + 1) * 2);
+			for (int i = from; i <= to; i++) {
+				keys.add(String.format("item-%03d", i));
+				if (i % 4 == 0) {
+					keys.add(String.format("item-%03d\ud7ff", i));
+					keys.add(String.format("item-%03d\ud800", i));
+				}
+			}
+			return keys;
 		}
 	}
 
@@ -1599,9 +1681,9 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
-		@DisplayName("no other column claims to store UTF-8, and each refuses rather than guessing")
+		@DisplayName("no other column claims to store WTF-8, and each refuses rather than guessing")
 		void shouldRefuseByteMatchingWhereKeysAreNotUtf8() {
-			// `ValueColumn` is sealed and the front-coded one is the only implementation holding its keys as UTF-8,
+			// `ValueColumn` is sealed and the front-coded one is the only implementation holding its keys as WTF-8,
 			// so the capability default and the refusing default apply to every OTHER implementation. Each is checked
 			// here rather than one standing in for the rest: they are what the fallback to the predicate rests on.
 			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
@@ -1627,6 +1709,13 @@ class FrontCodedStringColumnTest {
 
 	}
 
+	/**
+	 * Verifies that an unpaired UTF-16 surrogate — legal in a Java {@link String}, unrepresentable in UTF-8 — round-
+	 * trips through {@link FrontCodedStringColumn} instead of being silently replaced by {@code '?'}, stays distinct
+	 * from a value that genuinely contains one, orders exactly as {@link String#compareTo} does, and keeps decoding
+	 * correctly across every path the column's WTF-8 flags have to survive: a shared-prefix boundary that splits the
+	 * surrogate's own byte sequence, MVCC duplication, range moves, truncation, and a restart-block boundary.
+	 */
 	@Nested
 	@DisplayName("unpaired surrogates survive the column")
 	class UnpairedSurrogates {
@@ -1751,6 +1840,16 @@ class FrontCodedStringColumnTest {
 				keys[1], column.keyAt(1),
 				"the surrogate must round-trip even though the shared prefix ends between its lead and second byte"
 			);
+
+			// decoding is only half of the contract. The production symptom was the tree re-probing with the value it
+			// had just inserted and being told the key is absent, so the lookup this shape breaks is asserted too - a
+			// change that restored correct decoding through a path that still misled the binary search would otherwise
+			// leave this test green
+			for (int i = 0; i < keys.length; i++) {
+				final InsertionPosition found = column.findKeyPosition(keys[i], 0, keys.length, null);
+				assertTrue(found.alreadyPresent(), "lookup must find " + describe(keys[i]));
+				assertEquals(i, found.position(), "lookup must land on the right slot for " + describe(keys[i]));
+			}
 		}
 
 		@Test
@@ -1772,6 +1871,17 @@ class FrontCodedStringColumnTest {
 				assertTrue(found.alreadyPresent(), "lookup must find " + describe(expected[i]));
 				assertEquals(i, found.position(), "lookup must land on the right slot for " + describe(expected[i]));
 			}
+
+			// a probe that is ABSENT takes the insertion-position branch instead of the hit branch, and takes it while
+			// binary-searching PAST a stored surrogate - which the fast path really does compare by raw bytes, since an
+			// encoded lone surrogate sits below the column's `>= 0xF0` supplementary threshold
+			final String absentKey = "a\uD800b";
+			final InsertionPosition absent = column.findKeyPosition(absentKey, 0, expected.length, null);
+			assertFalse(absent.alreadyPresent(), describe(absentKey) + " is not in the corpus");
+			assertEquals(
+				-Arrays.binarySearch(expected, absentKey) - 1, absent.position(),
+				"the insertion point must be the one a plain sorted array would report"
+			);
 		}
 
 		@Test
@@ -1790,14 +1900,97 @@ class FrontCodedStringColumnTest {
 				"a duplicated column must decode the shared blob exactly as its original does"
 			);
 
-			// and the flag must be recomputed rather than sticky: once the only surrogate key is gone, the remaining
-			// keys must still decode correctly (a stale `true` is merely slower, a stale `false` would be wrong)
+			// and once the only surrogate key is gone the remaining keys must still decode. Note what this half can
+			// and cannot fail on: a flag left stale at `true` merely decodes "abc" the slow way and still returns
+			// "abc", so the direction that a stale `false` would break is pinned separately, by
+			// `shouldKeepASurrogateKeyDecodableWhenAnOrdinaryKeyIsRemoved`.
 			column.removeKeyAt(1);
 			assertEquals("abc", column.keyAt(0), "the surviving key must be unaffected by the removal");
 			assertEquals(
 				LONE_SURROGATE_VALUE, copy.keyAt(1),
 				"the duplicate must not observe the original's removal"
 			);
+		}
+
+		@Test
+		@DisplayName("asBoxedArray decodes a surrogate too, not only keyAt")
+		void shouldRoundTripASurrogateThroughAsBoxedArray() {
+			// `decodeAll` is the SECOND gated decode site - it reaches callers through `asBoxedArray`, used by the
+			// consistency verification and `toString`. Deleting its gate leaves every other test in this file green,
+			// so without this one the branch is guarded by nothing at all.
+			final String[] keys = {"a\ud7ff", "a\ud800"};
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.bulkLoad(keys, keys.length);
+
+			final String[] boxed = column.asBoxedArray();
+			assertEquals(keys[0], boxed[0], "the ordinary neighbour must box intact");
+			assertEquals(
+				keys[1], boxed[1],
+				"asBoxedArray must decode the surrogate rather than substituting U+FFFD"
+			);
+		}
+
+		@Test
+		@DisplayName("range moves and truncation leave surviving surrogate keys decodable")
+		void shouldKeepSurrogateKeysDecodableThroughRangeMovesAndTruncation() {
+			// `copyRangeTo` rebuilds the DESTINATION's blob from the moved slice, so the destination has to derive
+			// the decode gate for itself rather than inherit it; `fillEmpty` and `clearAt` re-encode what is left,
+			// so a gate that was not recomputed would strand the survivors. These are the leaf split / merge / steal
+			// paths, reached here directly instead of through a tree.
+			final String[] keys = {"a\ud7ff", "a\ud800", "a\udfff", "b"};
+			final ValueColumn<String> source = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			source.bulkLoad(keys, keys.length);
+
+			final ValueColumn<String> destination = source.allocate(BLOCK_SIZE);
+			source.copyRangeTo(0, destination, 0, keys.length);
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], destination.keyAt(i), "copyRangeTo must carry key " + i + " intact");
+			}
+
+			// truncate away the tail, keeping one surrogate behind - a gate left stale by the re-encode would decode
+			// the survivor through the JDK's UTF-8 decoder and hand back U+FFFD
+			destination.fillEmpty(2, keys.length);
+			assertEquals(keys[0], destination.keyAt(0), "the ordinary neighbour must survive fillEmpty");
+			assertEquals(keys[1], destination.keyAt(1), "the surviving surrogate must still decode after fillEmpty");
+
+			source.clearAt(2);
+			assertEquals(keys[1], source.keyAt(1), "the surviving surrogate must still decode after clearAt");
+		}
+
+		@Test
+		@DisplayName("removing an ordinary key leaves a surviving surrogate key decodable")
+		void shouldKeepASurrogateKeyDecodableWhenAnOrdinaryKeyIsRemoved() {
+			// The removal the case above makes takes the ONLY surrogate key out, which cannot fail whichever way the
+			// flag was recomputed. This is the other direction - the surrogate STAYS, and the re-encode the removal
+			// forces has to go on saying so, or the survivor decodes through the JDK's decoder and comes back as
+			// U+FFFD.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.bulkLoad(new Object[]{"abc", LONE_SURROGATE_VALUE, "zzz"}, 3);
+			column.removeKeyAt(0);
+
+			assertEquals(LONE_SURROGATE_VALUE, column.keyAt(0), "the surviving surrogate key must still decode");
+			assertEquals("zzz", column.keyAt(1), "the surviving ordinary key must be unaffected");
+		}
+
+		@Test
+		@DisplayName("a corpus larger than one restart block round-trips on both sides of the boundary")
+		void shouldRoundTripASurrogateCorpusAcrossARestartBoundary() {
+			// Every sixteenth entry is a restart point, stored in full rather than front-coded against its predecessor
+			// - which is where the encode-time argument about a shared prefix hiding a lead byte terminates. No other
+			// surrogate case here reaches that far: they are four keys long at most. These twenty pair each stem with
+			// U+D7FF and U+D800, so EVERY odd slot is a boundary that falls inside a three-byte sequence, slot 16 is a
+			// restart entry, and surrogate keys sit on both sides of it.
+			final String[] keys = new String[20];
+			for (int i = 0; i < keys.length; i++) {
+				keys[i] = String.format("k%02d", i / 2) + (i % 2 == 0 ? "\ud7ff" : "\ud800");
+			}
+
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(64, true);
+			column.bulkLoad(keys, keys.length);
+
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], column.keyAt(i), "slot " + i + " must round-trip " + describe(keys[i]));
+			}
 		}
 
 		@Test
@@ -1815,23 +2008,6 @@ class FrontCodedStringColumnTest {
 				"NFC must leave a lone surrogate untouched"
 			);
 		}
-
-		/**
-		 * Renders `value` as its UTF-16 code units, so a failure message distinguishes shapes that would otherwise all
-		 * print as the same unprintable glyph.
-		 *
-		 * @param value the value to describe
-		 * @return the value's code units in hex
-		 */
-		@Nonnull
-		private String describe(@Nonnull String value) {
-			final StringBuilder result = new StringBuilder(value.length() * 5 + 2);
-			for (int i = 0; i < value.length(); i++) {
-				result.append(String.format("%04X ", (int) value.charAt(i)));
-			}
-			return "[" + result.toString().trim() + "]";
-		}
-
 	}
 
 }

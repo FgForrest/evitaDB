@@ -24,8 +24,8 @@
 package io.evitadb.index.trigram;
 
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.bPlusTree.Wtf8;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;

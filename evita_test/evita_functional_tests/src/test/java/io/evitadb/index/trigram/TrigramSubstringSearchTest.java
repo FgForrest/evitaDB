@@ -142,6 +142,27 @@ class TrigramSubstringSearchTest {
 	private static final int OMEGA_VALUES = 5;
 
 	/**
+	 * Two values carrying a lone UTF-16 surrogate, and the value that carries a real question mark in the same place.
+	 *
+	 * `String#getBytes(UTF_8)` has no encoding for half a surrogate pair and substitutes `0x3F` for it, so a UTF-8
+	 * pattern built from the first two would be matched as though the user had typed the third. That is what makes the
+	 * triple the sharp case for whether a pattern may be offered to the byte-containment path at all. TWO surrogate
+	 * values rather than one, so the count of predicate consultations tells the byte path apart from the predicate one
+	 * - with a single candidate both answer "once" and the comparison would prove nothing.
+	 *
+	 * **Do not trim these from the corpus.** They are also the only thing in the suite that reaches the defect's
+	 * user-visible shape rather than its column-level one: indexing a value that carries a lone surrogate is what
+	 * drives `InvertedIndex#notifyValueCreated` to re-probe the tree and miss the bucket it just created. With the
+	 * column's WTF-8 encoding reverted, every test in this class fails during fixture setup with "The bucket freshly
+	 * created for value `lone ... ` carries no value id" - the production error, and the reason the accelerator could
+	 * not index such a value at all before that encoding landed. No test NAME says so, so someone shortening this
+	 * corpus for speed would remove the only guard on that path without any signal that they had.
+	 */
+	private static final String SURROGATE_VALUE = "lone \ud800 half";
+	private static final String LONGER_SURROGATE_VALUE = "lone \ud800 halfway";
+	private static final String QUESTION_MARK_VALUE = "lone ? half";
+
+	/**
 	 * Precomposed (NFC) `café`: the final character is U+00E9 LATIN SMALL LETTER E WITH ACUTE. The form a user types.
 	 */
 	private static final String NFC_CAFE = "café";
@@ -219,6 +240,11 @@ class TrigramSubstringSearchTest {
 		// the accented pair - one matches `café`, the other only its ASCII prefix
 		values.add(NFC_CAFE + " noir");
 		values.add("decaf latte");
+		// the surrogate triple, appended last: `recordsOf` is positional and every assertion here derives its counts
+		// from the corpus, so adding at the end leaves every other case untouched
+		values.add(SURROGATE_VALUE);
+		values.add(LONGER_SURROGATE_VALUE);
+		values.add(QUESTION_MARK_VALUE);
 		return values;
 	}
 
@@ -653,6 +679,64 @@ class TrigramSubstringSearchTest {
 			assertEquals(
 				fromBytes.recordSets().length, fromStrings.recordSets().length,
 				"and must reach the very same answer, which is why answering from the bytes is safe"
+			);
+		}
+
+		@Test
+		@DisplayName("a surrogate-bearing pattern is verified through the predicate, never against the stored bytes")
+		void shouldTakeThePredicatePathForASurrogateBearingPattern() {
+			// A pattern carrying an unpaired surrogate has no faithful UTF-8 form, so offering it to the byte
+			// containment path would match on a question mark the user never typed. The path is declined for such a
+			// pattern and the predicate - which compares UTF-16 code units and is unaffected - answers instead. This is
+			// the only case in the suite that reaches that decision: no other pattern here is unrepresentable in UTF-8.
+			//
+			// CALIBRATION: making the loss test answer `true` unconditionally builds the pattern's bytes as
+			// `65 20 3F 20 68`, which cannot occur in the stored `... 65 20 ED A0 80 20 68 ...`. Both true matches
+			// are then dropped - measured: four record ids expected, none returned.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final String pattern = "e \ud800 h";
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(
+				TrigramCodec.extractUniqueTrigrams(pattern)
+			);
+			assertEquals(
+				2, candidates.length,
+				"both surrogate-bearing values must be nominated, or one-versus-many is not the comparison being made"
+			);
+
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, searched) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, searched);
+			};
+			final MatchedBuckets matched = TrigramSubstringSearch.match(
+				trigramIndex, tree, pattern, counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(matched, "the accelerated path must not decline - the pattern is selective enough");
+
+			final BaseBitmap union = new BaseBitmap();
+			for (final Bitmap recordSet : matched.recordSets()) {
+				union.addAll(recordSet);
+			}
+			assertArrayEquals(
+				recordsOfAll(SURROGATE_VALUE, LONGER_SURROGATE_VALUE), union.getArray(),
+				"the surrogate-bearing values must still be matched, which the byte path could not have done"
+			);
+			assertEquals(
+				candidates.length, invocations[0],
+				"the predicate must be consulted once per candidate; a count of one would mean the stored bytes "
+					+ "answered, which for a pattern UTF-8 cannot carry is exactly what must not happen"
+			);
+
+			// and the converse, which is the claim a user would phrase: a real question mark matches only the value
+			// that really holds one. Before the key column stored WTF-8 the two values were held as identical bytes,
+			// so nothing downstream could have told them apart.
+			assertArrayEquals(
+				recordsOf(QUESTION_MARK_VALUE),
+				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "e ? h", CONTAINS),
+				"a question-mark pattern must not pick up a value whose corresponding character is a surrogate"
 			);
 		}
 

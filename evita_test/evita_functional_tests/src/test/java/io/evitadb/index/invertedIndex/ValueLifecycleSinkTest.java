@@ -154,6 +154,21 @@ class ValueLifecycleSinkTest {
 		}
 
 		@Test
+		@DisplayName("a value carrying an unpaired surrogate is reported like any other")
+		void shouldReportAValueCarryingAnUnpairedSurrogate() {
+			// A birth is reported from inside the insert that caused it, and the id is resolved by RE-PROBING the tree
+			// for the bucket just created. That makes this notification the place where a key column storing something
+			// other than the value it was handed stops being a silent divergence and becomes a hard failure: the
+			// re-probe misses, no id comes back, and the insert raises an internal error naming the value-id machinery
+			// rather than the encoding. A lone UTF-16 surrogate is such a value - UTF-8 has no representation for one.
+			final InvertedIndex tree = treeWithIds();
+			final RecordingSink sink = new RecordingSink();
+			final String value = "a\uD800c";
+			tree.addRecord(value, 1, sink);
+			assertEquals(List.of("created:" + tree.getValueId(value) + ":" + value), sink.events);
+		}
+
+		@Test
 		@DisplayName("the sink is handed the NORMALIZED value, not the one the caller passed")
 		void shouldReportTheNormalizedValue() {
 			// the consumer indexes what the tree stores, and the query path normalizes its pattern the same way, so
