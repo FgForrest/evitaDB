@@ -564,40 +564,67 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Handles a {@link StatusRuntimeException} by checking the status code and performing appropriate actions.
 	 *
+	 * The server writes the status description as `errorCode + ": " + publicMessage` (see
+	 * `GlobalExceptionHandlerInterceptor#createErrorStatus` on the server side), so {@link #ERROR_MESSAGE_PATTERN}
+	 * has to be matched against the description **exactly as it arrived**. Prepending the status name first - as this
+	 * method used to - makes the anchored `(\w+:\w+:\w+)` group unmatchable, because `\w` does not cover the space
+	 * that follows `INTERNAL:`. The effect was that no error code was ever recovered from a gRPC status and every
+	 * server error reached the caller re-coded against a line of this class instead.
+	 *
+	 * The status name is therefore only prepended on the fallback path, where the description carries no code and the
+	 * name is the sole classification available.
+	 *
+	 * Package-private rather than private so `EvitaClientErrorTransformationTest` can drive it directly; it needs no
+	 * server, and standing up one to assert on a regex would only obscure what is being tested.
+	 *
 	 * @param statusRuntimeException the {@link StatusRuntimeException} to handle
 	 * @param onUnauthenticated      the action to perform when the status code is {@link Code#UNAUTHENTICATED}
+	 * @return the exception to be raised towards the caller
 	 */
 	@Nonnull
-	private static RuntimeException transformStatusRuntimeException(
+	static RuntimeException transformStatusRuntimeException(
 		@Nonnull StatusRuntimeException statusRuntimeException,
 		@Nonnull Runnable onUnauthenticated
 	) {
 		final Code statusCode = statusRuntimeException.getStatus().getCode();
-		final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-			.map(it -> statusCode.name() + ": " + it)
-			.orElseGet(statusCode::name);
+		final String rawDescription = statusRuntimeException.getStatus().getDescription();
+		// matched against the untouched description; an absent description cannot carry a code, and the empty string
+		// never matches the pattern, so it needs no separate branch
+		final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(rawDescription == null ? "" : rawDescription);
+		final boolean codeRecovered = expectedFormat.matches();
 		if (statusCode == Code.UNAUTHENTICATED) {
 			onUnauthenticated.run();
 			return new InstanceTerminatedException("session");
 		} else if (statusCode == Code.INVALID_ARGUMENT || statusCode == Code.PERMISSION_DENIED) {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return EvitaInvalidUsageException.createExceptionWithErrorCode(
+			return codeRecovered ?
+				EvitaInvalidUsageException.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new EvitaInvalidUsageException(description);
-			}
+				) :
+				new EvitaInvalidUsageException(describeUncoded(statusCode, rawDescription));
 		} else {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return GenericEvitaInternalError.createExceptionWithErrorCode(
+			return codeRecovered ?
+				GenericEvitaInternalError.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new GenericEvitaInternalError(description);
-			}
+				) :
+				new GenericEvitaInternalError(describeUncoded(statusCode, rawDescription));
 		}
+	}
+
+	/**
+	 * Builds the message for a status whose description carries no evitaDB error code - a status raised by gRPC
+	 * itself, or by an interceptor that never saw an evitaDB exception. The status name is prepended because it is
+	 * the only classification such a message has; a description that does carry a code keeps the server's own public
+	 * text verbatim instead.
+	 *
+	 * @param statusCode     the code of the status being transformed
+	 * @param rawDescription the status description exactly as received, may be `null`
+	 * @return the message to construct the client-side exception with
+	 */
+	@Nonnull
+	private static String describeUncoded(@Nonnull Code statusCode, @Nullable String rawDescription) {
+		return ofNullable(rawDescription)
+			.map(it -> statusCode.name() + ": " + it)
+			.orElseGet(statusCode::name);
 	}
 
 	public EvitaClient(
