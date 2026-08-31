@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-31 19:10
+updated: 2026-08-31 19:20
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -423,6 +423,33 @@ Four things must travel with these figures:
 - **They calibrate P1's own estimates**, which is the forward-looking reason to keep them: P1's gate
   criterion is RAM ≤ 150 MB per 1M products and language, and this is the only measurement of
   comparable structures on a real corpus at that scale.
+
+**The replication census, and why it is kept here rather than in the working notes.** Stage 0's third
+measurement asked where attribute-index heap actually sits, because the answer decides whether hosting
+the trigram index globally is a saving or a restriction. It was taken with
+`AttributeIndex#getHeapSizeInBytes` (the reflective read — summing the public per-family accessors
+understates by ~7 %, missing map spines, keys and leaf-page snapshots), grouped by index type:
+
+| corpus | attribute heap | in the global index | replicated across reduced indexes | reduced indexes |
+|---|---|---|---|---|
+| production CMS catalog (972 611 articles) | 749.0 MB | 99.8 % | **0.2 %** (1.5 MB) | 2 388 |
+| e-commerce corpus A | 88.0 MB | 35.8 % | **64.2 %** (56.5 MB) | 6 317 |
+| e-commerce corpus B | 169.8 MB | 3.7 % | **96.3 %** (163.5 MB) | 20 835 |
+
+Three things it settles, none of which is derivable from the aggregate:
+
+- **Global-only hosting is validated rather than assumed.** A per-reduced trigram structure would have
+  multiplied by more than twenty thousand on corpus B, which is the fan-out profile the production
+  catalog behind the write-path tuning record exhibits at ~179 000 indexes. The decision to host at the
+  global level was taken before this was measured; the measurement is what makes it defensible.
+- **Attribute data is 59–98 % of all index heap** across the three shapes, so this line of work targets
+  the dominant term and not a corner of it.
+- **The value-duplication problem is entirely a function of reference fan-out.** A CMS shape does not
+  have one — 1.5 MB out of 749 MB — while a fan-out shape has almost nothing else. Any future
+  deduplication has to be justified per corpus shape, never in general. Its two companion findings are
+  under *Open items*: 87–88 % of reduced-index sort-family heap is owner-mode private value trees, and
+  reference-type-level indexes hold ≤ 0.2 % of attribute heap, making them a free host for a shared
+  dictionary.
 
 **End-to-end query latency.** `SubstringQueryBenchmark` in `evita_performance_tests`: a real embedded
 Evita, formula cache disabled, `Mode.AverageTime` in µs/op, `@Threads(1)`, `-f 3 -wi 5 -w 2s -i 5 -r 2s`
