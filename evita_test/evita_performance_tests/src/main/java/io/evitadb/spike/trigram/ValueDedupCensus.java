@@ -305,12 +305,12 @@ public class ValueDedupCensus {
 	/**
 	 * Band edges of the tree-size strata, upper bounds inclusive. The last stratum is open-ended.
 	 */
-	private static final int[] STRATA_UPPER_BOUNDS = {1, 4, 16, 64, 256, Integer.MAX_VALUE};
+	static final int[] STRATA_UPPER_BOUNDS = {1, 4, 16, 64, 256, Integer.MAX_VALUE};
 
 	/**
 	 * Human labels of {@link #STRATA_UPPER_BOUNDS}, aligned by position.
 	 */
-	private static final String[] STRATA_LABELS = {"1", "2-4", "5-16", "17-64", "65-256", ">256"};
+	static final String[] STRATA_LABELS = {"1", "2-4", "5-16", "17-64", "65-256", ">256"};
 
 	/**
 	 * Relative distance from zero within which a net saving counts as `MARGINAL` rather than `WIN` or `LOSE`.
@@ -949,7 +949,7 @@ public class ValueDedupCensus {
 	 *                    and are replaced by a 4-byte value id
 	 * @return the candidate spine in bytes
 	 */
-	private static long candidateSpineOf(int bucketCount, int multiCount, boolean sortable, int keyBytes) {
+	static long candidateSpineOf(int bucketCount, int multiCount, boolean sortable, int keyBytes) {
 		final VMLayout layout = VMLayout.current();
 		final int referenceSize = layout.referenceSize();
 		final long fixed = layout.sizeOfObject(4L * referenceSize);
@@ -976,7 +976,7 @@ public class ValueDedupCensus {
 	 * @param sample a value taken from one of the domain's buckets
 	 * @return the primitive key width in bytes, or `0` when the type has no primitive leaf column
 	 */
-	private static int containerKeyBytesOf(@Nonnull Serializable sample) {
+	static int containerKeyBytesOf(@Nonnull Serializable sample) {
 		// temporal keys decompose into a (seconds, nanos) parallel-array column - 8 + 4 bytes per entry
 		if (sample instanceof Instant || sample instanceof OffsetDateTime || sample instanceof LocalDateTime) {
 			return Long.BYTES + Integer.BYTES;
@@ -1890,7 +1890,7 @@ public class ValueDedupCensus {
 	/**
 	 * Which structure a domain's trees come from.
 	 */
-	private enum DomainKind {
+	enum DomainKind {
 		/** The front-coded filter value tree shared by the filter index and any folded sort view over it. */
 		FILTER,
 		/** The private value tree of a sort-only scalar attribute. */
@@ -1959,7 +1959,7 @@ public class ValueDedupCensus {
 	 * string or compound keys to a canonical owner and pays an id column for it, while the container lever swaps a
 	 * primitive-keyed B+ tree for an exact-sized array and pays nothing at all.
 	 */
-	private enum Lever {
+	enum Lever {
 		/** String or compound keys - reducible only by hoisting them to a canonical owner. */
 		DICTIONARY,
 		/** Primitive keys - reducible by the container alone, with no owner, no ids and no host increment. */
