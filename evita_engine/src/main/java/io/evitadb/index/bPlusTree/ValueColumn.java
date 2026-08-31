@@ -131,12 +131,20 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * combining marks alike - the column's stored keys and the pattern have both passed through the same NFD
 	 * normalizer before they reach here.
 	 *
-	 * **The caller must rule out an unpaired surrogate in the pattern.** `String#getBytes` substitutes `0x3F` (`'?'`)
-	 * for one, so a pattern carrying one would match values that literally contain a question mark - a divergence
-	 * from `String#contains`, which compares UTF-16 code units and would refuse them. A pattern that cannot be
-	 * encoded faithfully must take the predicate path instead. The same substitution in a stored VALUE needs no
-	 * guard, because the column already stored `'?'` and the `String` path decodes that same `'?'` back out; see
-	 * `documentation/developer/front-coded-column-surrogate-defect.md`.
+	 * A front-coded column stores its keys as WTF-8 rather than UTF-8 (see {@code Wtf8}), which changes nothing here:
+	 * the two encodings differ only on unpaired surrogates, WTF-8 keeps the `10xxxxxx` continuation-byte form, and so
+	 * self-synchronization - the whole basis of the argument above - holds for it identically.
+	 *
+	 * **The caller must rule out an unpaired surrogate in the pattern.** The pattern is encoded with
+	 * `String#getBytes`, which substitutes `0x3F` (`'?'`) for one, so a pattern carrying one would match values that
+	 * literally contain a question mark - a divergence from `String#contains`, which compares UTF-16 code units and
+	 * would refuse them. A pattern that cannot be encoded faithfully must take the predicate path instead. Ruling it
+	 * out also makes the comparison homogeneous: a surrogate-free pattern's UTF-8 bytes ARE its WTF-8 bytes, so
+	 * pattern and stored key are being compared in one and the same encoding.
+	 *
+	 * A stored VALUE carrying an unpaired surrogate needs no guard, and for a stronger reason than it used to: the
+	 * column now stores it faithfully as its own three-byte sequence, which the pattern's `'?'` cannot match - the
+	 * same answer `String#contains` gives.
 	 *
 	 * @param index       the live slot whose key is tested
 	 * @param patternUtf8 the pattern's UTF-8 bytes, already normalized exactly as the stored keys are

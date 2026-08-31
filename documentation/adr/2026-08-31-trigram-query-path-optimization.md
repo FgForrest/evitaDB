@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 13:45
+updated: 2026-08-31 15:10
 status: accepted
 kind: optimization
 issues: [1454]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/bitmap, evita_engine/src/main/java/io/evitadb/core/query/algebra/base, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute]
 supersedes: []
 superseded-by: []
-relates: [2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-08-31-front-coded-column-stores-wtf8]
 ---
 
 # Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
@@ -290,8 +290,11 @@ verified per pattern across four runs.
 - **`StringSearchShape`'s flank witness is a necessary condition, not a proof** — see the decision above.
   It is stated here too because the tempting next step is to "strengthen" it with more witnesses, and no
   finite set of them characterises an arbitrary `BiPredicate`. The enum is what closes the gap.
-- **`FrontCodedStringColumn` does not round-trip unpaired surrogates** — a separate, pre-existing
-  defect written up in `documentation/developer/front-coded-column-surrogate-defect.md`.
+- **`FrontCodedStringColumn` did not round-trip unpaired surrogates** — a separate, pre-existing
+  defect this review surfaced, since fixed by storing the column's keys as WTF-8; see
+  `2026-08-31-front-coded-column-stores-wtf8`. Its one consequence for this record is that
+  `TrigramSubstringSearch#encodesWithoutLoss`, described above as unreachable defence in depth, is
+  now a live guard: a surrogate-bearing value can be indexed on an accelerated attribute.
 - The prior record's per-candidate costs and its 9.5% crossover describe code that no longer exists.
 
 ## Related work

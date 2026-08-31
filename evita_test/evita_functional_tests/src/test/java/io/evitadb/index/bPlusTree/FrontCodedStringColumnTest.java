@@ -26,7 +26,6 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1629,7 +1628,7 @@ class FrontCodedStringColumnTest {
 	}
 
 	@Nested
-	@DisplayName("unpaired surrogates do not survive the column")
+	@DisplayName("unpaired surrogates survive the column")
 	class UnpairedSurrogates {
 
 		/**
@@ -1637,53 +1636,154 @@ class FrontCodedStringColumnTest {
 		 * truncated mid-pair by an upstream system is the usual way one arrives.
 		 */
 		private static final String LONE_SURROGATE_VALUE = "a\uD800c";
+		/** The value the column used to store instead, when it encoded its keys as UTF-8. */
+		private static final String SUBSTITUTED_VALUE = "a?c";
 
-		@Disabled("reproduces an OPEN defect - the column stores keys as UTF-8, which cannot carry an unpaired surrogate; enable when the encoding is fixed, see documentation/developer/front-coded-column-surrogate-defect.md")
 		@Test
-		@DisplayName("REPRODUCTION: a stored key comes back as a different string")
+		@DisplayName("a stored key comes back as the same string")
 		void shouldRoundTripAnUnpairedSurrogate() {
-			// The column stores keys as `String#getBytes(UTF_8)`. An unpaired surrogate is not a Unicode scalar
-			// value, so UTF-8 encoding cannot represent it and silently substitutes `0x3F` ('?'). The key that comes
-			// back is therefore a DIFFERENT string from the one inserted, and nothing on the write path notices.
-			//
-			// This is not a trigram or substring problem - it is the column's own round trip, and it is why
-			// `InvertedIndex#notifyValueCreated` then fails to resolve the id of the bucket it just created: it
-			// re-probes with the original string, which is no longer what the tree holds.
-			//
-			// Documented in `documentation/developer/front-coded-column-surrogate-defect.md`.
+			// UTF-8 has no representation for half a surrogate pair and `String#getBytes` substitutes `0x3F` ('?') for
+			// one without saying so, which used to make this column a lossy container: the key came back as a DIFFERENT
+			// string from the one inserted. That is why `InvertedIndex#notifyValueCreated` then failed to resolve the id
+			// of the bucket it had just created - it re-probes with the original string, which was no longer what the
+			// tree held. The column now encodes with WTF-8, which differs from UTF-8 on exactly this input.
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			column.insertKeyAt(0, LONE_SURROGATE_VALUE);
 
 			assertEquals(
 				LONE_SURROGATE_VALUE, column.keyAt(0),
-				"the column must return the key it was given; it currently returns `a?c`, having replaced the "
-					+ "unpaired surrogate during UTF-8 encoding"
+				"the column must return the key it was given"
 			);
 		}
 
-		@Disabled("reproduces an OPEN defect - an unpaired surrogate is silently replaced by '?'; enable when the value is either carried faithfully or refused at the boundary, see documentation/developer/front-coded-column-surrogate-defect.md")
 		@Test
-		@DisplayName("the corruption is silent - the column reports success and the value is simply wrong")
+		@DisplayName("the stored key is not silently altered")
 		void shouldNotSilentlyAlterAStoredKey() {
-			// Pinned separately from the round trip because the two failures have different fixes: the round trip
-			// needs an encoding that can carry a lone surrogate (WTF-8, CESU-8, or UTF-16 code units), whereas THIS
-			// one is satisfied by refusing the value at the boundary instead of storing something else.
+			// Pinned separately from the round trip because the two failed for reasons worth telling apart: a round trip
+			// can be satisfied by refusing the value outright, whereas this one insists that whatever comes back is not
+			// some OTHER value the caller never supplied.
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			column.insertKeyAt(0, LONE_SURROGATE_VALUE);
 
 			assertNotEquals(
-				"a?c", column.keyAt(0),
-				"an unpaired surrogate was replaced by '?' - a value the caller never supplied, stored without any "
-					+ "error, and indistinguishable afterwards from a value that really did contain a question mark"
+				SUBSTITUTED_VALUE, column.keyAt(0),
+				"an unpaired surrogate must not be replaced by '?' - a value the caller never supplied, stored without "
+					+ "any error, and indistinguishable afterwards from a value that really did contain a question mark"
+			);
+		}
+
+		@Test
+		@DisplayName("a surrogate value and a question-mark value stay two distinct keys")
+		void shouldKeepASurrogateValueDistinctFromItsSubstitution() {
+			// The sharpest consequence of the old encoding, and the one a unique index would have surfaced as a false
+			// duplicate: two values that are not equal both encoded to the same bytes. Ordering matters here - "a?c"
+			// sorts first because '?' (0x3F) is below the surrogate's WTF-8 lead byte.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.insertKeyAt(0, SUBSTITUTED_VALUE);
+			column.insertKeyAt(1, LONE_SURROGATE_VALUE);
+
+			assertEquals(SUBSTITUTED_VALUE, column.keyAt(0));
+			assertEquals(LONE_SURROGATE_VALUE, column.keyAt(1));
+			assertNotEquals(
+				column.keyAt(0), column.keyAt(1),
+				"the two keys must not have collapsed into one another"
+			);
+		}
+
+		@Test
+		@DisplayName("every shape of unpaired surrogate round-trips, alone and among ordinary keys")
+		void shouldRoundTripEveryShapeOfUnpairedSurrogate() {
+			// The five shapes `Wtf8#hasUnpairedSurrogate` has to tell apart, plus two well-formed controls that must NOT
+			// take the by-hand encoder: a real emoji (a proper pair, 4-byte supplementary form) and plain ASCII.
+			final String[] shapes = {
+				"\uD800",                 // lone high, whole value
+				"\uDC00",                 // lone low, whole value
+				"a\uD800",                // lone high, at the very end
+				"\uD800a",                // lone high, at the very start
+				"a\uD800b\uDC00c",        // one of each, interleaved with ordinary text
+				"a\uD83D\uDE00c",         // a WELL-FORMED pair - must keep the 4-byte supplementary form
+				"plain"                   // ASCII control
+			};
+			for (final String shape : shapes) {
+				final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+				column.insertKeyAt(0, shape);
+				assertEquals(shape, column.keyAt(0), "insertKeyAt must round-trip " + describe(shape));
+
+				final ValueColumn<String> bulk = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+				bulk.bulkLoad(new Object[]{shape}, 1);
+				assertEquals(shape, bulk.keyAt(0), "bulkLoad must round-trip " + describe(shape));
+			}
+		}
+
+		@Test
+		@DisplayName("a surrogate key survives prefix sharing with its neighbours")
+		void shouldRoundTripWhenTheSurrogateSitsInSharedPrefixBytes() {
+			// Front coding stores most keys as (shared prefix length, remaining bytes), and a shared prefix can cut
+			// through the MIDDLE of a three-byte surrogate sequence - here every key shares "a\uD800" and differs only
+			// in the trailing character. That is the case the encode-time surrogate scan reasons about: it inspects
+			// suffixes only, and relies on the restart entry holding the sequence whole.
+			final String[] keys = {"a\uD800a", "a\uD800b", "a\uD800c", "a\uD800d"};
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.bulkLoad(keys, keys.length);
+
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], column.keyAt(i), "prefix-shared key " + i + " must round-trip");
+			}
+		}
+
+		@Test
+		@DisplayName("a surrogate key is found by lookup, and orders as String#compareTo does")
+		void shouldFindAndOrderASurrogateKeyExactlyAsStringComparisonWould() {
+			// The reason the fast path may keep a lone surrogate: over the BMP, WTF-8 byte order IS code-point order IS
+			// UTF-16 code-unit order. The oracle is a plain sort - if byte order and String order disagreed anywhere,
+			// the physical order below would differ from it.
+			final String[] keys = {"a?c", "a\uD800c", "a\uE000c", "abc"};
+			final String[] expected = keys.clone();
+			Arrays.sort(expected);
+
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.bulkLoad(expected, expected.length);
+
+			for (int i = 0; i < expected.length; i++) {
+				assertEquals(expected[i], column.keyAt(i), "slot " + i + " must hold the naturally-ordered key");
+				final InsertionPosition found = column.findKeyPosition(expected[i], 0, expected.length, null);
+				assertTrue(found.alreadyPresent(), "lookup must find " + describe(expected[i]));
+				assertEquals(i, found.position(), "lookup must land on the right slot for " + describe(expected[i]));
+			}
+		}
+
+		@Test
+		@DisplayName("the surrogate flag is carried into a duplicated column and cleared when the key leaves")
+		void shouldMaintainTheSurrogateFlagAcrossDuplicationAndRemoval() {
+			// The decode side is gated on a per-column flag rather than a byte scan, so the flag has to travel with the
+			// blob through the MVCC duplicate path - a duplicate that lost it would decode the shared bytes with the
+			// JDK's decoder and hand back U+FFFD instead of the surrogate.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
+			column.insertKeyAt(0, "abc");
+			column.insertKeyAt(1, LONE_SURROGATE_VALUE);
+
+			final ValueColumn<String> copy = column.duplicate();
+			assertEquals(
+				LONE_SURROGATE_VALUE, copy.keyAt(1),
+				"a duplicated column must decode the shared blob exactly as its original does"
+			);
+
+			// and the flag must be recomputed rather than sticky: once the only surrogate key is gone, the remaining
+			// keys must still decode correctly (a stale `true` is merely slower, a stale `false` would be wrong)
+			column.removeKeyAt(1);
+			assertEquals("abc", column.keyAt(0), "the surviving key must be unaffected by the removal");
+			assertEquals(
+				LONE_SURROGATE_VALUE, copy.keyAt(1),
+				"the duplicate must not observe the original's removal"
 			);
 		}
 
 		@Test
 		@DisplayName("normalization is the wrong lever - NFC and NFD both preserve the surrogate")
 		void shouldShowNormalizationDoesNotAffectTheDefect() {
-			// Recorded because it is the natural first guess and it is wrong. An unpaired surrogate participates in
-			// no canonical composition or decomposition, so neither form touches it; the loss happens strictly at the
-			// UTF-8 encoding step below normalization. Changing the tree's normalization form would not help.
+			// Recorded because it is the natural first guess and it is wrong. An unpaired surrogate participates in no
+			// canonical composition or decomposition, so neither form touches it; the loss happened strictly at the
+			// encoding step below normalization. Changing the tree's normalization form would not have helped.
 			assertEquals(
 				LONE_SURROGATE_VALUE, Normalizer.normalize(LONE_SURROGATE_VALUE, Normalizer.Form.NFD),
 				"NFD must leave a lone surrogate untouched"
@@ -1692,6 +1792,22 @@ class FrontCodedStringColumnTest {
 				LONE_SURROGATE_VALUE, Normalizer.normalize(LONE_SURROGATE_VALUE, Normalizer.Form.NFC),
 				"NFC must leave a lone surrogate untouched"
 			);
+		}
+
+		/**
+		 * Renders `value` as its UTF-16 code units, so a failure message distinguishes shapes that would otherwise all
+		 * print as the same unprintable glyph.
+		 *
+		 * @param value the value to describe
+		 * @return the value's code units in hex
+		 */
+		@Nonnull
+		private String describe(@Nonnull String value) {
+			final StringBuilder result = new StringBuilder(value.length() * 5 + 2);
+			for (int i = 0; i < value.length(); i++) {
+				result.append(String.format("%04X ", (int) value.charAt(i)));
+			}
+			return "[" + result.toString().trim() + "]";
 		}
 
 	}

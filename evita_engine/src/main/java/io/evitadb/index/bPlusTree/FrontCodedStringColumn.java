@@ -99,15 +99,28 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * is BMP-only** (no supplementary/surrogate codepoint). For the CORPUS side, a supplementary character is, in valid
  * UTF-8, exactly a 4-byte sequence whose lead byte is {@code >= 0xF0}, so "no suffix byte {@code >= 0xF0}" is a
  * single-threshold, allocation-free predicate that detects BMP-safety while {@link #encode} already scans every
- * suffix byte once (see {@link #bmpSafe}). For the PROBE side, the check instead scans the original {@link String}'s
+ * suffix byte once (see {@link #bmpSafe}). {@link Wtf8} keeps that threshold exact: it encodes a well-formed
+ * surrogate PAIR in the same 4-byte supplementary form UTF-8 does, and an unpaired surrogate in 3 bytes below the
+ * threshold — where it belongs, since a lone surrogate IS a BMP code point and byte order over the BMP agrees with
+ * {@link String#compareTo}. For the PROBE side, the check instead scans the original {@link String}'s
  * UTF-16 chars for a surrogate code unit directly ({@link #isBmpSafe(String)}), rather than post-encoding it first:
  * a byte-based check would miss a lone (unpaired) surrogate, which {@link String#getBytes(java.nio.charset.Charset)}
  * silently replaces with an in-range replacement byte even though {@link String#compareTo} still compares it at its
  * true, out-of-BMP-range code-unit value. When the column is BMP-safe, was constructed under natural order
  * ({@link #naturalOrderSafe}), the caller's comparator is natural order too, and the probe itself is BMP-safe,
- * {@link #findKeyPosition} skips the {@link String} entirely and compares raw UTF-8 bytes — same restart-walk, same
- * scratch reuse, just no allocation on the compare. Any operand outside this predicate (a supplementary character, a
+ * {@link #findKeyPosition} skips the {@link String} entirely and compares the raw stored bytes — same restart-walk,
+ * same scratch reuse, just no allocation on the compare. Any operand outside this predicate (a supplementary
+ * character, a localized comparator, a non-natural-order tree) falls through to the always-correct
+ * {@link String} path.
  * localized comparator, a non-natural-order tree) falls through to the always-correct {@link String} path.
+ *
+ * **Keys are stored as WTF-8, not UTF-8** ({@link Wtf8}). The two are byte-for-byte identical for every string
+ * UTF-8 can represent, so blob size, prefix sharing, restart spacing and the byte-compare fast path are all
+ * unaffected; the difference is confined to an unpaired UTF-16 surrogate, which UTF-8 cannot encode and which
+ * {@link String#getBytes(java.nio.charset.Charset)} silently replaces with {@code '?'}. Storing keys that way made
+ * this column a lossy container — a key came back as a different {@link String} than it went in as, which broke the
+ * tree's ability to find a bucket it had just created. Decoding is gated on {@link #hasEncodedSurrogate} so the
+ * common case still runs the JDK's own decoder unchanged.
  *
  * Selected by {@link ValueColumnFactory#forKey} for every {@link String} attribute, localized or not.
  *
@@ -244,6 +257,16 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private boolean bmpSafe;
 	/**
+	 * Whether {@link #data} holds at least one WTF-8 encoded surrogate, i.e. whether decoding a key needs
+	 * {@link Wtf8#decode} rather than the JDK's own UTF-8 decoder. Recomputed from scratch by every {@link #encode}
+	 * call, exactly like {@link #bmpSafe} and in the same byte scan; {@code false} for an empty column.
+	 *
+	 * This exists so the DECODE side pays a single boolean test instead of a byte scan. Unpaired surrogates are
+	 * vanishingly rare, so the flag is `false` for essentially every column and every decode goes straight to
+	 * {@code new String(bytes, UTF_8)} exactly as it did before this codec existed.
+	 */
+	private boolean hasEncodedSurrogate;
+	/**
 	 * Whether this column was constructed for a natural-order tree ({@link ValueColumnFactory#isNaturalOrder}
 	 * evaluated once, at construction, against the same comparator every {@link #findKeyPosition} call receives).
 	 * Immutable for the lifetime of the instance; carried forward by {@link #allocate} and {@link #duplicate}.
@@ -264,6 +287,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		this.data = EMPTY_BYTES;
 		this.restartOffsets = EMPTY_OFFSETS;
 		this.bmpSafe = true;
+		this.hasEncodedSurrogate = false;
 	}
 
 	/**
@@ -274,17 +298,20 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * @param dataLength       the live byte length of {@code data}
 	 * @param data             the front-coded blob (adopted as-is, already trimmed)
 	 * @param restartOffsets   the restart-offset index (adopted as-is)
-	 * @param bmpSafe          whether every live key is BMP-only (adopted as-is)
-	 * @param naturalOrderSafe whether this column's tree orders keys naturally (adopted as-is)
+	 * @param bmpSafe             whether every live key is BMP-only (adopted as-is)
+	 * @param hasEncodedSurrogate whether the blob holds a WTF-8 encoded surrogate (adopted as-is)
+	 * @param naturalOrderSafe    whether this column's tree orders keys naturally (adopted as-is)
 	 */
 	private FrontCodedStringColumn(int capacity, int size, int dataLength, @Nonnull byte[] data,
-	                               @Nonnull int[] restartOffsets, boolean bmpSafe, boolean naturalOrderSafe) {
+	                               @Nonnull int[] restartOffsets, boolean bmpSafe, boolean hasEncodedSurrogate,
+	                               boolean naturalOrderSafe) {
 		this.capacity = capacity;
 		this.size = size;
 		this.dataLength = dataLength;
 		this.data = data;
 		this.restartOffsets = restartOffsets;
 		this.bmpSafe = bmpSafe;
+		this.hasEncodedSurrogate = hasEncodedSurrogate;
 		this.naturalOrderSafe = naturalOrderSafe;
 	}
 
@@ -307,12 +334,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// encode(), never edits their bytes in place - so the new layer and this column can never observe each
 		// other's writes even though they start out pointing at the same arrays. If a future in-place `data` edit
 		// ever lands (reusing slack instead of trimming on every encode), this share must become copy-on-first-write.
-		// bmpSafe / naturalOrderSafe are plain booleans, copied by value - nothing to alias.
+		// bmpSafe / hasEncodedSurrogate / naturalOrderSafe are plain booleans, copied by value - nothing to alias.
 		return new FrontCodedStringColumn<>(
 			this.capacity, this.size, this.dataLength,
 			this.data,
 			this.restartOffsets,
-			this.bmpSafe, this.naturalOrderSafe
+			this.bmpSafe, this.hasEncodedSurrogate, this.naturalOrderSafe
 		);
 	}
 
@@ -330,7 +357,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		decodeAllToFlat(scratch);
 		final int n = this.size;
 		// the only key that has to be (re-)encoded from a String is the freshly inserted one
-		final byte[] newKeyBytes = ((String) value).getBytes(StandardCharsets.UTF_8);
+		final byte[] newKeyBytes = Wtf8.encode((String) value);
 		final int[] offsets = ensureIntCapacity(scratch.offsets, n + 2);
 		final int insertOffset = offsets[index];
 		final int tailLen = offsets[n] - insertOffset;
@@ -355,7 +382,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// so-far that insertKeyAt would pay on each of `count` sequential calls (O(count²) total there vs O(count) here)
 		final byte[][] rawKeys = new byte[count][];
 		for (int i = 0; i < count; i++) {
-			rawKeys[i] = ((String) keys[i]).getBytes(StandardCharsets.UTF_8);
+			rawKeys[i] = Wtf8.encode((String) keys[i]);
 		}
 		encode(rawKeys, count);
 	}
@@ -578,7 +605,9 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final int len = decodeAtBytes(scratch, index);
 		// the explicit length is load-bearing: it stops a shorter entry from leaking stale tail bytes left in the
 		// reused scratch by a longer predecessor
-		return new String(scratch.cur, 0, len, StandardCharsets.UTF_8);
+		return this.hasEncodedSurrogate
+			? Wtf8.decode(scratch.cur, 0, len)
+			: new String(scratch.cur, 0, len, StandardCharsets.UTF_8);
 	}
 
 	@Override
@@ -875,7 +904,9 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final byte[][] raw = decodeAllBytes();
 		final String[] out = new String[raw.length];
 		for (int i = 0; i < raw.length; i++) {
-			out[i] = new String(raw[i], StandardCharsets.UTF_8);
+			out[i] = this.hasEncodedSurrogate
+				? Wtf8.decode(raw[i], 0, raw[i].length)
+				: new String(raw[i], StandardCharsets.UTF_8);
 		}
 		return out;
 	}
@@ -938,6 +969,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// every suffix byte is a suffix byte of exactly one entry (a shared prefix traces back to the restart entry
 		// that first wrote it as its own suffix), so this single scan covers the whole corpus once - no separate pass
 		boolean bmpSafe = true;
+		// the same scan also answers whether any key carries a WTF-8 encoded surrogate. Scanning SUFFIXES is
+		// sufficient even though a shared prefix can cut through the middle of a three-byte sequence: the previous
+		// key then holds those same bytes at those same positions, and a key never ends mid-sequence, so that key
+		// holds the sequence WHOLE - and chaining back within the restart block terminates at the restart entry,
+		// whose suffix is its whole key.
+		boolean hasEncodedSurrogate = false;
 		for (int i = 0; i < n; i++) {
 			final int start = offsets[i];
 			final int keyLen = offsets[i + 1] - start;
@@ -956,11 +993,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			if (bmpSafe) {
 				bmpSafe = isBmpSafe(flat, start + shared, suffixLen);
 			}
+			if (!hasEncodedSurrogate) {
+				hasEncodedSurrogate = Wtf8.containsEncodedSurrogate(flat, start + shared, suffixLen);
+			}
 			len += suffixLen;
 			prevStart = start;
 			prevLen = keyLen;
 		}
-		finishEncode(scratch, buf, len, restarts, n, bmpSafe);
+		finishEncode(scratch, buf, len, restarts, n, bmpSafe, hasEncodedSurrogate);
 	}
 
 	/**
@@ -973,6 +1013,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		this.restartOffsets = EMPTY_OFFSETS;
 		this.size = 0;
 		this.bmpSafe = true;
+		this.hasEncodedSurrogate = false;
 	}
 
 	/**
@@ -1013,12 +1054,16 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * @param restarts the restart-offset index built alongside the encode
 	 * @param n        the number of entries encoded
 	 * @param bmpSafe  whether every suffix byte scanned during this encode was BMP-safe (see {@link #bmpSafe})
+	 * @param hasEncodedSurrogate whether any suffix byte range scanned during this encode held a WTF-8 encoded
+	 *                            surrogate (see {@link #hasEncodedSurrogate})
 	 */
 	private void finishEncode(
-		@Nonnull DecodeScratch scratch, @Nonnull byte[] buf, int len, @Nonnull int[] restarts, int n, boolean bmpSafe
+		@Nonnull DecodeScratch scratch, @Nonnull byte[] buf, int len, @Nonnull int[] restarts, int n, boolean bmpSafe,
+		boolean hasEncodedSurrogate
 	) {
 		scratch.encodeBuf = buf;
 		this.bmpSafe = bmpSafe;
+		this.hasEncodedSurrogate = hasEncodedSurrogate;
 		this.data = Arrays.copyOf(buf, len);
 		this.dataLength = len;
 		this.restartOffsets = restarts;
@@ -1094,6 +1139,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * surrogate at its true code-unit value ({@code 0xD800-0xDFFF}), not at the replacement byte's value. Scanning
 	 * chars directly also means {@link String#getBytes(java.nio.charset.Charset)} is only called once the probe is
 	 * already confirmed surrogate-free, instead of encoding first and rescanning the result.
+	 *
+	 * This reasoning survived the move to {@link Wtf8} storage unchanged, because it is about the PROBE, which is
+	 * still encoded with {@link String#getBytes(java.nio.charset.Charset)} at the one call site that needs it — the
+	 * corpus is the side that now keeps its surrogates. A lone-surrogate probe could in principle be admitted to the
+	 * fast path by encoding it with {@link Wtf8} too (BMP byte order agrees with {@link String#compareTo}, so the
+	 * comparison would be correct), and that is deliberately not done: it would buy an allocation-free compare for a
+	 * probe shape that essentially never occurs, at the cost of splitting this predicate into a lone-versus-paired
+	 * test. Falling through to the always-correct {@link String} path is the better trade.
 	 *
 	 * @param s the probe string
 	 * @return {@code true} if every UTF-16 code unit in {@code s} is BMP (no surrogate, paired or lone)

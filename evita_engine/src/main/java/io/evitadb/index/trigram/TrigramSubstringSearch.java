@@ -25,6 +25,7 @@ package io.evitadb.index.trigram;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.bPlusTree.Wtf8;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -396,35 +397,24 @@ public final class TrigramSubstringSearch {
 	 * that {@link String#contains} refuses. Such a pattern takes the predicate path, which compares UTF-16 code units
 	 * and is unaffected.
 	 *
-	 * Checked on the pattern only. A stored VALUE carrying a lone surrogate was already stored as `'?'` by the column
-	 * and is decoded back as `'?'` by the predicate path, so both paths see the same thing and neither is more wrong
-	 * than the other - a separate, pre-existing defect recorded in
-	 * `documentation/developer/front-coded-column-surrogate-defect.md`.
+	 * Checked on the pattern only. A stored VALUE needs no check, because the column stores one faithfully as WTF-8
+	 * (see {@code Wtf8}) - a `'?'` in the pattern's bytes therefore does not match it, which is exactly the answer
+	 * {@link String#contains} gives.
 	 *
-	 * **This guard is defence in depth rather than a reachable branch today, and is kept because the reason it is
-	 * unreachable is a coincidence of two other mechanisms.** A pattern's trigrams are cut from its code points, so a
-	 * pattern carrying a lone surrogate produces trigrams carrying it too, and those can only intersect the postings
-	 * of a value that carries it as well - which on an attribute declaring this accelerator cannot be indexed at all,
-	 * because the value-id sink's own premise fails first. Remove either of those and the divergence becomes live, so
-	 * the equivalence this method protects must not be left resting on them.
+	 * **This guard is live, and became live when the column stopped losing unpaired surrogates.** It used to be
+	 * unreachable by coincidence: a pattern's trigrams are cut from its code points, so a pattern carrying a lone
+	 * surrogate produces trigrams carrying it too, and those can only intersect the postings of a value carrying one
+	 * as well - which an attribute declaring this accelerator could not index at all, because the value-id sink's own
+	 * premise failed first. That premise no longer fails, so such a value indexes normally and the branch below is
+	 * now the only thing standing between a surrogate-bearing pattern and a `'?'`-matching byte comparison.
 	 *
 	 * @param pattern the normalized pattern
 	 * @return whether every code unit of the pattern is representable in UTF-8
 	 */
 	private static boolean encodesWithoutLoss(@Nonnull String pattern) {
-		for (int i = 0; i < pattern.length(); i++) {
-			final char codeUnit = pattern.charAt(i);
-			if (Character.isHighSurrogate(codeUnit)) {
-				if (i + 1 == pattern.length() || !Character.isLowSurrogate(pattern.charAt(i + 1))) {
-					return false;
-				}
-				// a well-formed pair, so step over its low half rather than meeting it as a lone low surrogate
-				i++;
-			} else if (Character.isLowSurrogate(codeUnit)) {
-				return false;
-			}
-		}
-		return true;
+		// deliberately delegated rather than re-implemented: the column answers the same question about the VALUES it
+		// stores, and two independent walks of the same subtle surrogate-pairing rule would be free to drift apart
+		return !Wtf8.hasUnpairedSurrogate(pattern);
 	}
 
 	/**
