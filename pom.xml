@@ -138,7 +138,7 @@
 		<lombok.version>1.18.46</lombok.version>
 		<grpc.version>1.83.1</grpc.version>
 		<bouncyCastle.version>1.85</bouncyCastle.version>
-		<swagger.version>2.2.52</swagger.version>
+		<swagger.version>2.2.54</swagger.version>
 		<armeria.version>1.41.0</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.17.0</micrometer.version>
