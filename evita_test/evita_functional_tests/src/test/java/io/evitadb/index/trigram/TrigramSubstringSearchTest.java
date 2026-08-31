@@ -552,6 +552,68 @@ class TrigramSubstringSearchTest {
 				"three corpus values hold `abc`; if this changes the test below is measuring something else"
 			);
 			assertParity(index, ATTRIBUTE_TITLE, null, "abc", false);
+
+			// Parity alone would stay green if the predicate ran anyway, so the predicate is COUNTED - what this test
+			// is named for is that verification does not happen. `ebr` is used rather than `abc` because it draws 120
+			// candidates: the property being pinned is that the predicate is consulted a CONSTANT number of times
+			// regardless of how many candidates there are, and 1-versus-120 shows that where 1-versus-3 would not.
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final int[] invocations = new int[1];
+			final BiPredicate<String, String> counting = (value, pattern) -> {
+				invocations[0]++;
+				return CONTAINS.test(value, pattern);
+			};
+
+			final MatchedBuckets skipped = TrigramSubstringSearch.match(
+				trigramIndex, tree, "ebr", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+			);
+			assertNotNull(skipped);
+			assertEquals(ZEBRA_VALUES, skipped.recordSets().length, "every candidate must still be answered");
+			assertEquals(
+				1, invocations[0],
+				"the predicate must be consulted ONCE - the check that it really is containment - and never per "
+					+ "candidate; anything scaling with the candidate count means verification still runs"
+			);
+
+			// the same query, told its predicate is anchored, verifies every candidate - which pins the counter as a
+			// working instrument rather than one that never fires, and shows what the short circuit removes
+			invocations[0] = 0;
+			final MatchedBuckets verified = TrigramSubstringSearch.match(
+				trigramIndex, tree, "ebr", counting,
+				threshold -> tree.getBucketCount(), StringSearchShape.ANCHORED
+			);
+			assertNotNull(verified);
+			assertEquals(
+				ZEBRA_VALUES, invocations[0],
+				"the anchored form must consult the predicate once per candidate"
+			);
+			assertEquals(
+				skipped.recordSets().length, verified.recordSets().length,
+				"and must reach the very same answer, which is why skipping it is safe"
+			);
+		}
+
+		@Test
+		@DisplayName("a predicate that is not containment is refused rather than trusted")
+		void shouldRefuseAContainmentClaimItsPredicateDoesNotSupport() {
+			// `StringSearchShape` is the caller's word about a predicate this class cannot introspect, and acting on
+			// that word unchecked is the one way the short-circuit returns wrong answers: `xabcx` ends with nothing
+			// but `x`, yet a skipped verification would return it for an `endsWith` search. The claim is therefore
+			// tested against the predicate before it is acted on, once per query.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final InvertedIndex tree = filterIndexOf(index, ATTRIBUTE_TITLE, null).getInvertedIndex();
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> TrigramSubstringSearch.match(
+					trigramIndexOf(index, ATTRIBUTE_TITLE, null), tree, "abc", ENDS_WITH,
+					threshold -> tree.getBucketCount(), StringSearchShape.CONTAINMENT
+				)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("containment"),
+				"the refusal must name what it refused, but was: " + error.getPrivateMessage()
+			);
 		}
 
 		@Test
@@ -560,9 +622,9 @@ class TrigramSubstringSearchTest {
 			// CALIBRATION: this is the case that makes "the pattern produced one trigram" the WRONG condition for
 			// skipping verification, and the reason the condition is written on the code point count instead.
 			// `0000` is four code points whose three windows are all `000`, which extractUniqueTrigrams deduplicates
-			// down to a single trigram. That trigram's posting holds every value containing `000` - here
-			// `widget zebra 000` and `item-0000`..`item-0009` - and only one of them contains `0000`. Relaxing the
-			// condition to `trigrams.length == 1` makes this return eleven values instead of one.
+			// down to a single trigram. That trigram's posting holds every value containing `000` - `widget zebra 000`
+			// and every filler whose four-digit suffix carries three consecutive zeros - and only `item-0000` contains
+			// `0000`. Relaxing the condition to `trigrams.length == 1` returns the whole posting instead of the one.
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
 

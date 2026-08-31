@@ -101,6 +101,17 @@ public final class TrigramSubstringSearch {
 	public static final int MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT = 256;
 
 	/**
+	 * Padding placed on BOTH sides of the pattern to build a value that contains it but neither starts nor ends with
+	 * it - the witness that separates a containment predicate from an anchored one when
+	 * {@link #verificationIsRedundant} is about to act on the caller's declared {@link StringSearchShape}.
+	 *
+	 * `NUL` is used because it cannot appear in a normalized attribute value and therefore cannot make the witness
+	 * accidentally resemble real data; flanking on both sides is what makes the test refuse `startsWith` and
+	 * `endsWith` alike, whatever the pattern itself contains.
+	 */
+	private static final String FLANK = "\u0000";
+
+	/**
 	 * How much the index must narrow the field before the trigram path is worth taking: the candidate set it nominates
 	 * must cover at most `1 / this` of the attribute's distinct values. A planner gate on whether the accelerator
 	 * earns the work it adds - it sizes no structure and bounds no allocation.
@@ -316,9 +327,24 @@ public final class TrigramSubstringSearch {
 			return null;
 		}
 		final int[] candidates = trigramIndex.resolveCandidateValueIds(patternPostings);
+		final boolean skipVerification = verificationIsRedundant(normalizedPattern, shape);
+		if (skipVerification) {
+			// `shape` is the caller's word about a predicate this class cannot introspect, and taking that word on
+			// trust is the one way this optimization returns wrong answers. So the word is CHECKED before it is acted
+			// on: a predicate satisfied by an occurrence flanked on both sides accepts the pattern anywhere, which is
+			// what CONTAINMENT asserts, while an anchored one refuses it. One test per query - not per candidate -
+			// against a verification pass this skips entirely, so the guard costs a rounding error of what it guards
+			Assert.isPremiseValid(
+				exactPredicate.test(FLANK + normalizedPattern + FLANK, normalizedPattern),
+				"The exact predicate refused a value that merely CONTAINS the pattern, so it is not the containment " +
+					"predicate `" + StringSearchShape.CONTAINMENT + "` declares it to be - verification cannot be " +
+					"skipped for it. Pass `" + StringSearchShape.ANCHORED + "` for any predicate that requires the " +
+					"pattern to sit at a particular end of the value."
+			);
+		}
 		return sharedValueTree.getRecordsOfValueIdsMatching(
 			candidates, candidates.length,
-			verificationIsRedundant(normalizedPattern, shape) ?
+			skipVerification ?
 				null : normalizedValue -> exactPredicate.test(asString(normalizedValue), normalizedPattern)
 		);
 	}
@@ -347,10 +373,13 @@ public final class TrigramSubstringSearch {
 	 * **The shape must be {@link StringSearchShape#CONTAINMENT}.** An anchored predicate is not satisfied by mere
 	 * occurrence, so its candidates must be verified however narrow the pattern is.
 	 *
-	 * One deliberate side effect: the value is not read at all on this path, so the type check inside {@link #asString}
-	 * no longer runs for these queries. That check is a backstop for an accelerator maintained over a non-`String`
-	 * attribute, which {@link TrigramCodec#extractUniqueTrigramsOfValue} already refuses on the write path where the
-	 * damage would originate.
+	 * Two deliberate side effects, both on paths that only a corrupt index reaches. The value is not read at all here,
+	 * so the type check inside {@link #asString} no longer runs - a backstop for an accelerator maintained over a
+	 * non-`String` attribute, which {@link TrigramCodec#extractUniqueTrigramsOfValue} already refuses on the write path
+	 * where the damage would originate. Nor is the key decoded, so the front-coded column's own corrupt-blob premise
+	 * no longer fires incidentally for these queries: a slot whose key bytes are damaged but whose value id and record
+	 * column are intact now answers instead of throwing. Neither check was ever this path's to make, and relying on a
+	 * correctness probe for storage validation is what made the loss invisible until it was looked for.
 	 *
 	 * @param normalizedPattern the pattern as the tree's own normalizer produced it - the form the index was built in
 	 * @param shape             what the caller's exact predicate needs from an occurrence
