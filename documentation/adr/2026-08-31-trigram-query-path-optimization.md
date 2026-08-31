@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 11:50
+updated: 2026-08-31 12:15
 status: accepted
 kind: optimization
 issues: [1454]
@@ -116,10 +116,45 @@ flat **+22 ns per trigram** (p25 +17, p75 +35); the verification short-circuit s
 candidate** (p25 +51, p75 +56), about 40% of the 129-141 ns those rows spend per candidate, matching
 what is removed — a front-coded restart-point walk, a `String` allocation and a `contains` call.
 
-**Decisions 6 to 10 are not measured, and are not claimed to be.** Their predicted effect is well under 1% of
-a whole workload — below what the end-to-end harness resolves — so a benchmark run would have produced a number
-that means nothing. They are justified mechanically instead: both do strictly less allocation for an identical
-answer. Do not cite either as a measured win.
+**Decisions 6 to 10 were measured together**, after being taken on mechanism alone. Two shaded jars — `a09d74f4b`
+and the tip — built one at a time and copied aside, because a shared local repo lets the second `install`
+overwrite the first. **Both jars were verified with `javap` before either was trusted**: the tip carries
+`toRoaringBitmapsFoldingSingles`, `supportsUtf8Matching`/`containsUtf8At` and `retainRemaining`, and the baseline
+carries none of them. `SubstringQueryBenchmark` through the public API, `arm=TRIGRAM`, 100,000 entities, every
+cell confirmed `accelerated=true` and both arms confirmed to build an identical fixture.
+
+The instrument is **allocation**, because four of the five changes remove allocations rather than work, and
+`gc.alloc.rate.norm` is near-deterministic where timing at this scale is not:
+
+| cell | matches | baseline B/op | tip B/op | change |
+|---|--:|--:|--:|--:|
+| THRESHOLD | 8,333 | 3,453,052 | 794,930 | **−77%** |
+| MEDIUM | 1,000 | 490,105 | 109,512 | **−78%** |
+| RARE | 4 | 31,936 | 22,552 | −29% |
+
+**`RARE` is the control, and it is what makes the rest readable.** With four matches it moved by a FIXED
+9,384 B/op rather than proportionally — which separates the two mechanisms: ~9.4 KB per query scaling with
+*trigrams* (the accumulator and the posting lookup, ~5 trigrams for these patterns), and ~320–370 B per *match*
+on top of it (318 B/match at THRESHOLD, 371 B/match at MEDIUM — two cells 8x apart agreeing within 15%). That
+per-match figure is also what the removed objects add up to: a `SingleRecordBitmap`, an `int[1]`, a Roaring
+bitmap with its array and container, a `String` with its `byte[]`, and a boxed `Long`. Had the control scaled
+proportionally, the saving would not be coming from where these commits claim it does.
+
+End-to-end latency, measured separately with no profiler attached, 3 forks x 5 iterations (15 samples per cell):
+
+| cell | baseline µs/op | tip µs/op | change | 99.9% intervals |
+|---|--:|--:|--:|---|
+| THRESHOLD | 1,461.0 ±47.8 | 1,281.6 ±17.4 | **−12.3%** | separated by 114.2 µs |
+| MEDIUM | 147.2 ±2.3 | 131.8 ±2.9 | **−10.4%** | separated by 10.3 µs |
+| RARE | 5.7 ±0.2 | 5.0 ±0.1 | **−13.4%** | separated by 0.5 µs |
+
+A single-fork run with the profiler attached put MEDIUM's intervals in overlap; the fork replication is what
+made the timing claim sayable, and it is not sayable without it.
+
+**These figures do not transfer to the production pattern mix unchanged.** Every benchmark pattern class is 6–7
+characters, so the byte verifier applies to every cell measured — whereas 98 of the 171 production patterns are
+exactly three code points and already skip verification, where it does nothing at all. The allocation result is
+the durable claim; the latency figure is an upper bound on a workload made entirely of long patterns.
 
 Decision 6's hazard is pinned rather than argued. `shouldNotMutateThePostingsAnIntersectionReads` builds a fixture
 where the answer is a **strict subset** of the cheapest posting — without that an in-place fold writes back
