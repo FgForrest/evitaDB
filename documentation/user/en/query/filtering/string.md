@@ -40,6 +40,15 @@ for the occurrence of the string. The constraint behaves exactly like the <LS to
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the searched string anywhere in the attribute value.
 
+<Note type="info">
+
+By default this constraint is answered by scanning every distinct value of the attribute. An attribute can opt in to
+a [filter accelerator](../../use/schema.md#filter-accelerators) - `SUBSTRING_SEARCH` - which serves it from a dedicated
+index instead. It has to be declared on the attribute schema before any data is inserted, it costs additional memory,
+and it never changes which entities the constraint matches - only how quickly they are found.
+
+</Note>
+
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql)
@@ -100,6 +109,15 @@ and checks if it starts with the specified string. The constraint behaves exactl
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the beginning of the attribute value.
 
+<Note type="info">
+
+Unlike [`attributeContains`](#attribute-contains) and [`attributeEndsWith`](#attribute-ends-with), this constraint is
+**not** served by the `SUBSTRING_SEARCH` [filter accelerator](../../use/schema.md#filter-accelerators) and does not
+need it. A prefix match is already answered by an anchored walk over the sorted values, which is cheaper than the
+accelerator would be.
+
+</Note>
+
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql)
@@ -155,11 +173,20 @@ attributeEndsWith(
     </dd>
 </dl>
 
-The `attributeEndssWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+The `attributeEndsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it ends with the specified string. The constraint behaves exactly like the
 <LS to="e,j,r,g">[Java `endsWith` method](https://www.javatpoint.com/java-string-endswith)</LS><LS to="c">[C# `EndsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith)</LS>.
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the end of the attribute value.
+
+<Note type="info">
+
+By default this constraint is answered by scanning every distinct value of the attribute. An attribute can opt in to
+a [filter accelerator](../../use/schema.md#filter-accelerators) - `SUBSTRING_SEARCH` - which serves it from a dedicated
+index instead. It has to be declared on the attribute schema before any data is inserted, it costs additional memory,
+and it never changes which entities the constraint matches - only how quickly they are found.
+
+</Note>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

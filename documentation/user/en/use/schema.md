@@ -393,6 +393,8 @@ sortable attribute and <SourceClass>evita_engine/src/main/java/io/evitadb/index/
 or <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java</SourceClass> for each
 unique attribute. Attributes that are neither `filterable` / `sortable` / `unique` don't consume operating memory.
 
+An attribute carrying a filter index may additionally opt in to a [filter accelerator](#filter-accelerators), which buys faster answers to certain constraints for extra memory and extra write-path work.
+
 <LS to="j,e,r,g">
 
 Attribute schema can be marked as `localized`, meaning that it only makes sense in a specific
@@ -418,6 +420,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDefaultValueMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDefaultValueMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDeprecationNoticeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDeprecationNoticeMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaTypeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaTypeMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaAcceleratedMutation.java</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaFilterableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaFilterableMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaLocalizedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaLocalizedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNullableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaNullableMutation.cs</SourceClass></LS>**
@@ -449,6 +452,92 @@ filter or sort conditions.
 
 If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 an exception is thrown and the entity update is refused.
+
+#### Filter accelerators
+
+Some query constraints can be answered much faster from an additional index built beside the ordinary filter index.
+Because each such structure costs memory and additional work on every write, none of them is created automatically -
+an attribute declares the ones its workload actually queries and pays for nothing else.
+
+Accelerators are declared on their own builder axis, separately from `filterable` / `unique` / `sortable`, and per
+[scope](#scopes):
+
+<dl>
+    <dt>`acceleratedFor(accelerators...)`</dt>
+    <dd>declares the listed accelerators in the default (live) scope</dd>
+    <dt>`acceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>declares them in one particular scope</dd>
+    <dt>`nonAcceleratedFor(accelerators...)` / `nonAcceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>withdraws them again</dd>
+</dl>
+
+An accelerator speeds up an index that must already exist, so a scope that declares one without either `filterable()`
+or `unique()` is refused. A *foldable* unique attribute needs no separate `filterable()` declaration - its values
+already live in the shared filter index.
+
+The available accelerators are listed in
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeFilterAccelerator.java</SourceClass>.
+The enum names the acceleration the index gains, never the physical structure providing it - that structure is an
+implementation detail which may change between versions.
+
+##### Substring search
+
+`SUBSTRING_SEARCH` serves [`attributeContains`](../query/filtering/string.md#attribute-contains) and
+[`attributeEndsWith`](../query/filtering/string.md#attribute-ends-with) from a dedicated index instead of scanning
+every distinct value of the attribute. Declaring it never changes *what* a query matches - the predicate semantics are
+identical with and without it, only the way candidates are found differs.
+
+[`attributeStartsWith`](../query/filtering/string.md#attribute-starts-with) is deliberately **not** accelerated by it.
+A prefix match already has a cheap anchored walk over the sorted values, and routing it through this index would
+replace a cheap scan with a more expensive one.
+
+It can only be declared when all of the following hold - each is refused at schema-mutation time otherwise:
+
+<dl>
+    <dt>the attribute type is `String` or `String[]`</dt>
+    <dd>no other type can be decomposed into substrings</dd>
+    <dt>the attribute is an entity attribute</dt>
+    <dd>catalog-shared global attributes included; *reference* attributes are refused, because the index is maintained
+    on the entity's global index and never sees reference attribute values. This restriction is expected to be lifted
+    in a future version</dd>
+    <dt>the entity collection is still empty</dt>
+    <dd>the index is built as entities are indexed, and there is no reindexing machinery - so the accelerator has to be
+    declared before the data is inserted</dd>
+</dl>
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### An existing catalog cannot adopt this accelerator in place
+</NoteTitle>
+
+Because enabling it on a collection that already holds entities is refused, the accelerator cannot be switched on for
+data you already have. The only route today is to build a fresh catalog with the accelerator declared up front, insert
+the data into it, and then replace the original catalog with it.
+
+</Note>
+
+**Choosing which attributes to accelerate.** The cost is per attribute and it is not small, so the choice matters more
+than for the plain index flags:
+
+- **Short values over a wide alphabet accelerate best** - product codes, catalogue numbers, names. The more distinct
+  characters the values are drawn from, the more selective each substring becomes.
+- **Long values over a narrow alphabet accelerate worst.** A long purely numeric identifier is the measured worst case:
+  with only ten symbols to draw on, the most common three-digit sequence in the whole attribute can select a third of
+  the corpus, and there is little left for the index to narrow.
+- **Values shorter than three code points cannot be indexed at all**, and neither can patterns shorter than that -
+  those queries fall back to the ordinary scan. An attribute queried only with one- or two-character patterns gains
+  nothing while still paying the memory and the write-path cost.
+- **Never accelerate hashes, URLs or long free text unless substring search is genuinely their main query.** On a
+  measured production content catalog of 972,611 articles, accelerating the handful of attributes that were actually
+  queried this way cost about 184 MB of heap, while accelerating every string attribute would have cost 743 MB - most
+  of it spent on hashes, URLs and identifiers nobody searched inside.
+
+The engine does not use the accelerated path unconditionally. It first estimates how much of the data the
+pattern can rule out, and falls back to the ordinary scan when the pattern is too broad to be worth it - a
+substring that matches a large share of the values is answered faster by scanning. This estimate is
+deliberately cautious, so a pattern is occasionally scanned that the index would have answered faster.
 
 ### Sortable attribute compounds
 

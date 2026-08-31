@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-30 08:03
+updated: 2026-08-31 19:10
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -94,7 +94,7 @@ database entirely:
 | 2026-08-14 | Master/variant grouping is **not** part of fulltext; it belongs to the general issue [#17](https://github.com/FgForrest/evitaDB/issues/17) | It is an orthogonal engine capability composable with any query; the fulltext query API gets no grouping primitive | the internal e-commerce layer analysis, §5.5 |
 | 2026-08-12 | Order the prototypes P5 → P1 → P2 and put a numeric decision gate after them | The biggest risks (memory, scan latency, the write-path tax) fall first, and the prototypes build the final structures, so the gate also calibrates the estimate for the rest | [`management-summary.md`](management-summary.md) ch. 4 |
 | 2026-08-24 | Target the P8 trigram substring index before P1, with its offline analyzer as phase 0; P5 may run in parallel (disjoint scopes) | P8's value is independent of the fulltext gate (it fixes today's naive `contains`/`endsWith` and carries [#545](https://github.com/FgForrest/evitaDB/issues/545) regardless of the gate's outcome), it path-finds the shared hard parts — a new persisted index component, the scoped schema flag with reindex refusal, an MVCC-safe allocator, the formula-cache contract — at membership-only scale, and it closes P1's Q6 and Q7 before P1/P2 hit them | [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) §33–§34 |
-| 2026-08-25 | SUBSTRING ships as an additive **capability of `filterable(...)`**, not as a sibling schema flag | It makes substring-without-filterable unrepresentable, following the `unique(AttributeUniquenessType)` precedent instead of minting a second axis over the same physical structure; every API mirror gains an optional field and old clients keep seeing `filterable: true` | `FilterIndexCapability` (`evita_api`), `SetAttributeSchemaFilterableMutation`; [`prototypes/schema-design.md`](prototypes/schema-design.md) §5.4 records why fulltext `searchable()` is deliberately **not** folded the same way |
+| 2026-08-25 | SUBSTRING ships as an additive **capability of `filterable(...)`**, not as a sibling schema flag | It makes substring-without-filterable unrepresentable, following the `unique(AttributeUniquenessType)` precedent instead of minting a second axis over the same physical structure; every API mirror gains an optional field and old clients keep seeing `filterable: true` | `FilterIndexCapability` (`evita_api`), `SetAttributeSchemaFilterableMutation`; [`prototypes/schema-design.md`](prototypes/schema-design.md) §5.4 records why fulltext `searchable()` is deliberately **not** folded the same way. **Superseded by the 2026-08-31 row below** — the fold bound the capability to the wrong identifier |
 | 2026-08-25 | Value ids are a lazy parallel column on the shared value tree, and switching them on or off is **refused** on a populated tree rather than made persistable | The back-fill writes id columns into leaves that nothing marks dirty, so the ids never reach disk and a reload would disagree with what is in memory — in both directions. The refusal is affordable only because the capability is already refused on a non-empty collection, so the tree is empty whenever an attach happens | `InvertedIndex#enableValueIds` / `#attachValueIdConsumer` / `#detachValueIdConsumer`; the two load premises in `AttributeIndexLoader` — the id column is all-or-nothing across a generation, and the root's high-water agrees with the pages about whether ids exist at all |
 | 2026-08-26 | The value birth/death seam is a **sink threaded through the write call**, not a listener stored on the index | Every commit re-shells the inverted index, the attribute index and the global index, and the shared value tree is created lazily on first write — a stored listener needs re-binding at four separate points, and a missed re-bind stops maintenance with no symptom until a query silently under-reports. A parameter is compile-checked at every hop and holds no state that can go stale | `ValueLifecycleSink`, the sink-aware `InvertedIndex#addRecord` / `#removeRecord` overloads |
 | 2026-08-26 | The posting store is a `TransactionalLongBPlusTree` — **overturning the spike's flat open-addressing table** | The spike measured the flat table at 1.1–1.6 ns/lookup, 40–60× a binary search over a sorted `long[]`, and it still lost: a published flat table is immutable, so one touched posting clones both spine arrays (`O(K)` per touched index per commit, ~1.5 MB at the largest measured `K`), which is exactly the large short-lived allocation this codebase moved its indexes onto B+ trees to escape. A pattern issues 2–15 lookups, so the whole probe penalty is under a microsecond against a query whose verification phase alone runs for tens to hundreds of microseconds | `TrigramPostingStore`; the spike's contrary measurement is [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) §35.2 |
@@ -108,6 +108,7 @@ database entirely:
 | 2026-08-30 | `REQUIRED_NARROWING_FACTOR` **stays at 12**, although the production-corpus run measures it 30–57 % conservative | Two corpora now point in opposite directions at the same `n` — the synthetic ladder wants a *larger* factor, the production corpus's real values want a *smaller* one (7.6–9.2) — so re-fitting the scalar to whichever corpus was measured most recently is precisely the process that produced the original `4`. What the production run does establish is the asymmetry the constant's own JavaDoc argues from: **0 regressions in 159 real patterns**, and an end-to-end decline costs under 2 %. Lowering to ~9 would recover 1.01–1.33× on a handful of patterns while spending margin bought for false candidates — which real data shows are common (median 0 %, p90 75 %) where the synthetic corpus produced none at all | *Verification*; `TrigramSubstringSearch.REQUIRED_NARROWING_FACTOR` |
 | 2026-08-30 | The gate's next increment is a **second input**, not a different scalar and not a shape in `n` | The production run indicts the quantity the gate reads, not the boundary it compares against: the gate's candidate upper bound overstates the real intersection by a median of 10–16× and by up to 4 752×, and it is blind to how many candidates survive the exact predicate — the variable that separates a 0.92× loss from a 4.97× win at a **bit-identical** gate input. A shape in `n` cannot see that either, and real data now says `n` is not even the dominant variable over this range | *Verification*; `TrigramSubstringSearch#accelerationThreshold`, `TrigramIndex#pricePattern` |
 | 2026-08-30 | The `SUBSTRING` capability requiring its scope to be **`filterable`** is a defect and will be lifted; the builder syntax that expresses it is left open | The capability was bound to `filterable(...)`, which is not the only way to get a filter index: a foldable `unique` attribute has no separate unique store and its values live in the *same* shared filter tree (`AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`), reached through a write-path guard that is already `unique \|\| filterable \|\| sortable`. The cost of the oversight is measured rather than argued — `Product.code` is `unique`-not-`filterable` in production, and it is the single strongest result of the whole production run | `AttributeSchema:700` (`normalizeFilterCapabilities`), `AttributeIndexMutator:177`/`:325`; the three builder options and why none has won are under *Open items* |
+| 2026-08-31 | The accelerator moves onto its **own builder axis** — `acceleratedFor(...)` — superseding the 2026-08-25 fold into `filterable(...)`; this is option **C** of the three that were left open | The fold bound the accelerator to the wrong identifier. `filterable` is not the only way to get a filter index: a *foldable* `unique` attribute has no separate unique store and its values live in the **same** shared filter tree, which is why `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`. Option A (`unique(SUBSTRING)`) duplicated the capability argument onto a second builder family and left `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning; option B′ (`unique().filterable(SUBSTRING)`) added no syntax but made a user declare a flag they did not want in order to reach a structure they already had, changing what the schema advertises. C matches the physical truth — the accelerator belongs to the filter index, not to whichever flag produced it — and the rule relaxes from "scope is filterable" to "scope has a filter index". Validation had to move off the mutation, which sees intermediate state and made declaration order significant, onto assembled schemas | `AttributeFilterAccelerator` (renamed from `FilterIndexCapability`, `SUBSTRING` → `SUBSTRING_SEARCH`), `SetAttributeSchemaAcceleratedMutation`, `AttributeSchemaContract#hasFilterIndexInScope`, `AbstractAttributeSchemaBuilder#validate` and a new `AttributeSchemaContract#validate` reached from `CatalogSchema#validate` — which closes the hole where mutations arriving over gRPC, REST and GraphQL bypassed validation entirely. The axis never shipped (`release_2026-2` has no reference to it), so `SetAttributeSchemaFilterableMutation` returns to its released shape and no new backward-compatible serializers were written. The value of the fix is measured rather than argued: `Product.code` is the strongest result of the production run (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` there, as is `code` in 16 of that catalog's other 17 collections — under the 2026-08-25 shape none of them could have declared the accelerator at all |
 
 ### Why the in-house core won
 
@@ -425,7 +426,7 @@ Four things must travel with these figures:
 
 **End-to-end query latency.** `SubstringQueryBenchmark` in `evita_performance_tests`: a real embedded
 Evita, formula cache disabled, `Mode.AverageTime` in µs/op, `@Threads(1)`, `-f 3 -wi 5 -w 2s -i 5 -r 2s`
-on a quiet box. Two arms over the identical corpus — TRIGRAM declares `FilterIndexCapability.SUBSTRING`,
+on a quiet box. Two arms over the identical corpus — TRIGRAM declares `AttributeFilterAccelerator.SUBSTRING_SEARCH`,
 SCAN declares plain `filterable()`. The corpus is all-distinct (so `entityCount == distinctValueCount`,
 the unit both gate constants are expressed in), the attribute is a non-localized ASCII `String`, the
 query is a plain `attributeContains` with `page(1, 20)`, every answer is checked against a
@@ -832,32 +833,6 @@ rather than a tuning one. Both are open items below.
   its dumped attribute values, with the capability declared before the first upsert. The general
   reindexing story is listed above as the fulltext core's only genuinely blocking item; this is that
   item arriving early, for a feature that has already shipped.
-- **The `SUBSTRING` capability is refused on `unique`-not-`filterable` attributes, which is a defect,
-  and the builder syntax that fixes it is undecided.** `AttributeSchema:700`
-  (`normalizeFilterCapabilities`) requires the capability's scope to be `filterable`, but `filterable`
-  is not the only way to get a filter index. A **foldable unique** attribute has no separate unique
-  store at all — its values live in the *same* shared filter tree, which is exactly why
-  `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`, leaving the paired
-  filter write to enforce uniqueness — and the write path reaches that write through a guard that is
-  already `unique || filterable || sortable` (`AttributeIndexMutator:177` on upsert, `:325` on
-  removal). So the structure the accelerator consumes is already there, and the schema refuses to let
-  anyone name it. The core fix is one check —
-  "scope is filterable" becomes "scope has a filter index". **Johnny has ruled the restriction a
-  mistake to fix; what is open is how a user spells it**, between three options:
-
-  | option | spelling | the tension it carries |
-  |---|---|---|
-  | A | `unique(SUBSTRING)` | duplicates the capability argument onto a second builder family, and leaves `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning |
-  | B / B′ | `unique().filterable(SUBSTRING)` | no new syntax at all, but it makes the user declare a flag they did not want in order to reach a structure they already have, and it changes what the schema advertises |
-  | C | a separate `filterIndexCapabilities(...)` declaration | matches the physical truth — the capability belongs to the filter index, not to whichever flag produced it — at the price of a third declaration surface, and it re-opens the 2026-08-25 decision that deliberately declined to mint a second axis over the same physical structure |
-
-  Standing recommendation is **C**, fallback **B′**; the decision is Johnny's and is not taken. The
-  change surface, once it is: `AttributeSchema:700`, `AbstractAttributeSchemaMutation`, the builder,
-  `GrpcSchemaCapability` and its converter, the GraphQL DTOs, and schema serialization — with
-  `FilterCapabilityBackwardCompatibilityTest` guarding compatibility. The value of fixing it is
-  measured rather than argued: `Product.code` is the strongest result of the production run
-  (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` in production, as is `code` in
-  16 of the catalog's other 17 collections.
 - **The gate needs a second input, and the cheapest candidate is already known.** The four
   `catalogNumber` zero-runs forfeit up to 4.97× at a gate input that is bit-identical to the one cell
   that genuinely loses, so no threshold placed on that input can separate them. The distinguishing
@@ -930,18 +905,15 @@ rather than a tuning one. Both are open items below.
   leave roughly 38 % of the replicated value bytes untouched. Recorded here because the measurement was
   taken by this line of work and would otherwise be lost; it belongs to the value-duplication line the
   brief's §34 opens, not to the substring index.
-- **User documentation was not written.** Nothing under `documentation/user/en/` mentions
-  `filterable(FilterIndexCapability.SUBSTRING)` — not the schema pages, and not
-  `query/filtering/string.md`, where `attributeContains` / `attributeEndsWith` are documented without
-  any note that an opt-in accelerator now exists, that it is String-only, or that it is refused on a
-  non-empty collection. English is the only hand-written source; the Czech mirror is
-  machine-translated. Two things the production run says that page has to carry: **which attribute
-  shapes suit the index** (short values over a wide alphabet; never a long value over a tiny one — the
-  measured worst case is a 13-digit code whose hottest trigram selects a third of the corpus), and
-  that an **existing catalog cannot adopt it** without a rebuild.
 
 ## Related work
 
+- [`2026-08-31-trigram-query-path-optimization`](../2026-08-31-trigram-query-path-optimization.md) — the
+  optimization campaign over the query path this record's P8 section describes, and the record that carries
+  the gate's current constant and the measurements behind it.
+- [`2026-08-31-front-coded-column-stores-wtf8`](../2026-08-31-front-coded-column-stores-wtf8.md) — a
+  pre-existing round-trip defect in the shared value tree's key column, found while reviewing P8's use of it
+  and fixed rather than worked around; it is why an unpaired surrogate can now be indexed at all.
 - [`2026-07-07-roaring-bitmap-vendoring`](../2026-07-07-roaring-bitmap-vendoring.md) — the vendored
   RoaringBitmap fork is both the substrate the postings are built on and the calibration for what
   maintaining an in-house structure costs.

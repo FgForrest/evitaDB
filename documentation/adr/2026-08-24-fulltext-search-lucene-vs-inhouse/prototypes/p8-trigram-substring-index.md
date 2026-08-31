@@ -19,7 +19,9 @@ hypotheses are now settled, some against the brief's expectation.
 
 **Update 2026-08-30 — IMPLEMENTED. This document is now history, not intent.** The design shipped in
 full as issue [#1454](https://github.com/FgForrest/evitaDB/issues/1454) (a sub-issue of #258): the
-`SUBSTRING` filter capability, the value-id column on the shared value tree, `TrigramIndex` as a
+`SUBSTRING_SEARCH` filter accelerator (declared via `acceleratedFor(...)` since the 2026-08-31 axis
+lift; it shipped on 2026-08-30 as a capability argument of `filterable(...)`), the value-id column on the
+shared value tree, `TrigramIndex` as a
 component of `GlobalEntityIndex`, `attributeContains` / `attributeEndsWith` served from it, and
 reduced-index plans composed through the subset invariant of §34. The outcome — the decisions, the
 options that lost and why, the measured numbers and the open follow-ups — lives in the record's
