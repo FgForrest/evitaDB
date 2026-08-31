@@ -476,6 +476,34 @@ class OrFormulaTest {
 		}
 
 		@Test
+		@DisplayName("operands straddling the sign boundary fold in Roaring's unsigned order")
+		void shouldFoldOperandsThatStraddleTheSignBoundary() {
+			// Nothing on the way into a bucket rules out a negative record id, and Roaring orders ids UNSIGNED - so a
+			// negative id belongs in the highest container, not the lowest. The fold sorts before handing the ids over
+			// in bulk, and a signed sort would present them highest-container-first and make every later container an
+			// insertion at the front of the container array.
+			//
+			// This pins the ANSWER across the boundary, which no existing case covered; it cannot pin the ordering
+			// itself, because a signed sort reaches the same set by a slower route. The counterfactual for that is the
+			// shape of the input, not the assertion: ids here occupy four distinct containers on both sides of the
+			// boundary, so the two orders are structurally different even where they agree.
+			final int[] ids = {-3, 70000, -140000, 5, -70000, 140000, -1, Integer.MIN_VALUE, Integer.MAX_VALUE};
+			final Bitmap[] singles = new Bitmap[ids.length];
+			final Bitmap[] equivalent = new Bitmap[ids.length];
+			for (int i = 0; i < ids.length; i++) {
+				singles[i] = new SingleRecordBitmap(ids[i]);
+				equivalent[i] = new BaseBitmap(ids[i]);
+			}
+			// signed order, because that is what a `Bitmap` hands back regardless of how Roaring stored it
+			// (`RoaringBitmapBackedBitmap#toSignedArray`) - the unsigned ordering is internal to the fill
+			final int[] expected = ids.clone();
+			Arrays.sort(expected);
+
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+		}
+
+		@Test
 		@DisplayName("a lone single-record operand is still answered correctly")
 		void shouldAnswerWithASingleSingleRecordOperand() {
 			// below the fold's threshold, so this takes the untouched conversion path - asserted so the branch that

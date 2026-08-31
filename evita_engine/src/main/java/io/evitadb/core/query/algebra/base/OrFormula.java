@@ -206,7 +206,6 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		}
 	}
 
-
 	/**
 	 * Converts the operand bitmaps to Roaring form, folding every {@link SingleRecordBitmap} operand into ONE bitmap
 	 * on the way.
@@ -254,9 +253,25 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 			}
 		}
 		// sorted purely for the build: `bitmapOf` accepts any order and tolerates the duplicates an array-valued
-		// attribute produces when one record sits in several matched buckets, but ascending input lets it fill a
-		// container in one pass instead of seeking per id
+		// attribute produces when one record sits in several matched buckets, but ascending input lets it append to
+		// the container it is filling instead of binary-searching an insertion point per id.
+		//
+		// Ascending in ROARING's order, which is unsigned - a record id is an `int` and nothing on the way in rules
+		// out a negative one. Signed-sorted, the negatives would arrive as the LOWEST ids and be filled into the
+		// highest containers, so every subsequent container would be inserted at the front of the container array and
+		// shift the whole of it. Flipping the sign bit makes `Arrays.sort` order unsigned, and flipping it back
+		// restores the ids: two linear passes, no allocation, and for the non-negative ids this actually sees the
+		// result is byte-for-byte what the plain sort produced.
+		//
+		// `PersistentRoaringBitmap#bitmapOfUnordered` would also be correct here and needs no sort at all, but it
+		// carries a 1024-word buffer per call - worth it for a large fold, pure loss for a fold of two.
+		for (int i = 0; i < singleRecordIds.length; i++) {
+			singleRecordIds[i] ^= Integer.MIN_VALUE;
+		}
 		Arrays.sort(singleRecordIds);
+		for (int i = 0; i < singleRecordIds.length; i++) {
+			singleRecordIds[i] ^= Integer.MIN_VALUE;
+		}
 		result[0] = PersistentRoaringBitmap.bitmapOf(singleRecordIds);
 		return result;
 	}
