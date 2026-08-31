@@ -1157,6 +1157,20 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
+	 * The same search as {@link #search(long)}, answering with `null` instead of an empty {@link Optional}.
+	 *
+	 * For callers that unwrap the result immediately and repeat the lookup often enough for the wrapper to show - a
+	 * substring pattern probes one key per trigram, on every query.
+	 *
+	 * @param key the key to search for within the B+ tree
+	 * @return the value associated with the key, or `null` when the tree does not hold it
+	 */
+	@Nullable
+	public V searchOrNull(long key) {
+		return findLeafNode(key).valueOrNull(key);
+	}
+
+	/**
 	 * Flags the leaf holding the given key as dirty so the granular write path re-emits its page. Needed when a caller
 	 * mutates a stored value's content out-of-band — obtaining the value via {@link #search(long)} and changing the
 	 * object itself, while the leaf's own columns are untouched (e.g. a range point's record set) — a change the
@@ -3124,6 +3138,23 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public Optional<V> getValue(long key) {
+			// `ofNullable` rather than `of`, and equivalent to it: `insert` takes a `@Nonnull V`, so a stored value is
+			// never null and an empty Optional can only mean the key is absent
+			return Optional.ofNullable(valueOrNull(key));
+		}
+
+		/**
+		 * The same lookup as {@link #getValue(long)}, answering with `null` instead of an empty {@link Optional}.
+		 *
+		 * For hot lookups that immediately unwrap the result. The Optional is a per-call allocation that escape
+		 * analysis is not guaranteed to remove across the polymorphic descent that reaches this node, and a lookup
+		 * repeated once per trigram of a search pattern pays for it every time.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return the value stored under the key, or `null` when the leaf does not hold it
+		 */
+		@Nullable
+		public V valueOrNull(long key) {
 			final long[] theKeys;
 			final V[] theValues;
 			final int thePeek;
@@ -3143,8 +3174,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 			final InsertionPosition insertionPosition = computeInsertPositionOfLongInOrderedArray(
 				key, theKeys, 0, thePeek + 1);
-			return insertionPosition.alreadyPresent() ?
-				Optional.of(theValues[insertionPosition.position()]) : Optional.empty();
+			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
 		/**

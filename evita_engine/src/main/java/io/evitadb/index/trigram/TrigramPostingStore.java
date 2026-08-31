@@ -128,7 +128,7 @@ final class TrigramPostingStore {
 	 */
 	@Nullable
 	Object get(long trigram) {
-		return this.postings.search(trigram).orElse(null);
+		return this.postings.searchOrNull(trigram);
 	}
 
 	/**
