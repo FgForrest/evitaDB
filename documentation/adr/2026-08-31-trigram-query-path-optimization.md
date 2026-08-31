@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 08:30
+updated: 2026-08-31 11:10
 status: accepted
 kind: optimization
 issues: [1454]
@@ -56,6 +56,8 @@ return true.
 | 3 | **Skip verification when it is provably the identity** (`68d7681f0`, `cfc13717e`) | Skip it whenever the pattern produced one trigram | **Wrong condition.** `extractUniqueTrigrams` deduplicates, so `0000` is four code points collapsing to the single trigram `000`, whose posting holds values that do not contain `0000`. The condition must be on the **code point count** |
 | 4 | **Do not build the escalating gate (B3)** | Intersect the two cheapest postings for a tighter bound before declining | Sound and provably safe, and worth **zero** here: 10 of 14 declined patterns carry one trigram so there is nothing to intersect, and the other four miss the threshold by an order of magnitude even with a perfect estimate. Design recorded at the branch where it would go |
 | 5 | **Leave `REQUIRED_NARROWING_FACTOR` at 12** (`5fc572b58`, reverted by `681494300`) | Lower it to 4 on a measured crossover of 55% | The crossover run forced the gate by **lowering the constant being measured**, which also re-plants a benchmark class sized on `n / factor` into the shared corpus; and "admits at most 1/factor of the corpus" is false for fan-out (below) |
+| 6 | **Fold the intersection into an accumulator the query owns** (`3ebcf184f`, `aa1d3c0ab`) | Keep allocating a fresh Roaring result per posting | A chain of static `and`s allocates a bitmap, its `RoaringArray` and its containers per trigram and drops the previous set immediately. Only the first is needed: `and` is the ownership boundary, and everything after it folds in place. Also demotes to the `int[]` path once the accumulator is narrow enough, since a bitmap `and` costs work proportional to the wider side |
+| 7 | **Answer a posting lookup with `null`** (`5e169cb9b`) | Leave the `Optional` | It was unwrapped immediately, once per trigram per query, and escape analysis is not guaranteed across the polymorphic descent. No fork worth the name — recorded only so the measured +22 ns of decision 2 is not later misattributed to this wrapper |
 
 A fifth change was not a decision but a defect found on the way: `intersectFromBitmapPosting` assumed
 a posting's representation followed its cardinality and cast every later posting to a bitmap
@@ -111,6 +113,19 @@ flat **+22 ns per trigram** (p25 +17, p75 +35); the verification short-circuit s
 candidate** (p25 +51, p75 +56), about 40% of the 129-141 ns those rows spend per candidate, matching
 what is removed — a front-coded restart-point walk, a `String` allocation and a `contains` call.
 
+**Decisions 6 and 7 are not measured, and are not claimed to be.** Their predicted effect is well under 1% of
+a whole workload — below what the end-to-end harness resolves — so a benchmark run would have produced a number
+that means nothing. They are justified mechanically instead: both do strictly less allocation for an identical
+answer. Do not cite either as a measured win.
+
+Decision 6's hazard is pinned rather than argued. `shouldNotMutateThePostingsAnIntersectionReads` builds a fixture
+where the answer is a **strict subset** of the cheapest posting — without that an in-place fold writes back
+identical contents and the corruption is invisible — and applying the obvious simplification (seed the accumulator
+from `postings[0]`) reddens it alone, with the index's own posting shrunk from 180 ids to 150. The container-level
+safety was verified by enumeration, not by reading the javadoc: all 18 `and`/`iand` implementations in the three
+vendored container classes were checked, and none returns its argument, so no posting's container can alias into
+an accumulator that has already declared itself sole owner.
+
 Correctness: `Tests run: 478, Failures: 0` across the B+tree, inverted-index, trigram and substring
 suites. Every guard added here is **calibrated by counterfactual** — reverting the cast fix reddens
 only the representation-overlap test, replacing the code-point condition with a trigram count reddens
@@ -129,6 +144,28 @@ verified per pattern across four runs.
   at 12; a smaller factor only widens it. **No scalar fixes this** — it needs a second input or the
   planner's own costing. This is the most consequential thing the campaign found and the reason
   decision 5 was withdrawn rather than merely re-measured.
+- **The gate holds most of the workload's wall-clock, and every optimization on the admitted path raises its
+  share.** Re-costing the 159 patterns measured across three attributes from their own recorded per-arm timings —
+  a declined pattern charged the scan it actually runs, an admitted one charged the trigram arm — puts **59% of
+  the total (90.5 ms of 153.4 ms) in the 16 patterns the gate declines**. Applying this campaign's own per-class
+  speedups to the admitted side raises that to roughly **80%**, because every microsecond taken off the admitted
+  path shrinks its own denominator. This is the first quantification of what the gate forfeits, and it reorders
+  everything that remains: the admitted path has diminishing returns by construction.
+  **The caveat is load-bearing.** Those patterns are weighted equally, which is a property of how they were
+  discovered, not of production traffic — nobody has measured how often real queries decline, or at what fan-out.
+  Counting declines in production is hours of instrumentation and is the cheapest decision-changing measurement
+  available; it decides whether replacing the gate is worth weeks or nothing. Do that before designing anything.
+- **What remains on the admitted path is small, and its reach is smaller than it looks.** An external read-only
+  consultation, given this record and the commits, proposed matching a candidate's UTF-8 bytes without
+  materialising a `String`; replacing the boxed leaf maps with primitive ones; coalescing single-record matched
+  buckets before the final union; and regrouping candidates by leaf. Three reach corrections apply, and each was
+  checked against the measured table rather than reasoned about:
+  **55% of admitted time is spent on patterns of exactly three code points, which already skip verification** —
+  the byte matcher cannot touch it; the same 55% is single-trigram, so there is no intersection there to improve
+  either; and the most expensive admitted queries are `N/V≈1` with near-zero false positives, which makes the
+  singleton-coalescing idea — ranked lowest of the four — the one aimed squarely at the actual hot spot. Cost
+  tracks **hits** (0.412 µs) more closely than candidates (0.357 µs). Regrouping by leaf straddles zero at the
+  candidate widths this corpus produces and should be instrumented before it is built.
 - **The gate is nonetheless costing real work.** On the measured corpus every one of the 14 patterns
   it declines would have been faster accelerated (2.13x-5.34x, median ~4x), and none of the 152 it
   admits loses. It should not be assumed correct merely because it is current — but it has already
