@@ -63,9 +63,15 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -151,13 +157,26 @@ import java.util.TreeSet;
  * 2. **Replication `r` is `sum(K) / V_union`** - how many trees replicate the average distinct value, which is the
  *    quantity the dedup decision turns on. `M` is printed in its own column, so the record-side ratio `M / V_union`
  *    remains computable from the same row.
- * 3. **The `multiCount x referenceSize` term of `postings` is charged as the plan writes it**, on top of the
- *    exact-sized overflow reference array. It over-charges the candidate by one reference per multi-record bucket and
- *    therefore *under*-reports savings - the conservative direction for a go/no-go table. The total over-charge is
- *    printed under the decision table so the sensitivity is visible rather than buried.
- * 4. **`ALREADY_PRIMITIVE` also absorbs boxed non-compound keys** (a `Locale`, a `Currency`). They are not literally
- *    primitive, but they are excluded from the savings ledger for the same reason - the census has no measured spine
- *    model for them - and they are rare and low-cardinality. The label follows the plan's vocabulary.
+ * 3. **The projection is exact, not conservative.** The overflow column is charged once, as one exact-sized
+ *    reference array of `K` slots. An earlier revision additionally charged one loose reference per multi-record
+ *    bucket, double-counting the array's own slots; that term is gone.
+ * 4. **`ALREADY_PRIMITIVE` covers every non-string, non-compound key**, including boxed ones with no primitive
+ *    column (a range, a `Currency`). The `lever` column tells the two apart: a key with a real primitive column is
+ *    `CONTAINER_ONLY`, a boxed one is `NONE`, and the TSV's `sampleType` column names the runtime class so the
+ *    bucket stays auditable rather than being taken on trust.
+ *
+ * # Two independent levers
+ *
+ * The headline reports **two** roll-ups and never adds them together.
+ *
+ * - The **dictionary lever** (the `net` column of the decision table) applies to string and compound keys. It hoists
+ *   them to a canonical owner, leaves a 4-byte value id behind, and pays the owner's id column as a host increment.
+ * - The **container lever** applies to primitive keys, needs no dictionary at all, and is the larger prize on an
+ *   e-commerce catalog. The same exact-sized array container holds the primitive key itself, so there is no owner, no
+ *   id column, no allocator and no host increment - only the B+ tree's per-leaf scaffolding disappears.
+ *
+ * A `SKIP` verdict means "out of scope for the dictionary lever", not "nothing to gain here"; the container roll-up
+ * is where those domains are priced.
  * 5. **The A3 cross-check is computed inside this run**, not by re-running {@link TrigramReplicationCensus}: the same
  *    walk accumulates that census's definition of "reduced value trees" (every non-GLOBAL index) beside this one's
  *    (the two reduced kinds only). The two differ exactly by the reference-type indexes, which A3 measured at
@@ -706,7 +725,12 @@ public class ValueDedupCensus {
 		Domain domain = domains.get(domainKey);
 		if (domain == null) {
 			final Serializable sample = buckets[0].getValue();
-			domain = new Domain(domainKey, valueClassOf(sample, domainKey.attributeKey().locale()));
+			final ValueClass valueClass = valueClassOf(sample, domainKey.attributeKey().locale());
+			domain = new Domain(
+				domainKey, valueClass,
+				valueClass.eligible() ? 0 : containerKeyBytesOf(sample)
+			);
+			domain.sampleTypeName = sample.getClass().getSimpleName();
 			domain.bindOwner(owners.resolve(domainKey, referenceName, sample));
 			domains.put(domainKey, domain);
 		}
@@ -910,24 +934,66 @@ public class ValueDedupCensus {
 	 *
 	 * The record bitmaps are deliberately outside this figure: they survive dedup unchanged and are subtracted from
 	 * the current side of the ledger too, so counting them on either side would cancel out at best and mislead at
-	 * worst. See decision 3 in the class JavaDoc for the one term that is knowingly charged twice.
+	 * worst.
+	 *
+	 * The overflow column is charged **once**, as one exact-sized reference array of `K` slots, and only when the
+	 * tree has a multi-record bucket at all. An earlier revision also charged one loose reference per multi-record
+	 * bucket on top of that array; those references *are* the array's slots, so the term double-counted them and made
+	 * the projection conservative by accident rather than exact. The bitmaps those slots point at stay outside, in
+	 * `bitmapBytes`, on both sides of the ledger.
 	 *
 	 * @param bucketCount how many buckets the tree holds
 	 * @param multiCount  how many of them hold more than one record
 	 * @param sortable    whether the domain also serves ordering
+	 * @param keyBytes    width of the container's own key slot, or `0` when the keys move out to a canonical owner
+	 *                    and are replaced by a 4-byte value id
 	 * @return the candidate spine in bytes
 	 */
-	private static long candidateSpineOf(int bucketCount, int multiCount, boolean sortable) {
+	private static long candidateSpineOf(int bucketCount, int multiCount, boolean sortable, int keyBytes) {
 		final VMLayout layout = VMLayout.current();
 		final int referenceSize = layout.referenceSize();
 		final long fixed = layout.sizeOfObject(4L * referenceSize);
-		final long ids = layout.sizeOfArray(bucketCount, Integer.BYTES);
-		long postings = layout.sizeOfArray(bucketCount, Integer.BYTES) + (long) multiCount * referenceSize;
+		final long keys = layout.sizeOfArray(bucketCount, keyBytes == 0 ? Integer.BYTES : keyBytes);
+		long postings = layout.sizeOfArray(bucketCount, Integer.BYTES);
 		if (multiCount > 0) {
 			postings += layout.sizeOfArray(bucketCount, referenceSize);
 		}
 		final long sortSlots = sortable ? layout.sizeOfArray(bucketCount, Integer.BYTES) : 0L;
-		return fixed + ids + postings + sortSlots;
+		return fixed + keys + postings + sortSlots;
+	}
+
+	/**
+	 * Width of the key slot a **container-only** projection would use for a domain, mirroring the leaf column
+	 * `ValueColumnFactory#forKey` actually selects for that key type. Returns `0` when no primitive column exists for
+	 * the type, which is the census's signal that the container-only lever does not apply.
+	 *
+	 * This is the second, independent lever. A primitive-keyed reduced tree needs no dictionary at all: the same
+	 * exact-sized array container that would hold value ids can hold the primitive key itself, and the whole
+	 * canonical-owner apparatus — ids, allocator, host increment, value lifecycle — disappears with it. Separating the
+	 * two levers matters because the primitive domains are where most of the replicated bytes actually sit, and
+	 * folding them into the dictionary total would credit the dictionary with a saving it does not produce.
+	 *
+	 * @param sample a value taken from one of the domain's buckets
+	 * @return the primitive key width in bytes, or `0` when the type has no primitive leaf column
+	 */
+	private static int containerKeyBytesOf(@Nonnull Serializable sample) {
+		// temporal keys decompose into a (seconds, nanos) parallel-array column - 8 + 4 bytes per entry
+		if (sample instanceof Instant || sample instanceof OffsetDateTime || sample instanceof LocalDateTime) {
+			return Long.BYTES + Integer.BYTES;
+		}
+		// BigDecimal filter/sort keys are normalized upstream to a scaled int before they ever reach a column
+		if (sample instanceof BigDecimal) {
+			return Integer.BYTES;
+		}
+		// everything the long key codec accepts rides a single long
+		if (sample instanceof Byte || sample instanceof Short || sample instanceof Integer
+			|| sample instanceof Long || sample instanceof Character || sample instanceof Boolean
+			|| sample instanceof LocalDate || sample instanceof LocalTime) {
+			return Long.BYTES;
+		}
+		// a String or a compound belongs to the dictionary lever; anything else (a range, a UUID, a currency) sits in
+		// the universal boxed column and has no primitive form to move into a container
+		return 0;
 	}
 
 	/**
@@ -1000,19 +1066,12 @@ public class ValueDedupCensus {
 				domain.verdict.label()
 			);
 		}
-		long overcharge = 0L;
-		for (int i = 0; i < domains.size(); i++) {
-			overcharge += domains.get(i).spineOverchargeBytes;
-		}
 		System.out.println(
 			"  `owner` marked with a trailing `*` already carries value ids, so its host increment is zero - the\n" +
 				"  trigram line paid for that column already. `+dir` is informational and is NOT part of `net`.\n" +
-				"  `r` is sum(K) / V_union - how many trees replicate the average distinct value of the domain."
-		);
-		System.out.printf(
-			"  spine includes %s of deliberate over-charge (one reference per multi-record bucket, on top of\n" +
-				"  the exact-sized overflow array) - savings are understated by at most that much.%n",
-			bytes(overcharge)
+				"  `r` is sum(K) / V_union - how many trees replicate the average distinct value of the domain.\n" +
+				"  `net` prices the DICTIONARY lever. A `SKIP` row is out of scope for that lever only - see the\n" +
+				"  `lever` column of the TSV and the container-only roll-up in the headline."
 		);
 	}
 
@@ -1173,8 +1232,46 @@ public class ValueDedupCensus {
 		System.out.printf(
 			"  reverse directory if ever needed (excluded)  : %13s%n", bytes(eligibleDir)
 		);
+
+		long containerRemovable = 0L;
+		long containerSpine = 0L;
+		long containerNet = 0L;
+		int containerDomains = 0;
+		int noLeverDomains = 0;
+		for (int i = 0; i < domains.size(); i++) {
+			final Domain domain = domains.get(i);
+			if (domain.lever() == Lever.CONTAINER_ONLY) {
+				containerDomains++;
+				containerRemovable += domain.removableBytes;
+				containerSpine += domain.containerSpineBytes;
+				containerNet += domain.containerSavingBytes;
+			} else if (domain.lever() == Lever.NONE) {
+				noLeverDomains++;
+			}
+		}
+		System.out.printf("%ncontainer-only lever - NO dictionary required (%,d domains)%n", containerDomains);
+		System.out.printf(
+			"  removable now                                : %13s%n", bytes(containerRemovable)
+		);
+		System.out.printf(
+			"  container spine (primitive key kept in place) : %13s%n", bytes(containerSpine)
+		);
+		System.out.printf(
+			"  NET SAVING                                   : %13s (%s of the reduced attribute heap)%n",
+			signedBytes(containerNet), percent(Math.max(containerNet, 0L), totals.reducedAttributeBytes)
+		);
+		System.out.printf(
+			"  domains where neither lever applies (boxed)  : %,13d%n", noLeverDomains
+		);
 		System.out.println(
-			"\nRead the net saving as the steady committed-state ledger only: no varints, no Roaring re-encoding\n" +
+			"\nThe two levers are SEPARATE proposals and must not be added into one headline figure. The dictionary\n" +
+				"lever hoists string and compound keys to a canonical owner and pays an id column for it; the\n" +
+				"container lever swaps a primitive-keyed B+ tree for an exact-sized array holding the primitive key\n" +
+				"itself - no owner, no ids, no allocator, no host increment. A catalog can adopt either, both or\n" +
+				"neither, and only the container lever is available where the keys are already primitive."
+		);
+		System.out.println(
+			"\nRead both net savings as the steady committed-state ledger only: no varints, no Roaring re-encoding\n" +
 				"and no transactional-layer overhead are modelled, and `sortedRecords` stays out of both sides."
 		);
 	}
@@ -1258,10 +1355,11 @@ public class ValueDedupCensus {
 			final BufferedWriter writer = Files.newBufferedWriter(target, StandardCharsets.UTF_8)
 		) {
 			writer.write(
-				"section\tentityType\treferenceName\tattributeName\tlocale\tscope\tkind\tvalueClass\towner\t" +
-					"sharedWithTrigram\tstratum\ttrees\tsumK\tsumM\tkP50\tkP95\tvUnion\treplication\ttreeBytes\t" +
-					"bitmapBytes\tremovableBytes\tspineBytes\thostIncrementBytes\treverseDirectoryBytes\t" +
-					"netSavingBytes\tcoverageGap\tverdict\n"
+				"section\tentityType\treferenceName\tattributeName\tlocale\tscope\tkind\tvalueClass\tlever\t" +
+					"sampleType\towner\tsharedWithTrigram\tstratum\ttrees\tsumK\tsumM\tkP50\tkP95\tvUnion\t" +
+					"replication\ttreeBytes\tbitmapBytes\tremovableBytes\tspineBytes\thostIncrementBytes\t" +
+					"reverseDirectoryBytes\tnetSavingBytes\tcontainerSpineBytes\tcontainerSavingBytes\t" +
+					"coverageGap\tverdict\n"
 			);
 			for (int i = 0; i < domains.size(); i++) {
 				final Domain domain = domains.get(i);
@@ -1300,6 +1398,8 @@ public class ValueDedupCensus {
 			.append(domain.hostIncrementBytes).append('\t')
 			.append(domain.reverseDirectoryBytes).append('\t')
 			.append(domain.netSavingBytes).append('\t')
+			.append(domain.containerSpineBytes).append('\t')
+			.append(domain.containerSavingBytes).append('\t')
 			.append(domain.coverageGap).append('\t')
 			.append(domain.verdict.label()).append('\n');
 		writer.write(row.toString());
@@ -1334,6 +1434,7 @@ public class ValueDedupCensus {
 			.append(stratum.spineBytes).append('\t')
 			.append('\t').append('\t')
 			.append(stratum.savingBytes).append('\t')
+			.append('\t').append('\t')
 			.append('\t')
 			.append('\n');
 		writer.write(row.toString());
@@ -1360,6 +1461,8 @@ public class ValueDedupCensus {
 			.append(domain.key.scope()).append('\t')
 			.append(domain.key.kind()).append('\t')
 			.append(domain.valueClass.label()).append('\t')
+			.append(domain.lever()).append('\t')
+			.append(domain.sampleTypeName).append('\t')
 			.append(domain.ownerRole).append('\t')
 			.append(domain.sharedWithTrigram).append('\t');
 	}
@@ -1850,6 +1953,22 @@ public class ValueDedupCensus {
 	}
 
 	/**
+	 * Which of the two independent levers a domain can be reduced by.
+	 *
+	 * They are genuinely separate proposals and must never be summed into one headline: the dictionary lever hoists
+	 * string or compound keys to a canonical owner and pays an id column for it, while the container lever swaps a
+	 * primitive-keyed B+ tree for an exact-sized array and pays nothing at all.
+	 */
+	private enum Lever {
+		/** String or compound keys - reducible only by hoisting them to a canonical owner. */
+		DICTIONARY,
+		/** Primitive keys - reducible by the container alone, with no owner, no ids and no host increment. */
+		CONTAINER_ONLY,
+		/** A boxed key with no primitive column and no dictionary case; neither lever applies. */
+		NONE
+	}
+
+	/**
 	 * The census's verdict on a domain.
 	 */
 	private enum Verdict {
@@ -1929,15 +2048,14 @@ public class ValueDedupCensus {
 		/**
 		 * Resolves the canonical owner of a domain, in the order the design fixes: the GLOBAL filter tree first
 		 * (entity-level attributes), then the reference-type filter tree of the reduced index's own reference
-		 * (reference-level attributes), then the GLOBAL owner-sort tree (sort-only and compound domains), and
-		 * finally the reference-type owner-sort tree.
+		 * (reference-level attributes), then the reference-type owner-sort tree, then the GLOBAL owner-sort tree.
 		 *
-		 * That last step is an addition to the plan's four, and it is deliberately **last** so that it is strictly
-		 * additive: no domain that resolved under the plan's chain resolves differently, and the only rows it can
-		 * change are ones that would otherwise have reported `MISSING`. It exists because the plan's chain consults
-		 * the GLOBAL index for sort owners, and an entity-level GLOBAL index holds no sort tree for a *reference*
-		 * attribute - so a reference-level sort-only attribute could never resolve, no matter how healthy the
-		 * catalog. On the demo dataset that mislabelled nine domains as owner-less.
+		 * The reference-type owner-sort step is an addition to the plan's chain, which consults the GLOBAL index for
+		 * sort owners only - and an entity-level GLOBAL index holds no sort tree for a *reference* attribute, so a
+		 * reference-level sort-only attribute could never resolve there no matter how healthy the catalog. It sits
+		 * ahead of the GLOBAL sort step because a reference's own type-level index is the nearer owner when both
+		 * exist. **Measured: it resolves nothing on either e-commerce corpus** - the reference-type indexes hold no
+		 * owner-mode sort trees at all - so those domains are genuinely owner-less rather than merely unlooked-for.
 		 *
 		 * @param domainKey     the domain being resolved
 		 * @param referenceName the reference the reduced index belongs to
@@ -1960,15 +2078,15 @@ public class ValueDedupCensus {
 			if (referenceType != null && sameValueFamily(domainSample, sampleValueOf(referenceType))) {
 				return new OwnerBinding(OwnerRole.REF_TYPE, referenceType);
 			}
-			final InvertedIndex globalSort = this.globalSortOwners.get(globalKey);
-			if (globalSort != null && sameValueFamily(domainSample, sampleValueOf(globalSort))) {
-				return new OwnerBinding(OwnerRole.GLOBAL_SORT, globalSort);
-			}
 			final InvertedIndex referenceTypeSort = this.referenceTypeSortOwners.get(
 				new OwnerKey(domainKey.scope(), referenceName, domainKey.attributeKey())
 			);
 			if (referenceTypeSort != null && sameValueFamily(domainSample, sampleValueOf(referenceTypeSort))) {
 				return new OwnerBinding(OwnerRole.REF_TYPE_SORT, referenceTypeSort);
+			}
+			final InvertedIndex globalSort = this.globalSortOwners.get(globalKey);
+			if (globalSort != null && sameValueFamily(domainSample, sampleValueOf(globalSort))) {
+				return new OwnerBinding(OwnerRole.GLOBAL_SORT, globalSort);
 			}
 			return new OwnerBinding(OwnerRole.MISSING, null);
 		}
@@ -2060,8 +2178,12 @@ public class ValueDedupCensus {
 		private long removableBytes;
 		/** Sum of the projected candidate spines. */
 		private long spineBytes;
-		/** The part of {@link #spineBytes} that is the deliberate over-charge of decision 3. */
-		private long spineOverchargeBytes;
+		/** Width of a container-only key slot, or `0` when that lever does not apply to this domain. */
+		private final int containerKeyBytes;
+		/** Sum of the projected container-only spines; zero unless {@link #containerKeyBytes} is positive. */
+		private long containerSpineBytes;
+		/** Sum of `removable - containerSpine` - the container-only lever's gross saving. */
+		private long containerSavingBytes;
 		/** What the owner would have to start paying to host this domain's ids. */
 		private long hostIncrementBytes;
 		/** Informational cost of a reverse directory; never part of the net. */
@@ -2078,10 +2200,13 @@ public class ValueDedupCensus {
 		private int bucketP95;
 		/** The verdict, computed by {@link #finish()}. */
 		@Nonnull private Verdict verdict = Verdict.MARGINAL;
+		/** Simple class name of a sample bucket value, so the `PRIM` bucket stays auditable. */
+		@Nonnull private String sampleTypeName = "?";
 
-		Domain(@Nonnull DomainKey key, @Nonnull ValueClass valueClass) {
+		Domain(@Nonnull DomainKey key, @Nonnull ValueClass valueClass, int containerKeyBytes) {
 			this.key = key;
 			this.valueClass = valueClass;
+			this.containerKeyBytes = containerKeyBytes;
 			for (int i = 0; i < this.strata.length; i++) {
 				this.strata[i] = new Stratum();
 			}
@@ -2110,8 +2235,13 @@ public class ValueDedupCensus {
 		 */
 		void addTree(int buckets, long records, long treeBytes, long bitmapBytes, int multiCount, boolean sortable) {
 			final long removable = treeBytes - bitmapBytes;
-			final long spine = candidateSpineOf(buckets, multiCount, sortable);
+			final long spine = candidateSpineOf(buckets, multiCount, sortable, 0);
 			final long saving = removable - spine;
+			if (this.containerKeyBytes > 0) {
+				final long containerSpine = candidateSpineOf(buckets, multiCount, sortable, this.containerKeyBytes);
+				this.containerSpineBytes += containerSpine;
+				this.containerSavingBytes += removable - containerSpine;
+			}
 
 			this.treeCount++;
 			this.bucketCount += buckets;
@@ -2120,7 +2250,6 @@ public class ValueDedupCensus {
 			this.bitmapBytes += bitmapBytes;
 			this.removableBytes += removable;
 			this.spineBytes += spine;
-			this.spineOverchargeBytes += (long) multiCount * VMLayout.current().referenceSize();
 
 			if (this.treeCount > this.bucketCounts.length) {
 				this.bucketCounts = Arrays.copyOf(this.bucketCounts, this.bucketCounts.length * 2);
@@ -2189,6 +2318,19 @@ public class ValueDedupCensus {
 		 *
 		 * @return the rendered owner label
 		 */
+		/**
+		 * Returns which lever, if either, could reduce this domain.
+		 *
+		 * @return the applicable lever
+		 */
+		@Nonnull
+		Lever lever() {
+			if (this.valueClass.eligible()) {
+				return Lever.DICTIONARY;
+			}
+			return this.containerKeyBytes > 0 ? Lever.CONTAINER_ONLY : Lever.NONE;
+		}
+
 		@Nonnull
 		String ownerLabel() {
 			return this.sharedWithTrigram ? this.ownerRole + "*" : this.ownerRole.name();
