@@ -1416,7 +1416,9 @@ public class InvertedIndex implements
 	 *
 	 * @param candidateValueIds the value ids to verify, in any order; entries beyond `candidateCount` are ignored
 	 * @param candidateCount    how many leading entries of `candidateValueIds` are live
-	 * @param valuePredicate    tests each candidate's (already-normalized) value; a bucket is included when it holds
+	 * @param valuePredicate    tests each candidate's (already-normalized) value, or `null` when the caller has
+	 *                          established that EVERY candidate matches and no value need be decoded to prove it; a
+	 *                          bucket is included when it holds
 	 * @return the matched buckets' record sets in candidate order, with the leaf-version token set of the leaves
 	 * those buckets live in
 	 * @throws GenericEvitaInternalError when a transaction is open on the current thread
@@ -1425,7 +1427,7 @@ public class InvertedIndex implements
 	public MatchedBuckets getRecordsOfValueIdsMatching(
 		@Nonnull int[] candidateValueIds,
 		int candidateCount,
-		@Nonnull Predicate<Serializable> valuePredicate
+		@Nullable Predicate<Serializable> valuePredicate
 	) {
 		Assert.isPremiseValid(
 			!Transaction.isTransactionAvailable(),
@@ -1449,7 +1451,10 @@ public class InvertedIndex implements
 		// created inside this guard so that the provable-empty answer - the cheapest outcome this path produces, and
 		// the one a pattern no value contains takes - allocates nothing at all
 		if (candidateCount > 0) {
-			final Predicate<Comparable> matches = value -> valuePredicate.test((Serializable) value);
+			// null is carried through rather than replaced by an always-true predicate: the point is not to skip a
+			// cheap test but to skip DECODING the key that would be handed to it
+			final Predicate<Comparable> matches = valuePredicate == null ?
+				null : value -> valuePredicate.test((Serializable) value);
 			final LongConsumer leafVersionSink = leafVersions::acceptUnordered;
 			for (int i = 0; i < candidateCount; i++) {
 				// ONE resolution of the bucket's location answers all three questions this loop used to ask

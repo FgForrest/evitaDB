@@ -49,6 +49,7 @@ import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
+import io.evitadb.index.trigram.StringSearchShape;
 import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.index.trigram.TrigramSubstringSearch;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -96,6 +97,12 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * The predicate to test each attribute string value.
 	 */
 	private final BiPredicate<String, String> stringPredicate;
+	/**
+	 * What {@link #stringPredicate} needs from an occurrence of the pattern - stated rather than inferred, because a
+	 * `BiPredicate` cannot be introspected and the substring accelerator has to tell plain containment from an
+	 * anchored match to know whether its candidates still need verifying.
+	 */
+	private final StringSearchShape stringSearchShape;
 
 	/**
 	 * Asserts that the provided attribute definition is of type String.
@@ -473,7 +480,8 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 		final InvertedIndex sharedValueTree = globalFilterIndex.getInvertedIndex();
 		final MatchedBuckets matched = TrigramSubstringSearch.match(
 			trigramIndex, sharedValueTree, textToSearch, this.stringPredicate,
-			threshold -> sumDistinctValuesUpTo(filterByVisitor, scope, attributeDefinition, locale, threshold)
+			threshold -> sumDistinctValuesUpTo(filterByVisitor, scope, attributeDefinition, locale, threshold),
+			this.stringSearchShape
 		);
 		if (matched == null) {
 			return null;

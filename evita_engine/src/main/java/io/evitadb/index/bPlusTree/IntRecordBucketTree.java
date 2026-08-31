@@ -115,14 +115,17 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	 * under-count.
 	 *
 	 * @param valueId         the candidate id to resolve
-	 * @param valuePredicate  the exact test applied to the value the id names
+	 * @param valuePredicate  the exact test applied to the value the id names, or `null` when the caller already knows
+	 *                        every id it passes matches - in which case the key is never read off the slot at all,
+	 *                        which on a front-coded column saves a walk back to a restart point and a `String`
+	 *                        allocation per candidate
 	 * @param leafVersionSink receives the version token of the matched bucket's leaf, and is not called otherwise
 	 * @return the matched value's record set, or `null` when the id names nothing live or the predicate rejected it
 	 */
 	@Nullable
 	Bitmap recordsOfMatchingValueId(
 		int valueId,
-		@Nonnull Predicate<K> valuePredicate,
+		@Nullable Predicate<K> valuePredicate,
 		@Nonnull LongConsumer leafVersionSink
 	);
 

@@ -1330,7 +1330,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * so the value, the version token and the record set necessarily describe the same bucket.
 	 *
 	 * @param valueId         the candidate id to resolve
-	 * @param valuePredicate  the exact test applied to the value the id names
+	 * @param valuePredicate  the exact test applied to the value the id names, or `null` when the caller already knows
+	 *                        every id it passes matches - in which case the key is never read off the slot at all,
+	 *                        which on a front-coded column saves a walk back to a restart point and a `String`
+	 *                        allocation per candidate
 	 * @param leafVersionSink receives the matched bucket's leaf version token, and is not called otherwise
 	 * @return the matched bucket's record set, or `null` when the id names nothing live or the predicate rejected it
 	 */
@@ -1338,7 +1341,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public Bitmap recordsOfMatchingValueId(
 		int valueId,
-		@Nonnull Predicate<K> valuePredicate,
+		@Nullable Predicate<K> valuePredicate,
 		@Nonnull LongConsumer leafVersionSink
 	) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
@@ -1374,10 +1377,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// transaction to this thread would make the read resolve the transaction's own columns against a slot the
 		// PUBLISHED directory addressed. The chain this method replaces was immune to both for a different reason -
 		// it re-found the bucket by key afterwards - so the immunity has to be re-established rather than inherited.
-		final K value = leaf.keyAt(slot);
+		// a null predicate is the caller stating that every id it hands over is already known to match, so the key is
+		// never decoded - on a front-coded column that decode walks back to a restart point and allocates a String,
+		// which is the single most expensive thing this method would otherwise do per candidate
+		final K value = valuePredicate == null ? null : leaf.keyAt(slot);
 		final long leafVersion = leaf.getId();
 		final Bitmap records = leaf.getRecordsAt(slot);
-		if (!valuePredicate.test(value)) {
+		if (valuePredicate != null && !valuePredicate.test(value)) {
 			return null;
 		}
 		// reported for MATCHES only: a candidate that fails the predicate contributes no record set, so its leaf is

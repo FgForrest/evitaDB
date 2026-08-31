@@ -279,6 +279,21 @@ class TrigramSubstringSearchTest {
 	}
 
 	/**
+	 * @param values the corpus values
+	 * @return the ascending union of the record ids those values are written for
+	 */
+	@Nonnull
+	private static int[] recordsOfAll(@Nonnull String... values) {
+		final BaseBitmap union = new BaseBitmap();
+		for (final String value : values) {
+			for (final int record : recordsOf(value)) {
+				union.add(record);
+			}
+		}
+		return union.getArray();
+	}
+
+	/**
 	 * @param value the corpus value
 	 * @return the record ids that value is written for
 	 */
@@ -338,10 +353,14 @@ class TrigramSubstringSearchTest {
 		@Nonnull String pattern,
 		@Nonnull BiPredicate<String, String> predicate
 	) {
+		// the shape is derived from the predicate the caller passed, exactly as a translator states its own - so every
+		// `contains` assertion in this class exercises the verification short-circuit rather than routing around it
 		final MatchedBuckets buckets = TrigramSubstringSearch.match(
 			trigramIndexOf(index, attributeName, locale),
 			filterIndexOf(index, attributeName, locale).getInvertedIndex(),
-			pattern, predicate
+			pattern, predicate,
+			threshold -> filterIndexOf(index, attributeName, locale).getInvertedIndex().getBucketCount(),
+			predicate == CONTAINS ? StringSearchShape.CONTAINMENT : StringSearchShape.ANCHORED
 		);
 		assertNotNull(
 			buckets,
@@ -515,6 +534,72 @@ class TrigramSubstringSearchTest {
 				recordsOf("xxabcdxx"),
 				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "abcd", CONTAINS)
 			);
+		}
+
+		@Test
+		@DisplayName("a three-code-point contains needs no verification, and answers the scan exactly")
+		void shouldSkipVerificationForAPatternExactlyOneTrigramWide() {
+			// `abc` is three code points, so it yields one trigram which IS the whole pattern; the posting under that
+			// key is therefore already the answer and containment has nothing left to reject. The assertion that
+			// matters is not that it is fast but that it is still RIGHT - so it is compared against the scan.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(
+				TrigramCodec.extractUniqueTrigrams("abc")
+			);
+			assertEquals(
+				3, candidates.length,
+				"three corpus values hold `abc`; if this changes the test below is measuring something else"
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "abc", false);
+		}
+
+		@Test
+		@DisplayName("a longer pattern that collapses to ONE trigram is still verified")
+		void shouldVerifyAPatternWhoseTrigramsDeduplicateToOne() {
+			// CALIBRATION: this is the case that makes "the pattern produced one trigram" the WRONG condition for
+			// skipping verification, and the reason the condition is written on the code point count instead.
+			// `0000` is four code points whose three windows are all `000`, which extractUniqueTrigrams deduplicates
+			// down to a single trigram. That trigram's posting holds every value containing `000` - here
+			// `widget zebra 000` and `item-0000`..`item-0009` - and only one of them contains `0000`. Relaxing the
+			// condition to `trigrams.length == 1` makes this return eleven values instead of one.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+
+			final long[] trigrams = TrigramCodec.extractUniqueTrigrams("0000");
+			assertEquals(1, trigrams.length, "the pattern must collapse to ONE trigram or this test proves nothing");
+			assertEquals(4, "0000".codePointCount(0, "0000".length()), "and must still be wider than a trigram");
+
+			final int[] candidates = trigramIndex.resolveCandidateValueIds(trigrams);
+			assertTrue(
+				candidates.length > 1,
+				"the posting must nominate values that do NOT contain the pattern, or verification has nothing to do"
+			);
+			assertArrayEquals(
+				recordsOf("item-0000"), acceleratedKeys(index, ATTRIBUTE_TITLE, null, "0000", CONTAINS),
+				"only `item-0000` contains `0000`; every other candidate merely holds the trigram `000`"
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "0000", false);
+		}
+
+		@Test
+		@DisplayName("a three-code-point endsWith is still verified, because occurrence is not enough for it")
+		void shouldVerifyAnAnchoredPatternExactlyOneTrigramWide() {
+			// same width as the short-circuited case above, and the short circuit must NOT apply: `ega` occurs in all
+			// five `omega` values but only three of them END with it. An anchored predicate is never satisfied by
+			// mere occurrence, however narrow the pattern is.
+			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
+			final TrigramIndex trigramIndex = trigramIndexOf(index, ATTRIBUTE_TITLE, null);
+			assertEquals(
+				OMEGA_VALUES,
+				trigramIndex.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("ega")).length,
+				"every `omega` value must be nominated, or verification is not the thing being tested"
+			);
+			assertArrayEquals(
+				recordsOfAll("omega", "tail omega", "long tail omega"),
+				acceleratedKeys(index, ATTRIBUTE_TITLE, null, "ega", ENDS_WITH)
+			);
+			assertParity(index, ATTRIBUTE_TITLE, null, "ega", true);
 		}
 
 		@Test
