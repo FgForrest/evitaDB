@@ -25,7 +25,9 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
@@ -585,26 +587,26 @@ class FilterIndexTest {
 	class NonTransactionalCacheTest {
 
 		@Test
-		@DisplayName("memoized formula is invalidated on non-tx write")
-		void shouldInvalidateMemoizedFormulaOnNonTransactionalWrite() {
+		@DisplayName("memoized bitmap is invalidated on non-tx write")
+		void shouldInvalidateMemoizedBitmapOnNonTransactionalWrite() {
 			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
 
-			// first call caches the formula
-			final Formula firstCall = index.getAllRecordsFormula();
+			// first call caches the bitmap
+			final Bitmap firstCall = index.getAllRecords();
 			// second call returns same cached instance
-			final Formula secondCall = index.getAllRecordsFormula();
+			final Bitmap secondCall = index.getAllRecords();
 			assertSame(firstCall, secondCall);
 
 			// write invalidates the cache
 			index.addRecord(2, "B");
-			final Formula afterWrite = index.getAllRecordsFormula();
+			final Bitmap afterWrite = index.getAllRecords();
 			assertNotSame(firstCall, afterWrite);
 			assertArrayEquals(
 				new int[]{1, 2},
-				afterWrite.compute().getArray()
+				afterWrite.getArray()
 			);
 		}
 	}
@@ -614,8 +616,8 @@ class FilterIndexTest {
 	class FormulaMemoizationTest {
 
 		@Test
-		@DisplayName("getAllRecordsFormula returns same instance when no writes")
-		void shouldReturnSameFormulaInstanceWhenNoWrites() {
+		@DisplayName("getAllRecordsFormula memoizes the bitmap but never the formula")
+		void shouldMemoizeBitmapButHandOutFreshFormula() {
 			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
@@ -625,7 +627,15 @@ class FilterIndexTest {
 			final Formula first = index.getAllRecordsFormula();
 			final Formula second = index.getAllRecordsFormula();
 
-			assertSame(first, second);
+			// a formula node carries per-query state once a plan initializes it, so an index-lifetime structure
+			// must never hand out the same instance twice - see FilterIndex#memoizedAllRecords
+			assertNotSame(first, second);
+			// the expensive part - the merged bitmap - is still memoized and shared between them
+			assertSame(
+				((ConstantFormula) first).getDelegate(),
+				((ConstantFormula) second).getDelegate()
+			);
+			assertSame(index.getAllRecords(), ((ConstantFormula) first).getDelegate());
 		}
 
 		@Test

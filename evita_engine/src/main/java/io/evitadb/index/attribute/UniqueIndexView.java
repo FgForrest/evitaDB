@@ -59,7 +59,7 @@ public final class UniqueIndexView extends UniqueIndex {
 	@Serial private static final long serialVersionUID = 2639205026498958518L;
 	/**
 	 * Direct reference to the shared {@link FilterIndex} view over the same attribute key — the source of truth this
-	 * folded view reads from (reusing its normalizer and memoized all-records formula). May be `null` for a transient
+	 * folded view reads from (reusing its normalizer and memoized all-records bitmap). May be `null` for a transient
 	 * live presence marker created before the shared tree exists; the filter-write path rebinds it to the live filter
 	 * view via {@link #bindFilterView}. Never reassigned on a published instance — a new view is built instead, so the
 	 * field is safe to share across snapshot versions. Transient because a reloaded view is reconstructed from the
@@ -123,7 +123,8 @@ public final class UniqueIndexView extends UniqueIndex {
 
 	@Override
 	public Formula getRecordIdsFormula() {
-		// reuse the filter view's already-memoized all-records formula over the same shared tree
+		// wrap the filter view's already-memoized all-records bitmap over the same shared tree - the formula itself
+		// is built fresh per call, because an index-lifetime one would pin the calling query's execution context
 		final FilterIndex filterView = this.sharedFilterView;
 		return filterView == null ? EmptyFormula.INSTANCE : filterView.getAllRecordsFormula();
 	}
