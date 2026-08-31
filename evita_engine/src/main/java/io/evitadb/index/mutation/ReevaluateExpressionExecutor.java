@@ -52,6 +52,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -60,6 +61,7 @@ import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -208,6 +210,107 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				);
 			}
 		}
+	}
+
+	/**
+	 * Read-only pre-pass companion to {@link #execute}. Resolves the affected owners and evaluates every
+	 * histogram trigger's condition against the index state **as it stands right now**, writing nothing.
+	 *
+	 * `LocalMutationExecutorCollector` calls this before a batch's local mutations are applied, so "right now"
+	 * is the pre-mutation state, and hands the result back on
+	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()} when the batch is finally dispatched. That
+	 * is the only way this executor can learn the *old* condition: by the time {@link #execute} runs, the
+	 * index-trigger phase deliberately sits after the container implicit-mutation phase (see
+	 * `LocalMutationExecutorCollector`), so every readable source already reflects the post-mutation state.
+	 *
+	 * The same {@link #evaluateCondition} used for the new state computes the old one, so the two sides cannot
+	 * disagree for any reason other than the mutation itself.
+	 *
+	 * **`null` versus empty is load-bearing.** `null` means *"there was nothing to guard"* — the reference
+	 * declares no histogram trigger — and lets {@link #processHistogramTriggers} keep its historical
+	 * unrestricted behaviour. A non-null map means the pre-pass genuinely ran and carries one entry per trigger,
+	 * an **empty bitmap included**: that says "no owner qualified beforehand", which must suppress every removal,
+	 * not fall back to removing them all.
+	 *
+	 * @param mutation the cross-entity re-evaluation signal about to be applied
+	 * @param target   access to the owning entity collection's schema, triggers, and indexes
+	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 *         has no histogram triggers at all
+	 */
+	@Nullable
+	public static Map<String, Bitmap> evaluateHistogramConditionState(
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull IndexMutationTarget target
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers = target.getHistogramTriggers(
+			mutation.referenceName(), mutation.scope()
+		);
+		if (histogramTriggers.isEmpty()) {
+			return null;
+		}
+		final AffectedEntityResolution affected = resolveAffected(target, mutation);
+		final Bitmap allAffectedOwnerPKs = affected.allOwnerPKs();
+		final Map<String, Bitmap> result = CollectionUtils.createHashMap(histogramTriggers.size());
+		if (allAffectedOwnerPKs.isEmpty()) {
+			// no owner referenced the mutated entity yet, so no owner can have contributed — record that
+			// explicitly rather than returning null, which would re-enable unrestricted removal
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				result.put(trigger.getHistogramIndexName(), EmptyBitmap.INSTANCE);
+			}
+			return result;
+		}
+		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+			final ConditionalSplit split = evaluateCondition(
+				trigger, mutation, target, affected, allAffectedOwnerPKs
+			);
+			// materialize the result — the mutations this pre-pass runs ahead of are about to modify the very
+			// indexes a passthrough filter plan may hand back by reference, and this bitmap has to survive them
+			result.put(
+				trigger.getHistogramIndexName(),
+				new BaseBitmap(split.shouldBeIndexed().getArray())
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Narrows the owners a histogram removal may touch to those that actually contributed before this batch —
+	 * the answer captured by {@link #evaluateHistogramConditionState} and carried on
+	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}.
+	 *
+	 * This is what makes the remove side of remove-before-add *paired*. The membership guard it supplements
+	 * (`histogramContainsOwner`) can only see that *somebody's* contribution for `(value, owner)` exists, so on
+	 * its own it will happily consume a sibling reference's cardinality unit when two of an owner's references
+	 * share a bucket key — the defect this restriction exists to prevent.
+	 *
+	 * @param allAffectedOwnerPKs all owners affected by the mutation
+	 * @param mutation            the cross-entity re-evaluation signal
+	 * @param histogramName       name of the histogram definition being processed
+	 * @return the owners whose contribution may be removed
+	 */
+	@Nonnull
+	private static Bitmap restrictToPreviouslyIndexed(
+		@Nonnull Bitmap allAffectedOwnerPKs,
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull String histogramName
+	) {
+		final Map<String, Bitmap> previouslyIndexedByHistogram = mutation.previouslyIndexedOwnerPKs();
+		if (previouslyIndexedByHistogram == null) {
+			// No pre-pass ran for this mutation, so fall back to the historical (unrestricted) behaviour. In
+			// production this is unreachable: `LocalMutationExecutorCollector` is the sole caller of
+			// `EntityCollection#applyIndexMutations` and always attaches the captured state. It is reached only
+			// by tests that construct a mutation directly. A future second dispatch path that skips the pre-pass
+			// would silently reintroduce the sibling-cardinality defect here — attach the state there too.
+			return allAffectedOwnerPKs;
+		}
+		final Bitmap previouslyIndexed = previouslyIndexedByHistogram.get(histogramName);
+		if (previouslyIndexed == null || previouslyIndexed.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final int[] restricted = and(
+			getRoaringBitmap(allAffectedOwnerPKs), getRoaringBitmap(previouslyIndexed)
+		).toArray();
+		return restricted.length == 0 ? EmptyBitmap.INSTANCE : new BaseBitmap(restricted);
 	}
 
 	/**
@@ -370,11 +473,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// populated — for GROUP deps from rgei.getReferencedEntityPrimaryKeys(), for PARENT deps
 			// from RTEI/RGEI traversal intersected with children bitmap.
 			final boolean canUseScopedRemoval = resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE;
+			// only owners that actually contributed before this batch may have their contribution removed —
+			// removing on mere bucket membership consumes a sibling reference's cardinality unit
+			final Bitmap ownerPKsToRemove = restrictToPreviouslyIndexed(
+				allAffectedOwnerPKs, mutation, histogramName
+			);
 			if (canUseScopedRemoval) {
 				// Scoped removal: deterministic remove using known values from source FilterIndex
 				// or pre-mutation captured values when the value source attribute itself changed.
 				scopedRemoveForReferencedEntityAttribute(
-					histogramName, resolution, allAffectedOwnerPKs,
+					histogramName, resolution, ownerPKsToRemove,
 					affected, rtei, isGrouped, target, locales, mutation, scope
 				);
 				addHistogramEntries(
@@ -385,7 +493,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				// REFERENCE_ATTRIBUTE path: deterministic remove+re-add using values from the
 				// reference attribute FilterIndex (same index the add path reads)
 				removeFromReferenceAttribute(
-					histogramName, resolution, allAffectedOwnerPKs, affected,
+					histogramName, resolution, ownerPKsToRemove, affected,
 					rtei, isGrouped, target, referenceName, locales
 				);
 				addHistogramEntries(
@@ -664,7 +772,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final PersistentRoaringBitmap matched = and(removePKs, groupPKs);
 
 			if (!matched.isEmpty()) {
-				// determine values to remove: known old values (value-change) or current source values (condition-change)
+				// values to remove: known old values (value-change) or current source values (condition-change)
 				final List<? extends Serializable> valuesToRemove;
 				if (knownOldValues != null) {
 					// value source changed: use pre-captured old values for deterministic removal

@@ -1629,6 +1629,53 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				}
 			);
 		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should keep qualifying contribution when non-qualifying sibling reference is removed")
+		void shouldKeepQualifyingContributionWhenNonQualifyingSiblingReferenceIsRemoved(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					// both parameter values carry the SAME histogram value, but only PV#1 qualifies -
+					// PV#2 never contributes anything to the histogram
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// dropping the reference that never contributed must not evict PV#1's contribution
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
 	}
 
 	/**
@@ -1680,6 +1727,114 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.orElseThrow()
 						.openForWrite()
 						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should keep sibling contribution when a second reference starts qualifying for the same bucket")
+		void shouldKeepSiblingContributionWhenSecondReferenceStartsQualifyingForSameBucket(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					// both parameter values carry the SAME histogram value, so both land in one bucket;
+					// only the first one qualifies initially
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					// only PV#1 qualifies - bucket 50 holds a single contribution
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// PV#2 starts qualifying for the very same bucket - the bucket must now hold two
+					// contributions even though the visible membership bitmap cannot show that
+					session.getEntity(ENTITY_PARAMETER_VALUE, 2, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// PV#1 stops qualifying - PV#2 still does, so the product must stay in bucket 50
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should keep sibling contribution when a non-qualifying reference changes its value")
+		void shouldKeepSiblingContributionWhenNonQualifyingReferenceChangesItsValue(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					// PV#1 qualifies for bucket 50; PV#2 shares that value but never qualifies
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// PV#2's value moves off the shared bucket; since PV#2 never contributed there,
+					// PV#1's contribution to bucket 50 must survive untouched
+					session.getEntity(ENTITY_PARAMETER_VALUE, 2, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("60"))
 						.upsertVia(session);
 
 					assertUngroupedHistogramBucketContains(
