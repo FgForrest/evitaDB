@@ -358,10 +358,18 @@ public final class TrigramSubstringSearch {
 			? normalizedPattern.getBytes(StandardCharsets.UTF_8) : null;
 		if (skipVerification || containsPatternUtf8 != null) {
 			// `shape` is the caller's word about a predicate this class cannot introspect, and taking that word on
-			// trust is the one way this optimization returns wrong answers. So the word is CHECKED before it is acted
-			// on: a predicate satisfied by an occurrence flanked on both sides accepts the pattern anywhere, which is
-			// what CONTAINMENT asserts, while an anchored one refuses it. One test per query - not per candidate -
-			// against a verification pass this skips entirely, so the guard costs a rounding error of what it guards
+			// trust is the one way this optimization returns wrong answers. So the word is WITNESSED before it is
+			// acted on: an occurrence flanked on both sides is the one value an anchored predicate must refuse and a
+			// containment one must accept, so a refusal here proves the word wrong.
+			//
+			// It is a necessary condition, NOT a proof of containment. A predicate that tests containment AND
+			// something else - a length bound, a locale rule - passes this witness and is still mis-served by
+			// skipping verification. That is not a gap this check could close by testing harder: no finite number of
+			// witnesses characterises an arbitrary `BiPredicate`. It is closed by `StringSearchShape` having no
+			// member such a predicate could be declared under, so a caller reaching for one is already outside the
+			// contract, whereas passing ANCHORED's predicate under CONTAINMENT is the plausible slip - and that is
+			// exactly the slip this catches. One test per query, not per candidate, against a verification pass this
+			// skips entirely, so the guard costs a rounding error of what it guards
 			Assert.isPremiseValid(
 				exactPredicate.test(FLANK + normalizedPattern + FLANK, normalizedPattern),
 				"The exact predicate refused a value that merely CONTAINS the pattern, so it is not the containment " +

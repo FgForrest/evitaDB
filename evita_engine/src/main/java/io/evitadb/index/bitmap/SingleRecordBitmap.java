@@ -59,8 +59,10 @@ public class SingleRecordBitmap implements Bitmap {
 	/**
 	 * Returns the lone record id this bitmap holds.
 	 *
-	 * Exists so a consumer folding many of these together can read the id without {@link #getArray()}, which
-	 * allocates a one-element array per call - the very cost such a fold is usually trying to avoid.
+	 * {@link #get(int)} answers exactly the same thing at index `0` and allocates nothing either, so this is a naming
+	 * convenience rather than a cheaper route: a fold reading `getRecordId()` says what it means, where `get(0)`
+	 * carries an index that could only ever be zero. What such a fold must NOT reach for is {@link #getArray()},
+	 * which allocates a one-element array per call - the very cost the fold exists to avoid.
 	 *
 	 * @return the record id
 	 */

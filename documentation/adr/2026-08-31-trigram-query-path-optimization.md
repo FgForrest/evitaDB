@@ -1,12 +1,12 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 12:15
+updated: 2026-08-31 13:30
 status: accepted
 kind: optimization
 issues: [1454]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute]
+areas: [evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/bitmap, evita_engine/src/main/java/io/evitadb/core/query/algebra/base, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute]
 supersedes: []
 superseded-by: []
 relates: [2026-08-24-fulltext-search-lucene-vs-inhouse]
@@ -83,9 +83,14 @@ deliberate hysteresis — so cardinalities 65..128 admit **both** forms and an o
   a descending input.
 - **`StringSearchShape`** is how a caller states what its predicate needs from an occurrence. It is
   an enum rather than a boolean because `match(..., true)` beside an `endsWith` predicate would
-  silently return wrong answers. The claim is **checked, not trusted**: before skipping verification
+  silently return wrong answers. The claim is **witnessed, not trusted**: before skipping verification
   the predicate is applied to the pattern flanked by NUL on both sides, which containment accepts and
   an anchored predicate refuses. One call per query against a verification pass over every candidate.
+  It is a *necessary* condition, not a proof — a predicate testing containment **and** something else
+  passes the witness and is still mis-served. No finite set of witnesses characterises an arbitrary
+  `BiPredicate`, so that gap is closed by the enum instead: it has no member such a predicate could be
+  declared under, whereas passing an anchored predicate under `CONTAINMENT` is the plausible slip, and
+  that is the one the witness catches.
 - **Skipping verification also skips two incidental checks** — the `asString` type guard, and the
   front-coded column's corrupt-blob premise, since the key is never decoded. Neither was this path's
   to make; both are documented at `TrigramSubstringSearch#verificationIsRedundant`.
@@ -251,6 +256,34 @@ verified per pattern across four runs.
   at the call site with a counter answering `Long.MAX_VALUE`. Recorded at the benchmark too.
 - **Adding pattern classes changes every generated fixture**, so scores may not be spliced across such
   a change. This invalidates comparing the new crossover curve against the older one.
+- **An optimization can narrow the window a concurrency test was calibrated against, and the test then
+  passes for the wrong reason.** `LongRunningValueIdDirectoryConcurrencyTest` guards the value id
+  directory's lazy rebuild; its own documentation says to enable it after touching that rebuild, and
+  decision 8 touched it. Run deliberately, it passed — but so did its counterfactual (the `synchronized`
+  removed from `InvertedIndex#refreshValueIdDirectory`), which means the green run proved nothing. The
+  race is intact: at 8 readers it fails 3 of 3 once `ROUNDS` goes from 500 to 2000, on both shapes the
+  class documents. The cause is decision 8 itself — a shorter rebuild is a narrower window to collide
+  inside. **A probabilistic guard has to be re-calibrated by anything that changes the speed of the code
+  it races**, which is exactly the class of change an optimization campaign consists of. The sweep also
+  showed the failing round clusters at 267-450 whatever the reader count, so the window opens with tree
+  size, and more readers buy overlap rather than margin.
+- **`evita_test/evita_long_running_tests` does not compile**, and has not since `a79fe5ea1` (which
+  predates this campaign) changed `AssertionUtils#assertStateAfterCommit`'s signature under it. Every
+  test in that module is therefore unreachable through Maven, including the one above — it was run by
+  compiling the single class against the module's resolved classpath and launching it with the JUnit
+  console. Nothing here fixes it; it is recorded so the next person to reach for that module knows why
+  `mvn test -pl evita_test/evita_long_running_tests` fails on files they did not touch.
+- **Two defects survived into the campaign's own commits and were caught by review, not by tests.** An
+  `upsert` whose updater returned `null` stored it, and the `Optional.ofNullable` introduced by decision 2
+  then reported the key as ABSENT — a silent wrong answer where the previous `Optional.of` would have
+  thrown. And the single-record fold of decision 10 sorted record ids **signed** while Roaring orders its
+  containers **unsigned**, so a negative id would have been filled into the wrong end of the container
+  array; the answer stayed correct, the comment claiming an efficient one-pass fill did not. Both are
+  fixed. Both share a shape worth naming: **an optimization that is answer-identical by construction
+  cannot be guarded by a parity test**, and parity is what most of this campaign's tests assert.
+- **`StringSearchShape`'s flank witness is a necessary condition, not a proof** — see the decision above.
+  It is stated here too because the tempting next step is to "strengthen" it with more witnesses, and no
+  finite set of them characterises an arbitrary `BiPredicate`. The enum is what closes the gap.
 - **`FrontCodedStringColumn` does not round-trip unpaired surrogates** — a separate, pre-existing
   defect written up in `documentation/developer/front-coded-column-surrogate-defect.md`.
 - The prior record's per-candidate costs and its 9.5% crossover describe code that no longer exists.
@@ -272,3 +305,7 @@ verified per pattern across four runs.
 - **2026-08-31** — pre-existing `ClassCastException` found by adversarial review of decision 2, fixed
 - **2026-08-31** — decision 3 implemented, reviewed, hardened after review; decision 4 taken
 - **2026-08-31** — decision 5 committed, adversarially reviewed, and reverted the same day
+- **2026-08-31** — decisions 6 to 10 implemented, measured together and committed
+- **2026-08-31** — adversarial review and a four-dimension quality pass over the campaign's commits; two
+  defects fixed with tests, seven documentation claims corrected, the directory concurrency guard
+  re-calibrated

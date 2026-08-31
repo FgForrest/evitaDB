@@ -480,7 +480,10 @@ public class TrigramIndex implements
 	 * The static {@link PersistentRoaringBitmap#and(PersistentRoaringBitmap, PersistentRoaringBitmap)} documents that
 	 * its result owns every container and shares nothing with either operand, so its return value - and nothing
 	 * earlier - is the first thing this method may mutate. Every later posting is then folded in with the **in-place**
-	 * `and`, which allocates no further result.
+	 * `and`, which produces no further bitmap - though it is not allocation-free: it replaces the accumulator's
+	 * copy-on-write flag array on every call, and a container narrowed past its representation threshold is replaced
+	 * rather than shrunk. What it never allocates is a second `PersistentRoaringBitmap` and a second set of containers,
+	 * which is what the static form costs per posting.
 	 *
 	 * **Never seed the accumulator with `postings[0]` and fold in place from there.** That reads as the obvious
 	 * simplification and is a silent corruption of the index: the first in-place `and` would rewrite the posting's own
@@ -529,6 +532,10 @@ public class TrigramIndex implements
 		// the static `and` is the ownership boundary - see the class of corruption named above
 		PersistentRoaringBitmap accumulator = PersistentRoaringBitmap.and(cheapest, asBitmapPosting(postings[1]));
 		for (int i = 2; i < trigramCount; i++) {
+			// not a field read: `getCardinality` sums the containers' own counts, so this is a walk of the
+			// accumulator's container array per posting. It stays worth paying because the walk is over containers
+			// rather than ids and each posting it saves is a full intersection - but a caller tempted to ask for the
+			// cardinality more than once per iteration should hold it in a local, as this loop does
 			final int cardinality = accumulator.getCardinality();
 			if (cardinality == 0) {
 				return ArrayUtils.EMPTY_INT_ARRAY;

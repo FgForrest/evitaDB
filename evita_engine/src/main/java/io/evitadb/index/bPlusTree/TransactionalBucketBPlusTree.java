@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -1339,13 +1338,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * directory rebuild the first one missed and resolve the same id to a different leaf. Here there is one probe,
 	 * so the value, the version token and the record set necessarily describe the same bucket.
 	 *
-	 * @param valueId         the candidate id to resolve
-	 * @param valuePredicate  the exact test applied to the value the id names, or `null` when the caller already knows
-	 *                        every id it passes matches - in which case the key is never read off the slot at all,
-	 *                        which on a front-coded column saves a walk back to a restart point and a `String`
-	 *                        allocation per candidate
-	 * @param leafVersionSink receives the matched bucket's leaf version token, and is not called otherwise
-	 * @return the matched bucket's record set, or `null` when the id names nothing live or the predicate rejected it
+	 * @param valueId             the candidate id to resolve
+	 * @param valuePredicate      the exact test applied to the value the id names, or `null` when the caller already
+	 *                            knows every id it passes matches - in which case the key is never read off the slot
+	 *                            at all, which on a front-coded column saves a walk back to a restart point and a
+	 *                            `String` allocation per candidate. It is NOT consulted where `containsPatternUtf8`
+	 *                            applies, which REPLACES it rather than pre-filtering for it
+	 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, answering the same question `valuePredicate`
+	 *                            does but off the stored bytes, or `null` to always take the predicate. Used only
+	 *                            where the key column reports {@link ValueColumn#supportsUtf8Matching()}; every other
+	 *                            column falls back to the predicate, which is why the predicate remains required
+	 * @param leafVersionSink     receives the matched bucket's leaf version token, and is not called otherwise
+	 * @return the matched bucket's record set, or `null` when the id names nothing live or the value was rejected
 	 */
 	@Nullable
 	@Override
