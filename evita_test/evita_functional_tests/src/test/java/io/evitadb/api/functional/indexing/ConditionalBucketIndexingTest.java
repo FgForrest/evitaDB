@@ -81,6 +81,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	private static final String ENTITY_PARAMETER_VALUE = "parameterValue";
 	private static final String ENTITY_PARAMETER = "parameter";
 	private static final String ENTITY_TAG = "tag";
+	private static final String ENTITY_BUNDLE = "bundle";
 
 	private static final String REF_PARAM_BY_GROUP_ATTR = "paramByGroupAttr";
 	private static final String REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT = "paramByGroupAttrWithDefault";
@@ -418,8 +419,19 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	 */
 	@Nonnull
 	private EntityCollectionContract getProductCollection() {
+		return getCollection(ENTITY_PRODUCT);
+	}
+
+	/**
+	 * Returns the live collection of the given entity type from the test catalog.
+	 *
+	 * @param entityType the entity type whose collection is requested
+	 * @return the entity collection
+	 */
+	@Nonnull
+	private EntityCollectionContract getCollection(@Nonnull String entityType) {
 		final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		return catalog.getCollectionForEntity(ENTITY_PRODUCT).orElseThrow();
+		return catalog.getCollectionForEntity(entityType).orElseThrow();
 	}
 
 	/**
@@ -1684,6 +1696,80 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	@Nested
 	@DisplayName("Cross-entity triggers — referenced entity mutations")
 	class CrossEntityReferencedEntityTriggerTest {
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should drop contributions in every owner collection sharing a reference name")
+		void shouldDropContributionsInEveryOwnerCollectionSharingReferenceName(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+					// a second owner type whose trigger shares the reference name, dependency type and scope
+					// with product's — the pair a ReevaluateExpressionMutation's identity cannot tell apart,
+					// so the pre-mutation condition state has to be keyed by target collection as well
+					session.defineEntitySchema(ENTITY_BUNDLE)
+						.withReferenceToEntity(
+							REF_PARAM_BY_REF_ENTITY_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedForFilteringAndPartitioning()
+								.bucketed(
+									HISTOGRAM_STATUS,
+									ExpressionFactory.parse(
+										"$reference.referencedEntity?.attributes['basicUnitValue']"
+									)
+								)
+								.bucketedPartially(
+									ExpressionFactory.parse(
+										"($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'"
+									)
+								)
+						)
+						.updateVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					// deliberately disjoint owner PKs: a set captured against one collection must not be able
+					// to cover the other collection's owner by coincidence
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_BUNDLE, 7)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					final EntityCollectionContract bundleCollection = getCollection(ENTITY_BUNDLE);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						bundleCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 7
+					);
+
+					// a single mutation of the referenced entity fans out to both owner collections
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+
+					// neither collection may keep a stale contribution
+					assertUngroupedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, HISTOGRAM_STATUS, 1
+					);
+					assertUngroupedHistogramNotIndexed(
+						bundleCollection, REF_PARAM_BY_REF_ENTITY_ATTR, HISTOGRAM_STATUS, 7
+					);
+				}
+			);
+		}
 
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
