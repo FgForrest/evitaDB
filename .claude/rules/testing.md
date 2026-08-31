@@ -151,6 +151,31 @@ expect, as unproven until you have read the count.
   behaviour that depends on it changes too: at least one heap-accounting assertion only fails when the agent is
   present. If you need to add a JVM flag, add it without displacing that variable, and state in your findings
   whether the agent was in the fork.
+- **`-DfailIfNoTests=false` does not cover a reactor run, and `-Dsurefire.failIfNoSpecifiedTests=false` does.**
+  When `-pl` spans a module with no matching tests — `evita_engine` alongside a `-Dtest=` pattern naming only
+  functional-test classes — that module's surefire aborts the build with `No tests matching pattern ... were
+  executed`, and `-DfailIfNoTests=false` does **not** suppress it. Measured: a run that printed `BUILD FAILURE`
+  having executed **zero** tests. The flag that works is `-Dsurefire.failIfNoSpecifiedTests=false`. Confirmed
+  independently by two agents in the same session, each of whom lost a run to it first.
+- **A backgrounded `mvn ... > log 2>&1; echo "EXIT=$?"` reports the `echo`'s status, not Maven's.** The wrapper
+  exits 0 while the build failed, so a harness that surfaces the wrapper's code announces success over a
+  `BUILD FAILURE`. Measured twice in one session — once on a 22,256-test sweep that ended in 8 errors and was
+  reported as exit 0. Capture Maven's own code (`mvn ...; echo "EXIT=$?"` as the *last* command, or test `$?`
+  immediately) and, either way, grep the log for `BUILD SUCCESS` / `BUILD FAILURE` rather than trusting an exit
+  code that passed through a wrapper. Pairs badly with the flag above: together they make "zero tests, build
+  failed" read as green.
+- **Concurrent agents in one working tree corrupt each other silently.** Two Mavens over one
+  `evita_engine/target/` produced a byte-buddy `Cannot resolve type description for io.evitadb.core.Evita` and a
+  `mvn clean` that could not delete `target/classes` — neither a code fault. Worse, a counterfactual harness that
+  snapshots a source file, mutates it, and restores it will **erase** anything another agent wrote to that file in
+  the window, with no error anywhere; `cp -p` preserves mtime, so a timestamp check cannot even detect it
+  afterwards. Serialize builds, keep exactly one writer per file, verify a restore by CONTENT (`cmp` against the
+  snapshot, or grep for the edits you expect) and never by mtime, and build counterfactuals into an isolated
+  local repository so a mutated jar cannot reach the shared `-Dmaven.repo.local` other agents resolve from.
+- **An execution agent that reports nothing has not necessarily done nothing.** An empty `git diff --stat` and an
+  empty `ListAgents` can BOTH be true while the agent is still mid-turn; neither is a completion signal, and two
+  false signals agreeing is not confirmation. Only the task-completion notification is. Acting on the pair once
+  produced two writers on one file in this repo.
 - **`unzip` is not installed here, and fails silently through a pipe.** `unzip -l some.jar | grep -c Foo` returns
   `0` whether or not `Foo` is present, because the pipeline swallows the missing-binary error and `grep` counts an
   empty stream. That reads as "the class is absent" and can convince you the wrong artifact is installed. Use
