@@ -177,6 +177,7 @@ api:
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
       exportedQueryLabels: !include ${api.endpoints.observability.exportedQueryLabels:null}
+      errorOriginLogging: ${api.endpoints.observability.errorOriginLogging:INTERNAL}
       mTLS:
         enabled: ${api.endpoints.observability.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.observability.mTLS.allowedClientCertificatesPaths:null}
