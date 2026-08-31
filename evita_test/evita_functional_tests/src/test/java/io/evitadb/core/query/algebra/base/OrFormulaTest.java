@@ -30,12 +30,15 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
+import java.util.Arrays;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -413,6 +416,79 @@ class OrFormulaTest {
 	/**
 	 * Creates an {@link OrFormula} wrapping two constant formulas for hash testing.
 	 */
+	@Nested
+	@DisplayName("Folding single-record operands")
+	class SingleRecordFold {
+
+		@Test
+		@DisplayName("many single-record operands union to exactly what one bitmap per record would")
+		void shouldUnionSingleRecordOperandsIntoTheSameAnswer() {
+			// An inverted index over near-unique values folds almost entirely single-record buckets, so the compute
+			// path merges them into ONE bitmap rather than converting each into its own. This asserts the merge is
+			// invisible in the answer: the same ids, in ascending order, as the one-bitmap-per-record shape produces.
+			final int[] ids = {97, 3, 51, 12, 88, 1, 64};
+			final Bitmap[] singles = new Bitmap[ids.length];
+			final Bitmap[] equivalent = new Bitmap[ids.length];
+			for (int i = 0; i < ids.length; i++) {
+				singles[i] = new SingleRecordBitmap(ids[i]);
+				equivalent[i] = new BaseBitmap(ids[i]);
+			}
+			final int[] expected = ids.clone();
+			Arrays.sort(expected);
+
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("single-record and multi-record operands mixed together union correctly")
+		void shouldUnionAMixOfSingleAndMultiRecordOperands() {
+			final Bitmap[] operands = {
+				new SingleRecordBitmap(5),
+				new BaseBitmap(2, 7, 40),
+				new SingleRecordBitmap(31),
+				new SingleRecordBitmap(1),
+				new BaseBitmap(7, 99)
+			};
+			assertArrayEquals(
+				new int[]{1, 2, 5, 7, 31, 40, 99},
+				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("a record id repeated across buckets appears once, as a union demands")
+		void shouldDeduplicateARecordHeldBySeveralBuckets() {
+			// An array-valued attribute puts one record into several buckets, so the same id genuinely arrives more
+			// than once. The fold sorts and hands the ids over in bulk, which must not turn a duplicate into two
+			// entries or disturb the ordering around it.
+			final Bitmap[] operands = {
+				new SingleRecordBitmap(8),
+				new SingleRecordBitmap(3),
+				new SingleRecordBitmap(8),
+				new BaseBitmap(3, 11),
+				new SingleRecordBitmap(11)
+			};
+			assertArrayEquals(
+				new int[]{3, 8, 11},
+				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("a lone single-record operand is still answered correctly")
+		void shouldAnswerWithASingleSingleRecordOperand() {
+			// below the fold's threshold, so this takes the untouched conversion path - asserted so the branch that
+			// decides NOT to fold is covered too
+			assertArrayEquals(
+				new int[]{4, 6, 9},
+				new OrFormula(INDEX_TRANSACTION_ID, new SingleRecordBitmap(6), new BaseBitmap(4, 9))
+					.compute().getArray()
+			);
+		}
+
+	}
+
 	@Nonnull
 	private static OrFormula createOrFormula(int... values) {
 		return new OrFormula(

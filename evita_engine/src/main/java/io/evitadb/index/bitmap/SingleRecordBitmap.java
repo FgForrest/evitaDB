@@ -56,6 +56,18 @@ public class SingleRecordBitmap implements Bitmap {
 		this.recordId = recordId;
 	}
 
+	/**
+	 * Returns the lone record id this bitmap holds.
+	 *
+	 * Exists so a consumer folding many of these together can read the id without {@link #getArray()}, which
+	 * allocates a one-element array per call - the very cost such a fold is usually trying to avoid.
+	 *
+	 * @return the record id
+	 */
+	public int getRecordId() {
+		return this.recordId;
+	}
+
 	@Override
 	public boolean isEmpty() {
 		return false;

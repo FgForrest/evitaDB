@@ -30,12 +30,14 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -193,11 +195,7 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	@Nonnull
 	private PersistentRoaringBitmap[] getRoaringBitmaps() {
 		if (this.bitmaps != null) {
-			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[this.bitmaps.length];
-			for (int i = 0; i < this.bitmaps.length; i++) {
-				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
-			}
-			return result;
+			return toRoaringBitmapsFoldingSingles(this.bitmaps);
 		} else {
 			final Formula[] formulas = getInnerFormulas();
 			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[formulas.length];
@@ -206,6 +204,61 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 			}
 			return result;
 		}
+	}
+
+
+	/**
+	 * Converts the operand bitmaps to Roaring form, folding every {@link SingleRecordBitmap} operand into ONE bitmap
+	 * on the way.
+	 *
+	 * A single-record operand is not Roaring-backed, so the plain conversion builds it a one-element array, a bitmap,
+	 * a container and that container's backing array - four allocations to carry one `int`, and then the union has one
+	 * more operand to merge. An inverted index whose values are near-unique produces a fold that is almost entirely
+	 * such operands: a substring match over an identifier-like attribute can nominate five figures of them in one
+	 * query, so the difference is the bulk of what computing this formula costs.
+	 *
+	 * **This changes only how the operands are combined, never which operands there are.** The formula's own
+	 * {@link #bitmaps} array is untouched, so its hash, its cached identity and the transactional ids it gathers are
+	 * exactly what they were - the fold happens after all of that, on the way into the union.
+	 *
+	 * Left alone when fewer than two operands are single-record: one such operand costs the same either way, and
+	 * folding it would only move the allocation around.
+	 *
+	 * @param bitmaps the operand bitmaps
+	 * @return the operands in Roaring form, with the single-record ones merged into the first entry
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap[] toRoaringBitmapsFoldingSingles(@Nonnull Bitmap[] bitmaps) {
+		int singleCount = 0;
+		for (final Bitmap bitmap : bitmaps) {
+			if (bitmap instanceof SingleRecordBitmap) {
+				singleCount++;
+			}
+		}
+		if (singleCount < 2) {
+			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[bitmaps.length];
+			for (int i = 0; i < bitmaps.length; i++) {
+				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmaps[i]);
+			}
+			return result;
+		}
+		final int[] singleRecordIds = new int[singleCount];
+		final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[bitmaps.length - singleCount + 1];
+		int singlePos = 0;
+		int resultPos = 1;
+		for (final Bitmap bitmap : bitmaps) {
+			if (bitmap instanceof final SingleRecordBitmap single) {
+				singleRecordIds[singlePos++] = single.getRecordId();
+			} else {
+				result[resultPos++] = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap);
+			}
+		}
+		// sorted purely for the build: `bitmapOf` accepts any order and tolerates the duplicates an array-valued
+		// attribute produces when one record sits in several matched buckets, but ascending input lets it fill a
+		// container in one pass instead of seeking per id
+		Arrays.sort(singleRecordIds);
+		result[0] = PersistentRoaringBitmap.bitmapOf(singleRecordIds);
+		return result;
 	}
 
 }
