@@ -50,8 +50,11 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
@@ -59,6 +62,7 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -67,6 +71,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -160,6 +165,119 @@ class LocalMutationExecutorCollector {
 	 * by rebuilding (warm-up), or the whole in-memory transaction is discarded on failure (WAL replay).
 	 */
 	@Nullable private Savepoint savepoint;
+	/**
+	 * Per-histogram condition state captured by {@link #capturePreMutationConditionState} **before** a batch's
+	 * local mutations were applied, keyed by the {@link ReevaluateExpressionMutation} it belongs to.
+	 *
+	 * This is the only surviving witness of the pre-mutation answer: the index-trigger phase deliberately runs
+	 * after the container implicit-mutation phase, so by dispatch time every readable source already reflects the
+	 * post-mutation state. Without it, `ReevaluateExpressionExecutor`'s remove-before-add cannot distinguish
+	 * *"this reference contributed (value → owner)"* from *"somebody's contribution for (value, owner) exists"*,
+	 * and its removal consumes a sibling reference's cardinality unit whenever two of an owner's references
+	 * normalise to the same histogram bucket.
+	 *
+	 * Keying by the mutation works because {@link ReevaluateExpressionMutation}'s identity covers only the four
+	 * core fields, so the pre-pass envelope and the dispatched one compare equal. Entries are inserted with
+	 * put-if-absent semantics: when the same trigger is provoked both by the batch's own mutations and by an
+	 * implicit mutation derived from them, the earlier (truly pre-batch) capture is the correct one.
+	 *
+	 * **Lifetime is what makes put-if-absent safe.** A collector is constructed per root entity mutation (see
+	 * `EntityCollection#applyMutations`) and its nested invocations — implicit and external mutations derived from
+	 * that root — share it by design. Everything accumulated here therefore belongs to one root mutation, whose
+	 * genuine pre-state is the *first* capture; entries are never carried into a second root mutation, so a later
+	 * mutation of the same entity re-captures from scratch. Do not add a clear on the dispatch path: a nested
+	 * invocation would wipe the enclosing one's captures before it dispatches.
+	 *
+	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
+	 */
+	@Nullable private Map<ReevaluateExpressionMutation, Map<String, Bitmap>> preMutationConditionState;
+
+	/**
+	 * Evaluates the histogram conditions of every cross-entity trigger the supplied mutations are about to fire,
+	 * and stores the answers in {@link #preMutationConditionState}. Reads only — nothing is written to any index.
+	 *
+	 * Must be called **before** `localMutations` are applied, because "the condition holds right now" is only the
+	 * pre-mutation answer for as long as nothing has been applied. Trigger identities come from
+	 * {@link EntityIndexLocalMutationExecutor#peekIndexImplicitMutations}, which may return a superset (it cannot
+	 * know which attribute writes turn out to be no-ops); a surplus entry is simply never looked up.
+	 *
+	 * Cost is one condition evaluation per firing cross-entity histogram trigger. Mutations that fire none — the
+	 * overwhelming majority — do not allocate at all: `evaluateHistogramConditionState` short-circuits on an empty
+	 * trigger collection and no map is created.
+	 *
+	 * @param session            active session for query evaluation, may be null during WAL replay
+	 * @param entityIndexUpdater the index executor of the entity being mutated
+	 * @param localMutations     the mutations about to be applied
+	 * @param entityRemoval      `true` when the batch removes the entity entirely
+	 */
+	private void capturePreMutationConditionState(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
+		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
+		boolean entityRemoval
+	) {
+		final IndexImplicitMutations prospective = entityIndexUpdater.peekIndexImplicitMutations(
+			localMutations, entityRemoval
+		);
+		for (final EntityIndexMutation indexMutation : prospective.indexMutations()) {
+			for (final IndexMutation candidate : indexMutation.mutations()) {
+				if (!(candidate instanceof ReevaluateExpressionMutation reevaluation)) {
+					continue;
+				}
+				if (this.preMutationConditionState != null
+					&& this.preMutationConditionState.containsKey(reevaluation)) {
+					// an earlier capture in this batch is the true pre-mutation state — keep it
+					continue;
+				}
+				// null means the reference declares no histogram trigger (a facet-only trigger, say) — there is
+				// nothing to guard, and storing an empty map would wrongly suppress removals
+				final Map<String, Bitmap> conditionState = this.catalog
+					.getCollectionForEntityOrThrowException(indexMutation.entityType())
+					.evaluateHistogramConditionState(reevaluation, session);
+				if (conditionState != null) {
+					if (this.preMutationConditionState == null) {
+						this.preMutationConditionState = CollectionUtils.createHashMap(8);
+					}
+					this.preMutationConditionState.put(reevaluation, conditionState);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns `entityIndexMutation` with every {@link ReevaluateExpressionMutation} in it carrying the condition
+	 * state {@link #capturePreMutationConditionState} recorded for it, or the original envelope untouched when
+	 * nothing was captured (no histogram trigger fired — the common case, and allocation-free).
+	 *
+	 * @param entityIndexMutation the envelope about to be dispatched
+	 * @return the envelope to dispatch
+	 */
+	@Nonnull
+	private EntityIndexMutation attachPreMutationConditionState(
+		@Nonnull EntityIndexMutation entityIndexMutation
+	) {
+		if (this.preMutationConditionState == null) {
+			return entityIndexMutation;
+		}
+		final IndexMutation[] mutations = entityIndexMutation.mutations();
+		IndexMutation[] enriched = null;
+		for (int i = 0; i < mutations.length; i++) {
+			if (!(mutations[i] instanceof ReevaluateExpressionMutation reevaluation)) {
+				continue;
+			}
+			final Map<String, Bitmap> conditionState = this.preMutationConditionState.get(reevaluation);
+			if (conditionState == null) {
+				continue;
+			}
+			if (enriched == null) {
+				enriched = mutations.clone();
+			}
+			enriched[i] = reevaluation.withPreviouslyIndexedOwnerPKs(conditionState);
+		}
+		return enriched == null
+			? entityIndexMutation
+			: new EntityIndexMutation(entityIndexMutation.entityType(), enriched);
+	}
 
 	/**
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
@@ -285,6 +403,7 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
+			final boolean entityRemoval;
 			if (entityMutation instanceof EntityRemoveMutation) {
 				// fetch the full entity body so the removal can be decomposed into the local mutations
 				// that actually apply it — this is required to execute the removal, not to derive conflict
@@ -293,13 +412,22 @@ class LocalMutationExecutorCollector {
 				// finer-grained write to the same entity
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
+				entityRemoval = true;
 			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
-				entityIndexUpdater.prepare(localMutations);
+				entityRemoval = false;
 			} else {
 				throw new GenericEvitaInternalError(
 					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
 				);
+			}
+			// Condition pre-pass: read the cross-entity histogram conditions while they still answer for the
+			// PRE-mutation state. Must precede both `prepare()` (which inserts the entity into the global index,
+			// and so can already flip a condition for a freshly created entity) and the apply loop below. See
+			// #preMutationConditionState for why the dispatched executor cannot derive this for itself.
+			capturePreMutationConditionState(session, entityIndexUpdater, localMutations, entityRemoval);
+			if (!entityRemoval) {
+				entityIndexUpdater.prepare(localMutations);
 			}
 			if (addToWAL) {
 				this.entityMutations.add(entityMutation);
@@ -317,6 +445,11 @@ class LocalMutationExecutorCollector {
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
+				);
+				// implicit mutations can provoke triggers of their own — capture their pre-state too, before
+				// they are applied. Put-if-absent keeps an earlier (pre-batch) capture for triggers both fire.
+				capturePreMutationConditionState(
+					session, entityIndexUpdater, List.of(implicitMutations.localMutations()), false
 				);
 				// immediately apply all local mutations
 				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
@@ -365,7 +498,7 @@ class LocalMutationExecutorCollector {
 				// route each envelope to the target collection's thin dispatcher — bypasses
 				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)
 				this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())
-					.applyIndexMutations(indexMutation, session);
+					.applyIndexMutations(attachPreMutationConditionState(indexMutation), session);
 			}
 
 			// finish the record
