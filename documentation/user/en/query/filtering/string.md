@@ -40,27 +40,6 @@ for the occurrence of the string. The constraint behaves exactly like the <LS to
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the searched string anywhere in the attribute value.
 
-<Note type="info">
-
-<NoteTitle toggles="false">
-
-##### Performance on large collections
-</NoteTitle>
-
-An ordinary index is sorted by whole values, which tells evitaDB nothing about what appears in the *middle* of them.
-This constraint is therefore answered by going through every distinct value of the attribute and testing each one.
-That is fast enough for a few thousand distinct values, but it becomes the slowest part of the query once there are
-hundreds of thousands.
-
-If that is your situation, the attribute can be given a
-[`SUBSTRING_SEARCH` filter accelerator](../../use/schema.md#substring-search) - an extra index that finds the matching
-values directly instead of testing them all. It never changes which entities the query returns, only how fast they
-are found, and searches for patterns shorter than three characters fall back to the ordinary behaviour.
-
-The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
-attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
-
-</Note>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -96,6 +75,28 @@ Returns a few products having a string *epix* in the attribute *code*.
 
 </Note>
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Performance on large collections
+</NoteTitle>
+
+An ordinary index is sorted by whole values, which tells evitaDB nothing about what appears in the *middle* of them.
+This constraint is therefore answered by going through every distinct value of the attribute and testing each one.
+That is fast enough for a few thousand distinct values, but it becomes the slowest part of the query once there are
+hundreds of thousands.
+
+If that is your situation, the attribute can be given a
+[`SUBSTRING_SEARCH` filter accelerator](../../use/schema.md#substring-search) - an extra index that finds the matching
+values directly instead of testing them all. It never changes which entities the query returns, only how fast they
+are found, and searches for patterns shorter than three characters fall back to the ordinary behaviour.
+
+The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
+attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
+
+</Note>
+
 ## Attribute starts with
 
 ```evitaql-syntax
@@ -122,16 +123,6 @@ and checks if it starts with the specified string. The constraint behaves exactl
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the beginning of the attribute value.
 
-<Note type="info">
-
-Unlike [`attributeContains`](#attribute-contains) and [`attributeEndsWith`](#attribute-ends-with), this constraint is
-already fast on large collections and needs no
-[filter accelerator](../../use/schema.md#filter-accelerators). Values are kept in sorted order, so everything starting
-with the same prefix sits next to everything else that does: evitaDB jumps straight to the first such value and reads
-forward until the prefix stops matching, without touching the rest of the attribute. This is why the
-`SUBSTRING_SEARCH` accelerator deliberately does not cover `attributeStartsWith` - it could only make it slower.
-
-</Note>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -167,6 +158,17 @@ Returns a few pages of products that start with a *garmin* string in the *code* 
 
 </Note>
 
+<Note type="info">
+
+Unlike [`attributeContains`](#attribute-contains) and [`attributeEndsWith`](#attribute-ends-with), this constraint is
+already fast on large collections and needs no
+[filter accelerator](../../use/schema.md#filter-accelerators). Values are kept in sorted order, so everything starting
+with the same prefix sits next to everything else that does: evitaDB jumps straight to the first such value and reads
+forward until the prefix stops matching, without touching the rest of the attribute. This is why the
+`SUBSTRING_SEARCH` accelerator deliberately does not cover `attributeStartsWith` - it could only make it slower.
+
+</Note>
+
 ## Attribute ends with
 
 ```evitaql-syntax
@@ -194,27 +196,6 @@ and checks if it ends with the specified string. The constraint behaves exactly 
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the end of the attribute value.
 
-<Note type="info">
-
-<NoteTitle toggles="false">
-
-##### Performance on large collections
-</NoteTitle>
-
-An ordinary index is sorted by whole values, which tells evitaDB nothing about what appears in the *middle* of them.
-This constraint is therefore answered by going through every distinct value of the attribute and testing each one.
-That is fast enough for a few thousand distinct values, but it becomes the slowest part of the query once there are
-hundreds of thousands.
-
-If that is your situation, the attribute can be given a
-[`SUBSTRING_SEARCH` filter accelerator](../../use/schema.md#substring-search) - an extra index that finds the matching
-values directly instead of testing them all. It never changes which entities the query returns, only how fast they
-are found, and searches for patterns shorter than three characters fall back to the ordinary behaviour.
-
-The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
-attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
-
-</Note>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -249,3 +230,26 @@ Returns a few products that end with a *solar* string in the *code* attribute.
 </LS>
 
 </Note>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Performance on large collections
+</NoteTitle>
+
+An ordinary index is sorted by whole values, which tells evitaDB nothing about what appears in the *middle* of them.
+This constraint is therefore answered by going through every distinct value of the attribute and testing each one.
+That is fast enough for a few thousand distinct values, but it becomes the slowest part of the query once there are
+hundreds of thousands.
+
+If that is your situation, the attribute can be given a
+[`SUBSTRING_SEARCH` filter accelerator](../../use/schema.md#substring-search) - an extra index that finds the matching
+values directly instead of testing them all. It never changes which entities the query returns, only how fast they
+are found, and searches for patterns shorter than three characters fall back to the ordinary behaviour.
+
+The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
+attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
+
+</Note>
+

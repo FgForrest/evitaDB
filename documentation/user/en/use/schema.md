@@ -474,7 +474,9 @@ internal detail and may change between versions.
 
 ##### Declaring an accelerator
 
-An accelerator is declared on the attribute, alongside `filterable` / `unique` / `sortable` but independently of them:
+An accelerator is declared on the attribute, alongside `filterable` / `unique` / `sortable` but independently of them.
+
+<LS to="j">
 
 ```java
 entitySchemaBuilder
@@ -485,6 +487,8 @@ entitySchemaBuilder
 			.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
 	);
 ```
+
+</LS>
 
 Four methods are available on the attribute schema builder:
 
@@ -520,10 +524,19 @@ the same way, and only a value containing *all* of the pattern's sequences can p
 those few lists, and then verifies the handful of surviving candidates exactly. Instead of examining every distinct
 value, it examines only the ones that already look plausible.
 
-[`attributeStartsWith`](../query/filtering/string.md#attribute-starts-with) is deliberately **not** accelerated and
-does not need to be. Values are already held in sorted order, so a prefix match is found by jumping straight to the
-first value with that prefix and reading forward until the prefix stops matching - which is cheaper than anything
-this accelerator could do.
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why is `attributeStartsWith` not accelerated as well?
+</NoteTitle>
+
+Because it is already fast, and the accelerator would slow it down. Values are held in sorted order, so everything
+beginning with the same prefix sits together: evitaDB jumps straight to the first such value and reads forward until
+the prefix stops matching, never touching the rest. Routing that through the accelerator would mean intersecting
+sequence lists and then verifying candidates - more work to reach the same answer.
+
+</Note>
 
 **Where it can be declared.** Each of the following is checked when the schema is changed, and the change is rejected
 if it does not hold:
