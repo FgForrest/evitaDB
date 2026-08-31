@@ -441,17 +441,57 @@ public class TrigramIndex implements
 	private static int[] intersectFromSmallPosting(
 		@Nonnull int[] smallest, @Nonnull Object[] postings, int trigramCount
 	) {
-		final int[] candidates = Arrays.copyOf(smallest, smallest.length);
+		return retainRemaining(Arrays.copyOf(smallest, smallest.length), postings, trigramCount, 1);
+	}
+
+	/**
+	 * Applies every posting from `from` onwards to a candidate array the caller already owns, compacting it in place.
+	 *
+	 * Shared by both intersection paths: {@link #intersectFromSmallPosting} enters it with a copy of the cheapest
+	 * posting, and {@link #intersectFromBitmapPosting} enters it part-way through, with the accumulator it has already
+	 * narrowed below {@link TrigramPostings#SMALL_POSTING_THRESHOLD}.
+	 *
+	 * **`candidates` must already be the caller's own array**, because this compacts it in place. Handing it a posting
+	 * the index still holds would corrupt every index version sharing that posting.
+	 *
+	 * @param candidates   the ascending candidate ids, owned by the caller, compacted in place
+	 * @param postings     every posting, ordered ascending by cardinality
+	 * @param trigramCount how many postings there are
+	 * @param from         the first posting not yet applied
+	 * @return the surviving candidate value ids in ascending order
+	 */
+	@Nonnull
+	private static int[] retainRemaining(
+		@Nonnull int[] candidates, @Nonnull Object[] postings, int trigramCount, int from
+	) {
 		int candidateCount = candidates.length;
-		for (int i = 1; i < trigramCount && candidateCount > 0; i++) {
+		for (int i = from; i < trigramCount && candidateCount > 0; i++) {
 			candidateCount = retain(candidates, candidateCount, postings[i]);
 		}
 		return candidateCount == candidates.length ? candidates : Arrays.copyOf(candidates, candidateCount);
 	}
 
 	/**
-	 * Runs the intersection when the cheapest posting is a bitmap: the chain is a sequence of Roaring `and`s, each of
-	 * which allocates its own result rather than writing into either operand.
+	 * Runs the intersection when the cheapest posting is a bitmap.
+	 *
+	 * ## The accumulator is this query's own, and only from the first `and` onwards
+	 *
+	 * `postings[0]` is the index's posting, shared by reference with every other index version that can still read it.
+	 * The static {@link PersistentRoaringBitmap#and(PersistentRoaringBitmap, PersistentRoaringBitmap)} documents that
+	 * its result owns every container and shares nothing with either operand, so its return value - and nothing
+	 * earlier - is the first thing this method may mutate. Every later posting is then folded in with the **in-place**
+	 * `and`, which allocates no further result.
+	 *
+	 * **Never seed the accumulator with `postings[0]` and fold in place from there.** That reads as the obvious
+	 * simplification and is a silent corruption of the index: the first in-place `and` would rewrite the posting's own
+	 * containers under every version still holding it.
+	 *
+	 * ## The accumulator demotes to the small path once it is narrow enough
+	 *
+	 * Once the accumulator holds no more than {@link TrigramPostings#SMALL_POSTING_THRESHOLD} ids it is materialised
+	 * once and the remaining postings are applied by {@link #retainRemaining}. Two things make that the cheaper tail:
+	 * a bitmap `and` costs container work proportional to the WIDER side however narrow the accumulator has become,
+	 * and {@link #retain} consumes an `int[]` posting as it is, where this loop must first widen one into a bitmap.
 	 *
 	 * ## A later posting may still be an `int[]`, and this must not assume otherwise
 	 *
@@ -474,21 +514,44 @@ public class TrigramIndex implements
 	 */
 	@Nonnull
 	private static int[] intersectFromBitmapPosting(@Nonnull Object[] postings, int trigramCount) {
-		PersistentRoaringBitmap accumulator = (PersistentRoaringBitmap) postings[0];
-		for (int i = 1; i < trigramCount && !accumulator.isEmpty(); i++) {
-			final Object posting = postings[i];
-			// the small form is converted rather than the accumulator demoted: this arises only in the narrow
-			// promotion/demotion overlap, so it is not worth a second accumulator representation
-			accumulator = PersistentRoaringBitmap.and(
-				accumulator,
-				posting instanceof final int[] small
-					? PersistentRoaringBitmap.bitmapOf(small)
-					: (PersistentRoaringBitmap) posting
-			);
+		final PersistentRoaringBitmap cheapest = (PersistentRoaringBitmap) postings[0];
+		if (trigramCount == 1) {
+			// nothing to intersect: `toArray` only reads the index's own posting, exactly as the contract on
+			// `getValueIdsOf` requires, and there is no accumulator to own
+			return cheapest.toArray();
 		}
-		// `toArray` reads the accumulator; when the loop never ran it is the index's own posting, which this leaves
-		// untouched exactly as the contract on `getValueIdsOf` requires
+		// the static `and` is the ownership boundary - see the class of corruption named above
+		PersistentRoaringBitmap accumulator = PersistentRoaringBitmap.and(cheapest, asBitmapPosting(postings[1]));
+		for (int i = 2; i < trigramCount; i++) {
+			final int cardinality = accumulator.getCardinality();
+			if (cardinality == 0) {
+				return ArrayUtils.EMPTY_INT_ARRAY;
+			} else if (cardinality <= TrigramPostings.SMALL_POSTING_THRESHOLD) {
+				return retainRemaining(accumulator.toArray(), postings, trigramCount, i);
+			}
+			// in place: the accumulator has been this query's own since the static `and`, and the operand is only read
+			accumulator.and(asBitmapPosting(postings[i]));
+		}
 		return accumulator.toArray();
+	}
+
+	/**
+	 * Presents a posting as a bitmap, widening the small form when it is one.
+	 *
+	 * Widening allocates, so it is the fallback rather than the plan: the demotion branch in
+	 * {@link #intersectFromBitmapPosting} is what actually keeps small postings off this path, by leaving for
+	 * {@link #retain} - which reads an `int[]` posting as it is - as soon as the accumulator is narrow enough. What
+	 * remains here is the narrow promotion/demotion overlap, where a posting LARGER than the accumulator is still
+	 * stored small, and there the widening is unavoidable.
+	 *
+	 * @param posting the posting to present as a bitmap
+	 * @return the posting itself when it is already a bitmap, a freshly built bitmap when it is not
+	 */
+	@Nonnull
+	private static PersistentRoaringBitmap asBitmapPosting(@Nonnull Object posting) {
+		return posting instanceof final int[] small
+			? PersistentRoaringBitmap.bitmapOf(small)
+			: (PersistentRoaringBitmap) posting;
 	}
 
 	/**

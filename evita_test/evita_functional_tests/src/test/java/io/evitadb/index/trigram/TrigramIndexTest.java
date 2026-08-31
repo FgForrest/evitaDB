@@ -27,6 +27,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -445,6 +446,75 @@ class TrigramIndexTest {
 			index.valueCreated(2000, "abcd");
 			assertArrayEquals(
 				new int[]{2000}, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcd"))
+			);
+		}
+
+		@Test
+		@DisplayName("a bitmap-led intersection leaves every posting it read exactly as it found it")
+		void shouldNotMutateThePostingsAnIntersectionReads() {
+			// Postings are shared BY REFERENCE with every index version that can still read them, so the intersection
+			// may own only what it allocated itself. `intersectFromBitmapPosting` folds the second posting in with the
+			// STATIC `and` - documented to share nothing with either operand - and only then switches to the in-place
+			// `and` on the result it now owns.
+			//
+			// CALIBRATION: seeding the accumulator with `postings[0]` and folding in place from the first posting
+			// onwards - the obvious-looking simplification - reddens this test, because `abc` would come back holding
+			// the 150 survivors instead of the 180 ids it was built with.
+			final TrigramIndex index = emptyIndex();
+
+			// `abc`, `bcd` and `cde` are the trigrams of the pattern below. Each is given members the others lack, so
+			// the answer is a STRICT subset of the cheapest posting - without that, an in-place fold would write back
+			// the same contents and the corruption would be invisible.
+			for (int valueId = 1; valueId <= 150; valueId++) {
+				index.valueCreated(valueId, "abcde");
+			}
+			for (int valueId = 300; valueId < 330; valueId++) {
+				index.valueCreated(valueId, "abcz");
+			}
+			for (int valueId = 400; valueId < 500; valueId++) {
+				index.valueCreated(valueId, "zbcdy");
+			}
+			for (int valueId = 500; valueId < 600; valueId++) {
+				index.valueCreated(valueId, "zcdey");
+			}
+
+			final long abc = trigram("abc");
+			final long bcd = trigram("bcd");
+			final long cde = trigram("cde");
+
+			// the fixture only tests what it is meant to if the cheapest posting is a BITMAP - the small-posting path
+			// copies before it compacts and was never at risk - and if the accumulator stays above the demotion
+			// threshold long enough for the in-place fold to run at all
+			assertTrue(
+				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+				"the cheapest posting must have promoted, or the bitmap branch is never entered"
+			);
+			assertEquals(180, index.cardinalityOf(abc), "the cheapest posting must hold ids the answer excludes");
+			assertEquals(250, index.cardinalityOf(bcd));
+			assertEquals(250, index.cardinalityOf(cde));
+
+			final int[] abcBefore = TrigramPostings.asBitmap(postingOf(index, abc)).getArray();
+			final int[] bcdBefore = TrigramPostings.asBitmap(postingOf(index, bcd)).getArray();
+			final int[] cdeBefore = TrigramPostings.asBitmap(postingOf(index, cde)).getArray();
+
+			final int[] expected = new int[150];
+			for (int i = 0; i < expected.length; i++) {
+				expected[i] = i + 1;
+			}
+			assertArrayEquals(
+				expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+				"the intersection must exclude the 150 ids that carry only one or two of the three trigrams"
+			);
+
+			assertArrayEquals(abcBefore, TrigramPostings.asBitmap(postingOf(index, abc)).getArray(),
+				"the cheapest posting was folded into the answer, not overwritten by it");
+			assertArrayEquals(bcdBefore, TrigramPostings.asBitmap(postingOf(index, bcd)).getArray());
+			assertArrayEquals(cdeBefore, TrigramPostings.asBitmap(postingOf(index, cde)).getArray());
+
+			// an independent statement of the same invariant: a corrupted posting answers a repeated query differently
+			assertArrayEquals(
+				expected, index.resolveCandidateValueIds(TrigramCodec.extractUniqueTrigrams("abcde")),
+				"a second identical query must answer identically, which a mutated posting could not"
 			);
 		}
 
