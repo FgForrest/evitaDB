@@ -966,6 +966,20 @@ public class InvertedIndex implements
 	 *
 	 * What the lock still buys is the rebuild's own non-re-entrancy: it advances the plain leaf-id counter and calls
 	 * `assignLeafId`, whose premise refuses a second assignment outright, so two rebuilders remain forbidden.
+	 *
+	 * ## If you change this method, run the stress test that guards it
+	 *
+	 * `LongRunningValueIdDirectoryConcurrencyTest` is the only thing that covers the single-flight claim above; it is
+	 * `@Disabled` and lives in `evita_test/evita_long_running_tests`, so nothing runs it for you:
+	 *
+	 * ```
+	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+	 * ```
+	 *
+	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below — and that has to be
+	 * re-measured too, not merely the green run. **Making this method faster narrows the window the test races in**, so
+	 * an optimization elsewhere can leave the test passing while it has stopped proving anything; that has already
+	 * happened once. The same obligation applies to `BucketBPlusTree#rebuildValueIdDirectory`.
 	 */
 	private synchronized void refreshValueIdDirectory() {
 		if (this.valueIdDirectoryStale) {
