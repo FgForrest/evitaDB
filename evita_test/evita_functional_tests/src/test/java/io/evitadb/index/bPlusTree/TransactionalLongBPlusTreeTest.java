@@ -487,6 +487,30 @@ class TransactionalLongBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("refuses an updater that returns null instead of storing it")
+		void shouldRefuseAnUpdaterReturningNull() {
+			// A stored null would not surface as a failure anywhere: `search` and the leaf's `getValue` both answer
+			// `Optional.ofNullable`, so the key would read back as ABSENT while it demonstrably sits in a leaf. The
+			// updater's result is the only door a null can come through - `insert` takes a `@Nonnull V` - so both of
+			// upsert's branches refuse it, and the tree is left exactly as it was.
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(10, "Value10");
+			tree.insert(20, "Value20");
+
+			// the update branch: the key exists, so the updater is handed the value it would replace
+			assertThrows(GenericEvitaInternalError.class, () -> tree.upsert(20, existing -> null));
+			assertEquals("Value20", tree.search(20).orElse(null));
+
+			// the insert branch: the key is absent, so the updater is handed null and must not hand one back
+			assertThrows(GenericEvitaInternalError.class, () -> tree.upsert(30, existing -> null));
+			assertTrue(tree.search(30).isEmpty());
+			assertEquals(2, tree.size());
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		}
+
+		@Test
 		@DisplayName("inserts new entry for non-existent key")
 		void shouldInsertNonExistingValueViaUpsert() {
 			final TreeTuple testTree = prepareRandomTree(42, 50);
