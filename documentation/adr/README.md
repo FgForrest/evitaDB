@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
 | 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459, PR #1460 |
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
