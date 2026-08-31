@@ -125,6 +125,19 @@ The cost that would flip this decision is the doubled condition evaluation. If c
 fan-out ever dominates a write-path profile, Option C becomes the answer — but only alongside a
 format rework that can absorb the histogram rebuild.
 
+The chosen guard is correct across all four condition transitions, which is the argument that it
+neither leaks nor over-removes (`V` unchanged unless stated):
+
+| old condition | new condition | remove | add | net cardinality |
+|---|---|---|---|---|
+| false | false | suppressed | no | 0 ✓ |
+| false | true | suppressed | yes | +1 ✓ |
+| true | false | yes | no | −1 ✓ |
+| true | true | yes (old `V`) | yes (new `V`) | 0 ✓ |
+
+The two `old = false` rows are the ones the membership guard got wrong: it removed where the
+contribution never existed, spending a sibling's cardinality unit.
+
 ## Key technical details
 
 - **The pre-pass** — `LocalMutationExecutorCollector.capturePreMutationConditionState`. Runs before
@@ -244,6 +257,35 @@ format rework that can absorb the histogram rebuild.
 - **The pre-pass evaluates a superset of triggers**, since it cannot yet know which attribute writes
   turn out to be no-ops. Cheap to tighten if it ever matters; deliberately not done, because
   narrowing it requires duplicating the executor's no-op detection before the executor runs.
+
+## Hypotheses ruled out — do not re-chase
+
+The investigation spent most of its time on two wrong theories. Both are the natural first guess for
+"a histogram entry disappeared", so they are recorded with the evidence that killed them.
+
+- **It is not a `TransactionalMap` / `MapChanges` bug.** Remove-then-re-add of the same key was walked
+  down both branches: created-then-removed (`existing == false`, so `removedKeys` is never touched and
+  the instance is stashed in `createdThenRemovedProducers`, released at commit) and
+  base-map-remove-then-re-add (`registerModifiedKey` plus `removedKeys.remove(key)`). Neither loses the
+  new instance. The eager `removed.removeLayer(transactionalLayer)` in `HistogramIndexOperations` is
+  redundant with what `MapChanges.put` already does, but release is documented idempotent. The
+  decisive evidence is simpler than any of that: the defect reproduces identically in `WARMING_UP`,
+  where there is no transaction at all.
+- **`HistogramIndexOperations` lines 152-158 are not the bug**, and the evidence that pointed there
+  could not have shown it. `SimpleHistogramIndex.getFilterIndex` returns
+  `this.filterIndex.isEmpty() ? null : this.filterIndex`, so a `getHistogramFilterIndex(...) == null`
+  probe **cannot distinguish "the map entry is gone" from "the entry is present but empty"**. The
+  whole `removeHistogramValue`-orphans-the-instance theory rested on reading the first meaning into an
+  ambiguous `null`. Any future probe at that seam has to disambiguate before concluding anything.
+
+The trace that settled it came from JDWP logpoints at `HistogramIndexOperations` 106 / 151 / 154,
+gated to generation 4 of seed `2095323828`. The decisive step was op 6 — `pv=3` flipping
+`INACTIVE→ACTIVE` emitted `REM raw=500 own=1` although `pv=3` had contributed nothing, because
+`pv=2` also carried `basicUnitValue = 5` and so owner 1 was already in bucket 500. From there
+`cardinality(500, owner 1)` read 1 where it should have read 2, and op 9's legitimate removal of
+`pv=2`'s contribution emptied the bucket. The same sequence then replayed on a second
+`histogramIndexes` map instance — that is trunk incorporation applying the same mutations to the
+shared catalog, not a duplicated op or a Surefire rerun.
 
 ## Related work
 
