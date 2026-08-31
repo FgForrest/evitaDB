@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 11:10
+updated: 2026-08-31 11:20
 status: accepted
 kind: optimization
 issues: [1454]
@@ -151,10 +151,16 @@ verified per pattern across four runs.
   speedups to the admitted side raises that to roughly **80%**, because every microsecond taken off the admitted
   path shrinks its own denominator. This is the first quantification of what the gate forfeits, and it reorders
   everything that remains: the admitted path has diminishing returns by construction.
-  **The caveat is load-bearing.** Those patterns are weighted equally, which is a property of how they were
-  discovered, not of production traffic — nobody has measured how often real queries decline, or at what fan-out.
-  Counting declines in production is hours of instrumentation and is the cheapest decision-changing measurement
-  available; it decides whether replacing the gate is worth weeks or nothing. Do that before designing anything.
+  **The caveat is load-bearing, and it cannot be lifted before the accelerator ships.** Those patterns are
+  weighted equally because of how they were discovered, not because production traffic looks like that — and this
+  is new functionality, so there is no traffic to count declines in. The discovered set is the best model of the
+  workload that can exist until the feature has users.
+  **That makes the conservative gate the correct launch posture, not a defect to fix now.** A decline falls back
+  to the scan, which is exactly what every one of these queries did before this index existed, so a forfeited win
+  costs a user nothing they already had — and the campaign measured a decline at within 2% of 1.00x, so it is not
+  even a tax. A gate loosened on unvalidated numbers fails the other way: it makes queries **slower than before
+  the feature**, on day one, visibly. At 12 the gate errs toward declining, and for a first release that is the
+  right direction to err in. Instrument decline counts at launch and revisit this with the first real ones.
 - **What remains on the admitted path is small, and its reach is smaller than it looks.** An external read-only
   consultation, given this record and the commits, proposed matching a candidate's UTF-8 bytes without
   materialising a `String`; replacing the boxed leaf maps with primitive ones; coalescing single-record matched
@@ -166,6 +172,13 @@ verified per pattern across four runs.
   singleton-coalescing idea — ranked lowest of the four — the one aimed squarely at the actual hot spot. Cost
   tracks **hits** (0.412 µs) more closely than candidates (0.357 µs). Regrouping by leaf straddles zero at the
   candidate widths this corpus produces and should be instrumented before it is built.
+- **Under an unmeasurable workload, prefer the optimizations whose benefit does not depend on the workload.** A
+  per-candidate cost reduction — one less allocation, one less `String` built — pays the same fraction of its
+  own stage whatever mix of queries arrives, and is provable on the corpus at hand by arm parity plus a
+  counterfactual. Gate tuning is the opposite: its entire value is a function of the query distribution, which is
+  precisely the thing that cannot be known before release. This is why the admitted-path items rank above the
+  gate for now despite the gate holding far more of the measured time — not because the 59% is wrong, but because
+  it is the one number here that release will either confirm or destroy.
 - **The gate is nonetheless costing real work.** On the measured corpus every one of the 14 patterns
   it declines would have been faster accelerated (2.13x-5.34x, median ~4x), and none of the 152 it
   admits loses. It should not be assumed correct merely because it is current — but it has already
