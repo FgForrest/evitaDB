@@ -9,7 +9,7 @@ prs: [1136]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema, evita_engine/src/main/java/io/evitadb/index, evita_engine/src/main/java/io/evitadb/core/expression/trigger, evita_engine/src/main/java/io/evitadb/core/catalog]
 supersedes: []
 superseded-by: []
-relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema, 2026-04-23-conditional-facet-indexing]
+relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema, 2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass]
 ---
 
 # Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
