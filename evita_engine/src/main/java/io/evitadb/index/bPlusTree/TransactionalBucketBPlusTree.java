@@ -24,6 +24,8 @@
 package io.evitadb.index.bPlusTree;
 
 
+import com.carrotsearch.hppc.LongLongHashMap;
+import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.Snapshotable;
@@ -40,7 +42,6 @@ import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
@@ -163,6 +164,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Isolates the slot out of a packed `(leafId << 32) | slot` directory entry.
 	 */
 	private static final long SLOT_MASK = 0xFFFF_FFFFL;
+	/**
+	 * The empty leaf-version table a first rebuild probes against, so it needs no null branch. Shared and never
+	 * written: a rebuild only ever READS the previous version's table and publishes a freshly built one beside it.
+	 */
+	private static final LongLongHashMap EMPTY_LEAF_VERSIONS = new LongLongHashMap(0);
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -1202,10 +1208,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 		final ValueIdDirectory<K> previous = this.valueIdDirectory;
 		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
-		final Map<Long, BPlusLeafTreeNode<K>> rebuiltLeafById = CollectionUtils.createHashMap(leaves.size());
-		final Map<Long, Long> rebuiltVersions = CollectionUtils.createHashMap(leaves.size());
-		final Map<Long, Long> previousVersions =
-			previous == null ? Map.of() : previous.directoryVersionByLeafId();
+		final LongObjectHashMap<BPlusLeafTreeNode<K>> rebuiltLeafById = new LongObjectHashMap<>(leaves.size());
+		final LongLongHashMap rebuiltVersions = new LongLongHashMap(leaves.size());
+		final LongLongHashMap previousVersions =
+			previous == null ? EMPTY_LEAF_VERSIONS : previous.directoryVersionByLeafId();
 		// the previous location array is NEVER written into: a reader that has already read the published directory
 		// keeps resolving through it while this rebuild runs, and in-place stamping would let it observe a half-written
 		// array under leaf ids that are stable across the rebuild. The incremental (`reuseUnchangedLeaves`) rebuild
@@ -1226,8 +1232,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 			rebuiltLeafById.put(leafId, leaf);
 			rebuiltVersions.put(leafId, leaf.getId());
-			final Long builtVersion = previousVersions.get(leafId);
-			if (reuseUnchangedLeaves && builtVersion != null && builtVersion == leaf.getId()) {
+			// `indexOf`/`indexExists`/`indexGet` rather than `get` with a sentinel: a leaf version token of 0 is not
+			// provably impossible, and a sentinel that turns out to be reachable would silently skip a changed leaf
+			final int builtVersionIndex = previousVersions.indexOf(leafId);
+			if (reuseUnchangedLeaves
+				&& previousVersions.indexExists(builtVersionIndex)
+				&& previousVersions.indexGet(builtVersionIndex) == leaf.getId()) {
 				// the merge carried this very instance forward, so nothing about it moved and its entries still stand
 				continue;
 			}
@@ -1440,8 +1450,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private record ValueIdDirectory<K extends Comparable<K>>(
 		@Nonnull long[] valueIdLocations,
-		@Nonnull Map<Long, BPlusLeafTreeNode<K>> leafById,
-		@Nonnull Map<Long, Long> directoryVersionByLeafId
+		@Nonnull LongObjectHashMap<BPlusLeafTreeNode<K>> leafById,
+		@Nonnull LongLongHashMap directoryVersionByLeafId
 	) {
 	}
 
@@ -2028,7 +2038,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		merged.valueIdDirectory = this.valueIdDirectory == null
 			? null
 			: new ValueIdDirectory<>(
-				this.valueIdDirectory.valueIdLocations(), Map.of(), this.valueIdDirectory.directoryVersionByLeafId()
+				this.valueIdDirectory.valueIdLocations(), new LongObjectHashMap<>(0),
+				this.valueIdDirectory.directoryVersionByLeafId()
 			);
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
 		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
