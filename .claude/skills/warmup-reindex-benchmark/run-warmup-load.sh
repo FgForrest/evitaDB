@@ -27,13 +27,13 @@
 # either.
 #
 #   ROOT           evitaDB checkout to take the jar from          (default /www/oss/evita/release_2026-2)
-#   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder       (default /var/tmp/senesi-bench/pristine)
-#   CATALOG        source catalog name                            (default senesi)
+#   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder       (default /var/tmp/evita-warmup-bench/pristine)
+#   CATALOG        source catalog name                            (default catalog)
 #   TARGET_MODE    remote | embedded                              (default remote)
 #   TARGET         target catalog name        (default: <CATALOG> remote, <CATALOG>_warmup embedded)
 #   TARGET_HOST    target server host                             (default localhost)
 #   TARGET_PORT    target server gRPC port                        (default 5555)
-#   WORK_DIR       disposable working copy of the source          (default /var/tmp/senesi-bench/work)
+#   WORK_DIR       disposable working copy of the source          (default /var/tmp/evita-warmup-bench/work)
 #   XMX            reader heap                                    (default 14g)
 #   XMS            reader initial heap                            (default 8g)
 #   MAX_PER_COLL   cap entities per collection, 0 = unlimited     (default 0)
@@ -55,12 +55,12 @@ set -euo pipefail
 ROOT="${ROOT:-/www/oss/evita/release_2026-2}"
 JAR="${ROOT}/evita_test/evita_performance_tests/target/benchmarks.jar"
 
-PRISTINE_DIR="${PRISTINE_DIR:-/var/tmp/senesi-bench/pristine}"
-CATALOG="${CATALOG:-senesi}"
+PRISTINE_DIR="${PRISTINE_DIR:-/var/tmp/evita-warmup-bench/pristine}"
+CATALOG="${CATALOG:-catalog}"
 TARGET_MODE="${TARGET_MODE:-remote}"
 TARGET_HOST="${TARGET_HOST:-localhost}"
 TARGET_PORT="${TARGET_PORT:-5555}"
-WORK_DIR="${WORK_DIR:-/var/tmp/senesi-bench/work}"
+WORK_DIR="${WORK_DIR:-/var/tmp/evita-warmup-bench/work}"
 XMX="${XMX:-14g}"
 XMS="${XMS:-8g}"
 MAX_PER_COLL="${MAX_PER_COLL:-0}"
@@ -72,7 +72,7 @@ PER_ENTITY_CSV="${PER_ENTITY_CSV:-}"
 KEEP_WORK_DIR="${KEEP_WORK_DIR:-false}"
 SKIP_VERIFY="${SKIP_VERIFY:-false}"
 JAVA_BIN="${JAVA_BIN:-/usr/lib/jvm/java-17-openjdk-amd64/bin/java}"
-LOG_DIR="${LOG_DIR:-/var/tmp/senesi-bench/runs/$(date +%Y%m%d-%H%M%S)}"
+LOG_DIR="${LOG_DIR:-/var/tmp/evita-warmup-bench/runs/$(date +%Y%m%d-%H%M%S)}"
 
 if [[ -z "${TARGET:-}" ]]; then
 	if [[ "${TARGET_MODE}" == "embedded" ]]; then

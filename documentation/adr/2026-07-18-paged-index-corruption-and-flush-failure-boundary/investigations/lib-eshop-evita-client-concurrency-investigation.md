@@ -10,8 +10,8 @@ wrapping) to answer ONE overarching question with file:line evidence:
 ## Why (context — read once, don't re-verify)
 
 evitaDB sessions are `@NotThreadSafe` and the server does not serialize concurrent invocations of one
-session. On 2026-07-13, `EvitaFullReindexJob` built the `senesi` catalog (temp catalog
-`senesi_1783937623260`, warm-up window ~10:13–13:07 UTC) and the resulting dataset contains index
+session. On 2026-07-13, `EvitaFullReindexJob` built the production catalog (temp catalog
+`<catalog>_1783937623260`, warm-up window ~10:13–13:07 UTC) and the resulting dataset contains index
 corruption ("stale leaf-page twin") whose in-memory inception happened at ~12:00:47 UTC. On the
 evitaDB side it is now PROVEN (failing tests exist) that:
 - a strictly single-threaded warm-up load of this shape does NOT corrupt, and
@@ -71,7 +71,7 @@ com.fg.eshop.evita.publishing.EvitaFullReindexJob.doJob(:301)
     turn is still running)? Quote the mutual-exclusion mechanism (or its absence).
 
 **Q3 — Any other writer on the temp catalog.**
-During a full reindex the temp catalog is named `senesi_<epochMillis>`. Is there any component that
+During a full reindex the temp catalog is named `<catalog>_<epochMillis>`. Is there any component that
 could concurrently write to it — e.g. can a queued `EvitaIncrementalIndexJob` start while the full
 reindex is still inside its warm-up session? What prevents it (job-manager exclusivity? catalog-name
 isolation? nothing)?

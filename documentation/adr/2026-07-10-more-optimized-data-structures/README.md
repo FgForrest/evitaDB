@@ -172,7 +172,7 @@ which is the whole reason this record exists rather than the plan folder it repl
   SortIndex paging and committed-snapshot cache, FrontCoded allocation attacks, Kryo/`ObservableOutput`
   buffer pooling, RoaringBitmap cloning, CRC32C combine caching, dense-walk AndNot, InvertedIndex
   bucket flyweight, compaction auto-tuning, plus the PriceSuper page-chunk design, the B+ tree
-  shared-base extraction plan and the decodoma dataset gate analysis.
+  shared-base extraction plan and the gate-catalog dataset analysis.
 
 Deliberately **not** carried over: the 17 `plans/` files (step-by-step implementation instructions for
 work that shipped — the code is now the truth), and `reports/raw-analysis/` (profiler `.txt` dumps

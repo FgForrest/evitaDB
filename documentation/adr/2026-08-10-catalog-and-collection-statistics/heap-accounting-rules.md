@@ -51,7 +51,7 @@ this list. Charge the list spine, its backing array **and** every wrapper's own 
 each wrapper points at, since that is a field charged at the index. Ruling this "elements are charged
 as fields" would have charged the wrappers *nowhere* — and the symptom is a number that is quietly
 40 B (112 B for a reference-type index) too small per index, not a mismatch anything would catch.
-~21 MB across the senesi catalog.
+~21 MB across the production catalog.
 
 **One wrapper is not a pure adapter, and the same trap catches it one level down.**
 `HistogramIndexMapComponent` owns `persistedLeafPages` outright — a plain map no field of the index

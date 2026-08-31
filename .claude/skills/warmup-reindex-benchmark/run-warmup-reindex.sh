@@ -11,9 +11,9 @@
 #
 #   ROOT           evitaDB checkout to measure                (default /www/oss/evita/release_2026-2)
 #   RUN            run label, names the log directories       (default <git-short-sha>)
-#   CATALOG        source catalog name                        (default senesi)
-#   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder   (default /var/tmp/senesi-bench/pristine)
-#   BENCH_DIR      root for all run artifacts                 (default /var/tmp/senesi-bench)
+#   CATALOG        source catalog name                        (default catalog)
+#   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder   (default /var/tmp/evita-warmup-bench/pristine)
+#   BENCH_DIR      root for all run artifacts                 (default /var/tmp/evita-warmup-bench)
 #   SERVER_XMX     writer heap                                (default 23g)
 #   READER_XMX     reader heap                                (default 14g)
 #   READER_XMS     reader initial heap                        (default 8g)
@@ -30,9 +30,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${ROOT:-/www/oss/evita/release_2026-2}"
-CATALOG="${CATALOG:-senesi}"
-PRISTINE_DIR="${PRISTINE_DIR:-/var/tmp/senesi-bench/pristine}"
-BENCH_DIR="${BENCH_DIR:-/var/tmp/senesi-bench}"
+CATALOG="${CATALOG:-catalog}"
+PRISTINE_DIR="${PRISTINE_DIR:-/var/tmp/evita-warmup-bench/pristine}"
+BENCH_DIR="${BENCH_DIR:-/var/tmp/evita-warmup-bench}"
 SERVER_XMX="${SERVER_XMX:-23g}"
 READER_XMX="${READER_XMX:-14g}"
 READER_XMS="${READER_XMS:-8g}"

@@ -1,13 +1,13 @@
-# Senesi WAL replay — the full measurement line (rounds 0–7)
+# Production-catalog WAL replay — the full measurement line (rounds 0–7)
 
 Consolidated from seven working documents written 2026-07-20 → 07-27. The workload: real production
-transactions from a "senesi" catalog's write-ahead log, replayed against an embedded evitaDB instance
+transactions from a production catalog's write-ahead log, replayed against an embedded evitaDB instance
 through the real session/commit API — exactly the path a production write node runs.
 
 **Staleness note.** Status language carried over from the source documents is a historical snapshot.
 All work described here has since merged (PR #1317). Check `git log` for what actually shipped.
 
-**The dataset is gone.** The senesi snapshot and WAL, and the raw profiles measured against them,
+**The dataset is gone.** The production-catalog snapshot and WAL, and the raw profiles measured against them,
 were deleted once tuning finished and the conclusions below were captured — byte-for-byte samples of
 a dataset that no longer exists have no future comparison value. Re-measuring against a fresh export
 uses the same harness, since generalized and committed: see the `wal-replay-profiling` Claude Code
@@ -303,7 +303,7 @@ localized attribute at all, so the lazy path returns `Collections.emptySet()` an
 
 ## Final state (2026-07-27 census)
 
-Full census in `../../SENESI_PROFILE_2026_07_27.md` history; the durable conclusion:
+Full census in `../../PROFILE_2026_07_27.md` history; the durable conclusion:
 
 | subsystem | allocation | app CPU |
 |---|---:|---:|

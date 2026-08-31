@@ -55,7 +55,7 @@ implementors, each re-shelling and re-attaching per version. String comparison w
 
 | Date | Decision | Why | Detail |
 |------|----------|-----|--------|
-| 2026-07-20 | Size the collation-key cache from heap (`maxMemory/50/256`, clamped `[8192, 1<<20]`) instead of a fixed 8192 | The pivot working set of a binary descent is the whole corpus, not the probe; at 8192 slots nearly every comparison recomputed a full ICU key. 1 M slots measured 2.02×, and 4 M measured worse — the cap was right, only the default was wrong | `reports/2026-07-27-senesi-wal-replay-rounds.md` (rounds 1–2) |
+| 2026-07-20 | Size the collation-key cache from heap (`maxMemory/50/256`, clamped `[8192, 1<<20]`) instead of a fixed 8192 | The pivot working set of a binary descent is the whole corpus, not the probe; at 8192 slots nearly every comparison recomputed a full ICU key. 1 M slots measured 2.02×, and 4 M measured worse — the cap was right, only the default was wrong | `reports/2026-07-27-wal-replay-rounds.md` (rounds 1–2) |
 | 2026-07-20 | Cache collation keys per locale rather than persisting them | Comparing cached key bytes with `Arrays.compareUnsigned` is 60×–3000× cheaper with zero allocation; persisting costs ~2.5× string bytes on disk plus a new serializer and a BWC reader | `reports/2026-07-22-warmup-upsert-and-collation.md` |
 | 2026-07-20 | Invert the `removePrice` containment probe | It materialized the entire price B+ tree into a fresh array on every price removal to answer one boolean — O(N) time and allocation for a question about the entity's own handful of prices | rounds report (round 1) |
 | 2026-07-20 | Make dirty-scope validation register probe **keys**, not node objects | Structural: it makes the shared-array corruption class unrepresentable instead of defended against, and returns `setPeek`'s base branch to a zero-alloc `Arrays.fill` | `reports/2026-07-20-bplustree-correctness-and-reclaim-leaks.md`, commit `e72507e1f` |
@@ -120,7 +120,7 @@ implementors, each re-shelling and re-attaching per version. String comparison w
 
 ## Verification
 
-Per-round numbers are in `reports/2026-07-27-senesi-wal-replay-rounds.md`. Headline, same
+Per-round numbers are in `reports/2026-07-27-wal-replay-rounds.md`. Headline, same
 300-transaction slice throughout:
 
 | axis | before | after |
@@ -208,7 +208,7 @@ output was not carried over once the dataset it measured was gone.
 - `reports/2026-07-24-trunk-merge-and-index-carry.md` — the design verdicts, the CHAMP read-side gate
   measurements, and a cautionary record of three concrete profiling errors behind a NO-GO that was
   later retracted.
-- `reports/2026-07-27-senesi-wal-replay-rounds.md` — the measurement line itself, rounds 0–7, and the
+- `reports/2026-07-27-wal-replay-rounds.md` — the measurement line itself, rounds 0–7, and the
   durable methodological lessons.
 - `SPIKE_BENCHMARKS.md` — what each spike in `evita_test/evita_performance_tests/.../spike/` measures
   and what it concluded.

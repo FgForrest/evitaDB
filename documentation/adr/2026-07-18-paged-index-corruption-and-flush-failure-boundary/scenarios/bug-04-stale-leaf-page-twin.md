@@ -1,10 +1,10 @@
 # Bug 04 — ROOT CORRUPTION: stale leaf-page twin in the persisted PAGED InvertedIndex
 
-**Status: corruption fully characterized on senesi (live JDWP, 2026-07-14); bugs 01 + 02 are its
+**Status: corruption fully characterized on the production catalog (live JDWP, 2026-07-14); bugs 01 + 02 are its
 mechanical consequences. The WRITE-side event that persists the twin is NOT yet reproduced from a
 clean catalog — that reproduction is the remaining open task (see §Writer-reproduction below).**
 
-## What is on disk (ground truth, senesi pristine snapshot)
+## What is on disk (ground truth, production-catalog pristine snapshot)
 
 Reduced index `categories:142816`, attribute `published` (both-flagged ⇒ shared value tree; bucket
 keys are `Instant`s produced by the `OffsetDateTime→Instant` filter normalizer,
@@ -34,7 +34,7 @@ ascending order **within** each page, but `assembleFromSingleLeafTrees` → `bui
 `buildInternalNode` takes each page's `getLeftBoundaryKey()` as separator **without any cross-page
 monotonicity check** — an overlapping twin page loads silently.
 
-## Mechanical consequences (both confirmed live via JDWP on the loaded senesi tree)
+## Mechanical consequences (both confirmed live via JDWP on the loaded production tree)
 
 - **Bug 02** (`Key is already present in the tree!`): `SortIndexChanges.getValueTree()` iterates the
   buckets in physical order and inserts every key into the `CumulativeWeightBPlusTree`; the second
@@ -49,7 +49,7 @@ monotonicity check** — an overlapping twin page loads silently.
 ## Distilled reproduction test (DONE — fails on current code with both signatures)
 
 `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/attribute/StaleLeafPageTwinReproductionTest.java`
-— loads hand-crafted twin pages through the real `InvertedIndex.fromPersistedPages` path (senesi
+— loads hand-crafted twin pages through the real `InvertedIndex.fromPersistedPages` path (production-catalog
 anatomy: 128-bucket stale twin + 190-bucket successor; plus a diverged/interleaved variant) and
 asserts the desired invariant. Current failures:
 
@@ -65,10 +65,10 @@ of the flush that emits the twin.
 
 ## Writer identified as the WARM_UP path (2026-07-14, checksum proof)
 
-The user's backup `backup_senesi_actual_2026-07-13T13-14-35...zip`, taken immediately after the full
+The user's backup `backup_<catalog>_actual_2026-07-13T13-14-35...zip`, taken immediately after the full
 reindex (fresh catalog populated in ONE `WARM_UP` session on the ~2026-07-13-morning dev build, then
-`goLive`), is **byte-for-byte identical** (md5 of `product-6_0.collection`, `senesi_0.catalog`,
-`senesi.boot`) to the corrupted dataset. ⇒ **the twin was written by the single warm-up
+`goLive`), is **byte-for-byte identical** (md5 of `product-6_0.collection`, `<catalog>_0.catalog`,
+`<catalog>.boot`) to the corrupted dataset. ⇒ **the twin was written by the single warm-up
 flush at goLiveAndClose; transactional commits and savepoints are fully exonerated for the writer.**
 
 Refined anatomy (bounds the in-memory event):
@@ -84,7 +84,7 @@ Refined anatomy (bounds the in-memory event):
   and produced a duplicate entry in the list). ⇒ a leaf split (possibly with a cascading parent
   split, on the path-copying write path) left a stale CLONE of the left half reachable in the spine;
   descent with equal separators routes right, so the clone never receives inserts and freezes.
-- The insert stream was NEAR-monotonic `OffsetDateTime`s with jitter (senesi leaf sizes
+- The insert stream was NEAR-monotonic `OffsetDateTime`s with jitter (production-catalog leaf sizes
   127/128/186/190/235 prove out-of-order inserts → middle-leaf splits/borrows, not pure appends).
 - Secondary suspect ingredient if plain churn doesn't reproduce: the warm-up **store compaction**
   (`WarmUpDataStoreMemoryBuffer.setPersistenceService`, "internal store compaction… unique for the
@@ -109,7 +109,7 @@ Refined anatomy (bounds the in-memory event):
   client pipelining/parallelizing upserts over a single WARM_UP session makes two request threads
   race the path-copying bucket tree — a racing leaf split can leave a stale clone of a half attached
   in the spine = the exact twin anatomy, at a rare-interleaving rate (~1 event / 33K upserts on
-  senesi). **Open question for the client team: does `EvitaIncrementalIndexJob`'s full reindex issue
+  the production catalog). **Open question for the client team: does `EvitaIncrementalIndexJob`'s full reindex issue
   upserts strictly sequentially (blocking, one at a time) or with any pipelining/async batching over
   the single session?**
 
@@ -133,15 +133,15 @@ mechanisms can still produce TWO CONCURRENT WRITERS server-side on that one sess
    compaction (`WarmUpDataStoreMemoryBuffer.setPersistenceService`) / any mid-session flush; under
    investigation (threading + forced-compaction stress) by the twin-writer-hunter agent.
 
-## Loki-verified reindex pipeline (2026-07-14; namespace senesi-senesi2025-test-app)
+## Loki-verified reindex pipeline (2026-07-14; the client test namespace)
 
 - **NO compaction** log line in the `evita` container during the whole reindex window (10:00–13:30Z)
   — the mid-warm-up-compaction hypothesis is dead (matches the near-zero-waste argument).
-- The full reindex builds a TEMP catalog `senesi_1783937623260` (epoch = 10:13:43Z ≈ start), bulk-loads
+- The full reindex builds a TEMP catalog `<catalog>_1783937623260` (epoch = 10:13:43Z ≈ start), bulk-loads
   it in WARM_UP, the catalog goes **ALIVE at 13:07:15Z** (`CatalogInstalledIntoLiveView`,
   currentEngineVersion=7) — and the SAME reindex job keeps publishing **transactionally** until
-  ~13:11:43Z (~90 commits ⇒ catalogVersion=97 explained), then the temp catalog REPLACES `senesi`;
-  backup at 13:14:35Z. `senesi-evitaIncrementalIndexJob` was queued (planned 13:12:11Z) but did NOT
+  ~13:11:43Z (~90 commits ⇒ catalogVersion=97 explained), then the temp catalog REPLACES the live catalog;
+  backup at 13:14:35Z. `<catalog>-evitaIncrementalIndexJob` was queued (planned 13:12:11Z) but did NOT
   run before the backup.
 - ⇒ Three one-shot writer windows for the twin, all engine-side: (1) WARM_UP in-memory churn
   (split-instant leaf cloning) — still the best fit for the frozen content (state as of ~12:00:47,
@@ -178,7 +178,7 @@ and REDUCED indexes.
    3 seeds: near-monotonic `OffsetDateTime` 50 ms grid ± 2 000 ms jitter (middle-leaf splits,
    value collisions ⇒ multi-record buckets), 15 % re-publishes (remove+insert), ~7 % deletions
    (borrows/merges), 60 % category membership (reduced index gets a filtered subsequence);
-   in-memory scan every 1 000 ops + before goLive. Resulting tree ≈ 40+ leaves — senesi-comparable
+   in-memory scan every 1 000 ops + before goLive. Resulting tree ≈ 40+ leaves — production-comparable
    leaf count (43). NO twin, no ordering violation, at any scan point.
 2. **Transactional churn era (pre-checksum, all superseded but exonerating):** plain monotonic;
    skip-on-fail savepoints (mandatory-attr violation fires in
@@ -190,7 +190,7 @@ and REDUCED indexes.
    failing re-publishes from the drained region); async burst commits (6 WAL txs in flight ⇒ trunk
    batching); 4 parallel *sessions*. All green at 30–100 commits × 60–80 ops and at 3–4× soak.
 
-**FAILING (kept in the harness — positive findings, though NOT the senesi writer after the client
+**FAILING (kept in the harness — positive findings, though NOT the production writer after the client
 was confirmed strictly sequential):**
 
 3. `shouldSurviveConcurrentUpsertsOnSingleWarmUpSession` — 8 threads × 1 500 upserts on ONE shared
@@ -233,7 +233,7 @@ exception marks the whole tx rollback-only (`EvitaSession.executeInTransactionIf
 in-memory tree (all 43 seqs allocated in the one goLive walk), so the spine duplication happened in
 memory at ~12:00:47 — either a second concurrent execution on the session (driver/app retry of a
 timed-out upsert — my failing tests prove one racing insert in the split window suffices to corrupt)
-or a senesi-scale/mutation-shape ingredient my 7 k-op synthetic stream lacks (real entity
+or a production-scale/mutation-shape ingredient my 7 k-op synthetic stream lacks (real entity
 complexity, reflected refs, richer local-mutation mix). Recommended traps for the simulation: the
 in-memory pre-goLive oracle above, plus a temporary assert in `adaptToLeafSplit` verifying the
 parent's children keys stay strictly ascending after the replacement.
@@ -285,8 +285,8 @@ request thread server-side.**
 
 **Checker** (`TwinDetector.java`, `evita_test/evita_performance_tests/.../spike/`): walks every
 `FilterIndex` of every `EntityIndex` (global + every reduced index) via reflection. Two signals per
-index: cross-bucket ordering violation using the index's OWN comparator (not natural order — senesi
-has Czech-collated string attributes where collation order != natural order; first attempt with
+index: cross-bucket ordering violation using the index's OWN comparator (not natural order — the production
+catalog has Czech-collated string attributes where collation order != natural order; first attempt with
 natural order threw 206k false positives, fixed by switching to `InvertedIndex.getComparator()`),
 and leaf-page-level signals (duplicate live page sequence + literal cross-page boundary overlap).
 
@@ -304,7 +304,7 @@ the one-and-only flush), post-goLive in-memory, post-reload cold (forces the rea
 `InvertedIndex.fromPersistedPages` load path). `COPY_VERIFIED_OK` — exact per-collection count match
 against source.
 
-**Verdict: deterministic single-threaded full-reindex replay — exact real senesi dataset, exact real
+**Verdict: deterministic single-threaded full-reindex replay — exact real production dataset, exact real
 procedure (one WARM_UP session, PK order, goLiveAndClose) — does NOT reproduce the stale-leaf-page
 twin, even at true production scale.** No rerun performed: the pipeline has no randomization and no
 concurrency (entity content, PK ordering, batch order, and schema-replication map iteration are all
@@ -325,7 +325,7 @@ server-side dispatched off the request thread.
   own and the storage `.lock` file is never released (had to `kill -9` twice). Any catalog-load
   failure path should not leave the process un-exitable or the lock held.
 - `storage.compress` must be explicitly set to match the source data's actual on-disk format
-  (senesi was `compress=true`); a plain default `EvitaConfiguration.builder()` silently produces
+  (the production catalog was `compress=true`); a plain default `EvitaConfiguration.builder()` silently produces
   "Record is compressed and ObservableInput has compression support disabled" — not obvious from the
   error alone.
 
@@ -339,8 +339,8 @@ Artifacts (under `/tmp/.../scratchpad/warmup-sim/`, not committed): `TwinDetecto
 ## Fix acceptance
 
 1. `StaleLeafPageTwinReproductionTest` passes (all three methods).
-2. From-pristine senesi: `SenesiUpsertFuzzer` seed=1 no longer surfaces `Key is already present` /
-   `Sanity check - record not found` on entities whose indexes carry twins — note the EXISTING senesi
+2. From-pristine production catalog: `ProductionCatalogUpsertFuzzer` seed=1 no longer surfaces `Key is already present` /
+   `Sanity check - record not found` on entities whose indexes carry twins — note the EXISTING production-catalog
    dataset stays corrupted on disk; acceptance there means the load path detects (or heals) the twin
    instead of silently serving corrupt trees.
 3. Once the writer event is reproduced: the churn harness stays green across commits and reopens.
