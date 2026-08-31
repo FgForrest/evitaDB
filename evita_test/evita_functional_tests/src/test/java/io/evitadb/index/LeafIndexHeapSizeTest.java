@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -213,7 +214,8 @@ class LeafIndexHeapSizeTest {
 			// that single root - but the leaves it addresses are NOT its own and are held out of its walk, exactly as
 			// when it was three separate fields
 			final Object valueIdDirectory = readField(tree, "valueIdDirectory");
-			final Map<?, ?> leafById = (Map<?, ?>) readField(valueIdDirectory, "leafById");
+			final LongObjectHashMap<?> leafById =
+				(LongObjectHashMap<?>) readField(valueIdDirectory, "leafById");
 			final Object[] directory = {valueIdDirectory};
 			final long directoryBytes = JolHeapSize.ownedSize(directory, leafById.values().toArray())
 				- JolHeapSize.shallowSize(directory);
