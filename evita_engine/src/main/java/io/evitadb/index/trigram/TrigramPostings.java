@@ -146,12 +146,8 @@ public final class TrigramPostings {
 				promoted.add(valueId);
 				return promoted;
 			}
-			final int insertAt = -position - 1;
-			final int[] grown = new int[small.length + 1];
-			System.arraycopy(small, 0, grown, 0, insertAt);
-			grown[insertAt] = valueId;
-			System.arraycopy(small, insertAt, grown, insertAt + 1, small.length - insertAt);
-			return grown;
+			// the insertion point is what `binarySearch` encodes in its negative return
+			return ArrayUtils.insertIntIntoArrayOnIndex(valueId, small, -position - 1);
 		}
 		final PersistentRoaringBitmap bitmap = (PersistentRoaringBitmap) posting;
 		if (bitmap.contains(valueId)) {
@@ -193,10 +189,7 @@ public final class TrigramPostings {
 			if (small.length == 1) {
 				return EMPTY_POSTING;
 			}
-			final int[] shrunk = new int[small.length - 1];
-			System.arraycopy(small, 0, shrunk, 0, position);
-			System.arraycopy(small, position + 1, shrunk, position, small.length - position - 1);
-			return shrunk;
+			return ArrayUtils.removeIntFromArrayOnIndex(small, position);
 		}
 		final PersistentRoaringBitmap bitmap = (PersistentRoaringBitmap) posting;
 		Assert.isPremiseValid(
