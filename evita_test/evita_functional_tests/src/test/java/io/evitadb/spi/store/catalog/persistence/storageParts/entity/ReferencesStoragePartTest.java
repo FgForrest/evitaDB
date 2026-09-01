@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceAttributes;
@@ -199,7 +200,7 @@ class ReferencesStoragePartTest {
 			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
-		final Map<?, ?> assignedKeys = part.assignMissingIdsAndSort();
+		final Map<ComparableReferenceKey, ReferenceKey> assignedKeys = part.assignMissingIdsAndSort();
 		assertEquals(1, assignedKeys.size(), "Exactly one reference had a missing internal primary key");
 
 		final ReferenceContract[] references = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
@@ -220,11 +221,15 @@ class ReferencesStoragePartTest {
 	}
 
 	@Test
-	@DisplayName("should keep order without re-sorting when appended references are numbered in place")
+	@DisplayName("should keep order when appended references are numbered in place")
 	void shouldKeepOrderWhenAppendedReferencesAreNumberedInPlace() {
 		// the counterpart of the test above and the ordinary path: every inserted reference is numbered in array
 		// order from a monotonically growing counter, so the container leaves the assignment loop already sorted
-		// and the re-sort is skipped. The observable outcome must be identical either way.
+		// and the guarded `Arrays.sort` runs as a no-op. The guard itself (`lupkBefore != lastUsedPrimaryKey`) is
+		// still true here - it only asks whether *any* id was assigned, not whether that assignment disturbed the
+		// ordering. The shape that genuinely skips the sort is the insertion of a reference already carrying a
+		// known positive internal key: it flips `unassignedPrimaryKeys` without triggering a single assignment,
+		// and it is not what this test covers. The observable outcome must be identical either way.
 		final io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart part =
 			new io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart(
 				3, 10,
