@@ -242,7 +242,7 @@ public class TrigramIndex implements
 				// a skip rather than a refusal, unlike the unusable-tree case below: names resolve against the ENTITY
 				// schema here, and a reference attribute may legitimately share a name with an entity one, so a
 				// reference-scoped key says nothing about a divergence. The write side states the same decision as a
-				// premise instead - see GlobalEntityIndex#maintainsTrigramIndex - which is the half that would fail
+				// premise instead - see GlobalEntityIndex#maintainsNoTrigramIndex - which is the half that would fail
 				// loudly if the schema restriction on reference attributes were ever lifted without teaching this loop
 				continue;
 			}
@@ -270,16 +270,16 @@ public class TrigramIndex implements
 	@Override
 	public void valueCreated(int valueId, @Nonnull Serializable normalizedValue) {
 		final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
-		for (int i = 0; i < trigrams.length; i++) {
-			addValueId(trigrams[i], valueId);
+		for (final long trigram : trigrams) {
+			addValueId(trigram, valueId);
 		}
 	}
 
 	@Override
 	public void valueRemoved(int valueId, @Nonnull Serializable normalizedValue) {
 		final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
-		for (int i = 0; i < trigrams.length; i++) {
-			removeValueId(trigrams[i], valueId);
+		for (final long trigram : trigrams) {
+			removeValueId(trigram, valueId);
 		}
 	}
 

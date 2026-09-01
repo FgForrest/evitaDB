@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
@@ -137,8 +138,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Sentinel returned by the leaf add methods when the record joined an EXISTING bucket, i.e. no new bucket key was
 	 * inserted. Any other (non-negative) return is the slot index the new bucket landed on, which
-	 * {@link #assertInsertBoundaries(Cursor, Comparable, int)} consumes instead of re-deriving "was this a head / tail
-	 * insert?" by decoding and comparing the leaf's boundary keys.
+	 * {@link #assertInsertBoundaries(BoundaryContext, Comparable, int)} consumes instead of re-deriving "was this
+	 * a head / tail insert?" by decoding and comparing the leaf's boundary keys.
 	 */
 	private static final int NO_NEW_BUCKET = -1;
 	/**
@@ -259,9 +260,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@link ValueIdDirectory} rather than writing into the live one, so a reader that has read this field holds a
 	 * directory whose three parts belong to each other and cannot be overtaken by a concurrent rebuild. That is what
 	 * makes the reverse lookup safe on a query thread — see {@link ValueIdDirectory} for the window this closes and
-	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#refreshValueIdDirectory()} for the reader-driven rebuild
+	 * {@link InvertedIndex#refreshValueIdDirectory()} for the reader-driven rebuild
 	 * that opens it.
 	 */
+	@SuppressWarnings("NonSerializableFieldInSerializableClass")
 	@Nullable private volatile ValueIdDirectory<K> valueIdDirectory;
 
 	/**
@@ -1061,7 +1063,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final int valueCount = size();
 		Assert.isPremiseValid(
 			persistedValueIds == null || persistedValueIds.length == valueCount,
-			() -> "The persisted value id column holds " + persistedValueIds.length + " ids but the tree holds "
+			() -> "The persisted value id column holds " +
+				(persistedValueIds == null ? "no" : persistedValueIds.length) + " ids but the tree holds "
 				+ valueCount + " values - the two must align exactly."
 		);
 		int valueOrdinal = 0;
@@ -1292,6 +1295,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// ONE read of the volatile: everything below resolves through that single snapshot, so a concurrent rebuild
 		// cannot swap the leaf map out from under the location this thread has already read
 		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		// the null check lives HERE rather than inside `locationOf` so that it is local to the dereference below:
+		// a check across a call boundary is one static analysis cannot follow, and this method dereferences the
+		// directory directly a few lines on
+		if (directory == null) {
+			return null;
+		}
 		final long location = locationOf(directory, valueId);
 		if (location == NO_LOCATION) {
 			return null;
@@ -1318,6 +1327,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	public long leafVersionOf(int valueId) {
 		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		// the null check lives HERE rather than inside `locationOf` so that it is local to the dereference below:
+		// a check across a call boundary is one static analysis cannot follow, and this method dereferences the
+		// directory directly a few lines on
+		if (directory == null) {
+			return NO_LEAF_VERSION;
+		}
 		final long location = locationOf(directory, valueId);
 		if (location == NO_LOCATION) {
 			return NO_LEAF_VERSION;
@@ -1376,6 +1391,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// ONE read of the volatile, exactly as `valueOf` does: a concurrent rebuild cannot swap the leaf map out from
 		// under the location this thread has already read
 		final ValueIdDirectory<K> directory = this.valueIdDirectory;
+		// the null check lives HERE rather than inside `locationOf` so that it is local to the dereference below:
+		// a check across a call boundary is one static analysis cannot follow, and this method dereferences the
+		// directory directly a few lines on
+		if (directory == null) {
+			return null;
+		}
 		final long location = locationOf(directory, valueId);
 		if (location == NO_LOCATION) {
 			return null;
@@ -1398,11 +1419,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// transaction to this thread would make the read resolve the transaction's own columns against a slot the
 		// PUBLISHED directory addressed. The chain this method replaces was immune to both for a different reason -
 		// it re-found the bucket by key afterwards - so the immunity has to be re-established rather than inherited.
-		// three ways to settle a candidate, cheapest first. A null predicate is the caller stating that every id it
-		// hands over is already known to match, so the key is never touched. A byte pattern is the caller stating
-		// that the predicate is containment and the column can answer it from its stored bytes - which on a
-		// front-coded column still walks back to a restart point, but no longer allocates the String that walk fed.
-		// Only the last case decodes a key into an object.
 		final ValueColumn<K> keyColumn = leaf.getKeyColumn();
 		final boolean matchBytes = containsPatternUtf8 != null && keyColumn.supportsUtf8Matching();
 		final K value = matchBytes || valuePredicate == null ? null : leaf.keyAt(slot);
@@ -1426,14 +1442,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Reads one value id's packed `(leafId, slot)` entry out of a directory snapshot.
 	 *
-	 * @param directory the snapshot to read, or `null` when the tree carries no value ids
+	 * @param directory the snapshot to read; callers hold the `null` case themselves, because each has its own
+	 *                  "nothing" answer to give and the check has to sit next to the dereference that needs it
 	 * @param valueId   the id to look up
 	 * @return the packed entry, or {@link #NO_LOCATION} when the id has none
 	 */
-	private long locationOf(@Nullable ValueIdDirectory<K> directory, int valueId) {
-		if (directory == null) {
-			return NO_LOCATION;
-		}
+	private long locationOf(@Nonnull ValueIdDirectory<K> directory, int valueId) {
 		final long[] locations = directory.valueIdLocations();
 		return valueId <= 0 || valueId >= locations.length ? NO_LOCATION : locations[valueId];
 	}
@@ -2056,11 +2070,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// own directory is never written into and readers still resolving through it are unaffected. `leafById` is
 		// deliberately EMPTY rather than carried: the rebuild replaces it wholesale, and an old map would resolve to
 		// the previous version's leaf instances in the window before it runs.
-		merged.valueIdDirectory = this.valueIdDirectory == null
+		final ValueIdDirectory<K> vid = this.valueIdDirectory;
+		merged.valueIdDirectory = vid == null
 			? null
 			: new ValueIdDirectory<>(
-				this.valueIdDirectory.valueIdLocations(), new LongObjectHashMap<>(0),
-				this.valueIdDirectory.directoryVersionByLeafId()
+				vid.valueIdLocations(), new LongObjectHashMap<>(0),
+				vid.directoryVersionByLeafId()
 			);
 		// post-replay (merge-time): before this merged version can propagate to the live view, re-derive the cross-leaf boundary
 		// invariants for every leaf this transaction dirtied — against the freshly merged structure (plain reads;
@@ -5023,8 +5038,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (this.overflow != null) {
 				size += layout.sizeOfArray(this.overflow.length, layout.referenceSize());
-				for (int i = 0; i < this.overflow.length; i++) {
-					final TransactionalBitmap bitmap = this.overflow[i];
+				for (final TransactionalBitmap bitmap : this.overflow) {
 					if (bitmap != null) {
 						size += bitmap.getHeapSizeInBytes();
 					}

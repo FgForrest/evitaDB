@@ -25,8 +25,8 @@ package io.evitadb.index;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.EntityNotManagedException;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -35,6 +35,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -58,7 +59,6 @@ import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -460,7 +460,7 @@ public class GlobalEntityIndex extends EntityIndex
 		int recordId,
 		boolean foldedUnique
 	) {
-		if (!maintainsTrigramIndex(referenceSchema, attributeSchema)) {
+		if (maintainsNoTrigramIndex(referenceSchema, attributeSchema)) {
 			reconcileTrigramIndexAbsence(referenceSchema, attributeSchema, locale);
 			super.insertFilterAttribute(
 				referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
@@ -490,7 +490,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		if (!maintainsTrigramIndex(referenceSchema, attributeSchema)) {
+		if (maintainsNoTrigramIndex(referenceSchema, attributeSchema)) {
 			reconcileTrigramIndexAbsence(referenceSchema, attributeSchema, locale);
 			super.removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 			return;
@@ -523,7 +523,7 @@ public class GlobalEntityIndex extends EntityIndex
 		int recordId,
 		boolean foldedUnique
 	) {
-		if (!maintainsTrigramIndex(referenceSchema, attributeSchema)) {
+		if (maintainsNoTrigramIndex(referenceSchema, attributeSchema)) {
 			reconcileTrigramIndexAbsence(referenceSchema, attributeSchema, locale);
 			super.addDeltaFilterAttribute(
 				referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
@@ -553,7 +553,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
-		if (!maintainsTrigramIndex(referenceSchema, attributeSchema)) {
+		if (maintainsNoTrigramIndex(referenceSchema, attributeSchema)) {
 			reconcileTrigramIndexAbsence(referenceSchema, attributeSchema, locale);
 			super.removeDeltaFilterAttribute(
 				referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
@@ -599,8 +599,13 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Decides whether the write about to happen must maintain a trigram index, and refuses the one shape this index
-	 * could accept but the load path could not give back.
+	 * Decides whether the write about to happen can leave the trigram index alone, and refuses the one shape this
+	 * index could accept but the load path could not give back.
+	 *
+	 * Stated in the negative because every caller is a guard clause taking the do-nothing branch, and `maintains` is
+	 * kept in the name deliberately: this reports what the SCHEMA asks this index to maintain, never whether an entry
+	 * happens to be in the map - a stale entry for an accelerator since withdrawn is exactly what
+	 * {@link #reconcileTrigramIndexAbsence} then clears.
 	 *
 	 * The load path rebuilds only entity-level accelerators: {@link TrigramIndex#rebuildAll} skips every
 	 * reference-scoped key, because it resolves attribute names against the entity schema alone and a reference
@@ -614,24 +619,28 @@ public class GlobalEntityIndex extends EntityIndex
 	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
 	 * @param attributeSchema the attribute being written
-	 * @return whether this index keeps a trigram index for that attribute in its own scope
+	 * @return `true` when this index keeps NO trigram index for that attribute in its own scope
 	 */
-	private boolean maintainsTrigramIndex(
+	private boolean maintainsNoTrigramIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
 		if (!attributeSchema.getAcceleratorsInScope(this.indexKey.scope())
 			.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
-			return false;
+			return true;
 		}
-		Assert.isPremiseValid(
-			referenceSchema == null,
-			() -> "Attribute `" + attributeSchema.getName() + "` of reference `" + referenceSchema.getName() +
-				"` declares the SUBSTRING filter accelerator, which the schema layer refuses on a reference " +
-				"attribute. Maintaining it here would build postings that the load path discards, so lifting that " +
-				"schema restriction means teaching TrigramIndex#rebuildAll about reference-scoped keys first."
-		);
-		return true;
+		// an explicit throw rather than a premise with a message supplier: the message names the reference, and only
+		// inside this branch is `referenceSchema` provably non-null. A supplier handed to Assert runs exactly when the
+		// premise fails - i.e. when it is non-null - but nothing states that at the dereference itself
+		if (referenceSchema != null) {
+			throw new GenericEvitaInternalError(
+				"Attribute `" + attributeSchema.getName() + "` of reference `" + referenceSchema.getName() +
+					"` declares the SUBSTRING filter accelerator, which the schema layer refuses on a reference " +
+					"attribute. Maintaining it here would build postings that the load path discards, so lifting " +
+					"that schema restriction means teaching TrigramIndex#rebuildAll about reference-scoped keys first."
+			);
+		}
+		return false;
 	}
 
 	/**
@@ -665,6 +674,12 @@ public class GlobalEntityIndex extends EntityIndex
 			return;
 		}
 		final AttributeIndexKey lookupKey = AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale);
+		// the containsKey is NOT the redundant guard static analysis reports it as: `remove` on a TransactionalMap
+		// goes through getOrCreateTransactionalMemoryLayer, so calling it unconditionally would allocate a MapChanges
+		// layer - and a commit-time merge of it - on every write to a NON-accelerated attribute of any collection that
+		// accelerates even one. `containsKey` takes the read-only getTransactionalMemoryLayerIfExists path, so the
+		// layer is created only when there is really something to drop
+		//noinspection RedundantCollectionOperation
 		if (this.trigramIndex.containsKey(lookupKey)) {
 			this.trigramIndex.remove(lookupKey);
 		}
@@ -704,13 +719,15 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull Serializable value
 	) {
 		final AttributeIndexKey lookupKey = AttributeIndex.createAttributeKey(
-			referenceSchema, attributeSchema, allowedLocales, locale, value);
+			referenceSchema, attributeSchema, allowedLocales, locale, value
+		);
 		final TrigramIndex existing = this.trigramIndex.get(lookupKey);
 		if (existing != null) {
 			return existing;
 		}
 		this.attributeIndex.attachSharedValueIdConsumer(
-			lookupKey, attributeSchema, TrigramIndex.VALUE_ID_CONSUMER_NAME);
+			lookupKey, attributeSchema, TrigramIndex.VALUE_ID_CONSUMER_NAME
+		);
 		final TrigramIndex created = new TrigramIndex(lookupKey);
 		this.trigramIndex.put(lookupKey, created);
 		return created;

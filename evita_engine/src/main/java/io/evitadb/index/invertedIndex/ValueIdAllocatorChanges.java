@@ -85,8 +85,8 @@ public class ValueIdAllocatorChanges implements Snapshotable<ValueIdAllocatorCha
 	}
 
 	/**
-	 * Captures the single transaction-local high-water mark into an immutable memento. Because the value is a JVM
-	 * primitive copied by value, the returned memento is fully independent of any later mutation of this layer.
+	 * Captures the single transaction-local high-water mark into an immutable memento - see
+	 * {@link ValueIdAllocatorMemento} for why that memento is independent of any later mutation of this layer.
 	 *
 	 * @return a memento carrying the current transaction-local high-water mark
 	 */

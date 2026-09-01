@@ -564,7 +564,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newLastKey the leaf's new last key after the mutation
 	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
 	 */
-	private void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
+	private static void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
 		if (hasFence && newLastKey >= fence) {
 			throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
 		}
@@ -596,7 +596,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newFirstKey the leaf's new first key after the mutation
 	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
 	 */
-	private void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
+	private static <V> void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
 		if (predecessor == null) {
 			// leftmost leaf — no predecessor to violate
 			return;
@@ -663,7 +663,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @return the corruption error to throw
 	 */
 	@Nonnull
-	private BPlusTreeCorruptedException boundaryMutationError(
+	private static BPlusTreeCorruptedException boundaryMutationError(
 		@Nonnull String side, long boundaryKey, @Nonnull String relation, long neighborKey) {
 		return new BPlusTreeCorruptedException(
 			"Corrupted in-memory B+ tree: a leaf's " + side + " boundary key " + boundaryKey + " does not sort " +

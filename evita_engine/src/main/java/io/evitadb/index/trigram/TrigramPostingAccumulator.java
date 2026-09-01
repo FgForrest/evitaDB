@@ -31,7 +31,6 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -64,7 +63,7 @@ import java.util.Arrays;
  *
  * 1. **count** — how many values contain each trigram. Establishes the trigram key set and its dense slot
  *    numbering.
- * 2. **collect** — append each value id into its trigram's buffer, every buffer allocated at its exact final
+ * 2. **collect** — place each value id into its trigram's buffer, every buffer allocated at its exact final
  *    size, so nothing is ever grown or trimmed.
  * 3. **materialize** — sort each buffer and build its posting once, then insert it once.
  *
@@ -123,9 +122,16 @@ final class TrigramPostingAccumulator {
 	private static final int INITIAL_KEY_CAPACITY = 1 << 10;
 
 	/**
-	 * Maps a packed trigram to its dense slot in {@link #keys} / {@link #counts} / {@link #buffers} /
-	 * {@link #cursors}. Primitive-keyed, because it is probed once per membership - 61.7 M times on the measured
-	 * attribute - and a boxed `Long` key there is pure garbage.
+	 * The buffer table before {@link #allocate()} has sized it. Shared and empty rather than `null`, because before
+	 * the counting walk finishes there genuinely are no buffers - this states that, where a null would instead state
+	 * that {@link #buffers} may be absent at any point, which it may not.
+	 */
+	private static final int[][] NO_BUFFERS = new int[0][];
+
+	/**
+	 * Maps a packed trigram to its dense slot in {@link #keys} / {@link #counts} / {@link #buffers}. Primitive-keyed,
+	 * because it is probed once per membership - 61.7 M times on the measured attribute - and a boxed `Long` key
+	 * there is pure garbage.
 	 */
 	@Nonnull private final LongIntHashMap slots;
 
@@ -135,22 +141,25 @@ final class TrigramPostingAccumulator {
 	@Nonnull private long[] keys;
 
 	/**
-	 * How many values contain the trigram of each slot - the exact final length of its buffer. Released by
-	 * {@link #allocate()}, which hands the counts over to the buffer lengths.
+	 * Two readings of one array, and the two never overlap: until {@link #allocate()} this is how many values contain
+	 * the trigram of each slot - the exact final length of its buffer - and from there on it is how many of those
+	 * members the slot has yet to receive, decremented by {@link #collect} as it fills the buffer from the end. A
+	 * remainder other than zero when {@link #materialize()} reaches the slot is a buffer the second walk left short.
+	 *
+	 * Carrying the count and the fill cursor in one array is what keeps the field non-null for the accumulator's whole
+	 * life. Nothing reads a count once `allocate` has handed it to a buffer length, and nothing reads a cursor before
+	 * that, so a second array would buy only a phase in which one of the two is meaningless - which is precisely the
+	 * phase that would otherwise have to be spelled `null`. It also saves the allocation and keeps the hot store in
+	 * {@link #collect} touching one array rather than two.
 	 */
-	@Nullable private int[] counts;
+	@Nonnull private int[] counts;
 
 	/**
-	 * The value ids collected for each slot, each array allocated at its exact final length. Not allocated until
-	 * {@link #allocate()}; entries are released one by one as {@link #materialize()} consumes them.
+	 * The value ids collected for each slot, each array allocated at its exact final length by {@link #allocate()};
+	 * entries are released one by one as {@link #materialize()} consumes them, since this reference is the last one
+	 * holding that slice of the arena alive.
 	 */
-	@Nullable private int[][] buffers;
-
-	/**
-	 * How far each slot's buffer has been filled - and, once filled, the assertion that it was filled exactly. Not
-	 * allocated until {@link #allocate()}.
-	 */
-	@Nullable private int[] cursors;
+	@Nonnull private int[][] buffers = NO_BUFFERS;
 
 	/**
 	 * How many distinct trigrams have been seen; the exclusive upper bound of every slot number.
@@ -204,10 +213,10 @@ final class TrigramPostingAccumulator {
 	 */
 	private void count(@Nonnull Serializable normalizedValue, int valueId) {
 		final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
-		for (int i = 0; i < trigrams.length; i++) {
+		for (final long trigram : trigrams) {
 			// one probe serves both the hit and the miss - hppc invalidates the index on insert, so it must not be
 			// reused across iterations
-			final int index = this.slots.indexOf(trigrams[i]);
+			final int index = this.slots.indexOf(trigram);
 			if (this.slots.indexExists(index)) {
 				this.counts[this.slots.indexGet(index)]++;
 			} else {
@@ -215,8 +224,8 @@ final class TrigramPostingAccumulator {
 					this.keys = Arrays.copyOf(this.keys, this.keyCount << 1);
 					this.counts = Arrays.copyOf(this.counts, this.keyCount << 1);
 				}
-				this.slots.indexInsert(index, trigrams[i], this.keyCount);
-				this.keys[this.keyCount] = trigrams[i];
+				this.slots.indexInsert(index, trigram, this.keyCount);
+				this.keys[this.keyCount] = trigram;
 				this.counts[this.keyCount] = 1;
 				this.keyCount++;
 			}
@@ -224,16 +233,14 @@ final class TrigramPostingAccumulator {
 	}
 
 	/**
-	 * Allocates every buffer at the exact length the counting walk established.
+	 * Allocates every buffer at the exact length the counting walk established, after which {@link #counts} reads as
+	 * the countdown of members each slot has yet to receive rather than as a count.
 	 */
 	private void allocate() {
 		this.buffers = new int[this.keyCount][];
-		this.cursors = new int[this.keyCount];
 		for (int slot = 0; slot < this.keyCount; slot++) {
 			this.buffers[slot] = new int[this.counts[slot]];
 		}
-		// the counts live on inside the buffer lengths from here
-		this.counts = null;
 	}
 
 	/**
@@ -244,24 +251,28 @@ final class TrigramPostingAccumulator {
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the value yields a trigram the counting walk
 	 * never saw, which means the tree changed between the two walks
 	 * @throws ArrayIndexOutOfBoundsException when a slot is offered more members than the counting walk counted for
-	 * it - the over-fill carries no diagnosis of its own, because the store below runs once per membership and the
-	 * JVM already bounds-checks it; the mirror-image SHORT fill IS diagnosed, in {@link #materialize()}
+	 * it - its countdown reaches zero and the next store indexes -1. The over-fill carries no diagnosis of its own,
+	 * because the store below runs once per membership and the JVM already bounds-checks it; the mirror-image SHORT
+	 * fill IS diagnosed, in {@link #materialize()}
 	 */
 	private void collect(@Nonnull Serializable normalizedValue, int valueId) {
 		final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
-		for (int i = 0; i < trigrams.length; i++) {
-			final int index = this.slots.indexOf(trigrams[i]);
+		for (final long trigram : trigrams) {
+			final int index = this.slots.indexOf(trigram);
 			if (!this.slots.indexExists(index)) {
 				// thrown rather than asserted through a Supplier: this runs once per membership - 61.7 M times on
 				// one measured attribute - and a capturing lambda built to describe a failure that does not happen
 				// is pure garbage on the happy path
 				throw new GenericEvitaInternalError(
-					"Trigram `" + TrigramCodec.toDisplayString(trigrams[i]) + "` appeared only on the second walk " +
+					"Trigram `" + TrigramCodec.toDisplayString(trigram) + "` appeared only on the second walk " +
 						"of the shared value tree - the tree was modified while its trigram index was being rebuilt."
 				);
 			}
 			final int slot = this.slots.indexGet(index);
-			this.buffers[slot][this.cursors[slot]++] = valueId;
+			// the count doubles as the cursor, so the buffer fills from the end. The direction is immaterial to the
+			// result - the small arm sorts, and the bitmap arm's writer sets bits in a word buffer - and it is what lets
+			// one array serve both walks
+			this.buffers[slot][--this.counts[slot]] = valueId;
 		}
 	}
 
@@ -278,7 +289,7 @@ final class TrigramPostingAccumulator {
 		final TrigramPostingStore store = new TrigramPostingStore();
 		for (int slot = 0; slot < this.keyCount; slot++) {
 			final int[] members = this.buffers[slot];
-			final int filled = this.cursors[slot];
+			final int outstanding = this.counts[slot];
 			final long trigram = this.keys[slot];
 			// a short fill would otherwise leave the posting padded with value id 0 - a silent, and silently
 			// wrong, index rather than a failed load. Note what this does and does not catch: it compares the
@@ -287,10 +298,10 @@ final class TrigramPostingAccumulator {
 			// the one in collect while storing the wrong value id. Nothing here can detect that; only the caller's
 			// obligation to keep the tree still can
 			Assert.isPremiseValid(
-				filled == members.length,
+				outstanding == 0,
 				() -> "Trigram `" + TrigramCodec.toDisplayString(trigram) + "` was counted on " +
-					members.length + " values but collected from " + filled + " - the shared value tree was " +
-					"modified while its trigram index was being rebuilt."
+					members.length + " values but collected from " + (members.length - outstanding) + " - the shared " +
+					"value tree was modified while its trigram index was being rebuilt."
 			);
 			if (members.length <= TrigramPostings.SMALL_POSTING_THRESHOLD) {
 				// the small representation IS a sorted int[]

@@ -27,6 +27,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -74,7 +76,8 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @NotThreadSafe
-public final class ValueIdConsumerRegistry {
+public final class ValueIdConsumerRegistry implements Serializable {
+	@Serial private static final long serialVersionUID = 9085812949893888932L;
 
 	/**
 	 * Names of the subsystems currently requiring value ids, in registration order (the order is kept only so

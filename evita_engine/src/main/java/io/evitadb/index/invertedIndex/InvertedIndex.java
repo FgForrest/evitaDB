@@ -945,6 +945,25 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Marks the value id directory as needing a rebuild before the next probe reads it.
+	 *
+	 * Guarded on the allocator so that the volatile store - a StoreLoad barrier, drained on every write - is paid only
+	 * by trees that actually carry value ids. Most inverted indexes never do: ids are switched on only where a filter
+	 * accelerator is declared, so every other attribute would otherwise pay a barrier on every single record write to
+	 * invalidate a directory it will never build. This is the same cost promise {@link #removeRecord} states for the
+	 * lifecycle sink, applied to the flag.
+	 *
+	 * Nothing is lost by the guard: ids are only ever switched on while the tree is still empty (see
+	 * {@link #enableValueIds}), and every route that enables them - that one, {@link #restoreValueIds(int, int[])} and
+	 * the commit merge - rebuilds the directory and clears this flag itself.
+	 */
+	private void markValueIdDirectoryStale() {
+		if (this.valueIdAllocator != null) {
+			this.valueIdDirectoryStale = true;
+		}
+	}
+
+	/**
 	 * Rebuilds the value id directory once, however many readers arrive to find it stale.
 	 *
 	 * The catch-up this performs is a WRITE made from the read path, and the rebuild behind it is emphatically not
@@ -1040,7 +1059,7 @@ public class InvertedIndex implements
 			notifyValueCreated(sink, normalizedValue);
 		}
 		this.dirty.setToTrue();
-		this.valueIdDirectoryStale = true;
+		markValueIdDirectoryStale();
 	}
 
 	/**
@@ -1070,7 +1089,7 @@ public class InvertedIndex implements
 			notifyValueCreated(sink, normalizedValue);
 		}
 		this.dirty.setToTrue();
-		this.valueIdDirectoryStale = true;
+		markValueIdDirectoryStale();
 	}
 
 	/**
@@ -1120,7 +1139,7 @@ public class InvertedIndex implements
 				sink.valueRemoved(dyingValueId, (Serializable) normalizedValue);
 			}
 		}
-		this.valueIdDirectoryStale = true;
+		markValueIdDirectoryStale();
 	}
 
 	/**
