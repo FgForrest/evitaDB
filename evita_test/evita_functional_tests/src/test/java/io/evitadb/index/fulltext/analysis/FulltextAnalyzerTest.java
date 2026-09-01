@@ -264,6 +264,12 @@ class FulltextAnalyzerTest {
 		}
 
 		@Test
+		@DisplayName("Converges declension forms of a masculine animate noun without diacritics")
+		void shouldConvergeDeclensionFormsWithoutDiacritics() {
+			assertIterableEquals(List.of("pan", "pan", "pan", "pan"), terms(CZECH, "pan pani panove pana"));
+		}
+
+		@Test
 		@DisplayName("Converges declension forms of a hard-pattern noun")
 		void shouldConvergeHardPatternForms() {
 			assertIterableEquals(List.of("hrad", "hrad", "hrad"), terms(CZECH, "hrad hradu hradech"));

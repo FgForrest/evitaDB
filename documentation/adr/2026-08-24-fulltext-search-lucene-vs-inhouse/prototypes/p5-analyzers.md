@@ -977,3 +977,60 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   the first existing website is switched over. Not according to complaints, because at that moment the way
   back is a reindex. *Discarded (2026-08-25) — see §4.6 point 3: migration from the legacy stack is not a
   supported path, and the parity list of §10.4 falls with it.*
+
+---
+
+## 12. Implementation reference — prior-art research on folding vs. stemming
+
+The ordering dilemma this plan inherits (fold after the stemmer, §4.6/§7, and the accent-typed
+recall it costs — measured by `CzechAccentTypingTest` at 83/108 for `CzechStemFilter` and 27/108
+for Hunspell `cs_CZ`) was surveyed against seven engines — Lucene, Solr, Elasticsearch,
+OpenSearch, Vespa, Meilisearch, Typesense — plus the in-house EdeeCMS analyzers. The full record,
+assignment and findings with `path:line` evidence, is
+[`p5-prior-art-accent-vs-stemming.md`](p5-prior-art-accent-vs-stemming.md) (2026-08-27). What it
+settles for the implementation:
+
+- **No engine reconciles folding with a native-orthography stemmer.** Lucene/Solr/ES ship Czech
+  with no folding at all; Vespa and Typesense fold first by default and let Czech go unstemmed.
+  Typesense even ships both orders at once — fold→stem for Latin scripts, stem→fold for
+  Cyrillic — because the order is dictated by the alphabet the stemmer's tables are written in,
+  not by principle.
+- **The established fix is co-design (findings §3, mechanism M1):** a language-specific
+  normalization step plus a stemmer written in folded space — Lucene's German/Spanish/French/
+  Italian/Portuguese/Greek pattern. For Czech it exists as a pattern only; a folded-space port of
+  `CzechStemmer`'s tables is mostly mechanical, with two rules needing language judgment
+  (`št→sk`, `ů→o`) — validate against the fixture vocabulary.
+- **The only shipped both-axes mechanism is a second lane per term (mechanism M2):** Vespa's
+  `stemming: multiple` (original + stems, queried as 1.0/0.7-weighted alternatives, intended
+  future default); Lucene/Solr document the same `KeywordRepeatFilter` idiom without enabling it.
+  **M2 is the mechanism with a claim on the term dictionary layout** — whether a token may ever
+  carry a folded-surface lane next to its stem lane, distinguishable at scoring time, must be
+  decided before the dictionary layout freezes (ties into P5-1 in §11 and the P5 → P1 gate).
+- **Dead ends verified:** no engine wires a spell-suggester into the query path; the fuzzy
+  ceiling is 2 edits everywhere (so 3+-edit accent gaps stay unreachable, refining O3); ICU
+  collation keys are whole-value sort lanes only; ES `unicode_aware` is code-point counting, not
+  accent-blind fuzzy.
+
+**All six mechanisms were then built and measured** —
+[`p5-approach-measurements-accent-vs-stemming.md`](p5-approach-measurements-accent-vs-stemming.md)
+(run of 2026-09-01), 23 matrix rows over one 32-lemma/119-form vocabulary on five metrics. It
+amends two of the points above:
+
+- **M1 is confirmed and quantified:** up to a **perfect 348/348** on the bare-typed cross-form
+  query (the production chain scores 253/348), at one term per token. The port needed a **third**
+  rule the survey did not predict — the neuter `-at-` paradigm entries
+  (`atech`/`atům`/`ata`/`aty`/`at`), which folding makes ambiguous with the far commoner `-át`
+  masculines. That rule is a three-way switch, all positions measured: kept single-pass splits
+  `kabát` (8 pairs) *and* merges `formát`≡`forma` (12 merges); dropped splits `rajče`/`rajčata`
+  (4 pairs); kept with the stemmer applied **twice** converges everything and keeps the
+  `formát`≡`forma` merges — two-step is what makes the perfect score reachable. The two rules the
+  survey *did* flag are both genuine trades: `št→sk` buys 32 pairs (the largest lever in the
+  matrix) for 50 false merges, `ů→o` buys 2 for 30+ and is dominated by two-step on the fixture.
+  Note that the folded `st`/`št` ambiguity produces 8 false merges even with both rewrites
+  disabled, so declining them is not a precision-free option either. Where to sit on that curve
+  (A16 342/348 @ 58 merges, A19 346/348 @ 76, A18 348/348 @ 112) is the one open decision.
+- **M2 is refuted, which releases the term dictionary layout:** the second lane buys 3 pairs of 95
+  for a 1.95x term inflation, because a folded surface lane and a stem lane only ever meet like for
+  like. **The "settle the second lane before the layout freezes" constraint above is therefore
+  lifted** — if a surface lane is wanted later it must be argued from exact-phrase or highlighting,
+  not from accent recall. `AnalyzedTerm.surfaceForm()` stays regardless.
