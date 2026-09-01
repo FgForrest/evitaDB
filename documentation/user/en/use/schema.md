@@ -529,6 +529,7 @@ value, it examines only the ones that already look plausible.
 <NoteTitle toggles="true">
 
 ##### Why is `attributeStartsWith` not accelerated as well?
+
 </NoteTitle>
 
 Because it is already fast, and the accelerator would slow it down. Values are held in sorted order, so everything

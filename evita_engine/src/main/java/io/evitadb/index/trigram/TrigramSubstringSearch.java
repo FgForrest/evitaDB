@@ -85,6 +85,27 @@ import java.util.function.LongUnaryOperator;
  * "The corpus" is whatever scan the one intersection displaces, and that is the CALLER's to state - see the
  * `scannedDistinctValueCounter` overload of {@link #match}.
  *
+ * # The escalating gate (not built)
+ *
+ * {@link PatternPostings#candidateUpperBound} is the CHEAPEST posting's cardinality, which is pessimistic: a value
+ * must contain every trigram, so the true candidate count can be far smaller. Rather than declining outright, a
+ * second and tighter estimate could be bought at the point {@link #match} gives up - intersect only the two cheapest
+ * postings, count the result, then re-ask the gate with that. It is safe by subset algebra: the true candidate set is
+ * contained in that pairwise intersection, so the estimate can never be an UNDER-count and the gate can never be
+ * tricked into accelerating something it should have refused. A zero would even answer NO_MATCH outright, and the
+ * cost is bounded and paid only on a path already committed to a full scan.
+ *
+ * It is deliberately not built, because on the corpus measured for {@link #REQUIRED_NARROWING_FACTOR} it would have
+ * flipped NONE of the declined patterns. That is structural rather than accidental: a loose bound needs several
+ * trigrams whose postings overlap poorly, but such a pattern is selective and has therefore ALREADY passed the gate,
+ * so the patterns that decline here decline because they are genuinely wide. Most of them carry a single trigram
+ * anyway, leaving no second posting to intersect and a bound that is already exact.
+ *
+ * Worth building when a workload appears whose DECLINED patterns are multi-trigram - each trigram common, the
+ * combination rare. Until then it would be hot-path code paying for a population that does not exist. It is NOT the
+ * fix for a gate that declines winnable patterns: that is {@link #REQUIRED_NARROWING_FACTOR} being mistuned, which
+ * that constant's own documentation covers.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class TrigramSubstringSearch {
@@ -324,29 +345,8 @@ public final class TrigramSubstringSearch {
 		}
 		final long threshold = accelerationThreshold(patternPostings.candidateUpperBound());
 		if (scannedDistinctValueCounter.applyAsLong(threshold) < threshold) {
-			// THE ESCALATING GATE, deliberately not implemented - measured worthless here, kept because the shape it
-			// needs is one another corpus could easily have, and rediscovering it costs more than reading this.
-			//
-			// The bound above is the CHEAPEST posting's cardinality, which is pessimistic: a value must contain every
-			// trigram, so the true candidate count can be far smaller. Rather than declining outright, this is where
-			// a second, tighter estimate would be bought - intersect only the two cheapest postings and count the
-			// result, then re-ask the gate with that. Safe by subset algebra: the true candidate set is contained in
-			// that pairwise intersection, so the estimate can never be an UNDER-count and the gate can never be
-			// tricked into accelerating something it should have refused. A zero would even answer NO_MATCH outright.
-			// The cost is bounded and paid only here, on a path already committed to a full scan.
-			//
-			// Measured on a production retail catalog (three attributes, 171 patterns): it would have flipped ZERO of
-			// the 14 declined patterns. Ten of them carry a single trigram, so there is no second posting to
-			// intersect and the bound is already exact; the other four are 4-13% loose and still miss the threshold
-			// by an order of magnitude. The reason is structural rather than accidental - a loose bound needs several
-			// trigrams whose postings overlap poorly, but such a pattern is selective and has therefore ALREADY
-			// passed the gate. Patterns that decline here decline because they are genuinely wide.
-			//
-			// Worth building when a workload appears whose DECLINED patterns are multi-trigram - each trigram common,
-			// the combination rare. Until then it would be hot-path code paying for a population that does not exist.
-			// Note this is not the fix for a gate that declines winnable patterns: on that same corpus all 14 would
-			// have run 1.4x-4.8x faster accelerated, which is REQUIRED_NARROWING_FACTOR being mistuned, not the
-			// bound being loose.
+			// the tighter estimate that could be bought here is deliberately not built - see the
+			// "# The escalating gate (not built)" section of this class's documentation for what declined it
 			return null;
 		}
 		final int[] candidates = trigramIndex.resolveCandidateValueIds(patternPostings);

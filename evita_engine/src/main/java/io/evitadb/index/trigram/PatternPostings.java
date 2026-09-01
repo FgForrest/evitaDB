@@ -43,6 +43,20 @@ import javax.annotation.Nonnull;
  * Sorting here instead would charge every declined query for work it then throws away, and the sort is an insertion
  * sort - quadratic on a descending input - so on a long pattern that charge is not a rounding error.
  *
+ * ## Why the element type is `Object`
+ *
+ * A posting is either a sorted `int[]` or a {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}, chosen per
+ * trigram by {@link TrigramPostings#SMALL_POSTING_THRESHOLD} - and one pattern routinely holds both, since its rare
+ * trigrams post small while its common ones post large. Java cannot name that union: `int[]` is a primitive array, so
+ * it can implement no interface, which leaves `Object` as the only type the two arms share. Generics do not reach it
+ * either - a type parameter is fixed per carrier, while this array is heterogeneous inside one.
+ *
+ * Boxing the small arm into a wrapper under a sealed interface would name the union, at the price of one allocation
+ * and one dereference per posting per query - paid on the hot path, and paid precisely on the majority case the
+ * `int[]` arm exists to keep cheap (see {@link TrigramPostings}). The array therefore stays untyped, and the two arms
+ * are separated by `instanceof` at the three sites in {@link TrigramIndex} that read them. That looseness is confined
+ * by this type being package-private, so no `Object[]` of postings is reachable from outside.
+ *
  * ## Ownership and mutability
  *
  * Both arrays are **scratch belonging to the query that produced them**, and the intersection reorders them in place.
@@ -59,8 +73,8 @@ import javax.annotation.Nonnull;
  * value. The record's generated `equals`/`hashCode` compare the arrays by reference, which is meaningless here and is
  * never relied upon.
  *
- * @param postings            the postings themselves, in trigram order until the intersection reorders them, never
- *                            empty
+ * @param postings            the postings themselves - each a sorted `int[]` or a `PersistentRoaringBitmap`, see
+ *                            above - in trigram order until the intersection reorders them, never empty
  * @param cardinalities       each posting's cardinality, in the same order and of the same length
  * @param candidateUpperBound the most candidates an intersection over these postings could produce - the cheapest
  *                            posting's cardinality, since an intersection cannot yield more ids than its smallest

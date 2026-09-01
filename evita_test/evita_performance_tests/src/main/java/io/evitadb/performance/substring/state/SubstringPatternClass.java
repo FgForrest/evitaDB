@@ -74,23 +74,12 @@ import javax.annotation.Nonnull;
  * only kind that survives being read out of context - in a result table, in a `-p` argument, in a commit message.
  * The two-digit zero-padded form sorts the group correctly in every one of those places.
  *
- * ## What the first sweep already predicts, so the second one can falsify it
+ * ## What the first sweep already predicts
  *
- * The trigram path visits `share x n` candidates where the scan visits `n` values, and both then run the same exact
- * predicate - so to a first approximation the speedup scales as `1 / share` and each measured cell is an estimate of
- * the **break-even share** `f* = share x speedup`. Reading the first sweep back through that identity:
- *
- * ```text
- * n = 10 000   COMMON 0.15/1.14 -> 0.132   THRESHOLD 0.25/1.79 -> 0.140   MEDIUM 0.01*12.65 -> 0.127
- * n = 100 000  COMMON 0.15/1.52 -> 0.099   THRESHOLD 0.25/2.10 -> 0.119   MEDIUM 0.01*9.35  -> 0.094
- * ```
- *
- * Three classes spanning a twenty-five-fold range of widths agree to within a few percent at each size, which is
- * what makes the identity worth trusting - and they put the crossover at roughly **13% at 10k and 10% at 100k**.
- * That is above every member of this group except {@link #WIDTH_12_PCT}, which is therefore predicted to win
- * narrowly at 10k and lose at 100k. If it does, the crossover demonstrably moves with corpus size and no single
- * scalar factor can express it; if it wins or loses at both, the identity is wrong somewhere and that is worth
- * more than a confirmation.
+ * The first sweep's numbers imply a break-even share, and with it a prediction about {@link #WIDTH_12_PCT} that the
+ * second sweep can falsify. It is recorded in the "width bisect" follow-up of
+ * `documentation/adr/2026-08-31-trigram-query-path-optimization.md` rather than here, because a falsifiable claim
+ * goes stale the moment the run that settles it happens, and javadoc would keep asserting it.
  *
  * Unlike {@link #THRESHOLD}, none of the four asserts that the selectivity gate admits it. They sit well inside a
  * `1/4` gate today, but the whole point of the bisect is to *move* that constant, and a class that refused to run

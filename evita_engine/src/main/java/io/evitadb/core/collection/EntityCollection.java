@@ -2548,20 +2548,10 @@ public final class EntityCollection implements
 			}
 			updatedSchema = schemaSoFar;
 		} catch (RuntimeException ex) {
-			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - three
-			// reasons, all of which must hold for it to stay one.
-			//
-			// (a) This replay runs the mutations OUTSIDE their real batch, so it can fail where the real pass will
-			//     not: an entity mutation naming a global attribute that an earlier mutation in the same batch
-			//     creates sees a catalog schema that does not have it yet. Surfacing that would turn a working
-			//     schema change into a spurious rejection - the preflight would become a new bug, not a guard.
-			// (b) Nothing is lost by staying quiet. This is a pure dry run against a copy; the real pass runs
-			//     moments later with the correct surrounding state and reports every genuine failure itself.
-			// (c) Only one verdict actually needs this preflight, and reaching it does not depend on the exception:
-			//     the non-empty-collection refusal is the sole rule whose answer differs PER COLLECTION, which is
-			//     what lets a cascade accept collection A and then refuse collection B. Every other refusal - wrong
-			//     data type, accelerator on a reference attribute - depends only on the attribute, so a cascade fires
-			//     it on the first collection visited, before anything has been exchanged, and is already atomic.
+			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
+			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
+			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
+			// surrounding state and reports every genuine failure itself.
 			return;
 		}
 		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);

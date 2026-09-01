@@ -59,8 +59,7 @@ import java.util.Arrays;
  * This class consequently does **no normalization of its own**. Every value it is given has already been through
  * the owning attribute's normalizer (`FilterIndex#getNormalizer`, today Unicode NFD and case-sensitive for
  * `String` attributes) - the write path hands it the very key the shared value tree stores, and the query path
- * must hand it a pattern put through the same normalizer. When issue #545 moves a locale-aware case fold into that
- * normalizer, extraction inherits it with no change here.
+ * must hand it a pattern put through the same normalizer.
  *
  * Two consequences of NFD that a reader of the memory numbers should know:
  *

@@ -47,15 +47,10 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 * Shared empty instance with no price records at all. An empty result *is* a resolved-empty one, so this
 	 * is its natural home.
 	 *
-	 * It must stay here and never move up to {@link FilteredPriceRecords}: a field initialiser on the
-	 * interface runs in the interface's static initialiser, and because the interface declares a default method
-	 * ({@link FilteredPriceRecords#prepareForFlattening()}) every implementation's initialisation first
-	 * initialises the interface (JLS 12.4.1). Constructing an implementation from the interface's initialiser
-	 * therefore closes a class-initialisation cycle that deadlocks permanently as soon as two threads enter it
-	 * from opposite ends — invisible to `jstack`/`jcmd`, which do not detect class-init cycles. Declared on
-	 * the implementation, the initialiser merely constructs the very class it belongs to, which is re-entrant
-	 * and safe. A holder class nested in the interface would **not** fix it; see the hazard note on
-	 * {@link FilteredPriceRecords}.
+	 * It must stay here and never move up to {@link FilteredPriceRecords}: declared on the interface, this
+	 * initialiser would close the class-initialisation cycle described in that interface's hazard note, and a
+	 * holder class nested there would not fix it either. Declared on the implementation it merely constructs the
+	 * very class it belongs to, which is re-entrant and safe.
 	 *
 	 * Guarded by `FilteredPriceRecordsClassInitializationTest`.
 	 *

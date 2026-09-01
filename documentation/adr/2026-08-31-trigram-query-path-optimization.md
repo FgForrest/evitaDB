@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-08-31 15:10
+updated: 2026-09-01 17:05
 status: accepted
 kind: optimization
 issues: [1454]
@@ -188,6 +188,25 @@ both settings run from one jar over one corpus and must return identical bitmaps
 verified per pattern across four runs.
 
 ## Consequences & open follow-ups
+
+- **The width bisect carries a prediction, and it exists to be falsified.** The trigram path visits `share x n`
+  candidates where the scan visits `n` values, and both then run the same exact predicate — so to a first
+  approximation the speedup scales as `1 / share`, and each measured cell estimates a **break-even share**
+  `f* = share x speedup`. Reading the first sweep back through that identity:
+
+  ```text
+  n = 10 000   COMMON 0.15/1.14 -> 0.132   THRESHOLD 0.25/1.79 -> 0.140   MEDIUM 0.01*12.65 -> 0.127
+  n = 100 000  COMMON 0.15/1.52 -> 0.099   THRESHOLD 0.25/2.10 -> 0.119   MEDIUM 0.01*9.35  -> 0.094
+  ```
+
+  Three classes spanning a twenty-five-fold range of widths agree to within a few percent at each size, which is what
+  makes the identity worth trusting, and they put the crossover at roughly **13% at 10k and 10% at 100k**.
+  `SubstringPatternClass#WIDTH_12_PCT` is therefore predicted to win narrowly at 10k and lose at 100k. If it does,
+  the crossover demonstrably moves with corpus size and no single scalar factor can express it — the same conclusion
+  the fan-out bullet below reaches by a different route. If it wins or loses at both, the identity is wrong somewhere,
+  and that is worth more than a confirmation. Recorded here rather than in that enum's javadoc because the claim is
+  **dated by construction**: once the second sweep runs it is settled, and permanent API documentation would go on
+  asserting it.
 
 - **The selectivity gate does not mean what its name says, for reduced-index fan-out.**
   `accelerationThreshold` compares a **global** candidate bound against `sumDistinctValuesUpTo`, which

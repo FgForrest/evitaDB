@@ -506,11 +506,9 @@ public interface FilteredPriceRecords extends Serializable {
 	 * Method is called when this instance is about to get into the cache.
 	 *
 	 * Keeping this method `default` is what makes this interface a *superinterface that declares a default
-	 * method*, and JLS 12.4.1 therefore initialises `FilteredPriceRecords` before any implementation of it.
-	 * That is a harmless one-way dependency **only** as long as nothing in this interface's static
-	 * initialiser constructs an implementation — see the class-level hazard note. Do not add a field
-	 * initialiser here that calls an implementation's constructor (directly or through a holder class);
-	 * the shared empty instance belongs on {@link ResolvedFilteredPriceRecords#EMPTY}.
+	 * method*, which is the precondition of the class-initialisation hazard described on this interface's class
+	 * documentation. Do not add a field initialiser to this interface that constructs an implementation, directly
+	 * or through a holder class; the shared empty instance belongs on {@link ResolvedFilteredPriceRecords#EMPTY}.
 	 */
 	default void prepareForFlattening() {}
 

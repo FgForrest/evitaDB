@@ -81,6 +81,24 @@ import static io.evitadb.api.query.QueryConstraints.attributeContent;
  * It provides methods to generate filtering formulas based on string attribute searches, applying specific
  * predicates for filtering.
  *
+ * # How a substring search gets accelerated
+ *
+ * A string search is answered by scanning the attribute's filter index bucket by bucket. Where the attribute declares
+ * the `SUBSTRING_SEARCH` filter accelerator, a {@link TrigramIndex} narrows that to a candidate set first. Three
+ * things shape how that is wired here, each argued in full on the method that owns it:
+ *
+ * - **the accelerator is hosted once per collection**, on the {@link GlobalEntityIndex}, never per reduced index - so
+ *   the global answer is computed once per {@link Scope} by {@link #hoistGlobalSubstringFormulas} and then intersected
+ *   with each target index's own primary keys by {@link #resolveFromIndex}, instead of being recomputed for each of
+ *   the hundreds of thousands of reduced indexes a broad `hierarchyWithin` can offer;
+ * - **whether to accelerate is a threshold question**, not a request for a total, so {@link #sumDistinctValuesUpTo}
+ *   walks the target set only until the scan it would displace is known to be large enough to be worth displacing;
+ * - **the global answer is memoised** by {@link #createGlobalSubstringFormula} on the root planning context, so it is
+ *   shared across every candidate plan and nested sub-query of the same client query.
+ *
+ * The fallback is always the SCAN, never an empty result: an absent, unusable or unprofitable accelerator must change
+ * how fast the answer arrives and nothing else.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
@@ -305,7 +323,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * ## Confinement to entity-level attributes
 	 *
 	 * The trigram path stays behind `referenceSchema == null`. Today a reference attribute can never carry a trigram
-	 * index - the schema layer refuses any filter accelerator on one, and `GlobalEntityIndex#maintainsTrigramIndex`
+	 * index - the schema layer refuses any filter accelerator on one, and `GlobalEntityIndex#maintainsNoTrigramIndex`
 	 * asserts the same premise on the write side - but that schema restriction is documented as liftable, and the
 	 * `instanceof GlobalEntityIndex` test that used to close the hole incidentally is gone. Were it lifted, global
 	 * postings for a reference attribute would mean "the owner carries this value on SOME reference of that type",

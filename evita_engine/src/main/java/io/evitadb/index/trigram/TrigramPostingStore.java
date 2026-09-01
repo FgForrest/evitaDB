@@ -123,8 +123,14 @@ final class TrigramPostingStore {
 	/**
 	 * Looks a trigram's posting up, as the calling transaction sees it.
 	 *
+	 * Handed back as bare {@link Object} for the reason given on {@link #postings}, and there is no narrower
+	 * signature to offer even in principle: the two shapes cannot be split into typed getters, because Java does not
+	 * overload on return type. Nor would a caller want it - every one of them passes what comes back straight to
+	 * {@link TrigramPostings}, which is the type that owns the discrimination.
+	 *
 	 * @param trigram the packed trigram
-	 * @return its posting, or `null` when no value contains that trigram
+	 * @return its posting - a sorted `int[]` or a {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}, see
+	 * {@link TrigramPostings} - or `null` when no value contains that trigram
 	 */
 	@Nullable
 	Object get(long trigram) {
@@ -138,8 +144,18 @@ final class TrigramPostingStore {
 	 * trigrams some value actually contains — so {@link #liveKeyCount()} is the tree's own `O(1)` size and a lookup
 	 * of a dead trigram is answered by the descent itself rather than by inspecting what it found.
 	 *
+	 * Takes the posting as bare {@link Object} for the reason given on {@link #postings}. Typed
+	 * `put(long, int[])` / `put(long, PersistentRoaringBitmap)` overloads delegating to an `Object` form were
+	 * considered and rejected: the `Object` form would have to stay reachable regardless, because the write path
+	 * stores whatever {@link TrigramPostings#add} and {@link TrigramPostings#remove} return and those return the
+	 * union. Two of the four call sites would gain a compile-time check they do not need - the accumulator builds
+	 * each arm three lines above the store - while the two that carry the union stay exactly as they are, on the
+	 * hot path, now resolving against one of three overloads by the declared type of an expression rather than by
+	 * what the call says.
+	 *
 	 * @param trigram the packed trigram
-	 * @param posting the posting to store
+	 * @param posting the posting to store - a sorted `int[]` or a
+	 * {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}, see {@link TrigramPostings}
 	 */
 	void put(long trigram, @Nonnull Object posting) {
 		if (TrigramPostings.cardinality(posting) == 0) {
