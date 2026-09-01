@@ -364,8 +364,8 @@ public class ValueDedupReadBenchmark {
 	 * Builds every structure this trial needs, and self-checks that they answer alike before a single timing is taken.
 	 *
 	 * The owner index costs `V` inserts and only two of the seven benchmarks resolve an id, so it is built only when
-	 * the trial's own benchmark name says it will be used - the same trick {@link TrigramQueryBenchmark} plays with
-	 * its baseline index, and worth roughly a third of this matrix's wall clock.
+	 * the trial's own benchmark name says it will be used - the same trick the uncommitted `TrigramQueryBenchmark`
+	 * spike plays with its baseline index, and worth roughly a third of this matrix's wall clock.
 	 *
 	 * @param parameters JMH's description of the trial, consulted for the benchmark's name
 	 */

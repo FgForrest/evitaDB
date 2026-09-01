@@ -90,10 +90,16 @@ import java.util.TreeSet;
  * reduced value trees were replaced by id-keyed exact arrays referencing the canonical owner tree, how many bytes
  * would actually be saved?*
  *
- * It is the sibling of {@link TrigramReplicationCensus} and reuses its boot, walk and reporting machinery. Where that
+ * It is the sibling of `TrigramReplicationCensus` and reuses its boot, walk and reporting machinery. Where that
  * census answers *where the attribute heap sits*, this one answers *what moving it would cost and return* - measured
  * current bytes against a byte-exact projection of the v1 candidate representation, minus the host increment the
  * canonical owner would have to start paying.
+ *
+ * `TrigramReplicationCensus`, and the rest of this package's trigram tooling, were never committed - they are
+ * working-tree measurement scratch from the trigram campaign. Siblings from that set are therefore named in plain
+ * text throughout this class rather than linked, so that a checkout which does not carry them still reads cleanly.
+ * This class and its two companions ({@link ValueDedupRepresentationSpike} and {@link ValueDedupReadBenchmark}) are
+ * the exception: they are committed because an open issue depends on being able to re-run them.
  *
  * # The domain
  *
@@ -180,7 +186,7 @@ import java.util.TreeSet;
  *
  * A `SKIP` verdict means "out of scope for the dictionary lever", not "nothing to gain here"; the container roll-up
  * is where those domains are priced.
- * 5. **The A3 cross-check is computed inside this run**, not by re-running {@link TrigramReplicationCensus}: the same
+ * 5. **The A3 cross-check is computed inside this run**, not by re-running `TrigramReplicationCensus`: the same
  *    walk accumulates that census's definition of "reduced value trees" (every non-GLOBAL index) beside this one's
  *    (the two reduced kinds only). The two differ exactly by the reference-type indexes, which A3 measured at
  *    &le;0.2% of the attribute heap - hence the ~10% tolerance.
@@ -196,7 +202,7 @@ import java.util.TreeSet;
  *
  * # Reflection
  *
- * Three private/protected fields are read reflectively, in the spirit of {@link TrigramReplicationCensus}'s single
+ * Three private/protected fields are read reflectively, in the spirit of `TrigramReplicationCensus`'s single
  * read and for the same reason - the spike may not edit the engine:
  * {@link EntityIndex}`.attributeIndex`, {@link OwnerSortIndex}`.ownedTree` and {@link InvertedIndex}`.buckets`. The
  * last one is needed only for the host increment, which prices the owner's id column from the tree's own leaf count
@@ -204,7 +210,7 @@ import java.util.TreeSet;
  *
  * # Configuration
  *
- * The properties are {@link TrigramReplicationCensus}'s, so one command line serves both, plus one of its own:
+ * The properties are `TrigramReplicationCensus`'s, so one command line serves both, plus one of its own:
  *
  * | Property | Meaning |
  * |---|---|
@@ -240,7 +246,7 @@ import java.util.TreeSet;
 public class ValueDedupCensus {
 
 	/**
-	 * System property naming the catalog to walk. Shared with {@link TrigramReplicationCensus}.
+	 * System property naming the catalog to walk. Shared with `TrigramReplicationCensus`.
 	 */
 	public static final String CATALOG_NAME_PROPERTY = "evita.trigram.catalogName";
 
@@ -351,8 +357,8 @@ public class ValueDedupCensus {
 	private static final double A3_TOLERANCE = 0.10d;
 
 	/**
-	 * The `attributeIndex` field of {@link EntityIndex}, opened once. See {@link TrigramReplicationCensus} for why the
-	 * census reads it reflectively instead of summing the publicly reachable sub-index families.
+	 * The `attributeIndex` field of {@link EntityIndex}, opened once. See the *Reflection* section of this class's
+	 * javadoc for why the census reads it reflectively instead of summing the publicly reachable sub-index families.
 	 */
 	private static final Field ATTRIBUTE_INDEX_FIELD = openField(EntityIndex.class, "attributeIndex");
 
