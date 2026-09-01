@@ -2,11 +2,11 @@
 {
   "min" : "80.00",
   "max" : "150.00",
-  "overallCount" : 10,
+  "overallCount" : 13,
   "buckets" : [
     {
-      "occurrences" : 2,
-      "relativeFrequency" : "9.01",
+      "occurrences" : 6,
+      "relativeFrequency" : "54.53",
       "requested" : true,
       "threshold" : "80.00"
     },
@@ -14,71 +14,29 @@
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "81.70"
+      "threshold" : "84.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "83.40"
+      "threshold" : "88.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "85.10"
+      "threshold" : "92.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "86.80"
+      "threshold" : "96.00"
     },
     {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "88.50"
-    },
-    {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "90.20"
-    },
-    {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "91.90"
-    },
-    {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "93.60"
-    },
-    {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "95.30"
-    },
-    {
-      "occurrences" : 3,
-      "relativeFrequency" : "76.56",
-      "requested" : true,
-      "threshold" : "97.00"
-    },
-    {
-      "occurrences" : 0,
-      "relativeFrequency" : "0",
-      "requested" : true,
-      "threshold" : "98.50"
-    },
-    {
-      "occurrences" : 1,
-      "relativeFrequency" : "6.38",
+      "occurrences" : 2,
+      "relativeFrequency" : "30.30",
       "requested" : true,
       "threshold" : "100.00"
     },
@@ -86,43 +44,85 @@
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "101.71"
+      "threshold" : "103.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "103.43"
+      "threshold" : "106.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "105.14"
+      "threshold" : "109.00"
+    },
+    {
+      "occurrences" : 1,
+      "relativeFrequency" : "4.78",
+      "requested" : true,
+      "threshold" : "112.00"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "106.86"
+      "threshold" : "115.80"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "108.57"
+      "threshold" : "119.60"
     },
     {
       "occurrences" : 0,
       "relativeFrequency" : "0",
       "requested" : true,
-      "threshold" : "110.29"
+      "threshold" : "123.40"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "127.20"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "131.00"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "134.80"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "138.60"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "142.40"
+    },
+    {
+      "occurrences" : 0,
+      "relativeFrequency" : "0",
+      "requested" : true,
+      "threshold" : "146.20"
     },
     {
       "occurrences" : 4,
-      "relativeFrequency" : "8.06",
+      "relativeFrequency" : "10.39",
       "requested" : true,
-      "threshold" : "112.00"
+      "threshold" : "150.00"
     }
   ]
 }
