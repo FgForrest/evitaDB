@@ -2,14 +2,9 @@
 
     package io.evitadb.api.query.expression.parser.grammar;
 
-import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue", "this-escape"})
 public class EvitaELLexer extends Lexer {
@@ -19,10 +14,10 @@ public class EvitaELLexer extends Lexer {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		LPAREN=1, RPAREN=2, LBRACKET=3, RBRACKET=4, DOUBLE_QUESTION_MARK=5, QUESTION_MARK=6, 
-		STAR_QUESTION_MARK=7, DOT_STAR=8, DOT=9, EXCLAMATION_MARK=10, COMMA=11, 
-		PLUS=12, MINUS=13, DIV=14, STAR=15, PERCENT=16, GT=17, GT_EQ=18, LT=19, 
-		LT_EQ=20, EQ=21, NOT_EQ=22, XOR=23, AND=24, OR=25, NULL=26, INT=27, FLOAT=28, 
+		LPAREN=1, RPAREN=2, LBRACKET=3, RBRACKET=4, DOUBLE_QUESTION_MARK=5, QUESTION_MARK=6,
+		STAR_QUESTION_MARK=7, DOT_STAR=8, DOT=9, EXCLAMATION_MARK=10, COMMA=11,
+		PLUS=12, MINUS=13, DIV=14, STAR=15, PERCENT=16, GT=17, GT_EQ=18, LT=19,
+		LT_EQ=20, EQ=21, NOT_EQ=22, XOR=23, AND=24, OR=25, NULL=26, INT=27, FLOAT=28,
 		BOOLEAN=29, IDENTIFIER=30, VARIABLE=31, STRING=32, WS=33;
 	public static String[] channelNames = {
 		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
@@ -34,12 +29,12 @@ public class EvitaELLexer extends Lexer {
 
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK", "QUESTION_MARK", 
-			"STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK", "COMMA", 
-			"PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT", "LT_EQ", 
-			"EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT", "BOOLEAN", 
-			"IDENTIFIER", "VARIABLE", "STRING", "STRING_DOUBLE_QUOTATION_ESC", "STRING_SINGLE_QUOTATION_ESC", 
-			"STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT", 
+			"LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK", "QUESTION_MARK",
+			"STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK", "COMMA",
+			"PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT", "LT_EQ",
+			"EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT", "BOOLEAN",
+			"IDENTIFIER", "VARIABLE", "STRING", "STRING_DOUBLE_QUOTATION_ESC", "STRING_SINGLE_QUOTATION_ESC",
+			"STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT",
 			"STRING_SINGLE_QUOTATION_SAFECODEPOINT", "WS"
 		};
 	}
@@ -47,18 +42,18 @@ public class EvitaELLexer extends Lexer {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'('", "')'", "'['", "']'", "'??'", "'?'", "'*?'", "'.*'", "'.'", 
-			"'!'", "','", "'+'", "'-'", "'/'", "'*'", "'%'", "'>'", "'>='", "'<'", 
+			null, "'('", "')'", "'['", "']'", "'??'", "'?'", "'*?'", "'.*'", "'.'",
+			"'!'", "','", "'+'", "'-'", "'/'", "'*'", "'%'", "'>'", "'>='", "'<'",
 			"'<='", "'=='", "'!='", "'^'", "'&&'", "'||'", "'null'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK", 
-			"QUESTION_MARK", "STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK", 
-			"COMMA", "PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT", 
-			"LT_EQ", "EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT", 
+			null, "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK",
+			"QUESTION_MARK", "STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK",
+			"COMMA", "PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT",
+			"LT_EQ", "EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT",
 			"BOOLEAN", "IDENTIFIER", "VARIABLE", "STRING", "WS"
 		};
 	}
