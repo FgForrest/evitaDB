@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
@@ -103,6 +104,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 class ReevaluateExpressionExecutorTest {
 
 	private static final String REFERENCE_NAME = "parameterValues";
+	private static final String HISTOGRAM_NAME = "basicUnitValueHistogram";
 	private static final String GROUP_ENTITY_TYPE = "parameterGroup";
 	private static final String REFERENCED_ENTITY_TYPE = "parameterValue";
 	private static final String ENTITY_TYPE = "product";
@@ -810,7 +812,7 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): catalog `senesi`,
+		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): a production catalog,
 		 * `ParameterValue` upsert blowing up with `A total of 2 constraints were found in a query,
 		 * but expected is only one!`.
 		 *
@@ -1762,6 +1764,135 @@ class ReevaluateExpressionExecutorTest {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Pins the contract of the read-only pre-pass that `LocalMutationExecutorCollector` runs before a batch is
+	 * applied. Its result becomes {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}, which is what
+	 * stops the executor's remove-before-add from consuming a **sibling** reference's histogram cardinality unit
+	 * when two of an owner's references normalise to the same bucket key.
+	 *
+	 * The `null`-versus-empty distinction asserted here is load-bearing and easy to lose in a refactor of the
+	 * mutation record: `null` means "no histogram trigger, nothing to guard" and restores unrestricted removal,
+	 * whereas an **empty bitmap** means "nobody qualified beforehand" and must suppress every removal.
+	 */
+	@Nested
+	@DisplayName("Pre-pass condition capture")
+	class PreMutationConditionStateTest {
+
+		@Test
+		@DisplayName("returns null when the reference declares no histogram trigger")
+		void shouldReturnNullWhenNoHistogramTriggerExists() {
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(3, 1, new BaseBitmap(100, 200));
+			final TestTarget testTarget = createTestTarget(
+				new AffectedEntityResolution(List.of(group)), ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			assertNull(
+				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					target
+				),
+				"no histogram trigger means there is nothing to guard - the executor must keep removing freely"
+			);
+		}
+
+		@Test
+		@DisplayName("returns an empty bitmap - not null - when no owner is affected yet")
+		void shouldReturnEmptyBitmapWhenNoOwnerIsAffected() {
+			// no resolution indexes are set up, so resolveAffected finds no owner at all
+			final TestTarget testTarget = createTestTarget(
+				AffectedEntityResolution.EMPTY, ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// build the trigger first - Mockito rejects a mock() / when() nested inside another when()
+			final HistogramExpressionTrigger trigger = unconditionalHistogramTrigger();
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(List.of(trigger));
+
+			final Map<String, Bitmap> conditionState =
+				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					target
+				);
+
+			assertNotNull(conditionState, "the pre-pass ran, so it must report its answer rather than null");
+			assertTrue(
+				conditionState.get(HISTOGRAM_NAME).isEmpty(),
+				"nobody contributed beforehand, so every removal must be suppressed"
+			);
+		}
+
+		@Test
+		@DisplayName("reports the owners whose condition holds before the batch")
+		void shouldReportOwnersWhoseConditionHoldsBeforeTheBatch() {
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(3, 1, new BaseBitmap(100, 200));
+			final TestTarget testTarget = createTestTarget(
+				new AffectedEntityResolution(List.of(group)), ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// build the trigger first - Mockito rejects a mock() / when() nested inside another when()
+			final HistogramExpressionTrigger trigger = unconditionalHistogramTrigger();
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(List.of(trigger));
+
+			final Map<String, Bitmap> conditionState =
+				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					target
+				);
+
+			assertNotNull(conditionState);
+			assertArrayEquals(
+				new int[]{100, 200},
+				conditionState.get(HISTOGRAM_NAME).getArray(),
+				"an unconditional trigger qualifies every affected owner"
+			);
+			// the pre-pass must not have touched a single index
+			verify(target, never()).getOrCreateIndexByPrimaryKey(anyInt());
+		}
+
+		@Test
+		@DisplayName("captured state survives on the mutation without changing its identity")
+		void shouldCarryCapturedStateWithoutChangingIdentity() {
+			final ReevaluateExpressionMutation bare = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+			final ReevaluateExpressionMutation enriched = bare.withPreviouslyIndexedOwnerPKs(
+				Map.of(HISTOGRAM_NAME, new BaseBitmap(100))
+			);
+
+			assertEquals(
+				bare, enriched,
+				"identity must ignore the payload - the collector keys its captures by the mutation itself"
+			);
+			assertEquals(bare.hashCode(), enriched.hashCode());
+			assertNull(bare.previouslyIndexedOwnerPKs());
+			assertArrayEquals(
+				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).getArray()
+			);
+		}
+
+		/**
+		 * A histogram trigger with no `FilterBy`, so `evaluateCondition` short-circuits to "every affected owner
+		 * qualifies" and the test asserts the capture plumbing rather than the query engine.
+		 */
+		@Nonnull
+		private HistogramExpressionTrigger unconditionalHistogramTrigger() {
+			final HistogramExpressionTrigger trigger = mock(HistogramExpressionTrigger.class);
+			when(trigger.getHistogramIndexName()).thenReturn(HISTOGRAM_NAME);
+			when(trigger.hasFilterByConstraint()).thenReturn(false);
+			return trigger;
+		}
 	}
 
 	/**

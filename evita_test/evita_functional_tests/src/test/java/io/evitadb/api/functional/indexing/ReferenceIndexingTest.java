@@ -37,6 +37,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.facet.FacetGroupIndex;
+import io.evitadb.index.facet.FacetIdIndex;
+import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -829,6 +832,190 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					assertArrayEquals(new int[]{1, 2, 4}, getAllCategories(session));
 					session.deleteEntityAndItsHierarchy(Entities.CATEGORY, 1);
 					assertArrayEquals(new int[]{2}, getAllCategories(session));
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Cross-reference facet propagation")
+	class CrossReferenceFacetPropagationTest {
+
+		/**
+		 * Asserts that the facet of `facetReferenceName`/`facetPK` is registered for `ownerPK` in the passed index.
+		 *
+		 * @param index              the index to inspect - deliberately any index, not only the global one
+		 * @param facetReferenceName name of the reference the facet belongs to
+		 * @param facetPK            primary key of the faceted entity
+		 * @param ownerPK            primary key of the entity owning the reference
+		 */
+		private void assertFacetPresent(
+			@Nonnull EntityIndex index,
+			@Nonnull String facetReferenceName,
+			int facetPK,
+			int ownerPK
+		) {
+			final FacetReferenceIndex facetReferenceIndex = index.getFacetingEntities().get(facetReferenceName);
+			assertNotNull(
+				facetReferenceIndex,
+				"FacetReferenceIndex for `" + facetReferenceName + "` must exist in " + index.getIndexKey()
+			);
+			final FacetGroupIndex facetGroupIndex = facetReferenceIndex.getFacetsInGroup(null);
+			assertNotNull(facetGroupIndex, "Ungrouped FacetGroupIndex must exist in " + index.getIndexKey());
+			final FacetIdIndex facetIdIndex = facetGroupIndex.getFacetIdIndex(facetPK);
+			assertNotNull(
+				facetIdIndex,
+				"FacetIdIndex for facet PK " + facetPK + " must exist in " + index.getIndexKey()
+			);
+			assertTrue(
+				facetIdIndex.getRecords().contains(ownerPK),
+				"Entity " + ownerPK + " must be registered as a facet of `" + facetReferenceName + ":" + facetPK +
+					"` in " + index.getIndexKey()
+			);
+		}
+
+		/**
+		 * Asserts that no facet of `facetReferenceName` is registered in the passed index at all.
+		 *
+		 * @param index              the index to inspect
+		 * @param facetReferenceName name of the reference that must not be faceted
+		 */
+		private void assertNoFacetOfReference(@Nonnull EntityIndex index, @Nonnull String facetReferenceName) {
+			assertNull(
+				index.getFacetingEntities().get(facetReferenceName),
+				"Reference `" + facetReferenceName + "` is not faceted and must not be registered in "
+					+ index.getIndexKey()
+			);
+		}
+
+		@Test
+		@DisplayName("Should index faceted reference into reduced index of its non-faceted sibling")
+		void shouldIndexFacetedReferenceIntoReducedIndexOfNonFacetedSibling() {
+			// This pins the cross-reference fan-out for the one entity shape nothing else in the suite covers:
+			// an indexed but *non-faceted* reference living next to an indexed *faceted* one. The fan-out is what
+			// carries the faceted `category` into the reduced index of the non-faceted `brand`, and it is skipped
+			// whenever the mutated reference cannot be faceted at all - so this asserts the skip does not reach
+			// the case where the mutated reference *is* faceted.
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						// indexed, but deliberately NOT faceted
+						.withReferenceToEntity(
+							Entities.BRAND,
+							Entities.BRAND,
+							Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						)
+						// indexed AND faceted sibling sitting on the very same entity
+						.withReferenceToEntity(
+							Entities.CATEGORY,
+							Entities.CATEGORY,
+							Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+						)
+						.updateVia(session);
+
+					// establish the non-faceted sibling first, so that it is already present in the reference
+					// container by the time the faceted reference is inserted and fans out across it
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1).setReference(Entities.BRAND, 1)
+					);
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.CATEGORY, 1)
+						.upsertVia(session);
+
+					final CatalogContract catalog =
+						ReferenceIndexingTest.this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final EntityCollectionContract productCollection =
+						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+					final EntityIndex brandIndex = getReferencedEntityIndex(productCollection, Entities.BRAND, 1);
+					assertNotNull(brandIndex, "Reduced index of the non-faceted `brand` reference must exist");
+					// the faceted category must have been propagated into the non-faceted sibling's reduced index
+					assertFacetPresent(brandIndex, Entities.CATEGORY, 1, 1);
+					// ...while the non-faceted brand itself must not be registered as a facet anywhere
+					assertNoFacetOfReference(brandIndex, Entities.BRAND);
+
+					final EntityIndex categoryIndex =
+						getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1);
+					assertNotNull(categoryIndex, "Reduced index of the faceted `category` reference must exist");
+					assertNoFacetOfReference(categoryIndex, Entities.BRAND);
+
+					// the global index keeps the faceted reference and only that one
+					final EntityIndex globalIndex = getGlobalIndex(productCollection);
+					assertNotNull(globalIndex);
+					assertFacetPresent(globalIndex, Entities.CATEGORY, 1, 1);
+					assertNoFacetOfReference(globalIndex, Entities.BRAND);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should back-fill an existing faceted reference into a later non-faceted sibling's index")
+		void shouldBackFillExistingFacetedReferenceIntoLaterNonFacetedSiblingIndex() {
+			// The reverse order of the test above, and it exercises a different mechanism. Here the faceted
+			// `category` already exists when the non-faceted `brand` is added, so the brand's reduced index is
+			// created *after* the facet — and it is `ReferenceIndexMutator#indexAllFacets`, reached from the
+			// direct path via `indexAllExistingData`, that has to back-fill the existing category facet into it.
+			// That scan is skipped when the entity schema declares no faceted reference at all, so this pins that
+			// the skip does not reach the case where one does.
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.BRAND,
+							Entities.BRAND,
+							Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						)
+						.withReferenceToEntity(
+							Entities.CATEGORY,
+							Entities.CATEGORY,
+							Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+						)
+						.updateVia(session);
+
+					// faceted reference first - the brand's reduced index does not exist yet
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1).setReference(Entities.CATEGORY, 1)
+					);
+					final CatalogContract catalog =
+						ReferenceIndexingTest.this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final EntityCollectionContract productCollection =
+						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+					assertNull(
+						getReferencedEntityIndex(productCollection, Entities.BRAND, 1),
+						"Brand reduced index must not exist before the brand reference is added"
+					);
+
+					// adding the non-faceted sibling creates its reduced index, which must be back-filled
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(Entities.BRAND, 1)
+						.upsertVia(session);
+
+					final EntityIndex brandIndex = getReferencedEntityIndex(productCollection, Entities.BRAND, 1);
+					assertNotNull(brandIndex, "Reduced index of the non-faceted `brand` reference must exist");
+					assertFacetPresent(brandIndex, Entities.CATEGORY, 1, 1);
+					assertNoFacetOfReference(brandIndex, Entities.BRAND);
 				}
 			);
 		}

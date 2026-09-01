@@ -52,13 +52,13 @@ constructor runs.
 
 **Test count moved 6923 → 6915** — exactly the 8 deleted clone tests, no other change.
 
-### 0.4 Measured on senesi WAL replay (2026-07-21)
+### 0.4 Measured on production-catalog WAL replay (2026-07-21)
 
 **Verdict: the targeted allocation term is real and is gone. Total allocation and throughput are
 unchanged within measurement error.**
 
 Fixture: 542 production transactions / 41 254 mutations replayed against an embedded instance booted
-from a senesi snapshot. Deterministic — every one of the 8 runs replayed exactly 542. Baseline is
+from a production-catalog snapshot. Deterministic — every one of the 8 runs replayed exactly 542. Baseline is
 HEAD `78512d0ad`, built in a separate worktree; sides were built and run **sequentially** (shared
 `~/.m2`), each with its own copy of the WAL source (the fixture opens it as a live
 `CatalogWriteAheadLog`, which can rotate/purge).
@@ -104,7 +104,7 @@ numbers were no longer comparable to the baseline. It is parked at
 `TransactionalLayerCopyCensus.java.parked` with restore instructions in
 `TRUNK_MERGE_CASCADE_INVERSION_ASSIGNMENT.md` §8.
 
-Still measurement-only and never to be committed: the senesi JMH harness, `spike/*`, and every
+Still measurement-only and never to be committed: the production-catalog JMH harness, `spike/*`, and every
 `*_ASSIGNMENT.md` / `*_RESULTS.md` / `*.parked` under `evita_test/evita_performance_tests/`.
 
 ### 0.2 Deviations from the plan as written below
@@ -548,7 +548,7 @@ be one commit.**
 
 Step 2 is the one to be careful with: this is the seam behind the stale-twin bugs, the warm-up flush
 bug and the dirty-scope NPE, and a *correct* change here has already been reverted once for
-introducing an invariant nothing enforced (`SENESI_WAL_REPLAY_BOTTLENECK_ASSIGNMENT.md` §6.2). Land
+introducing an invariant nothing enforced (`WAL_REPLAY_BOTTLENECK_ASSIGNMENT.md` §6.2). Land
 it on its own, with `verifyLayerWasFullySwept` active throughout — it fails loudly if a layer is
 missed, which is exactly the safety net this refactor needs.
 
@@ -562,7 +562,7 @@ missed, which is exactly the safety net this refactor needs.
   on WAL append (~30 ms), decoupled from trunk incorporation by a deep queue. The benefit shows up in
   visibility lag (currently 20–45 s and unbounded under sustained write load).
 - **Acceptance metric:** `gc.alloc.rate.norm` over JMH `-f 3` plus a trunk-thread wall profile, via
-  the senesi harness. Never a single-shot wall-clock number — an earlier round removed provably dead
+  the production-catalog harness. Never a single-shot wall-clock number — an earlier round removed provably dead
   work that the profiler attributed 18.9 % to and moved the real metric by **−0.2 %**.
 
 ## 7. Still open

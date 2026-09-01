@@ -238,7 +238,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				// the membership test is deliberately NOT `refKeysForReassignment.contains(...)`: that can only be
 				// handed an object, so it allocated one wrapper per reference per call - and this loop revisits
 				// every reference on each call, including those keyed earlier, which made it 19.2% of all
-				// write-path allocation in the senesi WARM_UP profile. `containsEquivalent` also sidesteps a
+				// write-path allocation in the production-catalog WARM_UP profile. `containsEquivalent` also sidesteps a
 				// hash-bucket blind spot in the set itself; see its JavaDoc.
 				if (
 					!referenceKey.isKnownInternalPrimaryKey()

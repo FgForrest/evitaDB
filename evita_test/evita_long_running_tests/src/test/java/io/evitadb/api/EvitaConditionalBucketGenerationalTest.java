@@ -661,6 +661,28 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		logFinished(finalState);
 	}
 
+	/**
+	 * Re-invokes [#shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression] with the
+	 * deterministic seed pinned to the CI failure, mirroring
+	 * [#shouldNotSurfaceHistogramDriftForSeedMinus1128235571].
+	 *
+	 * This seed fails at **generation 4**, within ~2s, so a 5-minute interval is far more than enough
+	 * and the time-bounded driver short-circuits on the first assertion failure. Generation 4 reaches
+	 * the defect through an owner that references two parameter values whose `basicUnitValue` both
+	 * normalise to bucket `500`: a condition flip on the second one made the executor remove on mere
+	 * bucket membership and consume the first one's cardinality unit. The fast equivalent lives in
+	 * `ConditionalBucketIndexingTest` (`shouldKeepSiblingContributionWhen…`); this pins the exact
+	 * reported sequence.
+	 */
+	@Test
+	@Tag(SLOW)
+	@DisplayName("Generative seed 2095323828 must not surface conditional histogram drift")
+	void shouldNotSurfaceHistogramDriftForSeed2095323828() {
+		shouldSurviveGenerationalTestWithReferencedEntityAttributeExpression(
+			new GenerationalTestInput(/* intervalInMinutes */ 5, /* randomSeed */ 2095323828)
+		);
+	}
+
 	// --- Focused test for conditional histogram stale evaluateFilter after group attribute change ---
 
 	@org.junit.jupiter.api.Test

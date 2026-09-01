@@ -1,4 +1,4 @@
-# Heap footprint measured on the senesi catalog (2026-08-06)
+# Heap footprint measured on the production catalog (2026-08-06)
 
 **Why this file is kept.** The dataset it was taken against — 2.9 GB unpacked from a customer backup —
 is not in the repository and never will be. These numbers cannot be regenerated without obtaining that
@@ -6,14 +6,14 @@ backup again, and they are what decided the shape of the surface: see the parent
 taken* and *Rejected outright*. Everything below is the measurement as taken; nothing has been
 re-interpreted after the fact.
 
-Dataset: `backup_senesi_actual_2026-08-04T17-51-25.556112851Z.zip`. 21 collections, catalog version
+Dataset: `backup_<catalog>_actual_2026-08-04T17-51-25.556112851Z.zip`. 21 collections, catalog version
 7692, state ALIVE. Harness: `io.evitadb.spike.footprint.IndexMemoryFootprintSpike` in
 `evita_performance_tests` (outside the default reactor, `-P full`). JDK 17, `-Xmx48g -XX:+UseG1GC`,
 embedded — no gRPC in the path.
 
 ```
 java -Xmx48g -XX:+UseG1GC -cp <classpath> \
-  io.evitadb.spike.footprint.IndexMemoryFootprintSpike data-senesi senesi
+  io.evitadb.spike.footprint.IndexMemoryFootprintSpike data-catalog production-catalog
 ```
 
 ## The numbers
@@ -90,7 +90,7 @@ other dataset.
 `EvitaDataTypes.estimateSize`, which throws for a type outside evitaDB's own set. But a tree stores the
 *normalized* key, and for three attribute types that is a class `EvitaDataTypes` has never heard of:
 `OffsetDateTime` → `Instant`, `Currency` → `ComparableCurrency`, `Locale` → `ComparableLocale`. The
-first `OffsetDateTime` attribute in the senesi product collection took the whole request down with an
+first `OffsetDateTime` attribute in the production catalog's product collection took the whole request down with an
 `UnsupportedDataTypeException`. All three are now priced explicitly, covered by
 `EntityIndexHeapSizeTest.NormalizedKeys`.
 
@@ -103,7 +103,7 @@ buckets and **every bin treeified**. A `HashMap.TreeNode` weighs 56 B against a 
 non-degenerate value the divergence is **exactly** `−16 × (n−1)` at both 64 and 512 values — the shared
 boxes and nothing else. The blind spot is now pinned by `shouldUnderReportATreeifiedMap`, and
 `MapHeapSize`'s javadoc carries the exposure: a **record** key is the shape that can reach it, because
-its generated hash has no avalanche of its own. No such clustering appeared in the senesi catalog.
+its generated hash has no avalanche of its own. No such clustering appeared in the production catalog.
 
 **Three JVM singletons were missing from the test's shared-root list**, each reading exactly like an
 under-charge: `Set.of()` (40 B — and *not* the same object as `Collections.emptySet()`),

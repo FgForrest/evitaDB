@@ -33,10 +33,17 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
+| 2026-08-31 | [Drop the netty version override instead of pinning tcnative to take netty 4.2.17](2026-08-31-netty-override-removal.md) | infrastructure | accepted | PR #1474 |
+| 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459, PR #1460 |
+| 2026-08-28 | [Count each evitaDB error once, at the hierarchy root, and record where it was created](2026-08-28-attributable-internal-error-metrics.md) | fix | accepted | #1461, PR #1462, PR #1463 |
 | 2026-08-24 | [Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene](2026-08-24-fulltext-search-lucene-vs-inhouse/) | feature | proposed | #258 |
-| 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429 |
-| 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429 |
-| 2026-08-16 | [An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself](2026-08-16-per-index-usage-statistics.md) | feature | accepted | — |
+| 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
+| 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
+| 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |
+| 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-16 | [An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself](2026-08-16-per-index-usage-statistics.md) | feature | accepted | PR #1423 |
 | 2026-08-14 | [Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future](2026-08-14-interruption-weaving-and-task-cancellation.md) | fix | accepted | #1416, PR #1419 |
 | 2026-08-14 | [Make the scheduler's waiting interval an idle timeout renewed by lookup, linearized on the buffer lock](2026-08-14-waiting-task-idle-timeout.md) | fix | accepted | #1415, PR #1420 |
 | 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339, PR #1418 |

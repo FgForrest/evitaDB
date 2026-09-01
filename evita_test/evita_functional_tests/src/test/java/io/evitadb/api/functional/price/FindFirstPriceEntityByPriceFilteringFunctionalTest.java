@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.price;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -52,7 +53,9 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.priceBetween;
@@ -71,6 +74,7 @@ import static io.evitadb.test.generator.DataGenerator.CURRENCY_EUR;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_VIP;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -313,6 +317,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
+	@Test
 	@Override
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		super.shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(evita, originalProductEntities);
@@ -386,9 +391,9 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 	@Test
 	@Tag(HISTOGRAM)
 	void shouldExpandLowestPriceHistogramToPerInnerRecordPrices(@Nonnull Evita evita, @Nonnull List<SealedEntity> originalProductEntities) {
-		// the engine's per-inner-record bypass fires only when every `FilteredPriceRecordAccessor` in
-		// the filtering formula tree is histogram-aware. This requires a pure LOWEST_PRICE catalog
-		// (no `Sum`/`Plain` siblings) and no prefetch wrappers (no `entityPrimaryKeyInSet`).
+		// a pure LOWEST_PRICE catalog — every entity in the pool expands into one data point per
+		// inner-record id, so the expected count is derived from the whole fixture. The mixed-pool
+		// variant of this contract is covered by `CombinedPriceEntityByPriceFilteringFunctionalTest`.
 		final List<SealedEntity> lowestPriceProducts = originalProductEntities
 			.stream()
 			.filter(it -> hasAnyIndexedPrice(it, CURRENCY_EUR, PRICE_LIST_VIP) ||
@@ -421,18 +426,18 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 				"entity count (" + lowestPriceProducts.size() + ") when multi-inner-record entities exist"
 		);
 
-		// case 1: query without priceBetween — verify the basic per-inner-record expansion. The
-		// `VERIFY_ALTERNATIVE_INDEX_RESULTS` / `VERIFY_POSSIBLE_CACHING_TREES` debug modes are
-		// intentionally **not** added here. The per-inner-record bypass now fires both through the
-		// preferred prefetch-eligible plan (`SelectionFormula` propagates the histogram capability
-		// from its inner LP) and through the bare index plan. Both plans therefore agree on the
-		// per-inner-record count when this fixture is used in isolation. The cross-plan verifier is
-		// still disabled because the bypass is only exercised by histogram queries running against a
-		// pure LOWEST_PRICE catalog — the verifier rebuilds alternative plans whose accessor lists
-		// differ in subtle ways (`getFilteredPriceRecordsForHistogram` vs the per-entity collector)
-		// and the resulting `Histogram[overall=N]` counts diverge across plans, which the verifier
-		// would surface as `InconsistentResultsException`. The per-inner-record assertion below is
-		// itself the cross-plan invariant we care about.
+		// case 1: query without priceBetween — verify the basic per-inner-record expansion.
+		//
+		// `VERIFY_ALTERNATIVE_INDEX_RESULTS` and `VERIFY_POSSIBLE_CACHING_TREES` are enabled here on
+		// purpose. They used to be omitted because the alternative plans disagreed on
+		// `Histogram[overall=N]`: the accessor list of a rebuilt plan could differ enough to flip the
+		// old all-or-nothing capability gate, so one plan produced per-inner-record counts and another
+		// per-entity ones, and the verifier surfaced that as `InconsistentResultsException`. Deciding
+		// the granularity per accessor and topping up the uncovered entities from the per-entity
+		// collector (#1433) removed that degree of freedom — every plan now describes the same entity
+		// set at the same granularity. `VERIFY_POSSIBLE_CACHING_TREES` additionally substitutes the
+		// flagged LP with its cached `FlattenedFormulaWithFilteredPricesForHistogram` payload, which is
+		// what gives the cached form of the per-inner-record path its coverage.
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -447,6 +452,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(),
 							priceHistogram(20)
 						)
@@ -462,8 +468,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 
 		// case 2: query with priceBetween — the histogram must still cover the relaxed-baseline scope
 		// (i.e. include inner-record prices outside the [from, to] slider) because the engine's
-		// per-inner-record funnel ignores the sellingPricePredicate. See the note in case 1 for why
-		// the standard debug verification flags are omitted.
+		// per-inner-record funnel ignores the sellingPricePredicate.
 		final BigDecimal from = new BigDecimal("80");
 		final BigDecimal to = new BigDecimal("150");
 		evita.queryCatalog(
@@ -483,6 +488,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(),
 							priceHistogram(20)
 						)
@@ -493,6 +499,69 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 				// the relaxed baseline must still cover the same per-inner-record set — `priceBetween`
 				// in `userFilter` cannot shrink the histogram scope
 				assertHistogramIntegrityPerInnerRecord(result, lowestPriceProducts, from, to, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should limit the per-inner-record price histogram to entities matched by a non-price constraint")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
+	@Test
+	@Tag(HISTOGRAM)
+	void shouldLimitPerInnerRecordHistogramToEntitiesMatchedByNonPriceConstraint(
+		@Nonnull Evita evita,
+		@Nonnull List<SealedEntity> originalProductEntities
+	) {
+		// a `LowestPriceTerminationFormula` collects its per-inner-record side-output from its own price
+		// sub-tree, which knows nothing about the non-price parts of the query. Narrowing that side-output
+		// to the entities the whole filter matched is what keeps the histogram from describing entities the
+		// query excluded — this fixture pins that down with an `entityPrimaryKeyInSet` handle.
+		final List<SealedEntity> selectedProducts = originalProductEntities
+			.stream()
+			.filter(it -> it.getAllPricesForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).size() > 1)
+			.limit(5)
+			.toList();
+
+		assertFalse(
+			selectedProducts.isEmpty(),
+			"LOWEST_PRICE-only fixture must contain entities with more than one inner record in scope!"
+		);
+		assertTrue(
+			countInnerRecordPricesInScope(selectedProducts, null) < originalProductEntities.size(),
+			"The selected subset must expand to fewer data points than the whole catalog has entities — " +
+				"otherwise an un-narrowed histogram would be indistinguishable from a narrowed one"
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(
+									selectedProducts.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new)
+								),
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							priceHistogram(20)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(selectedProducts.size(), result.getTotalRecordCount());
+				// only the five selected masters may contribute — and each of them with every one of its
+				// inner-record prices, not just its price for sale
+				assertHistogramIntegrityPerInnerRecord(result, selectedProducts, null, null, null);
 
 				return null;
 			}

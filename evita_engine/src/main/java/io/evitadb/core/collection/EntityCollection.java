@@ -153,6 +153,7 @@ import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
 import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
+import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
@@ -1915,6 +1916,38 @@ public final class EntityCollection implements
 			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
 				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
 			}
+		} finally {
+			this.entityIndexCreator.setSession(null);
+		}
+	}
+
+	/**
+	 * Read-only counterpart of {@link #applyIndexMutations} used by `LocalMutationExecutorCollector`'s pre-pass:
+	 * evaluates every histogram trigger's condition for the mutation's affected owners **without writing
+	 * anything**, so the caller can capture the pre-mutation answer before the batch is applied. The result is
+	 * handed back on the dispatched mutation as
+	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}; see
+	 * {@link ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the executor cannot derive it
+	 * itself.
+	 *
+	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
+	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
+	 *
+	 * @param mutation the cross-entity re-evaluation signal about to be applied
+	 * @param session  active session for query evaluation, may be null during WAL replay
+	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 *         declares no histogram trigger and there is therefore nothing to guard
+	 */
+	@Nullable
+	public Map<String, Bitmap> evaluateHistogramConditionState(
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			return IndexMutationExecutorRegistry.INSTANCE.evaluateHistogramConditionState(
+				mutation, this.entityIndexCreator
+			);
 		} finally {
 			this.entityIndexCreator.setSession(null);
 		}
