@@ -4,7 +4,9 @@ name: PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # ready_for_review matters: a draft PR that gets marked ready fires ONLY that event, so without it
+    # a PR opened as a draft is never reviewed at all - no later event arrives unless someone pushes
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [dev]
     paths:
       - evita*/**/*.java
