@@ -28,8 +28,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -47,7 +45,7 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 			When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 			(memory/disk) space in the form of index.
-			
+
 			This array defines in which scopes the attribute will be sortable. It will not be sortable in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))

@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 

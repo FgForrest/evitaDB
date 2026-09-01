@@ -209,7 +209,7 @@ class FilteredPriceRecordsClassInitializationTest {
 		}
 
 		@Override
-		protected Class<?> loadClass(@Nonnull String name, boolean resolve) throws ClassNotFoundException {
+		protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
 			if (!name.startsWith(ISOLATED_PACKAGE)) {
 				return super.loadClass(name, resolve);
 			}

@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -125,7 +126,7 @@ class ErrorCodeResolverTest {
 			second.setStackTrace(new StackTraceElement[]{
 				new StackTraceElement("com.example.Two", "invoke", null, -1)
 			});
-			assertTrue(!first.getErrorCode().equals(second.getErrorCode()));
+			assertFalse(first.getErrorCode().equals(second.getErrorCode()));
 		}
 	}
 }

@@ -238,7 +238,7 @@ public class CreateGlobalAttributeSchemaMutation
 	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique across
 	 *                                   the whole catalog (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
-	 * @param acceleratorsInScopes the accelerator carriers the mutation transports (may be `null`)
+	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null

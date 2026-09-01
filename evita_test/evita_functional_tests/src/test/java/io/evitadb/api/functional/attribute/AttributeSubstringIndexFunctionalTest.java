@@ -73,10 +73,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.QUERY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * End-to-end proof that declaring {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} on an attribute changes only HOW
@@ -534,7 +531,7 @@ public class AttributeSubstringIndexFunctionalTest implements EvitaTestSupport {
 		runAgainstBothCatalogs(
 			"substringIndex-unicode", false,
 			(accelerated, scanning) -> {
-				assertFalse(NFC_CAFE.equals(NFD_CAFE), "the two normalization forms must really differ");
+				assertNotEquals(NFC_CAFE, NFD_CAFE, "the two normalization forms must really differ");
 				assertSameAnswer(accelerated, scanning, attributeContains(ATTR_NAME, NFC_CAFE), false, 1);
 				assertSameAnswer(accelerated, scanning, attributeContains(ATTR_NAME, NFD_CAFE), false, 1);
 				assertSameAnswer(accelerated, scanning, attributeEndsWith(ATTR_NAME, NFC_CAFE + " noir"), false, 1);

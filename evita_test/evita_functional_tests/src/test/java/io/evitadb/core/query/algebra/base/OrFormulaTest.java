@@ -623,7 +623,7 @@ class OrFormulaTest {
 		 * @return the Roaring operands the union would receive
 		 */
 		@Nonnull
-		private Object[] roaringOperandsOf(@Nonnull OrFormula formula) {
+		private static Object[] roaringOperandsOf(@Nonnull OrFormula formula) {
 			try {
 				final Method conversion = OrFormula.class.getDeclaredMethod("getRoaringBitmaps");
 				conversion.setAccessible(true);

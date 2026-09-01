@@ -94,7 +94,6 @@ import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
-import io.evitadb.index.IndexActivity;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -850,8 +849,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// that took, and the same instant the indexes above were stamped with. Emptied on the way out so that a second
 		// call could not count the same work twice
 		if (this.touchedCapabilities != null) {
-			for (int i = 0; i < this.touchedCapabilities.size(); i++) {
-				this.touchedCapabilities.get(i).recordUpdated(now);
+			for (SchemaCapabilityUsage touchedCapability : this.touchedCapabilities) {
+				touchedCapability.recordUpdated(now);
 			}
 			this.touchedCapabilities.clear();
 		}
@@ -1116,8 +1115,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.touchedElements == null) {
 			this.touchedElements = new ArrayList<>(16);
 		} else {
-			for (int i = 0; i < this.touchedElements.size(); i++) {
-				final TouchedSchemaElement touched = this.touchedElements.get(i);
+			for (final TouchedSchemaElement touched : this.touchedElements) {
 				if (touched.kind() == kind && touched.scope() == scope &&
 					touched.elementName().equals(elementName) &&
 					Objects.equals(touched.containerName(), containerName) &&

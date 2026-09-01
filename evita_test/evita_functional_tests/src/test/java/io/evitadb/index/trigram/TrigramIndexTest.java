@@ -29,6 +29,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -50,14 +51,7 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the {@link TrigramIndex} structure itself: that a value's trigrams post against its value id and stop
@@ -319,7 +313,7 @@ class TrigramIndexTest {
 			for (int valueId = 1; valueId <= TrigramPostings.SMALL_POSTING_THRESHOLD; valueId++) {
 				posting = TrigramPostings.add(posting, valueId);
 			}
-			assertTrue(posting instanceof int[], "at the threshold the posting must still be the compact form");
+			assertInstanceOf(int[].class, posting, "at the threshold the posting must still be the compact form");
 			posting = TrigramPostings.add(posting, TrigramPostings.SMALL_POSTING_THRESHOLD + 1);
 			assertFalse(posting instanceof int[], "one past the threshold the posting must be a bitmap");
 			store.put(key, posting);
@@ -340,7 +334,7 @@ class TrigramIndexTest {
 			for (int valueId = 2; valueId <= TrigramPostings.SMALL_POSTING_DEMOTION_THRESHOLD + 1; valueId++) {
 				posting = TrigramPostings.remove(posting, valueId, trigram("abc"));
 			}
-			assertTrue(posting instanceof int[], "at half the threshold the posting must be back in compact form");
+			assertInstanceOf(int[].class, posting, "at half the threshold the posting must be back in compact form");
 			assertEquals(TrigramPostings.SMALL_POSTING_DEMOTION_THRESHOLD, TrigramPostings.cardinality(posting));
 		}
 
@@ -486,8 +480,8 @@ class TrigramIndexTest {
 			// the fixture only tests what it is meant to if the cheapest posting is a BITMAP - the small-posting path
 			// copies before it compacts and was never at risk - and if the accumulator stays above the demotion
 			// threshold long enough for the in-place fold to run at all
-			assertTrue(
-				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, abc),
 				"the cheapest posting must have promoted, or the bitmap branch is never entered"
 			);
 			assertEquals(180, index.cardinalityOf(abc), "the cheapest posting must hold ids the answer excludes");
@@ -533,8 +527,8 @@ class TrigramIndexTest {
 				index.valueCreated(valueId, "abcz");
 			}
 			final long abc = trigram("abc");
-			assertTrue(
-				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, abc),
 				"the posting must have promoted, or the one-trigram case of the BITMAP branch is never entered"
 			);
 
@@ -579,8 +573,8 @@ class TrigramIndexTest {
 				index.valueCreated(valueId, "zcdez");
 			}
 
-			assertTrue(
-				postingOf(index, trigram("abc")) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, trigram("abc")),
 				"the cheapest posting must be a bitmap, or this is the small-posting path instead"
 			);
 			assertEquals(200, index.cardinalityOf(trigram("abc")));
@@ -620,8 +614,8 @@ class TrigramIndexTest {
 			final long abc = trigram("abc");
 			final long bcd = trigram("bcd");
 			final long cde = trigram("cde");
-			assertTrue(
-				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, abc),
 				"the cheapest posting must be a bitmap, or this is the small-posting path instead"
 			);
 			assertEquals(300, index.cardinalityOf(abc));
@@ -694,8 +688,8 @@ class TrigramIndexTest {
 			final long abc = trigram("abc");
 			final long bcd = trigram("bcd");
 			final long cde = trigram("cde");
-			assertTrue(
-				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, abc),
 				"the cheapest posting must be a bitmap, or the bitmap branch is never entered"
 			);
 			assertEquals(10_000, index.cardinalityOf(abc));
@@ -1004,8 +998,8 @@ class TrigramIndexTest {
 			final long abc = trigram("abc");
 			final long bcd = trigram("bcd");
 			final long cde = trigram("cde");
-			assertTrue(
-				postingOf(index, abc) instanceof PersistentRoaringBitmap,
+			assertInstanceOf(
+				PersistentRoaringBitmap.class, postingOf(index, abc),
 				"the cheapest posting must be a bitmap, or the shared-by-reference hazard does not arise"
 			);
 			final int[] abcBefore = index.getValueIdsOf(abc).getArray();
@@ -1067,7 +1061,7 @@ class TrigramIndexTest {
 				original -> {
 					// deliberately no write at all
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -1378,7 +1372,7 @@ class TrigramIndexTest {
 
 			final long shared = trigram(SHARED_TRIGRAM);
 			final Object posting = postingOf(rebuilt, shared);
-			assertTrue(posting instanceof int[], "at the threshold the posting must still be the compact form");
+			assertInstanceOf(int[].class, posting, "at the threshold the posting must still be the compact form");
 			final int[] members = (int[]) posting;
 			assertEquals(count, members.length);
 			for (int i = 1; i < members.length; i++) {
@@ -1410,14 +1404,11 @@ class TrigramIndexTest {
 				treeWithDecorrelatedValueIds(TrigramPostings.SMALL_POSTING_THRESHOLD + 1, justAbove)
 			);
 
-			assertTrue(
-				postingOf(atThreshold, shared) instanceof int[],
+			assertInstanceOf(
+				int[].class, postingOf(atThreshold, shared),
 				"the maintained index must still be compact at the threshold"
 			);
-			assertTrue(
-				postingOf(rebuiltAtThreshold, shared) instanceof int[],
-				"and so must the rebuilt one"
-			);
+			assertInstanceOf(int[].class, postingOf(rebuiltAtThreshold, shared), "and so must the rebuilt one");
 			assertFalse(
 				postingOf(justAbove, shared) instanceof int[],
 				"the maintained index must have promoted one past the threshold"

@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -47,7 +45,7 @@ public interface SetAttributeSchemaRepresentativeMutationDescriptor extends Attr
 	        primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
 	        affect the core functionality of the database in any way. However, if it's used correctly, it can be very
 	        helpful to developers in quickly finding their way around the data. There should be very few representative
-	        attributes in the entity type, and the unique ones are usually the best to choose.			                                             	 
+	        attributes in the entity type, and the unique ones are usually the best to choose.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();

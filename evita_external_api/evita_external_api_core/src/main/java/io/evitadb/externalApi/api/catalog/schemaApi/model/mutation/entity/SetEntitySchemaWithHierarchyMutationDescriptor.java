@@ -28,8 +28,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -47,11 +45,11 @@ public interface SetEntitySchemaWithHierarchyMutationDescriptor extends EntitySc
 		.description("""
 			Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
 			are subordinate of other entities.
-			
+
 			Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
 			referred by multiple child entities. Hierarchy is always composed of entities of same type.
 			Each entity must be part of at most single hierarchy (tree).
-			
+
 			Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
 			computation of extra data - such as `hierarchyParents`.
 			""")

@@ -37,10 +37,7 @@ import java.util.Random;
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.describe;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the {@link Wtf8} codec that {@link FrontCodedStringColumn} stores its keys with.
@@ -174,9 +171,9 @@ class Wtf8Test {
 			}
 			for (final String value : UNPAIRED) {
 				assertTrue(Wtf8.hasUnpairedSurrogate(value), describe(value) + " must be flagged");
-				assertFalse(
-					value.equals(utf8RoundTrip(value)),
-					"UTF-8 must genuinely lose " + describe(value) + " - otherwise this codec is unnecessary for it"
+				assertNotEquals(
+					value, utf8RoundTrip(value), "UTF-8 must genuinely lose " + describe(
+						value) + " - otherwise this codec is unnecessary for it"
 				);
 			}
 		}
@@ -281,13 +278,13 @@ class Wtf8Test {
 			// This is what lets the column keep a lone surrogate on its allocation-free byte-compare path: over the
 			// code-point range 0x0000-0xFFFF, WTF-8 byte order IS code-point order IS UTF-16 code-unit order.
 			final String[] values = {"a?c", "a\ud7ffc", "a\ud800c", "a\udfffc", "a\ue000c", "abc"};
-			for (int i = 0; i < values.length; i++) {
-				for (int j = 0; j < values.length; j++) {
+			for (final String s : values) {
+				for (final String value : values) {
 					assertEquals(
-						Integer.signum(values[i].compareTo(values[j])),
-						Integer.signum(compareUnsigned(Wtf8.encode(values[i]), Wtf8.encode(values[j]))),
+						Integer.signum(s.compareTo(value)),
+						Integer.signum(compareUnsigned(Wtf8.encode(s), Wtf8.encode(value))),
 						"byte order must agree with String order for "
-							+ describe(values[i]) + " vs " + describe(values[j])
+							+ describe(s) + " vs " + describe(value)
 					);
 				}
 			}
@@ -365,7 +362,7 @@ class Wtf8Test {
 		 * @return a random string of 0 to 5 BMP code units
 		 */
 		@Nonnull
-		private String randomBmpString(@Nonnull Random random) {
+		private static String randomBmpString(@Nonnull Random random) {
 			final int length = random.nextInt(6);
 			final StringBuilder result = new StringBuilder(length);
 			for (int i = 0; i < length; i++) {
@@ -385,7 +382,7 @@ class Wtf8Test {
 		 * @param bytes the encoded key
 		 * @return {@code true} if any byte is {@code >= 0xF0}
 		 */
-		private boolean hasSupplementaryLeadByte(@Nonnull byte[] bytes) {
+		private static boolean hasSupplementaryLeadByte(@Nonnull byte[] bytes) {
 			for (final byte candidate : bytes) {
 				if ((candidate & 0xFF) >= 0xF0) {
 					return true;

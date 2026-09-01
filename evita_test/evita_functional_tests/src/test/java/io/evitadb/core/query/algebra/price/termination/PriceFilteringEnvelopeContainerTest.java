@@ -39,16 +39,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
 import org.junit.jupiter.api.Tag;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.FILTER;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceFilteringEnvelopeContainer} verifying OR-like union semantics,
@@ -170,7 +166,7 @@ class PriceFilteringEnvelopeContainerTest {
 
 			final Formula clone = original.getCloneWithInnerFormulas(createConstantFormula(3, 4));
 
-			assertTrue(clone instanceof PriceFilteringEnvelopeContainer);
+			assertInstanceOf(PriceFilteringEnvelopeContainer.class, clone);
 			final PriceFilteringEnvelopeContainer typedClone = (PriceFilteringEnvelopeContainer) clone;
 			assertSame(priceLists, typedClone.getPriceLists());
 			assertSame(CZK, typedClone.getCurrency());

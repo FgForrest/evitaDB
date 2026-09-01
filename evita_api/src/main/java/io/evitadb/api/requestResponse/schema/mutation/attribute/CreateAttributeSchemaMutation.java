@@ -229,7 +229,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
 	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
-	 * @param acceleratorsInScopes the accelerator carriers the mutation transports (may be `null`)
+	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null
@@ -423,6 +423,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						)
 					)
 					.filter(Objects::nonNull)
+					.map(LocalEntitySchemaMutation.class::cast)
 					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {

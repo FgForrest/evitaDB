@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
@@ -787,7 +786,7 @@ class TrigramIndexMaintenanceTest {
 		 * @return the trees, keyed as the attribute index keys them
 		 */
 		@Nonnull
-		private Map<AttributeIndexKey, InvertedIndex> reloadedSharedValueTrees() {
+		private static Map<AttributeIndexKey, InvertedIndex> reloadedSharedValueTrees() {
 			final Map<AttributeIndexKey, InvertedIndex> trees = new HashMap<>(4);
 			final InvertedIndex capable = new InvertedIndex(
 				String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
@@ -821,7 +820,7 @@ class TrigramIndexMaintenanceTest {
 		 * @return the reloaded tree
 		 */
 		@Nonnull
-		private InvertedIndex reloadedTree(@Nonnull String value) {
+		private static InvertedIndex reloadedTree(@Nonnull String value) {
 			final InvertedIndex tree = new InvertedIndex(
 				String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);

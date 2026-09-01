@@ -772,7 +772,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void addRecord(
-		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink) throws EvitaInvalidUsageException {
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -833,7 +834,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void addRecordDelta(
-		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink) throws EvitaInvalidUsageException {
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
@@ -890,7 +892,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *                                    when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void removeRecord(
-		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink) throws EvitaInvalidUsageException {
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
@@ -954,7 +957,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void removeRecordDelta(
-		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink) {
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {

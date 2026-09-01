@@ -27,7 +27,6 @@ import graphql.GraphQL;
 import graphql.execution.instrumentation.Instrumentation;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.EvitaContract;
-import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;

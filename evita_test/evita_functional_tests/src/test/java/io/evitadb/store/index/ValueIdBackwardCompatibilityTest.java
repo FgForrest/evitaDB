@@ -261,7 +261,7 @@ class ValueIdBackwardCompatibilityTest {
 	class RootPart {
 
 		@Nonnull
-		private FilterIndexStoragePart pagedRoot(int nextValueId) {
+		private static FilterIndexStoragePart pagedRoot(int nextValueId) {
 			return new FilterIndexStoragePart(
 				1, new AttributeIndexKey(null, "code", null), String.class,
 				new ValueToRecordBitmap[0], null, 0,

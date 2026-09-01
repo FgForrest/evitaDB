@@ -26,7 +26,6 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.Or;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

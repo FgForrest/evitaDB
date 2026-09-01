@@ -31,7 +31,6 @@ import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
-import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;

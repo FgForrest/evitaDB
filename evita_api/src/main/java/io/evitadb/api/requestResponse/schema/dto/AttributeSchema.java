@@ -793,7 +793,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * @return A non-null, comma-separated string representing the entries of the map.
 	 */
 	@Nonnull
-	protected static String join(@Nonnull Map<Scope, ? extends Enum> scopes) {
+	protected static String join(@Nonnull Map<Scope, ? extends Enum<?>> scopes) {
 		return scopes.entrySet().stream()
 			.map(it -> it.getKey() + ": " + it.getValue().name())
 			.collect(Collectors.joining(", "));

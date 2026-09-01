@@ -1272,7 +1272,7 @@ class ValueIdTest {
 			// it is what the requirement to pass a predicate ALONGSIDE a pattern exists for.
 			final InvertedIndex index = indexWithIds(10, 20, 30);
 			final int[] candidates = {index.getValueId(10), index.getValueId(20), index.getValueId(30)};
-			final Predicate<Serializable> isTwenty = value -> ((Integer) value).intValue() == 20;
+			final Predicate<Serializable> isTwenty = value -> (Integer) value == 20;
 
 			final MatchedBuckets matched = index.getRecordsOfValueIdsMatching(
 				candidates, candidates.length, isTwenty, "20".getBytes(StandardCharsets.UTF_8)
@@ -1290,7 +1290,7 @@ class ValueIdTest {
 		 * @return the populated, id-carrying index
 		 */
 		@Nonnull
-		private InvertedIndex stringIndexWithIds(@Nonnull String... values) {
+		private static InvertedIndex stringIndexWithIds(@Nonnull String... values) {
 			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
 			final InvertedIndex index = new InvertedIndex(
 				String.class,
@@ -1311,7 +1311,7 @@ class ValueIdTest {
 		 * @return the values' ids, in the order they were named
 		 */
 		@Nonnull
-		private int[] valueIdsOf(@Nonnull InvertedIndex index, @Nonnull String... values) {
+		private static int[] valueIdsOf(@Nonnull InvertedIndex index, @Nonnull String... values) {
 			final int[] ids = new int[values.length];
 			for (int i = 0; i < values.length; i++) {
 				ids[i] = index.getValueId(values[i]);
@@ -1326,7 +1326,7 @@ class ValueIdTest {
 		 * @param expected the answer to compare against
 		 * @param actual   the answer under test
 		 */
-		private void assertMatchesAgree(@Nonnull MatchedBuckets expected, @Nonnull MatchedBuckets actual) {
+		private static void assertMatchesAgree(@Nonnull MatchedBuckets expected, @Nonnull MatchedBuckets actual) {
 			assertEquals(expected.recordSets().length, actual.recordSets().length, "different bucket counts");
 			for (int i = 0; i < expected.recordSets().length; i++) {
 				assertArrayEquals(

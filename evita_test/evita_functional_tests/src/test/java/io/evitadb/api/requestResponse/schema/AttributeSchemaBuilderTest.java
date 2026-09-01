@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
@@ -213,7 +212,7 @@ class AttributeSchemaBuilderTest {
 					createEntitySchemaBuilder()
 						.withAttribute(
 							"code", String.class,
-							whichIs -> whichIs.filterable()
+							AttributeSchemaEditor::filterable
 						)
 						.toInstance();
 
@@ -244,7 +243,7 @@ class AttributeSchemaBuilderTest {
 					createEntitySchemaBuilder()
 						.withAttribute(
 							"code", String.class,
-							whichIs -> whichIs.filterableInScope()
+							AttributeSchemaEditor::filterableInScope
 						)
 						.toInstance();
 

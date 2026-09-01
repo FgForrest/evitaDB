@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -50,7 +48,7 @@ public interface EntityRemoveMutationDescriptor extends MutationDescriptor {
 	PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
 		.name("entityType")
 		.description("""
-            The name of entity schema of this entity. 
+            The name of entity schema of this entity.
 			""")
 		.type(nonNull(String.class))
 		.build();

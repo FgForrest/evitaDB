@@ -31,9 +31,7 @@ import io.evitadb.exception.ExpressionEvaluationException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Method accessor implementation for lists.

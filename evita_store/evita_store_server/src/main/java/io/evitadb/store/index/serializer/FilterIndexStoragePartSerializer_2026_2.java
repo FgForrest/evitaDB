@@ -50,7 +50,7 @@ import lombok.RequiredArgsConstructor;
  * @deprecated kept for backward compatibility; can be removed once no catalog written before value ids were
  *             introduced is still in use.
  */
-@Deprecated(since = "2026.3", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
 public class FilterIndexStoragePartSerializer_2026_2 extends Serializer<FilterIndexStoragePart> {
 	private final KeyCompressor keyCompressor;

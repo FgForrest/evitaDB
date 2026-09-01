@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -176,7 +177,7 @@ class EntityIndexReloadPlanSymmetryTest {
 			.map(ComponentLoader::getClass)
 			.collect(Collectors.toSet());
 		final List<IndexComponent> components = index.getRegisteredComponents();
-		assertTrue(!components.isEmpty(), "index has no components — fixture bug");
+		assertFalse(components.isEmpty(), "index has no components — fixture bug");
 		for (final IndexComponent component : components) {
 			final Class<? extends ComponentLoader> expectedLoader = expectedLoaderFor(component, index);
 			if (expectedLoader == null) {

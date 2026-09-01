@@ -305,7 +305,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private FrontCodedStringColumn(int capacity, int size, int dataLength, @Nonnull byte[] data,
 	                               @Nonnull int[] restartOffsets, boolean bmpSafe, boolean hasEncodedSurrogate,
-	                               boolean naturalOrderSafe) {
+	                               boolean naturalOrderSafe
+	) {
 		this.capacity = capacity;
 		this.size = size;
 		this.dataLength = dataLength;

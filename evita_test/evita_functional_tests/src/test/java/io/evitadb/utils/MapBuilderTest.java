@@ -33,13 +33,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies contract of {@link MapBuilder} class.
@@ -174,7 +170,7 @@ class MapBuilderTest {
 				.build();
 
 			assertEquals(1, result.size());
-			assertTrue(result.get("outer") instanceof Map);
+			assertInstanceOf(Map.class, result.get("outer"));
 			@SuppressWarnings("unchecked")
 			final Map<String, Object> inner = (Map<String, Object>) result.get("outer");
 			assertEquals("value", inner.get("inner"));
@@ -190,7 +186,7 @@ class MapBuilderTest {
 				.build();
 
 			assertEquals(1, result.size());
-			assertTrue(result.get("list") instanceof List);
+			assertInstanceOf(List.class, result.get("list"));
 			@SuppressWarnings("unchecked")
 			final List<Object> list = (List<Object>) result.get("list");
 			assertEquals(2, list.size());

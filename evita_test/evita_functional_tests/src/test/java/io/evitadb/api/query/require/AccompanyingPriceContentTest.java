@@ -25,12 +25,10 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.utils.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;

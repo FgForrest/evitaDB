@@ -428,8 +428,7 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
 		long size = getHeapSizeInBytes();
-		for (int i = 0; i < this.keys.length; i++) {
-			final M key = this.keys[i];
+		for (final M key : this.keys) {
 			if (key != null) {
 				size += elementSizer.applyAsLong(key);
 			}

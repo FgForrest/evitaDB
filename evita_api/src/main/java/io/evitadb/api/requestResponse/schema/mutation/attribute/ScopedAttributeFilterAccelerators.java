@@ -102,6 +102,7 @@ public record ScopedAttributeFilterAccelerators(
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "ScopedAttributeFilterAccelerators[scope=" + this.scope +

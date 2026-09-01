@@ -49,7 +49,7 @@ import javax.annotation.Nonnull;
  * @deprecated kept for backward compatibility; can be removed once no catalog written before value ids were
  *             introduced is still in use.
  */
-@Deprecated(since = "2026.3", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class FilterIndexLeafPagePartSerializer_2026_2 extends BucketLeafPagePartSerializer<FilterIndexLeafPagePart> {
 
 	@Override

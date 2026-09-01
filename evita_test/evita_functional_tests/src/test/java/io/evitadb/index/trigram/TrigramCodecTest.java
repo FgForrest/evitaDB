@@ -314,7 +314,7 @@ class TrigramCodecTest {
 		 * @return the same keys, ascending
 		 */
 		@Nonnull
-		private long[] sorted(@Nonnull long[] trigrams) {
+		private static long[] sorted(@Nonnull long[] trigrams) {
 			final long[] copy = trigrams.clone();
 			Arrays.sort(copy);
 			return copy;

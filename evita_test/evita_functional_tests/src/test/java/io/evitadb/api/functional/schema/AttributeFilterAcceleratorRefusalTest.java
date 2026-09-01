@@ -26,9 +26,10 @@ package io.evitadb.api.functional.schema;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
@@ -48,12 +49,7 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.FILTER;
-import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -547,7 +543,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.CATEGORY)
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterable())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 						.updateVia(session);
 				}
 			);
@@ -645,7 +641,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				session -> {
 					session.getEntitySchemaOrThrow(Entities.PRODUCT)
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+						.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
 						.updateVia(session);
 					// writing THROUGH the tree the drop just touched is the part that matters: a tree left disagreeing
 					// with its own consumer registry fails on the next value it is asked to stamp, not on the drop
@@ -927,7 +923,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
-						.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.nullable())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 						.updateVia(session);
 				}
 			);
@@ -1027,7 +1023,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
 					.updateVia(session);
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1).setAttribute(ATTRIBUTE_NAME, "iPhone 15")

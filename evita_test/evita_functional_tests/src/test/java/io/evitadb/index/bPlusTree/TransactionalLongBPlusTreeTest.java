@@ -756,7 +756,7 @@ class TransactionalLongBPlusTreeTest {
 		 * @param blockSize the leaf and internal node block size for the tree
 		 * @param seed      the random seed for reproducibility
 		 */
-		private void exerciseTransactionalChurn(int blockSize, long seed) {
+		private static void exerciseTransactionalChurn(int blockSize, long seed) {
 			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(
 				blockSize, 1, blockSize, 1, String.class
 			);

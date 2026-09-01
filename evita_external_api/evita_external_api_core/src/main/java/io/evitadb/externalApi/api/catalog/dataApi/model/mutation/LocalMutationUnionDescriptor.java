@@ -28,7 +28,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.*;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 

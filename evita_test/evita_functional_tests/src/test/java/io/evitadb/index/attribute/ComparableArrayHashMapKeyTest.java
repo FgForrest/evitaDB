@@ -41,6 +41,7 @@ import java.util.Map;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -162,7 +163,7 @@ class ComparableArrayHashMapKeyTest {
 		assertTrue(hasTreeifiedBin(map), "The map has no treeified bin - the probe would not reach the tree path!");
 
 		// a key absent from the map but hashing into the treeified bin - the production probe was exactly this shape
-		assertEquals(null, map.get(value(1_000 + COLLIDING_COUNT, 50_000 - 31 * COLLIDING_COUNT)));
+		assertNull(map.get(value(1_000 + COLLIDING_COUNT, 50_000 - 31 * COLLIDING_COUNT)));
 	}
 
 	/**

@@ -39,6 +39,7 @@ import java.util.List;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERVER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -135,10 +136,7 @@ class EvitaTestSupportTest {
 			assertEquals(50, seeds.size());
 			for (final Arguments seed : seeds) {
 				assertEquals(1, seed.get().length);
-				assertTrue(
-					seed.get()[0] instanceof Long,
-					"Each seed argument should be a single Long value"
-				);
+				assertInstanceOf(Long.class, seed.get()[0], "Each seed argument should be a single Long value");
 			}
 		}
 	}

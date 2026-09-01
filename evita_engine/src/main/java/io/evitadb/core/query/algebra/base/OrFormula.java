@@ -124,19 +124,17 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
+		int sum = 0;
 		if (this.bitmaps == null) {
-			int sum = 0;
-			for (int i = 0; i < this.innerFormulas.length; i++) {
-				sum += this.innerFormulas[i].getEstimatedCardinality();
+			for (final Formula innerFormula : this.innerFormulas) {
+				sum += innerFormula.getEstimatedCardinality();
 			}
-			return sum;
 		} else {
-			int sum = 0;
-			for (int i = 0; i < this.bitmaps.length; i++) {
-				sum += this.bitmaps[i].size();
+			for (final Bitmap bitmap : this.bitmaps) {
+				sum += bitmap.size();
 			}
-			return sum;
 		}
+		return sum;
 	}
 
 	@Override
@@ -262,9 +260,7 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		// shift the whole of it. Flipping the sign bit makes `Arrays.sort` order unsigned, and flipping it back
 		// restores the ids: two linear passes, no allocation, and for the non-negative ids this actually sees the
 		// result is byte-for-byte what the plain sort produced.
-		//
-		// `PersistentRoaringBitmap#bitmapOfUnordered` would also be correct here and needs no sort at all, but it
-		// carries a 1024-word buffer per call - worth it for a large fold, pure loss for a fold of two.
+		// (`PersistentRoaringBitmap#bitmapOfUnordered` skips the sort but buffers 1024 words per call - a loss here.)
 		for (int i = 0; i < singleRecordIds.length; i++) {
 			singleRecordIds[i] ^= Integer.MIN_VALUE;
 		}

@@ -24,14 +24,11 @@
 package io.evitadb.index.range;
 
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import javax.annotation.Nonnull;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;

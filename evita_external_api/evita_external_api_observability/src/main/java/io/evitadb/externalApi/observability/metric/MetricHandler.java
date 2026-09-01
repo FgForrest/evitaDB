@@ -53,7 +53,6 @@ import io.prometheus.metrics.core.metrics.Metric;
 import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.instrumentation.jvm.*;
 import io.prometheus.metrics.model.snapshots.Unit;
-import jdk.jfr.FlightRecorder;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.consumer.RecordedEvent;

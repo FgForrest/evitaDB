@@ -23,9 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
-import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-
 /**
  * Marker interface combining {@link CatalogSchemaMutation} and {@link TopLevelCatalogMutation} for
  * mutations that must execute at the evitaDB engine level while also modifying catalog schema.

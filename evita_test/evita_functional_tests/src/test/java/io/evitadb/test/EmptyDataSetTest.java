@@ -24,7 +24,6 @@
 package io.evitadb.test;
 
 import io.evitadb.api.configuration.CacheOptions;
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
