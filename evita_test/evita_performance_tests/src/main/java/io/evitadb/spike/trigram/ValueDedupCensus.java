@@ -39,6 +39,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.Range;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -161,9 +162,11 @@ import java.util.TreeSet;
  *    reference array of `K` slots. An earlier revision additionally charged one loose reference per multi-record
  *    bucket, double-counting the array's own slots; that term is gone.
  * 4. **`ALREADY_PRIMITIVE` covers every non-string, non-compound key**, including boxed ones with no primitive
- *    column (a range, a `Currency`). The `lever` column tells the two apart: a key with a real primitive column is
+ *    column (a `Currency`, a `UUID`). The `lever` column tells the two apart: a key with a real primitive column is
  *    `CONTAINER_ONLY`, a boxed one is `NONE`, and the TSV's `sampleType` column names the runtime class so the
- *    bucket stays auditable rather than being taken on trust.
+ *    bucket stays auditable rather than being taken on trust. **Ranges are `CONTAINER_ONLY`**: a range's whole
+ *    comparison identity is its two `long` bounds, so a container carries it in two parallel `long[]` columns with no
+ *    dictionary and no owner - see {@link #containerKeyColumnBytes(VMLayout, int, int)}.
  *
  * # Two independent levers
  *
@@ -301,6 +304,15 @@ public class ValueDedupCensus {
 	 * `+dir` column.
 	 */
 	private static final long REVERSE_DIRECTORY_LEAF_BYTES = 48L;
+
+	/**
+	 * Total container key width of a range domain. Both range families - {@link io.evitadb.dataType.DateTimeRange} and
+	 * every {@link io.evitadb.dataType.NumberRange} subtype - already reduce their bounds to the two `long` fields
+	 * `fromToCompare` / `toToCompare`, which is the entire comparison identity of a range key. A container therefore
+	 * carries a range in two parallel exact-sized `long[]` columns, and this constant is their summed width; see
+	 * {@link #containerKeyColumnBytes(VMLayout, int, int)} for how the pair is priced.
+	 */
+	static final int RANGE_KEY_BYTES = 2 * Long.BYTES;
 
 	/**
 	 * Band edges of the tree-size strata, upper bounds inclusive. The last stratum is open-ended.
@@ -945,21 +957,62 @@ public class ValueDedupCensus {
 	 * @param bucketCount how many buckets the tree holds
 	 * @param multiCount  how many of them hold more than one record
 	 * @param sortable    whether the domain also serves ordering
-	 * @param keyBytes    width of the container's own key slot, or `0` when the keys move out to a canonical owner
-	 *                    and are replaced by a 4-byte value id
+	 * @param keyBytes    summed width of the container's own key slot, or `0` when the keys move out to a canonical
+	 *                    owner and are replaced by a 4-byte value id. A width that spans more than one physical column
+	 *                    is decomposed by {@link #containerKeyColumnBytes(VMLayout, int, int)}
 	 * @return the candidate spine in bytes
 	 */
 	static long candidateSpineOf(int bucketCount, int multiCount, boolean sortable, int keyBytes) {
 		final VMLayout layout = VMLayout.current();
 		final int referenceSize = layout.referenceSize();
 		final long fixed = layout.sizeOfObject(4L * referenceSize);
-		final long keys = layout.sizeOfArray(bucketCount, keyBytes == 0 ? Integer.BYTES : keyBytes);
+		final long keys = containerKeyColumnBytes(layout, bucketCount, keyBytes);
 		long postings = layout.sizeOfArray(bucketCount, Integer.BYTES);
 		if (multiCount > 0) {
 			postings += layout.sizeOfArray(bucketCount, referenceSize);
 		}
 		final long sortSlots = sortable ? layout.sizeOfArray(bucketCount, Integer.BYTES) : 0L;
 		return fixed + keys + postings + sortSlots;
+	}
+
+	/**
+	 * Prices the container's key column: how many bytes `bucketCount` keys of a `keyBytes`-wide type occupy once the
+	 * type's physical decomposition into exact-sized arrays is taken into account.
+	 *
+	 * Most widths ride a single array and the answer is one `sizeOfArray`. A **range** does not: both range families
+	 * reduce to a `(fromToCompare, toToCompare)` pair of `long`s, so its column is two parallel `long[]` arrays and
+	 * pays **two** array headers rather than one - which is what separates this method from the single
+	 * `sizeOfArray(K, keyBytes)` the projection used before ranges were priced at all.
+	 *
+	 * The temporal `(seconds, nanos)` pair is deliberately **not** decomposed here, even though it is physically two
+	 * columns too. It is priced as one 12-byte-wide array, the way the published ledger measured it; a separate spike
+	 * quantified the resulting under-charge at 0.336% of the temporal domains' spine, far below anything the ledger's
+	 * conclusions turn on, and re-pricing it would silently move numbers that have already been reported.
+	 *
+	 * The switch is closed on purpose. A width this method has never been told about would otherwise be priced as a
+	 * single array by accident, which is exactly the mistake ranges made before - so an unrecognized width is a
+	 * programming error and says so, rather than returning a plausible number.
+	 *
+	 * @param layout      the running VM's object layout
+	 * @param bucketCount how many keys the column holds
+	 * @param keyBytes    summed key width, `0` for the dictionary projection's 4-byte value id
+	 * @return the key column's size in bytes
+	 */
+	private static long containerKeyColumnBytes(@Nonnull VMLayout layout, int bucketCount, int keyBytes) {
+		return switch (keyBytes) {
+			// dictionary projection - the key itself moves to the canonical owner and a 4-byte value id takes its place
+			case 0 -> layout.sizeOfArray(bucketCount, Integer.BYTES);
+			// a scaled `int` (BigDecimal), a single `long` (the long key codec), or the temporal pair kept as one array
+			case Integer.BYTES, Long.BYTES, Long.BYTES + Integer.BYTES ->
+				layout.sizeOfArray(bucketCount, keyBytes);
+			// a range - two parallel exact-sized `long[]` columns, hence two array headers
+			case RANGE_KEY_BYTES -> 2L * layout.sizeOfArray(bucketCount, Long.BYTES);
+			default -> throw new GenericEvitaInternalError(
+				"Container key width " + keyBytes + " B has no known column decomposition - a new primitive key type " +
+					"was admitted by `containerKeyBytesOf` without saying how many arrays it rides in!",
+				"Container key width has no known column decomposition!"
+			);
+		};
 	}
 
 	/**
@@ -972,6 +1025,10 @@ public class ValueDedupCensus {
 	 * canonical-owner apparatus — ids, allocator, host increment, value lifecycle — disappears with it. Separating the
 	 * two levers matters because the primitive domains are where most of the replicated bytes actually sit, and
 	 * folding them into the dictionary total would credit the dictionary with a saving it does not produce.
+	 *
+	 * The width returned is the key's **summed** width across every column it rides in, not the width of one column;
+	 * {@link #containerKeyColumnBytes(VMLayout, int, int)} owns the decomposition and must learn about any width added
+	 * here, or it throws.
 	 *
 	 * @param sample a value taken from one of the domain's buckets
 	 * @return the primitive key width in bytes, or `0` when the type has no primitive leaf column
@@ -991,8 +1048,14 @@ public class ValueDedupCensus {
 			|| sample instanceof LocalDate || sample instanceof LocalTime) {
 			return Long.BYTES;
 		}
-		// a String or a compound belongs to the dictionary lever; anything else (a range, a UUID, a currency) sits in
-		// the universal boxed column and has no primitive form to move into a container
+		// a range is already nothing but its two comparison bounds - `fromToCompare` and `toToCompare` are `long`
+		// fields on both `DateTimeRange` and every `NumberRange` subtype, so a container carries the whole key in two
+		// parallel `long[]` columns and needs no boxed representation at all
+		if (sample instanceof Range<?>) {
+			return RANGE_KEY_BYTES;
+		}
+		// a String or a compound belongs to the dictionary lever; anything else (a UUID, a currency) sits in the
+		// universal boxed column and has no primitive form to move into a container
 		return 0;
 	}
 
