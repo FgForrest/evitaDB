@@ -27,6 +27,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.AttributeContent;
@@ -40,9 +42,11 @@ import lombok.RequiredArgsConstructor;
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceContent} from/to binary format.
  *
- * The {@link ManagedReferencesBehaviour} is written as the trailing field of the payload, after the chunking
- * constraint. New fields are appended to the tail so that the leading part of the layout stays stable for readers
- * that were written against an older shape.
+ * The payload is laid out as the reference names, the nullable instance name (alias), the attribute content, the
+ * entity and group fetch, the filter and the order, the chunking constraint and finally the
+ * {@link ManagedReferencesBehaviour}. The instance name travels next to the names it aliases and the behaviour stays
+ * the trailing field. Both of them are *arguments* of the constraint rather than its children, so both take part in
+ * its equality and neither may be dropped.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -56,6 +60,8 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		for (String refEntityType : referencedEntityType) {
 			output.writeString(refEntityType);
 		}
+
+		output.writeString(object.getInstanceName());
 
 		kryo.writeObjectOrNull(output, object.getAttributeContent().orElse(null), AttributeContent.class);
 		kryo.writeObjectOrNull(output, object.getEntityRequirement().orElse(null), EntityFetch.class);
@@ -77,6 +83,8 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			referencedEntityName[i] = input.readString();
 		}
 
+		final String instanceName = input.readString();
+
 		final AttributeContent attributeContent = kryo.readObjectOrNull(input, AttributeContent.class);
 		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
 		final EntityGroupFetch groupEntityFetch = kryo.readObjectOrNull(input, EntityGroupFetch.class);
@@ -87,6 +95,17 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		final ChunkingRequireConstraint chunk = (ChunkingRequireConstraint) kryo.readClassAndObject(input);
 
 		final ManagedReferencesBehaviour managedReferences = kryo.readObject(input, ManagedReferencesBehaviour.class);
+
+		if (instanceName != null) {
+			// the instance name is carried by a single constructor - the one the GraphQL API uses to build aliased
+			// reference content - which accepts all children in one array and filters the null ones out itself,
+			// so the aliased shape needs no branching on the reference name count
+			return new ReferenceContent(
+				instanceName, managedReferences, referencedEntityName,
+				new RequireConstraint[]{attributeContent, entityFetch, groupEntityFetch, chunk},
+				new Constraint<?>[]{filter, orderBy}
+			);
+		}
 
 		if (referencedEntityTypeCount == 0) {
 			return attributeContent == null ?

@@ -27,7 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.order.OrderDirection;
@@ -39,6 +41,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.QueryTelemetry;
 import io.evitadb.api.query.require.QueryTelemetryContent;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
@@ -779,6 +782,44 @@ public class QuerySerializationTest {
 							filterBy(attributeEquals("a", "b")),
 							orderBy(attributeNatural("a", OrderDirection.ASC)),
 							entityFetchAll(), entityGroupFetchAll()))),
+
+					// the instance name (alias) is an argument of the constraint as well - it is what lets the same
+					// reference be fetched twice under different filters within one entityFetch; the constructor
+					// below is the one EntityFetchRequireResolver of the GraphQL API builds such content with
+					arguments("referenceContent(alias + name)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[0], new Constraint<?>[0]))),
+					arguments("referenceContent(alias + name + filterBy + orderBy + fetches)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[]{entityFetchAll(), entityGroupFetchAll()},
+							new Constraint<?>[]{
+								filterBy(attributeEquals("a", "b")),
+								orderBy(attributeNatural("a", OrderDirection.ASC))
+							}))),
+					arguments("referenceContent(alias + name + attributeContent + fetches + page)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[]{
+								attributeContent("b", "c"), entityFetchAll(), entityGroupFetchAll(), page(1, 20)
+							},
+							new Constraint<?>[0]))),
+					arguments("referenceContent(alias + EXISTING + name + filterBy + page)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.EXISTING, new String[]{"a"},
+							new RequireConstraint[]{entityFetchAll(), page(1, 20)},
+							new Constraint<?>[]{filterBy(attributeEquals("a", "b"))}))),
+					arguments("referenceContent(two aliases of a single reference)",
+						entityFetch(
+							new ReferenceContent(
+								"cheapest", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+								new RequireConstraint[]{entityFetchAll()},
+								new Constraint<?>[]{filterBy(attributeEquals("a", "b"))}),
+							new ReferenceContent(
+								"newest", ManagedReferencesBehaviour.EXISTING, new String[]{"a"},
+								new RequireConstraint[]{entityFetchAll()},
+								new Constraint<?>[]{filterBy(attributeEquals("a", "c"))}))),
 
 					arguments("priceContentAll",
 						entityFetch(priceContentAll())),
