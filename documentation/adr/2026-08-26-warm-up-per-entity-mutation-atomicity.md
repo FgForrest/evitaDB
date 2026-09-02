@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-08-29 12:30
+updated: 2026-09-02 20:15
 status: accepted
 kind: feature
 issues: [1432]
@@ -388,6 +388,42 @@ size, and today's dominant warm-up shape - a data pump copying from a primary st
 its live-record share stays near 1.0 and compaction seldom fires at all. The reproduction manufactures the
 coincidence deliberately. That is why the repair is worth its lines and a migration was not.
 
+### Invalidations belong after the journal, not inside it (2026-09-02)
+
+Merging `dev` brought the value id directory (`#1454`) under the savepoint, and it exposed a hole every
+memoized-cache participant had shared from the start.
+
+A journal entry is an **absolute restore**: it puts one slot back to a value captured before the write, so it
+lands correctly wherever in the reverse replay it happens to run. An invalidation is not. It drops a value
+*derived* from state other entries are still restoring, and derived state can be recomputed by anyone —
+`FilterIndex#getAllRecords` and `InvertedIndex#getValueById` both re-memoize from any reader thread,
+unsynchronized. Replayed at its own position, an invalidation clears the cache while the structures beneath it
+are half-rewound; a query arriving in that window recomputes over the half-rewound state and caches *that*,
+and the rollback then reports success over a cache that outlived it. The forward path has no equivalent
+window, because the mutators invalidate **after** they write.
+
+`WarmUpSavepoint#pushPostRestoreInvalidation` restores that ordering for the reverse path: `rollback()` drains
+the journal, releases the mementos, then runs the recorded invalidations. `commit()` discards them unrun — the
+writes stand, so the forward path's own invalidation is the correct one. All eight memoized participants
+record through it.
+
+**Rejected: push the invalidation ahead of the participant's first write.** Strict reverse order would then run
+it last with no API change at all. Rejected because the requirement is invisible at the call site — nothing
+about `recordWarmUpSavepointTouch()` says "call me before you write" — it holds only against that one
+participant's own entries, and roughly fifteen call sites would each have to keep it. The next participant
+added breaks it silently, and the symptom is a stale cache under a concurrent read, which no deterministic
+test would catch. The phase makes the ordering structural instead. Revisit only if the second list's
+allocation ever shows up in a profile; it is one `ArrayList` per savepoint that touches a memoized structure.
+
+The **value id directory** is what made this concrete rather than theoretical, because it is a *positional*
+cache (`valueId -> (leaf, slot)`) and therefore needs no concurrency during the replay at all: a reader that
+rebuilds the directory mid-savepoint clears the staleness flag, the rewind moves the slots back, and nothing
+raises the flag again. Every later substring query then under-reports — the slot check in
+`TransactionalBucketBPlusTree#recordsOfMatchingValueId` refuses the mismatch, so a stale entry is a miss and
+never a wrong bucket — until the next write happens to raise the flag. Its re-raise restores the constant
+`true` rather than a captured pre-image: the pre-image reads `false` only because the directory agreed with a
+tree the rollback is about to undo, so putting it back would re-bless a directory describing moved slots.
+
 ## Rejected outright
 
 | Option | Rejected because | Revisit if |
@@ -569,6 +605,27 @@ suite timeout in `EvitaTransactionalFunctionalTest` (2.6 s alone), a 300 s one i
 `StaleLeafPageTwinWriterReproductionTest` (9 s alone), an `OutOfMemoryError` in `ConditionalFacetIndexingTest`
 (88/88 alone) from running the whole reactor in one JVM, and a testcontainers case with no Docker available.
 
+**The post-restore phase (2026-09-02).** `WarmUpSavepointTest$PostRestoreInvalidations` pins the ordering with
+three tests; the load-bearing one records the invalidation *before* either participant's write — the position at
+which strict reverse replay would run it first — and asserts it still runs last. Its counterfactual is moving
+`runPostRestoreInvalidations()` ahead of the journal drain. The directory's own case is
+`WarmUpSavepointValueIdRollbackTest$Directory#shouldNotUnderReportAValueTheRollbackMovedBack`, which inserts a
+value BETWEEN two live ones so a survivor shifts and shifts back; without the fix it fails with
+`expected: <gamma> but was: <null>`. The sibling test appends past the last key, moves no neighbour, and passes
+either way — which is why it never caught this. A 686-test targeted run over the savepoint, value-id,
+heap-accounting and warm-up-rollback suites is green, and every one of those suites is green in the full sweep too.
+
+**Two defects the full sweep found that no targeted run could.** `ValueIdAllocator#getHeapSizeInBytes` never
+priced the warm-up stamp — `LeafIndexHeapSizeTest` walks the object with JOL and compares byte-exact, expecting
+32 where the arithmetic said 24 — and the first sweep's `OutOfMemoryError` had silently **truncated** it at
+20,907 of 22,648 tests while presenting as an ordinary failure. On a 24-core developer box the suite needs
+`-Dsurefire.useUnlimitedThreads=false -Dsurefire.threadCount=4`: the pom's `-Xmx8g` is sized for CI's 4-vCPU
+runner *with* the cap CI applies, and unlimited threads there stand up far more concurrent embedded instances
+than that heap was tuned for. Even capped, the fork stays marginal. Every remaining failure across both sweeps is
+the environmental profile described above — testcontainers with no Docker, Armeria connect timeouts on the
+subscription suites, a 300 s timeout in `StaleLeafPageTwinWriterReproductionTest` (9 s alone), heap exhaustion in
+the whole-reactor JVM — plus the terminate race recorded under open follow-ups.
+
 ## Consequences & open follow-ups
 
 **Accepted residues** — a warm-up rollback rewinds index and storage state, and deliberately not these:
@@ -576,13 +633,23 @@ suite timeout in `EvitaTransactionalFunctionalTest` (2.6 s alone), a 300 s one i
 - Primary-key, index-key and internal-price-id **sequences are not rewound**; a reverted entity leaves
   a harmless gap (parity with the ALIVE savepoints).
 - **Memoized caches are invalidated, not restored** — one recomputation after a rollback, in exchange
-  for never having to *trust* a restored cache.
+  for never having to *trust* a restored cache. The invalidation runs in its own phase after the journal
+  drains, never inside it (2026-09-02, above).
 - **`IndexActivity` timestamps and usage counters count attempted work**, not surviving work (parity).
 - **WAL replay keeps `atomicRollback == false`** and opts out of both savepoint kinds.
 - **`WARMING_UP` remains contractually single-threaded** — the thread-confined savepoint relies on it
   and does not newly defend against concurrent warm-up writers.
 
 **Open follow-ups:**
+
+- `EntityAtomicMutationRollbackWarmUpFunctionalTest.shouldStillTerminateEveryCollection` **races the
+  deactivation the barrier itself schedules** and fails intermittently with `Catalog is already
+  terminated!`. `markUnpublishable` hands the catalog to `SetCatalogStateMutation(name, false)`
+  asynchronously, which terminates the instance; the test's own `catalog.terminate()` then loses. Only
+  the test is wrong — production never calls `terminate()` on a reference the deactivation owns, the
+  scheduled task returns early once the engine is closing, and the swap keeps `Evita#close` from
+  double-terminating. The fix is to assert the end state (every collection terminated, whoever did it)
+  rather than that the test's call wins the race; a sleep-poll is not an option here (`testing.md`).
 
 - Measuring the mechanism against its absence is now a **cross-revision** exercise; the protocol lives
   in `WarmUpAtomicityIngestBenchmark`'s JavaDoc.
