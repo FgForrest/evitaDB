@@ -501,6 +501,116 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				nodeIdsAgain.getArray()
 			);
 		}
+
+		/**
+		 * Removing a root that has children orphans its entire subtree and drops the root from both the
+		 * root set and the item index. The index behaves correctly here - the phantom root observed at
+		 * the query level is a mutation-layer defect (`EntityRemoveMutation` emits `RemoveParentMutation`
+		 * only for an entity that has a parent), so `removeNode` is simply never called for a root.
+		 */
+		@Test
+		@DisplayName("removing a root orphans its whole subtree and drops the root from the index")
+		void shouldRemoveRootNodeAndOrphanItsSubtree() {
+			// node 6 is a root holding the subtree 3/1/2 and 8/9/10/11/12
+			assertNull(HierarchyIndexTest.this.hierarchyIndex.removeNode(6));
+
+			assertArrayEquals(
+				new int[]{7},
+				HierarchyIndexTest.this.hierarchyIndex.getRootHierarchyNodes().getArray()
+			);
+			assertArrayEquals(
+				new int[]{1, 2, 3, 8, 9, 10, 11, 12},
+				HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes().getArray()
+			);
+			assertArrayEquals(
+				new int[]{0, 4, 5, 7},
+				HierarchyIndexTest.this.hierarchyIndex.listHierarchyNodesFromRoot().getArray()
+			);
+			// the removed root is gone from the item index as well
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> HierarchyIndexTest.this.hierarchyIndex.getParentNode(6)
+			);
+		}
+	}
+
+	/**
+	 * Pins how `HierarchyIndex#traverseHierarchyToRoot` behaves when the ancestor chain is broken,
+	 * i.e. when a node still references a parent primary key that is no longer registered. The three
+	 * depths behave differently today, and that difference is what makes a deleted mid-chain ancestor
+	 * throw at one position in the query layer and vanish silently at another. These cases are
+	 * characterisation pins for issue #1365 - see
+	 * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`.
+	 */
+	@Nested
+	@DisplayName("Broken chain traversal to root")
+	class BrokenChainTraversalTest {
+
+		/**
+		 * Depth one - the node the traversal starts from is itself absent from the item index. The
+		 * traversal is skipped silently and the visitor is never called.
+		 */
+		@Test
+		@DisplayName("start node absent from the index visits nothing")
+		void shouldSkipTraversalSilentlyWhenStartNodeIsAbsent() {
+			// removing 9 leaves 10, 11 and 12 as orphans and takes 9 itself out of the item index
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+
+			final StringBuilder visited = new StringBuilder(128);
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()).append('|'),
+				9
+			);
+			assertEquals("", visited.toString(), "Visitor must never be called for an absent start node");
+		}
+
+		/**
+		 * Depth two - the start node is present, but its own parent is absent from the item index and
+		 * is not a registered orphan. The pre-walk asserts and the traversal throws. This is the index
+		 * level of matrix row K4.
+		 */
+		@Test
+		@DisplayName("start node whose parent is absent and not an orphan throws")
+		void shouldThrowWhenStartNodeParentIsAbsentAndNotAnOrphan() {
+			// 10 stays in the item index as an orphan, while its parent 9 is gone entirely
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+					(node, level, distance, childrenTraverser) -> {
+					},
+					10
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("unexpectedly not present in the index"),
+				"Unexpected message: " + exception.getMessage()
+			);
+		}
+
+		/**
+		 * Depth three - the start node's parent is present in the item index but registered as an
+		 * orphan. The orphan guard fires first, so the traversal returns silently without visiting
+		 * anything. This is the index level of matrix row K5.
+		 */
+		@Test
+		@DisplayName("start node whose parent is a registered orphan visits nothing")
+		void shouldSkipTraversalSilentlyWhenStartNodeParentIsARegisteredOrphan() {
+			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+			// 20 hangs below the orphan 10, so it becomes an orphan itself
+			HierarchyIndexTest.this.hierarchyIndex.addNode(20, 10);
+
+			final StringBuilder visited = new StringBuilder(128);
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()).append('|'),
+				20
+			);
+			assertEquals(
+				"", visited.toString(),
+				"Visitor must never be called when the start node's parent is a registered orphan"
+			);
+		}
 	}
 
 	@Nested
