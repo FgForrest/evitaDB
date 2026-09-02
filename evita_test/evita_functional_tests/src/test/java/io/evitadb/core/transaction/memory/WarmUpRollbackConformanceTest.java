@@ -385,6 +385,11 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 		 * - **Node-construction flags.** The value is passed to a freshly built node as its "may own a diff layer"
 		 *   flag, not used to decide what to write. A node built inside a rolled-back mutation becomes unreachable
 		 *   garbage — nothing has to rewind it.
+		 * - **Premise refusals.** `Assert.isPremiseValid(!isTransactionAvailable(), ...)` forbids a call rather than
+		 *   choosing between two behaviours. An assertion writes nothing, so it cannot leave anything unrewound.
+		 * - **Schema-lifecycle gates.** The write happens on a schema change rather than on an entity mutation, so
+		 *   it never runs inside the bracket that opens a savepoint. Only `detachValueIdConsumer` is one, and its
+		 *   own comment states why the transactional arm keeps the column instead.
 		 */
 		private static final Map<String, String> APPROVED_GATES = Map.ofEntries(
 			Map.entry(
@@ -423,11 +428,6 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 					"for themselves"
 			),
 			Map.entry(
-				"io/evitadb/index/attribute/OwnerUniqueIndex.java",
-				"cache read and cache invalidation gates - the tree and record-id writes above them journal for " +
-					"themselves"
-			),
-			Map.entry(
 				"io/evitadb/index/hierarchy/HierarchyIndex.java",
 				"cache read and cache invalidation gates - the item, level and orphan structures journal for themselves"
 			),
@@ -442,6 +442,24 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 			Map.entry(
 				"io/evitadb/index/price/AbstractPriceListAndCurrencyPriceIndex.java",
 				"cache read and cache invalidation gates - the indexed price ids array journals for itself"
+			),
+			Map.entry(
+				"io/evitadb/index/invertedIndex/InvertedIndex.java",
+				"premise refusals in getValueById/getRecordsOfValueIdsMatching, one cache invalidation gate in " +
+					"markValueIdDirectoryStale, and one schema-lifecycle gate in detachValueIdConsumer - the last " +
+					"gives the id column back only outside a transaction, and runs from a schema change rather " +
+					"than from an entity mutation, so no savepoint is ever open across it"
+			),
+			Map.entry(
+				"io/evitadb/index/trigram/TrigramSubstringSearch.java",
+				"query-path gate selecting the scan fallback - a read-write session's queries are not served from " +
+					"the accelerator, and nothing on this path writes"
+			),
+			Map.entry(
+				"io/evitadb/index/bPlusTree/TransactionalBucketBPlusTree.java",
+				"premise refusals only - the two value-id column installers refuse a populated tree inside a " +
+					"transaction, and recordsOfMatchingValueId refuses a resolve that would under-report. An " +
+					"assertion writes nothing, so none of them can leave a rollback hole"
 			),
 			Map.entry(
 				"io/evitadb/index/bPlusTree/TransactionalElementBPlusTree.java",
