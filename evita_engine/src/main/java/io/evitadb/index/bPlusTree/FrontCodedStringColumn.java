@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
@@ -451,11 +452,9 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// past it is refused rather than absorbed - stated once here and identically on the four fixed-slot key
 		// columns, so the whole family answers this the same way. Left to itself, the decode below would walk the
 		// offset table past its live end and produce a silently wrong slice
-		Assert.isPremiseValid(
-			srcPos >= 0 && srcPos + length <= this.size,
-			() -> "Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
-				+ this.size + ") — a key column has no empty key to substitute."
-		);
+		if (srcPos < 0 || srcPos + length > this.size) {
+			throwSourceRangeNotLive(srcPos, length);
+		}
 		final DecodeScratch scratch = SCRATCH.get();
 		// snapshot the moved slice into flat2/offsets2 and decode the destination's own live entries into
 		// flat/offsets - two DISTINCT thread-local buffer pairs, so both can be live at once even when dst == this
@@ -522,6 +521,22 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		scratch.flat3 = outFlat;
 		scratch.offsets3 = outOffsets;
 		target.encode(scratch, outFlat, outOffsets, newSize);
+	}
+
+	/**
+	 * Builds and throws the out-of-range report for {@link #copyRangeTo}. Kept out of line so the check itself is a
+	 * pair of integer compares that allocates nothing: it runs on every range copy, and `createLayer()` performs one
+	 * per column on the first transactional touch of every leaf, so a message supplier there would allocate thousands
+	 * of objects per commit for a check that never fails.
+	 *
+	 * @param srcPos the start index the caller was reading from
+	 * @param length the number of keys the caller was reading
+	 */
+	private void throwSourceRangeNotLive(int srcPos, int length) {
+		throw new GenericEvitaInternalError(
+			"Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ") — a key column has no empty key to substitute."
+		);
 	}
 
 	@Override

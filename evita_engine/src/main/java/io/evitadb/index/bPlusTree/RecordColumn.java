@@ -60,9 +60,10 @@ import javax.annotation.Nonnull;
  *
  * **A record column is a logical run of {@code capacity()} zero-valued slots of which the first {@link #size()} are
  * materialized.** Reading, clearing or removing a slot past the live run answers `0` rather than throwing, which is
- * exactly what the fixed, zero-filled arrays this family used to allocate did — and it is what keeps a value id column
- * usable in the window between being attached to a populated leaf and being back-filled. Only an index at or beyond
- * {@link #capacity()} is a programming error.
+ * exactly what the fixed, zero-filled arrays this family used to allocate did — so no caller has to tell "not yet
+ * materialized" apart from "vacated", and the value id column's `0` sentinel keeps meaning "unassigned" wherever it is
+ * read. Only an index at or beyond {@link #capacity()} is a programming error. {@link #copyRangeTo} is the one
+ * operation that refuses to read past the live run rather than answering zeroes; see there for why.
  *
  * {@link #size()} is normally the owning leaf's {@code peek + 1}, but a reader must bound itself by {@code peek} and
  * never by {@link #size()} — see {@link ValueColumn} for the three windows in which the two disagree, one of which
@@ -226,12 +227,11 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	 * steal-from-left performs ({@code dst == this}) becomes a copy into a larger array rather than an overlapping
 	 * move.
 	 *
-	 * **A source range reaching past {@code this.size()} copies zeroes**, and this family alone tolerates it —
-	 * {@link ValueColumn#copyRangeTo} refuses the same thing, because a key column has no empty key to substitute
-	 * while a record column's unwritten slot has always read `0`. The tolerance exists for exactly one live state:
-	 * a value id column that the leaf attached to an already-populated page and that nothing has back-filled yet is
-	 * a legitimate steal/merge donor. **Phase 1b removes that state** — the id column will be created at the page's
-	 * own length — and the tolerance should be replaced by the same premise the key columns carry once it is gone.
+	 * **A source range reaching past {@code this.size()} is refused**, exactly as {@link ValueColumn#copyRangeTo}
+	 * refuses it. This family used to absorb it by copying zeroes, because one live state produced it: a value id
+	 * column the leaf had attached to an already-populated page and nothing had back-filled yet was a legitimate
+	 * steal / merge donor. That state is gone — every id column is now created sized to the leaf it joins — and
+	 * with its only producer removed the tolerance would hide caller bugs rather than absorb a known one.
 	 *
 	 * @param srcPos the start index in this column
 	 * @param dst    the destination column (same concrete kind)

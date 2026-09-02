@@ -344,6 +344,174 @@ class BucketBPlusTreeValueIdTest {
 			}
 			assertEquals(3, buckets, "every bulk-loaded bucket must be reachable");
 		}
+
+		@Test
+		@DisplayName("a page loaded into an id-carrying tree gets a column sized to the page")
+		void shouldSizeTheValueIdColumnToThePageWhenTheTreeCarriesIdsButThePageDoesNot() {
+			// the one state that used to attach a never-sized id column to an already-populated leaf: the tree mints
+			// ids, but the page was persisted before ids existed, so `valueIds` arrives null
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, null, 3);
+
+			assertColumnsAlignedWithLeaves(tree);
+			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			assertNotNull(valueIds, "an id-carrying tree must give every leaf a column");
+			assertEquals(3, valueIds.size(), "the column must cover the page it was attached to");
+			for (int slot = 0; slot < 3; slot++) {
+				assertEquals(
+					ValueIdAllocator.UNASSIGNED_VALUE_ID, valueIds.intAt(slot),
+					"an unstamped slot reads as the unassigned sentinel"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a page loaded with persisted ids sizes its column exactly to the page")
+		void shouldSizeTheValueIdColumnExactlyWhenThePageCarriesPersistedIds() {
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+			tree.bulkLoadPage(
+				new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, new int[]{11, 22, 33}, 3
+			);
+
+			assertColumnsAlignedWithLeaves(tree);
+			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			assertNotNull(valueIds);
+			assertEquals(3, valueIds.size());
+			assertArrayEquals(new int[]{11, 22, 33}, new int[]{
+				valueIds.intAt(0), valueIds.intAt(1), valueIds.intAt(2)
+			});
+			// exactly the page, with no geometric overshoot: the id column must not cost more than the record column
+			// it runs beside, which was bulk-loaded from the same page
+			assertEquals(
+				tree.enumerateLeaves().get(0).getRecords().getHeapSizeInBytes(), valueIds.getHeapSizeInBytes(),
+				"the id column must be sized exactly to the page, like every other bulk-loaded column"
+			);
+		}
+	}
+
+	/**
+	 * Asserts the leaf-column alignment invariant across every leaf of a tree: each column's live run covers exactly
+	 * the buckets the leaf holds, no more and no less.
+	 *
+	 * @param tree the tree to check
+	 */
+	private static void assertColumnsAlignedWithLeaves(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		for (final TransactionalBucketBPlusTree.BPlusLeafTreeNode<Integer> leaf : tree.enumerateLeaves()) {
+			final int expected = leaf.getPeek() + 1;
+			assertEquals(expected, leaf.getKeyColumn().size(), "key column misaligned");
+			assertEquals(expected, leaf.getRecords().size(), "record column misaligned");
+			if (leaf.getValueIds() != null) {
+				assertEquals(expected, leaf.getValueIds().size(), "value id column misaligned");
+			}
+			if (leaf.getOverflow() != null) {
+				assertEquals(expected, leaf.getOverflow().size(), "overflow column misaligned");
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Keeping the id column in lockstep with the leaf")
+	class ColumnLockstep {
+
+		@Test
+		@DisplayName("insert, delete, split, steal and merge all leave the id column aligned")
+		void shouldKeepTheIdColumnAlignedThroughEveryStructuralChange() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(20);
+			assertColumnsAlignedWithLeaves(tree);
+
+			// promote a scattering of buckets so the overflow column joins the lockstep too
+			for (int value = 0; value < 20; value += 3) {
+				tree.addRecord(value, 1_000 + value);
+			}
+			assertColumnsAlignedWithLeaves(tree);
+
+			// draining every other value forces steals and merges across the whole spine
+			for (int value = 0; value < 20; value += 2) {
+				tree.removeRecord(value, value + 1, 1_000 + value);
+			}
+			assertColumnsAlignedWithLeaves(tree);
+
+			// and the surviving ids are still the ones minted for their values
+			for (int value = 1; value < 20; value += 2) {
+				assertEquals(
+					ValueIdAllocator.FIRST_VALUE_ID + value, tree.valueIdOf(value),
+					"the id of value " + value + " must survive every rebalance"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a vacated slot reads back as unassigned")
+		void shouldReadBackZeroFromAVacatedSlot() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(4);
+			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			assertNotNull(valueIds);
+			assertEquals(4, valueIds.size());
+
+			tree.removeRecord(3, 4);
+			assertEquals(3, valueIds.size(), "the column shrinks with the leaf");
+			assertEquals(
+				ValueIdAllocator.UNASSIGNED_VALUE_ID, valueIds.intAt(3),
+				"the slot the deleted bucket vacated must read as unassigned, not as a stale id"
+			);
+		}
+
+		@Test
+		@DisplayName("the back-filled column is sized exactly to the leaf, not to the next power of two")
+		void shouldSizeTheBackFilledColumnExactlyToTheLeaf() {
+			// 100 buckets in a 255-bucket leaf: geometric growth would land the id column on 128 slots, and the 4:1
+			// trim threshold never gives those 28 back - the leaf would carry them for the rest of its life. The
+			// record column beside it was grown one insert at a time and IS on 128, which is what makes the
+			// comparison below a real assertion rather than a tautology
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int value = 0; value < 100; value++) {
+				tree.addRecord(value, value + 1);
+			}
+			assertEquals(1, tree.enumerateLeaves().size(), "the fixture must stay a single leaf");
+
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			assertNotNull(valueIds);
+			assertEquals(100, valueIds.size());
+
+			// physical length is not exposed, so it is read back through the arithmetic: an int column costs its
+			// object plus a four-byte slot per allocated element, and the two candidate lengths are far enough apart
+			// that the comparison cannot be confused by alignment padding
+			final long exact = valueIds.getHeapSizeInBytes();
+			final RecordColumn hundredSlotReference = RecordColumnFactory.INT.create(255);
+			hundredSlotReference.bulkLoad(new long[100], 100);
+			assertEquals(
+				hundredSlotReference.getHeapSizeInBytes(), exact,
+				"the back-filled id column must be sized exactly to the leaf's 100 buckets"
+			);
+			assertTrue(
+				exact < tree.enumerateLeaves().get(0).getRecords().getHeapSizeInBytes(),
+				"the geometrically grown record column beside it must be the larger of the two"
+			);
+		}
+
+		@Test
+		@DisplayName("the back-fill sizes a loaded tree's columns to its live count")
+		void shouldSizeTheBackFilledColumnToTheLiveCountOfEachLeaf() {
+			// a tree loaded WITHOUT ids and switched on afterwards: every leaf gets its column after the fact, and it
+			// has to arrive covering the buckets already there - the back-fill reads every live slot straight back
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			for (int value = 0; value < 12; value++) {
+				tree.addRecord(value, value + 1);
+			}
+			assertFalse(tree.carriesValueIds());
+
+			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
+			assertColumnsAlignedWithLeaves(tree);
+			for (int value = 0; value < 12; value++) {
+				assertNotEquals(
+					ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(value),
+					"every value of a back-filled tree must carry a minted id"
+				);
+			}
+		}
 	}
 
 	@Nested

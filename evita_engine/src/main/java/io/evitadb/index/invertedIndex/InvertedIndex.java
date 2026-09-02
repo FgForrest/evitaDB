@@ -112,11 +112,26 @@ import java.util.function.Predicate;
  * If no transaction is opened, changes are applied directly to the delegate tree. In such case the class is not thread
  * safe for multiple writers!
  *
- * The value id directory is the one piece of state a READER may write: {@link #getValueById(int)} catches the
- * warm-up path's writes up before it answers. That catch-up is single-flight and its completion is published through
- * the volatile {@link #valueIdDirectoryStale}, so concurrent readers cannot rebuild over one another; and the
- * directory itself is published as one immutable unit, so a reader already past the flag resolves through the
- * generation it read rather than through one being rebuilt around it. See {@link #refreshValueIdDirectory()}.
+ * The value id directory is the one piece of state a READER may write, and the window it is written in is **after**
+ * `goLive`, not during warm-up. A non-transactional write — a warm-up bulk load, a restore — raises the volatile
+ * {@link #valueIdDirectoryStale} flag rather than rebuilding the directory itself. The flag then *survives*
+ * `goLive`, because a catalog transition carries its index instances across by reference, and it is *consumed* by
+ * the first queries the ALIVE catalog serves. Those queries are unboundedly parallel, so it is there that the
+ * single-flight rebuild in {@link #refreshValueIdDirectory()} earns its keep: concurrent readers cannot rebuild over
+ * one another, and the directory is published as one immutable unit, so a reader already past the flag resolves
+ * through the generation it read rather than through one being rebuilt around it.
+ *
+ * Warm-up itself is single-session and single-threaded, so **no query thread races the bulk loader**. A non-ALIVE
+ * catalog admits one session at a time, and a read-write session rejects a second thread at runtime; the warm-up
+ * client is allowed to query what it has just written, but only on its own thread. The catch-up
+ * {@link #getValueById(int)} performs there is therefore a same-thread interleaving — write, query, write, query —
+ * which is required for correctness but is not a race, and the `synchronized` around the rebuild buys nothing in
+ * that setting.
+ *
+ * The one reader that genuinely is concurrent with a warm-up writer reaches the index from the **management and
+ * statistics API**, which has neither a session nor a catalog-state guard. Those paths walk leaves while a bulk load
+ * mutates them, so every such walk bounds itself by the leaf column's own live run rather than by the leaf's `peek`
+ * alone; a torn read then yields a stale count instead of an index-out-of-bounds failure on a request thread.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */

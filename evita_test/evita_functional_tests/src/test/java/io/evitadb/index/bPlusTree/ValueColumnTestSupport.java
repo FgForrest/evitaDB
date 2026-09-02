@@ -380,15 +380,23 @@ final class ValueColumnTestSupport {
 		assertEquals(0L, destination.longAt(4), "the gap opened by the right shift must read as zero");
 		assertEquals(payloads[0], destination.longAt(6));
 
-		// a donor whose own live run is shorter than the copied range hands over zeroes rather than throwing -
-		// exactly the shape of a value id column attached to a populated leaf and not yet back-filled
+		// a source range reaching past the live run is REFUSED, exactly as a key column refuses it. This family used
+		// to answer zeroes there, for one real donor - a value id column attached to a populated leaf and not yet
+		// back-filled - and that donor no longer exists: every id column is created sized to the leaf it joins
 		final RecordColumn unsized = emptyColumnFactory.apply(SIZING_CAPACITY);
 		final RecordColumn receiver = emptyColumnFactory.apply(SIZING_CAPACITY);
-		unsized.copyRangeTo(0, receiver, 0, 4);
-		assertEquals(4, receiver.size());
-		for (int i = 0; i < 4; i++) {
-			assertEquals(0L, receiver.longAt(i), "an unwritten donor slot copies as zero");
-		}
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> unsized.copyRangeTo(0, receiver, 0, 4),
+			"a source range past the live run must be refused"
+		);
+		unsized.setAt(0, 7L);
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> unsized.copyRangeTo(1, receiver, 0, 1),
+			"a source range starting past the live run must be refused"
+		);
+		assertEquals(0, receiver.size(), "a refused copy must leave the destination untouched");
 
 		// the in-place right shift the leaf performs when it steals from its left sibling
 		final RecordColumn shifted = emptyColumnFactory.apply(SIZING_CAPACITY);

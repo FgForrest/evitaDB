@@ -64,6 +64,8 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
+import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -3419,5 +3421,282 @@ class TransactionalBucketBPlusTreeTest {
 			);
 		}
 
+	}
+
+	/**
+	 * Pins the leaf-side half of the content-sized storage design: a column's backing array follows what the leaf
+	 * holds, while the leaf keeps deciding to split, rebalance and page on the **logical** block size.
+	 *
+	 * The two failure modes these guard are asymmetric, and the worse one is silent. If `capacity()` ever came back
+	 * as the backing array's length, a five-value tree would report itself full and split — turning a memory
+	 * optimization into a storage-shape change. Worse, the split's own end bound is that same capacity, so the right
+	 * half would copy the empty range and half the leaf would simply vanish, with no exception and no failing
+	 * consistency report. Hence a content assertion after every split here, not merely a shape one.
+	 */
+	@Nested
+	@DisplayName("Content-sized leaf storage behind a logical capacity")
+	@Tag(INDEXING)
+	class ContentSizedLeafStorage {
+
+		/**
+		 * Sums the heap of a leaf's key and record columns — the proxy this test uses for "how long are the backing
+		 * arrays", since the arrays themselves are private to the columns.
+		 *
+		 * @param leaf the leaf to measure
+		 * @return the bytes its two mandatory columns occupy
+		 */
+		private static long columnBytesOf(@Nonnull BPlusLeafTreeNode<Integer> leaf) {
+			return leaf.getKeyColumn().getHeapSizeInBytes(element -> 0L)
+				+ leaf.getRecords().getHeapSizeInBytes();
+		}
+
+		@Test
+		@DisplayName("a leaf whose backing arrays are shorter than the block size still does not split")
+		void shouldNotSplitALeafWhoseBackingArraysAreShorterThanTheBlockSize() {
+			// a production-sized block against five values: the backing arrays hold eight slots, the leaf holds 255
+			// (the single-argument constructor derives the minimum as blockSize / 2 and demands it be strictly below
+			// half, so an odd block is the largest legal one it accepts)
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(1, leaves.size(), "five values must never outgrow a 255-bucket leaf");
+			assertTrue(tree.getRoot() instanceof BPlusLeafTreeNode, "the root must still be the leaf itself");
+
+			final BPlusLeafTreeNode<Integer> leaf = leaves.get(0);
+			assertEquals(5, leaf.getKeyColumn().size(), "the key column holds exactly the five live values");
+			assertEquals(255, leaf.getKeyColumn().capacity(), "the LOGICAL capacity is the block size, unchanged");
+			assertEquals(255, leaf.getRecords().capacity());
+			assertEquals(255, leaf.capacity(), "the leaf answers the logical capacity, not its storage");
+			assertFalse(leaf.isFull());
+			assertFalse(leaf.isNearlyFull());
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4);
+		}
+
+		@Test
+		@DisplayName("a real split keeps every bucket of both halves")
+		void shouldKeepEveryBucketOfBothHalvesWhenALeafSplits() {
+			// block size 5 with six values forces exactly one split, so both halves can be read back whole
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(2, leaves.size(), "the fixture must actually split");
+
+			// the content assertion is the point: a split whose end bound collapsed to `mid` would leave the right
+			// leaf empty and lose half the tree without throwing anything at all
+			final BPlusLeafTreeNode<Integer> right = leaves.get(1);
+			assertTrue(right.size() > 0, "the right half of a split must never be empty");
+
+			int total = 0;
+			for (final BPlusLeafTreeNode<Integer> leaf : leaves) {
+				total += leaf.size();
+				assertEquals(leaf.getPeek() + 1, leaf.getKeyColumn().size(), "every column covers exactly the leaf");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+			}
+			assertEquals(6, total, "a split must not lose a single bucket");
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4, 5);
+			for (int i = 0; i < 6; i++) {
+				assertArrayEquals(new int[]{i * 10}, recordsOf(tree, i), "records lost at value " + i);
+			}
+		}
+
+		@Test
+		@DisplayName("a low-cardinality tree in which every bucket is multi-record stays whole")
+		void shouldKeepEveryRecordWhenEveryBucketIsMultiRecord() {
+			// the shape the overflow column dominates: few distinct values, every one of them promoted
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int value = 0; value < 6; value++) {
+				tree.addRecord(value, value * 100, value * 100 + 1, value * 100 + 2);
+			}
+
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			assertNotNull(leaf.getOverflow(), "every bucket is multi, so the overflow column must exist");
+			assertEquals(6, leaf.getOverflow().size(), "the overflow column covers exactly the live buckets");
+			assertEquals(255, leaf.getOverflow().capacity(), "its logical capacity is still the block size");
+			for (int value = 0; value < 6; value++) {
+				assertNotNull(leaf.getOverflow().bitmapAt(value), "bucket " + value + " must carry a bitmap");
+				assertArrayEquals(
+					new int[]{value * 100, value * 100 + 1, value * 100 + 2}, recordsOf(tree, value),
+					"records lost at value " + value
+				);
+			}
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4, 5);
+
+			// deleting every record of the middle bucket collapses it, and the overflow column must shrink with the
+			// rest rather than leave a stale bitmap aliased past the live run
+			tree.removeRecord(3, 300, 301, 302);
+			assertEquals(5, leaf.getOverflow().size());
+			verifyTreeConsistency(tree, 0, 1, 2, 4, 5);
+		}
+
+		@Test
+		@DisplayName("a steal between leaves of different physical lengths moves every bucket")
+		void shouldRebalanceWhenDonorAndReceiverHaveDifferentPhysicalLengths() {
+			// small blocks so a handful of removals force a real steal / merge, and the two leaves reach it with
+			// arrays grown to different lengths because they were filled at different times
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 24; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			// promote a scattering of buckets so the overflow column takes part in the rebalance too
+			for (int i = 0; i < 24; i += 3) {
+				tree.addRecord(i, i * 10 + 1);
+			}
+			verifyTreeConsistency(
+				tree, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23);
+
+			for (int i = 0; i < 24; i += 2) {
+				tree.removeRecord(i, i * 10, i * 10 + 1);
+			}
+			verifyTreeConsistency(tree, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23);
+			for (final BPlusLeafTreeNode<Integer> leaf : tree.enumerateLeaves()) {
+				assertEquals(
+					leaf.getPeek() + 1, leaf.getKeyColumn().size(), "a rebalance must leave the columns aligned");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+				if (leaf.getOverflow() != null) {
+					assertEquals(leaf.getPeek() + 1, leaf.getOverflow().size());
+				}
+			}
+			for (int i = 1; i < 24; i += 2) {
+				assertArrayEquals(
+					i % 3 == 0 ? new int[]{i * 10, i * 10 + 1} : new int[]{i * 10}, recordsOf(tree, i),
+					"records lost at value " + i
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a commit that changes nothing keeps every leaf by identity")
+		@Tag(TRANSACTION)
+		void shouldKeepEveryLeafByIdentityWhenACommitChangesNothing() {
+			final TreeTuple prepared = prepareRandomTree(4_242L, 300);
+			final List<BPlusLeafTreeNode<Integer>> before = prepared.tree().enumerateLeaves();
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// deliberately no mutation: the trim at the commit merge must be reached only where a new
+					// committed leaf is being built anyway, never on the untouched fast path
+				},
+				(original, committed) -> {
+					final List<BPlusLeafTreeNode<Integer>> after = committed.enumerateLeaves();
+					assertEquals(before.size(), after.size());
+					for (int i = 0; i < before.size(); i++) {
+						assertSame(
+							before.get(i), after.get(i),
+							"a no-op commit must not rebuild - and therefore must not trim - leaf " + i
+						);
+					}
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("the commit merge gives back the slack of a leaf that has drained")
+		@Tag(TRANSACTION)
+		void shouldTrimTheColumnsOfADrainedLeafWhenTheCommitMergeRebuildsIt() {
+			// one leaf grown to sixteen buckets, then drained to three inside a transaction: at commit the rebuilt
+			// leaf carries columns sized to what is left rather than to the high-water mark
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 16; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final long grownBytes = columnBytesOf(tree.enumerateLeaves().get(0));
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					for (int i = 3; i < 16; i++) {
+						t.removeRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> {
+					final BPlusLeafTreeNode<Integer> leaf = committed.enumerateLeaves().get(0);
+					assertEquals(3, leaf.size(), "three buckets must survive");
+					assertEquals(3, leaf.getKeyColumn().size());
+					assertEquals(255, leaf.getKeyColumn().capacity(), "trimming never moves the logical capacity");
+					assertTrue(
+						columnBytesOf(leaf) < grownBytes,
+						"the commit merge must give the drained leaf's slack back - was "
+							+ columnBytesOf(leaf) + ", grown to " + grownBytes
+					);
+					verifyTreeConsistency(committed, 0, 1, 2);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a growth inside a savepoint never reaches the committed columns")
+		@Tag(TRANSACTION)
+		void shouldLeaveTheCommittedColumnsUntouchedWhenASavepointGrowsALeaf() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.addRecord(10, 100);
+
+			final BPlusLeafTreeNode<Integer> committedLeaf = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committedLeaf.getKeyColumn();
+			final RecordColumn committedRecords = committedLeaf.getRecords();
+			final long committedBytes = columnBytesOf(committedLeaf);
+			final int committedSize = committedKeys.size();
+
+			// five more distinct values force at least one reallocation of the four-slot backing arrays
+			assertSavepointRollbackRestores(
+				tree,
+				t -> {
+				},
+				t -> {
+					final TreeMap<Integer, String> content = new TreeMap<>();
+					final BucketCursor<Integer> cursor = t.cursor();
+					while (cursor.next()) {
+						content.put(cursor.value(), cursor.records().toString());
+					}
+					return content;
+				},
+				t -> {
+					for (int i = 0; i < 5; i++) {
+						t.addRecord(20 + i, 200 + i);
+					}
+				}
+			);
+
+			assertSame(committedKeys, committedLeaf.getKeyColumn(), "the committed key column must not be replaced");
+			assertSame(committedRecords, committedLeaf.getRecords());
+			assertEquals(committedSize, committedKeys.size(), "the committed column must not have grown");
+			assertEquals(
+				committedBytes, columnBytesOf(committedLeaf),
+				"a grow inside a savepoint must reallocate the LAYER's array, never the committed one"
+			);
+			assertEquals(10, committedKeys.keyAt(0), "the committed content must be exactly what it was");
+		}
+
+		@Test
+		@DisplayName("a savepoint that is committed keeps the growth it caused")
+		@Tag(TRANSACTION)
+		void shouldKeepTheGrowthWhenASavepointIsCommitted() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.addRecord(10, 100);
+
+			assertSavepointCommitKeeps(
+				tree,
+				t -> {
+				},
+				t -> {
+					final TreeMap<Integer, String> content = new TreeMap<>();
+					final BucketCursor<Integer> cursor = t.cursor();
+					while (cursor.next()) {
+						content.put(cursor.value(), cursor.records().toString());
+					}
+					return content;
+				},
+				t -> {
+					for (int i = 0; i < 5; i++) {
+						t.addRecord(20 + i, 200 + i);
+					}
+				}
+			);
+		}
 	}
 }

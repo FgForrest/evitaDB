@@ -376,6 +376,37 @@ class LeafIndexHeapSizeTest {
 				"a larger index must report a larger footprint"
 			);
 		}
+
+		@Test
+		void shouldKeepAOneKeyIntegralIndexWithinItsSizingBudget() {
+			// The whole point of sizing a leaf's columns to their content: an integral index holding ONE value used
+			// to pay for a 256-slot key column, a 256-slot record column and their headers - 3472 bytes for a single
+			// long and a single int. What is left is structure only, and every one of these bytes is accounted for:
+			//
+			//   64  the index object                     64  the leaf node
+			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
+			//   80  the tree's two transactional             24  the record column object + 32 its four-slot int[]
+			//       reference holders and their           24  the tree's transactional dirty flag
+			//       AtomicReferences                      16  the boxed bucket count the tree memoizes
+			//
+			// That sums to 464, which is what both sides report. The four-slot floor is deliberate (see
+			// ColumnSizing): the reduced value trees this sizing exists for are dominated by one to four distinct
+			// values, so a floor of four covers the common case in a single allocation and never reallocates. The
+			// 480-byte budget therefore leaves room for one more small object without leaving room for a column that
+			// has gone back to allocating its whole block.
+			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(Integer.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, Integer.class);
+			final InvertedIndex index = new InvertedIndex(Integer.class, normalizer, comparator, 0);
+			index.addRecord(1_000_001, 1);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 480,
+				"a one-key integral index must stay within its 480 B budget - was " + measured
+			);
+		}
 	}
 
 	@Nested

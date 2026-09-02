@@ -24,7 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -248,9 +248,23 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	 * @param length the number of keys the caller is reading
 	 */
 	private void assertSourceRangeIsLive(int srcPos, int length) {
-		Assert.isPremiseValid(
-			srcPos >= 0 && srcPos + length <= this.size,
-			() -> "Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+		if (srcPos < 0 || srcPos + length > this.size) {
+			throwSourceRangeNotLive(srcPos, length);
+		}
+	}
+
+	/**
+	 * Builds and throws the out-of-range report. Kept out of {@link #assertSourceRangeIsLive} so the check itself is
+	 * a pair of integer compares that allocates nothing: it runs on every range copy, and `createLayer()` performs one
+	 * per column on the first transactional touch of every leaf, so a message supplier here would allocate thousands
+	 * of objects per commit for a check that never fails.
+	 *
+	 * @param srcPos the start index the caller was reading from
+	 * @param length the number of keys the caller was reading
+	 */
+	private void throwSourceRangeNotLive(int srcPos, int length) {
+		throw new GenericEvitaInternalError(
+			"Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
 				+ this.size + ") — a key column has no empty key to substitute."
 		);
 	}

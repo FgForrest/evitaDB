@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 
@@ -192,23 +193,51 @@ final class IntRecordColumn implements RecordColumn {
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull RecordColumn dst, int dstPos, int length) {
+		assertSourceRangeIsLive(srcPos, length);
 		final IntRecordColumn target = asSameKind(dst);
 		final int oldSize = target.size;
 		final int required = dstPos + length;
-		final int live = Math.min(length, Math.max(0, this.size - srcPos));
 		target.ensurePhysicalLength(required);
 		if (dstPos > oldSize) {
 			// a right shift opens a hole between the destination's old live end and dstPos; it must read as zero
 			Arrays.fill(target.records, oldSize, dstPos, 0);
 		}
-		if (live > 0) {
-			System.arraycopy(this.records, srcPos, target.records, dstPos, live);
-		}
-		if (live < length) {
-			// the source range reaches past its own live run - those slots are zero and copy as zero
-			Arrays.fill(target.records, dstPos + live, required, 0);
-		}
+		System.arraycopy(this.records, srcPos, target.records, dstPos, length);
 		target.size = Math.max(oldSize, required);
+	}
+
+	/**
+	 * Refuses a source range that reaches past this column's live run, exactly as the key columns do.
+	 *
+	 * This family used to absorb the violation instead, copying zeroes for the slots beyond the run — legitimate for
+	 * one live state, a value id column attached to an already-populated page and not yet back-filled, which was a
+	 * legal steal / merge donor. That state no longer exists: every id column is created sized to the leaf it joins.
+	 * With the producer gone the tolerance only hides caller bugs, and a record column silently copying zeroes over a
+	 * neighbour's payloads is exactly as wrong as a key column copying empty keys would be.
+	 *
+	 * @param srcPos the start index the caller is reading from
+	 * @param length the number of records the caller is reading
+	 */
+	private void assertSourceRangeIsLive(int srcPos, int length) {
+		if (srcPos < 0 || srcPos + length > this.size) {
+			throwSourceRangeNotLive(srcPos, length);
+		}
+	}
+
+	/**
+	 * Builds and throws the out-of-range report. Kept out of {@link #assertSourceRangeIsLive} so the check itself is
+	 * a pair of integer compares that allocates nothing: it runs on every range copy, and `createLayer()` performs one
+	 * per column on the first transactional touch of every leaf, so a message supplier here would allocate thousands
+	 * of objects per commit for a check that never fails.
+	 *
+	 * @param srcPos the start index the caller was reading from
+	 * @param length the number of records the caller was reading
+	 */
+	private void throwSourceRangeNotLive(int srcPos, int length) {
+		throw new GenericEvitaInternalError(
+			"Record column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ")!"
+		);
 	}
 
 	@Override
