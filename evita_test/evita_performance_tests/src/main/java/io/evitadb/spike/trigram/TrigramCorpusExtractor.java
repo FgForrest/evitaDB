@@ -473,7 +473,7 @@ public class TrigramCorpusExtractor {
 			entityType + '\t' + attributeName + '\t' + localeTag, key -> new long[2]
 		);
 		counters[0]++;
-		counters[1] += TrigramCodec.codePointCount(value);
+		counters[1] += SpikeTrigramCodec.codePointCount(value);
 	}
 
 	/* ===================================== selection ============================================= */

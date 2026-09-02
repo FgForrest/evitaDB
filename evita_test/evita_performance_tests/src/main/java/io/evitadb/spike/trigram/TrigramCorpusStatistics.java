@@ -152,7 +152,7 @@ public class TrigramCorpusStatistics {
 	public static void main(@Nonnull String[] args) throws IOException {
 		// guards every number below: a silently broken codec would not fail anything, it would just make the
 		// whole report describe an index nobody is proposing
-		TrigramCodec.selfCheck();
+		SpikeTrigramCodec.selfCheck();
 
 		final Path corpusFile = args.length > 0
 			? Path.of(args[0])
@@ -203,8 +203,8 @@ public class TrigramCorpusStatistics {
 		long memberships = 0L;
 		for (int valueId = 0; valueId < valueCount; valueId++) {
 			final String value = distinctValues.get(valueId);
-			trigramsByValueId[valueId] = TrigramCodec.extractUniqueTrigrams(value);
-			valueLengths[valueId] = TrigramCodec.codePointCount(value);
+			trigramsByValueId[valueId] = SpikeTrigramCodec.extractUniqueTrigrams(value);
+			valueLengths[valueId] = SpikeTrigramCodec.codePointCount(value);
 			memberships += trigramsByValueId[valueId].length;
 		}
 		Arrays.sort(valueLengths);
@@ -374,14 +374,14 @@ public class TrigramCorpusStatistics {
 	private static FoldedMeasurement measureCaseFold(@Nonnull List<String> distinctValues, @Nonnull Locale locale) {
 		final Set<String> foldedValues = new HashSet<>(distinctValues.size());
 		for (int i = 0; i < distinctValues.size(); i++) {
-			foldedValues.add(TrigramCodec.foldCase(distinctValues.get(i), locale));
+			foldedValues.add(SpikeTrigramCodec.foldCase(distinctValues.get(i), locale));
 		}
 		// keys are collected into a primitive column and deduplicated by sorting rather than into a `Set<Long>`,
 		// which would box every one of what can be tens of millions of keys on a production-sized corpus
 		final CompositeLongArray foldedKeys = new CompositeLongArray();
 		long foldedMemberships = 0L;
 		for (final String foldedValue : foldedValues) {
-			final long[] trigrams = TrigramCodec.extractUniqueTrigrams(foldedValue);
+			final long[] trigrams = SpikeTrigramCodec.extractUniqueTrigrams(foldedValue);
 			foldedMemberships += trigrams.length;
 			for (int i = 0; i < trigrams.length; i++) {
 				foldedKeys.add(trigrams[i]);
@@ -786,7 +786,7 @@ public class TrigramCorpusStatistics {
 		 * @param rawValue   the raw value as extracted
 		 */
 		void add(int primaryKey, @Nonnull String rawValue) {
-			final String normalized = TrigramCodec.normalize(rawValue);
+			final String normalized = SpikeTrigramCodec.normalize(rawValue);
 			final Integer valueId = this.valueIds.computeIfAbsent(normalized, value -> this.valueIds.size());
 			this.valueIdColumn.add(valueId);
 			this.primaryKeyColumn.add(primaryKey);

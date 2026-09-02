@@ -84,7 +84,7 @@ import java.util.TreeSet;
  *
  * The open-addressing map needs a value that can never be a key. `0` is **not** safe: a packed trigram of three
  * `NUL` code points is `0`, and `NUL` is a perfectly legal character in a Java `String`, so an attribute value
- * could produce it. `-1` is safe by construction: {@link TrigramCodec#pack(int, int, int)} fills bits `0..62`
+ * could produce it. `-1` is safe by construction: {@link SpikeTrigramCodec#pack(int, int, int)} fills bits `0..62`
  * only, so every packed trigram is non-negative and no negative `long` can ever be one. That costs nothing,
  * where an occupancy bitset would cost one bit per slot and a branch per probe. The invariant is asserted on
  * insertion rather than assumed.
@@ -236,7 +236,7 @@ public class TrigramPostingStoreSpike {
 	private static void run(@Nonnull String[] args) throws IOException {
 		// guards every number below: a silently broken codec would not fail anything, it would just make the
 		// whole report describe an index nobody is proposing
-		TrigramCodec.selfCheck();
+		SpikeTrigramCodec.selfCheck();
 
 		final Path corpusFile = args.length > 0
 			? Path.of(args[0])
@@ -399,7 +399,7 @@ public class TrigramPostingStoreSpike {
 		long memberships = 0L;
 		int valueId = 0;
 		for (final String value : distinctValues) {
-			final long[] trigrams = TrigramCodec.extractUniqueTrigrams(value);
+			final long[] trigrams = SpikeTrigramCodec.extractUniqueTrigrams(value);
 			trigramsByValueId[valueId++] = trigrams;
 			memberships += trigrams.length;
 		}
@@ -969,7 +969,7 @@ public class TrigramPostingStoreSpike {
 				if (attributeFilter.isEmpty() || attributeFilter.contains(columns[1])) {
 					final GroupKey key = new GroupKey(columns[0], columns[1], columns[2]);
 					corpus.computeIfAbsent(key, groupKey -> new LinkedHashSet<>())
-						.add(TrigramCodec.normalize(TrigramCorpusStatistics.unescape(columns[4])));
+						.add(SpikeTrigramCodec.normalize(TrigramCorpusStatistics.unescape(columns[4])));
 					acceptedLines++;
 				}
 				line = reader.readLine();

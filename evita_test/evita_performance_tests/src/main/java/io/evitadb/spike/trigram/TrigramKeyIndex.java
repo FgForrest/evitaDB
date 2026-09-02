@@ -34,7 +34,7 @@ import java.util.Arrays;
  * a power-of-two capacity, holding its postings in a parallel `Object[]`. B2 measured ~1.3 ns per lookup at a load
  * factor of 0.75, against ~40 ns for the boxed `HashMap<Long, ...>` the brief §10 warns about.
  *
- * Empty slots are marked with `-1`, which no packed trigram can ever be - {@link TrigramCodec#pack} fills bits
+ * Empty slots are marked with `-1`, which no packed trigram can ever be - {@link SpikeTrigramCodec#pack} fills bits
  * `0..62` only, so every key is non-negative. That is why no occupancy bitset is needed; `0` would not have worked,
  * because a trigram of three `NUL` code points packs to exactly `0` and `NUL` is a legal character in an attribute
  * value.
@@ -110,7 +110,7 @@ final class TrigramKeyIndex {
 		if (key < 0L) {
 			throw new GenericEvitaInternalError(
 				"Key " + key + " is negative and collides with the empty-slot sentinel - a packed trigram " +
-					"can never be negative, so the key did not come from TrigramCodec!",
+					"can never be negative, so the key did not come from SpikeTrigramCodec!",
 				"Trigram key collides with the empty-slot sentinel!"
 			);
 		}

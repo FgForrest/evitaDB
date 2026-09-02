@@ -79,7 +79,7 @@ import java.util.Locale;
  *
  * @author Claude (P8 trigram-substring-index spike), FG Forrest a.s. (c) 2026
  */
-public final class TrigramCodec {
+public final class SpikeTrigramCodec {
 
 	/**
 	 * Bits one Unicode code point occupies in a packed trigram; `3 * 21 = 63` leaves the sign bit clear.
@@ -124,8 +124,8 @@ public final class TrigramCodec {
 	 */
 	private static final long[] NO_TRIGRAMS = new long[0];
 
-	private TrigramCodec() {
-		throw new UnsupportedOperationException("TrigramCodec is a static utility and must not be instantiated!");
+	private SpikeTrigramCodec() {
+		throw new UnsupportedOperationException("SpikeTrigramCodec is a static utility and must not be instantiated!");
 	}
 
 	/**
@@ -393,7 +393,7 @@ public final class TrigramCodec {
 	 */
 	private static void assertState(boolean condition, @Nonnull String message) {
 		if (!condition) {
-			throw new IllegalStateException("TrigramCodec self-check failed: " + message);
+			throw new IllegalStateException("SpikeTrigramCodec self-check failed: " + message);
 		}
 	}
 }

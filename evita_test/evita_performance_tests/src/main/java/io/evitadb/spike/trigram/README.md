@@ -40,8 +40,8 @@ and what was concluded.
 | [`ValueDedupReadBenchmark`](ValueDedupReadBenchmark.md) | does the array container regress the read path? | #1486 acceptance criterion 4 |
 
 Three support classes carry no `.md` of their own because they measure nothing — they are structures
-the instruments above are built from: `TrigramCodec` (the 63-bit trigram packing and the NFD
-normalization contract), `TrigramKeyIndex` and `TrigramOrdinalMap` (the primitive-keyed maps
+the instruments above are built from: `SpikeTrigramCodec` (the 63-bit trigram packing and the NFD
+normalization contract, named apart from the engine's own `TrigramCodec` it was cloned from), `TrigramKeyIndex` and `TrigramOrdinalMap` (the primitive-keyed maps
 `TrigramPostingStoreSpike` compares and builds with).
 
 ## Running anything here
