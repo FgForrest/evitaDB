@@ -24,15 +24,19 @@
 package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Verifies that the value id machinery a substring accelerator installs on a shared value tree rewinds its
@@ -160,6 +164,97 @@ class WarmUpSavepointValueIdRollbackTest {
 			assertEquals(
 				outsideSavepoint, allocator.getNextValueId(),
 				"A rollback may only undo what its own savepoint covered."
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Value id column of the shared value tree")
+	class IdColumn {
+
+		/**
+		 * Builds a tree carrying value ids, exactly as an inverted index does when a substring accelerator attaches to
+		 * it: a fresh tree with a minter installed, so every bucket born is stamped.
+		 *
+		 * @param allocator the allocator to mint from
+		 * @return the tree under test
+		 */
+		@Nonnull
+		private TransactionalBucketBPlusTree<Integer> treeCarryingValueIds(@Nonnull ValueIdAllocator allocator) {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
+			tree.installValueIdMinter(allocator::allocate);
+			return tree;
+		}
+
+		@Test
+		@DisplayName("Rollback of a value's death puts its id back on the bucket, not an unassigned slot")
+		void shouldRestoreValueIdWhenADeletedBucketComesBack() {
+			final ValueIdAllocator allocator = new ValueIdAllocator();
+			final TransactionalBucketBPlusTree<Integer> tree = treeCarryingValueIds(allocator);
+			tree.addRecord(10, 1);
+			tree.addRecord(20, 2);
+			final int idOfTwenty = tree.valueIdOf(20);
+			assertNotEquals(
+				ValueIdAllocator.UNASSIGNED_VALUE_ID, idOfTwenty,
+				"self-check: a tree with a minter stamps every bucket it creates"
+			);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(20, 2);
+			savepoint.rollback();
+
+			assertEquals(
+				idOfTwenty, tree.valueIdOf(20),
+				"The re-inserted bucket must carry the id it died with. The forward insert leaves the id slot " +
+					"unassigned because the tree stamps it immediately afterwards - on a rollback replay nothing " +
+					"does, so the inverse has to put the dying id back itself."
+			);
+		}
+
+		@Test
+		@DisplayName("Rollback keeps the id column aligned with the keys beside it")
+		void shouldKeepIdColumnAlignedWithNeighbouringBuckets() {
+			final ValueIdAllocator allocator = new ValueIdAllocator();
+			final TransactionalBucketBPlusTree<Integer> tree = treeCarryingValueIds(allocator);
+			for (int value = 10; value <= 50; value += 10) {
+				tree.addRecord(value, value / 10);
+			}
+			final int[] idsBefore = new int[5];
+			for (int i = 0; i < 5; i++) {
+				idsBefore[i] = tree.valueIdOf((i + 1) * 10);
+			}
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// delete from the MIDDLE, so a column that fails to shift back in lockstep misaligns every id after it
+			tree.removeRecord(30, 3);
+			savepoint.rollback();
+
+			for (int i = 0; i < 5; i++) {
+				final int value = (i + 1) * 10;
+				assertEquals(
+					idsBefore[i], tree.valueIdOf(value),
+					"Value " + value + " must keep the id it had before the savepoint - a rollback that shifts the " +
+						"key and record columns without the id column beside them hands one value another's id."
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Commit leaves a dead value's id spent and its bucket gone")
+		void shouldLeaveTheDeadValueGoneOnCommit() {
+			final ValueIdAllocator allocator = new ValueIdAllocator();
+			final TransactionalBucketBPlusTree<Integer> tree = treeCarryingValueIds(allocator);
+			tree.addRecord(10, 1);
+			tree.addRecord(20, 2);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(20, 2);
+			savepoint.commit();
+
+			assertEquals(
+				ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(20),
+				"A committed death must leave the value gone - ids are monotonic with holes, so its id is simply " +
+					"never handed out again."
 			);
 		}
 	}

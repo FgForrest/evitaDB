@@ -42,6 +42,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
@@ -5491,9 +5492,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable
 		public RecordColumn getValueIdsForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			// resolved through the per-operation helper, which is the same `getOrCreate`-or-null this used to inline
+			// but journals NOTHING - deliberately, because every warm-up write reached through this accessor is
+			// already covered by an inverse pushed above it: `setValueIdAt` on the mint path sits inside the bucket
+			// insertion whose inverse collapses the whole slot, id column included, and the split / merge callers
+			// take a whole-node memento first, which captures and restores `valueIds` with the other columns. A
+			// first-touch memento here would duplicate that capture on the hottest path in the tree
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.valueIds;
 			} else {
@@ -6470,14 +6475,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final TransactionalBitmap bitmap = this.overflow[index];
 				bitmap.removeAll(pks);
 				if (bitmap.isEmpty()) {
-					// the multi bucket drained to zero - delete it (release its bitmap layer). The record slot is
-					// don't-care WHILE the bucket is multi, but the inverse still has to put its value back: a
-					// promotion inverse recorded earlier in this savepoint replays later and can demote the
-					// re-inserted bucket, at which point the slot is read again
-					journalBucketDeletionIfOpen(value, this.records.longAt(index), bitmap);
-					// the id is read off the slot the caller's search already resolved and while the bucket is still
-					// there: once deleteBucketAt has collapsed the slot there is nothing left to read it from
-					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
+					// the multi bucket drained to zero - delete it (release its bitmap layer). The id is read here,
+					// off the slot the caller's search already resolved and while the bucket is still there: once
+					// deleteBucketAt has collapsed the slot there is nothing left to read it from. It is read BEFORE
+					// the journal call because the inverse needs it too - a re-inserted bucket is stamped by nothing
+					final int dyingValueId = this.valueIds == null ?
+						ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIds.intAt(index);
+					// the record slot is don't-care WHILE the bucket is multi, but the inverse still has to put its
+					// value back: a promotion inverse recorded earlier in this savepoint replays later and can demote
+					// the re-inserted bucket, at which point the slot is read again
+					journalBucketDeletionIfOpen(value, this.records.longAt(index), bitmap, dyingValueId);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
@@ -6487,8 +6494,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final int held = this.records.intAt(index);
 			for (final int pk : pks) {
 				if (pk == held) {
-					journalBucketDeletionIfOpen(value, held, null);
-					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
+					final int dyingValueId = this.valueIds == null ?
+						ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIds.intAt(index);
+					journalBucketDeletionIfOpen(value, held, null, dyingValueId);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
@@ -6714,16 +6722,27 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Must be called BEFORE {@link #deleteBucketAt}. Outside a savepoint it costs one {@link ThreadLocal} read
 		 * returning `null`.
 		 *
+		 * The value id has to be carried through explicitly, and this is the one inverse in the leaf that needs to.
+		 * Both re-insertion helpers leave the id slot they shift in unassigned, because on the FORWARD path the tree
+		 * stamps the freshly minted id onto it as the very next statement ({@code addRecordReportingValueBirth}). A
+		 * replay has no such statement after it, so without this the bucket would come back carrying
+		 * {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} — which is not merely a lost id: it is the state
+		 * {@code InvertedIndex#removeRecord} refuses as a premise violation the next time that value dies, and it
+		 * silently unlinks the value from every posting a substring accelerator holds against its old id.
+		 *
 		 * @param value   the key of the bucket about to be deleted
 		 * @param payload the value the record column carries at the bucket's slot — its lone record for a single
 		 *                bucket, and for a multi one the value a later demotion may still expose (see
 		 *                {@link #insertMultiBucket})
 		 * @param bucket  the drained record set to re-attach, or `null` when the bucket was a single one
+		 * @param valueId the id the dying bucket carried, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this
+		 *                leaf holds no id column
 		 */
 		private void journalBucketDeletionIfOpen(
 			@Nonnull M value,
 			long payload,
-			@Nullable TransactionalBitmap bucket
+			@Nullable TransactionalBitmap bucket,
+			int valueId
 		) {
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 			if (savepoint != null && !savepoint.isCaptured(this)) {
@@ -6737,6 +6756,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						insertNewSingleBucket(position.position(), value, payload);
 					} else {
 						insertMultiBucket(position.position(), value, payload, bucket);
+					}
+					if (this.valueIds != null) {
+						this.valueIds.setAt(position.position(), valueId);
 					}
 				});
 			}
