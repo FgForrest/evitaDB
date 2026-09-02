@@ -593,7 +593,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
 	 * element is first checked for a conflicting owner and only then registered, so a violation on any element
 	 * aborts the whole operation before mutating the index. Scalar keys are delegated straight to the single-value
-	 * overload. Finally invalidates the memoized records formula (outside transactions) and marks the index dirty.
+	 * overload. Finally marks the index dirty.
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
@@ -641,8 +641,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for de-registration. When `key` is an array, every element's ownership is
 	 * first verified and only then removed, so a mismatch on any element aborts the operation before mutating the
 	 * index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since no single record id applies.
-	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally invalidates
-	 * the memoized records formula (outside transactions) and marks the index dirty.
+	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally marks the
+	 * index dirty.
 	 *
 	 * @param key              single unique value or an array of unique values to unregister
 	 * @param expectedRecordId record id expected to currently own the value(s)
