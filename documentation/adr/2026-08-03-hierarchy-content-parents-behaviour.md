@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-02 20:30
+updated: 2026-09-02 20:50
 status: proposed
 kind: fix
 issues: [1365]
@@ -265,9 +265,10 @@ broken-chain rule instead.
 ## Verification
 
 **Nothing is implemented yet.** What *is* verified is the starting point: a throwaway
-characterisation run on 2026-09-02 against `dev` executed every fixture in the behaviour matrix and
-classified today's behaviour as the position-dependent hybrid described above. The test was deleted
-after the run; the matrix is its record.
+characterisation run on 2026-09-02 against `dev` executed every row of the behaviour matrix except
+P6, which the landed P6 test measured afterwards, and classified today's behaviour as the
+position-dependent hybrid described above. The test was deleted after the run; the matrix is its
+record.
 
 The implementation proves itself with:
 
@@ -275,9 +276,12 @@ The implementation proves itself with:
   `today` column as the backward-compatibility guard. The `today` column has already landed: 32 test
   methods across four nested classes (locale gate, requirement variations, broken chains, defect
   pins), all green;
-- `HierarchyIndexTest` — root removal (no test removes a root today, which is why the phantom root
-  survived) and broken-chain traversal at two, three and more levels; four methods have already
-  landed, one for root removal and three for the traversal depths;
+- `HierarchyIndexTest` — root removal and broken-chain traversal at two, three and more levels; four
+  methods have already landed, one for root removal and three for the traversal depths. Before this
+  line of work no test removed a hierarchical root at either layer, which is why the phantom root
+  survived: the landed `MutationTest#shouldRemoveRootNodeAndOrphanItsSubtree` pins removal at the
+  index level, and the functional suite's defect pin
+  `DefectPinTest#shouldStillListDeletedRootInHierarchyToday_phantomRoot` pins it at the entity level;
 - `QuerySerializationTest` — round-trip of both `HierarchyParentsBehaviour` values *and* both
   `ManagedReferencesBehaviour` values, the latter being the regression guard for the Kryo defect that
   only `ANY` round-tripping hid;
