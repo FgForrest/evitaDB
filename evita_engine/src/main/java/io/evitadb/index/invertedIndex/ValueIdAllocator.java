@@ -27,10 +27,13 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -86,8 +89,17 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  */
 @NotThreadSafe
 public class ValueIdAllocator
-	implements TransactionalLayerProducer<ValueIdAllocatorChanges, ValueIdAllocator>, Serializable {
+	implements TransactionalLayerProducer<ValueIdAllocatorChanges, ValueIdAllocator>, WarmUpTouchStamped,
+	Serializable {
 	@Serial private static final long serialVersionUID = -2871695142993471845L;
+
+	/**
+	 * This allocator's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its counter. {@link WarmUpTouchStamped} carries the
+	 * requirements the field has to meet, and why breaking one of them corrupts a rollback rather than merely
+	 * slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * The id an id column slot carries when no value id has been assigned to it. It is `0` rather than `-1` on
@@ -145,6 +157,7 @@ public class ValueIdAllocator
 			if (this.nextValueId == Integer.MAX_VALUE) {
 				throw exhausted();
 			}
+			recordWarmUpSavepointTouch();
 			return this.nextValueId++;
 		} else {
 			return layer.allocate();
@@ -197,6 +210,40 @@ public class ValueIdAllocator
 		return VMLayout.current().sizeOfObject(Long.BYTES + Integer.BYTES);
 	}
 
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, the counter this
+	 * allocator held before the mutation started, so a rollback restores it (see {@link WarmUpSavepoint}).
+	 *
+	 * Granularity is a first-touch memento rather than a per-mint inverse, which is what the per-family cost rule in
+	 * `documentation/developer/stm/savepoints.md` prescribes for a scalar: the whole pre-image is one `int` grabbed in
+	 * `O(1)`, so capturing it once per savepoint is strictly cheaper than pushing a lambda per minted id — and a bulk
+	 * load mints one for every distinct value it meets, which is the hot case rather than a rare one.
+	 *
+	 * The restore is absolute, not a decrement. A savepoint may cover many mints, and reverse replay runs the
+	 * earliest-pushed inverse last, so one absolute assignment of the pre-savepoint counter is what makes an entity
+	 * that minted twenty ids give all twenty back.
+	 *
+	 * ## Why the ids are given back at all
+	 *
+	 * A leaked id would not corrupt anything — ids are monotonic **with holes** by design (see the class JavaDoc), so
+	 * a hole left by a rolled-back entity is indistinguishable from one left by a deleted value. Two reasons to
+	 * restore it anyway: the high-water mark is persisted with the tree and decides whether the root storage part has
+	 * to be rewritten ({@link io.evitadb.index.invertedIndex.InvertedIndex#isValueIdHighWaterDirty()}), so a mark that
+	 * advanced for a mutation that never happened forces a root out for nothing; and
+	 * {@link ValueIdAllocatorChanges} already gives them back on a transactional abort, so warm-up doing otherwise
+	 * would make the two paths disagree about the same question for no gain.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final int restored = this.nextValueId;
+			savepoint.push(() -> this.nextValueId = restored);
+		}
+	}
+
 	@Override
 	public String toString() {
 		return "ValueIdAllocator(nextValueId=" + getNextValueId() + ')';
@@ -225,6 +272,18 @@ public class ValueIdAllocator
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+	}
+
+	/**
+	 * The delegate branch of {@link #allocate()} advances {@link #nextValueId} in place, and
+	 * {@link #recordWarmUpSavepointTouch()} captures the counter before the first such advance inside a savepoint, so
+	 * everything that branch writes is rewindable.
+	 *
+	 * @return always `true`
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 }
