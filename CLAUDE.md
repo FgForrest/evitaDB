@@ -16,6 +16,17 @@ mvn clean install
 
 Running tests: see `.claude/rules/testing.md` for the tag taxonomy, Maven profiles, and test commands.
 
+## Git worktrees
+
+If `$HOLE_WORKTREES_DIR` is set, create git worktrees inside it:
+
+```shell
+git worktree add "$HOLE_WORKTREES_DIR/<branch>" <branch>
+```
+
+Worktrees created anywhere else exist only inside the sandbox and are lost when it exits. If the
+variable is not set, use the project's usual location.
+
 ## Libraries
 
 Prefer the libraries already in use — Kryo (binary serialization), RoaringBitmap (bitmaps), Jackson (JSON), Netty/Armeria (web server & client), gRPC-Java & GraphQL-Java (APIs), Logback (logging), Byte Buddy (runtime codegen), MinIO (S3 storage). Don't introduce an alternative for a job one of these already does without discussion.
