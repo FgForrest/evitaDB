@@ -33,6 +33,7 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
@@ -361,15 +362,36 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		int indexedDecimalPlaces
 	) {
 		if (!part.isPaged()) {
-			return new InvertedIndex(
+			final InvertedIndex inlineIndex = new InvertedIndex(
 				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
 			);
+			// the root's high-water mark and its inline column must agree about whether the tree carries ids at all,
+			// exactly as the root and the leaf pages must in the PAGED branch below. A column under a root claiming
+			// none would otherwise fail deep inside the allocator with a message naming neither the attribute nor the
+			// cause, and a root claiming ids its column does not carry would load SILENTLY without them - after which
+			// the populated tree can never be switched back on, the next flush persists no mark, and the record of
+			// which ids were already handed out is gone for good
+			isPremiseValid(
+				(part.getInlineValueIds() != null) ==
+					(part.getNextValueId() != ValueIdAllocator.UNASSIGNED_VALUE_ID),
+				"The root of filter index " + key.attribute() + " and its inline buckets disagree about value ids - " +
+					"the root's high-water mark is " + part.getNextValueId() + " while its buckets " +
+					(part.getInlineValueIds() != null ? "carry" : "do not carry") + " an id column."
+			);
+			// the inline shape replays its buckets through the ordinary insert path, which carries no ids - so the
+			// persisted column is stamped back on afterwards, in the ascending key order it was written in
+			if (part.getInlineValueIds() != null) {
+				inlineIndex.restoreValueIds(part.getNextValueId(), part.getInlineValueIds());
+			}
+			return inlineIndex;
 		}
 		final int streamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.FILTER))
 		);
 		final int[] orderedPageSequences = part.getLeafPageSequences();
 		final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] perPageValueIds = new int[orderedPageSequences.length][];
+		int pagesWithValueIds = 0;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final int pageSequence = orderedPageSequences[i];
 			final FilterIndexLeafPagePart leafPage = service.getStoragePart(
@@ -382,11 +404,44 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					" was not found in persistent storage!"
 			);
 			perPageBuckets[i] = leafPage.getBuckets();
+			final int[] pageValueIds = leafPage.getValueIds();
+			perPageValueIds[i] = pageValueIds;
+			if (pageValueIds != null) {
+				pagesWithValueIds++;
+			}
 		}
-		return InvertedIndex.fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence(),
-			normalizer, comparator, indexedDecimalPlaces
+		// the id column is an all-or-nothing property of a persisted generation: a tree carries it on every leaf or on
+		// none. A mixture means a run switched the ids on or off without rewriting every page, and loading it would
+		// mint replacement ids over the pages that lost theirs - silently handing already-published ids to different
+		// values. Refuse it here, where the attribute can still be named, rather than repairing it by invention
+		isPremiseValid(
+			pagesWithValueIds == 0 || pagesWithValueIds == orderedPageSequences.length,
+			"The leaf pages of filter index " + key.attribute() + " disagree about value ids - " + pagesWithValueIds +
+				" of " + orderedPageSequences.length + " pages carry the id column. The column is written for every " +
+				"page of a generation or for none, so this index was persisted by a run that changed its " +
+				"id-carrying mode without rewriting the pages it had already written."
 		);
+		final boolean anyValueIds = pagesWithValueIds > 0;
+		// the root's high-water mark and the pages must agree about whether the tree carries ids at all: a root that
+		// claims ids its pages do not hold would reload without them (silently dropping a consumer's addressing), and
+		// pages carrying ids under a root that claims none would fail deep inside the allocator with a message naming
+		// neither the attribute nor the real cause
+		isPremiseValid(
+			anyValueIds == (part.getNextValueId() != ValueIdAllocator.UNASSIGNED_VALUE_ID),
+			"The root of filter index " + key.attribute() + " and its leaf pages disagree about value ids - the " +
+				"root's high-water mark is " + part.getNextValueId() + " while its pages " +
+				(anyValueIds ? "carry" : "do not carry") + " an id column."
+		);
+		final InvertedIndex pagedIndex = InvertedIndex.fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, anyValueIds ? perPageValueIds : null,
+			part.getHighWaterPageSequence(), normalizer, comparator, indexedDecimalPlaces
+		);
+		if (anyValueIds) {
+			// the ids came back inside the pages; this only re-attaches the allocator at the persisted high-water so
+			// the sequence continues where the previous run left off
+			pagedIndex.restoreValueIds(part.getNextValueId());
+		}
+		return pagedIndex;
 	}
 
 	/**

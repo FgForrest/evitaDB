@@ -37,7 +37,6 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -307,7 +306,7 @@ class RepresentativeReferenceKeyTest {
 			final RepresentativeReferenceKey a = rrk("ref", 1, "x");
 
 			//noinspection AssertBetweenInconvertibleTypes
-			assertFalse(a.equals("string"));
+			assertNotEquals("string", a);
 		}
 
 		@Test

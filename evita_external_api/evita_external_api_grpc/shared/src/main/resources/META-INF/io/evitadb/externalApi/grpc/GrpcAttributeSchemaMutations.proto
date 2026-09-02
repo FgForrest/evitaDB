@@ -68,6 +68,10 @@ message GrpcCreateAttributeSchemaMutation {
   repeated GrpcEntityScope sortableInScopes = 15;
   // The per-attribute override of the conflict resolution granularity.
   GrpcConflictResolutionOverride conflictResolutionOverride = 16;
+  // The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+  // gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+  // which is what an older client sends - means no acceleration anywhere.
+  repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 17;
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -137,6 +141,10 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   repeated GrpcEntityScope sortableInScopes = 17;
   // The per-attribute override of the conflict resolution granularity.
   GrpcConflictResolutionOverride conflictResolutionOverride = 18;
+  // The optional accelerations the attribute's filter index maintains, per scope. Only scopes the very same mutation
+  // gives the attribute a filter index in - i.e. makes it filterable or unique in - may appear here. An empty list -
+  // which is what an older client sends - means no acceleration anywhere.
+  repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 19;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -210,6 +218,20 @@ message GrpcSetAttributeSchemaFilterableMutation {
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
   repeated GrpcEntityScope filterableInScopes = 3;
+}
+
+// Mutation is responsible for setting the optional filter accelerators of an `AttributeSchema` in `EntitySchema`,
+// and of a `GlobalAttributeSchema` in `CatalogSchema`.
+//
+// The mutation is a full statement of the accelerator axis - it names every scope that should carry an accelerator
+// once it is applied, and a scope it does not name ends up with none.
+message GrpcSetAttributeSchemaAcceleratedMutation {
+  // Name of the attribute the mutation is targeting.
+  string name = 1;
+  // The optional accelerations the attribute's filter index maintains, per scope. Only scopes the attribute has a
+  // filter index in - i.e. is filterable or unique in - may appear here. An empty list means no acceleration
+  // anywhere, which is what every attribute declared before this axis existed means.
+  repeated GrpcScopedAttributeFilterAccelerators acceleratorsInScopes = 2;
 }
 
 // Mutation is responsible for setting value to a `GlobalAttributeSchema.uniqueGlobally` in `EntitySchema`.
@@ -335,5 +357,7 @@ message GrpcAttributeSchemaMutation {
     GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;
     // Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
     GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 17;
+    // Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+    GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 18;
   }
 }

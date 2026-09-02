@@ -45,12 +45,14 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -78,6 +80,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -969,6 +972,101 @@ public class EvitaEnumConverter {
 				.stream()
 				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
 				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeFilterAccelerator} to {@link AttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link GrpcAttributeFilterAccelerator} to convert
+	 * @return the converted {@link AttributeFilterAccelerator}
+	 * @throws EvitaInvalidUsageException when the accelerator is unknown to this side of the wire, or when the
+	 *                                    unspecified default leaked into an `accelerators` list
+	 */
+	@Nonnull
+	public static AttributeFilterAccelerator toAttributeFilterAccelerator(
+		@Nonnull GrpcAttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH -> AttributeFilterAccelerator.SUBSTRING_SEARCH;
+			case ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote filter accelerator: " + accelerator);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeFilterAccelerator} to {@link GrpcAttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link AttributeFilterAccelerator} to convert
+	 * @return the converted {@link GrpcAttributeFilterAccelerator}
+	 */
+	@Nonnull
+	public static GrpcAttributeFilterAccelerator toGrpcAttributeFilterAccelerator(
+		@Nonnull AttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case SUBSTRING_SEARCH -> GrpcAttributeFilterAccelerator.ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH;
+		};
+	}
+
+	/**
+	 * Converts a gRPC scoped accelerator list to the domain model carriers. The field is optional on the wire - an
+	 * older client or server simply never sends it - and proto3 renders that absence as an empty list, which is
+	 * indistinguishable from "no acceleration anywhere". Both therefore map to `null`, the value every consumer
+	 * already reads as "not provided".
+	 *
+	 * @param scopedList the gRPC scoped list, empty when the peer did not send the field
+	 * @return array of scoped accelerators, or `null` when nothing was declared
+	 */
+	@Nullable
+	public static ScopedAttributeFilterAccelerators[] toScopedAttributeFilterAccelerators(
+		@Nonnull List<GrpcScopedAttributeFilterAccelerators> scopedList
+	) {
+		if (scopedList.isEmpty()) {
+			return null;
+		}
+		final ScopedAttributeFilterAccelerators[] result = new ScopedAttributeFilterAccelerators[scopedList.size()];
+		for (int i = 0; i < result.length; i++) {
+			final GrpcScopedAttributeFilterAccelerators scopedAccelerators = scopedList.get(i);
+			final List<GrpcAttributeFilterAccelerator> accelerators = scopedAccelerators.getAcceleratorsList();
+			final AttributeFilterAccelerator[] converted = accelerators.isEmpty() ?
+				ScopedAttributeFilterAccelerators.NO_ACCELERATORS :
+				new AttributeFilterAccelerator[accelerators.size()];
+			for (int j = 0; j < accelerators.size(); j++) {
+				converted[j] = toAttributeFilterAccelerator(accelerators.get(j));
+			}
+			result[i] = new ScopedAttributeFilterAccelerators(toScope(scopedAccelerators.getScope()), converted);
+		}
+		return result;
+	}
+
+	/**
+	 * Converts the domain model carriers to their gRPC form, one message per carrier. A carrier listing no accelerator
+	 * at all is kept rather than dropped, so that a mutation carrying one round-trips through the wire unchanged. The
+	 * *schema* direction never produces them - {@link
+	 * io.evitadb.api.requestResponse.schema.dto.AttributeSchema#toAcceleratorsArray} omits scopes declaring nothing -
+	 * so an attribute with no acceleration still serializes identically everywhere.
+	 *
+	 * @param acceleratorsInScopes the carriers to convert, may be null
+	 * @return the gRPC form, empty when nothing is declared
+	 */
+	@Nonnull
+	public static List<GrpcScopedAttributeFilterAccelerators> toGrpcScopedAttributeFilterAccelerators(
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes
+	) {
+		if (acceleratorsInScopes == null || acceleratorsInScopes.length == 0) {
+			return List.of();
+		}
+		final List<GrpcScopedAttributeFilterAccelerators> result = new ArrayList<>(acceleratorsInScopes.length);
+		for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+			final GrpcScopedAttributeFilterAccelerators.Builder builder =
+				GrpcScopedAttributeFilterAccelerators.newBuilder()
+					.setScope(toGrpcScope(scopedAccelerators.scope()));
+			for (final AttributeFilterAccelerator accelerator : scopedAccelerators.accelerators()) {
+				builder.addAccelerators(toGrpcAttributeFilterAccelerator(accelerator));
+			}
+			result.add(builder.build());
+		}
+		return result;
 	}
 
 	/**
@@ -1888,6 +1986,7 @@ public class EvitaEnumConverter {
 	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
 		return switch (grpcCapability) {
 			case SCHEMA_CAPABILITY_FILTERABLE -> Capability.FILTERABLE;
+			case SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED -> Capability.SUBSTRING_ACCELERATED;
 			case SCHEMA_CAPABILITY_SORTABLE -> Capability.SORTABLE;
 			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
 			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
@@ -1910,6 +2009,7 @@ public class EvitaEnumConverter {
 	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
 		return switch (capability) {
 			case FILTERABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE;
+			case SUBSTRING_ACCELERATED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED;
 			case SORTABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORTABLE;
 			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
 			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;

@@ -78,6 +78,7 @@ import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -524,12 +525,12 @@ class ContainerIndexHeapSizeTest {
 				"a tree charged twice would show up as a figure far above the measurement - shortfall " + shortfall
 			);
 			// and the fixture really does carry both sort modes, so the view arm above is not vacuous
-			assertTrue(
-				index.getSortIndex(null, attribute("priority"), null) instanceof OwnerSortIndex,
+			assertInstanceOf(
+				OwnerSortIndex.class, index.getSortIndex(null, attribute("priority"), null),
 				"a sort-only attribute must own its tree"
 			);
-			assertTrue(
-				index.getSortIndex(null, attribute("weight"), null) instanceof SortIndexView,
+			assertInstanceOf(
+				SortIndexView.class, index.getSortIndex(null, attribute("weight"), null),
 				"a both-flagged attribute must read the shared tree"
 			);
 		}
@@ -738,9 +739,10 @@ class ContainerIndexHeapSizeTest {
 		}
 
 		@Test
-		void shouldStepUpOnceTheAllNodesFormulaIsMemoized() {
+		void shouldStepUpOnceTheAllNodesBitmapIsMemoized() {
 			// unlike a filter index's all-records memo, this one materializes a bitmap nothing else in the catalog
-			// holds - so it must show up as occupancy AND be charged, not merely counted as scaffolding
+			// holds - so it must show up as occupancy AND be charged. Only the bitmap is retained: the formula
+			// wrapping it is built fresh per call and dies with the query, so nothing prices formula scaffolding
 			final HierarchyIndex index = seededIndex(20, 10);
 			final long cold = index.getHeapSizeInBytes();
 			assertMatchesMeasuredHeap(cold, index, EXCLUSIONS);
@@ -749,11 +751,16 @@ class ContainerIndexHeapSizeTest {
 
 			final long warm = index.getHeapSizeInBytes();
 			assertTrue(warm > cold, "the memoized node bitmap must show up as additional occupancy");
-			// the bitmap itself is charged to the byte; what reads high is the formula's own scaffolding, priced at
-			// the upper bound of the widest formula shape because which of its cost / hash memos are populated
-			// cannot be read from outside. A fixed handful of bytes, and the assertion below pins that it stays fixed
-			final long excess = warm - measuredHeapOf(index, EXCLUSIONS);
-			assertTrue(excess > 0 && excess < 128, "the formula's over-charge must stay small - was " + excess);
+			// What remains is a small SIGNED divergence rather than the old over-charge. Dropping the formula memo
+			// removed the upper-bound scaffolding charge that used to sit on top, and doing so exposed a fixed
+			// under-report of `BaseBitmap#getHeapSizeInBytes` against a reflective walk - about two words, present
+			// before this change and merely masked by the over-charge. What matters for a memory report is that it
+			// is a CONSTANT and not a term that grows, which the divergence assertion below pins
+			final long divergence = warm - measuredHeapOf(index, EXCLUSIONS);
+			assertTrue(
+				Math.abs(divergence) < 128,
+				"the bitmap charge must stay within a couple of words of the walk - was " + divergence
+			);
 
 			final HierarchyIndex larger = seededIndex(40, 20);
 			larger.getAllHierarchyNodesFormula();

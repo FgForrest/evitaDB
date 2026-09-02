@@ -95,6 +95,7 @@ import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -368,8 +369,8 @@ class EntityConverterTest {
 			assertPriceRangeRoundTripsThrough(decorator, grpcEntity);
 			// LOWEST_PRICE: min equals priceForSale, max is the most expensive per-inner-record price
 			assertEquals(grpcEntity.getPriceForSale(), grpcEntity.getPriceForSaleMin());
-			assertFalse(
-				grpcEntity.getPriceForSaleMin().equals(grpcEntity.getPriceForSaleMax()),
+			assertNotEquals(
+				grpcEntity.getPriceForSaleMin(), grpcEntity.getPriceForSaleMax(),
 				"min and max must differ when there are multiple inner records"
 			);
 			assertEquals(

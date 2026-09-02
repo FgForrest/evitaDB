@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
 import static io.evitadb.test.TestTags.EXTERNAL_API;

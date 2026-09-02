@@ -43,6 +43,22 @@ import java.util.function.Consumer;
 @ThreadSafe
 public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	@Serial private static final long serialVersionUID = -6208329253169611746L;
+	/**
+	 * Shared empty instance with no price records at all. An empty result *is* a resolved-empty one, so this
+	 * is its natural home.
+	 *
+	 * It must stay here and never move up to {@link FilteredPriceRecords}: declared on the interface, this
+	 * initialiser would close the class-initialisation cycle described in that interface's hazard note, and a
+	 * holder class nested there would not fix it either. Declared on the implementation it merely constructs the
+	 * very class it belongs to, which is re-entrant and safe.
+	 *
+	 * Guarded by `FilteredPriceRecordsClassInitializationTest`.
+	 *
+	 * Callers that need `prepareForFlattening()` to be invoked on their own result must allocate a fresh
+	 * instance instead of aliasing this one — see the cold path of
+	 * `LowestPriceTerminationFormula#computeInternal()`.
+	 */
+	public static final ResolvedFilteredPriceRecords EMPTY = new ResolvedFilteredPriceRecords();
 
 	/**
 	 * Collected price records that corresponds with the formula {@link Formula#compute()} output.

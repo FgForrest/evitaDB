@@ -548,6 +548,17 @@ message GrpcScopedGlobalAttributeUniquenessType {
   GrpcGlobalAttributeUniquenessType uniquenessType = 2;
 }
 
+// The optional filter accelerators an attribute declares in one particular scope. The attribute must also have a
+// filter index in that very scope - it must be filterable or unique there - because accelerating an index that does
+// not exist is not a state the engine can be in.
+message GrpcScopedAttributeFilterAccelerators {
+  // scope of entities in which the listed accelerators are maintained
+  GrpcEntityScope scope = 1;
+  // the accelerators maintained in that scope. An empty list is meaningful - it says "no acceleration in this scope",
+  // which is what every attribute declared before this axis existed means.
+  repeated GrpcAttributeFilterAccelerator accelerators = 2;
+}
+
 // Message representing a scoped reference index type that combines scope and index type.
 message GrpcScopedReferenceIndexType {
   // The scope in which the reference index type is applied.

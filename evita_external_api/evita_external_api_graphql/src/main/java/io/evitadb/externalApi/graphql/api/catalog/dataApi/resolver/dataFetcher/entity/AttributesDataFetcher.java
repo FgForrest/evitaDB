@@ -38,7 +38,6 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Fetcher for attributes container. Mainly to gather desired locale for individual attributes and

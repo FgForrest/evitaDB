@@ -1,14 +1,14 @@
-# #760 Part B — RE-MEASURE GATE (decodoma_cz, post-Step-4)
+# #760 Part B — RE-MEASURE GATE (gate catalog, post-Step-4)
 
-Probe: `DecodomaSizeProbe` (pure on-disk size distribution; no part deserialized — only `RecordKey`
+Probe: `GateCatalogSizeProbe` (pure on-disk size distribution; no part deserialized — only `RecordKey`
 type byte + `FileLocation.recordLength`). Catalog opened with inline v4→v6 upgrade on a temp copy, so
 numbers reflect the **POST-Step-4 v6 on-disk state** (manifest eviction + Filter/Sort NFD rekey applied).
-Raw: `2026-06-25-decodoma-size-distribution.txt`.
+Raw: `2026-06-25-gate-catalog-size-distribution.txt`.
 
 ## Scale (extrapolation base)
 - **Product = 18,762 entities.** Total 106,830 across 17 collections (Media 47,388, PickupPoint 32,911
-  next-largest). Decodoma is "not the largest dataset" (Johnny); senesi excluded (older SNAPSHOT histogram,
-  unloadable).
+  next-largest). The gate catalog is "not the largest dataset" (Johnny); the price-dense B2B catalog was excluded
+  (older SNAPSHOT histogram, unloadable).
 - Linear factors used below: **1M products = ×53.3**, **10M = ×533**. Linear scaling holds for the
   map/cardinality/bitmap structures here (all are value→entity-set, size ∝ #entities carrying the value).
 
@@ -51,10 +51,11 @@ Raw: `2026-06-25-decodoma-size-distribution.txt`.
    ~47 MB at 10M. Justifies the Phase-3 order-statistic page plugin at the 10M end; marginal at 1M. The §3
    page infrastructure already exists, so this is incremental.
 
-6. **PriceSuper.priceRecords (byte 26) — CORRECTED to a top lever for B2B (Johnny).** Decodoma is
+6. **PriceSuper.priceRecords (byte 26) — CORRECTED to a top lever for B2B (Johnny).** The gate catalog is
    price-shallow (~1 price/product, Prices byte-5 = 18.5K parts / 1 MiB), so its raw PriceSuper sizes
-   (max 48K) badly under-represent a B2B catalog. Real B2B density (senesi): **7.6M prices / 130k products
-   ≈ 58 prices/product**. Measured on decodoma: PriceSuper.priceRecords = **10.4 B/record**, and price
+   (max 48K) badly under-represent a B2B catalog. Real B2B density (measured on the price-dense B2B
+   catalog): **7.6M prices / 130k products ≈ 58 prices/product**. Measured on the gate catalog:
+   PriceSuper.priceRecords = **10.4 B/record**, and price
    records concentrate hard — the single dominant (priceList,currency) part holds **5,949 of 8,695 records
    (68%)**. Extrapolated: **7.6M prices → ~75 MiB total flat array; ~50 MiB in the dominant price-list part
    alone, rewritten on EVERY price edit in that list.** (1M→9.9 MiB, 20M→198 MiB.) This is a **live churn
@@ -66,7 +67,7 @@ Raw: `2026-06-25-decodoma-size-distribution.txt`.
 
 ## Two scaling axes — pick order by customer profile
 - **Price axis (B2B density, live TODAY at ~130k products):** PriceSuper.priceRecords ~50–75 MiB dominant-list
-  part, rewritten per price edit. This is the senesi/FG-B2B reality now.
+  part, rewritten per price edit. This is the B2B reality now.
 - **Product axis (catalog grows to 1–10M products):** GlobalUnique (~133 MB) + RefTypeCardinality (~144 MB)
   at 10M; both also full-rewrite-per-edit.
 

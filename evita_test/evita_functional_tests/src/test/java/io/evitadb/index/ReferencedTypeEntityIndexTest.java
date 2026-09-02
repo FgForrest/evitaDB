@@ -116,6 +116,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
+			null,
 			false, false, false,
 			type, null,
 			ConflictResolutionOverride.INHERITED

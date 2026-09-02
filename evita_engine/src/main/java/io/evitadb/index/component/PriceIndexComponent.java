@@ -25,19 +25,16 @@ package io.evitadb.index.component;
 
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.PriceIndexContract;
-import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.VoidPriceIndex;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 
 /**
  * Adapter that wraps any flavour of {@link PriceIndexContract} (super, ref, or

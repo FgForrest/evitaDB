@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -50,6 +51,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquen
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
@@ -114,6 +116,10 @@ public abstract class SchemaJsonSerializer {
 			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
 		}
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
+		attributeSchemaNode.putIfAbsent(
+			AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+			serializeAccelerators(attributeSchema)
+		);
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
@@ -194,6 +200,33 @@ public abstract class SchemaJsonSerializer {
 	@Nonnull
 	protected JsonNode serializeFlagInScopes(@Nonnull Predicate<Scope> flagPredicate) {
 		return this.objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(flagPredicate).toArray(Scope[]::new));
+	}
+
+	/**
+	 * Serializes the optional filter accelerators of the given {@link AttributeSchemaContract} into a JSON array
+	 * structure. Each entry in the resulting array represents one scope together with the array of
+	 * {@link AttributeFilterAccelerator} values maintained in it.
+	 *
+	 * A scope that declares no accelerator is absent from the schema's map and is therefore not emitted at all - an
+	 * attribute that is merely filterable serializes as an empty array.
+	 *
+	 * @param attributeSchema the attribute schema containing the filter accelerators to be serialized
+	 * @return an {@link ArrayNode} representing the serialized filter accelerators
+	 */
+	@Nonnull
+	protected ArrayNode serializeAccelerators(@Nonnull AttributeSchemaContract attributeSchema) {
+		final ArrayNode acceleratorsArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators = attributeSchema.getAcceleratorsInScopes();
+		for (final Map.Entry<Scope, Set<AttributeFilterAccelerator>> entry : accelerators.entrySet()) {
+			final ObjectNode acceleratorNode = this.objectJsonSerializer.objectNode();
+			acceleratorNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
+			acceleratorNode.set(
+				ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(),
+				this.objectJsonSerializer.serializeArray(entry.getValue().toArray(AttributeFilterAccelerator[]::new))
+			);
+			acceleratorsArray.add(acceleratorNode);
+		}
+		return acceleratorsArray;
 	}
 
 	/**

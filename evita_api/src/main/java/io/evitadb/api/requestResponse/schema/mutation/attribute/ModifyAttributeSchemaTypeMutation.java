@@ -138,6 +138,13 @@ public class ModifyAttributeSchemaTypeMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		@SuppressWarnings("rawtypes")
 		final Class newType = EvitaDataTypes.toWrappedForm(this.type);
+		// the rebuild branches below carry the existing accelerators over verbatim, so the new type has to be checked
+		// against them here - otherwise changing a `String` attribute that declares SUBSTRING to `Integer` would
+		// silently produce a schema the accelerator's own contract forbids. The non-empty-collection refusal cannot
+		// catch this: it compares accelerator sets and sees nothing *added*.
+		verifyAcceleratorsApplicableToType(
+			this.name, newType, attributeSchema.getAcceleratorsInScopes()
+		);
 		if (newType.equals(attributeSchema.getType()) && this.indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
@@ -150,6 +157,7 @@ public class ModifyAttributeSchemaTypeMutation
 				globalAttributeSchema.getUniquenessTypeInScopes(),
 				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
 				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getAcceleratorsInScopes(),
 				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
@@ -170,6 +178,7 @@ public class ModifyAttributeSchemaTypeMutation
 				entityAttributeSchema.getDeprecationNotice(),
 				entityAttributeSchema.getUniquenessTypeInScopes(),
 				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getAcceleratorsInScopes(),
 				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
@@ -190,6 +199,7 @@ public class ModifyAttributeSchemaTypeMutation
 				attributeSchema.getDeprecationNotice(),
 				attributeSchema.getUniquenessTypeInScopes(),
 				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getAcceleratorsInScopes(),
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),

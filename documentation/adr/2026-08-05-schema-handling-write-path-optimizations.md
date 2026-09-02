@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-29 13:05
+updated: 2026-08-24 10:15
 status: accepted
 kind: optimization
 issues: [1390]
@@ -14,7 +14,7 @@ relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-
 
 # Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 
-The Senesi WARM_UP profile of `2026.2.2` attributes 18.7% of write-path CPU to resolving facts from
+The production-catalog WARM_UP profile of `2026.2.2` attributes 18.7% of write-path CPU to resolving facts from
 immutable schema objects and 18.24% of write-path allocation to `AttributeKey` instances. Both are
 volume, not body cost: the accessors are already plain map lookups, and the keys are re-derived from
 a schema that cannot change while the mutation is being applied. This record covers the resulting
@@ -79,14 +79,35 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
 
 - **Pros:** strictly higher leverage than anything in Option A — it fixes `getReference`, the `hppc`
   maps in the cardinality verifier and the reference indexes together.
-- **Cons:** the obvious placement (canonicalize against `references.keySet()`) does not fit the
-  site — the gRPC converters have no schema or catalog context and live in the module shared with
-  the client; the alternative placement trades that for a later, larger blast radius.
+- **Cons:** there are two viable placements, they pull in opposite directions, and neither has been
+  measured. *At the converter* — a module-private `ConcurrentHashMap<String, String>` filled with
+  `computeIfAbsent(raw, Function.identity())` — catches the name where it is created and works on
+  both sides of the wire, but the gRPC converters have no schema or catalog context and live in the
+  module shared with the client, so they cannot reject an unknown name in the same step. *At first
+  schema contact* server-side, `references.keySet()` **is** in hand and validation comes free, but
+  the raw string survives longer and the blast radius is larger.
+- **`String.intern()` is not a third placement.** It is a JVM-wide native table with its own
+  contention and GC behaviour, carrying that cost for a domain of a few dozen reference names per
+  catalog. That structural argument is the recorded reason and it needs no measurement. An
+  intern-based attempt was *reported* as tried and declined before this work, and it left no
+  artifact in the places that were checked: no `.intern()` call is reachable from any ref in this
+  repository (`git log --all -S'.intern()' -- '*.java'` is empty), and neither #1390 nor #1395
+  mentions one. That is absence where it was looked for, **not** proof the trial
+  did not happen — an experiment run in a scratch worktree, like the since-removed
+  `warmup-bench`, leaves nothing behind at all. Treat the report as corroboration of the
+  structural argument, and if this is revisited, reach for a bounded application-owned table rather
+  than the JVM's.
+- **The exploration #1390 defers to is not recoverable.** That issue points at
+  `specifications/write-path-optimizations/exploration-name-canonicalization.md`; no such file was
+  ever tracked — the folder's only committed file was its `README.md`, retired once the shipped
+  items landed. Since `/specifications/` is git-ignored, it may have been written on disk and lost
+  rather than never written; either way nothing of it survives, which is why the ceiling below is
+  still unmeasured.
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
-  **Revisit** once the placement has a measured ceiling to compare against; the exploration this
-  once pointed at was never carried out, and its notes were retired with the plan folder.
+  **Revisit** once a profile puts a ceiling on it — the two candidate placements are named above,
+  and the starting point is a fresh measurement rather than a document.
 
 ### Option C — memoize the resolved reference schema on the executor across mutations (declined)
 
@@ -168,7 +189,7 @@ B remains the larger prize and should be sequenced after its exploration produce
   **against the old implementation first**, so it pins the historical semantics rather than the
   rewrite's.
 - Full `evita_functional_tests` suite: see the PR run.
-- **No performance number is claimed here.** The Senesi WARM_UP re-run named in #1390's
+- **No performance number is claimed here.** The production-catalog WARM_UP re-run named in #1390's
   verification section has not been executed for this change; the percentages quoted above are the
   measured cost of the *previous* code, from the profile that motivated the issue. The expected wins
   are argued from reading each site.
@@ -190,24 +211,24 @@ B remains the larger prize and should be sequenced after its exploration produce
   without one: `ReflectedReferenceSchema` overrides `getAttribute` with an availability assert, so a
   null-returning sibling would need a matching override to avoid bypassing it — more surface than
   the single DTO-typed call site justified.
-- **The plan folder is retired** (2026-08-29). Nothing was lost with it: §1 *Problem A* is
-  implemented by this record, §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
+- **The exploration folder that motivated this record has been retired.** Its §1 *Problem A* is
+  implemented here; §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
   `ObjectIntHashMap` size hint by deleting the map) shipped as the sibling commit in this same
-  branch under issue #1391, §4 is Option D above, and its one unclaimed item — §1 *Problem B*,
-  name canonicalization at the mutation boundary — is Option B above, with its profile numbers and
-  the placement problem that blocks it. That option is the live one; the folder was not.
+  branch, issue #1391, whose commit message carries the run-length scan's reasoning. Only §1
+  *Problem B* was never written — it is Option B above, and that is now the only surviving record of
+  it. The `ComparableReferenceKey` half of its §4 is Option D, still gated on #1392.
 
 ## Related work
 
 - `2026-07-27-write-path-performance-tuning` — same write path, same profile lineage; that record
   spent the collation-cache and trunk-merge levers, this one spends the schema-handling lever.
 - `2026-08-01-bplustree-cursor-free-insert-path` — the other allocation-removal record from the same
-  round of Senesi profiling, on the index side rather than the schema side.
+  round of production-catalog profiling, on the index side rather than the schema side.
 - `2026-08-10-stored-value-normalization-split` — same attribute-mutation write path; that record
   constrains what a mutation may do to the value itself, where this one speeds up how the schema
   around it is resolved.
 
 ## Timeline
 
-- **2026-08-05** — issue #1390 filed from the Senesi WARM_UP profile of `2026.2.2`
+- **2026-08-05** — issue #1390 filed from the production-catalog WARM_UP profile of `2026.2.2`
 - **2026-08-05** — implemented on `1390-schema-handling-write-path-optimizations`

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.OnMethodExit;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.loading.ClassInjector;
+import net.bytebuddy.matcher.ElementMatcher;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -58,24 +59,21 @@ public class ErrorMonitoringAgent {
 			.with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
 			.ignore(none())
 			.ignore(nameStartsWith("net.bytebuddy."))
-			// a type may opt out of error monitoring by carrying the @NotMonitored marker - used for
-			// control-flow signalling throwables that are expected and handled, so they must not be
-			// reported as engine/JVM errors (e.g. the traffic recorder's memory-shortage signal).
-			.type(isSubTypeOf(VirtualMachineError.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
+			.type(javaErrorTypes())
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
 						.to(JavaErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
-			.type(isSubTypeOf(EvitaInternalError.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
+			.type(evitaInternalErrorRoot())
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
 						.to(EvitaDbErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
-			.type(isSubTypeOf(EvitaInvalidUsageException.class).and(not(isAbstract())).and(not(isAnnotatedWith(NotMonitored.class))))
+			.type(clientErrorRoot())
 			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
 				.visit(
 					Advice
@@ -91,6 +89,53 @@ public class ErrorMonitoringAgent {
 			getClassBytes(ErrorMonitor.class)
 		);
 		ClassInjector.UsingUnsafe.ofBootLoader().inject(types);
+	}
+
+	/**
+	 * JVM error types whose construction is counted. Unlike the two evitaDB hierarchies below, these are matched per
+	 * concrete subtype: `VirtualMachineError` is a JDK class, its subtypes neither extend one another nor delegate
+	 * between their own constructors, so per-subtype matching counts each instance exactly once - and retransforming
+	 * `java.lang.VirtualMachineError` itself would buy nothing for the added risk.
+	 *
+	 * A type opts out of monitoring by carrying the `NotMonitored` marker; here that can still be decided while
+	 * instrumenting, because the marker sits on the very type being matched.
+	 *
+	 * @return matcher selecting the JVM error types to instrument
+	 */
+	@Nonnull
+	static ElementMatcher.Junction<TypeDescription> javaErrorTypes() {
+		return isSubTypeOf(VirtualMachineError.class)
+			.and(not(isAbstract()))
+			.and(not(isAnnotatedWith(NotMonitored.class)));
+	}
+
+	/**
+	 * The single root of the evitaDB internal-error hierarchy.
+	 *
+	 * Only the root is instrumented, not every subtype. Advice on a constructor fires once per constructor
+	 * *entered*, so matching subtypes counted a concrete class extending another concrete class once per level -
+	 * three increments for one instance at two levels deep. Every internal error, at any depth, passes through
+	 * exactly one constructor of this root, which makes the root the only place that counts once per object.
+	 *
+	 * This holds only while no constructor of the root delegates to another via `this(...)`; see the note at the
+	 * bottom of `EvitaInternalError`.
+	 *
+	 * @return matcher selecting the internal-error root
+	 */
+	@Nonnull
+	static ElementMatcher.Junction<TypeDescription> evitaInternalErrorRoot() {
+		return is(EvitaInternalError.class);
+	}
+
+	/**
+	 * The single root of the evitaDB client-error hierarchy - see {@link #evitaInternalErrorRoot()} for why only the
+	 * root is instrumented.
+	 *
+	 * @return matcher selecting the client-error root
+	 */
+	@Nonnull
+	static ElementMatcher.Junction<TypeDescription> clientErrorRoot() {
+		return is(EvitaInvalidUsageException.class);
 	}
 
 	/**
@@ -118,39 +163,47 @@ public class ErrorMonitoringAgent {
 	}
 
 	/**
-	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 * Advice reporting a JVM error as it is constructed.
+	 *
+	 * The body is inlined into every matched constructor, so it stays as small as possible: it hands the throwable
+	 * over and lets the consumer, an ordinary application class, decide what to do with it.
 	 */
 	public static class JavaErrorConstructorInterceptAdvice {
 
 		@OnMethodExit
 		public static boolean after(@Advice.This Object thiz) {
-			ErrorMonitor.registerJavaError(thiz.getClass().getSimpleName());
+			ErrorMonitor.registerJavaError((Throwable) thiz);
 			return true;
 		}
 
 	}
 
 	/**
-	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 * Advice reporting an evitaDB internal error as it is constructed.
+	 *
+	 * Because only the hierarchy root is instrumented, the `NotMonitored` opt-out can no longer be applied while
+	 * matching - the marker sits on the concrete subtype, which is not the type being woven. The consumer applies it
+	 * at runtime instead, before touching any metric, so the opt-out means exactly what it did before.
 	 */
 	public static class EvitaDbErrorConstructorInterceptAdvice {
 
 		@OnMethodExit
 		public static boolean after(@Advice.This Object thiz) {
-			ErrorMonitor.registerEvitaError(thiz.getClass().getSimpleName());
+			ErrorMonitor.registerEvitaError((Throwable) thiz);
 			return true;
 		}
 
 	}
 
 	/**
-	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 * Advice reporting an evitaDB client error as it is constructed - see
+	 * {@link EvitaDbErrorConstructorInterceptAdvice} for why the `NotMonitored` opt-out moved to the consumer.
 	 */
 	public static class ClientErrorConstructorInterceptAdvice {
 
 		@OnMethodExit
 		public static boolean after(@Advice.This Object thiz) {
-			ErrorMonitor.registerClientError(thiz.getClass().getSimpleName());
+			ErrorMonitor.registerClientError((Throwable) thiz);
 			return true;
 		}
 

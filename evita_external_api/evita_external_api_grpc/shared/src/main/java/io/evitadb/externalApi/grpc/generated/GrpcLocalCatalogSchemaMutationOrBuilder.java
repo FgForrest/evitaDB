@@ -694,5 +694,35 @@ public interface GrpcLocalCatalogSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaConflictResolutionMutationOrBuilder getModifyCatalogSchemaConflictResolutionMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of a `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;</code>
+   * @return Whether the setAttributeSchemaAcceleratedMutation field is set.
+   */
+  boolean hasSetAttributeSchemaAcceleratedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of a `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;</code>
+   * @return The setAttributeSchemaAcceleratedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation getSetAttributeSchemaAcceleratedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of a `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 36;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder getSetAttributeSchemaAcceleratedMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase getMutationCase();
 }

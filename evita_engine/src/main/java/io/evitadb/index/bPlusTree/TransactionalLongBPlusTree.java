@@ -76,6 +76,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	Serializable,
 	ConsistencySensitiveDataStructure {
 	@Serial private static final long serialVersionUID = 124088192205606247L;
+	private static final String ERROR_UPDATER_RETURNED_NULL = "The updater returned null - a B+ tree value must " +
+		"never be null, because a stored null is indistinguishable from an absent key on the read path!";
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -567,7 +569,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newLastKey the leaf's new last key after the mutation
 	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
 	 */
-	private void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
+	private static void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
 		if (hasFence && newLastKey >= fence) {
 			throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
 		}
@@ -599,7 +601,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newFirstKey the leaf's new first key after the mutation
 	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
 	 */
-	private void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
+	private static <V> void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
 		if (predecessor == null) {
 			// leftmost leaf — no predecessor to violate
 			return;
@@ -666,7 +668,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @return the corruption error to throw
 	 */
 	@Nonnull
-	private BPlusTreeCorruptedException boundaryMutationError(
+	private static BPlusTreeCorruptedException boundaryMutationError(
 		@Nonnull String side, long boundaryKey, @Nonnull String relation, long neighborKey) {
 		return new BPlusTreeCorruptedException(
 			"Corrupted in-memory B+ tree: a leaf's " + side + " boundary key " + boundaryKey + " does not sort " +
@@ -1071,8 +1073,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
 	 * If the leaf node exceeds its block size after insertion, the node is split.
 	 *
+	 * The updater's result is the only door through which a `null` could enter the tree's value array
+	 * ({@link #insert(long, Object)} takes a `@Nonnull V`), and a stored `null` would not surface as a failure - see
+	 * {@link BPlusLeafTreeNode#getValue(long)}, which would answer it as "this tree does not hold that key" while the
+	 * key demonstrably sits in a leaf. Both branches therefore refuse it outright.
+	 *
 	 * @param key     the key to update or insert, must not be null
-	 * @param updater a function to compute a new value, must not be null
+	 * @param updater a function to compute a new value, must not be null and must not return null
 	 */
 	public void upsert(long key, @Nonnull UnaryOperator<V> updater) {
 		// see insert(long, V) — the update branch below replaces a value in place and can never overflow the leaf, so
@@ -1092,6 +1099,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			final V[] values = leaf.getValues();
 			final V previousValue = values[existingIndex];
 			final V newValue = updater.apply(previousValue);
+			Assert.isPremiseValid(newValue != null, ERROR_UPDATER_RETURNED_NULL);
 			// when the updater returns a different instance the previous one is discarded from the tree;
 			// release its transactional diff layer (if any) so it is not left ALIVE and detected as stale
 			// during commit; when the updater mutates and returns the same instance, nothing is discarded
@@ -1110,8 +1118,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			values[existingIndex] = newValue;
 		} else {
 			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
+			final V insertedValue = updater.apply(null);
+			Assert.isPremiseValid(insertedValue != null, ERROR_UPDATER_RETURNED_NULL);
 			// insert the new value
-			if (leaf.insert(key, updater.apply(null))) {
+			if (leaf.insert(key, insertedValue)) {
 				this.size.set(size() + 1);
 				// op-time boundary-mutation asserts — see insert(long, V)
 				assertInsertBoundaries(context, key);
@@ -1169,6 +1179,20 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	public Optional<V> search(long key) {
 		return findLeafNode(key).getValue(key);
+	}
+
+	/**
+	 * The same search as {@link #search(long)}, answering with `null` instead of an empty {@link Optional}.
+	 *
+	 * For callers that unwrap the result immediately and repeat the lookup often enough for the wrapper to show - a
+	 * substring pattern probes one key per trigram, on every query.
+	 *
+	 * @param key the key to search for within the B+ tree
+	 * @return the value associated with the key, or `null` when the tree does not hold it
+	 */
+	@Nullable
+	public V searchOrNull(long key) {
+		return findLeafNode(key).valueOrNull(key);
 	}
 
 	/**
@@ -3136,6 +3160,24 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public Optional<V> getValue(long key) {
+			// `ofNullable` rather than `of`, and equivalent to it ONLY because no null can reach a value slot: `insert`
+			// takes a `@Nonnull V` and `upsert` refuses an updater that returns one. Both doors have to stay shut - the
+			// moment one stored null gets in, this line reports a key the tree DOES hold as absent, silently.
+			return Optional.ofNullable(valueOrNull(key));
+		}
+
+		/**
+		 * The same lookup as {@link #getValue(long)}, answering with `null` instead of an empty {@link Optional}.
+		 *
+		 * For hot lookups that immediately unwrap the result. The Optional is a per-call allocation that escape
+		 * analysis is not guaranteed to remove across the polymorphic descent that reaches this node, and a lookup
+		 * repeated once per trigram of a search pattern pays for it every time.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return the value stored under the key, or `null` when the leaf does not hold it
+		 */
+		@Nullable
+		public V valueOrNull(long key) {
 			final long[] theKeys;
 			final V[] theValues;
 			final int thePeek;
@@ -3155,8 +3197,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 			final InsertionPosition insertionPosition = computeInsertPositionOfLongInOrderedArray(
 				key, theKeys, 0, thePeek + 1);
-			return insertionPosition.alreadyPresent() ?
-				Optional.of(theValues[insertionPosition.position()]) : Optional.empty();
+			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
 		/**

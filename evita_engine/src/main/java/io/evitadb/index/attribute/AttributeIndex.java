@@ -55,6 +55,7 @@ import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueLifecycleSink;
 import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.map.TransactionalMap;
@@ -844,6 +845,35 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		int recordId,
 		boolean foldedUnique
 	) {
+		insertFilterAttribute(
+			referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #insertFilterAttribute(ReferenceSchemaContract,
+	 * AttributeSchemaContract, Set, Locale, Serializable, int, boolean)}: `sink` learns about every distinct value
+	 * this write brings into existence in the shared value tree.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being inserted
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to insert
+	 * @param recordId        the primary key the value is attributed to
+	 * @param foldedUnique    `true` when this is a folded unique attribute write
+	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and the value is already owned by another record
+	 */
+	public void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId,
+		boolean foldedUnique,
+		@Nullable ValueLifecycleSink sink
+	) {
 		final AttributeIndexKey lookupKey = createAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final FilterIndex theFilterIndex = getOrCreateFilterView(lookupKey, attributeSchema);
@@ -853,7 +883,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			enforceFoldedUniqueness(lookupKey, attributeSchema, theFilterIndex, value, recordId);
 			registerFoldedUniqueView(lookupKey, attributeSchema, theFilterIndex);
 		}
-		theFilterIndex.addRecord(recordId, value);
+		theFilterIndex.addRecord(recordId, value, sink);
 	}
 
 	/**
@@ -875,10 +905,35 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Serializable value,
 		int recordId
 	) {
+		removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeFilterAttribute(ReferenceSchemaContract,
+	 * AttributeSchemaContract, Set, Locale, Serializable, int)}: `sink` learns about every distinct value this
+	 * write takes out of existence in the shared value tree.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being removed
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to remove
+	 * @param recordId        the primary key the value was attributed to
+	 * @param sink            learns about the values that died in this write, or `null` when nobody is interested
+	 */
+	public void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId,
+		@Nullable ValueLifecycleSink sink
+	) {
 		final AttributeIndexKey lookupKey = createAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final FilterIndex theFilterIndex = resolveFilterViewForMutation(lookupKey, attributeSchema);
-		theFilterIndex.removeRecord(recordId, value);
+		theFilterIndex.removeRecord(recordId, value, sink);
 		removeSharedIfEmpty(lookupKey, theFilterIndex);
 	}
 
@@ -906,6 +961,37 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		int recordId,
 		boolean foldedUnique
 	) {
+		addDeltaFilterAttribute(
+			referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addDeltaFilterAttribute(ReferenceSchemaContract,
+	 * AttributeSchemaContract, Set, Locale, Serializable[], int, boolean)} - see
+	 * {@link #insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable,
+	 * int, boolean, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the array attribute being modified
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the array elements to add
+	 * @param recordId        the primary key the values are attributed to
+	 * @param foldedUnique    `true` when this is a folded unique attribute write
+	 * @param sink            learns about the values born by this write, or `null` when nobody is interested
+	 * @throws UniqueValueViolationException when `foldedUnique` is set and any element is already owned by
+	 *                                       another record
+	 */
+	public void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId,
+		boolean foldedUnique,
+		@Nullable ValueLifecycleSink sink
+	) {
 		final AttributeIndexKey lookupKey = createAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final FilterIndex theFilterIndex = getOrCreateFilterView(lookupKey, attributeSchema);
@@ -915,7 +1001,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			enforceFoldedUniqueness(lookupKey, attributeSchema, theFilterIndex, value, recordId);
 			registerFoldedUniqueView(lookupKey, attributeSchema, theFilterIndex);
 		}
-		theFilterIndex.addRecordDelta(recordId, value);
+		theFilterIndex.addRecordDelta(recordId, value, sink);
 	}
 
 	/**
@@ -938,11 +1024,89 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
+		removeDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeDeltaFilterAttribute(ReferenceSchemaContract,
+	 * AttributeSchemaContract, Set, Locale, Serializable[], int)} - see
+	 * {@link #removeFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable,
+	 * int, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the array attribute being modified
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the array elements to remove
+	 * @param recordId        the primary key the values were attributed to
+	 * @param sink            learns about the values that died in this write, or `null` when nobody is interested
+	 */
+	public void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId,
+		@Nullable ValueLifecycleSink sink
+	) {
 		final AttributeIndexKey lookupKey = createAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final FilterIndex theFilterIndex = resolveFilterViewForMutation(lookupKey, attributeSchema);
-		theFilterIndex.removeRecordDelta(recordId, value);
+		theFilterIndex.removeRecordDelta(recordId, value, sink);
 		removeSharedIfEmpty(lookupKey, theFilterIndex);
+	}
+
+	/**
+	 * Makes sure the shared value tree of `lookupKey` exists and carries stable value ids for `consumerName`,
+	 * creating the tree when the attribute has never been written to.
+	 *
+	 * This is how a subsystem that maintains a value-id-keyed structure of its own switches the id column on. It has
+	 * to happen on the WRITE path rather than when the capability is declared, because a shared value tree is created
+	 * lazily on the first write to its attribute — and it has to happen BEFORE that write, or the first value would
+	 * be stamped after the fact or not at all. Both are single-writer moments, which is the obligation
+	 * {@link InvertedIndex#attachValueIdConsumer(String)} states.
+	 *
+	 * Idempotent, but not free: resolving the view declares the attribute's filter key mutated for the commit walk,
+	 * and every call allocates a {@link io.evitadb.index.invertedIndex.ValueIdAllocator} that a tree already carrying
+	 * ids immediately discards. It belongs on the path that creates the structure needing the ids — once per
+	 * attribute — and never on the per-write path.
+	 *
+	 * @param lookupKey       the attribute and locale whose shared value tree is to carry value ids
+	 * @param attributeSchema the schema of that attribute, used to shape the tree when it is created here
+	 * @param consumerName    the stable name of the subsystem needing the ids
+	 */
+	public void attachSharedValueIdConsumer(
+		@Nonnull AttributeIndexKey lookupKey,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull String consumerName
+	) {
+		getOrCreateFilterView(lookupKey, attributeSchema).getInvertedIndex().attachValueIdConsumer(consumerName);
+	}
+
+	/**
+	 * Tells the shared value tree of `lookupKey` that `consumerName` no longer needs its stable value ids — the drop
+	 * half of {@link #attachSharedValueIdConsumer}, performed by the write that observes the capability behind the
+	 * consumer withdrawn.
+	 *
+	 * Resolves the view read-only and does nothing when the attribute has no shared value tree: a withdrawal reaching
+	 * an attribute that was never written to has nothing to detach from, and creating the tree in order to unregister
+	 * from it would be absurd. Unlike the attach it costs nothing to call on a tree that carries no ids at all.
+	 *
+	 * What the tree does with the last consumer's departure — and why a populated one keeps its id column —
+	 * is stated on {@link InvertedIndex#detachValueIdConsumer(String)}.
+	 *
+	 * @param lookupKey    the attribute and locale whose shared value tree carried the ids
+	 * @param consumerName the stable name of the subsystem that no longer needs them
+	 */
+	public void detachSharedValueIdConsumer(
+		@Nonnull AttributeIndexKey lookupKey,
+		@Nonnull String consumerName
+	) {
+		final FilterIndex filterIndex = resolveFilterView(lookupKey);
+		if (filterIndex != null) {
+			filterIndex.getInvertedIndex().detachValueIdConsumer(consumerName);
+		}
 	}
 
 	/**

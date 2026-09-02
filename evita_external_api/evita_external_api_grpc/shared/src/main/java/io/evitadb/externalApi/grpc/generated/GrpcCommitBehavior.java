@@ -176,7 +176,7 @@ public enum GrpcCommitBehavior
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(23);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(24);
   }
 
   private static final GrpcCommitBehavior[] VALUES = values();

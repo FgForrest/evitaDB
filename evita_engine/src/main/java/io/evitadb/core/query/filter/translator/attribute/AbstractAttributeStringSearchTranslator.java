@@ -27,25 +27,50 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AbstractAttributeFilterStringSearchConstraintLeaf;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
+import io.evitadb.index.trigram.StringSearchShape;
+import io.evitadb.index.trigram.TrigramIndex;
+import io.evitadb.index.trigram.TrigramSubstringSearch;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -59,6 +84,24 @@ import static io.evitadb.api.query.QueryConstraints.attributeContent;
  * AbstractAttributeStringSearchTranslator is an abstract class that extends the AbstractAttributeTranslator.
  * It provides methods to generate filtering formulas based on string attribute searches, applying specific
  * predicates for filtering.
+ *
+ * # How a substring search gets accelerated
+ *
+ * A string search is answered by scanning the attribute's filter index bucket by bucket. Where the attribute declares
+ * the `SUBSTRING_SEARCH` filter accelerator, a {@link TrigramIndex} narrows that to a candidate set first. Three
+ * things shape how that is wired here, each argued in full on the method that owns it:
+ *
+ * - **the accelerator is hosted once per collection**, on the {@link GlobalEntityIndex}, never per reduced index - so
+ *   the global answer is computed once per {@link Scope} by {@link #hoistGlobalSubstringFormulas} and then intersected
+ *   with each target index's own primary keys by {@link #resolveFromIndex}, instead of being recomputed for each of
+ *   the hundreds of thousands of reduced indexes a broad `hierarchyWithin` can offer;
+ * - **whether to accelerate is a threshold question**, not a request for a total, so {@link #sumDistinctValuesUpTo}
+ *   walks the target set only until the scan it would displace is known to be large enough to be worth displacing;
+ * - **the global answer is memoised** by {@link #createGlobalSubstringFormula} on the root planning context, so it is
+ *   shared across every candidate plan and nested sub-query of the same client query.
+ *
+ * The fallback is always the SCAN, never an empty result: an absent, unusable or unprofitable accelerator must change
+ * how fast the answer arrives and nothing else.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -76,6 +119,12 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * The predicate to test each attribute string value.
 	 */
 	private final BiPredicate<String, String> stringPredicate;
+	/**
+	 * What {@link #stringPredicate} needs from an occurrence of the pattern - stated rather than inferred, because a
+	 * `BiPredicate` cannot be introspected and the substring accelerator has to tell plain containment from an
+	 * anchored match to know whether its candidates still need verifying.
+	 */
+	private final StringSearchShape stringSearchShape;
 
 	/**
 	 * Asserts that the provided attribute definition is of type String.
@@ -170,6 +219,323 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
+	 * Tells whether the {@link TrigramIndex} can answer this constraint - i.e. whether a value matching it necessarily
+	 * contains the search term as a contiguous run of code points, which is what makes a trigram intersection a sound
+	 * candidate generator for it.
+	 *
+	 * Default `false`, so a subclass opts in deliberately. `contains` and `ends with` do; `starts with` does not,
+	 * despite qualifying on the soundness test, because its buckets form one contiguous run from an anchor and the
+	 * anchored walk that exploits that beats any candidate generation.
+	 *
+	 * @return whether the trigram substring index may serve this constraint
+	 */
+	protected boolean isServedByTrigramIndex() {
+		return false;
+	}
+
+	/**
+	 * Resolves the records of one entity index, taking the attribute's {@link TrigramIndex} when there is one and it is
+	 * worth taking, and the historical bucket scan otherwise.
+	 *
+	 * The fallback here is the SCAN, never an empty result - an absent, unusable or unprofitable accelerator must
+	 * change how fast the answer arrives and nothing else. The one genuinely empty case, an index the attribute has no
+	 * filter index in at all, is the pre-existing behaviour of `FilterByVisitor#applyOnFilterIndexes` and is kept
+	 * verbatim.
+	 *
+	 * ## How a reduced index is served by an accelerator it does not own
+	 *
+	 * A trigram index is hosted once per `(attribute, locale)` of the GLOBAL entity index and never per reduced index -
+	 * of which a large catalog has hundreds of thousands. `hoistedGlobalSubstringFormulas` therefore carries ONE
+	 * already-verified answer per scope, computed over the global index by
+	 * {@link #hoistGlobalSubstringFormulas} before this method is invoked for any index, and this method intersects it
+	 * with the target index's own primary keys. Both sides speak owner entity primary keys for an entity-level
+	 * attribute - `AttributeIndex#createAttributeKey` files it under the very same key inside a reduced index as inside
+	 * the global one - so the intersection is exactly what that index's own scan would have produced.
+	 *
+	 * ## The crossing that must NOT be attempted
+	 *
+	 * What crosses from the global index to a reduced one here is a formula over ENTITY PRIMARY KEYS. Handing the
+	 * reduced index's own tree the global candidate VALUE IDS instead is available-looking and compiles: a reduced
+	 * index's inverted index mints no value ids at all. {@link InvertedIndex#getRecordsOfValueIdsMatching} now REFUSES
+	 * that pairing rather than answering an empty {@link MatchedBuckets} — an empty result would have passed any test
+	 * whose fixture is small enough for it to look plausible — but {@link InvertedIndex#getValueById} still answers
+	 * `null` for every id, so the crossing remains a mistake to be avoided rather than one that is fully caught.
+	 *
+	 * @param entityIndex                    the entity index being resolved
+	 * @param hoistedGlobalSubstringFormulas the per-scope global substring answers, empty when the trigram path was
+	 *                                       declined or does not apply
+	 * @param referenceSchema                the reference schema owning the attribute, or `null` for entity-level
+	 *                                       attributes
+	 * @param attributeDefinition            the schema of the attribute being filtered
+	 * @param locale                         the locale the attribute is filed under, or `null` when it is not localized
+	 * @param textToSearch                   the raw search term supplied in the query
+	 * @return the matching entity primary keys of that index
+	 */
+	@Nonnull
+	private Formula resolveFromIndex(
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull Map<Scope, Formula> hoistedGlobalSubstringFormulas,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable Locale locale,
+		@Nonnull String textToSearch
+	) {
+		final FilterIndex filterIndex = entityIndex.getFilterIndex(referenceSchema, attributeDefinition, locale);
+		if (filterIndex == null) {
+			return EmptyFormula.INSTANCE;
+		}
+		final Formula globalSubstringFormula = hoistedGlobalSubstringFormulas.get(entityIndex.getIndexKey().scope());
+		if (globalSubstringFormula == null) {
+			return this.filterIndexResolver.apply(filterIndex, textToSearch);
+		}
+		// the global index IS the whole primary key universe, so intersecting it with its own primary keys would only
+		// add a formula node - it takes the hoisted answer verbatim, exactly as it did before reduced indexes joined in
+		return entityIndex instanceof GlobalEntityIndex ?
+			globalSubstringFormula :
+			FormulaFactory.and(entityIndex.getAllPrimaryKeysFormula(), globalSubstringFormula);
+	}
+
+	/**
+	 * Computes, once for the whole target index set, the global substring answer each of its members will be
+	 * intersected with - one per {@link Scope} the set spans, since a {@link TrigramIndex} is hosted per global index
+	 * and a global index per scope.
+	 *
+	 * ## Why this is hoisted rather than done per index
+	 *
+	 * `FilterByVisitor#applyOnIndexes` runs its lambda once per index in the target set, and a `hierarchyWithin` over a
+	 * broad category builds one reduced index per node of the requested subtree - so the intersection and the exact
+	 * verification behind it would otherwise be repeated hundreds or thousands of times over the very same global tree.
+	 * The shape is the one `HierarchyOfReferenceTranslator` already runs in production: one memoised global formula,
+	 * AND-ed against each reduced index's own primary keys, OR-ed across the fan-out.
+	 *
+	 * ## Why the operand is built from the global index rather than cloned out of the plan
+	 *
+	 * `ExtraResultPlanningVisitor#canUseShortcut` documents why reusing an already-planned formula as a global operand
+	 * is unsafe: the planner may have selected a REDUCED_ENTITY index set, so the clone's leaves express a narrower
+	 * primary key universe than the composition assumes. Resolving the {@link GlobalEntityIndex} from the query context
+	 * makes the operand's universe the whole collection by construction - and the context is pinned to one catalog
+	 * version for the whole query, so the global index and the reduced ones it is composed with cannot straddle a
+	 * version boundary.
+	 *
+	 * ## What the gate is priced against
+	 *
+	 * The one computation displaces the scan of EVERY member of the target set, so it is priced against their sum
+	 * rather than against the global tree's own bucket count - see {@link #sumDistinctValuesUpTo}, which is where the
+	 * summation and its early exit live. Per scope, because a scope's operand is composed only with that scope's
+	 * members.
+	 *
+	 * ## Confinement to entity-level attributes
+	 *
+	 * The trigram path stays behind `referenceSchema == null`. Today a reference attribute can never carry a trigram
+	 * index - the schema layer refuses any filter accelerator on one, and `GlobalEntityIndex#maintainsNoTrigramIndex`
+	 * asserts the same premise on the write side - but that schema restriction is documented as liftable, and the
+	 * `instanceof GlobalEntityIndex` test that used to close the hole incidentally is gone. Were it lifted, global
+	 * postings for a reference attribute would mean "the owner carries this value on SOME reference of that type",
+	 * while a reduced index means one specific reference, and the intersection would answer over-broadly. The guard
+	 * below is what makes that day take the scan instead of composing a wrong answer.
+	 *
+	 * @param filterByVisitor     the filter-by processing context
+	 * @param attributeConstraint the constraint being translated, which keys the per-query memo
+	 * @param referenceSchema     the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeDefinition the schema of the attribute being filtered
+	 * @param locale              the locale the attribute is filed under, or `null` when it is not localized
+	 * @param textToSearch        the raw search term supplied in the query
+	 * @return the global substring answer per scope, empty when no scope takes the trigram path
+	 */
+	@Nonnull
+	private Map<Scope, Formula> hoistGlobalSubstringFormulas(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable Locale locale,
+		@Nonnull String textToSearch
+	) {
+		// an unknown entity type means the target set is the catalog index rather than any entity index, and a trigram
+		// index is hosted per entity collection - there is nothing to hoist, and nothing to ask an entity schema for
+		if (!isServedByTrigramIndex() || referenceSchema != null || !filterByVisitor.isEntityTypeKnown()) {
+			return Collections.emptyMap();
+		}
+		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
+		final String entityType = entitySchema.getName();
+		final AttributeIndexKey attributeIndexKey = AttributeIndex.createAttributeKey(
+			null, attributeDefinition, locale
+		);
+
+		// the accelerator is resolved BEFORE anything walks the target set, and the walk that prices the gate lives
+		// inside `TrigramSubstringSearch#match` - so an attribute that keeps no accelerator, by far the common case
+		// since only a SUBSTRING-declaring attribute has one, costs one set membership test per scope and nothing else
+		EnumMap<Scope, Formula> hoisted = null;
+		for (final Scope scope : processingScope.getScopes()) {
+			// the SCHEMA decides, not the index map. The map is reconciled with the schema by the next WRITE to the
+			// attribute (`GlobalEntityIndex#reconcileTrigramIndexAbsence`), so between a withdrawal and that write it
+			// still hands out an index - and planning through it would keep the accelerator's heap resident and its
+			// statistics being written for a capability the schema no longer declares. Answers stay correct either
+			// way; what the schema test fixes is the disagreement between schema, plan and statistics
+			if (!attributeDefinition.getAcceleratorsInScope(scope)
+				.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
+				continue;
+			}
+			// the request is recorded on the DECLARATION rather than on the gate's verdict: the query did ask for the
+			// accelerator, and a gate that declines it (because the scan it displaces is cheaper here) is a planner
+			// cost decision rather than an absence of demand. Recording only the accelerated plans would make a
+			// correctly-sized accelerator look unused
+			queryContext.recordRequestedCapability(
+				entitySchema, null, ElementKind.ATTRIBUTE, attributeDefinition.getName(),
+				Capability.SUBSTRING_ACCELERATED, scope
+			);
+			final GlobalEntityIndex globalEntityIndex = queryContext
+				.getGlobalEntityIndexIfExists(entityType, scope)
+				.orElse(null);
+			final TrigramIndex trigramIndex = globalEntityIndex == null ?
+				null : globalEntityIndex.getTrigramIndex(attributeIndexKey);
+			if (trigramIndex == null) {
+				continue;
+			}
+			final Formula globalSubstringFormula = createGlobalSubstringFormula(
+				filterByVisitor, attributeConstraint, attributeDefinition, locale, textToSearch,
+				scope, globalEntityIndex, trigramIndex
+			);
+			if (globalSubstringFormula != null) {
+				if (hoisted == null) {
+					hoisted = new EnumMap<>(Scope.class);
+				}
+				hoisted.put(scope, globalSubstringFormula);
+			}
+		}
+		return hoisted == null ? Collections.emptyMap() : hoisted;
+	}
+
+	/**
+	 * Sums the distinct values the scan of `scope`'s members of the target set would visit, stopping the moment the
+	 * running total reaches `threshold`.
+	 *
+	 * ## Why walking the target set to decide is not the bug it looks like
+	 *
+	 * The gate is a threshold question rather than a request for a total, so the walk is bounded by `threshold` and
+	 * not by the width of the fan-out - a `hierarchyWithin` over a broad category can offer hundreds of thousands of
+	 * reduced indexes, and this stops after however few of them carry `threshold` distinct values between them. The
+	 * worst case is exhausting the set, which happens exactly when the answer is "decline": one `getFilterIndex` plus
+	 * one `getBucketCount` per index. That is strictly dominated by the scan it is deciding against, which resolves
+	 * the very same filter indexes and then visits every bucket of every one of them.
+	 *
+	 * Indexes with no filter index for the attribute are skipped - they contribute no scan, and the per-index step
+	 * answers `EmptyFormula` for them regardless.
+	 *
+	 * @param filterByVisitor     the filter-by processing context, whose index stream IS the target set
+	 * @param scope               the scope whose members are counted, since each scope is served by its own global
+	 *                            index and composed only with its own members
+	 * @param attributeDefinition the schema of the attribute being filtered
+	 * @param locale              the locale the attribute is filed under, or `null` when it is not localized
+	 * @param threshold           the total the caller compares against, and the point at which counting may stop
+	 * @return the summed distinct value count, truncated at `threshold`
+	 */
+	private static long sumDistinctValuesUpTo(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Scope scope,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable Locale locale,
+		long threshold
+	) {
+		// iterated rather than folded: the early exit is the whole point, and a stream cannot break out of a fold
+		final Iterator<EntityIndex> targetIndexes = filterByVisitor.getEntityIndexStream().iterator();
+		long scannedDistinctValues = 0L;
+		while (scannedDistinctValues < threshold && targetIndexes.hasNext()) {
+			final EntityIndex entityIndex = targetIndexes.next();
+			if (entityIndex.getIndexKey().scope() != scope) {
+				continue;
+			}
+			final FilterIndex filterIndex = entityIndex.getFilterIndex(null, attributeDefinition, locale);
+			if (filterIndex != null) {
+				scannedDistinctValues += filterIndex.getInvertedIndex().getBucketCount();
+			}
+		}
+		return scannedDistinctValues;
+	}
+
+	/**
+	 * Builds the global substring answer of a single scope, or returns `null` when that scope must take the scan.
+	 *
+	 * The result is memoised on {@link QueryPlanningContext#computeOnlyOnce}, which lives on the root planning context
+	 * - so it is shared by every candidate plan and every nested sub-query of the same client query rather than
+	 * recomputed per plan. Beside the global index's own id the key carries the trigram index's id, which names the
+	 * `(attribute, locale)` the answer was narrowed by and changes on every write to it.
+	 *
+	 * ## Why the size of the displaced scan is NOT part of the key
+	 *
+	 * The memoised artefact is a pure function of the trigram index, the shared value tree and the pattern; the scan
+	 * size decides only whether this method gets as far as building it. A plan whose gate declined never reaches the
+	 * memo at all, so no entry of it can leak into one - and keying on the size would merely stop two plans that both
+	 * accelerated from sharing the identical answer. It would become mandatory the moment the GATE itself moved
+	 * inside the memo, which is exactly why {@link TrigramSubstringSearch#match} stays outside it.
+	 *
+	 * ## What a second candidate plan pays, and why that is deliberate
+	 *
+	 * `match` runs before the memo, so a second candidate plan that also accelerates over this scope intersects and
+	 * verifies the candidates again and then discards them on the memo hit, keeping only the fold. Three things make
+	 * that the right boundary rather than an accident of where it fell:
+	 *
+	 * - the gate is a function of the TARGET SET, which differs per candidate plan, while the key deliberately is
+	 *   not. Moving `match` inside the supplier would move the gate inside a key that cannot tell two target sets
+	 *   apart, so a plan whose own gate declined would inherit the accepted answer of whichever plan was translated
+	 *   first - a cost decision silently reversed, and reversed differently depending on the planner's candidate
+	 *   ordering;
+	 * - it is not a regression against keying on the scan size. That key made the second plan MISS the memo, so it
+	 *   intersected, verified AND folded; it now intersects, verifies, and reuses the fold. Strictly less work;
+	 * - what remains is one redundant intersection-and-verification per query, in the case where two plans accelerate
+	 *   over the same scope - against the one-per-index this hoist removes.
+	 *
+	 * Recovering even that would mean splitting `match` at its own documented seam - steps 1-4 (pre-flights,
+	 * cardinality probe, gate) outside the memo and steps 5-8 (intersect, resolve, verify) inside its supplier, so
+	 * that the decline conditions stay whole inside {@link TrigramSubstringSearch} rather than smearing into this
+	 * file. That is a wider API change than this increment needs, and is left as a follow-up.
+	 *
+	 * @param filterByVisitor     the filter-by processing context
+	 * @param attributeConstraint the constraint being translated, which keys the per-query memo
+	 * @param attributeDefinition the schema of the attribute being filtered
+	 * @param locale              the locale the attribute is filed under, or `null` when it is not localized
+	 * @param textToSearch        the raw search term supplied in the query
+	 * @param scope               the scope being served, whose members alone price the gate
+	 * @param globalEntityIndex   the global index of that scope
+	 * @param trigramIndex        that index's accelerator for this attribute and locale
+	 * @return the global substring answer, or `null` when this scope must take the scan
+	 */
+	@Nullable
+	private Formula createGlobalSubstringFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable Locale locale,
+		@Nonnull String textToSearch,
+		@Nonnull Scope scope,
+		@Nonnull GlobalEntityIndex globalEntityIndex,
+		@Nonnull TrigramIndex trigramIndex
+	) {
+		final FilterIndex globalFilterIndex = globalEntityIndex.getFilterIndex(null, attributeDefinition, locale);
+		if (globalFilterIndex == null) {
+			return null;
+		}
+		final InvertedIndex sharedValueTree = globalFilterIndex.getInvertedIndex();
+		final MatchedBuckets matched = TrigramSubstringSearch.match(
+			trigramIndex, sharedValueTree, textToSearch, this.stringPredicate,
+			threshold -> sumDistinctValuesUpTo(filterByVisitor, scope, attributeDefinition, locale, threshold),
+			this.stringSearchShape
+		);
+		if (matched == null) {
+			return null;
+		}
+		return filterByVisitor.getQueryContext().computeOnlyOnce(
+			List.of((EntityIndex) globalEntityIndex),
+			attributeConstraint,
+			// EAGER assembly - the one place in this path that presupposes eager evaluation
+			() -> sharedValueTree.toFormula(matched, TrigramSubstringSearch.versionIdsOf(trigramIndex)),
+			trigramIndex.getId()
+		);
+	}
+
+	/**
 	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a filter index.
 	 * This method is intended for internal use to assist the filtering process by generating an appropriate formula based on the given
 	 * constraints and the current state of the filter visitor.
@@ -198,13 +564,21 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			assertStringType(attributeConstraint, attributeDefinition);
 
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
+			final Locale locale = attributeDefinition.isLocalized() ? filterByVisitor.getLocale() : null;
+			// hoisted out of the per-index lambda on purpose: the global computation is amortized across the whole
+			// target set, which is what makes it affordable for a fan-out of reduced indexes at all
+			final Map<Scope, Formula> hoistedGlobalSubstringFormulas = hoistGlobalSubstringFormulas(
+				filterByVisitor, attributeConstraint, referenceSchema, attributeDefinition, locale, textToSearch
+			);
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeKey,
-				filterByVisitor.applyOnFilterIndexes(
-					processingScope.getReferenceSchema(),
-					attributeDefinition,
-					index -> this.filterIndexResolver.apply(index, textToSearch)
+				filterByVisitor.applyOnIndexes(
+					entityIndex -> resolveFromIndex(
+						entityIndex, hoistedGlobalSubstringFormulas, referenceSchema, attributeDefinition,
+						locale, textToSearch
+					)
 				)
 			);
 

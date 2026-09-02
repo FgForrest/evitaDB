@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -35,6 +36,7 @@ import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.JolHeapSize;
@@ -45,11 +47,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Function;
@@ -128,6 +128,23 @@ class LeafIndexHeapSizeTest {
 		};
 
 		/**
+		 * As above for a tree that carries value ids, plus the consumer registry (structural bookkeeping, like the
+		 * page-stream registry beside it) and the minter lambda.
+		 *
+		 * The value id **directory** is deliberately absent from this list even though it too goes uncharged: naming a
+		 * root subtracts everything that root reaches, and the directory's leaf map reaches the very leaves whose
+		 * columns the figure is about. It is priced separately in {@link #assertIdCarryingHeapMatches}.
+		 */
+		private static final String[] ID_CARRYING_EXCLUSIONS = {
+			"normalizer", "comparator", "pageStreamRegistry",
+			"buckets.valueColumnFactory", "buckets.recordColumnFactory",
+			"valueIdConsumers", "buckets.valueIdMinter"
+		};
+
+		/** Names the registration that switches the id column on; only its presence matters, never its value. */
+		private static final String ID_CONSUMER = "leaf-index-heap-size-test";
+
+		/**
 		 * Builds a string-keyed inverted index, whose leaves front-code their keys.
 		 *
 		 * @param distinctValues how many distinct bucket values to seed
@@ -135,14 +152,100 @@ class LeafIndexHeapSizeTest {
 		 */
 		@Nonnull
 		private static InvertedIndex stringKeyed(int distinctValues) {
-			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
-			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(String.class, 0);
-			final Comparator<?> comparator = FilterIndex.getComparator(key, String.class);
-			final InvertedIndex index = new InvertedIndex(String.class, normalizer, comparator, 0);
+			final InvertedIndex index = emptyStringKeyed();
 			for (int i = 0; i < distinctValues; i++) {
 				index.addRecord(String.format("value-%05d", i), i + 1);
 			}
 			return index;
+		}
+
+		/**
+		 * As above, with a value id consumer registered while the index is still empty — the only moment a tree may be
+		 * switched on — so every leaf carries the parallel id column and the index holds an allocator.
+		 *
+		 * @param distinctValues how many distinct bucket values to seed
+		 * @return the seeded, id-carrying index
+		 */
+		@Nonnull
+		private static InvertedIndex stringKeyedWithValueIds(int distinctValues) {
+			final InvertedIndex index = emptyStringKeyed();
+			index.attachValueIdConsumer(ID_CONSUMER);
+			for (int i = 0; i < distinctValues; i++) {
+				index.addRecord(String.format("value-%05d", i), i + 1);
+			}
+			return index;
+		}
+
+		/**
+		 * @return a fresh empty string-keyed inverted index carrying the scaffolding an attribute index hands it
+		 */
+		@Nonnull
+		private static InvertedIndex emptyStringKeyed() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(String.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, String.class);
+			return new InvertedIndex(String.class, normalizer, comparator, 0);
+		}
+
+		/**
+		 * Asserts an id-carrying index's arithmetic against a JOL walk, aligning the two terms the sides deliberately
+		 * disagree about.
+		 *
+		 * The **allocator** is charged by the arithmetic but cannot be left in the walk: the minter is a method
+		 * reference that captures it, and the lambda has to be excluded because the arithmetic charges only its slot.
+		 * Excluding the lambda subtracts its captured allocator too, so the allocator comes off both sides and is
+		 * pinned on its own afterwards — which is what makes the subtraction honest rather than a fudge.
+		 *
+		 * The **directory** is charged by neither side, but it cannot be named as an exclusion either, for the reason
+		 * on {@link #ID_CARRYING_EXCLUSIONS}. It is measured here with the leaves held out of its own walk and taken
+		 * off the measurement.
+		 *
+		 * Everything else — the per-leaf id columns above all — is still validated byte-exact.
+		 *
+		 * @param index the id-carrying index to check
+		 */
+		private static void assertIdCarryingHeapMatches(@Nonnull InvertedIndex index) {
+			final Object tree = readField(index, "buckets");
+			final ValueIdAllocator allocator = (ValueIdAllocator) readField(index, "valueIdAllocator");
+			// the directory is one immutable record behind one volatile field, so the whole of it is reachable from
+			// that single root - but the leaves it addresses are NOT its own and are held out of its walk, exactly as
+			// when it was three separate fields
+			final Object valueIdDirectory = readField(tree, "valueIdDirectory");
+			final LongObjectHashMap<?> leafById =
+				(LongObjectHashMap<?>) readField(valueIdDirectory, "leafById");
+			final Object[] directory = {valueIdDirectory};
+			final long directoryBytes = JolHeapSize.ownedSize(directory, leafById.values().toArray())
+				- JolHeapSize.shallowSize(directory);
+
+			assertEquals(
+				measuredHeapOf(index, ID_CARRYING_EXCLUSIONS) - directoryBytes,
+				index.getHeapSizeInBytes() - allocator.getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.shallowSize(allocator), allocator.getHeapSizeInBytes(),
+				"the allocator taken off both sides above must itself be priced exactly"
+			);
+		}
+
+		@Test
+		void shouldMeasureAnIdCarryingSingleLeafIndexExactly() {
+			// one leaf, so the figure carries no separator-key over-report and exactness is attainable
+			assertIdCarryingHeapMatches(stringKeyedWithValueIds(50));
+		}
+
+		@Test
+		void shouldMeasureAnIdCarryingMultiRecordIndexExactly() {
+			// every bucket holds many records, so each leaf carries the key column, the record column, the overflow
+			// bitmap column AND the id column at once
+			final InvertedIndex index = emptyStringKeyed();
+			index.attachValueIdConsumer(ID_CONSUMER);
+			for (int value = 0; value < 40; value++) {
+				for (int record = 0; record < 30; record++) {
+					index.addRecord("value-" + value, value * 100 + record + 1);
+				}
+			}
+
+			assertIdCarryingHeapMatches(index);
 		}
 
 		@Test
@@ -552,28 +655,27 @@ class LeafIndexHeapSizeTest {
 		}
 
 		@Test
-		void shouldStepUpOnceTheAllRecordsFormulaIsMemoizedAndStayExactBothTimes() {
+		void shouldNotGrowAtAllWhenTheRecordIdsFormulaIsRequested() {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			final long cold = index.getHeapSizeInBytes();
 			assertMatchesMeasuredHeap(cold, index, OWNER_EXCLUSIONS);
 
 			index.getRecordIdsFormula();
 
+			// This index memoizes NOTHING for a formula request: `getRecordIdsFormula` wraps the record set it
+			// already holds in a fresh ConstantFormula that dies with the query it served. Answering a query must
+			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
+			// scaffolding to price at an upper bound.
+			//
+			// This is the accounting face of the leak fixed in #1458: a formula node carries the execution context
+			// of the first query to initialize it, so an index that kept one pinned that query's session and its
+			// whole catalog generation. A step up here would mean a memo came back.
 			final long warm = index.getHeapSizeInBytes();
-			assertTrue(warm > cold, "the memoized formula must show up as additional occupancy");
-			// The formula wraps the very record set already charged above, and its own `memoizedResult` resolves to
-			// that same instance - so neither is followed, and a walk finds no second bitmap. What the arithmetic
-			// DOES read high is the formula's cost bookkeeping: `initFields` runs in the constructor and populates
-			// four of the six memo fields, while `cost` and `costToPerformance` stay null until something asks what
-			// the formula costs. Which are populated cannot be read from outside, so all five boxed Longs are
-			// charged - the higher of two defensible figures - leaving the arithmetic exactly two boxes above the
-			// measurement, forever, however large the index grows
-			final long excess = warm - measuredHeapOf(index, OWNER_EXCLUSIONS);
-			assertTrue(excess > 0 && excess < 128, "the formula's over-charge must stay small - was " + excess);
+			assertEquals(cold, warm, "asking for the record-ids formula must not change the footprint");
+			assertMatchesMeasuredHeap(warm, index, OWNER_EXCLUSIONS);
 
-			// and it must be a CONSTANT, not a term that grows: an index holding more records over-charges by the
-			// same handful of bytes, which is what makes charging the upper bound harmless. Both fixtures stay
-			// inside one leaf block, so neither carries the separate separator-key over-report
+			// and it must hold however large the index grows - both fixtures stay inside one leaf block, so neither
+			// carries the separate separator-key over-report
 			final OwnerUniqueIndex larger = ownerUniqueIndex(250);
 			larger.getRecordIdsFormula();
 			assertDivergenceDoesNotGrowWithTheData(

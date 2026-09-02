@@ -40,7 +40,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Comparator;
 import java.util.function.Supplier;
 
 import static io.evitadb.index.attribute.SortIndex.invert;

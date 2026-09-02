@@ -81,17 +81,19 @@ jobs:
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          run_id: ${{ steps.inputs.outputs.run_id }}
+          run-id: ${{ steps.inputs.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}   # cross-run download needs an explicit token
           name: evita-server.jar
           path: docker
 
       - name: Download a version information # download `version.txt` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          run_id: ${{ steps.inputs.outputs.run_id }}
+          run-id: ${{ steps.inputs.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}   # cross-run download needs an explicit token
           name: version.txt
 
       # Recovery path: pull dist.zip from the release, extract evita-server.jar
@@ -119,7 +121,7 @@ jobs:
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           buildkitd-flags: --debug
           platforms: linux/amd64,linux/arm64/v8

@@ -116,6 +116,48 @@ Beyond that:
   table between the `ADR-INDEX` markers — it is overwritten. `--check` verifies it is current and
   is safe to run from CI or a hook.
 
+## No customer attribution in records
+
+**A record must contain no detail that identifies a customer.** The measurement stays; the attribution
+goes. This applies to the record, its supporting files, its *filenames*, and the **commit messages**
+that carry it — a name scrubbed from the prose but left in `git log` has not been scrubbed.
+
+This is the ADR-specific half of a rule that also covers user documentation and code; the scope
+boundary, and the material that is deliberately exempt, are in `CLAUDE.md`. **Do not apply this
+section outside `documentation/adr/`** without reading that boundary first — blog posts, research
+documents and published performance comparisons name datasets deliberately and must not be scrubbed.
+
+A record is written to be read by someone who was not there, and the customer's identity is never the
+part that helps them. What helps is the workload: how many entities, how the values were shaped, what
+the index did with them.
+
+**Forbidden**: customer, brand or project names, whether standalone or embedded in an identifier
+(`<client>Ordering`, `<client>UpsertFuzzer`, `article.<client>Id`, a temp catalog `<client>_<millis>`);
+verbatim sample values from a customer dataset — product codes, EANs, catalog numbers, URLs, names,
+anything a person could paste into a search box and hit a real record; and internal source documents
+that cannot be published (cite these as "(internal, §X)", never link or quote them).
+
+**Keep, always**: every number, ratio and distribution. Corpus size, cardinality, value-length
+percentiles, alphabet size and character classes, prefix-sharing fractions, latency and speedup — none
+of it identifies anyone, and stripping it would gut the record.
+
+**How to say it instead.** Describe the workload, not the customer: "a production e-commerce catalog
+(~157,000 products, 18 collections)", "a production CMS catalog (972,611 articles)", "the production
+retail corpus". Where two datasets must be told apart across a record, label them by shape or by
+letter — "the retail corpus" and "the CMS corpus", or "corpus A"/"corpus B" — and define the label
+once. For sample data, give the *shape* and never the value: "13 digits", "two upper-case letters
+followed by four digits", "GS1 country prefixes concentrated in a handful of ranges".
+
+**Attribute and collection names from a customer schema are a judgement call.** Generic e-commerce
+vocabulary (`code`, `catalogNumber`, `ean`, `product`, `category`) is fine and worth keeping, because
+it tells a reader which *shape* of attribute the finding applies to. A name that carries the customer's
+own identity is not — rename it to its generic equivalent and say you did.
+
+**When you find a violation in an existing record**, say so rather than fixing it silently: the
+anonymization may need a decision about which label to use, and a record whose history quietly diverges
+from its content is worse than one that is openly wrong. Anonymizing history is a rewrite, and a
+rewrite is the author's call, not yours.
+
 ## Plans, and the two ways they end
 
 In-flight plans, assignments and investigation notes live in **`specifications/`**, one folder per

@@ -30,7 +30,6 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import com.linecorp.armeria.server.websocket.WebSocketService;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -50,12 +49,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashMap;

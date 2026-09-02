@@ -25,10 +25,13 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
@@ -36,8 +39,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,6 +94,7 @@ class AttributeSchemaTest {
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
 				new Scope[]{Scope.LIVE},
+				null,
 				new Scope[]{Scope.LIVE},
 				false, true, true,
 				Integer.class, 0,
@@ -123,7 +132,7 @@ class AttributeSchemaTest {
 				"myAttr", customVariants,
 				null, null,
 				(Map<Scope, AttributeUniquenessType>) null,
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -176,7 +185,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -198,7 +207,7 @@ class AttributeSchemaTest {
 						Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 					)
 				},
-				null, null,
+				null, null, null,
 				true, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -217,7 +226,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -240,6 +249,7 @@ class AttributeSchemaTest {
 				null,
 				new Scope[]{Scope.LIVE},
 				null,
+				null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -254,7 +264,7 @@ class AttributeSchemaTest {
 		void shouldReportSortable() {
 			final AttributeSchema schema = AttributeSchema._internalBuild(
 				"name",
-				null, null,
+				null, null, null,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
 				false, false, false,
 				String.class, null,
@@ -310,6 +320,224 @@ class AttributeSchemaTest {
 			final AttributeSchema schema = AttributeSchema._internalBuild("name", String.class, false, ConflictResolutionOverride.INHERITED);
 
 			assertThrows(GenericEvitaInternalError.class, schema::withInvertedType);
+		}
+	}
+
+	@Nested
+	@DisplayName("Filter index capabilities")
+	class FilterCapabilities {
+
+		@Test
+		@DisplayName("should drop a scope mapped to an empty capability set")
+		void shouldDropScopeMappedToEmptyCapabilitySet() {
+			// this is what keeps an accelerated-then-cleared schema comparing equal to a plainly filterable one, and
+			// every mutation-combination path rests on that equality to decide whether anything actually changed
+			final Map<Scope, Set<AttributeFilterAccelerator>> emptyForLive = new EnumMap<>(Scope.class);
+			emptyForLive.put(Scope.LIVE, EnumSet.noneOf(AttributeFilterAccelerator.class));
+
+			final AttributeSchema declaringEmptySet = buildFilterableSchema(emptyForLive);
+			final AttributeSchema declaringNothing = buildFilterableSchema(null);
+
+			assertTrue(declaringEmptySet.getAcceleratorsInScopes().isEmpty());
+			assertEquals(declaringNothing, declaringEmptySet);
+			assertEquals(declaringNothing.hashCode(), declaringEmptySet.hashCode());
+		}
+
+		@Test
+		@DisplayName("should keep an accelerator declared in a scope the attribute is not filterable in")
+		void shouldKeepAcceleratorInNonFilterableScope() {
+			// the DTO deliberately does NOT police this cross-field rule. It is the type the builder materializes
+			// after each individual mutation, so it routinely holds intermediate states whose filterability has not
+			// caught up yet; refusing here made the order of the builder calls significant. Every sibling cross-field
+			// invariant - sortable-versus-array, unique-versus-filterable, the Comparable requirement - lives in
+			// AbstractAttributeSchemaBuilder#validate for the same reason, and this rule now sits with them. The
+			// refusal is pinned by AttributeSchemaBuilderTest#shouldRefuseAcceleratorLeftInScopeWithoutFilterIndex.
+			final Map<Scope, Set<AttributeFilterAccelerator>> substringInArchived = new EnumMap<>(Scope.class);
+			substringInArchived.put(Scope.ARCHIVED, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+
+			final AttributeSchema schema = buildFilterableSchema(substringInArchived);
+
+			assertFalse(schema.hasFilterIndexInScope(Scope.ARCHIVED));
+			assertEquals(
+				Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+				schema.getAcceleratorsInScope(Scope.ARCHIVED)
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse the substring capability on a non-String attribute built directly")
+		void shouldRefuseSubstringCapabilityOnNonStringAttributeBuiltDirectly() {
+			// the same rule the mutation route refuses with the same exception type, so that one `catch` covers the
+			// invariant however it was reached - the DTO backstop is what external-API converters and Kryo readers
+			// run into, since they build schemas straight through `_internalBuild`
+			final Map<Scope, Set<AttributeFilterAccelerator>> substringInLive = new EnumMap<>(Scope.class);
+			substringInLive.put(Scope.LIVE, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> AttributeSchema._internalBuild(
+					"quantity", null, null,
+					(Map<Scope, AttributeUniquenessType>) null,
+					Set.of(Scope.LIVE),
+					substringInLive,
+					null,
+					false, false, false,
+					Integer.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			);
+			assertSame(InvalidSchemaMutationException.class, exception.getClass());
+			assertTrue(exception.getMessage().contains("String"));
+		}
+
+		@Test
+		@DisplayName("should expose the capability map and its value sets as unmodifiable")
+		void shouldExposeCapabilitiesAsUnmodifiable() {
+			final Map<Scope, Set<AttributeFilterAccelerator>> substringInLive = new EnumMap<>(Scope.class);
+			substringInLive.put(Scope.LIVE, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+			final AttributeSchema schema = buildFilterableSchema(substringInLive);
+
+			final Map<Scope, Set<AttributeFilterAccelerator>> capabilities = schema.getAcceleratorsInScopes();
+
+			assertThrows(UnsupportedOperationException.class, () -> capabilities.remove(Scope.LIVE));
+			assertThrows(
+				UnsupportedOperationException.class,
+				() -> schema.getAcceleratorsInScope(Scope.LIVE).clear()
+			);
+		}
+
+		/**
+		 * Builds a `String` attribute filterable in the live scope, carrying the given capabilities.
+		 *
+		 * @param acceleratorsInScopes the capabilities to declare, may be null
+		 * @return the attribute schema
+		 */
+		@Nonnull
+		private AttributeSchema buildFilterableSchema(
+			@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes
+		) {
+			return AttributeSchema._internalBuild(
+				"code", null, null,
+				(Map<Scope, AttributeUniquenessType>) null,
+				Set.of(Scope.LIVE),
+				acceleratorsInScopes,
+				null,
+				false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("The map-to-array capability hinge")
+	class FilterCapabilityHinge {
+
+		@Test
+		@DisplayName("should turn carriers into a per-scope map")
+		void shouldConvertCarriersToEnumMap() {
+			final EnumMap<Scope, Set<AttributeFilterAccelerator>> converted = AttributeSchema.toAcceleratorsEnumMap(
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				}
+			);
+
+			assertEquals(Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), converted.get(Scope.LIVE));
+			assertNull(converted.get(Scope.ARCHIVED));
+		}
+
+		@Test
+		@DisplayName("should turn an empty carrier into no entry at all")
+		void shouldConvertEmptyCarrierToNoEntry() {
+			// the documented asymmetry of the pair: an empty carrier means "filterable here, no acceleration", which
+			// is the *absence* of an entry rather than an entry holding an empty set - anything else would stop a
+			// plainly filterable attribute comparing equal to one whose capabilities were cleared
+			final EnumMap<Scope, Set<AttributeFilterAccelerator>> converted = AttributeSchema.toAcceleratorsEnumMap(
+				new ScopedAttributeFilterAccelerators[]{new ScopedAttributeFilterAccelerators(Scope.LIVE)}
+			);
+
+			assertTrue(converted.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should collapse two carriers naming the same scope into one entry")
+		void shouldCollapseDuplicateScopeCarriers() {
+			// the conversion merges rather than overwrites, so neither carrier's capabilities are lost. With a single
+			// capability declared today a merge and an overwrite yield the same set, so what this pins is that the
+			// second carrier neither throws nor erases the entry - it gains its teeth when a second capability exists
+			final EnumMap<Scope, Set<AttributeFilterAccelerator>> converted = AttributeSchema.toAcceleratorsEnumMap(
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				}
+			);
+
+			assertEquals(1, converted.size());
+			assertEquals(Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), converted.get(Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("should treat a null carrier array as no capability anywhere")
+		void shouldTreatNullCarrierArrayAsNoCapability() {
+			assertTrue(AttributeSchema.toAcceleratorsEnumMap(null).isEmpty());
+			assertTrue(AttributeSchema.toAcceleratorsEnumMap(ScopedAttributeFilterAccelerators.EMPTY).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should emit one carrier per scope, in Scope declaration order")
+		void shouldEmitCarriersInScopeDeclarationOrder() {
+			// the emitted order is what a schema-diffing mutation and every external-API conversion put on the wire,
+			// so it has to come from `Scope` rather than from the iteration order of whatever map was handed in
+			final Map<Scope, Set<AttributeFilterAccelerator>> reversed = new LinkedHashMap<>();
+			reversed.put(Scope.ARCHIVED, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+			reversed.put(Scope.LIVE, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+
+			final ScopedAttributeFilterAccelerators[] emitted = AttributeSchema.toAcceleratorsArray(reversed);
+
+			assertArrayEquals(
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					new ScopedAttributeFilterAccelerators(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				},
+				emitted
+			);
+		}
+
+		@Test
+		@DisplayName("should emit no carrier for a scope holding an empty capability set")
+		void shouldEmitNoCarrierForEmptyCapabilitySet() {
+			final Map<Scope, Set<AttributeFilterAccelerator>> withEmptyLive = new EnumMap<>(Scope.class);
+			withEmptyLive.put(Scope.LIVE, EnumSet.noneOf(AttributeFilterAccelerator.class));
+			withEmptyLive.put(Scope.ARCHIVED, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+
+			final ScopedAttributeFilterAccelerators[] emitted = AttributeSchema.toAcceleratorsArray(withEmptyLive);
+
+			assertArrayEquals(
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				},
+				emitted
+			);
+		}
+
+		@Test
+		@DisplayName("should emit the shared empty array for a null or empty map")
+		void shouldEmitSharedEmptyArrayForNullOrEmptyMap() {
+			assertSame(ScopedAttributeFilterAccelerators.EMPTY, AttributeSchema.toAcceleratorsArray(null));
+			assertSame(ScopedAttributeFilterAccelerators.EMPTY, AttributeSchema.toAcceleratorsArray(Map.of()));
+		}
+
+		@Test
+		@DisplayName("should return to the same map after a round trip through the carrier array")
+		void shouldRoundTripThroughTheCarrierArray() {
+			final Map<Scope, Set<AttributeFilterAccelerator>> original = new EnumMap<>(Scope.class);
+			original.put(Scope.LIVE, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+			original.put(Scope.ARCHIVED, EnumSet.of(AttributeFilterAccelerator.SUBSTRING_SEARCH));
+
+			assertEquals(
+				original,
+				AttributeSchema.toAcceleratorsEnumMap(AttributeSchema.toAcceleratorsArray(original))
+			);
 		}
 	}
 
@@ -408,7 +636,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null,
+				null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED

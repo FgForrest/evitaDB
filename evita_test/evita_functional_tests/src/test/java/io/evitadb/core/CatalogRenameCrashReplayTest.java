@@ -62,6 +62,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -530,8 +531,8 @@ class CatalogRenameCrashReplayTest implements EvitaTestSupport {
 				sourceFolder = evita.getCatalogFolderContext().folderIdFor(SOURCE_CATALOG);
 				supersededFolder = evita.getCatalogFolderContext().folderIdFor(TARGET_CATALOG);
 			}
-			assertFalse(
-				sourceFolder.equals(supersededFolder),
+			assertNotEquals(
+				sourceFolder, supersededFolder,
 				"Two live catalogs must never share a folder - the fixture is broken, not the engine!"
 			);
 

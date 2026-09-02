@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.VoidPriceIndex;
@@ -90,7 +91,13 @@ public final class IndexHeapSizeAssertions {
 		// takes. Both are one instance for the whole JVM; the comparator is an enum constant, so subtracting it
 		// also subtracts the constant's name and its byte array - seventy-two bytes that otherwise read as a
 		// shortfall in whichever tree happened to be walked
-		VoidPriceIndex.INSTANCE, Comparator.naturalOrder()
+		VoidPriceIndex.INSTANCE, Comparator.naturalOrder(),
+		// the hash function a BaseBitmap parks on once its content hash has been memoized. Unlike the entries
+		// above it appears only in a WARM index - a bitmap that has never been asked for its content hash does
+		// not reach it - so leaving it out makes a heap test pass cold and fail warm by exactly one object, which
+		// reads as the memo costing sixteen bytes it does not cost. It is the single instance every formula in
+		// the JVM hashes with, and `BaseBitmap#getHeapSizeInBytes` deliberately charges nothing for it
+		TransactionalDataRelatedStructure.HASH_FUNCTION
 	};
 
 	private IndexHeapSizeAssertions() {
@@ -183,6 +190,11 @@ public final class IndexHeapSizeAssertions {
 	 * Name a root only where the structure genuinely borrows what it reaches. A JVM-shared instance in particular is
 	 * charged once by a walk and once **per holder** by the arithmetic, so naming one where nothing contends for it
 	 * does not remove a divergence — it creates one.
+	 *
+	 * A {@link java.util.Locale} no longer needs naming and cannot be re-included by it: `JolHeapSize.JVM_FLYWEIGHT`
+	 * stops every walk at one, because a locale's subgraph grows on its own — see there for why subtracting it as a
+	 * root was not enough. Existing call sites that still name one are stating an ownership fact, not supplying a
+	 * required argument.
 	 *
 	 * @param index          the index to walk
 	 * @param extraRoots     shared objects reached from inside a charged structure

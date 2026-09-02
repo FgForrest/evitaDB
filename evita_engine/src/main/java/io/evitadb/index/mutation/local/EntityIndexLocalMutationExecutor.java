@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -94,7 +95,6 @@ import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
-import io.evitadb.index.IndexActivity;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -664,6 +664,45 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Read-only sibling of {@link #popIndexImplicitMutations} used by `LocalMutationExecutorCollector`'s
+	 * pre-pass to learn which cross-entity triggers a batch is *about to* fire, before any of it is applied.
+	 *
+	 * Only the trigger identities matter to the caller — the envelopes it returns carry no pre-mutation values
+	 * (nothing has been captured yet) and are never dispatched. They are matched against the real envelopes
+	 * later by {@link ReevaluateExpressionMutation}'s identity, which excludes both payload fields.
+	 *
+	 * The removal branch cannot be read off the container here (nothing has been applied), so the caller states
+	 * it — and the two agree by construction, not by luck: {@link #popIndexImplicitMutations} branches on
+	 * `containerAccessor.isEntityRemovedEntirely()`, which is a `final` field
+	 * {@link io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor} is built with from
+	 * `entityMutation instanceof EntityRemoveMutation` at its single construction site in `EntityCollection`.
+	 * That is the same expression the caller evaluates. **If that flag ever becomes dynamic, this peek must take
+	 * the same signal instead of inferring it** — a disagreement would make the pre-pass capture a narrower
+	 * trigger set than dispatch fires, and the uncaptured triggers would silently fall back to unrestricted
+	 * histogram removal.
+	 *
+	 * Over-firing is harmless: a trigger that turns out not to fire simply leaves an unused entry.
+	 *
+	 * @param inputMutations the local mutations about to be applied
+	 * @param entityRemoval  `true` when the batch removes the entity entirely
+	 * @return the index mutations this batch is expected to produce
+	 */
+	@Nonnull
+	public IndexImplicitMutations peekIndexImplicitMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		boolean entityRemoval
+	) {
+		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
+		if (registry == null) {
+			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
+		}
+		final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW);
+		return entityRemoval
+			? buildRemovalMutations(registry, entityPK)
+			: buildAttributeChangeMutations(registry, entityPK, inputMutations);
+	}
+
+	/**
 	 * Prepares the necessary initial setup for the provided local mutations, ensuring
 	 * appropriate indexes and configurations are in place for further processing. This
 	 * initializes required components such as global indexes and sortable attribute compounds.
@@ -811,8 +850,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// that took, and the same instant the indexes above were stamped with. Emptied on the way out so that a second
 		// call could not count the same work twice
 		if (this.touchedCapabilities != null) {
-			for (int i = 0; i < this.touchedCapabilities.size(); i++) {
-				this.touchedCapabilities.get(i).recordUpdated(now);
+			for (SchemaCapabilityUsage touchedCapability : this.touchedCapabilities) {
+				touchedCapability.recordUpdated(now);
 			}
 			this.touchedCapabilities.clear();
 		}
@@ -920,6 +959,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			rememberCapability(
 				new SchemaCapabilityKey(
 					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTERABLE, scope
+				)
+			);
+		}
+		if (attributeSchema.getAcceleratorsInScope(scope).contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
+			// filed as its own row rather than folded into FILTERABLE, and unconditionally on the filterable flag
+			// beside it, because `SchemaCapabilityUsageRegistry#declaresCapability` mints the row on exactly this
+			// test - the two must agree, or the seeded row would report an update count of zero by construction and
+			// read as "nothing maintains this accelerator, drop it"
+			rememberCapability(
+				new SchemaCapabilityKey(
+					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SUBSTRING_ACCELERATED, scope
 				)
 			);
 		}
@@ -1041,9 +1091,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final boolean maintained = switch (capability) {
 			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
 			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
-			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
-				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
-			);
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED ->
+				throw new GenericEvitaInternalError(
+					"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
+				);
 		};
 		if (!maintained) {
 			return;
@@ -1076,8 +1127,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.touchedElements == null) {
 			this.touchedElements = new ArrayList<>(16);
 		} else {
-			for (int i = 0; i < this.touchedElements.size(); i++) {
-				final TouchedSchemaElement touched = this.touchedElements.get(i);
+			for (final TouchedSchemaElement touched : this.touchedElements) {
 				if (touched.kind() == kind && touched.scope() == scope &&
 					touched.elementName().equals(elementName) &&
 					Objects.equals(touched.containerName(), containerName) &&
@@ -1880,17 +1930,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull ExistingAttributeValueSupplier supplier
 	) {
-		supplier.getAttributeValue(attributeKey).ifPresent(av -> {
-			final Serializable value = av.value();
-			if (value != null) {
-				if (this.capturedOldEntityAttributeValues == null) {
-					this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
-				}
-				this.capturedOldEntityAttributeValues
-					.computeIfAbsent(attributeKey.attributeName(), k -> CollectionUtils.createHashMap(4))
-					.putIfAbsent(attributeKey.locale(), value);
-			}
-		});
+		supplier.getAttributeValue(attributeKey).ifPresent(
+			av -> recordCapturedOldEntityAttributeValue(attributeKey, av.value())
+		);
 	}
 
 	/**
@@ -1906,21 +1948,44 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (!attributeNames.contains(attributeValue.key().attributeName())) {
 				continue;
 			}
-			final Serializable rawValue = attributeValue.value();
-			if (rawValue != null) {
-				// normalize BigDecimal values to match the canonical form used in indexes
-				final Serializable value = NumberUtils.normalizeIfBigDecimal(rawValue);
-				if (this.capturedOldEntityAttributeValues == null) {
-					this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
-				}
-				this.capturedOldEntityAttributeValues
-					.computeIfAbsent(
-						attributeValue.key().attributeName(),
-						k -> CollectionUtils.createHashMap(4)
-					)
-					.putIfAbsent(attributeValue.key().locale(), value);
-			}
+			recordCapturedOldEntityAttributeValue(attributeValue.key(), attributeValue.value());
 		}
+	}
+
+	/**
+	 * The single write boundary of {@link #capturedOldEntityAttributeValues} — every capture site funnels
+	 * through here so the canonical form of a captured value is decided in exactly one place.
+	 *
+	 * **Why this matters.** Captured values are consumed by
+	 * {@code ReevaluateExpressionExecutor.resolvePreMutationValues}, which turns them into the `remove(oldValue,
+	 * ownerPK)` probe for a histogram bucket. That probe has to hit the same bucket key the matching insert
+	 * created, so a captured value must carry the same `BigDecimal` canonicalisation the index-write path
+	 * applies. The two capture sites reach that form by different routes —
+	 * {@link #captureOldEntityAttributeValue} is fed by a supplier already wrapped in
+	 * {@link ExistingAttributeValueSupplier#normalizing}, while {@link #captureEntityAttributeValues} walks a
+	 * raw {@link Entity} — and nothing but this method made them agree. Applying
+	 * {@link NumberUtils#normalizeIfBigDecimal} here covers both: it is idempotent, so the already-normalized
+	 * route is unaffected, and a future third capture site cannot get it wrong by omission.
+	 *
+	 * `putIfAbsent` on both levels preserves the *true* pre-mutation value when one attribute is mutated
+	 * several times within a single batch.
+	 *
+	 * @param attributeKey the attribute key identifying the captured attribute
+	 * @param rawValue     the pre-mutation value as read from storage, or `null` when the attribute was unset
+	 */
+	private void recordCapturedOldEntityAttributeValue(
+		@Nonnull AttributeKey attributeKey,
+		@Nullable Serializable rawValue
+	) {
+		if (rawValue == null) {
+			return;
+		}
+		if (this.capturedOldEntityAttributeValues == null) {
+			this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
+		}
+		this.capturedOldEntityAttributeValues
+			.computeIfAbsent(attributeKey.attributeName(), k -> CollectionUtils.createHashMap(4))
+			.putIfAbsent(attributeKey.locale(), NumberUtils.normalizeIfBigDecimal(rawValue));
 	}
 
 	/**

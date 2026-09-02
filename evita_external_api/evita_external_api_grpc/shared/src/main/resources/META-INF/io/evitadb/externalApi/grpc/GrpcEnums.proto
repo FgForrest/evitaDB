@@ -84,6 +84,40 @@ enum GrpcGlobalAttributeUniquenessType {
   UNIQUE_WITHIN_CATALOG_LOCALE = 2;
 }
 
+// An optional acceleration an attribute's filter index maintains on top of the plain index that `filterable` or
+// `unique` already provides. Each member costs extra memory and extra write-path work, which is why none of them is
+// implied by those declarations - an attribute declares the ones its workload actually queries and nothing else.
+//
+// A capability is always declared together with filterability and per scope, carried by
+// `GrpcScopedAttributeFilterAccelerators`. "Accelerated but not filterable" is not a representable state - a mutation
+// arriving
+// over the wire that names a scope the attribute is not filterable in is refused by the server.
+//
+// The members name the capability the index *gains*, never the physical structure that provides it - the structure is
+// an engine implementation detail that may change without the schema changing.
+enum GrpcAttributeFilterAccelerator {
+
+  // Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
+  // an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
+  ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;
+  // Substring matching against the attribute's values is served from a dedicated index instead of scanning every
+  // distinct value of the attribute.
+  //
+  // It accelerates `attributeContains` and `attributeEndsWith`, and only those two. `attributeStartsWith` is
+  // deliberately excluded - it already has an anchored range-scan fast path over the shared value tree, so routing it
+  // through this index would trade a cheap prefix walk for a more expensive one. Declaring the capability never
+  // changes what a query matches; only the way candidates are found differs.
+  //
+  // Patterns shorter than three code points cannot be decomposed into a trigram and fall back to the ordinary value
+  // scan, so an attribute queried only with one- or two-character patterns gains nothing while still paying the cost.
+  //
+  // Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
+  // Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
+  // are indexed, so the accelerator must be declared before the data is inserted.
+  ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;
+
+}
+
 // Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
   // Price computation operations will use actual price with tax added for filtering.
@@ -1184,5 +1218,14 @@ enum GrpcSchemaCapability {
   // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
   // `SCHEMA_ELEMENT_KIND_ENTITY` row.
   SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
+  // The element's filter index also answers substring matching -
+  // `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+  // `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
+  // carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
+  // - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
+  // `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
+  // while keeping the attribute filterable.
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
 
 }

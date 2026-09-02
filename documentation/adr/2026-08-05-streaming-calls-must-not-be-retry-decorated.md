@@ -1,7 +1,7 @@
 ---
 title: Never decorate a streaming gRPC channel with RetryingClient
 date: 2026-08-05
-updated: 2026-08-05 09:45
+updated: 2026-08-24 14:20
 status: accepted
 kind: fix
 issues: [1388]
@@ -9,7 +9,7 @@ prs: [1389]
 areas: [evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver]
 supersedes: []
 superseded-by: []
-relates: [2026-08-03-driver-connection-resilience, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation]
+relates: [2026-08-03-driver-connection-resilience, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation, 2026-08-24-grpc-streaming-backpressure-readiness-gate]
 ---
 
 # Never decorate a streaming gRPC channel with RetryingClient
@@ -238,10 +238,13 @@ through the rewired stubs.
   *Consequences*.
 - `2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation` — the CDC channel/event-loop isolation this
   builder split sits alongside; both landed in PR #1389, which two agents staged together.
+- `2026-08-24-grpc-streaming-backpressure-readiness-gate` — the server-side half of the same call sites:
+  this record says the driver must not retry a stream, that one says the server must pace it against
+  transport readiness rather than pushing at disk speed.
 
 ## Timeline
 
-- **2026-08-04** — cap observed as a `goLive` failure while benchmarking a 386k-entity Senesi bulk load;
+- **2026-08-04** — cap observed as a `goLive` failure while benchmarking a 386k-entity production-catalog bulk load;
   root-caused the same night to `c9e72b8c4`.
 - **2026-08-05** — issue #1388 filed, fixed, and verified; CDC half measured after an earlier reading
   against a half-applied fix suggested a second, non-existent cause.

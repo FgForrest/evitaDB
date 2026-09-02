@@ -50,8 +50,8 @@ The **commit of the whole transaction never completes** — the transaction/flus
 the 60s sweeper force-fails it. The client sees the `TransactionException` above; the server logs the
 sweep.
 
-## Trigger (senesi — CONFIRMED via fuzzer)
-`SenesiUpsertFuzzer` seed=1, batch=500 (from pristine): the batch had 466 successful upserts + 34
+## Trigger (production catalog — CONFIRMED via fuzzer)
+`ProductionCatalogUpsertFuzzer` seed=1, batch=500 (from pristine): the batch had 466 successful upserts + 34
 per-entity failures (incl. 7 sort-tree "Key already present" and injected invalid ops that
 savepoint-rolled-back), then the **commit of the batch (catalog version 98) hung** and was swept
 after 60s. See `scenarios/fuzz-seed1-oplog.txt` (op-log of that batch).

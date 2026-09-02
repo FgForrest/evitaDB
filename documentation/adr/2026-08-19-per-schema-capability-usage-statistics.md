@@ -1,11 +1,11 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-23 09:55
+updated: 2026-08-24 09:15
 status: accepted
 kind: feature
 issues: [1429]
-prs: []
+prs: [1430]
 areas: [evita_api/api/statistics, evita_engine/index/usage, evita_engine/index/mutation, evita_engine/core/query, evita_engine/core/collection, evita_engine/core/catalog, evita_external_api/evita_external_api_grpc, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []

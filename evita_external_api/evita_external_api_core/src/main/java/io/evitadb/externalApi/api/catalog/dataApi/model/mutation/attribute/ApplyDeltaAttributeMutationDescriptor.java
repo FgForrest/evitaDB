@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -65,7 +63,7 @@ public interface ApplyDeltaAttributeMutationDescriptor extends AttributeMutation
 		.description("""
 			Increments or decrements existing numeric value by specified delta (negative number produces decremental of
 			existing number, positive one incrementation).
-			
+
 			Allows to specify the number range that is tolerated for the value after delta application has been finished to
 			verify for example that number of items on stock doesn't go below zero.
 			""")

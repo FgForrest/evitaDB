@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.trigram.StringSearchShape;
 
 import javax.annotation.Nonnull;
 import java.util.function.BiPredicate;
@@ -46,7 +47,8 @@ public class AttributeEndsWithTranslator
 		super(
 			"ends with",
 			FilterIndex::getRecordsWhoseValuesEndsWith,
-			createPredicate()
+			createPredicate(),
+			StringSearchShape.ANCHORED
 		);
 	}
 
@@ -65,6 +67,18 @@ public class AttributeEndsWithTranslator
 	@Override
 	public Formula translate(@Nonnull AttributeEndsWith attributeEndsWith, @Nonnull FilterByVisitor filterByVisitor) {
 		return translateInternal(attributeEndsWith, filterByVisitor);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A value ending with the search term contains it, so every trigram of the term is a trigram of the value and the
+	 * intersection cannot lose a match. The intersection is only a candidate generator here - the anchoring at the end
+	 * of the value is established by the exact predicate during verification, never by the postings.
+	 */
+	@Override
+	protected boolean isServedByTrigramIndex() {
+		return true;
 	}
 
 }

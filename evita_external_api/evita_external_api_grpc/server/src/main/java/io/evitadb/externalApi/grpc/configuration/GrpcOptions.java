@@ -49,9 +49,36 @@ public class GrpcOptions extends AbstractApiOptions {
 	 */
 	public static final int DEFAULT_GRPC_PORT = 5555;
 	/**
+	 * Default value of {@link #getStreamingRequestTimeoutInMillis()}.
+	 */
+	public static final long DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS = 300_000L;
+	/**
 	 * Allows to expose the Armeria specific docs service on the gRPC API.
 	 */
 	@Getter private final boolean exposeDocsService;
+
+	/**
+	 * How long a **streaming** RPC may make no progress before the server abandons it, in milliseconds.
+	 *
+	 * `api.requestTimeoutInMillis` is a budget for a *whole request*. That is the right shape for a unary
+	 * call, where the work is one bounded round trip, and the wrong shape for a server-streaming one: a
+	 * download's duration is a function of the file's size and the link's speed, neither of which the
+	 * server knows, so any whole-request budget silently becomes a cap on what can be transferred at all.
+	 * This option is the streaming counterpart - it bounds *silence*. It is re-armed every time a message
+	 * is handed to the transport, so a slow but steadily progressing transfer never reaches it however
+	 * long it runs.
+	 *
+	 * The same value bounds how long {@link io.evitadb.externalApi.grpc.utils.GrpcOutboundGate} parks a
+	 * producing worker waiting for a client that has stopped reading, so it is also the point at which
+	 * such a stream is abandoned with `DEADLINE_EXCEEDED`. Size it against the slowest client to be
+	 * served: it must comfortably exceed the time a **single message** takes to reach that client.
+	 * Lowering it towards `requestTimeoutInMillis` reintroduces a minimum viable link speed - `fetchFile`
+	 * streams 1 MB chunks, so a 2 s budget would demand roughly 4 Mbit/s sustained.
+	 *
+	 * This lives here rather than in `ApiOptions` because it is enforced by gRPC-specific machinery. The
+	 * other APIs' long-lived endpoints (the REST and GraphQL WebSocket handlers) do not consume it.
+	 */
+	@Getter private final long streamingRequestTimeoutInMillis;
 
 	/**
 	 * Controls the prefix gRPC API will react on.
@@ -64,12 +91,14 @@ public class GrpcOptions extends AbstractApiOptions {
 		super(true, ":" + DEFAULT_GRPC_PORT);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
+		this.streamingRequestTimeoutInMillis = DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS;
 	}
 
 	public GrpcOptions(@Nonnull String host) {
 		super(true, host);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
+		this.streamingRequestTimeoutInMillis = DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS;
 	}
 
 	@JsonCreator
@@ -80,11 +109,17 @@ public class GrpcOptions extends AbstractApiOptions {
 	                   @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 	                   @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
 	                   @Nullable @JsonProperty("prefix") String prefix,
+	                   @Nullable @JsonProperty("streamingRequestTimeoutInMillis") Long streamingRequestTimeoutInMillis,
 	                   @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
+		// a non-positive value is meaningless for a stall budget and would disable the re-arm entirely,
+		// so it falls back to the default rather than silently reinstating the whole-request budget
+		this.streamingRequestTimeoutInMillis = ofNullable(streamingRequestTimeoutInMillis)
+			.filter(it -> it > 0L)
+			.orElse(DEFAULT_STREAMING_REQUEST_TIMEOUT_IN_MILLIS);
 	}
 
 	@Override

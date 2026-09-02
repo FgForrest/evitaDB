@@ -43,6 +43,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueLifecycleSink;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -210,21 +211,58 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 */
 	@Nonnull private final Comparator<? extends Comparable> comparator;
 	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
+	 * This field speeds up all requests for all data in this index (which happens quite often). This bitmap can be
 	 * computed anytime by calling `((InvertedIndex) this.histogram).getSortedRecords(null, null)`. Original operation
 	 * needs to perform costly join of all internally held bitmaps and that's why we memoize the result.
+	 *
+	 * # Only the bitmap is memoized, never the formula wrapping it
+	 *
+	 * A {@link Formula} node carries **per-query** state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it is part of, and that context transitively
+	 * reaches the {@link io.evitadb.api.EvitaSessionContract} and the entire catalog generation the query ran
+	 * against. A formula held for the lifetime of this index would therefore pin the first session that ever used
+	 * it — and everything that session reached — until the index is written to again, which on a read-mostly index
+	 * is never.
+	 *
+	 * Memoizing the bitmap keeps the expensive part — the join of all internally held bitmaps — and the
+	 * {@link ConstantFormula} built around it per call is a handful of bytes over the shared bitmap.
+	 *
+	 * What keeps that cheap in CPU as well is where the formula's cache key comes from. Once the value tree holds
+	 * more than one bucket the memoized bitmap is a `BaseBitmap`, which is not a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} and so has no transactional id to key
+	 * on; `ConstantFormula#includeAdditionalHash` falls through to hashing its **contents**, eagerly, in the
+	 * constructor. That would be `O(records)` on every call — measured at roughly 1.4 µs for 1k records, 83 µs for
+	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
+	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
+	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
+	 * See the ADR for issue #1458.
+	 *
+	 * Do not turn this back into a `Formula` field.
 	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
+	@Nullable private transient Bitmap memoizedAllRecords;
 	/**
 	 * Memoized result of {@link #getRangeHistogramOfAllRecords(Class, int)}. The cached subset is keyed implicitly
 	 * by the leaf's {@link RangeIndex} state — the steady-state query path against an unchanged leaf pays zero
 	 * allocation. Set to `null` whenever the index is mutated outside a transaction (mirrors
-	 * {@link #memoizedAllRecordsFormula}); the merged-transactional copy starts fresh.
+	 * {@link #memoizedAllRecords}); the merged-transactional copy starts fresh.
 	 *
 	 * The inner numeric type passed by callers is invariant for a given leaf — it is derived from
 	 * {@link #attributeType} via {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} — so it does not
 	 * need to be tracked alongside the cached subset; a fail-fast assertion in
 	 * {@link #getRangeHistogramOfAllRecords(Class, int)} guards against schema/index drift.
+	 *
+	 * # {@link InvertedIndexSubSet#getFormula()} must never be called on this subset
+	 *
+	 * This is the one subset in the codebase that lives as long as its index, and
+	 * {@link InvertedIndexSubSet#getFormula()} memoizes the formula it builds. Calling it here would park a
+	 * query-lifetime formula node in an index-lifetime structure and pin the calling session's whole catalog
+	 * generation — the leak {@link #memoizedAllRecords} documents. Its only consumer,
+	 * `AttributeHistogramComputer`, reads {@link InvertedIndexSubSet#getBuckets()} instead, which is stateless.
+	 *
+	 * The bitmap treatment applied to {@link #memoizedAllRecords} is not available here: the subset's aggregation
+	 * lambda may legitimately return a lazy `DeferredFormula`, so materializing a bitmap eagerly would change
+	 * behaviour rather than preserve it.
 	 */
 	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
 
@@ -589,12 +627,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 *
 	 * The memos are charged where they hold something nothing else does:
 	 *
-	 * - {@link #memoizedAllRecordsFormula} contributes its scaffolding (see
-	 *   {@link IndexHeapSize#memoizedFormulaSizeInBytes}) plus the union it wraps — but only once the value tree
-	 *   holds **more than one** bucket. With exactly one, the aggregation short-circuits and the union IS that
-	 *   bucket's own bitmap, charged already by the tree; with more, it is a bitmap this index materialized and
-	 *   nothing else holds. Leaving it out would be a shortfall that grows with the data, which is the one shape a
-	 *   deliberate divergence must never have.
+	 * - {@link #memoizedAllRecords} contributes the union it holds — but only once the value tree holds **more than
+	 *   one** bucket. With exactly one, the aggregation short-circuits and the union IS that bucket's own bitmap,
+	 *   charged already by the tree; with more, it is a bitmap this index materialized and nothing else holds.
+	 *   Leaving it out would be a shortfall that grows with the data, which is the one shape a deliberate
+	 *   divergence must never have. No formula scaffolding is charged because none is retained — the memo is the
+	 *   bitmap alone, and the {@link ConstantFormula} wrapping it is built fresh per call and dies with the query.
 	 * - {@link #memoizedRangeHistogramSubSet} contributes **in full**, buckets included. Unlike a slice off the value
 	 *   tree, the range histogram materializes a fresh {@link ValueToRecordBitmap} per range point, each carrying a
 	 *   `clone()` of the running active-set bitmap, and nothing else in the catalog holds those. On a range
@@ -606,17 +644,15 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
-		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int and the
+		// memoizedAllRecords / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int and the
 		// warmUpTouchStamp
 		long size = layout.sizeOfObject(
 			8L * layout.referenceSize() + Integer.BYTES + Long.BYTES + ownFieldBytes
 		);
-		size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
-		if (this.memoizedAllRecordsFormula instanceof final ConstantFormula unionFormula
-			&& this.invertedIndex.getBucketCount() > 1) {
+		if (this.memoizedAllRecords != null && this.invertedIndex.getBucketCount() > 1) {
 			// more than one bucket, so the memoized union was computed rather than short-circuited to a bucket's own
 			// bitmap - this index materialized it and nothing else in the catalog holds it
-			size += unionFormula.getDelegate().getHeapSizeInBytes();
+			size += this.memoizedAllRecords.getHeapSizeInBytes();
 		}
 		if (this.memoizedRangeHistogramSubSet != null) {
 			size += this.memoizedRangeHistogramSubSet.getHeapSizeInBytes(RANGE_HISTOGRAM_BUCKET_SIZER);
@@ -732,6 +768,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 */
 	public <T extends Serializable> void addRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		addRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(int, Object)}: `sink` learns about every distinct value
+	 * this write brings into existence. An array attribute may bring several into existence in one call, so the sink
+	 * may be notified more than once.
+	 *
+	 * @param recordId the ID of the record to add
+	 * @param value    the value of the record to add
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value, must implement Comparable<T>
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -752,15 +805,15 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 
 		if (value instanceof final Object[] valueArray) {
 			for (Object valueItem : verifyValueArray(valueArray)) {
-				this.invertedIndex.addRecord((T) valueItem, recordId);
+				this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 			}
 		} else {
-			this.invertedIndex.addRecord((T) value, recordId);
+			this.invertedIndex.addRecord((T) value, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
 			recordWarmUpSavepointTouch();
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -779,6 +832,22 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 */
 	public <T extends Serializable> void addRecordDelta(
 		int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
+		addRecordDelta(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecordDelta(int, Object[])} — see
+	 * {@link #addRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
@@ -799,12 +868,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		}
 
 		for (Object valueItem : verifyValueArray(value)) {
-			this.invertedIndex.addRecord((T) valueItem, recordId);
+			this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
 			recordWarmUpSavepointTouch();
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -821,6 +890,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 */
 	public <T extends Serializable> void removeRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		removeRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecord(int, Object)}: `sink` learns about every distinct
+	 * value this write takes out of existence.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value
+	 * @throws EvitaInvalidUsageException when the removed record is not actually registered for the attribute or
+	 *                                    when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
@@ -845,15 +931,15 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 
 		if (value instanceof final Object[] valueArray) {
 			for (Object valueItem : verifyValueArray(valueArray)) {
-				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 			}
 		} else {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) value);
+			removeRecordFromHistogramAndValueIndex(recordId, (T) value, sink);
 		}
 
 		if (!isTransactionAvailable()) {
 			recordWarmUpSavepointTouch();
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -871,6 +957,22 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
+		removeRecordDelta(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecordDelta(int, Object[])} — see
+	 * {@link #removeRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value array
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
@@ -892,12 +994,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 
 		verifyValueArray(value);
 		for (Object valueItem : value) {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 		}
 
 		if (!isTransactionAvailable()) {
 			recordWarmUpSavepointTouch();
-			this.memoizedAllRecordsFormula = null;
+			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
 		markDirty();
@@ -954,7 +1056,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * `starts` / `ends` bitmaps are still applied to the rolling active set so that records with open-ended
 	 * ranges (`from == null` / `to == null`) participate in / exit the appropriate buckets. The result is
 	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
-	 * invalidated alongside {@link #memoizedAllRecordsFormula}.
+	 * invalidated alongside {@link #memoizedAllRecords}.
 	 *
 	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
 	 *
@@ -1052,7 +1154,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
-		return getAllRecordsFormula().compute();
+		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
+		if (isTransactionAvailable() && isDirty()) {
+			return getHistogramOfAllRecords().getFormula().compute();
+		}
+		if (this.memoizedAllRecords == null) {
+			this.memoizedAllRecords = getHistogramOfAllRecords().getFormula().compute();
+		}
+		return this.memoizedAllRecords;
 	}
 
 	/**
@@ -1063,20 +1172,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
 	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
 	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
+	 *
+	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
+	 * {@link #memoizedAllRecords} for why an index must never hand out the same formula instance twice.
 	 */
 	public Formula getAllRecordsFormula() {
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && isDirty()) {
-			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
-				this.memoizedAllRecordsFormula = allRecords.isEmpty() ?
-					EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		final Bitmap allRecords = getAllRecords();
+		return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 	}
 
 	/**
@@ -1257,7 +1359,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
 	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
 	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
-	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
+	 * axes are page-stable AND the bucket axis's value-id high-water mark hasn't advanced this commit, the root is
+	 * byte-identical to disk and skipped. The leaf pages
 	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
@@ -1280,7 +1383,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
 		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
 		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
-		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		// a commit can mint value ids into an existing leaf without ever allocating or freeing a page, and the root is
+		// the only place the id high-water mark lives — so a changed mark forces the root out even when both page lists
+		// are stable, or a restart would re-mint ids the leaf pages already carry
+		final boolean bucketRootStable =
+			bucket.paged() && !bucket.listChanged() && !bucket.valueIdHighWaterChanged();
 		final boolean rangeRootStable = range.rangePaged()
 			? !range.listChanged()
 			: range.inlineRangeIndex() == null;
@@ -1293,9 +1400,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
 				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
-				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(),
+				bucket.nextValueId(), bucket.inlineValueIds(), null
 			)
 		);
+		// the root just written carries the current high-water mark, so the next commit that mints nothing leaves it be
+		this.invertedIndex.markValueIdHighWaterEmitted();
 	}
 
 	/**
@@ -1318,7 +1428,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				sink.addChangeToStore(
-					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+					new FilterIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets(), page.valueIds()
+					)
 				);
 			}
 			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
@@ -1328,7 +1440,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			}
 			return new BucketAxis(
 				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
-				emission.pageListChanged()
+				emission.pageListChanged(),
+				this.invertedIndex.getNextValueId(), null, this.invertedIndex.isValueIdHighWaterDirty()
 			);
 		}
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
@@ -1345,7 +1458,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
 		// (listChanged=true)
 		return new BucketAxis(
-			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true,
+			this.invertedIndex.getNextValueId(), this.invertedIndex.getValueIds(), true
 		);
 	}
 
@@ -1410,13 +1524,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
 	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
 	 *                         histogram always rides the root
+	 * @param nextValueId      the bucket axis's next-value-id high-water mark to persist on the root
+	 * @param inlineValueIds   the `SINGLE` part's inline value-id column, parallel to `histogramPoints`; `null` for a
+	 *                         `PAGED` part, whose value ids live in the leaf pages instead
+	 * @param valueIdHighWaterChanged whether the value-id high-water mark advanced this commit, forcing the root to
+	 *                         re-emit even when both axes are otherwise page-stable
 	 */
 	private record BucketAxis(
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		boolean paged,
 		int highWaterPageSequence,
 		@Nonnull int[] leafPageSequences,
-		boolean listChanged
+		boolean listChanged,
+		int nextValueId,
+		@Nullable int[] inlineValueIds,
+		boolean valueIdHighWaterChanged
 	) {
 	}
 
@@ -1444,7 +1566,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 
 	/**
 	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
-	 * memoized formulas have to be left INVALIDATED should the mutation be rolled back (see {@link WarmUpSavepoint}).
+	 * memoized bitmaps have to be left INVALIDATED should the mutation be rolled back (see {@link WarmUpSavepoint}).
 	 *
 	 * The forward mutators already null both memos, so the state a rollback finds them in would be correct — were it
 	 * not for reads. A query executed later within the same root entity mutation (uniqueness checks and reference
@@ -1452,7 +1574,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * rollback of the data underneath it. Re-nulling on restore is what closes that window.
 	 *
 	 * The memos are re-invalidated rather than restored to their captured pre-images on purpose: an absolute restore of
-	 * the underlying inverted index costs the memos nothing but a recomputation, whereas a captured formula would have
+	 * the underlying inverted index costs the memos nothing but a recomputation, whereas a captured bitmap would have
 	 * to be trusted to have been valid, which nothing here can establish.
 	 *
 	 * The touch is recorded once per savepoint - the whole cached state is these two slots, so a single re-invalidation
@@ -1463,7 +1585,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
 			savepoint.push(() -> {
-				this.memoizedAllRecordsFormula = null;
+				this.memoizedAllRecords = null;
 				this.memoizedRangeHistogramSubSet = null;
 			});
 		}
@@ -1563,18 +1685,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 *
 	 * @param recordId the record id to detach from the value's bucket
 	 * @param value    the raw attribute value whose association is removed
+	 * @param sink     learns when this removal takes the value out of existence, or `null` when nobody is interested
 	 * @param <T>      the attribute value type
 	 * @throws EvitaInvalidUsageException when the record is not registered for the (normalized) value — signals a
 	 *                                    mismatch between the mutation being applied and the index state
 	 */
-	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
+	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(
+		int recordId, @Nonnull T value, @Nullable ValueLifecycleSink sink
+	) {
 		// sanity check first - the record must currently be assigned to this value's bucket
 		final Serializable normalizedValue = this.normalizer.apply(value);
 		isTrue(
 			this.invertedIndex.getRecordsEqualTo(normalizedValue).contains(recordId),
 			"Sanity check - record not found!"
 		);
-		this.invertedIndex.removeRecord(value, recordId);
+		this.invertedIndex.removeRecord(value, sink, recordId);
 	}
 
 }

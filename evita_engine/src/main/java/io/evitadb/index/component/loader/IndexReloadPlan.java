@@ -23,7 +23,6 @@
 
 package io.evitadb.index.component.loader;
 
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 

@@ -1,7 +1,7 @@
 ---
 name: wal-replay-profiling
-description: Measure evitaDB write-path (commit/transaction) performance by replaying a real production catalog's Write-Ahead Log against an embedded instance via the WalReplayBenchmark JMH harness, with async-profiler (alloc/cpu) or JMH `-prof gc`. Invoke when profiling commit latency, allocation, or GC behavior on the write path, when a senesi-style production WAL export needs re-measuring, or when a profiling run produced a suspicious/empty/inconsistent result (zero-byte collapsed dump, contended-box numbers, cross-round contradiction).
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(mvn *), Bash(rtk *), Bash(java *), Bash(git *), Bash(rg *), Bash(awk *), Bash(ps *), Bash(uptime *), Bash(free *), Bash(kill *), Bash(cd *), Bash(ls *), Bash(du *), Bash(tar *), Bash(diff *), Bash(cp *), Bash(mkdir *), AskUserQuestion
+description: Measure evitaDB write-path (commit/transaction) performance by replaying a real production catalog's Write-Ahead Log against an embedded instance via the WalReplayBenchmark JMH harness, with async-profiler (alloc/cpu) or JMH `-prof gc`. Invoke when profiling commit latency, allocation, or GC behavior on the write path, when a production WAL export needs re-measuring, or when a profiling run produced a suspicious/empty/inconsistent result (zero-byte collapsed dump, contended-box numbers, cross-round contradiction).
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(mvn *), Bash(java *), Bash(git *), Bash(rg *), Bash(awk *), Bash(ps *), Bash(uptime *), Bash(free *), Bash(kill *), Bash(cd *), Bash(ls *), Bash(du *), Bash(tar *), Bash(diff *), Bash(cp *), Bash(mkdir *), AskUserQuestion
 ---
 
 # WAL-replay performance profiling
@@ -10,7 +10,7 @@ Distilled from the #760 write-path tuning rounds (2026-07-20 → 07-27; see
 `documentation/adr/2026-07-27-write-path-performance-tuning/`). The harness (`WalReplayBenchmark` +
 `WalReplayState`, package `io.evitadb.performance.walreplay`) is dataset-agnostic — it takes the
 catalog name as a system property, not baked in — so this skill applies to any future production
-export, not just the original "senesi" one.
+export, not just the original one.
 
 ## Bundled scripts
 
@@ -25,12 +25,12 @@ All three are in this skill directory and expect `ROOT=/www/oss/evita/evitaDB-de
 ## 1. Building
 
 ```shell
-rtk mvn clean install -P full -DskipTests
+mvn clean install -P full -DskipTests
 ```
 
 `-P full` is mandatory — `evita_test/evita_performance_tests` is not in the default reactor.
-`rtk` truncates long build logs and **drops the `BUILD SUCCESS` line** — confirm by exit code and
-`target/benchmarks.jar`'s timestamp, never by grepping the log.
+A full build produces a long log that a tool harness may truncate; when the tail is missing, confirm
+by exit code and `target/benchmarks.jar`'s timestamp rather than by grepping for `BUILD SUCCESS`.
 
 To rebuild only the perf module afterwards (upstream already installed): `-o -P full package -pl evita_test/evita_performance_tests -DskipTests`.
 

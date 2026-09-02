@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -96,6 +97,9 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
+		// appended last - the release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops before
+		// this point and never looks for the presence flag
+		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 	}
 
 	@Override
@@ -114,20 +118,27 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final boolean representative = input.readBoolean();
+		final Serializable defaultValue = kryo.readObjectOrNull(input, theType);
+		final int indexedDecimalPlaces = input.readVarInt(true);
+		final ConflictResolutionOverride conflictResolutionOverride =
+			kryo.readObject(input, ConflictResolutionOverride.class);
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			readScopedAcceleratorsArray(kryo, input);
 		return new CreateAttributeSchemaMutation(
 			name,
 			description,
 			deprecationNotice,
 			uniqueInScopes,
 			filterableInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized,
 			nullable,
 			representative,
 			theType,
-			kryo.readObjectOrNull(input, theType),
-			input.readVarInt(true),
-			kryo.readObject(input, ConflictResolutionOverride.class)
+			defaultValue,
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -39,6 +40,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
+
+import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
@@ -247,6 +250,77 @@ class SetAttributeSchemaFilterableMutationTest {
 			() -> {
 				mutation.mutate(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class));
 			}
+		);
+	}
+
+	@Test
+	@DisplayName("Should still allow a plainly filterable reference attribute")
+	void shouldStillAllowPlainlyFilterableReferenceAttribute() {
+		final SetAttributeSchemaFilterableMutation mutation = new SetAttributeSchemaFilterableMutation(
+			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
+		);
+		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
+		Mockito.when(referenceSchema.isIndexedInScope(Scope.LIVE)).thenReturn(true);
+		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
+			.thenReturn(of(createExistingAttributeSchema()));
+		final ReferenceSchemaContract mutated = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema
+		);
+		assertNotNull(mutated);
+		assertTrue(mutated.getAttribute(ATTRIBUTE_NAME).orElseThrow().isFilterable());
+	}
+
+	@Test
+	@DisplayName("Should carry the declared accelerators through a filterability change")
+	void shouldCarryAcceleratorsThroughFilterabilityChange() {
+		// the accelerator axis is a sibling of filterability, so rebuilding the schema here must not withdraw it -
+		// were the rebuild to drop it, an unrelated `filterableInScope(...)` call would silently delete an index
+		final AttributeSchemaContract filterable = new SetAttributeSchemaFilterableMutation(
+			ATTRIBUTE_NAME, Scope.values()
+		).mutate(null, createStringAttributeSchema(), AttributeSchemaContract.class);
+		final AttributeSchemaContract accelerated = new SetAttributeSchemaAcceleratedMutation(
+			ATTRIBUTE_NAME,
+			new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		).mutate(null, filterable, AttributeSchemaContract.class);
+
+		final AttributeSchemaContract narrowed = new SetAttributeSchemaFilterableMutation(
+			ATTRIBUTE_NAME, new Scope[]{Scope.LIVE}
+		).mutate(null, accelerated, AttributeSchemaContract.class);
+
+		assertTrue(narrowed.isFilterableInScope(Scope.LIVE));
+		assertFalse(narrowed.isFilterableInScope(Scope.ARCHIVED));
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			narrowed.getAcceleratorsInScope(Scope.LIVE)
+		);
+	}
+
+	@Test
+	@DisplayName("Should carry the accelerators through even when the scope loses its filter index")
+	void shouldCarryAcceleratorsThroughWhenScopeLosesItsFilterIndex() {
+		// the pass-through is unconditional on purpose: this mutation cannot tell an intermediate builder state from
+		// a final one, so pruning here would silently delete an accelerator whenever a chain happened to withdraw
+		// filterability before restoring it. The orphan is caught once on the assembled schema instead - see
+		// AttributeSchemaBuilderTest#shouldRefuseAcceleratorLeftInScopeWithoutFilterIndex.
+		final AttributeSchemaContract accelerated = new SetAttributeSchemaAcceleratedMutation(
+			ATTRIBUTE_NAME,
+			new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		).mutate(
+			null,
+			new SetAttributeSchemaFilterableMutation(ATTRIBUTE_NAME, new Scope[]{Scope.LIVE})
+				.mutate(null, createStringAttributeSchema(), AttributeSchemaContract.class),
+			AttributeSchemaContract.class
+		);
+
+		final AttributeSchemaContract withdrawn = new SetAttributeSchemaFilterableMutation(
+			ATTRIBUTE_NAME, Scope.NO_SCOPE
+		).mutate(null, accelerated, AttributeSchemaContract.class);
+
+		assertFalse(withdrawn.isFilterableInScope(Scope.LIVE));
+		assertEquals(
+			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+			withdrawn.getAcceleratorsInScope(Scope.LIVE),
+			"the accelerator was pruned by a mutation that was never asked to touch that axis"
 		);
 	}
 

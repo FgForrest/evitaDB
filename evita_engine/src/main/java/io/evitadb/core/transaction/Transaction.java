@@ -30,7 +30,6 @@ import io.evitadb.core.metric.event.transaction.TransactionFinishedEvent;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;

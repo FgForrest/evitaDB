@@ -36,7 +36,6 @@ import lombok.Data;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * FacetIdIndex contains information about all entity ids that use certain facet as their

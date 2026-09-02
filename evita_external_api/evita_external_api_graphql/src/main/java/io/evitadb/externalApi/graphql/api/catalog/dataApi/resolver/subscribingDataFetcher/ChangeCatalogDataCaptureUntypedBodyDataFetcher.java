@@ -42,8 +42,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
-
 /**
  * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation for untyped subscriptions.
  *
