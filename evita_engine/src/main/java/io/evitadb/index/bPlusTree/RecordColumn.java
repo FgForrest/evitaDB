@@ -66,8 +66,8 @@ import javax.annotation.Nonnull;
  * operation that refuses to read past the live run rather than answering zeroes; see there for why.
  *
  * {@link #size()} is normally the owning leaf's {@code peek + 1}, but a reader must bound itself by {@code peek} and
- * never by {@link #size()} — see {@link ValueColumn} for the three windows in which the two disagree, one of which
- * reaches a committed column.
+ * never by {@link #size()} — see {@link ValueColumn} for the two transient windows in which the two disagree, both
+ * of them inside a single leaf mutation.
  */
 sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 
@@ -91,6 +91,16 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	 * @return the materialized record count
 	 */
 	int size();
+
+	/**
+	 * Returns the live run a reader holding **no happens-before edge** to the writer may bound itself by —
+	 * {@code min(size(), physical length)} — rather than {@link #size()}. See
+	 * {@link ValueColumn#observableLiveRun()} for the whole argument; it holds here verbatim, because this family
+	 * grows exactly the way the key columns do.
+	 *
+	 * @return the live run that is safe to index without synchronization
+	 */
+	int observableLiveRun();
 
 	/**
 	 * Creates a new **empty** column of the same concrete kind and the given **logical** capacity (split / layer

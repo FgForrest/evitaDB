@@ -75,7 +75,7 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	private final int capacity;
 	/**
 	 * The number of live keys held in the two backing arrays, normally equal to the owning leaf's {@code peek + 1}
-	 * — see {@link ValueColumn} for the three windows in which it is not.
+	 * — see {@link ValueColumn} for the two transient windows in which it is not.
 	 */
 	private int size;
 	/**
@@ -126,6 +126,17 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	@Override
 	public int size() {
 		return this.size;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Bounded by the SHORTER of the two parallel arrays. They are grown together, but by two separate
+	 * reallocations, so a reader with no happens-before edge can catch the pair mid-grow.
+	 */
+	@Override
+	public int observableLiveRun() {
+		return Math.min(this.size, Math.min(this.seconds.length, this.nanos.length));
 	}
 
 	@Nonnull
@@ -183,6 +194,7 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 
 	@Override
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always fresh arrays: the contract says this column is freshly allocated, and reusing the existing backing
 		// would make this the one mutator in the family that writes into arrays it did not allocate
 		final long[] targetSeconds = newLongArray(count);

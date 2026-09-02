@@ -29,6 +29,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.TransactionalBitmap;
+
+import javax.annotation.Nonnull;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -283,6 +286,83 @@ class ColumnSizingTest {
 			assertEquals(4, ColumnSizing.trimmedLength(0, 4, BLOCK), "the floor is the smallest non-empty backing");
 			assertEquals(4, ColumnSizing.trimmedLength(1, 4, BLOCK));
 			assertEquals(3, ColumnSizing.trimmedLength(0, 3, 3), "a tiny block caps the floor at the block itself");
+			assertEquals(
+				3, ColumnSizing.trimmedLength(1, 3, 3),
+				"a live entry in a block below the floor must not be 'trimmed' UP to the floor"
+			);
+		}
+
+		@Test
+		@DisplayName("a bulk load larger than the logical capacity is refused by every column family")
+		void shouldRefuseABulkLoadLargerThanTheLogicalCapacity() {
+			// the incremental path carries this premise inside `grownLength`; a bulk load sizes its array straight
+			// to the count and never asks, so without the same premise it is the one way into the family that can
+			// build a column whose live run runs past the block it belongs to
+			final int tiny = 4;
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new IntValueColumn<Integer>(tiny).bulkLoad(new Object[]{0, 1, 2, 3, 4, 5}, 6),
+				"the int key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new LongValueColumn<Integer>(LongKeyCodec.forType(Integer.class), tiny)
+					.bulkLoad(new Object[]{0, 1, 2, 3, 4, 5}, 6),
+				"the long key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new BoxedObjectColumn<>(Integer.class, tiny).bulkLoad(new Object[]{0, 1, 2, 3, 4, 5}, 6),
+				"the boxed key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new InstantValueColumn<Instant>(tiny).bulkLoad(instants(6), 6),
+				"the temporal key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new FrontCodedStringColumn<String>(tiny, true)
+					.bulkLoad(new Object[]{"a", "b", "c", "d", "e", "f"}, 6),
+				"the front-coded key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new IntRecordColumn(tiny).bulkLoad(new long[]{1, 2, 3, 4, 5, 6}, 6),
+				"the int record column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new LongRecordColumn(tiny).bulkLoad(new long[]{1, 2, 3, 4, 5, 6}, 6),
+				"the long record column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new OverflowColumn(tiny).bulkLoad(new TransactionalBitmap[6], 6),
+				"the overflow column absorbed a load larger than its block"
+			);
+
+			// a load that exactly fills the block is still served
+			final RecordColumn records = new IntRecordColumn(tiny);
+			records.bulkLoad(new long[]{1, 2, 3, 4}, tiny);
+			assertEquals(tiny, records.size());
+			assertEquals(tiny, records.capacity());
+		}
+
+		/**
+		 * Builds an ascending run of instants for the temporal column's bulk load.
+		 *
+		 * @param count the number of instants to build
+		 * @return the instants, ascending
+		 */
+		@Nonnull
+		private Object[] instants(int count) {
+			final Object[] result = new Object[count];
+			for (int i = 0; i < count; i++) {
+				result[i] = Instant.ofEpochSecond(i);
+			}
+			return result;
 		}
 	}
 }

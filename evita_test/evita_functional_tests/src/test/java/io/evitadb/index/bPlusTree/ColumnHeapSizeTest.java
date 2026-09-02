@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -38,6 +39,7 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -171,6 +173,25 @@ class ColumnHeapSizeTest {
 		}
 
 		@Test
+		void shouldMatchMeasuredHeapForOverflowColumn() {
+			// this is the one column that owns even its empty backing array, and its constructor justifies that by
+			// the figure matching a JOL walk exactly - so the claim is measured here rather than only transitively
+			// through the leaf walk, where a divergence would report as a leaf fault instead of as this column's
+			final OverflowColumn empty = new OverflowColumn(BLOCK_SIZE);
+			assertEquals(JolHeapSize.ownedSize(empty), empty.getHeapSizeInBytes());
+
+			final TransactionalBitmap[] bitmaps = new TransactionalBitmap[POPULATED_ENTRIES];
+			final OverflowColumn column = new OverflowColumn(BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				bitmaps[i] = new TransactionalBitmap(i, i + 1);
+				column.insertAt(i, bitmaps[i]);
+			}
+			// the bitmaps are excluded from the measurement because the leaf charges them one by one; billing them
+			// here as well would count every multi-record bucket twice
+			assertEquals(JolHeapSize.ownedSize(column, (Object[]) bitmaps), column.getHeapSizeInBytes());
+		}
+
+		@Test
 		void shouldMatchMeasuredHeapForATrimmedColumn() {
 			// the commit merge's trim rebuilds the backing array at the floor of four slots; the arithmetic has to
 			// follow the shrunk allocation, not the capacity the column still reports
@@ -256,6 +277,27 @@ class ColumnHeapSizeTest {
 			// bytes - which also keeps the arithmetic and a JOL walk in agreement without a sixth shared constant
 			final ValueColumn<UUID> column = new BoxedObjectColumn<>(UUID.class, BLOCK_SIZE);
 			assertEquals(JolHeapSize.ownedSize(column, UUID.class), column.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldNotDoubleChargeAnEmptyBackingArrayAcrossADuplicate() {
+			// the boxed column charges its backing array unconditionally, because it cannot use the shared-array
+			// exclusion the primitive columns use - `asBoxedArray` has to hand out the erased component type. Its
+			// duplicate therefore has to OWN the array it is charged for, even when that array is empty
+			final ValueColumn<UUID> column = new BoxedObjectColumn<>(UUID.class, BLOCK_SIZE);
+			final ValueColumn<UUID> copy = column.duplicate();
+			assertNotSame(
+				column.asBoxedArray(), copy.asBoxedArray(),
+				"an empty duplicate must own its array, or the pair reports one array twice"
+			);
+
+			final long reported = column.getHeapSizeInBytes() + copy.getHeapSizeInBytes();
+			final long measured = JolHeapSize.ownedSize(column, UUID.class)
+				+ JolHeapSize.ownedSize(copy, UUID.class);
+			assertEquals(
+				measured, reported,
+				"the pair must report exactly the bytes a walk of both finds them owning"
+			);
 		}
 
 		@Test

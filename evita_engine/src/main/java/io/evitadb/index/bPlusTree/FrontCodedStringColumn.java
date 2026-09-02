@@ -233,7 +233,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	private final int capacity;
 	/**
 	 * The number of live entries currently encoded in {@link #data}, normally equal to the owning leaf's
-	 * {@code peek + 1} — see {@link ValueColumn} for the three windows in which it is not.
+	 * {@code peek + 1} — see {@link ValueColumn} for the two transient windows in which it is not.
 	 */
 	private int size;
 	/**
@@ -331,6 +331,25 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		return this.size;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * This column stores no slot array, so there is no length to take a minimum against — it holds a blob plus a
+	 * restart-offset table, both replaced wholesale by every re-encode. The bound it can honestly give is the one the
+	 * restart table supports: the decode of slot {@code i} indexes {@code restartOffsets[i / RESTART_INTERVAL]}, so a
+	 * count no larger than the table can address never runs off it.
+	 *
+	 * **The interface's "arrays only ever get longer" argument does not hold here**, because a removal re-encodes to
+	 * a *shorter* blob. The bound therefore narrows the window rather than closing it, and the readers that take it
+	 * are the ones already documented as advisory. Nothing cheaper closes it: a column whose whole content is
+	 * republished by every mutation cannot be read consistently without a happens-before edge, which is exactly what
+	 * these readers have chosen not to pay for.
+	 */
+	@Override
+	public int observableLiveRun() {
+		return Math.min(this.size, this.restartOffsets.length * RESTART_INTERVAL);
+	}
+
 	@Nonnull
 	@Override
 	public ValueColumn<M> allocate(int capacity) {
@@ -402,6 +421,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// one WTF-8 encode per key (unavoidable — the blob has to hold the bytes anyway), then a single encode() pass
 		// builds the whole front-coded blob at once, instead of the O(count) decode-splice-reencode-of-everything-
 		// so-far that insertKeyAt would pay on each of `count` sequential calls (O(count²) total there vs O(count) here)

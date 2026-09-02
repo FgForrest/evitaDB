@@ -222,6 +222,135 @@ class SessionRegistryWarmUpAdmissionTest {
 	}
 
 	@Test
+	@DisplayName("A registry derived from another admits into the same single-session slot")
+	void shouldRefuseASecondSessionAcrossARegistryDerivedFromTheSameOrigin() {
+		// a catalog rename hands the registry's whole state to a new instance built by `withDifferentCatalogSupplier`,
+		// and the two then serve the same catalog at once. Two registries admitting into one map would each see it
+		// empty in turn and admit a session each, which is the rule's whole failure mode
+		final SessionRegistry origin = newRegistry();
+		final SessionRegistry derived = origin.withDifferentCatalogSupplier(() -> Mockito.mock(Catalog.class));
+
+		final EvitaSession firstSession = mockSession();
+		assertNotNull(register(derived, false, firstSession));
+		assertEquals(
+			1, origin.countActiveSessions().activeSessions(),
+			"the origin must count a session the derived registry admitted!"
+		);
+
+		final ConcurrentInitializationException refusedByOrigin = assertThrows(
+			ConcurrentInitializationException.class,
+			() -> register(origin, false, mockSession()),
+			"the origin must refuse a second session the derived registry already admitted one for!"
+		);
+		assertTrue(
+			refusedByOrigin.getMessage().contains(firstSession.getId().toString()),
+			"The refusal must name the session that is already holding the catalog!"
+		);
+
+		// and the same in reverse, so the assertion above cannot pass by the derived registry simply being inert
+		origin.removeSession(firstSession);
+		final EvitaSession secondSession = mockSession();
+		assertNotNull(register(origin, false, secondSession));
+		assertThrows(
+			ConcurrentInitializationException.class,
+			() -> register(derived, false, mockSession()),
+			"the derived registry must refuse a second session the origin already admitted one for!"
+		);
+	}
+
+	@Test
+	@DisplayName("A derived registry waits on the same admission lock as the registry it came from")
+	void shouldHoldOffADerivedRegistryAdmissionWhileTheOriginHoldsTheAdmissionLock()
+		throws InterruptedException {
+		final SessionRegistry origin = newRegistry();
+		final SessionRegistry derived = origin.withDifferentCatalogSupplier(() -> Mockito.mock(Catalog.class));
+		final CountDownLatch admissionEntered = new CountDownLatch(1);
+		final CountDownLatch releaseAdmission = new CountDownLatch(1);
+		final CountDownLatch derivedAdmitted = new CountDownLatch(1);
+		final AtomicReference<Throwable> originOutcome = new AtomicReference<>();
+
+		final Thread originAdmission = new Thread(
+			() -> {
+				try {
+					origin.addSession(
+						false,
+						() -> {
+							admissionEntered.countDown();
+							awaitOrFail(releaseAdmission, "The origin admission was never released!");
+							throw new RegistrationAbandoned();
+						}
+					);
+				} catch (Throwable ex) {
+					originOutcome.set(ex);
+				}
+			},
+			"origin-admission"
+		);
+		originAdmission.setDaemon(true);
+		originAdmission.start();
+		assertTrue(
+			admissionEntered.await(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS), "The origin admission never got going!");
+
+		final Thread derivedAdmission = new Thread(
+			() -> {
+				try {
+					register(derived, false, mockSession());
+				} catch (Throwable ignored) {
+					// whichever way it ends, the point below is only whether it got that far while the lock was held
+				} finally {
+					derivedAdmitted.countDown();
+				}
+			},
+			"derived-admission"
+		);
+		derivedAdmission.setDaemon(true);
+		derivedAdmission.start();
+		try {
+			// Negative wait, and deliberately short: a loaded machine can only make the derived thread slower, so
+			// this can never fail spuriously. Were the derived registry given a lock of its own, it would find the
+			// map still empty and complete immediately instead of waiting here
+			assertFalse(
+				derivedAdmitted.await(250, TimeUnit.MILLISECONDS),
+				"A derived registry admitted a session while the origin held the admission lock - the two must " +
+					"share one lock, or neither guards the single-session rule!"
+			);
+		} finally {
+			releaseAdmission.countDown();
+		}
+
+		assertTrue(
+			derivedAdmitted.await(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+			"The derived admission never completed once the lock was given back!"
+		);
+		originAdmission.join(WAIT_TIMEOUT_MS);
+		assertInstanceOf(
+			RegistrationAbandoned.class, originOutcome.get(),
+			"The origin admission failed for some other reason than the one this test arranges!"
+		);
+	}
+
+	@Test
+	@DisplayName("A session whose version pin fails is closed rather than abandoned")
+	void shouldCloseTheSessionWhenTheVersionPinCannotBeTaken() {
+		// the pin is taken after the supplier has already built the session, and the caller never receives the
+		// session, so nothing else will ever close it - it holds an open traffic-recording session and, on an ALIVE
+		// catalog, an open transaction. The registry's own state is covered by the case above; this covers the
+		// session's
+		final SessionRegistry registry = new SessionRegistry(
+			Mockito.mock(TracingContext.class),
+			() -> {
+				throw new CatalogNotFoundException(TEST_CATALOG);
+			},
+			SessionRegistry.createDataStore()
+		);
+		final EvitaSession session = mockSession();
+
+		assertThrows(CatalogNotFoundException.class, () -> register(registry, false, session));
+		//noinspection resource
+		Mockito.verify(session).closeNow(Mockito.any());
+	}
+
+	@Test
 	@DisplayName("An ALIVE registration is not serialised by the admission lock")
 	void shouldNotSerialiseAliveRegistrationBehindWarmUpAdmission() throws InterruptedException {
 		final SessionRegistry registry = newRegistry();

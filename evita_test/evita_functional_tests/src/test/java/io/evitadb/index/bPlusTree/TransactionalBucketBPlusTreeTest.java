@@ -3673,6 +3673,142 @@ class TransactionalBucketBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("a leaf whose columns have fallen out of step with its peek is refused")
+		void shouldRefuseALeafWhoseColumnsHaveFallenOutOfStepWithItsPeek() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+
+			// outside a transaction `setPeek` takes the `layer == null` arm, and an UPWARD move raises `peek` without
+			// growing a single column - the one shape that reaches the invariant deterministically through a public
+			// method. The leaf is left corrupt because `peek` is assigned before the check runs, so this tree must
+			// not be reused after the assertions below
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> leaf.setPeek(leaf.getPeek() + 1),
+				"a leaf whose peek runs ahead of every column must never be published"
+			);
+			final String message = exception.getMessage();
+			assertTrue(message.contains("peek + 1 == 6"), "the report must name the expected run, got: " + message);
+			assertTrue(message.contains("keys=5"), "the report must name the key column, got: " + message);
+			assertTrue(message.contains("records=5"), "the report must name the record column, got: " + message);
+			assertTrue(message.contains("valueIds=n/a"), "the report must name the id column, got: " + message);
+			assertTrue(message.contains("overflow=n/a"), "the report must name the overflow column, got: " + message);
+		}
+
+		@Test
+		@DisplayName("a cursor over a leaf whose peek runs ahead of its columns walks only what is live")
+		void shouldBoundTheCursorByTheColumnLiveRunWhenALeafPeekRunsAhead() {
+			// a bulk-loaded page sizes every column EXACTLY to the page, so a read one slot past the live run really
+			// does run off the end of the backing array - which is what makes the bound below an assertion rather
+			// than a formality. This is the state a session-free management or statistics reader can observe while a
+			// warm-up bulk load is still growing a column the leaf's `peek` has already moved past
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, 3);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+
+			// the invariant refuses the move, but `peek` is already assigned by the time it does, so the leaf stays
+			// in exactly the torn shape the cursors have to survive
+			assertThrows(GenericEvitaInternalError.class, () -> leaf.setPeek(leaf.getPeek() + 1));
+			assertEquals(3, leaf.getPeek(), "the fixture must leave peek one slot ahead of the columns");
+			assertEquals(3, leaf.getKeyColumn().size(), "the columns must be the exactly-sized ones the page built");
+
+			assertEquals(3, tree.recordCount(), "the record count must stop at the column's own live run");
+			final List<Integer> forward = new ArrayList<>();
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				forward.add(cursor.value());
+			}
+			assertEquals(List.of(10, 20, 30), forward, "the forward walk must stop at the live run");
+
+			final List<Integer> reverse = new ArrayList<>();
+			final BucketCursor<Integer> reverseCursor = tree.reverseCursor();
+			while (reverseCursor.next()) {
+				reverse.add(reverseCursor.value());
+			}
+			assertEquals(List.of(30, 20, 10), reverse, "the reverse walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("a steal whose donor overflow column is short is refused rather than demoting the stolen bucket")
+		void shouldRefuseAShortDonorOverflowColumnOnASteal() {
+			// a `null` in the overflow column is not an empty slot - it IS the leaf's single/multi discriminator. A
+			// donor whose overflow column is shorter than the range its key column donates would hand the receiver
+			// every multi bucket in the shortfall marked single, keeping one record out of each bucket's whole set.
+			// The key column cannot catch it: the two are driven with the same range, the key column is copied first,
+			// and it is intact - so the overflow column has to answer for itself
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, 4, 3, 1, Integer.class, null
+			);
+			for (int i = 0; i < 12; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertTrue(leaves.size() >= 2, "the fixture needs two sibling leaves");
+			final BPlusLeafTreeNode<Integer> donor = leaves.get(0);
+			final BPlusLeafTreeNode<Integer> receiver = leaves.get(1);
+			assertTrue(
+				receiver.size() < receiver.capacity(),
+				"the receiver must have room for the bucket it steals"
+			);
+
+			// promote the donor's LAST bucket - the one a steal-from-left takes - to a multi one, which is also what
+			// allocates the donor's overflow column in the first place
+			tree.addRecord(donor.keyAt(donor.size() - 1), 9_000);
+			final OverflowColumn donorOverflow = donor.getOverflow();
+			assertNotNull(donorOverflow, "promoting a bucket must have given the donor an overflow column");
+			assertEquals(donor.size(), donorOverflow.size(), "the fixture starts from an aligned donor");
+
+			// one slot short of the range the donor's key column is about to donate
+			donorOverflow.fillEmpty(donorOverflow.size() - 1, donorOverflow.size());
+
+			// the steal is abandoned part-way, which leaves this tree unusable - that is what an internal error
+			// means, and nothing below reads the tree again
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class, () -> receiver.stealFromLeft(1, donor),
+				"a donor that cannot answer for the bucket it donates must not be stolen from"
+			);
+			assertTrue(
+				exception.getMessage().contains("Overflow column source range"),
+				"the overflow column must be the one that refuses, got: " + exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("creating a layer over a misaligned leaf is refused before the committed column is touched")
+		void shouldRefuseToCreateALayerOverAMisalignedLeaf() {
+			// `createLayer()` passes the leaf's own columns as BOTH origin and target of the split-copy constructor,
+			// so the copy and the size-authoritative fill behind it rewrite the committed leaf in place. They are
+			// inert only while every column's live run is exactly `peek + 1`, which is why the leaf has to be
+			// refused before the first of them runs rather than after the last
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = leaf.getKeyColumn();
+
+			// one key appended straight onto the committed column, past the run the leaf's peek covers
+			committedKeys.insertKeyAt(committedKeys.size(), 99);
+			assertEquals(6, committedKeys.size(), "the fixture must leave the key column one slot longer than peek");
+			assertEquals(4, leaf.getPeek());
+
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class, leaf::createLayer,
+				"a layer must never be created over a leaf whose columns disagree with its peek"
+			);
+			final String message = exception.getMessage();
+			assertTrue(message.contains("peek + 1 == 5"), "the report must name the expected run, got: " + message);
+			assertTrue(message.contains("keys=6"), "the report must name the key column, got: " + message);
+			assertEquals(
+				6, committedKeys.size(),
+				"a refused layer must leave the committed key column exactly as it found it"
+			);
+		}
+
+		@Test
 		@DisplayName("a savepoint that is committed keeps the growth it caused")
 		@Tag(TRANSACTION)
 		void shouldKeepTheGrowthWhenASavepointIsCommitted() {
@@ -3694,6 +3830,314 @@ class TransactionalBucketBPlusTreeTest {
 				t -> {
 					for (int i = 0; i < 5; i++) {
 						t.addRecord(20 + i, 200 + i);
+					}
+				}
+			);
+		}
+	}
+
+	/**
+	 * Pins the internal-node half of the content-sized storage design. An internal node now allocates four key slots
+	 * and four child slots instead of a whole block, sizes a split product to the half it copied, grows on demand and
+	 * gives the slack back at the commit merge — the same rule the leaf columns follow.
+	 *
+	 * The dangerous half is `isFull()`. It asks whether `peek` has reached the **block size**, and the moment it goes
+	 * back to asking whether `peek` has reached `children.length - 1` a four-slot node reports itself full holding
+	 * three children and splits a node that holds two. That is the exact mirror of the silent failure the leaf's own
+	 * content-sizing tests guard, so the cases below always assert the node's content alongside its shape.
+	 */
+	@Nested
+	@DisplayName("Content-sized internal nodes behind a logical block size")
+	@Tag(INDEXING)
+	class ContentSizedInternalNodes {
+
+		/**
+		 * Leaf and internal block size of the fixtures that must not split an internal node. The tree refuses an
+		 * internal block above the leaf block and refuses an even one, and derives nothing here — both are given
+		 * explicitly so the numbers below read as the ones the node actually holds.
+		 */
+		private static final int WIDE_BLOCK = 127;
+
+		/**
+		 * Collects every internal node of the tree in pre-order.
+		 *
+		 * @param tree the tree to walk
+		 * @return the internal nodes, root first
+		 */
+		@Nonnull
+		private static List<BPlusInternalTreeNode<Integer>> internalNodesOf(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree
+		) {
+			final List<BPlusInternalTreeNode<Integer>> nodes = new ArrayList<>();
+			collectInternalNodes(tree.getRoot(), nodes);
+			return nodes;
+		}
+
+		/**
+		 * Recursively adds `node` and its internal descendants to `out`.
+		 *
+		 * @param node the subtree root
+		 * @param out  the accumulator
+		 */
+		private static void collectInternalNodes(
+			@Nonnull BPlusTreeNode<Integer, ?> node, @Nonnull List<BPlusInternalTreeNode<Integer>> out
+		) {
+			if (node instanceof BPlusInternalTreeNode<?> internal) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
+					(BPlusInternalTreeNode<Integer>) internal;
+				out.add(internalNode);
+				final BPlusTreeNode<Integer, ?>[] children = internalNode.getChildren();
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					collectInternalNodes(children[i], out);
+				}
+			}
+		}
+
+		/**
+		 * Returns the ascending key array `0 .. count - 1`, the content every fixture below inserts.
+		 *
+		 * @param count how many keys the tree holds
+		 * @return the expected sorted key array
+		 */
+		@Nonnull
+		private static int[] ascendingKeys(int count) {
+			final int[] keys = new int[count];
+			for (int i = 0; i < count; i++) {
+				keys[i] = i;
+			}
+			return keys;
+		}
+
+		@Test
+		@DisplayName("an internal node whose arrays are full but whose block is not does not split")
+		void shouldNotSplitAnInternalNodeWhoseArraysAreShorterThanTheBlockSize() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			// insert until the root's child array is exactly filled - the one occupancy at which reading fullness off
+			// the array length rather than off the block size would answer "full" and split a node holding four
+			// children out of a hundred and twenty-eight
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never filled the root's child array");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 == candidate.getChildren().length) {
+						root = candidate;
+					}
+				}
+			}
+
+			assertTrue(
+				root.getChildren().length < WIDE_BLOCK + 1,
+				"the fixture must reach a full array well below the block size, was " + root.getChildren().length
+			);
+			assertFalse(
+				root.isFull(),
+				"a node whose ARRAY is full but whose BLOCK is not must never report itself full - it holds "
+					+ (root.getPeek() + 1) + " of " + (WIDE_BLOCK + 1) + " children"
+			);
+			assertEquals(root.getPeek(), root.keyCount(), "the separator count is one below the child count");
+			assertTrue(
+				root.getKeys().length >= root.keyCount(),
+				"the key array must cover every separator the node holds"
+			);
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("a root born from the first split allocates the floor, not the block")
+		void shouldAllocateAFreshRootAtTheFloorRatherThanTheBlockSize() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			int inserted = 0;
+			while (tree.getRoot() instanceof BPlusLeafTreeNode<?>) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never split the root leaf");
+			}
+
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> root =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			assertEquals(1, root.getPeek(), "a root born from one split separates exactly two children");
+			assertEquals(1, root.keyCount());
+			assertEquals(4, root.getChildren().length, "a two-child root allocates the four-slot floor");
+			assertEquals(4, root.getKeys().length, "and its separator array follows the same floor");
+			assertFalse(root.isFull());
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("an internal node grows on demand and keeps every child across the growth")
+		void shouldGrowAnInternalNodeOnDemandAndKeepEveryChild() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never drove the root past the four-slot floor");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 > ColumnSizing.MIN_PHYSICAL_LENGTH) {
+						root = candidate;
+					}
+				}
+			}
+
+			assertTrue(
+				root.getChildren().length > ColumnSizing.MIN_PHYSICAL_LENGTH,
+				"the child array must have grown past the floor, was " + root.getChildren().length
+			);
+			assertTrue(
+				root.getChildren().length <= WIDE_BLOCK + 1, "growth must never overshoot the logical block size");
+			assertEquals(root.getPeek(), root.keyCount());
+			assertTrue(root.getKeys().length >= root.keyCount());
+			for (int i = 0; i <= root.getPeek(); i++) {
+				assertNotNull(root.getChildren()[i], "a grown node must not lose the child at slot " + i);
+			}
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("both halves of an internal split are sized to the half they copied")
+		void shouldSizeASplitInternalNodeToTheHalfItCopied() {
+			// a nine-key internal block splits after ten children, which a handful of leaves reaches - and the origin
+			// is at the block size by then, so the halves being shorter is a real comparison rather than a tautology
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(9, 4, 9, 4, Integer.class, null);
+
+			int inserted = 0;
+			BPlusTreeNode<Integer, ?> previousRoot = tree.getRoot();
+			BPlusInternalTreeNode<Integer> splitOrigin = null;
+			while (splitOrigin == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never split an internal node");
+				final BPlusTreeNode<Integer, ?> currentRoot = tree.getRoot();
+				if (currentRoot != previousRoot && previousRoot instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> origin =
+						(BPlusInternalTreeNode<Integer>) internal;
+					splitOrigin = origin;
+				}
+				previousRoot = currentRoot;
+			}
+
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> newRoot =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			assertEquals(1, newRoot.getPeek(), "the root the split installed separates the two halves");
+
+			for (int half = 0; half <= 1; half++) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> product =
+					(BPlusInternalTreeNode<Integer>) newRoot.getChildren()[half];
+				assertEquals(
+					product.getPeek() + 1, product.getChildren().length,
+					"half " + half + " must be sized exactly to the children it copied"
+				);
+				assertTrue(
+					product.getChildren().length < splitOrigin.getChildren().length,
+					"half " + half + " must not inherit the origin's full-block child array"
+				);
+				assertTrue(
+					product.getKeys().length < splitOrigin.getKeys().length,
+					"half " + half + " must not inherit the origin's full-block separator array"
+				);
+				assertFalse(product.isFull(), "a half-full split product must not report itself full");
+			}
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("the commit merge gives back the slack of an internal node that has drained")
+		@Tag(TRANSACTION)
+		void shouldTrimADrainedInternalNodeWhenTheCommitMergeRebuildsIt() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(31, 15, 31, 15, Integer.class, null);
+
+			// grow the root well past the four-slot floor so a drained node has real slack to give back
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never grew the root to eighteen children");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 >= 18) {
+						root = candidate;
+					}
+				}
+			}
+			final int grownChildren = root.getChildren().length;
+			final int grownKeys = root.getKeys().length;
+			final int survivors = 32;
+			final int total = inserted;
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					for (int i = survivors; i < total; i++) {
+						t.removeRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> {
+					assertInstanceOf(
+						BPlusInternalTreeNode.class, committed.getRoot(),
+						"thirty-two values cannot fit one thirty-one-bucket leaf, so the spine must survive the drain"
+					);
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> committedRoot =
+						(BPlusInternalTreeNode<Integer>) committed.getRoot();
+					assertTrue(
+						committedRoot.getChildren().length < grownChildren,
+						"the commit merge must give the drained node's child slack back - was "
+							+ committedRoot.getChildren().length + ", grown to " + grownChildren
+					);
+					assertTrue(
+						committedRoot.getKeys().length < grownKeys,
+						"and its separator slack with it - was " + committedRoot.getKeys().length
+							+ ", grown to " + grownKeys
+					);
+					assertTrue(
+						committedRoot.getChildren().length >= committedRoot.getPeek() + 1,
+						"a trim must never cut into the children the node still holds"
+					);
+					assertEquals(committedRoot.getPeek(), committedRoot.keyCount());
+					verifyTreeConsistency(committed, ascendingKeys(survivors));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a commit that changes nothing keeps every internal node by identity")
+		@Tag(TRANSACTION)
+		void shouldKeepEveryInternalNodeByIdentityWhenACommitChangesNothing() {
+			final TreeTuple prepared = prepareRandomTree(4_711L, 300);
+			final List<BPlusInternalTreeNode<Integer>> before = internalNodesOf(prepared.tree());
+			assertFalse(before.isEmpty(), "the fixture must build a multi-level spine");
+
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// deliberately no mutation: the trim at the commit merge must be reached only where a new
+					// committed node is being built anyway, never on the untouched fast path
+				},
+				(original, committed) -> {
+					final List<BPlusInternalTreeNode<Integer>> after = internalNodesOf(committed);
+					assertEquals(before.size(), after.size());
+					for (int i = 0; i < before.size(); i++) {
+						assertSame(
+							before.get(i), after.get(i),
+							"a no-op commit must not rebuild - and therefore must not trim - internal node " + i
+						);
 					}
 				}
 			);

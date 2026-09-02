@@ -67,7 +67,7 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	private final int capacity;
 	/**
 	 * The number of live keys held in {@link #keys}, normally equal to the owning leaf's {@code peek + 1} — see
-	 * {@link ValueColumn} for the three windows in which it is not.
+	 * {@link ValueColumn} for the two transient windows in which it is not.
 	 */
 	private int size;
 	/**
@@ -113,6 +113,11 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	@Override
 	public int size() {
 		return this.size;
+	}
+
+	@Override
+	public int observableLiveRun() {
+		return Math.min(this.size, this.keys.length);
 	}
 
 	@Nonnull
@@ -162,6 +167,7 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	@Override
 	@SuppressWarnings("unchecked")
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always a fresh array: the contract says this column is freshly allocated, and reusing the existing backing
 		// would make this the one mutator in the family that writes into an array it did not allocate
 		final long[] target = newArray(count);

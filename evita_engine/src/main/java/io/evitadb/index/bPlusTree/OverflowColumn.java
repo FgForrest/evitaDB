@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
@@ -158,6 +159,17 @@ final class OverflowColumn {
 	}
 
 	/**
+	 * Returns the live run a reader holding **no happens-before edge** to the writer may bound itself by:
+	 * {@code min(size(), backing array length)}. See {@link ValueColumn#observableLiveRun()} for the whole argument —
+	 * it holds here verbatim, because this column grows exactly the way the key and record columns do.
+	 *
+	 * @return the live run that is safe to index without synchronization
+	 */
+	int observableLiveRun() {
+		return Math.min(this.size, this.bitmaps.length);
+	}
+
+	/**
 	 * Returns a column holding the same bitmap references with its physical backing shrunk to the live content, or
 	 * {@code this} when the slack does not justify the copy. See {@link ValueColumn#trimmed()} for why it belongs at
 	 * the commit merge and nowhere else.
@@ -265,6 +277,7 @@ final class OverflowColumn {
 	 * @param count   the number of live slots ({@code <= capacity()})
 	 */
 	void bulkLoad(@Nonnull TransactionalBitmap[] bitmaps, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always a fresh array: the contract says this column is freshly created, and reusing the existing backing
 		// would make this the one mutator in the family that writes into an array it did not allocate
 		final TransactionalBitmap[] target = new TransactionalBitmap[count];
@@ -333,13 +346,22 @@ final class OverflowColumn {
 	 * the vacated range still aliases the shifted-from bitmaps, and leaving one aliased at two slots would have the
 	 * transactional merge sweep commit and discard the same bitmap twice.
 	 *
-	 * @param dstPos the first slot to null
+	 * **The range must start at or before the live end** ({@code dstPos <= size()}), so it either overwrites live
+	 * slots or extends the run contiguously. Every rebalancing shape satisfies that: the receiver's column is created
+	 * covering the buckets it already holds, and the donated range begins exactly where those end. A start past the
+	 * live end is refused rather than absorbed, because absorbing it would raise {@link #size()} over a gap of slots
+	 * no caller ever materialized — the leaf would report more buckets than its key column holds.
+	 *
+	 * @param dstPos the first slot to null; must not exceed {@link #size()}
 	 * @param length the number of slots to null
 	 */
 	void fillNulls(int dstPos, int length) {
+		if (dstPos > this.size) {
+			throwFillRangeNotContiguous(dstPos, length);
+		}
 		final int required = dstPos + length;
 		ensurePhysicalLength(required);
-		Arrays.fill(this.bitmaps, Math.min(dstPos, this.size), required, null);
+		Arrays.fill(this.bitmaps, dstPos, required, null);
 		this.size = Math.max(this.size, required);
 	}
 
@@ -353,8 +375,12 @@ final class OverflowColumn {
 	 * steal-from-left performs ({@code dst == this}) becomes a copy into a larger array rather than an overlapping
 	 * move.
 	 *
-	 * A source range reaching past {@code this.size()} copies `null`s, exactly as reading those slots one by one
-	 * would answer.
+	 * **A source range reaching past {@code this.size()} is refused**, exactly as {@link ValueColumn#copyRangeTo} and
+	 * {@link RecordColumn#copyRangeTo} refuse it. On this column absorbing the shortfall would be worse than on
+	 * either of those: a `null` here is not an empty slot, it **is** the leaf's single/multi discriminator, so every
+	 * multi bucket in the shortfall would arrive at the receiver marked single and keep one record out of its whole
+	 * set. A donor whose overflow column is shorter than the range its key column donates is a caller bug, and the
+	 * only way to keep it from silently dropping records is to report it.
 	 *
 	 * @param srcPos the start slot in this column
 	 * @param dst    the destination column
@@ -362,22 +388,59 @@ final class OverflowColumn {
 	 * @param length the number of slots to copy
 	 */
 	void copyRangeTo(int srcPos, @Nonnull OverflowColumn dst, int dstPos, int length) {
+		assertSourceRangeIsLive(srcPos, length);
 		final int oldSize = dst.size;
 		final int required = dstPos + length;
-		final int live = Math.min(length, Math.max(0, this.size - srcPos));
 		dst.ensurePhysicalLength(required);
 		if (dstPos > oldSize) {
 			// a right shift opens a hole between the destination's old live end and dstPos; it must read as null
 			Arrays.fill(dst.bitmaps, oldSize, dstPos, null);
 		}
-		if (live > 0) {
-			System.arraycopy(this.bitmaps, srcPos, dst.bitmaps, dstPos, live);
-		}
-		if (live < length) {
-			// the source range reaches past its own live run - those slots are null and copy as null
-			Arrays.fill(dst.bitmaps, dstPos + live, required, null);
-		}
+		System.arraycopy(this.bitmaps, srcPos, dst.bitmaps, dstPos, length);
 		dst.size = Math.max(oldSize, required);
+	}
+
+	/**
+	 * Refuses a source range that reaches past this column's live run, the way the key and record column families
+	 * refuse theirs. See {@link #copyRangeTo} for why absorbing it costs records rather than merely slots.
+	 *
+	 * @param srcPos the start slot the caller is reading from
+	 * @param length the number of slots the caller is reading
+	 */
+	private void assertSourceRangeIsLive(int srcPos, int length) {
+		if (srcPos < 0 || srcPos + length > this.size) {
+			throwSourceRangeNotLive(srcPos, length);
+		}
+	}
+
+	/**
+	 * Builds and throws the out-of-range report. Kept out of {@link #assertSourceRangeIsLive} so the check itself is
+	 * a pair of integer compares that allocates nothing: it runs on every range copy, and `createLayer()` performs
+	 * one per column on the first transactional touch of every leaf, so a message supplier here would allocate
+	 * thousands of objects per commit for a check that never fails.
+	 *
+	 * @param srcPos the start slot the caller was reading from
+	 * @param length the number of slots the caller was reading
+	 */
+	private void throwSourceRangeNotLive(int srcPos, int length) {
+		throw new GenericEvitaInternalError(
+			"Overflow column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ") — the shortfall would demote every multi bucket in it to a single one."
+		);
+	}
+
+	/**
+	 * Builds and throws the non-contiguous fill report. Kept out of {@link #fillNulls} for the same reason
+	 * {@link #throwSourceRangeNotLive} is kept out of {@link #assertSourceRangeIsLive}.
+	 *
+	 * @param dstPos the start slot the caller was filling from
+	 * @param length the number of slots the caller was filling
+	 */
+	private void throwFillRangeNotContiguous(int dstPos, int length) {
+		throw new GenericEvitaInternalError(
+			"Overflow column fill range [" + dstPos + ", " + (dstPos + length) + ") starts past its live run ("
+				+ this.size + ") — the slots in between would be counted live without ever being materialized."
+		);
 	}
 
 	/**

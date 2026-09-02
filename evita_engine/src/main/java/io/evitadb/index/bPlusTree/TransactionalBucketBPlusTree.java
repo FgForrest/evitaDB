@@ -90,8 +90,9 @@ import static io.evitadb.utils.ArrayUtils.*;
  * **Each column's backing storage is sized to what the leaf actually holds, not to `valueBlockSize`.** The capacity
  * above is a logical number every column stores and answers from; the array behind it starts at four slots and doubles
  * up to that capacity, and is trimmed back when the commit merge builds a new committed leaf. The invariant that ties
- * the four together — every column's live run equals `peek + 1` — is asserted at each leaf mutation's exit; see
- * `BPlusLeafTreeNode.assertColumnsAlignedWithPeek`.
+ * the four together — every column's live run equals `peek + 1` — is asserted at every **structural** mutation's
+ * exit, but deliberately not on the per-insert path; see `BPlusLeafTreeNode.assertColumnsAlignedWithPeek` for
+ * exactly which paths that is and why the per-insert exclusion is safe.
  *
  * The single/multi discriminator is **always** the presence of an overflow bitmap at the slot, **never** the sign or
  * value of `records[i]`. Externally-assigned primary keys may be any 32-bit int (including `-1` and
@@ -2291,6 +2292,69 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * Computes the last slot index a cursor may read on a leaf it has just loaded: the leaf's own `peek`, lowered to
+	 * whatever every one of its columns can actually serve.
+	 *
+	 * **This is a concurrency bound, not a consistency check.** `peek + 1` really is each column's live run at every
+	 * point a leaf is published — `BPlusLeafTreeNode.assertColumnsAlignedWithPeek` refuses anything else on every
+	 * structural path. What this guards is the one reader that shares no lock, no volatile and no transaction with
+	 * the writer: the management and statistics API walks leaves on a request thread, with no session and no
+	 * catalog-state guard, while a warm-up load grows the very columns it is walking. That reader can observe a
+	 * column's raised live count against the column's older, shorter backing array, so it must bound itself by
+	 * {@code observableLiveRun()} rather than by `size()` — see {@link ValueColumn#observableLiveRun()} for why one
+	 * reading of that bound stays valid for the whole walk.
+	 *
+	 * Every column is asked, not just the key column: the four are grown by four independent reallocations, so a
+	 * torn reader can catch any one of them behind the others. The cost is one call per column per **leaf**, never
+	 * per key — the cursors keep the answer in a field.
+	 *
+	 * A walk bounded this way under-reports by whatever the writer had not finished, which is exactly the staleness
+	 * the fixed-length columns produced and exactly what these callers are documented to accept. It does not mask a
+	 * genuine misalignment: that is a published state the structural asserts refuse outright.
+	 *
+	 * ## CALIBRATION - read this before simplifying the bound back to the key column and `size()`
+	 *
+	 * The concurrent sweep is `LongRunningBucketBPlusTreeConcurrentReadTest` in
+	 * `evita_test/evita_long_running_tests`, run with:
+	 * <pre>
+	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+	 *     -Dtest=LongRunningBucketBPlusTreeConcurrentReadTest -Dsurefire.failIfNoSpecifiedTests=false
+	 * </pre>
+	 * **That sweep cannot prove this bound necessary, and never will on x86.** With the bound reverted to
+	 * {@code Math.min(peek, keys.size() - 1)}, 500 000 rounds passed on OpenJDK 17 and 21 alike, because x86's
+	 * total store order forbids the reordering the bound guards. The reordering is permitted by the Java memory
+	 * model regardless and is reachable in silicon on AArch64, which evitaDB is also built for - so a green
+	 * counterfactual on an x86 box is evidence about the box, not about this code. The deterministic half is
+	 * pinned in the fast loop by `ColumnSizingTest` / `OverflowColumnTest` (an aligned column must observe its
+	 * whole live run) and by
+	 * `TransactionalBucketBPlusTreeTest#shouldBoundTheCursorByTheColumnLiveRunWhenALeafPeekRunsAhead`.
+	 *
+	 * @param peek     the leaf's own last-occupied slot index
+	 * @param keys     the leaf's key column
+	 * @param records  the leaf's single-record column
+	 * @param overflow the leaf's lazy multi-record column, or `null` when it holds no multi bucket
+	 * @param valueIds the leaf's parallel value id column, or `null` when the tree carries no ids
+	 * @return the last slot index the cursor may read, `-1` when it may read nothing
+	 */
+	private static <M extends Comparable<M>> int observableLeafPeek(
+		int peek,
+		@Nonnull ValueColumn<M> keys,
+		@Nonnull RecordColumn records,
+		@Nullable OverflowColumn overflow,
+		@Nullable RecordColumn valueIds
+	) {
+		int bound = Math.min(peek, keys.observableLiveRun() - 1);
+		bound = Math.min(bound, records.observableLiveRun() - 1);
+		if (overflow != null) {
+			bound = Math.min(bound, overflow.observableLiveRun() - 1);
+		}
+		if (valueIds != null) {
+			bound = Math.min(bound, valueIds.observableLiveRun() - 1);
+		}
+		return bound;
+	}
+
+	/**
 	 * A {@link BucketCursor} restricted to one leaf node, reading its columns directly (the same getters
 	 * {@link ForwardBucketCursor} reads). Used by the granular write path to materialize one leaf page at a time
 	 * without walking the whole tree.
@@ -2312,11 +2376,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = leaf.getRecords();
 			this.overflow = leaf.getOverflow();
 			this.valueIds = leaf.getValueIds();
-			// bounded by the key column's own live run, never by `peek` alone: the management / statistics API walks
-			// leaves with no session and no catalog-state guard, so it can observe a `peek` that has already run
-			// ahead of a column a warm-up bulk load is still growing. Bounding here turns that into a stale count -
-			// the failure mode the fixed-length columns had - instead of an ArrayIndexOutOfBoundsException
-			this.peek = Math.min(leaf.getPeek(), this.keys.size() - 1);
+			this.peek = observableLeafPeek(leaf.getPeek(), this.keys, this.records, this.overflow, this.valueIds);
 			this.leafId = leaf.getId();
 		}
 
@@ -4986,6 +5046,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = records;
 			this.overflow = overflow;
 			this.valueIds = valueIds;
+			assertSelfCopySourceIsAligned(
+				end - start,
+				originKeys, originRecords, originOverflow, originValueIds,
+				keys, records, overflow, valueIds
+			);
 			originKeys.copyRangeTo(start, keys, 0, end - start);
 			if (keys == originKeys) {
 				keys.fillEmpty(end - start, keys.capacity());
@@ -5305,9 +5370,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * resolves it. Used only to describe the failure state when the lazy-cursor guard is found to have
 		 * mispredicted a split.
 		 *
-		 * This is the **logical** capacity, the block size the tree was configured with, and it holds whatever the
-		 * columns' backing arrays currently measure, because every column stores that number rather than deriving it
-		 * from its array. See {@link #isNearlyFull()} for what breaks if the two are ever confused.
+		 * This is the **logical** capacity, the block size the tree was configured with — never what the columns'
+		 * backing arrays currently measure, because every column stores that number rather than deriving it from its
+		 * array. See {@link #isNearlyFull()} for what breaks if the two are ever confused.
 		 *
 		 * @return the number of buckets this leaf can hold
 		 */
@@ -6709,16 +6774,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// release the discarded multi bucket's bitmap layer (no-op for a single bucket / null entry)
 				discardRemovedValueLayer(this.overflow.bitmapAt(index));
 				this.overflow.removeAt(index);
-				this.overflow.clearAt(this.peek);
 			}
 			this.keys.removeKeyAt(index);
 			this.records.removeAt(index);
-			this.keys.clearAt(this.peek);
-			this.records.clearAt(this.peek);
 			if (this.valueIds != null) {
 				// the dead value's id is NOT given back — ids are monotonic with holes, so the slot simply collapses
 				this.valueIds.removeAt(index);
-				this.valueIds.clearAt(this.peek);
 			}
 			this.peek--;
 		}
@@ -6779,6 +6840,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * and the copy reallocates a committed array and raises its live run through two unordered stores, on an
 		 * object a query thread may be reading.
 		 *
+		 * **That one call site does not rely on this check to notice**, because by the time this runs the copy and
+		 * the fill have already happened. {@link #assertSelfCopySourceIsAligned} refuses a misaligned source before
+		 * the constructor touches the first column, which is the only point at which refusing still leaves the
+		 * committed column exactly as it was found. This check is the general one, at every other structural exit.
+		 *
 		 * **Two windows inside a single mutation legitimately violate it.** Both `insertNewSingleBucket` and
 		 * `insertNewBucket` grow the columns before `peek++`, so between the first column write and the increment the
 		 * columns report `peek + 2`; `deleteBucketAt` shrinks the columns before `peek--`, so its `clearAt(peek)`
@@ -6786,9 +6852,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * ## Why the per-insert exits are deliberately unchecked
 		 *
-		 * This runs on the **structural** paths only — both arms of `setPeek`, the four rebalancing methods, the two
-		 * leaf constructors and `restore` — and never at the exits of `insertNewSingleBucket`, `insertNewBucket` or
-		 * `deleteBucketAt`, which are per-insert rather than per-leaf.
+		 * This runs on the **structural** paths only — both arms of `setPeek`, the four rebalancing methods, the
+		 * split-copy and adopt-pre-built leaf constructors, and `restore` — and never at the exits of
+		 * `insertNewSingleBucket`, `insertNewBucket` or `deleteBucketAt`, which are per-insert rather than per-leaf.
 		 *
 		 * The check itself allocates nothing, but it reads `keys.size()` through {@link ValueColumn}, a sealed
 		 * interface with five implementations, i.e. a **megamorphic** virtual call — and
@@ -6801,8 +6867,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * `BucketBPlusTreeValueIdTest` and the bucket tree's own suites instead, and the failure mode the invariant
 		 * really guards — a committed column reallocated by a self-copy — is reached through the structural paths.
 		 *
-		 * The gate that would let this be reconsidered is `BPlusTreeCursorAllocationBenchmark`'s insert arms, which
-		 * is Stage 3 of this line of work.
+		 * The gate that would let this be reconsidered is `BPlusTreeCursorAllocationBenchmark`'s insert arms.
 		 *
 		 * Called on `this` for a leaf mutated directly and on the transactional layer for one mutated through a layer;
 		 * the layer is another instance of this same class and carries the same invariant against its own `peek`.
@@ -6825,12 +6890,82 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private void throwColumnMisalignment(int expected) {
 			throw new GenericEvitaInternalError(
-				"Leaf column misalignment: peek + 1 == " + expected + " but the columns report keys="
-					+ this.keys.size() + ", records=" + this.records.size()
-					+ ", valueIds=" + (this.valueIds == null ? "n/a" : this.valueIds.size())
-					+ ", overflow=" + (this.overflow == null ? "n/a" : this.overflow.size())
-					+ ". Every column of a leaf must cover exactly the buckets the leaf holds."
+				columnMisalignmentMessage(expected, this.keys, this.records, this.valueIds, this.overflow)
 			);
+		}
+
+		/**
+		 * Refuses a self-copy whose source columns do not already cover exactly the range being copied.
+		 *
+		 * The split-copy constructor is reached in two shapes. A genuine split hands it fresh target columns, where
+		 * the copies cannot touch anything a reader holds and this check finds nothing to look at. `createLayer()`
+		 * hands it the leaf's **own** columns as both origin and target, where `copyRangeTo` reassigns a committed
+		 * column's live run to itself and the `fillEmpty` behind it truncates that same column — both inert while
+		 * each column's run is exactly `peek + 1`, and both destructive the moment it is not.
+		 *
+		 * That is why this runs **before** the first copy rather than after the last. Left to the trailing
+		 * {@link #assertColumnsAlignedWithPeek()}, a committed column reporting too long a run would already have
+		 * been truncated by the fill, and a column reporting too short a run would already have been reallocated and
+		 * republished through two unordered stores on an object a query thread may be reading — after which the
+		 * trailing check finds the leaf tidy and says nothing at all.
+		 *
+		 * Only columns the caller actually aliased are examined, so the genuine split pays four reference compares.
+		 *
+		 * @param expected         the live run every aliased origin column must report (the copied range's length)
+		 * @param originKeys       the source key column
+		 * @param originRecords    the source single-record column
+		 * @param originOverflow   the source lazy multi-record column, or `null`
+		 * @param originValueIds   the source value id column, or `null`
+		 * @param keys             the target key column
+		 * @param records          the target single-record column
+		 * @param overflow         the target lazy multi-record column, or `null`
+		 * @param valueIds         the target value id column, or `null`
+		 */
+		private static void assertSelfCopySourceIsAligned(
+			int expected,
+			@Nonnull ValueColumn<?> originKeys,
+			@Nonnull RecordColumn originRecords,
+			@Nullable OverflowColumn originOverflow,
+			@Nullable RecordColumn originValueIds,
+			@Nonnull ValueColumn<?> keys,
+			@Nonnull RecordColumn records,
+			@Nullable OverflowColumn overflow,
+			@Nullable RecordColumn valueIds
+		) {
+			if ((keys == originKeys && originKeys.size() != expected)
+				|| (records == originRecords && originRecords.size() != expected)
+				|| (valueIds != null && valueIds == originValueIds && originValueIds.size() != expected)
+				|| (overflow != null && overflow == originOverflow && originOverflow.size() != expected)) {
+				throw new GenericEvitaInternalError(
+					columnMisalignmentMessage(expected, originKeys, originRecords, originValueIds, originOverflow)
+				);
+			}
+		}
+
+		/**
+		 * Builds the misalignment report shared by {@link #throwColumnMisalignment(int)} and
+		 * {@link #assertSelfCopySourceIsAligned}, so the two say the same thing about the same failure.
+		 *
+		 * @param expected the live run every column should have reported
+		 * @param keys     the key column to report on
+		 * @param records  the single-record column to report on
+		 * @param valueIds the value id column to report on, or `null`
+		 * @param overflow the lazy multi-record column to report on, or `null`
+		 * @return the report text
+		 */
+		@Nonnull
+		private static String columnMisalignmentMessage(
+			int expected,
+			@Nonnull ValueColumn<?> keys,
+			@Nonnull RecordColumn records,
+			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn overflow
+		) {
+			return "Leaf column misalignment: peek + 1 == " + expected + " but the columns report keys="
+				+ keys.size() + ", records=" + records.size()
+				+ ", valueIds=" + (valueIds == null ? "n/a" : valueIds.size())
+				+ ", overflow=" + (overflow == null ? "n/a" : overflow.size())
+				+ ". Every column of a leaf must cover exactly the buckets the leaf holds.";
 		}
 
 		/**
@@ -7026,12 +7161,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafValueIds = leaf.getValueIds();
-			// bounded by the key column's own live run, never by `peek` alone. The management / statistics API walks
-			// leaves with no session and no catalog-state guard, so it can observe a `peek` that has already run
-			// ahead of a column a warm-up bulk load is still growing. Bounding here yields a stale count - the
-			// failure mode the fixed-length columns had - instead of an ArrayIndexOutOfBoundsException on a request
-			// thread. The column is read BEFORE `peek`, so the pair can only err towards the smaller of the two
-			this.leafPeek = Math.min(leaf.getPeek(), this.leafKeys.size() - 1);
+			this.leafPeek = observableLeafPeek(
+				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds
+			);
 			this.leafId = leaf.getId();
 		}
 
@@ -7184,12 +7316,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafValueIds = leaf.getValueIds();
-			// bounded by the key column's own live run, never by `peek` alone. The management / statistics API walks
-			// leaves with no session and no catalog-state guard, so it can observe a `peek` that has already run
-			// ahead of a column a warm-up bulk load is still growing. Bounding here yields a stale count - the
-			// failure mode the fixed-length columns had - instead of an ArrayIndexOutOfBoundsException on a request
-			// thread. The column is read BEFORE `peek`, so the pair can only err towards the smaller of the two
-			this.leafPeek = Math.min(leaf.getPeek(), this.leafKeys.size() - 1);
+			this.leafPeek = observableLeafPeek(
+				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds
+			);
 			this.leafId = leaf.getId();
 		}
 

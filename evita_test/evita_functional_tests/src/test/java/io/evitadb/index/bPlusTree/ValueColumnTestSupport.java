@@ -115,6 +115,40 @@ final class ValueColumnTestSupport {
 	static final int SIZING_CAPACITY = 64;
 
 	/**
+	 * Asserts that an aligned column observes its whole live run.
+	 *
+	 * `observableLiveRun()` is the bound a reader with no happens-before edge to the writer takes instead of
+	 * `size()`, and its whole value rests on it being **exactly** `size()` whenever no write is in flight. An
+	 * implementation that under-reports here would not fail loudly — it would quietly drop the tail buckets of every
+	 * leaf out of the cursors that bound themselves by it, which is the same silent truncation the bound exists to
+	 * avoid. So every shape the battery builds is checked, including the ones past the front-coded column's
+	 * sixteen-entry restart interval.
+	 *
+	 * @param column the column to check
+	 * @param where  what the battery had just done to it, for the failure message
+	 */
+	static void assertObservesItsWholeLiveRun(@Nonnull ValueColumn<?> column, @Nonnull String where) {
+		assertEquals(
+			column.size(), column.observableLiveRun(),
+			"an aligned column must observe its whole live run (" + where + ")"
+		);
+	}
+
+	/**
+	 * Asserts that an aligned record column observes its whole live run. See
+	 * {@link #assertObservesItsWholeLiveRun(ValueColumn, String)} for why the equality is the property that matters.
+	 *
+	 * @param column the column to check
+	 * @param where  what the battery had just done to it, for the failure message
+	 */
+	static void assertObservesItsWholeLiveRun(@Nonnull RecordColumn column, @Nonnull String where) {
+		assertEquals(
+			column.size(), column.observableLiveRun(),
+			"an aligned column must observe its whole live run (" + where + ")"
+		);
+	}
+
+	/**
 	 * Drives one {@link ValueColumn} implementation through the whole grow / trim / `size()` contract: the logical
 	 * capacity never moves, `size()` follows every mutator, `fillEmpty` and `clearAt` truncate rather than poke,
 	 * `copyRangeTo` grows its destination (including the leaf's in-place right shift), `duplicate` preserves the
@@ -136,6 +170,7 @@ final class ValueColumnTestSupport {
 		assertEquals(SIZING_CAPACITY, column.capacity(), "the logical capacity is set at construction");
 		assertEquals(0, column.size(), "a fresh column holds nothing");
 		assertSame(column, column.trimmed(), "an empty column has no slack to reclaim");
+		assertObservesItsWholeLiveRun(column, "fresh");
 		final long emptyHeap = column.getHeapSizeInBytes();
 
 		// inserts raise the live count and never the logical capacity
@@ -143,6 +178,7 @@ final class ValueColumnTestSupport {
 			column.insertKeyAt(i, keyFactory.apply(i));
 		}
 		assertEquals(5, column.size());
+		assertObservesItsWholeLiveRun(column, "five inserts");
 		assertEquals(SIZING_CAPACITY, column.capacity(), "an insert must never move the logical capacity");
 		for (int i = 0; i < 5; i++) {
 			assertEquals(keyFactory.apply(i), column.keyAt(i), "key mismatch at slot " + i);
@@ -157,6 +193,7 @@ final class ValueColumnTestSupport {
 		}
 		assertEquals(SIZING_CAPACITY, full.size());
 		assertEquals(SIZING_CAPACITY, full.capacity());
+		assertObservesItsWholeLiveRun(full, "a full block");
 		assertTrue(full.getHeapSizeInBytes() > fiveKeyHeap, "a full block must cost more than a five-key one");
 
 		// duplicate keeps the physical shape verbatim - it is the MVCC decouple and the savepoint memento primitive
@@ -183,6 +220,7 @@ final class ValueColumnTestSupport {
 		column.fillEmpty(2, column.capacity());
 		assertEquals(2, column.size());
 		assertEquals(SIZING_CAPACITY, column.capacity());
+		assertObservesItsWholeLiveRun(column, "after a truncation");
 		assertEquals(5, copy.size(), "the duplicate must not observe the source's truncation");
 		for (int i = 0; i < 5; i++) {
 			assertEquals(keyFactory.apply(i), copy.keyAt(i), "the duplicate must not alias the source at slot " + i);
@@ -210,6 +248,7 @@ final class ValueColumnTestSupport {
 		loaded.bulkLoad(bulk, bulk.length);
 		assertEquals(bulk.length, loaded.size());
 		assertEquals(SIZING_CAPACITY, loaded.capacity());
+		assertObservesItsWholeLiveRun(loaded, "after a bulk load");
 		for (int i = 0; i < bulk.length; i++) {
 			assertEquals(keyFactory.apply(i), loaded.keyAt(i), "bulk-loaded key mismatch at slot " + i);
 		}
@@ -266,6 +305,7 @@ final class ValueColumnTestSupport {
 			assertNotSame(full, trimmed, "a column drained to one key of sixty-four must shrink");
 			assertEquals(1, trimmed.size());
 			assertEquals(SIZING_CAPACITY, trimmed.capacity(), "a trim must never move the logical capacity");
+			assertObservesItsWholeLiveRun(trimmed, "after a trim");
 			assertEquals(keyFactory.apply(0), trimmed.keyAt(0));
 			assertTrue(
 				trimmed.getHeapSizeInBytes() < full.getHeapSizeInBytes(),
@@ -293,6 +333,7 @@ final class ValueColumnTestSupport {
 		assertEquals(SIZING_CAPACITY, column.capacity(), "the logical capacity is set at construction");
 		assertEquals(0, column.size(), "a fresh column holds nothing");
 		assertSame(column, column.trimmed(), "an empty column has no slack to reclaim");
+		assertObservesItsWholeLiveRun(column, "fresh");
 		final long emptyHeap = column.getHeapSizeInBytes();
 
 		// a slot that has never been written reads as zero right up to the logical capacity - the value a
@@ -306,6 +347,7 @@ final class ValueColumnTestSupport {
 		}
 		assertEquals(5, column.size());
 		assertEquals(SIZING_CAPACITY, column.capacity(), "an insert must never move the logical capacity");
+		assertObservesItsWholeLiveRun(column, "five inserts");
 		for (int i = 0; i < 5; i++) {
 			assertEquals(1_000L + i, column.longAt(i), "record mismatch at slot " + i);
 		}
@@ -314,6 +356,7 @@ final class ValueColumnTestSupport {
 		// setAt past the live run materializes the slot and leaves the gap reading as zero
 		column.setAt(9, 999L);
 		assertEquals(10, column.size(), "setAt past the live run extends it");
+		assertObservesItsWholeLiveRun(column, "after a setAt past the live run");
 		assertEquals(999L, column.longAt(9));
 		for (int i = 5; i < 9; i++) {
 			assertEquals(0L, column.longAt(i), "the gap opened by setAt must read as zero at slot " + i);

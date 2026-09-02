@@ -80,20 +80,19 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
  *   requires the destination to have been pre-sized.
  *
  * **{@code size() == peek + 1} is the leaf's intended invariant, not a guarantee a reader may lean on.** Every
- * reader must bound itself by the leaf's {@code peek}, never by {@link #size()}. Three windows break it today:
+ * reader must bound itself by the leaf's {@code peek}, never by {@link #size()}. Two windows break it, both of them
+ * transient and both inside a single leaf mutation:
  *
- * - **Two transient, inside a single mutation.** {@code insertNewSingleBucket} / {@code insertNewBucket} grow the
- *   columns before incrementing {@code peek}, and {@code deleteBucketAt} shrinks them before decrementing it —
- *   which is precisely why {@link #clearAt} has to answer by {@link #size()} rather than by the leaf's {@code peek}.
- * - **One that is not transient and can reach a committed column.** The downward branch of the leaf's
- *   {@code setPeek} decouples its record and value-id columns with {@link #duplicate()} but skips the
- *   {@link #fillEmpty} its key-column branch performs, so those two keep {@code size == originPeek + 1} after
- *   {@code peek} has already dropped, and the commit merge carries that column straight into the new committed
- *   leaf. It is repaired by whichever comes first of the next {@code createLayer()} (whose self-copy is followed by
- *   {@code fillEmpty(peek + 1, capacity())}) and the next {@code deleteBucketAt}. Every consequence is benign under
- *   these semantics — reads are {@code peek}-bounded, {@link #trimmed()} merely under-reclaims — but a future change
- *   that trusts the invariant would be wrong. Closing that window, and asserting the invariant at the leaf's
- *   mutation exits, belongs to the leaf and is not part of this change.
+ * - {@code insertNewSingleBucket} and {@code insertNewBucket} grow the columns before incrementing {@code peek}, so
+ *   between the first column write and the increment the columns report {@code peek + 2}.
+ * - {@code deleteBucketAt} shrinks them before decrementing it, so its {@code clearAt(peek)} fires while the live
+ *   run is already {@code peek} — which is precisely why {@link #clearAt} has to answer by {@link #size()} rather
+ *   than by the leaf's {@code peek}.
+ *
+ * **Nothing may observe a leaf from inside one of those two windows**, and no third window survives them: a
+ * **committed** column whose run disagrees with {@code peek} is an immediate error, enforced at every structural
+ * exit by {@code BPlusLeafTreeNode.assertColumnsAlignedWithPeek}. A reader with no happens-before edge to the writer
+ * needs one thing more than the {@code peek} bound — see {@link #observableLiveRun()}.
  *
  * @param <M> the (boxed) key type as seen by the tree's generic API
  */
@@ -120,6 +119,39 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * @return the live key count
 	 */
 	int size();
+
+	/**
+	 * Returns the live run a reader holding **no happens-before edge** to the writer may bound itself by —
+	 * {@code min(size(), physical length)} — rather than {@link #size()}.
+	 *
+	 * ## Why {@link #size()} alone is not safe there
+	 *
+	 * A column grows by two plain field stores: the longer backing array is published first, the live count is
+	 * raised second. A reader that shares no lock, no volatile and no transaction with the writer may observe those
+	 * two in either order, so it can read the **new** count against the **old**, shorter array — and an index taken
+	 * from that count then runs off the end. That reader exists: the management and statistics API walks leaves with
+	 * no session and no catalog-state guard, concurrently with a warm-up load growing the very columns it is
+	 * walking, and {@code recordCount()} is its entry point.
+	 *
+	 * ## Why one reading of this bound stays valid for the whole walk
+	 *
+	 * In-place mutation only ever replaces a backing array with a **longer** one. Trimming and duplicating build a
+	 * new column object rather than shortening this one's array, and a bulk load only ever fills a freshly created
+	 * column. A bound taken once from {@code min(size, length)} is therefore never above the length of any array a
+	 * later read of the same column can see, so the caller may take it once per leaf and index freely under it —
+	 * which is what keeps this off the per-key path.
+	 *
+	 * Everything the bound leaves out is simply not counted yet, and the walk under-reports by that much. That is
+	 * the same staleness the fixed-length columns produced, and it is what these readers are documented to accept.
+	 *
+	 * **The reordering is unreachable on x86 and reachable on AArch64**, so no stress test run on an x86 box can
+	 * demonstrate that this method is needed. See the CALIBRATION section on
+	 * {@code TransactionalBucketBPlusTree.observableLeafPeek}, the sole caller, for the measurement and for what
+	 * pins this deterministically instead.
+	 *
+	 * @return the live run that is safe to index without synchronization
+	 */
+	int observableLiveRun();
 
 	/**
 	 * Creates a new **empty** column of the same concrete kind and the given **logical** capacity (split / layer
@@ -440,7 +472,7 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	private final int capacity;
 	/**
 	 * The number of live keys held in {@link #keys}, normally equal to the owning leaf's {@code peek + 1} — see
-	 * {@link ValueColumn} for the three windows in which it is not.
+	 * {@link ValueColumn} for the two transient windows in which it is not.
 	 */
 	private int size;
 	/**
@@ -488,6 +520,11 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 		return this.size;
 	}
 
+	@Override
+	public int observableLiveRun() {
+		return Math.min(this.size, this.keys.length);
+	}
+
 	@Nonnull
 	@Override
 	public ValueColumn<M> allocate(int capacity) {
@@ -507,11 +544,11 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Nonnull
 	@Override
 	public ValueColumn<M> duplicate() {
-		// an empty column keeps its own zero-length array rather than cloning it into a second one - there is no
-		// element to mutate, and every mutator replaces the field wholesale rather than writing in place
-		return new BoxedObjectColumn<>(
-			this.keyType, this.capacity, this.size, this.keys.length == 0 ? this.keys : this.keys.clone()
-		);
+		// the copy owns its array even when that array is empty. Sharing a zero-length one would be safe - there is
+		// no element to mutate - but this column cannot use the shared-array exclusion the primitive columns use
+		// (`asBoxedArray` has to hand out the erased component type), so `getHeapSizeInBytes` charges the array
+		// unconditionally and a shared one would be billed twice, once by each holder
+		return new BoxedObjectColumn<>(this.keyType, this.capacity, this.size, this.keys.clone());
 	}
 
 	@Nonnull
@@ -534,6 +571,7 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	@SuppressWarnings("unchecked")
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always a fresh array: the contract says this column is freshly allocated, and reusing the existing backing
 		// would make this the one mutator in the family that writes into an array it did not allocate
 		final M[] target = newArray(this.keyType, count);

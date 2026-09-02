@@ -98,6 +98,11 @@ final class IntRecordColumn implements RecordColumn {
 		return this.size;
 	}
 
+	@Override
+	public int observableLiveRun() {
+		return Math.min(this.size, this.records.length);
+	}
+
 	@Nonnull
 	@Override
 	public RecordColumn allocate(int capacity) {
@@ -153,6 +158,7 @@ final class IntRecordColumn implements RecordColumn {
 
 	@Override
 	public void bulkLoad(@Nonnull long[] payloads, int count) {
+		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always a fresh array: the contract says this column is freshly allocated, and reusing the existing backing
 		// would make this the one mutator in the family that writes into an array it did not allocate
 		final int[] target = newArray(count);
@@ -289,9 +295,12 @@ final class IntRecordColumn implements RecordColumn {
 	 * observes the new size against the old array reference throws {@link ArrayIndexOutOfBoundsException}. The old
 	 * fixed arrays wrote identical values into an already-sized array and were benign under the same race.
 	 *
-	 * The only producer of {@code size < peek + 1} is the leaf attaching a never-sized value id column to an
-	 * already-populated bulk-loaded page, which no caller reaches today (the page builder mints no ids). Sizing that
-	 * column to the page's own length is therefore a **correctness** fix in Phase 1b, not merely an exactness one.
+	 * **That producer no longer exists.** The one state that could yield {@code size < peek + 1} was a never-sized
+	 * value id column attached to an already-populated bulk-loaded page; every id column is now created sized to the
+	 * leaf it joins, so the self-copy always finds the run it expects. The split-copy constructor also refuses a
+	 * misaligned source *before* its first copy, so the race described above is unreachable rather than merely
+	 * unreached — see `BPlusLeafTreeNode.assertSelfCopySourceIsAligned`. The description stays because it is the
+	 * reason this method must never be made to grow a column a reader may hold.
 	 *
 	 * @param requiredLength the number of slots the caller is about to address
 	 */

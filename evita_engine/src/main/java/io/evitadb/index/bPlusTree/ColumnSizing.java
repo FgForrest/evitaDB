@@ -90,6 +90,26 @@ final class ColumnSizing {
 	}
 
 	/**
+	 * Refuses a bulk load whose entry count runs past the column's logical capacity.
+	 *
+	 * The incremental path carries this premise inside {@link #grownLength}, which every {@code ensurePhysicalLength}
+	 * routes through. A bulk load sizes its backing array straight to {@code count} and never asks {@link #grownLength}
+	 * anything, so without this it is the one way into the family that can build a column whose live run runs past
+	 * the leaf block it belongs to — after which the leaf reports more buckets than it may hold, and reads the array
+	 * could serve are refused as out of capacity by the empty-slot guards.
+	 *
+	 * @param count    the number of live entries the caller is loading
+	 * @param capacity the column's logical capacity (the leaf block size)
+	 */
+	static void assertLoadFitsCapacity(int count, int capacity) {
+		Assert.isPremiseValid(
+			count >= 0 && count <= capacity,
+			() -> "A column can never be loaded with more entries (" + count + ") than its logical capacity ("
+				+ capacity + ") — the page the entries come from is bounded by the very same block size."
+		);
+	}
+
+	/**
 	 * Computes the physical length {@code trimmed()} should shrink a backing array to, or {@code currentLength} when
 	 * the slack does not justify the copy.
 	 *

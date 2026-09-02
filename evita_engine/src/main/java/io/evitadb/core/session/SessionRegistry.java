@@ -164,11 +164,19 @@ public final class SessionRegistry {
 	 * The caller's session supplier runs **inside** the critical section, which is what makes the check and the map
 	 * write indivisible. A competing warm-up caller therefore waits out the construction and is then refused, where
 	 * before it would have been admitted; on a state whose maximum is one session that is the correct answer arriving
-	 * a little later, not added contention.
+	 * a little later, not added contention. Note the consequence for suspension: concurrent non-transactional
+	 * admissions now serialise while each still holds the gate's read lock, so a suspension barrier waits for their
+	 * **sum** rather than for the longest of them. Bounded and rare by design — the state admits one session — but it
+	 * is the price the atomicity is bought with.
 	 *
-	 * **Lock order is always gate-read then admission, never the reverse.** Nothing that holds this lock acquires the
-	 * registration gate, and {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} takes the gate's write lock
-	 * without ever touching this one, so no cycle exists. Nor can the retry loop in
+	 * **Lock order is always gate-read then admission, never the reverse, and that ordering is the invariant** — not
+	 * the absence of an interaction between the two. The gate's read lock is taken first, by
+	 * {@link #registerWhileNotSuspended(Supplier)}, and this lock is taken inside it; nothing executing under this
+	 * lock may acquire the gate, which is what keeps the pair acyclic.
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} takes the gate's write lock without ever touching
+	 * this one. A future change that lets session construction reach back into the registry would break the rule
+	 * rather than merely widen a window, and the warm-up path is where that would bite first, because construction is
+	 * the expensive part of the critical section. Nor can the retry loop in
 	 * {@link #registerWhileNotSuspended(Supplier)} multiply anything: it runs the supplier on the one attempt that
 	 * finds no suspension in effect, and that call either returns or throws, so the supplier runs **at most once**.
 	 * No registration is repeated by the retry and no catalog version pin is taken twice.
@@ -495,13 +503,29 @@ public final class SessionRegistry {
 		// such a throw would leave a session in `activeSessions` that no caller ever received and therefore never
 		// closes - and on a catalog that is not transactional that orphan refuses every later admission for the
 		// life of the process. Everything below is a non-throwing publication.
-		final CatalogVersionPin catalogVersionPin =
-			this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-				.registerSessionConsumingCatalogInVersion(
-					catalogVersion,
-					newSession.getSessionTraits(),
-					this.catalogSupplier
-				);
+		final CatalogVersionPin catalogVersionPin;
+		try {
+			catalogVersionPin =
+				this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
+					.registerSessionConsumingCatalogInVersion(
+						catalogVersion,
+						newSession.getSessionTraits(),
+						this.catalogSupplier
+					);
+		} catch (Throwable ex) {
+			// the supplier has already built the session by this point, and the caller never receives it, so nothing
+			// else will ever close it: it holds an open traffic-recording session and, on an ALIVE catalog, an open
+			// transaction. Closing it here is the same forced close `closeAllActiveSessionsAndSuspend` performs on a
+			// session it takes away from its owner. `removeSession` - which the session's termination callback
+			// reaches - starts with a `activeSessions.remove` that answers null for a session that was never
+			// published, so it returns without touching the FIFO queue or the version census
+			closeAbandonedSession(newSession, ex);
+			throw ex;
+		}
+		// PREMISE - none of the four steps below can throw. `executeAtomically` runs them under the tuple's own lock,
+		// `activeSessions.put` and `sharedDataStore.addSession` are plain map puts, `sessionsFifoQueue.add` is a
+		// queue add and the pin is a setter. If that ever stops holding, this ordering has to be revisited: a throw
+		// here leaves a half-published session the catch above cannot see.
 		sessionTuple.executeAtomically(
 			() -> {
 				this.activeSessions.put(newSession.getId(), sessionTuple);
@@ -515,6 +539,29 @@ public final class SessionRegistry {
 		);
 
 		return newSessionProxy;
+	}
+
+	/**
+	 * Closes a session that was constructed but never published, after the step that would have published it threw.
+	 *
+	 * The session is fully live by the time this runs - its constructor opened a traffic-recording session and, on a
+	 * catalog that supports transactions, a transaction - and the caller never receives it, so nothing else will ever
+	 * close it. This is the same forced close {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} performs on
+	 * a session it takes away from its owner, including the commit behaviour it uses.
+	 *
+	 * **A failure to close must never replace the failure that caused it.** The registration's own exception is what
+	 * the caller asked about; anything this close throws is recorded as suppressed on it and nothing more.
+	 *
+	 * @param session the constructed but unpublished session
+	 * @param cause   the failure that abandoned the registration, which any close failure is attached to
+	 */
+	private static void closeAbandonedSession(@Nonnull EvitaSession session, @Nonnull Throwable cause) {
+		try {
+			//noinspection resource
+			session.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+		} catch (Throwable closeFailure) {
+			cause.addSuppressed(closeFailure);
+		}
 	}
 
 	/**

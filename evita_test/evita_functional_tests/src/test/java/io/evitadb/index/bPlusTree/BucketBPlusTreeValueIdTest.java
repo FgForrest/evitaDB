@@ -51,6 +51,8 @@ import java.util.function.Predicate;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -440,6 +442,46 @@ class BucketBPlusTreeValueIdTest {
 					"the id of value " + value + " must survive every rebalance"
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("a transaction that shrinks a leaf leaves the id column covering exactly what survives")
+		@Tag(TRANSACTION)
+		void shouldKeepTheIdColumnAlignedWhenATransactionShrinksALeaf() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(20);
+			// promote a scattering of surviving buckets so the overflow column joins the lockstep as well
+			for (int value = 1; value < 20; value += 4) {
+				tree.addRecord(value, 1_000 + value);
+			}
+			assertColumnsAlignedWithLeaves(tree);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// deleting INSIDE a transaction takes the leaf's `setPeek` through its layer arm, which decouples
+					// the record and id columns with `duplicate()`. A duplicate carries the source's whole live run
+					// across, so the truncation that follows the decouple is the only thing keeping those two columns
+					// aligned with the shortened leaf - and the commit merge below carries whatever it leaves behind
+					for (int value = 0; value < 20; value += 2) {
+						t.removeRecord(value, value + 1);
+					}
+				},
+				(original, committed) -> {
+					assertColumnsAlignedWithLeaves(committed);
+					for (int value = 1; value < 20; value += 2) {
+						assertEquals(
+							ValueIdAllocator.FIRST_VALUE_ID + value, committed.valueIdOf(value),
+							"the id of surviving value " + value + " must cross the commit merge intact"
+						);
+					}
+					for (int value = 0; value < 20; value += 2) {
+						assertEquals(
+							ValueIdAllocator.UNASSIGNED_VALUE_ID, committed.valueIdOf(value),
+							"the deleted value " + value + " must name no id at all"
+						);
+					}
+				}
+			);
 		}
 
 		@Test
