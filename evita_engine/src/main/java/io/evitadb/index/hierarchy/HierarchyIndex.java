@@ -292,6 +292,39 @@ public class HierarchyIndex
 	public Integer removeNode(int entityPrimaryKey) {
 		final HierarchyNode removedNode = internalRemoveHierarchy(entityPrimaryKey);
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
+		return finishNodeRemoval(removedNode);
+	}
+
+	/**
+	 * Removes a node from the hierarchy if it has a placement, and does nothing when it has none.
+	 *
+	 * Identical to {@link #removeNode(int)} in every other respect - the removed node's children are
+	 * recursively moved to the {@link #orphans} collection just the same - but an absent placement is
+	 * accepted rather than reported. See
+	 * {@link HierarchyIndexContract#removeNodeIfPresent(int)} for which tear-down paths need that and
+	 * why an entity of a hierarchical collection may legitimately have no placement.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity to remove from the hierarchy
+	 * @return the primary key of the removed node's parent, or `null` if it was a root or was absent
+	 */
+	@Nullable
+	@Override
+	public Integer removeNodeIfPresent(int entityPrimaryKey) {
+		final HierarchyNode removedNode = internalRemoveHierarchy(entityPrimaryKey);
+		return removedNode == null ? null : finishNodeRemoval(removedNode);
+	}
+
+	/**
+	 * Records the bookkeeping both removal entry points owe once {@link #internalRemoveHierarchy(int)} has
+	 * actually taken a node out - the index is dirty from now on, and outside a transaction the memoized
+	 * views computed over the old shape have to go. Kept in one place so the two entry points, which differ
+	 * only in how they treat an absent placement, cannot drift apart on what a removal costs.
+	 *
+	 * @param removedNode the node {@link #internalRemoveHierarchy(int)} returned
+	 * @return the primary key of the removed node's parent, or `null` if the node was a root
+	 */
+	@Nullable
+	private Integer finishNodeRemoval(@Nonnull HierarchyNode removedNode) {
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
 			resetMemoizedValues();
@@ -627,11 +660,24 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Returns a bitmap containing all provided nodes together with all their ancestor nodes up to the
-	 * root. Shared ancestors are de-duplicated by the underlying bitmap structure.
+	 * Returns a bitmap containing all provided nodes together with every ancestor above them the index
+	 * still holds. Shared ancestors are de-duplicated by the underlying bitmap structure.
+	 *
+	 * Like {@link #traverseHierarchyToRoot(HierarchyVisitor, int)} the upward walk stops silently at the
+	 * first parent primary key {@link #itemIndex} cannot resolve, because a chain broken by a deleted or
+	 * never-created ancestor is a legitimate state of this index rather than a corrupted one. The parent
+	 * is resolved *before* it is collected, so a primary key that resolves to no entity can never reach
+	 * the output - two production callers feed the result straight into a formula, where a phantom entity
+	 * id would surface as a query result rather than as an error. The `checkedAdd` false return doubles
+	 * as the ring guard and as the shared-ancestor cut-off: once a node has been collected, everything
+	 * above it already has been too.
+	 *
+	 * The asymmetry with the traversal is deliberate: an input node that the index does not hold is a
+	 * caller passing a primary key it never registered - a programming error, and reported as one - while
+	 * an *ancestor* it does not hold is ordinary index state that says nothing about the caller.
 	 *
 	 * @param nodes bitmap of entity primary keys whose ancestors should be included
-	 * @return bitmap containing the original nodes and all their ancestors
+	 * @return bitmap containing the original nodes and all the ancestors the index can resolve
 	 * @throws IllegalArgumentException if any node in the input is not present in the index
 	 */
 	@Nonnull
@@ -642,10 +688,14 @@ public class HierarchyIndex
 			output.add(nodeId);
 			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				if (!output.checkedAdd(hierarchyNode.parentEntityPrimaryKey())) {
+				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+				final HierarchyNode parentNode = this.itemIndex.get(parentPrimaryKey);
+				if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
+					// the chain either breaks here, or closes into a ring, or meets an ancestor another
+					// input node has already contributed - in every case there is nothing left to collect
 					break;
 				}
-				hierarchyNode = getHierarchyNodeOrThrowException(hierarchyNode.parentEntityPrimaryKey());
+				hierarchyNode = parentNode;
 			}
 		}
 		return output.isEmpty() ?
@@ -670,27 +720,22 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Traverses the hierarchy from the given `node` upward, invoking the `visitor` for the node itself
-	 * and for every ancestor above it the index still holds. The walk passes through registered
-	 * orphans and stops silently at the first parent primary key {@link #itemIndex} does not hold; a
-	 * deleted ancestor and a parent primary key that was never created are the same case here, the
-	 * latter being a state an entity may legitimately be upserted in. Nothing at all is visited when
-	 * the start node itself is absent from the index.
+	 * Walks upward from `node`, in two phases. The reachable fragment is collected first - the start
+	 * node, then each ancestor {@link #itemIndex} can resolve - and replayed to the visitor second, so
+	 * the two phases cannot disagree about where the fragment ends and the visitor's recursion cannot
+	 * outrun the collection. The set of primary keys collected on the way up is what places the break
+	 * on a ring: the first parent already in it would be a second visit, and is treated exactly like a
+	 * parent the index cannot resolve at all.
 	 *
-	 * Levels are counted from the top of the reachable fragment - the highest ancestor the walk gets
-	 * to is reported at level 1, exactly as if that fragment were a tree of its own - while `distance`
-	 * keeps counting from the start node (0) upwards and is therefore unaffected by a break. Both
-	 * callers turn `level` into a `stopAt(level(N))` decision, and the true depth of a fragment whose
-	 * upper part is unreadable cannot be known, so the fragment behaves as the tree the index can
-	 * actually see. {@link #computeLevel(HierarchyNode)} answers the different question of a node's
-	 * level within the whole tree and keeps reporting -1 for a broken chain.
+	 * Whether the collected chain tops out in a real root is decided once, after the collection, and
+	 * decides in turn whether the replay hands out real levels or
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL} - the same value
+	 * {@link #computeLevel(HierarchyNode)} returns for a node outside the reachable tree, reached here
+	 * by walking the other way.
 	 *
-	 * A ring of nodes pointing at one another is treated exactly like a break, placed at the node the
-	 * walk would otherwise have to visit a second time, so every node of the fragment is visited once
-	 * and the walk always terminates. Such a ring is a legal state of this index and not a corrupted
-	 * one: re-pointing a node at one of its own descendants detaches that node together with its whole
-	 * subtree - all of them become registered orphans - and leaves the detached fragment closing on
-	 * itself. A ring has no top, so nothing above the revisited node can be reported.
+	 * The semantics this implements - what stops the walk, what `level` and `distance` mean, and why a
+	 * level bound cannot cut a chain of unknown depth - are specified on
+	 * {@link HierarchyIndexContract#traverseHierarchyToRoot(HierarchyVisitor, int)}.
 	 *
 	 * @param visitor the visitor to invoke for the node and each reachable ancestor
 	 * @param node    the primary key of the node to start the upward traversal from
@@ -701,18 +746,18 @@ public class HierarchyIndex
 		// if the node is missing, just skip traversal
 		if (theNode != null) {
 			// collect the fragment the walk can really reach - the start node first and each ancestor
-			// above it next - so that the topmost reachable node, which is not necessarily a root when
-			// the chain is broken, ends up at level 1
+			// above it next - so that the last element is the topmost node the index can show; the
+			// capacity is sized for a hierarchy of ordinary depth, which 16 levels covers comfortably
 			final List<HierarchyNode> reachableChain = new ArrayList<>(16);
-			final IntHashSet collectedNodes = new IntHashSet();
+			final IntHashSet collectedPrimaryKeys = new IntHashSet();
 			reachableChain.add(theNode);
-			collectedNodes.add(node);
+			collectedPrimaryKeys.add(node);
 
 			HierarchyNode hierarchyNode = theNode;
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
 				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
 				final HierarchyNode parentNode = this.itemIndex.get(parentPrimaryKey);
-				if (parentNode == null || !collectedNodes.add(parentPrimaryKey)) {
+				if (parentNode == null || !collectedPrimaryKeys.add(parentPrimaryKey)) {
 					// the chain either breaks or closes into a ring here - the node reached last is the
 					// top of the reachable fragment
 					break;
@@ -721,41 +766,51 @@ public class HierarchyIndex
 				hierarchyNode = parentNode;
 			}
 
+			// the fragment carries real levels only when its top is an actual root; anything else leaves
+			// the distance to the top of the tree unknown, and an unknown depth is reported as such rather
+			// than replaced by a fragment-relative guess
+			final boolean chainReachesRoot = reachableChain.get(reachableChain.size() - 1)
+				.parentEntityPrimaryKey() == null;
+
 			// the visit phase replays the collected fragment instead of resolving the parent primary keys
 			// a second time, so neither phase can disagree with the other about where the fragment ends,
-			// and the recursion cannot outrun it
-			visitor.visit(
-				theNode, reachableChain.size(), 0,
-				createAncestorTraverser(visitor, reachableChain, 1)
-			);
+			// and the recursion cannot outrun it; the start node is simply the chain's first element, so
+			// it is visited by the very same traverser as every ancestor above it
+			createChainTraverser(visitor, reachableChain, 0, chainReachesRoot).run();
 		}
 	}
 
 	/**
-	 * Creates the traverser handed to the {@link HierarchyVisitor} for the ancestor sitting at `index`
-	 * of the chain collected by {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}. That chain
-	 * holds the traversal start node at index 0 and every reachable ancestor above it in order, so
-	 * `index` is at the same time the ancestor's distance from the start node, while its level is what
-	 * is left of the chain from it upwards - 1 for the last element, which tops the fragment.
+	 * Creates the traverser handed to the {@link HierarchyVisitor} for the node sitting at `index` of
+	 * the chain collected by {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}. That chain holds
+	 * the traversal start node at index 0 and every reachable ancestor above it in order, so `index` is
+	 * at the same time the node's distance from the start node, while what is left of the chain from it
+	 * upwards is its level - but only when the chain tops out in a real root, since otherwise no node of
+	 * the fragment has a knowable level at all.
 	 *
-	 * @param visitor        the visitor to invoke for the ancestor
-	 * @param reachableChain the collected chain of reachable nodes, traversal start node first
-	 * @param index          position of the ancestor to visit, or the chain size once the top is passed
+	 * @param visitor           the visitor to invoke for the node
+	 * @param reachableChain    the collected chain of reachable nodes, traversal start node first
+	 * @param index             position of the node to visit, 0 being the traversal start node, or the
+	 *                          chain size once the top is passed
+	 * @param chainReachesRoot  whether the top of the chain is a root, i.e. whether levels are knowable
 	 * @return the traverser to hand to the visitor, doing nothing once the top of the chain is passed
 	 */
 	@Nonnull
-	private static Runnable createAncestorTraverser(
+	private static Runnable createChainTraverser(
 		@Nonnull HierarchyVisitor visitor,
 		@Nonnull List<HierarchyNode> reachableChain,
-		int index
+		int index,
+		boolean chainReachesRoot
 	) {
 		if (index >= reachableChain.size()) {
 			return () -> {
 			};
 		} else {
 			return () -> visitor.visit(
-				reachableChain.get(index), reachableChain.size() - index, index,
-				createAncestorTraverser(visitor, reachableChain, index + 1)
+				reachableChain.get(index),
+				chainReachesRoot ? reachableChain.size() - index : UNKNOWN_LEVEL,
+				index,
+				createChainTraverser(visitor, reachableChain, index + 1, chainReachesRoot)
 			);
 		}
 	}
@@ -1404,13 +1459,18 @@ public class HierarchyIndex
 	 * level 1.
 	 *
 	 * The question this method answers is "which level does the node occupy in the whole tree", so it
-	 * reports -1 for every node that is not part of that tree - an orphan, or a node whose ancestor
-	 * chain is broken by a deleted or never-created ancestor. That is deliberately a different
-	 * contract from {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}, which reports levels
-	 * within the fragment it can reach and therefore hands out a level even for a broken chain.
+	 * reports {@link HierarchyIndexContract#UNKNOWN_LEVEL} for every node that is not part of that tree
+	 * - an orphan, or a node whose ancestor chain is broken by a deleted or never-created ancestor.
+	 * {@link #traverseHierarchyToRoot(HierarchyVisitor, int)} answers the same question walking the
+	 * other way and gives the same answer, that one included.
+	 *
+	 * This loop needs no visited-node set of its own, unlike the one in
+	 * {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}: {@link #getParentNodeIfExists(HierarchyNode)}
+	 * short-circuits on {@link #orphans}, and every member of a ring is a registered orphan, so the very
+	 * first hop already returns {@link HierarchyIndexContract#UNKNOWN_LEVEL} and no ring can be entered.
 	 *
 	 * @param rootNode the node to compute level for
-	 * @return level of the node or -1 if the node is not part of the tree
+	 * @return level of the node or {@link HierarchyIndexContract#UNKNOWN_LEVEL} if it is not part of the tree
 	 */
 	private int computeLevel(@Nonnull HierarchyNode rootNode) {
 		int level = 1;
@@ -1421,7 +1481,7 @@ public class HierarchyIndex
 				theNode = parentNode.get();
 				level++;
 			} else {
-				return -1;
+				return UNKNOWN_LEVEL;
 			}
 		}
 		return level;

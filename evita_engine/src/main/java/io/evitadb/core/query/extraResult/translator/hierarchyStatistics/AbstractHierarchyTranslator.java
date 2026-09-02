@@ -47,6 +47,7 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTransla
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.utils.Assert;
@@ -112,6 +113,26 @@ public abstract class AbstractHierarchyTranslator {
 	/**
 	 * Method creates a {@link HierarchyTraversalPredicate} controlling the scope of the generated {@link LevelInfo}
 	 * hierarchy statistics according the contents of the {@link HierarchyStopAt} constraint.
+	 *
+	 * One rule governs both directions of the {@link HierarchyLevel} bound: **a level bound cannot cut a chain whose
+	 * depth is unknown**. {@link HierarchyLevel} is an absolute depth counted from the top of the tree, and a node
+	 * that is not reachable from any root has no such depth - the traversals report
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL} for it. Comparing that value against the bound in either
+	 * direction would answer a question the index cannot answer: downwards it would admit everything, upwards it
+	 * would silently drop reachable ancestors by an offset nobody can measure. So an unknown level is admitted
+	 * outright, by the same expression in both directions, and a caller who needs a bound that still holds over a
+	 * broken chain expresses it as a {@link HierarchyDistance} instead - `distance` counts from the pivot node and
+	 * a break cannot shift it.
+	 *
+	 * @param direction       the direction the traversal runs in, which decides how a level bound is compared
+	 * @param stopAt          the constraint to translate into a predicate
+	 * @param queryContext    the planning context a nested `node` filter is compiled in
+	 * @param entityIndex     the global index a nested `node` filter is evaluated against
+	 * @param entitySchema    the schema of the hierarchical entity the constraint applies to
+	 * @param referenceSchema the reference schema when the hierarchy is reached through a reference, `null` when
+	 *                        the query traverses the queried entity's own hierarchy
+	 * @return the predicate bounding the traversal, or `null` when the `stopAt` definition is none of the three
+	 *         the planner knows how to translate
 	 */
 	@Nullable
 	public static HierarchyTraversalPredicate stopAtConstraintToPredicate(
@@ -125,7 +146,8 @@ public abstract class AbstractHierarchyTranslator {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
-			return (hierarchyNodeId, level, distance) -> direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel;
+			return (hierarchyNodeId, level, distance) -> level == HierarchyIndexContract.UNKNOWN_LEVEL ||
+				(direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel);
 		} else if (filter instanceof HierarchyDistance distanceCnt) {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;

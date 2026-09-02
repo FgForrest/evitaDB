@@ -35,7 +35,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -69,8 +72,12 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.level;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.parents;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.stopAt;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -92,13 +99,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Characterisation tests for the parent chain returned by `hierarchyContent` - see issue #1365
  * (https://github.com/FgForrest/evitaDB/issues/1365).
  *
- * This class pins the `today` column of the behaviour matrix in
- * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`, measured on 2026-09-02. It
- * asserts what the engine does right now, defects included - it does **not** assert what it ought to
- * do. Several of the pinned rows are the very defects #1365 reports. The broken chains are the one
- * exception: the traversal to root now reports every ancestor the index still holds and stops
- * silently at the first one it cannot resolve, so those rows pin that rule instead of the exception a
- * break exactly two levels above the queried entity used to raise.
+ * This class started out pinning the `before #1365 (measured)` column of the behaviour matrix in
+ * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`, measured on 2026-09-02, and
+ * it still asserts what the engine does right now, defects included - it does **not** assert what it
+ * ought to do. Several of the pinned rows are the very defects #1365 reports.
+ *
+ * Three groups of rows have since been moved by #1365's own fixes and no longer agree with that
+ * column, which is kept as the pre-fix baseline rather than as a description of the current engine.
+ * The broken chains (the K rows) are the first: the traversal to root now reports every ancestor the
+ * index still holds and stops silently at the first one it cannot resolve, and every node of such a
+ * chain reports an unknown level, so a `stopAt(level(N))` bound cannot cut the reachable fragment.
+ * The second is the deleted root, which used to stay in the index as a phantom and is now removed
+ * with its descendants left as orphans. The third is a cleared parent, which used to take the entity
+ * out of the hierarchy altogether and now re-roots it. The last two are asserted by
+ * `IndexInvariantTest` rather than by a matrix row.
  *
  * When the `HierarchyParentsBehaviour` argument lands, each row moves to the `COMPLETE` or the
  * `MATCHING` column of that same matrix; every row a change does not touch must keep passing
@@ -129,6 +143,15 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * Name of the shared data set holding the whole behaviour matrix fixture.
 	 */
 	private static final String DATA_SET = "hierarchyContentParentsBehaviour";
+	/**
+	 * Name of the second, deliberately small data set - the only one this class is allowed to write to.
+	 *
+	 * The matrix fixture above is shared read-only by every other method here, which is what makes it
+	 * cheap; a test that upserts into it would change what its neighbours measure. An index invariant
+	 * about a *mutation* cannot be asserted without writing, so it gets a fixture of its own instead of
+	 * the read-only lock being taken off the shared one.
+	 */
+	private static final String MUTABLE_DATA_SET = "hierarchyContentParentsBehaviourMutable";
 	/**
 	 * Czech locale - the locale a node holds data in when it must be unmaterializable under the
 	 * English query locale.
@@ -280,6 +303,34 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			}
 		);
 
+		return new DataCarrier();
+	}
+
+	/**
+	 * Builds the writable fixture - one intact `CATEGORY` chain `1 -> 2 -> 3` under the same schema the
+	 * matrix fixture uses, in a catalog of its own that a test may upsert into.
+	 *
+	 * @param evita the embedded evitaDB instance provided by the test extension
+	 * @return an empty data carrier - the fixture is addressed by primary key, not by shared objects
+	 */
+	@DataSet(value = MUTABLE_DATA_SET, readOnly = false, destroyAfterClass = true)
+	DataCarrier setUpMutable(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchy()
+					.withLocale(LOCALE_CZECH, Locale.ENGLISH)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+					.updateAndFetchVia(session);
+
+				createEnglishCategory(session, 1, null);
+				createEnglishCategory(session, 2, 1);
+				createEnglishCategory(session, 3, 2);
+			}
+		);
 		return new DataCarrier();
 	}
 
@@ -569,6 +620,116 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				);
 			}
 		).orElseThrow(() -> new AssertionError("Entity with primary key " + primaryKey + " was not returned."));
+	}
+
+	/**
+	 * Returns the primary keys of every category the hierarchy index can reach from one of its roots.
+	 * Membership of this set is the observable that separates a node placed in the hierarchy from an
+	 * orphan or from a node with no placement at all.
+	 *
+	 * @param evita the embedded evitaDB instance
+	 * @return the primary keys of all root-reachable categories
+	 */
+	@Nonnull
+	private static Set<Integer> rootReachableCategoryPrimaryKeys(@Nonnull Evita evita) {
+		final List<EntityReferenceContract> hierarchyMemberReferences = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfEntityReferences(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(hierarchyWithinRootSelf()),
+						require(page(1, 500))
+					)
+				);
+			}
+		);
+		final Set<Integer> hierarchyMembers = new HashSet<>(hierarchyMemberReferences.size() * 2);
+		for (EntityReferenceContract reference : hierarchyMemberReferences) {
+			hierarchyMembers.add(reference.getPrimaryKey());
+		}
+		return hierarchyMembers;
+	}
+
+	/**
+	 * Fetches a single category by its primary key with no hierarchy requirement at all, which is how a
+	 * test tells "this entity is gone" apart from "this entity is no longer reachable from a root".
+	 *
+	 * @param evita      the embedded evitaDB instance
+	 * @param primaryKey the primary key to look up
+	 * @return the category, or empty when no entity carries that primary key
+	 */
+	@Nonnull
+	private static Optional<SealedEntity> fetchCategoryByPrimaryKey(@Nonnull Evita evita, int primaryKey) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityPrimaryKeyInSet(primaryKey)),
+						require(entityFetch(attributeContentAll()))
+					)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Runs the `parents` hierarchy extra-result over the `CATEGORY` collection for a single queried node
+	 * and renders the returned {@link LevelInfo} tree. This is the second production caller of the upward
+	 * walk - the one that produces hierarchy statistics rather than a `hierarchyContent` chain.
+	 *
+	 * @param evita      the embedded evitaDB instance
+	 * @param primaryKey the primary key of the single node the hierarchy filter selects
+	 * @return the rendered parent statistics, one node per line
+	 */
+	@Nonnull
+	private static String renderParentStatistics(@Nonnull Evita evita, int primaryKey) {
+		final List<LevelInfo> statistics = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(primaryKey))),
+						require(
+							hierarchyOfSelf(
+								parents("parents", entityFetch(attributeContentAll()))
+							)
+						)
+					),
+					EntityReference.class
+				).getExtraResult(Hierarchy.class).getSelfHierarchy("parents");
+			}
+		);
+		final StringBuilder result = new StringBuilder(128);
+		renderLevelInfo(result, statistics, 0);
+		return result.toString();
+	}
+
+	/**
+	 * Renders a {@link LevelInfo} tree in the same `B(pk)` / `P(pk)` notation the parent chains use, one
+	 * node per line, indented by its depth and marking the node the hierarchy filter selected.
+	 *
+	 * @param output     the builder to render into
+	 * @param levelInfos the nodes to render at this depth
+	 * @param depth      the current nesting depth, zero for the top of the returned tree
+	 */
+	private static void renderLevelInfo(
+		@Nonnull StringBuilder output,
+		@Nonnull List<LevelInfo> levelInfos,
+		int depth
+	) {
+		for (LevelInfo levelInfo : levelInfos) {
+			output.append("   ".repeat(depth))
+				.append(levelInfo.entity() instanceof SealedEntity ? "B(" : "P(")
+				.append(levelInfo.entity().getPrimaryKeyOrThrowException())
+				.append(')')
+				.append(levelInfo.requested() ? " (requested)" : "")
+				.append('\n');
+			renderLevelInfo(output, levelInfo.children(), depth + 1);
+		}
 	}
 
 	/**
@@ -1040,6 +1201,28 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * The same cut expressed as a level bound rather than a distance, on the fully materializable
+		 * control chain `1 -> 2 -> 3`. Nothing is broken here, so 2 is at level 2 and 1 at level 1, and a
+		 * bound of 2 keeps 2 and drops 1. Without this row the two broken-chain level cases would pass
+		 * just as well if `level` had silently become an alias of `distance`.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Control: stopAt(level(2)) cuts a complete chain indistinguishably from a root")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutACompleteChainByLevelIndistinguishablyFromARoot_control(Evita evita) {
+			final List<EntityClassifierWithParent> chain = fetchParentChain(
+				evita, 3, hierarchyContent(stopAt(level(2)), entityFetch(attributeContentAll())), true
+			);
+			assertChain(chain, "B(2)");
+			assertTrue(
+				assertBody(chain.get(0), 2).parentAvailable(),
+				"The cut chain still reports parentAvailable() on 2 today."
+			);
+		}
+
+		/**
 		 * Pins why the behaviour matrix carries no non-localized row: a collection whose schema declares no
 		 * locale matches nothing under a query-level `entityLocaleEquals`, so the queried entity itself is
 		 * filtered out before its parents are ever considered. The control arm runs the identical query
@@ -1177,7 +1360,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4: a deleted mid-chain ancestor two levels up leaves the reachable ancestor reported")
+		@DisplayName("K4: the ancestor below a deleted mid-chain ancestor two levels up is returned with its body")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldReportReachableAncestorWhenDeletedMidChainAncestorSitsTwoLevelsUp_K4(Evita evita) {
@@ -1206,7 +1389,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@DisplayName("K4 variant: the reported chain is the same when the query carries no locale")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldReportReachableAncestorWhenBreakSitsTwoLevelsUpWithoutQueryLocale_K4variant(Evita evita) {
+		void shouldReportReachableAncestorWhenDeletedMidChainAncestorSitsTwoLevelsUpWithoutQueryLocale_K4variant(
+				Evita evita
+		) {
 			assertChain(fetchParentChain(evita, 124, standardRequirement(), false), "B(123)");
 		}
 
@@ -1217,7 +1402,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4 variant: a deleted Czech-only ancestor two levels up leaves its child reported the same way")
+		@DisplayName("K4 variant: the child of a deleted Czech-only ancestor two levels up is returned with its body")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldReportReachableAncestorWhenDeletedLocaleLessMidChainAncestorSitsTwoLevelsUp_K4variant(Evita evita) {
@@ -1231,11 +1416,53 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K5: a break three levels up leaves both reachable ancestors carrying their bodies")
+		@DisplayName("K5: a break three levels up returns both reachable ancestors with their bodies")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldReportBothReachableAncestorsWhenBreakSitsThreeLevelsUp_K5(Evita evita) {
 			assertChain(standardParentChain(evita, 125), "B(124)", "B(123)");
+		}
+
+		/**
+		 * Variant of matrix row K5 measuring the `stopAt(level(N))` decision the walk's `level` argument
+		 * feeds, which every other row in this class makes through `distance` instead. `level` is an
+		 * absolute depth counted from the top of the tree, and the depth of a fragment sitting under a
+		 * break cannot be known - the walk reports -1 for every one of its nodes, and a level bound never
+		 * cuts an unknown level. So the whole reachable fragment survives a bound that would have cut the
+		 * same chain intact: in `121 -> 122(deleted) -> 123 -> 124 -> 125` both 123 and 124 are returned.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K5 variant: a level bound of two cannot cut a fragment of unknown depth")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldNotCutTheReachableFragmentByALevelBoundWhenBreakSitsAboveIt_K5variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 125, hierarchyContent(stopAt(level(2)), entityFetch(attributeContentAll())), true
+				),
+				"B(124)", "B(123)"
+			);
+		}
+
+		/**
+		 * The other side of the pair above - the same fetch under the lowest bound the constraint accepts.
+		 * Both bounds return the same fragment, which is the whole point: on a broken chain the answer does
+		 * not depend on `N` at all, so a caller that needs a bound which still holds there has to express it
+		 * as a `distance`.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K5 variant: a level bound of one returns the very same fragment")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheWholeFragmentWhenTheLevelBoundAdmitsItsTop_K5variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 125, hierarchyContent(stopAt(level(1)), entityFetch(attributeContentAll())), true
+				),
+				"B(124)", "B(123)"
+			);
 		}
 
 		/**
@@ -1259,11 +1486,68 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K6 variant: a never-created ancestor two levels up leaves the reachable ancestor reported")
+		@DisplayName("K6 variant: the ancestor below a never-created ancestor two levels up is returned with its body")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldReportReachableAncestorWhenNeverCreatedAncestorSitsTwoLevelsUp_K6variant(Evita evita) {
 			assertChain(standardParentChain(evita, 112), "B(111)");
+		}
+	}
+
+	/**
+	 * Pins the second production caller of the upward walk. `hierarchyContent` is the one every row of the
+	 * behaviour matrix goes through; the `parents` hierarchy extra-result is the other, and it renders the
+	 * very same walk as a {@link LevelInfo} tree rather than as a parent chain. Before the walk was
+	 * rewritten an orphaned start node produced no parents at all here, so the broken-chain shape of this
+	 * caller is new and had no coverage of its own.
+	 *
+	 * The queried node itself is the deepest element of the returned tree and is marked as requested; its
+	 * reachable ancestors nest above it, outermost first.
+	 */
+	@Nested
+	@DisplayName("Parent statistics over a broken chain")
+	class ParentStatisticsOverBrokenChainTest {
+
+		/**
+		 * The broken chain `121 -> 122(deleted) -> 123 -> 124 -> 125` queried at its leaf. The walk starts
+		 * at 125 itself here rather than at its parent, and it reports the fragment the index still holds -
+		 * 123 and 124 - with 121 above the break left out entirely.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("The reachable fragment is reported as the parent statistics of an orphaned node")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheReachableFragmentAsParentStatistics(Evita evita) {
+			assertEquals(
+				"""
+					B(123)
+					   B(124)
+					      B(125) (requested)
+					""",
+				renderParentStatistics(evita, 125)
+			);
+		}
+
+		/**
+		 * The intact control chain `1 -> 2 -> 3` under the identical query. Without it the broken case
+		 * above could pass while the computer reported nothing useful at all, since a tree of the wrong
+		 * shape and a tree that stops early look alike when only one of them is measured.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Control: an intact chain is reported from its real root down to the queried node")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheWholeChainAsParentStatistics_control(Evita evita) {
+			assertEquals(
+				"""
+					B(1)
+					   B(2)
+					      B(3) (requested)
+					""",
+				renderParentStatistics(evita, 3)
+			);
 		}
 	}
 
@@ -1282,28 +1566,18 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 * a broken chain means to the parent fetcher: a deletion at the root of a chain now breaks it in
 		 * exactly the way a mid-chain deletion does, which is asserted here alongside it.
 		 *
+		 * The two halves are not the same disappearance and the assertions keep them apart. The deleted
+		 * node leaves the index outright and resolves to no entity at all; its descendants are still
+		 * present and still fetchable, and what they lose is only their route down from a root - which is
+		 * what makes them orphans rather than deletions.
+		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("A deleted root and its descendants leave the hierarchy index")
+		@DisplayName("A deleted root leaves the index and its descendants leave the root-reachable hierarchy")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldRemoveDeletedRootAndOrphanItsDescendants(Evita evita) {
-			final List<EntityReferenceContract> hierarchyMemberReferences = evita.queryCatalog(
-				TEST_CATALOG,
-				session -> {
-					return session.queryListOfEntityReferences(
-						query(
-							collection(Entities.CATEGORY),
-							filterBy(hierarchyWithinRootSelf()),
-							require(page(1, 500))
-						)
-					);
-				}
-			);
-			final Set<Integer> hierarchyMembers = new HashSet<>(hierarchyMemberReferences.size() * 2);
-			for (EntityReferenceContract reference : hierarchyMemberReferences) {
-				hierarchyMembers.add(reference.getPrimaryKey());
-			}
+			final Set<Integer> hierarchyMembers = rootReachableCategoryPrimaryKeys(evita);
 
 			final int[] deletedRoots = {71, 81, 91};
 			// 71, 81 and 91 were deleted, so the hierarchy index must no longer hold them
@@ -1313,10 +1587,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 					"The deleted root " + deletedRoot + " must leave the hierarchy index."
 				);
 			}
-			for (int descendant : new int[]{72, 82, 83, 92, 93, 94}) {
+			final int[] orphanedDescendants = {72, 82, 83, 92, 93, 94};
+			for (int descendant : orphanedDescendants) {
 				assertFalse(
 					hierarchyMembers.contains(descendant),
-					"Node " + descendant + " must be orphaned by the deletion of the root above it."
+					"Node " + descendant + " must leave the root-reachable hierarchy when the root above it is deleted."
 				);
 			}
 
@@ -1327,10 +1602,26 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 					"The deleted mid-chain node " + deletedMidChainNode + " must leave the hierarchy index."
 				);
 			}
-			for (int orphan : new int[]{123, 124, 125, 133, 134}) {
+			final int[] orphanedByMidChainDeletion = {123, 124, 125, 133, 134};
+			for (int orphan : orphanedByMidChainDeletion) {
 				assertFalse(
 					hierarchyMembers.contains(orphan),
-					"Node " + orphan + " must be orphaned by the mid-chain deletion above it."
+					"Node " + orphan + " must leave the root-reachable hierarchy when the node above it is deleted."
+				);
+			}
+
+			// what separates the two disappearances: an orphan is still a live entity that a primary-key
+			// filter finds, while the node whose deletion orphaned it resolves to nothing at all
+			for (int orphan : orphanedDescendants) {
+				assertTrue(
+					fetchCategoryByPrimaryKey(evita, orphan).isPresent(),
+					"The orphaned node " + orphan + " must still exist as an entity."
+				);
+			}
+			for (int orphan : orphanedByMidChainDeletion) {
+				assertTrue(
+					fetchCategoryByPrimaryKey(evita, orphan).isPresent(),
+					"The orphaned node " + orphan + " must still exist as an entity."
 				);
 			}
 
@@ -1342,23 +1633,84 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 			// every one of the three deleted roots resolves to no entity at all
 			for (int deletedRoot : deletedRoots) {
-				final Optional<SealedEntity> removedRoot = evita.queryCatalog(
-					TEST_CATALOG,
-					session -> {
-						return session.queryOneSealedEntity(
-							query(
-								collection(Entities.CATEGORY),
-								filterBy(entityPrimaryKeyInSet(deletedRoot)),
-								require(entityFetch(attributeContentAll()))
-							)
-						);
-					}
-				);
+				final Optional<SealedEntity> removedRoot = fetchCategoryByPrimaryKey(evita, deletedRoot);
 				assertTrue(
 					removedRoot.isEmpty(),
 					"The deleted root " + deletedRoot + " must not be fetchable, but was: " + removedRoot
 				);
 			}
+		}
+
+		/**
+		 * Clearing an entity's parent through the public API is the promotion of that entity to a root -
+		 * `removeParent` leaves the entity in place and reports no parent for it afterwards, and the
+		 * hierarchy index follows: the node is re-placed as a root rather than un-indexed, so it keeps
+		 * matching `hierarchyWithinRootSelf()` and its subtree stays attached below it.
+		 *
+		 * The counterfactual is the mirror of the phantom root - un-indexing the node would contradict the
+		 * invariant the rest of this class rests on, that a root is a node with a `null` parent in the
+		 * index, and would silently orphan everything underneath. The case is reachable from ordinary
+		 * generated data, since the data generator clears a parent whenever its random hierarchy picks the
+		 * root branch.
+		 *
+		 * This is the only method in the class that writes, so it runs against the small writable fixture
+		 * rather than the shared matrix one, and destroys it afterwards.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Clearing a parent re-roots the entity instead of dropping it out of the hierarchy")
+		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
+		@Test
+		void shouldKeepAnEntityInTheHierarchyWhenItsParentIsCleared(Evita evita) {
+			// a fresh branch below the intact root 1 - 201 hangs under it and 202 hangs under 201
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					createEnglishCategory(session, 201, 1);
+					createEnglishCategory(session, 202, 201);
+				}
+			);
+			final Set<Integer> beforeClearing = rootReachableCategoryPrimaryKeys(evita);
+			assertTrue(
+				beforeClearing.contains(201) && beforeClearing.contains(202),
+				"The fresh branch must be reachable from the root before its parent is cleared."
+			);
+
+			// clearing the parent makes 201 a root as far as the entity itself is concerned
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.CATEGORY, 201, attributeContentAll(), hierarchyContent())
+						.orElseThrow(() -> new AssertionError("Category 201 was not created."))
+						.openForWrite()
+						.removeParent()
+						.upsertVia(session);
+				}
+			);
+
+			// the entity survived the mutation and reports no parent at all, exactly as a root does
+			assertTrue(
+				fetchCategoryByPrimaryKey(evita, 201).isPresent(),
+				"Category 201 must still exist after its parent was cleared."
+			);
+			assertChain(standardParentChain(evita, 201));
+
+			// the cleared node is back in the hierarchy as a root, and it brought its subtree with it
+			final Set<Integer> afterClearing = rootReachableCategoryPrimaryKeys(evita);
+			assertTrue(
+				afterClearing.contains(201),
+				"Category 201 must return to the hierarchy as a root of its own."
+			);
+			assertTrue(
+				afterClearing.contains(202),
+				"The child of 201 must stay attached below it rather than being orphaned."
+			);
+			// the untouched root is still there, so the two assertions above cannot pass by the whole
+			// hierarchy having collapsed into one flat set of roots
+			assertTrue(
+				afterClearing.contains(1),
+				"The root the branch was created under must stay in the hierarchy index."
+			);
 		}
 	}
 
