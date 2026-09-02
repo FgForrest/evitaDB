@@ -206,8 +206,8 @@ public class ValueIdAllocator
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	public long getHeapSizeInBytes() {
-		// id + the counter
-		return VMLayout.current().sizeOfObject(Long.BYTES + Integer.BYTES);
+		// id + warmUpTouchStamp + the counter
+		return VMLayout.current().sizeOfObject(2L * Long.BYTES + Integer.BYTES);
 	}
 
 	/**
