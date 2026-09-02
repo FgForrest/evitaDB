@@ -57,6 +57,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -505,8 +506,15 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		/**
 		 * Removing a root that has children orphans its entire subtree and drops the root from both the
 		 * root set and the item index. The index behaves correctly here - the phantom root observed at
-		 * the query level is a mutation-layer defect (`EntityRemoveMutation` emits `RemoveParentMutation`
-		 * only for an entity that has a parent), so `removeNode` is simply never called for a root.
+		 * the query level is a mutation-layer defect
+		 * ({@link io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation} emits
+		 * {@link io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation} only for an
+		 * entity that has a parent), so {@link HierarchyIndex#removeNode} is simply never called for a
+		 * root.
+		 *
+		 * The last assertion pins the state every broken-chain case depends on: an orphaned child keeps
+		 * its dangling parent pointer, so 3 still reports 6 as its parent although 6 is gone from the
+		 * item index.
 		 */
 		@Test
 		@DisplayName("removing a root orphans its whole subtree and drops the root from the index")
@@ -527,20 +535,28 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				HierarchyIndexTest.this.hierarchyIndex.listHierarchyNodesFromRoot().getArray()
 			);
 			// the removed root is gone from the item index as well
-			assertThrows(
+			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> HierarchyIndexTest.this.hierarchyIndex.getParentNode(6)
 			);
+			assertEquals("The node `6` is not present in the index!", exception.getMessage());
+			// the orphaned child still points at the primary key that has just disappeared
+			assertEquals(OptionalInt.of(6), HierarchyIndexTest.this.hierarchyIndex.getParentNode(3));
 		}
 	}
 
 	/**
-	 * Pins how `HierarchyIndex#traverseHierarchyToRoot` behaves when the ancestor chain is broken,
-	 * i.e. when a node still references a parent primary key that is no longer registered. The three
-	 * depths behave differently today, and that difference is what makes a deleted mid-chain ancestor
-	 * throw at one position in the query layer and vanish silently at another. These cases are
-	 * characterisation pins for issue #1365 - see
+	 * Pins how {@link HierarchyIndex#traverseHierarchyToRoot} behaves when the ancestor chain is
+	 * broken, i.e. when a node still references a parent primary key that is no longer registered. The
+	 * three depths behave differently today, and that difference is what makes a deleted mid-chain
+	 * ancestor throw at one position in the query layer and vanish silently at another. These cases
+	 * are characterisation pins for issue #1365 - see
 	 * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`.
+	 *
+	 * Two of the three cases assert that nothing is visited, which on its own would also hold if the
+	 * traversal had become a no-op. The positive control that rules that out is
+	 * {@link VisitorTraversalTest#shouldTraverseEntireTreeToRoot}, which pins the visited node ids,
+	 * levels and distances for an intact chain built by the very same fixture.
 	 */
 	@Nested
 	@DisplayName("Broken chain traversal to root")
@@ -548,13 +564,22 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 		/**
 		 * Depth one - the node the traversal starts from is itself absent from the item index. The
-		 * traversal is skipped silently and the visitor is never called.
+		 * traversal is skipped silently and the visitor is never called. This is the index level of
+		 * matrix row K3, and it deliberately re-covers the guard that
+		 * {@link EdgeCaseTest#shouldSilentlySkipTraverseToRootForAbsentNode} already exercises, by the
+		 * removal route rather than by a node that was never registered.
 		 */
 		@Test
 		@DisplayName("start node absent from the index visits nothing")
 		void shouldSkipTraversalSilentlyWhenStartNodeIsAbsent() {
 			// removing 9 leaves 10, 11 and 12 as orphans and takes 9 itself out of the item index
 			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
+			// the start node really is gone from the item index, so the silent skip cannot come from 9
+			// having survived as an orphan
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> HierarchyIndexTest.this.hierarchyIndex.getParentNode(9)
+			);
 
 			final StringBuilder visited = new StringBuilder(128);
 			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
@@ -583,10 +608,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 					10
 				)
 			);
-			assertTrue(
-				exception.getMessage().contains("unexpectedly not present in the index"),
-				"Unexpected message: " + exception.getMessage()
-			);
+			assertEquals("The node parent `9` is unexpectedly not present in the index!", exception.getMessage());
 		}
 
 		/**
@@ -600,6 +622,14 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
 			// 20 hangs below the orphan 10, so it becomes an orphan itself
 			HierarchyIndexTest.this.hierarchyIndex.addNode(20, 10);
+
+			// 20 must really reach the orphan branch rather than the absent-start-node branch above: it
+			// is registered, its parent is 10, and 10 itself is a registered orphan
+			assertEquals(OptionalInt.of(10), HierarchyIndexTest.this.hierarchyIndex.getParentNode(20));
+			assertTrue(
+				HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes().contains(10),
+				"Node 10 was expected to be registered as an orphan."
+			);
 
 			final StringBuilder visited = new StringBuilder(128);
 			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(

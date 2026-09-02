@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-02 14:00
+updated: 2026-09-02 20:30
 status: proposed
 kind: fix
 issues: [1365]
@@ -180,7 +180,7 @@ columns list the **parent chain only**, the queried leaf omitted. `B(pk)` = pres
 | P3 | 34 → 33 → **32(cs)** → 31 | standard | `B(33)` | `B(33) → P(32) → B(31)` | `B(33)` |
 | P4 | 44 → **43(cs)** → **42(cs)** → 41 | standard | `P(43)` | `P(43) → P(42) → B(41)` | `—` |
 | P5 | 54 → **53(cs)** → 52 → **51(cs)** | standard | `P(53)` | `P(53) → B(52) → P(51)` | `—` |
-| P6 † | 63 → **62(cs)** → **61(cs)** | standard | `P(62)` | `P(62) → P(61)` | `—` |
+| P6 | 63 → **62(cs)** → **61(cs)** | standard | `P(62)` | `P(62) → P(61)` | `—` |
 | N1 | 23 → 22 → **21(cs)** | `hierarchyContent()`, no `entityFetch` | `P(22) → P(21)` | identical | identical |
 | N2 | 12 → **11(cs)** | `+ stopAt(distance(1))` | `P(11)` | `P(11)` | `—` |
 | N3 | 34 → 33 → **32(cs)** → 31 | `+ stopAt(distance(2))` | `B(33)` | `B(33) → P(32)` | `B(33)` |
@@ -193,8 +193,9 @@ columns list the **parent chain only**, the queried leaf omitted. `B(pk)` = pres
 | K5 | 125 → 124 → 123 → **122 deleted** (mid-chain) | standard | `P(124)` | `B(124) → B(123) → P(122)` | `B(124) → B(123)` |
 | K6 | 111 → **999**, never created | standard | `P(999)` | `P(999)` | `—` |
 
-† P6 is inferred from the measured P4, not separately observed; every other `today` cell is an
-observation.
+Every `today` cell is an observation. P6 was inferred from the measured P4 when this record was
+drafted rather than observed on its own; it has since been measured directly by the P6 row of
+`HierarchyContentParentsBehaviourFunctionalTest`, which returned the inferred `P(62)`.
 
 Reading the table: **P2 / P3 / N3 / K2 confirm the default preserves today**, and they are the #1365
 shapes. **P1 / P4 / P5 / P6 / N2 / N5 / K1 / K3 / K6 are where the immediate-parent pointer
@@ -271,9 +272,12 @@ after the run; the matrix is its record.
 The implementation proves itself with:
 
 - `HierarchyContentParentsBehaviourFunctionalTest` — the behaviour matrix, both modes plus the
-  `today` column as the backward-compatibility guard;
+  `today` column as the backward-compatibility guard. The `today` column has already landed: 32 test
+  methods across four nested classes (locale gate, requirement variations, broken chains, defect
+  pins), all green;
 - `HierarchyIndexTest` — root removal (no test removes a root today, which is why the phantom root
-  survived) and broken-chain traversal at two, three and more levels;
+  survived) and broken-chain traversal at two, three and more levels; four methods have already
+  landed, one for root removal and three for the traversal depths;
 - `QuerySerializationTest` — round-trip of both `HierarchyParentsBehaviour` values *and* both
   `ManagedReferencesBehaviour` values, the latter being the regression guard for the Kryo defect that
   only `ANY` round-tripping hid;
