@@ -316,6 +316,37 @@ class WarmUpSavepointValueIdRollbackTest {
 		}
 
 		@Test
+		@DisplayName("A value the rollback shifted back to its old slot must still resolve")
+		void shouldNotUnderReportAValueTheRollbackMovedBack() {
+			final InvertedIndex tree = treeWithIds();
+			tree.addRecord("alpha", 1);
+			tree.addRecord("gamma", 3);
+			final int alphaId = tree.getValueId("alpha");
+			final int gammaId = tree.getValueId("gamma");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// `beta` sorts BETWEEN the two values already in the leaf, so the insert pushes `gamma` one slot to the
+			// right. That is what the sibling test above deliberately does not do - appending past the last key leaves
+			// every surviving neighbour on the slot the directory already records for it
+			tree.addRecord("beta", 2);
+			// the same mid-savepoint read as above: it rebuilds the directory over the shifted tree and clears the
+			// staleness flag, so `gamma` gets recorded at a slot it occupies only while the savepoint is open
+			assertEquals("alpha", tree.getValueById(alphaId), "self-check: the directory answers before the rollback");
+			savepoint.rollback();
+
+			assertEquals(
+				"gamma", tree.getValueById(gammaId),
+				"The rollback moved `gamma` back to the slot it held before the savepoint, so it must resolve again. " +
+					"Answering null is an under-report rather than a wrong answer - the slot check refuses the mismatch - " +
+					"but it silently narrows every substring query until the next write raises the staleness flag again."
+			);
+			assertEquals(
+				"alpha", tree.getValueById(alphaId),
+				"The value the shift never reached must resolve too."
+			);
+		}
+
+		@Test
 		@DisplayName("A committed savepoint leaves the directory answering for the values it added")
 		void shouldKeepTheDirectoryUsableAfterCommit() {
 			final InvertedIndex tree = treeWithIds();

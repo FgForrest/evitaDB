@@ -34,6 +34,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -58,6 +60,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -127,6 +130,7 @@ public class InvertedIndex implements
 	IndexDataStructure,
 	ConsistencySensitiveDataStructure,
 	VoidTransactionMemoryProducer<InvertedIndex>,
+	WarmUpTouchStamped,
 	Serializable {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
 
@@ -276,6 +280,12 @@ public class InvertedIndex implements
 	 * three fields it is made of in whatever order they happened to land.
 	 */
 	private volatile boolean valueIdDirectoryStale;
+	/**
+	 * Stamp of the {@link WarmUpSavepoint} whose rollback already has this index's directory invalidation
+	 * journalled — see {@link #journalValueIdDirectoryInvalidation()}. Transient because it is per-savepoint
+	 * scratch state of a live instance and means nothing to a deserialized one.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
@@ -985,6 +995,50 @@ public class InvertedIndex implements
 	 * {@link #enableValueIds}), and every route that enables them - that one, {@link #restoreValueIds(int, int[])} and
 	 * the commit merge - rebuilds the directory and clears this flag itself.
 	 */
+	/**
+	 * Journals the rollback's own invalidation of the value id directory, once per savepoint.
+	 *
+	 * ## Why the rollback needs one at all
+	 *
+	 * {@link #markValueIdDirectoryStale()} states the invariant this upholds: every write that mutates a PUBLISHED
+	 * leaf in place raises the staleness flag, because such a write can move a bucket to a slot other than the one
+	 * the directory records for it. A rollback is exactly such a write — it puts the leaves back through the journal
+	 * rather than through the mutators above, so nothing on that path raises the flag — and a reader that rebuilt the
+	 * directory while the savepoint was open has already cleared it. The directory is then left describing slots the
+	 * rewind has since moved, and the slot validation in `TransactionalBucketBPlusTree#recordsOfMatchingValueId`
+	 * turns every one of them into a miss: a substring query silently under-reports until the next write happens to
+	 * raise the flag again.
+	 *
+	 * ## Why the restored value is the constant `true`, not the captured pre-image
+	 *
+	 * The scalar family rule would capture the flag as it stood at first touch and put that back. It is the wrong
+	 * pre-image here, and wrong precisely in the case this method exists for: the flag read `false` at first touch
+	 * only because the directory then agreed with the tree, and the mid-savepoint rebuild has since replaced it with
+	 * one built over the state the rollback is about to undo. Restoring `false` would re-bless that. `true` is
+	 * correct on every path and costs at most one directory rebuild on a mutation that has just failed anyway.
+	 *
+	 * ## Why it is journalled BEFORE the write rather than beside the flag-raise after it
+	 *
+	 * The journal replays in strict reverse order, so the entry pushed FIRST runs LAST. Recording the invalidation
+	 * ahead of this savepoint's first leaf write is what puts it underneath every inverse of this index, and
+	 * therefore what makes the flag go up only once every leaf is back where it belongs. Raised any earlier in the
+	 * replay, a reader arriving mid-rewind would rebuild over a half-restored tree and clear the flag again, which is
+	 * the very state this is here to prevent.
+	 *
+	 * No `isTransactionAvailable()` gate is needed to match {@link #markValueIdDirectoryStale()}'s: a savepoint is
+	 * open only where there is no transaction — see {@link WarmUpSavepoint#open()} — so the open savepoint is itself
+	 * the stronger test. Guarded on the allocator for the same reason the flag-raiser is: an index that mints no ids
+	 * has no directory to invalidate and must not pay a thread-local read per write to learn it.
+	 */
+	private void journalValueIdDirectoryInvalidation() {
+		if (this.valueIdAllocator != null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && savepoint.claimFirstTouch(this)) {
+				savepoint.push(() -> this.valueIdDirectoryStale = true);
+			}
+		}
+	}
+
 	private void markValueIdDirectoryStale() {
 		if (this.valueIdAllocator != null && !Transaction.isTransactionAvailable()) {
 			this.valueIdDirectoryStale = true;
@@ -1078,6 +1132,7 @@ public class InvertedIndex implements
 	 * @param sink     learns about a value born by this write, or `null` when nobody is interested
 	 */
 	public void addRecord(@Nonnull Serializable value, int recordId, @Nullable ValueLifecycleSink sink) {
+		journalValueIdDirectoryInvalidation();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {
 			this.buckets.addRecord(normalizedValue, recordId);
@@ -1113,6 +1168,7 @@ public class InvertedIndex implements
 	 */
 	public void addRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		journalValueIdDirectoryInvalidation();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {
 			this.buckets.addRecord(normalizedValue, recordId);
@@ -1153,6 +1209,7 @@ public class InvertedIndex implements
 	 */
 	public void removeRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		journalValueIdDirectoryInvalidation();
 		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
@@ -1788,9 +1845,10 @@ public class InvertedIndex implements
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + indexedDecimalPlaces + emittedNextValueId + valueIdDirectoryStale, then the dirty / buckets /
-		// normalizer / comparator / plainType / pageStreamRegistry / valueIdAllocator / valueIdConsumers slots
-		return layout.sizeOfObject(Long.BYTES + 2L * Integer.BYTES + 1L + 8L * layout.referenceSize())
+		// id + warmUpTouchStamp + indexedDecimalPlaces + emittedNextValueId + valueIdDirectoryStale, then the
+		// dirty / buckets / normalizer / comparator / plainType / pageStreamRegistry / valueIdAllocator /
+		// valueIdConsumers slots
+		return layout.sizeOfObject(2L * Long.BYTES + 2L * Integer.BYTES + 1L + 8L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			// the id COLUMNS are charged by the tree walk below; only the allocator object itself is charged here.
 			// The consumer registry holds a handful of interned names and is not charged — it is diagnostics-sized,
