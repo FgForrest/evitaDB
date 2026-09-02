@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -958,6 +959,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			rememberCapability(
 				new SchemaCapabilityKey(
 					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTERABLE, scope
+				)
+			);
+		}
+		if (attributeSchema.getAcceleratorsInScope(scope).contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
+			// filed as its own row rather than folded into FILTERABLE, and unconditionally on the filterable flag
+			// beside it, because `SchemaCapabilityUsageRegistry#declaresCapability` mints the row on exactly this
+			// test - the two must agree, or the seeded row would report an update count of zero by construction and
+			// read as "nothing maintains this accelerator, drop it"
+			rememberCapability(
+				new SchemaCapabilityKey(
+					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SUBSTRING_ACCELERATED, scope
 				)
 			);
 		}

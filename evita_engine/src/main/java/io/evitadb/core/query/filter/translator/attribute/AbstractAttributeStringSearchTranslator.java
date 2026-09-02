@@ -27,9 +27,13 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AbstractAttributeFilterStringSearchConstraintLeaf;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -354,16 +358,34 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 		}
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-		final String entityType = processingScope.getEntitySchemaOrThrowException().getName();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
+		final String entityType = entitySchema.getName();
 		final AttributeIndexKey attributeIndexKey = AttributeIndex.createAttributeKey(
 			null, attributeDefinition, locale
 		);
 
 		// the accelerator is resolved BEFORE anything walks the target set, and the walk that prices the gate lives
 		// inside `TrigramSubstringSearch#match` - so an attribute that keeps no accelerator, by far the common case
-		// since only a SUBSTRING-declaring attribute has one, costs two map lookups per scope and nothing else
+		// since only a SUBSTRING-declaring attribute has one, costs one set membership test per scope and nothing else
 		EnumMap<Scope, Formula> hoisted = null;
 		for (final Scope scope : processingScope.getScopes()) {
+			// the SCHEMA decides, not the index map. The map is reconciled with the schema by the next WRITE to the
+			// attribute (`GlobalEntityIndex#reconcileTrigramIndexAbsence`), so between a withdrawal and that write it
+			// still hands out an index - and planning through it would keep the accelerator's heap resident and its
+			// statistics being written for a capability the schema no longer declares. Answers stay correct either
+			// way; what the schema test fixes is the disagreement between schema, plan and statistics
+			if (!attributeDefinition.getAcceleratorsInScope(scope)
+				.contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
+				continue;
+			}
+			// the request is recorded on the DECLARATION rather than on the gate's verdict: the query did ask for the
+			// accelerator, and a gate that declines it (because the scan it displaces is cheaper here) is a planner
+			// cost decision rather than an absence of demand. Recording only the accelerated plans would make a
+			// correctly-sized accelerator look unused
+			queryContext.recordRequestedCapability(
+				entitySchema, null, ElementKind.ATTRIBUTE, attributeDefinition.getName(),
+				Capability.SUBSTRING_ACCELERATED, scope
+			);
 			final GlobalEntityIndex globalEntityIndex = queryContext
 				.getGlobalEntityIndexIfExists(entityType, scope)
 				.orElse(null);

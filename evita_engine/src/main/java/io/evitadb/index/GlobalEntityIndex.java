@@ -578,6 +578,11 @@ public class GlobalEntityIndex extends EntityIndex
 	 * postings that drifted from the tree in the meantime, because the write that ends the drift is the same one that
 	 * drops the entry.
 	 *
+	 * **The query path does not take that offer.** `AbstractAttributeStringSearchTranslator` consults the schema
+	 * before it asks this accessor at all, so a withdrawn accelerator stops being planned through immediately rather
+	 * than at the next write — what survives until that write is the heap the entry holds, not a plan or a statistic
+	 * that disagrees with the schema.
+	 *
 	 * @param attributeIndexKey the attribute and locale to look up
 	 * @return the trigram index, or `null` when the attribute has never been written to, when its
 	 * {@link AttributeFilterAccelerator#SUBSTRING_SEARCH} accelerator was withdrawn and written to since, or when its
