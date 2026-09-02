@@ -135,7 +135,7 @@ class EntityIndexBitmapEvictionTest {
 	private static AttributeSchemaContract filterableStringSchema(@Nonnull String name) {
 		return AttributeSchema._internalBuild(
 			name, null,
-			new Scope[]{Scope.LIVE}, Scope.NO_SCOPE,
+			new Scope[]{Scope.LIVE}, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null,
 			ConflictResolutionOverride.INHERITED

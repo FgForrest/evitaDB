@@ -63,11 +63,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SESSION;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -396,8 +392,8 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 			// a refusal is the other acceptable outcome, but only a legible one: every deliberate evitaDB
 			// exception carries the `EvitaError` contract, and a bare NPE or wrapper leaking from a damaged
 			// internal state does not
-			assertTrue(
-				refusal instanceof EvitaError,
+			assertInstanceOf(
+				EvitaError.class, refusal,
 				() -> "A refusal after a failed rename must be a legible evitaDB error, not " +
 					refusal.getClass().getName() + "!"
 			);

@@ -78,6 +78,7 @@ import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -524,12 +525,12 @@ class ContainerIndexHeapSizeTest {
 				"a tree charged twice would show up as a figure far above the measurement - shortfall " + shortfall
 			);
 			// and the fixture really does carry both sort modes, so the view arm above is not vacuous
-			assertTrue(
-				index.getSortIndex(null, attribute("priority"), null) instanceof OwnerSortIndex,
+			assertInstanceOf(
+				OwnerSortIndex.class, index.getSortIndex(null, attribute("priority"), null),
 				"a sort-only attribute must own its tree"
 			);
-			assertTrue(
-				index.getSortIndex(null, attribute("weight"), null) instanceof SortIndexView,
+			assertInstanceOf(
+				SortIndexView.class, index.getSortIndex(null, attribute("weight"), null),
 				"a both-flagged attribute must read the shared tree"
 			);
 		}

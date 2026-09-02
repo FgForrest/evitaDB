@@ -58,4 +58,5 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
 	}
+
 }

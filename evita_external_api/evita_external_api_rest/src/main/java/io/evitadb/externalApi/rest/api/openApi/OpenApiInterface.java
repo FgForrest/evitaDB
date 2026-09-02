@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.Builder;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Discriminator;

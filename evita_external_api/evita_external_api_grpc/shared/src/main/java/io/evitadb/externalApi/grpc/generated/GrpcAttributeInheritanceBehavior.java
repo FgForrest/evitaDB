@@ -133,7 +133,7 @@ public enum GrpcAttributeInheritanceBehavior
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(29);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(30);
   }
 
   private static final GrpcAttributeInheritanceBehavior[] VALUES = values();

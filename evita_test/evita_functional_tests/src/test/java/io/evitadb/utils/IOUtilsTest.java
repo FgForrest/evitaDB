@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -135,7 +136,7 @@ class IOUtilsTest {
 			final TrackingInputStream inputStream = new TrackingInputStream("abc".getBytes());
 			try {
 				IOUtils.copy(inputStream, target);
-				assertEquals(false, inputStream.isClosed());
+				assertFalse(inputStream.isClosed());
 			} finally {
 				inputStream.close();
 				Files.deleteIfExists(target);

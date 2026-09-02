@@ -84,6 +84,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
+	 * This call is a **full statement** of the attribute's filterability, exactly as `unique(...)` is of its
+	 * uniqueness. It does **not** touch the {@link AttributeFilterAccelerator accelerator} axis, which is declared
+	 * separately via {@link #acceleratedFor(AttributeFilterAccelerator...)}: dropping filterability from a scope that
+	 * is still `unique()` leaves its accelerators standing, because the filter index they accelerate is still there.
+	 *
 	 * @param inScope one or more scopes in which the attribute should be filterable
 	 * @return builder to continue with configuration
 	 */
@@ -127,6 +132,95 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonFilterableInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Asks the attribute's filter index to maintain the listed optional {@link AttributeFilterAccelerator accelerators}
+	 * in the {@link Scope#DEFAULT_SCOPE} scope.
+	 *
+	 * This is a **sibling axis** of `filterable()` / `unique()`, not part of either: it says nothing about *whether*
+	 * the attribute can be filtered by, only about how fast one particular shape of filter is answered. It does
+	 * however require the index it accelerates to exist - the attribute must be
+	 * {@link #filterable() filterable} or {@link #unique() unique} in the scope, or the mutation is refused. Each
+	 * accelerator costs additional memory and additional write-path work, so read its documentation before declaring
+	 * it; declaring none at all is the default.
+	 *
+	 * **Declaration order is insignificant.** The requirement is checked on the *assembled* attribute rather than on
+	 * the half-written chain, so `filterable().acceleratedFor(...)` and `acceleratedFor(...).filterable()` are equally
+	 * accepted, whatever else the chain does between the two calls. It is checked **per scope**, and either flag
+	 * satisfies it there - but only there: being {@link #uniqueInScope(Scope...) unique} in {@link Scope#LIVE}
+	 * licenses no accelerator declared in {@link Scope#ARCHIVED}.
+	 *
+	 * @param accelerators the accelerators to maintain in the default scope
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T acceleratedFor(@Nonnull AttributeFilterAccelerator... accelerators) {
+		return acceleratedForInScope(Scope.DEFAULT_SCOPE, accelerators);
+	}
+
+	/**
+	 * Conditional counterpart of {@link #acceleratedFor(AttributeFilterAccelerator...)} - declares the accelerators
+	 * when the decider says so and withdraws exactly those same accelerators when it does not, mirroring
+	 * {@link #filterable(BooleanSupplier)}.
+	 *
+	 * The negative branch withdraws only the accelerators named here, never the whole axis, so a conditional
+	 * declaration cannot silently drop an accelerator some other call declared.
+	 *
+	 * @param decider      returns true when the accelerators should be maintained
+	 * @param accelerators the accelerators to declare or withdraw
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T acceleratedFor(@Nonnull BooleanSupplier decider, @Nonnull AttributeFilterAccelerator... accelerators) {
+		return decider.getAsBoolean() ? acceleratedFor(accelerators) : nonAcceleratedFor(accelerators);
+	}
+
+	/**
+	 * Asks the attribute's filter index to maintain the listed optional {@link AttributeFilterAccelerator accelerators}
+	 * in one particular scope - the scoped counterpart of {@link #acceleratedFor(AttributeFilterAccelerator...)},
+	 * allowing a different set per scope.
+	 *
+	 * The accelerators are **added** to whatever the scope already declares, and other scopes are left untouched, so
+	 * two calls naming different scopes accumulate rather than overwrite each other. Use
+	 * {@link #nonAcceleratedForInScope(Scope, AttributeFilterAccelerator...)} to withdraw one again.
+	 *
+	 * @param scope        the scope in which the accelerators should be maintained
+	 * @param accelerators the accelerators to maintain in that scope
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T acceleratedForInScope(@Nonnull Scope scope, @Nonnull AttributeFilterAccelerator... accelerators);
+
+	/**
+	 * Withdraws the listed {@link AttributeFilterAccelerator accelerators} from **every** scope, leaving the
+	 * attribute's filterability and uniqueness exactly as they were.
+	 *
+	 * Accelerators the attribute does not declare are silently ignored - the call states the desired end state rather
+	 * than a delta that has to match.
+	 *
+	 * @param accelerators the accelerators to withdraw
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonAcceleratedFor(@Nonnull AttributeFilterAccelerator... accelerators) {
+		T result = null;
+		for (final Scope scope : Scope.values()) {
+			result = nonAcceleratedForInScope(scope, accelerators);
+		}
+		//noinspection DataFlowIssue - Scope always declares at least one constant
+		return result;
+	}
+
+	/**
+	 * Withdraws the listed {@link AttributeFilterAccelerator accelerators} from one particular scope, leaving the
+	 * other scopes and the attribute's filterability and uniqueness exactly as they were.
+	 *
+	 * @param scope        the scope to withdraw the accelerators from
+	 * @param accelerators the accelerators to withdraw
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonAcceleratedForInScope(@Nonnull Scope scope, @Nonnull AttributeFilterAccelerator... accelerators);
 
 	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity

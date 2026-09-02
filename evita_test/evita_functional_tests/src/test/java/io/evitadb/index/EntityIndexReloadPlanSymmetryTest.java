@@ -33,6 +33,7 @@ import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
+import io.evitadb.index.component.TrigramIndexMapComponent;
 import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.ComponentLoader;
@@ -59,6 +60,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -175,7 +177,7 @@ class EntityIndexReloadPlanSymmetryTest {
 			.map(ComponentLoader::getClass)
 			.collect(Collectors.toSet());
 		final List<IndexComponent> components = index.getRegisteredComponents();
-		assertTrue(!components.isEmpty(), "index has no components — fixture bug");
+		assertFalse(components.isEmpty(), "index has no components — fixture bug");
 		for (final IndexComponent component : components) {
 			final Class<? extends ComponentLoader> expectedLoader = expectedLoaderFor(component, index);
 			if (expectedLoader == null) {
@@ -217,6 +219,12 @@ class EntityIndexReloadPlanSymmetryTest {
 			// but has no on-disk footprint — the reload plan intentionally omits a price loader
 			return null;
 		}
+		if (component instanceof TrigramIndexMapComponent) {
+			// a trigram index is derived state: it writes no storage part and announces no manifest key, and is
+			// re-derived from the reloaded shared value trees by the finalizer of GlobalEntityIndex.reloadPlan()
+			// rather than by a ComponentLoader of its own. There is nothing on disk for a loader to read back.
+			return null;
+		}
 		final Class<? extends ComponentLoader> loader = COMPONENT_TO_LOADER.get(component.getClass());
 		assertNotNull(loader,
 			"No entry in COMPONENT_TO_LOADER for " + component.getClass().getSimpleName() +
@@ -238,11 +246,18 @@ class EntityIndexReloadPlanSymmetryTest {
 			AttributeCardinalityIndexMapComponent.class,
 			HistogramIndexMapComponent.class,
 			GroupCardinalityComponent.class,
-			ReferenceTypeCardinalityComponent.class
+			ReferenceTypeCardinalityComponent.class,
+			TrigramIndexMapComponent.class
+		);
+		// the components that deliberately have no loader, each for a reason stated at its arm of
+		// `expectedLoaderFor`: price is subclass-dispatched and symmetry is asserted by the per-subclass tests,
+		// and the trigram map is derived state with no on-disk footprint at all
+		final Set<Class<? extends IndexComponent>> componentsWithoutLoader = Set.of(
+			PriceIndexComponent.class,
+			TrigramIndexMapComponent.class
 		);
 		for (final Class<? extends IndexComponent> componentClass : knownComponents) {
-			if (componentClass == PriceIndexComponent.class) {
-				// price is subclass-dispatched; symmetry is asserted by the per-subclass tests
+			if (componentsWithoutLoader.contains(componentClass)) {
 				continue;
 			}
 			assertTrue(
@@ -251,7 +266,7 @@ class EntityIndexReloadPlanSymmetryTest {
 			);
 		}
 		assertEquals(
-			knownComponents.size() - 1,
+			knownComponents.size() - componentsWithoutLoader.size(),
 			COMPONENT_TO_LOADER.size(),
 			"COMPONENT_TO_LOADER size diverged from knownComponents; new component without " +
 				"a matching loader, or extra entry without a corresponding component"

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.catalog;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;

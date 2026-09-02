@@ -35,7 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Finds single attribute value from entity by name and possibly locale. Each attribute field should have its own fetcher

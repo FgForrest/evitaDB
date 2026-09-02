@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -251,6 +252,10 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		}
 		dtoBuilder
 			.e(AttributeSchemaDescriptor.FILTERABLE.name(), createFlagInScopesDto(attributeSchema::isFilterableInScope))
+			.e(
+				AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
+				createAcceleratorsDto(attributeSchema)
+			)
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
@@ -454,6 +459,33 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(
 					ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
 					entry.getValue().stream().map(ReferenceIndexedComponents::name).toList()
+				)
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the filter index capabilities DTOs based on the provided
+	 * {@link AttributeSchemaContract}. Each map entry contains a scope and an array of capability names.
+	 *
+	 * A scope that declares no capability is absent from the schema's map and is therefore not listed at all, so an
+	 * attribute that is merely filterable produces an empty list.
+	 *
+	 * @param attributeSchema the attribute schema contract containing details about filter index capabilities
+	 * @return a list of maps, where each map represents a scoped set of filter index capabilities
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createAcceleratorsDto(
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		return attributeSchema.getAcceleratorsInScopes()
+			.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(),
+					entry.getValue().stream().map(AttributeFilterAccelerator::name).toList()
 				)
 				.build())
 			.toList();

@@ -24,7 +24,6 @@
 package io.evitadb.api.exception;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;

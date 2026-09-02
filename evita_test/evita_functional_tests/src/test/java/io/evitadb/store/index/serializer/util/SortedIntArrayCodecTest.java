@@ -282,15 +282,15 @@ class SortedIntArrayCodecTest {
 			// write every run sequentially into ONE Output, with each run landing at an increasing destination offset
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(1_024);
 			try (final Output output = new Output(os, 1_024)) {
-				for (int i = 0; i < runs.length; i++) {
-					SortedIntArrayCodec.writeAscendingRun(output, runs[i], 0, runs[i].length);
+				for (final int[] run : runs) {
+					SortedIntArrayCodec.writeAscendingRun(output, run, 0, run.length);
 				}
 			}
 
 			// read every run back from ONE Input into ONE destination array, supplying each run length in order
 			int totalLength = 0;
-			for (int i = 0; i < runs.length; i++) {
-				totalLength += runs[i].length;
+			for (final int[] run : runs) {
+				totalLength += run.length;
 			}
 			final int[] dst = new int[totalLength];
 			final int[] offsets = new int[runs.length];

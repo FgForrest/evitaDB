@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
@@ -36,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
@@ -59,6 +61,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -80,13 +83,19 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateGlobalAttributeSchemaMutation
 	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = 496202593310308291L;
+	@Serial private static final long serialVersionUID = 496202593310308292L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 	@Getter @Nonnull private final Scope[] filterableInScopes;
+	/**
+	 * Optional accelerations the filter index should maintain for the newly created attribute, per scope. Never `null`
+	 * after construction - the field is optional on the wire, and an older client that never sends it lands on the
+	 * empty array, i.e. plain filterability.
+	 */
+	@Getter @Nonnull private final ScopedAttributeFilterAccelerators[] acceleratorsInScopes;
 	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
@@ -163,9 +172,59 @@ public class CreateGlobalAttributeSchemaMutation
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, sortableInScopes,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new global attribute schema with the given properties, without any
+	 * optional {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator filter accelerator}.
+	 *
+	 * This is the signature that was public before accelerators existed. It is kept as a delegating overload so that
+	 * an integration compiled against it keeps both source and binary compatibility - the accelerator argument the
+	 * canonical constructor gained is optional by design, and omitting it means "no acceleration", which is exactly
+	 * what every schema written before this feature meant.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported evitaDB type or
+	 *                                   its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
+	public CreateGlobalAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -179,6 +238,7 @@ public class CreateGlobalAttributeSchemaMutation
 	 * @param uniqueGloballyInScopes     the scopes in which the attribute must be globally unique across
 	 *                                   the whole catalog (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null
@@ -191,7 +251,12 @@ public class CreateGlobalAttributeSchemaMutation
 	 *                                   applied to this attribute (never `null`; use
 	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the
 	 *                                   resolved conflict resolution)
-	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes, if a carrier in
+	 *                                         {@code acceleratorsInScopes} names a scope outside
+	 *                                         {@code filterableInScopes} (see
+	 *                                         {@link #verifyAcceleratorScopesHaveFilterIndex}), or if a carried
+	 *                                         accelerator does not apply to {@code type} (see
+	 *                                         {@link #verifyAcceleratorsApplicableToType})
 	 */
 	@SerializableCreator
 	public CreateGlobalAttributeSchemaMutation(
@@ -201,6 +266,7 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
 		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -226,6 +292,23 @@ public class CreateGlobalAttributeSchemaMutation
 				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE)
 			} : uniqueGloballyInScopes;
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
+		this.acceleratorsInScopes = acceleratorsInScopes == null ?
+			ScopedAttributeFilterAccelerators.EMPTY : acceleratorsInScopes;
+		// a create mutation carries the attribute type and both filter-index declarations itself, so both accelerator
+		// checks can run right here rather than waiting for the schema - which is what closes the gap for a mutation
+		// assembled field by field over the wire, where no set-accelerated mutation follows to validate on its behalf.
+		// Global uniqueness is folded into the local one by GlobalAttributeSchema, so it counts as a filter index here
+		// too - the schema-side check would otherwise disagree with this one on a globally-unique-only attribute
+		final EnumSet<Scope> scopesWithFilterIndex = scopesWithFilterIndex(this.filterableInScopes, this.uniqueInScopes);
+		for (final ScopedGlobalAttributeUniquenessType scopedUniqueness : this.uniqueGloballyInScopes) {
+			if (scopedUniqueness.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE) {
+				scopesWithFilterIndex.add(scopedUniqueness.scope());
+			}
+		}
+		verifyAcceleratorScopesHaveFilterIndex(this.name, scopesWithFilterIndex, this.acceleratorsInScopes);
+		verifyAcceleratorsApplicableToType(
+			this.name, type, AttributeSchema.toAcceleratorsEnumMap(this.acceleratorsInScopes)
+		);
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
@@ -308,6 +391,23 @@ public class CreateGlobalAttributeSchemaMutation
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
+							// the accelerator axis is its own difference: one carrier per scope declaring at least one,
+							// so that withdrawing the last accelerator of a scope still reads as a change
+							schema -> Arrays.stream(Scope.values())
+								.filter(scope -> !schema.getAcceleratorsInScope(scope).isEmpty())
+								.map(
+									scope -> new ScopedAttributeFilterAccelerators(
+										scope,
+										schema.getAcceleratorsInScope(scope)
+											.toArray(AttributeFilterAccelerator[]::new)
+									)
+								)
+								.toArray(ScopedAttributeFilterAccelerators[]::new),
+							newValue -> new SetAttributeSchemaAcceleratedMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
+							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
 								// filter out default values
@@ -378,7 +478,7 @@ public class CreateGlobalAttributeSchemaMutation
 		return (S) GlobalAttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.uniqueInScopes, this.uniqueGloballyInScopes,
-			this.filterableInScopes, this.sortableInScopes,
+			this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
@@ -444,6 +544,8 @@ public class CreateGlobalAttributeSchemaMutation
 			", unique=(" + join(this.uniqueInScopes) + ")" +
 			", uniqueGlobally=(" + join(this.uniqueGloballyInScopes) + ")" +
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
+			(this.acceleratorsInScopes.length == 0 ?
+				"" : ", accelerators=(" + join(this.acceleratorsInScopes) + ")") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +

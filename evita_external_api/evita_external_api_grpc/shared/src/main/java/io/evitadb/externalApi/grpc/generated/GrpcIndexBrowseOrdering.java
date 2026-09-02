@@ -267,7 +267,7 @@ public enum GrpcIndexBrowseOrdering
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(45);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(46);
   }
 
   private static final GrpcIndexBrowseOrdering[] VALUES = values();

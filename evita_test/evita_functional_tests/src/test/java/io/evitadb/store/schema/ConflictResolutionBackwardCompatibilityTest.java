@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
@@ -364,7 +363,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null,
+			"code", null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -386,7 +385,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateGlobalAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -451,23 +450,6 @@ class ConflictResolutionBackwardCompatibilityTest {
 		return (ReferenceSchema) schema.getReference(Entities.BRAND).orElseThrow();
 	}
 
-	/**
-	 * Emulates reading a record persisted by the pre-conflict format and routes it through the fully configured Kryo.
-	 * The routing envelope's leading {@code serialVersionUID} is written as the orphaned pre-conflict value, followed by
-	 * the payload produced by the current serializer. Because the conflict field was strictly appended, the pre-conflict
-	 * payload is a byte-exact prefix of the current payload; the backward-compatible reader selected by the routing stops
-	 * short of the trailing conflict bytes, reproducing a genuine old on-disk record. The object is then read back
-	 * through {@code kryo.readObject}, exercising the real registration and version-routing path.
-	 *
-	 * @param kryo             the fully configured Kryo whose registered version-routing serializer must select the
-	 *                         pre-conflict reader
-	 * @param orphanedUid      the pre-conflict {@code serialVersionUID} stored in the envelope
-	 * @param currentSerializer the current serializer used to render the payload prefix deterministically
-	 * @param type             the deserialized type
-	 * @param object           the object whose current-format payload is rendered
-	 * @param <T>              the schema/mutation type
-	 * @return the object read back through the version-routing path
-	 */
 	/**
 	 * Renders a {@link CatalogSchema} record in the pre-2026.2 on-disk layout — the current layout minus the
 	 * conflict-resolution field, which the current serializer writes mid-stream (before evolution modes and attributes)
@@ -599,6 +581,23 @@ class ConflictResolutionBackwardCompatibilityTest {
 		}
 	}
 
+	/**
+	 * Emulates reading a record persisted by the pre-conflict format and routes it through the fully configured Kryo.
+	 * The routing envelope's leading {@code serialVersionUID} is written as the orphaned pre-conflict value, followed by
+	 * the payload produced by the current serializer. Because the conflict field was strictly appended, the pre-conflict
+	 * payload is a byte-exact prefix of the current payload; the backward-compatible reader selected by the routing stops
+	 * short of the trailing conflict bytes, reproducing a genuine old on-disk record. The object is then read back
+	 * through {@code kryo.readObject}, exercising the real registration and version-routing path.
+	 *
+	 * @param kryo             the fully configured Kryo whose registered version-routing serializer must select the
+	 *                         pre-conflict reader
+	 * @param orphanedUid      the pre-conflict {@code serialVersionUID} stored in the envelope
+	 * @param currentSerializer the current serializer used to render the payload prefix deterministically
+	 * @param type             the deserialized type
+	 * @param object           the object whose current-format payload is rendered
+	 * @param <T>              the schema/mutation type
+	 * @return the object read back through the version-routing path
+	 */
 	@Nonnull
 	private static <T> T readThroughBackwardCompatibleRoute(
 		@Nonnull Kryo kryo,

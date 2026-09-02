@@ -93,6 +93,9 @@ message GrpcEntitySchemaMutation {
     GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 33;
     // Mutation is responsible for setting value `AttributeSchema.conflictResolutionOverride` in `EntitySchema`.
     GrpcSetAttributeSchemaConflictResolutionOverrideMutation setAttributeSchemaConflictResolutionOverrideMutation = 34;
+    // Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+    // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+    GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 126;
 
     // Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
     GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 50;

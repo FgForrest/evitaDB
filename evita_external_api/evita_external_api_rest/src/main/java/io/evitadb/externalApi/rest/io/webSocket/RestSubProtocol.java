@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.io.webSocket;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
 
 interface RestSubProtocol {
     void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;

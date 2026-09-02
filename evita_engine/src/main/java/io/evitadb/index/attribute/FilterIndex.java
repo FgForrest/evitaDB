@@ -43,6 +43,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueLifecycleSink;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -756,6 +757,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	public <T extends Serializable> void addRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		addRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(int, Object)}: `sink` learns about every distinct value
+	 * this write brings into existence. An array attribute may bring several into existence in one call, so the sink
+	 * may be notified more than once.
+	 *
+	 * @param recordId the ID of the record to add
+	 * @param value    the value of the record to add
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value, must implement Comparable<T>
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -776,10 +794,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 
 		if (value instanceof final Object[] valueArray) {
 			for (Object valueItem : verifyValueArray(valueArray)) {
-				this.invertedIndex.addRecord((T) valueItem, recordId);
+				this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 			}
 		} else {
-			this.invertedIndex.addRecord((T) value, recordId);
+			this.invertedIndex.addRecord((T) value, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -802,6 +820,22 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	public <T extends Serializable> void addRecordDelta(
 		int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
+		addRecordDelta(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecordDelta(int, Object[])} — see
+	 * {@link #addRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values born by this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void addRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
@@ -822,7 +856,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		for (Object valueItem : verifyValueArray(value)) {
-			this.invertedIndex.addRecord((T) valueItem, recordId);
+			this.invertedIndex.addRecord((T) valueItem, recordId, sink);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -843,6 +877,23 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	public <T extends Serializable> void removeRecord(
 		int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+		removeRecord(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecord(int, Object)}: `sink` learns about every distinct
+	 * value this write takes out of existence.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the value
+	 * @throws EvitaInvalidUsageException when the removed record is not actually registered for the attribute or
+	 *                                    when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecord(
+		int recordId, @Nonnull Object value, @Nullable ValueLifecycleSink sink
+	) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
@@ -867,10 +918,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 
 		if (value instanceof final Object[] valueArray) {
 			for (Object valueItem : verifyValueArray(valueArray)) {
-				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 			}
 		} else {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) value);
+			removeRecordFromHistogramAndValueIndex(recordId, (T) value, sink);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -892,6 +943,22 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
 	public <T extends Serializable> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
+		removeRecordDelta(recordId, value, null);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #removeRecordDelta(int, Object[])} — see
+	 * {@link #removeRecord(int, Object, ValueLifecycleSink)} for what the sink is told.
+	 *
+	 * @param recordId the unique identifier of the record
+	 * @param value    the attribute value array
+	 * @param sink     learns about the values that died in this write, or `null` when nobody is interested
+	 * @param <T>      the type of the attribute value
+	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
+	 */
+	public <T extends Serializable> void removeRecordDelta(
+		int recordId, @Nonnull Object[] value, @Nullable ValueLifecycleSink sink
+	) {
 		// if current attribute is Range based assign record also to range index
 		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
@@ -913,7 +980,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 
 		verifyValueArray(value);
 		for (Object valueItem : value) {
-			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
+			removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem, sink);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -1277,7 +1344,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
 	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
 	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
-	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
+	 * axes are page-stable AND the bucket axis's value-id high-water mark hasn't advanced this commit, the root is
+	 * byte-identical to disk and skipped. The leaf pages
 	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
@@ -1300,7 +1368,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
 		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
 		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
-		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		// a commit can mint value ids into an existing leaf without ever allocating or freeing a page, and the root is
+		// the only place the id high-water mark lives — so a changed mark forces the root out even when both page lists
+		// are stable, or a restart would re-mint ids the leaf pages already carry
+		final boolean bucketRootStable =
+			bucket.paged() && !bucket.listChanged() && !bucket.valueIdHighWaterChanged();
 		final boolean rangeRootStable = range.rangePaged()
 			? !range.listChanged()
 			: range.inlineRangeIndex() == null;
@@ -1313,9 +1385,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
 				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
-				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(),
+				bucket.nextValueId(), bucket.inlineValueIds(), null
 			)
 		);
+		// the root just written carries the current high-water mark, so the next commit that mints nothing leaves it be
+		this.invertedIndex.markValueIdHighWaterEmitted();
 	}
 
 	/**
@@ -1338,7 +1413,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				sink.addChangeToStore(
-					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+					new FilterIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets(), page.valueIds()
+					)
 				);
 			}
 			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
@@ -1348,7 +1425,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 			return new BucketAxis(
 				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
-				emission.pageListChanged()
+				emission.pageListChanged(),
+				this.invertedIndex.getNextValueId(), null, this.invertedIndex.isValueIdHighWaterDirty()
 			);
 		}
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
@@ -1365,7 +1443,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
 		// (listChanged=true)
 		return new BucketAxis(
-			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true,
+			this.invertedIndex.getNextValueId(), this.invertedIndex.getValueIds(), true
 		);
 	}
 
@@ -1430,13 +1509,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
 	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
 	 *                         histogram always rides the root
+	 * @param nextValueId      the bucket axis's next-value-id high-water mark to persist on the root
+	 * @param inlineValueIds   the `SINGLE` part's inline value-id column, parallel to `histogramPoints`; `null` for a
+	 *                         `PAGED` part, whose value ids live in the leaf pages instead
+	 * @param valueIdHighWaterChanged whether the value-id high-water mark advanced this commit, forcing the root to
+	 *                         re-emit even when both axes are otherwise page-stable
 	 */
 	private record BucketAxis(
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		boolean paged,
 		int highWaterPageSequence,
 		@Nonnull int[] leafPageSequences,
-		boolean listChanged
+		boolean listChanged,
+		int nextValueId,
+		@Nullable int[] inlineValueIds,
+		boolean valueIdHighWaterChanged
 	) {
 	}
 
@@ -1556,18 +1643,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 *
 	 * @param recordId the record id to detach from the value's bucket
 	 * @param value    the raw attribute value whose association is removed
+	 * @param sink     learns when this removal takes the value out of existence, or `null` when nobody is interested
 	 * @param <T>      the attribute value type
 	 * @throws EvitaInvalidUsageException when the record is not registered for the (normalized) value — signals a
 	 *                                    mismatch between the mutation being applied and the index state
 	 */
-	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
+	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(
+		int recordId, @Nonnull T value, @Nullable ValueLifecycleSink sink
+	) {
 		// sanity check first - the record must currently be assigned to this value's bucket
 		final Serializable normalizedValue = this.normalizer.apply(value);
 		isTrue(
 			this.invertedIndex.getRecordsEqualTo(normalizedValue).contains(recordId),
 			"Sanity check - record not found!"
 		);
-		this.invertedIndex.removeRecord(value, recordId);
+		this.invertedIndex.removeRecord(value, sink, recordId);
 	}
 
 }

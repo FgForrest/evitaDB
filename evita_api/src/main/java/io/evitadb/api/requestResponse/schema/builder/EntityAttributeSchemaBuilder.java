@@ -118,11 +118,23 @@ public final class EntityAttributeSchemaBuilder
 		return (List) this.mutations;
 	}
 
-	@Delegate(types = AttributeSchemaContract.class)
 	@Nonnull
 	@Override
 	public EntityAttributeSchemaContract toInstance() {
 		return super.toInstance();
+	}
+
+	/**
+	 * Hosts the {@link Delegate} that routes this builder's {@link AttributeSchemaContract} getters at the schema as it is
+	 * currently declared. It deliberately delegates to the UNVALIDATED assembly rather than to
+	 * {@link #toInstance()}: a getter answers what has been declared so far, and validating on every read
+	 * would refuse a chain that is merely unfinished - see {@link AbstractAttributeSchemaBuilder#assembleInstance()}.
+	 */
+	@Delegate(types = AttributeSchemaContract.class)
+	@Nonnull
+	@Override
+	protected EntityAttributeSchemaContract assembleInstance() {
+		return super.assembleInstance();
 	}
 
 }

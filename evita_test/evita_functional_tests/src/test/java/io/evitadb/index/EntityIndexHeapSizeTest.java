@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -42,6 +43,8 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.component.HistogramIndexMapComponent;
+import io.evitadb.index.trigram.TrigramIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
@@ -71,6 +74,8 @@ import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -107,6 +112,8 @@ class EntityIndexHeapSizeTest {
 
 	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "brand";
+	private static final String SUBSTRING_CODE = "substringCode";
+	private static final String SUBSTRING_NAME = "substringName";
 	private static final int INDEX_PK = 1;
 	private static final Set<Locale> ALLOWED_LOCALES = Set.of(Locale.ENGLISH);
 
@@ -128,6 +135,16 @@ class EntityIndexHeapSizeTest {
 		.withAttribute("validFrom", OffsetDateTime.class, AttributeSchemaEditor::filterable)
 		.withAttribute("currency", Currency.class, AttributeSchemaEditor::filterable)
 		.withAttribute("language", Locale.class, AttributeSchemaEditor::filterable)
+		// two SUBSTRING attributes, so a global index can be measured with a populated trigram map and again with one
+		// entry taken out of it - the only fixture in this file that reaches the map's per-entry charge at all
+		.withAttribute(
+			SUBSTRING_CODE, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
+		.withAttribute(
+			SUBSTRING_NAME, String.class,
+			thatIs -> thatIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		)
 		.toInstance();
 
 	@Nonnull
@@ -472,6 +489,66 @@ class EntityIndexHeapSizeTest {
 		void shouldMatchAnEmptyGlobalIndex() {
 			final GlobalEntityIndex index = newGlobalIndex();
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, globalExclusions());
+		}
+
+		@Test
+		@DisplayName("a global index charges its trigram map for the index it holds, but not for a borrowed key")
+		void shouldMatchAGlobalIndexCarryingTrigramIndexes() {
+			// the trigram map's key sizer is the one term of this index's arithmetic that nothing else in the
+			// repository executes: every other global index here declares no SUBSTRING attribute, so the map is
+			// always empty and the per-entry charge is asserted nowhere. Two entries go in so that one can be taken
+			// out again, which is what isolates the cost of a single entry from everything else the index carries.
+			//
+			// What is pinned is the ARITHMETIC of one entry, plus a JOL reading of the key it charges for - not a
+			// byte-exact reading of the whole index, which is unattainable here for two independent reasons: a seeded
+			// global index inherits its sub-indexes' documented divergences (see the bounded shortfall below), and two
+			// trigram indexes in one map reach objects that each of them charges to itself, so a walk gives back less
+			// than the arithmetic drops when one of them leaves
+			final GlobalEntityIndex index = newGlobalIndex();
+			for (int i = 0; i < 2; i++) {
+				final int recordId = AUTOBOX_CACHE_CEILING + i;
+				index.insertPrimaryKeyIfMissing(recordId);
+				index.insertFilterAttribute(
+					null, attribute(SUBSTRING_CODE), ALLOWED_LOCALES, null, "code-" + recordId, recordId, false);
+				index.insertFilterAttribute(
+					null, attribute(SUBSTRING_NAME), ALLOWED_LOCALES, null, "name-" + recordId, recordId, false);
+			}
+			final AttributeIndexKey droppedKey = new AttributeIndexKey(null, SUBSTRING_CODE, null);
+			final TrigramIndex dropped = index.getTrigramIndex(droppedKey);
+			assertNotNull(dropped, "the fixture must have built an accelerator to price");
+			assertTrue(dropped.getTrigramCount() > 0, "and it must hold postings");
+
+			// the key the trigram map is filed under is the very instance the attribute index files its shared value
+			// tree under, and that map already charges it in full. This is what makes the zero charge below correct
+			// rather than an omission: a key charged in both places would be reported twice in one figure, on every
+			// attribute that declares the capability
+			assertSame(
+				readField(dropped, "attributeIndexKey"),
+				readField(index.getFilterIndex(null, attribute(SUBSTRING_CODE), null), "attributeIndexKey"),
+				"the attribute index and the trigram map hold one and the same key instance"
+			);
+
+			final VMLayout layout = VMLayout.current();
+			final long reportedWithBoth = index.getHeapSizeInBytes();
+			trigramMapOf(index).remove(droppedKey);
+			final long reportedWithOne = index.getHeapSizeInBytes();
+
+			assertEquals(
+				layout.sizeOfObject(Integer.BYTES + 3L * layout.referenceSize())
+					+ dropped.getHeapSizeInBytes(),
+				reportedWithBoth - reportedWithOne,
+				"one entry must cost one map node and the index it points at, and nothing for the borrowed key"
+			);
+		}
+
+		/**
+		 * @param index the global index whose trigram map is wanted
+		 * @return the map itself, so a test can take an entry out of it without going through a schema mutation
+		 */
+		@Nonnull
+		@SuppressWarnings("unchecked")
+		private Map<AttributeIndexKey, TrigramIndex> trigramMapOf(@Nonnull GlobalEntityIndex index) {
+			return (Map<AttributeIndexKey, TrigramIndex>) readField(index, "trigramIndex");
 		}
 
 		@Test

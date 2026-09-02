@@ -523,7 +523,7 @@ class DataDeserializerTest {
 		openAPI.components(components);
 		final Integer testedNumber = 56;
 		final Object deserialized = this.dataDeserializer.deserializeTree(myNumber, new JsonNodeFactory(false).numberNode(testedNumber));
-		assertTrue(deserialized instanceof Integer);
+		assertInstanceOf(Integer.class, deserialized);
 		assertEquals(testedNumber, (Integer) deserialized);
 	}
 
@@ -553,12 +553,12 @@ class DataDeserializerTest {
 		dataNode.putIfAbsent("properties", propertyNode);
 
 		final Object deserialized = this.dataDeserializer.deserializeTree(dataObject, dataNode);
-		assertTrue(deserialized instanceof Map<?, ?>);
+		assertInstanceOf(Map.class, deserialized);
 		final Map<String, Object> data = (Map<String, Object>) deserialized;
 		assertEquals((short) 54, data.get("id"));
 		assertEquals("Popis", data.get("description"));
 		assertEquals(new Locale("cs", "CZ"), data.get("locale"));
-		assertTrue(data.get("properties") instanceof List<?>);
+		assertInstanceOf(List.class, data.get("properties"));
 		final List<String> properties = (List<String>) data.get("properties");
 		assertEquals("val1", properties.get(0));
 		assertEquals("val2", properties.get(1));

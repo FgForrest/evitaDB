@@ -90,7 +90,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			FilterIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(this.keyCompressor), FilterIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(-3363238752052021735L, new FilterIndexStoragePartSerializer_2025_5(this.keyCompressor))
-				.addBackwardCompatibleSerializer(942367579256351640L, new FilterIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(942367579256351640L, new FilterIndexStoragePartSerializer_2026_1(this.keyCompressor))
+				.addBackwardCompatibleSerializer(3847290165472938104L, new FilterIndexStoragePartSerializer_2026_2(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
@@ -189,11 +190,13 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the granular FilterIndex leaf-page record — a brand-new record type with no backward-compatible reader.
-		// Appended last to keep the preceding registration ids stable.
+		// the granular FilterIndex leaf-page record. Shipped in 2026.2 WITHOUT the parallel value id column, so the
+		// pre-column shape needs a backward-compatible reader. Appended last to keep the preceding registration ids
+		// stable.
 		kryo.register(
 			FilterIndexLeafPagePart.class,
-			new SerialVersionBasedSerializer<>(new FilterIndexLeafPagePartSerializer(), FilterIndexLeafPagePart.class),
+			new SerialVersionBasedSerializer<>(new FilterIndexLeafPagePartSerializer(), FilterIndexLeafPagePart.class)
+				.addBackwardCompatibleSerializer(8923174650293847561L, new FilterIndexLeafPagePartSerializer_2026_2()),
 			index++
 		);
 

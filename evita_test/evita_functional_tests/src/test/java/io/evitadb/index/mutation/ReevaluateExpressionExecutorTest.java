@@ -82,8 +82,6 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -1097,8 +1095,8 @@ class ReevaluateExpressionExecutorTest {
 				1, innerChildren.length,
 				"Inner ReferenceHaving must remain with its single original child — not PK-injected"
 			);
-			assertTrue(
-				innerChildren[0] instanceof AttributeEquals,
+			assertInstanceOf(
+				AttributeEquals.class, innerChildren[0],
 				"Inner ReferenceHaving's only child must remain the original AttributeEquals"
 			);
 		}

@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEnt
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;

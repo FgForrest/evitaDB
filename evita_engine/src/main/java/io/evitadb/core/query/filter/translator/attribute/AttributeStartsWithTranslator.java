@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.trigram.StringSearchShape;
 
 import javax.annotation.Nonnull;
 import java.util.function.BiPredicate;
@@ -45,7 +46,8 @@ public class AttributeStartsWithTranslator extends AbstractAttributeStringSearch
 		super(
 			"starts with",
 			FilterIndex::getRecordsWhoseValuesStartWith,
-			createPredicate()
+			createPredicate(),
+			StringSearchShape.ANCHORED
 		);
 	}
 

@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;

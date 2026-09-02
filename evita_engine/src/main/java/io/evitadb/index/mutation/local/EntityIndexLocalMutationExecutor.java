@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -94,7 +95,6 @@ import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
-import io.evitadb.index.IndexActivity;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -850,8 +850,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// that took, and the same instant the indexes above were stamped with. Emptied on the way out so that a second
 		// call could not count the same work twice
 		if (this.touchedCapabilities != null) {
-			for (int i = 0; i < this.touchedCapabilities.size(); i++) {
-				this.touchedCapabilities.get(i).recordUpdated(now);
+			for (SchemaCapabilityUsage touchedCapability : this.touchedCapabilities) {
+				touchedCapability.recordUpdated(now);
 			}
 			this.touchedCapabilities.clear();
 		}
@@ -959,6 +959,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			rememberCapability(
 				new SchemaCapabilityKey(
 					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTERABLE, scope
+				)
+			);
+		}
+		if (attributeSchema.getAcceleratorsInScope(scope).contains(AttributeFilterAccelerator.SUBSTRING_SEARCH)) {
+			// filed as its own row rather than folded into FILTERABLE, and unconditionally on the filterable flag
+			// beside it, because `SchemaCapabilityUsageRegistry#declaresCapability` mints the row on exactly this
+			// test - the two must agree, or the seeded row would report an update count of zero by construction and
+			// read as "nothing maintains this accelerator, drop it"
+			rememberCapability(
+				new SchemaCapabilityKey(
+					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SUBSTRING_ACCELERATED, scope
 				)
 			);
 		}
@@ -1080,9 +1091,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final boolean maintained = switch (capability) {
 			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
 			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
-			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
-				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
-			);
+			case FILTERABLE, SUBSTRING_ACCELERATED, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED ->
+				throw new GenericEvitaInternalError(
+					"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
+				);
 		};
 		if (!maintained) {
 			return;
@@ -1115,8 +1127,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.touchedElements == null) {
 			this.touchedElements = new ArrayList<>(16);
 		} else {
-			for (int i = 0; i < this.touchedElements.size(); i++) {
-				final TouchedSchemaElement touched = this.touchedElements.get(i);
+			for (final TouchedSchemaElement touched : this.touchedElements) {
 				if (touched.kind() == kind && touched.scope() == scope &&
 					touched.elementName().equals(elementName) &&
 					Objects.equals(touched.containerName(), containerName) &&

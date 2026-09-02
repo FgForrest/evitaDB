@@ -23,8 +23,6 @@
 
 package io.evitadb.api.configuration;
 
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;

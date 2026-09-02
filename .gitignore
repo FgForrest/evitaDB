@@ -131,3 +131,11 @@ mcp-jdwp-inspector.log
 # In-flight plans are working notes, not deliverables - see .claude/rules/adr.md.
 # Folders tracked before this convention stay tracked; git-ignore does not untrack.
 /specifications/
+
+# The trigram spike package is working-tree scratch from the #1454 measurement campaign: written to
+# answer one question, not maintained, not part of the build's contract. Ignored so that `git add -A`
+# cannot sweep it in - the same reason /specifications/ is ignored. Note this covers the trigram
+# sub-package only; the rest of io/evitadb/spike/ is tracked project tooling.
+# A spike that graduates into evidence an open issue depends on is force-added (`git add -f`) and
+# then stays tracked, since git-ignore does not untrack - the three ValueDedup* classes are that case.
+/evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/trigram/

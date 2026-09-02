@@ -47,10 +47,7 @@ import java.util.UUID;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Regression tests for the mutation-history surface of {@link ChangeCaptureConverter}, covering the
@@ -351,7 +348,7 @@ class ChangeCaptureConverterMutationsHistoryTest {
 			);
 
 			assertEquals(42L, roundTripped.version());
-			assertEquals(null, roundTripped.body());
+			assertNull(roundTripped.body());
 		}
 
 	}

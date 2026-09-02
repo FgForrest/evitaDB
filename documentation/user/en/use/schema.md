@@ -393,6 +393,8 @@ sortable attribute and <SourceClass>evita_engine/src/main/java/io/evitadb/index/
 or <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java</SourceClass> for each
 unique attribute. Attributes that are neither `filterable` / `sortable` / `unique` don't consume operating memory.
 
+An attribute carrying a filter index may additionally opt in to a [filter accelerator](#filter-accelerators), which buys faster answers to certain constraints for extra memory and extra write-path work.
+
 <LS to="j,e,r,g">
 
 Attribute schema can be marked as `localized`, meaning that it only makes sense in a specific
@@ -418,6 +420,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDefaultValueMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDefaultValueMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDeprecationNoticeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaDeprecationNoticeMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaTypeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/ModifyAttributeSchemaTypeMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaAcceleratedMutation.java</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaFilterableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaFilterableMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaLocalizedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaLocalizedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNullableMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaNullableMutation.cs</SourceClass></LS>**
@@ -449,6 +452,155 @@ filter or sort conditions.
 
 If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 an exception is thrown and the entity update is refused.
+
+#### Filter accelerators
+
+Marking an attribute `filterable` or `unique` builds an index that finds entities by an exact value, or by a range of
+values, without looking at the others. Not every query can use such an index, though. A *substring* query - "give me
+the products whose code contains `epix` somewhere" - cannot, because an index sorted by whole values says nothing
+about what sits in the middle of them. evitaDB therefore answers it by examining every distinct value of that
+attribute one by one. On a collection with a few thousand distinct values that is perfectly fast; on one with hundreds
+of thousands it is the slowest part of the query.
+
+A **filter accelerator** is an additional index that evitaDB maintains next to the ordinary one so that such a query
+can be answered directly instead. Accelerators are never switched on for you: each one occupies memory for as long as
+the data is loaded, and makes every insert and update of that attribute a little more expensive. You declare the ones
+your queries actually need, on the attributes that actually need them, and pay nothing for the rest.
+
+The accelerators that exist are the constants of
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeFilterAccelerator.java</SourceClass>.
+Each constant names *the capability the index gains*, never the data structure that provides it - the structure is an
+internal detail and may change between versions.
+
+##### Declaring an accelerator
+
+An accelerator is declared on the attribute, alongside `filterable` / `unique` / `sortable` but independently of them.
+
+<LS to="j">
+
+```java
+entitySchemaBuilder
+	.withAttribute(
+		"code", String.class,
+		whichIs -> whichIs
+			.unique()
+			.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+	);
+```
+
+</LS>
+
+Four methods are available on the attribute schema builder:
+
+<dl>
+    <dt>`acceleratedFor(accelerators...)`</dt>
+    <dd>declares the listed accelerators in the default scope - that is, for entities that are alive rather than
+    archived</dd>
+    <dt>`acceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>declares them for one particular [scope](#scopes), so you can accelerate live data without paying for the
+    same index over archived data</dd>
+    <dt>`nonAcceleratedFor(accelerators...)`</dt>
+    <dd>withdraws the listed accelerators from every scope</dd>
+    <dt>`nonAcceleratedForInScope(scope, accelerators...)`</dt>
+    <dd>withdraws them from one scope only</dd>
+</dl>
+
+An accelerator makes an **existing** index faster, so there has to be one to accelerate: the scope you declare it in
+must also be `filterable` or `unique`, and the declaration is refused otherwise. Either flag is enough - a `unique`
+attribute is indexed in the same structure a `filterable` one is - so there is no need to declare both just to reach
+an accelerator.
+
+##### Substring search
+
+`SUBSTRING_SEARCH` is currently the only accelerator. It speeds up
+[`attributeContains`](../query/filtering/string.md#attribute-contains) and
+[`attributeEndsWith`](../query/filtering/string.md#attribute-ends-with). It never changes *which* entities those
+constraints return - the results are identical with and without it - only how quickly they are found.
+
+**How it works.** Every trade-off further down follows directly from this, so it is worth a paragraph. When the
+accelerator is enabled, evitaDB splits every value of the attribute into overlapping three-character sequences: `garmin` becomes
+`gar`, `arm`, `rmi`, `min`. For each such sequence it remembers which values contain it. A search pattern is split
+the same way, and only a value containing *all* of the pattern's sequences can possibly match - so evitaDB intersects
+those few lists, and then verifies the handful of surviving candidates exactly. Instead of examining every distinct
+value, it examines only the ones that already look plausible.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why is `attributeStartsWith` not accelerated as well?
+
+</NoteTitle>
+
+Because it is already fast, and the accelerator would slow it down. Values are held in sorted order, so everything
+beginning with the same prefix sits together: evitaDB jumps straight to the first such value and reads forward until
+the prefix stops matching, never touching the rest. Routing that through the accelerator would mean intersecting
+sequence lists and then verifying candidates - more work to reach the same answer.
+
+</Note>
+
+**Where it can be declared.** Each of the following is checked when the schema is changed, and the change is rejected
+if it does not hold:
+
+<dl>
+    <dt>the attribute type is `String` or `String[]`</dt>
+    <dd>only text can be split into substrings; no other data type can</dd>
+    <dt>it is an attribute of the entity, not of a reference</dt>
+    <dd>attributes shared across the whole catalog qualify too, but attributes attached to a
+    [reference](#reference) do not. The index is kept per entity collection and never sees values stored on
+    references. The plan is to lift this restriction in a future version</dd>
+    <dt>the entity collection does not contain any entities yet</dt>
+    <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
+    there - so the accelerator has to be declared before the first entity is inserted</dd>
+</dl>
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### You cannot switch this accelerator on for data you already have
+</NoteTitle>
+
+Because the declaration is rejected on a collection that already contains entities, there is no way to enable the
+accelerator on an existing, populated catalog in place.
+
+The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
+into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
+full re-import, not a schema tweak.
+
+</Note>
+
+**Deciding which attributes to accelerate.** The memory cost is paid per attribute, and it is substantial, so this
+decision deserves more thought than the plain `filterable` / `sortable` / `unique` flags do:
+
+- **Short values drawn from many different characters benefit most** - product codes, catalogue numbers, names.
+  The more varied the characters, the rarer each three-character sequence is, and the fewer candidates a search has
+  to verify.
+- **Long values drawn from few different characters benefit least.** A long, purely numeric identifier is the worst
+  case measured: with only ten digits to build from, some three-digit sequences occur in a third of all the values,
+  so the intersection barely narrows anything down and the verification step does most of the work anyway.
+- **Values shorter than three characters cannot be indexed at all**, and neither can search patterns shorter than
+  three characters - those queries silently fall back to examining every value. An attribute that is only ever
+  queried with one- or two-character patterns gains nothing from the accelerator while still paying for it in full.
+- **Think twice about hashes, URLs and long free text.** These are the most expensive attributes to accelerate,
+  because almost every value is distinct and long. On a content catalog of roughly a million articles, one long-text
+  attribute alone cost about 159 MB of heap, whereas an attribute whose values repeated often cost about 21 MB.
+  Accelerating the handful of attributes that were genuinely searched by substring cost about 184 MB in total;
+  accelerating every text attribute in the same catalog would have cost 743 MB, most of it spent on hashes,
+  identifiers and URLs that nobody ever searched inside.
+
+**evitaDB will not always use the accelerator, by design.** Before using it, the engine estimates how many values the
+pattern can rule out. If the pattern is so common that it would match a large share of the values anyway, going
+through the accelerator is slower than a plain scan, and the plain scan is used instead. This estimate is
+deliberately cautious, so occasionally a query is scanned that the accelerator would in fact have answered faster.
+The results are the same either way.
+
+**Queries issued from inside a read-write session are always scanned.** The accelerator answers from the
+last published version of the data, so it cannot see the changes an open transaction has made but not yet committed.
+Rather than return an answer that ignores them, evitaDB falls back to the scan for the whole of such a query. This
+matters for an import or synchronization job that reads with `attributeContains` from the same session it writes with:
+the results are correct, but they arrive at scan speed. Read with a separate read-only session
+(`evita.queryCatalog(...)`) to get the accelerated path.
 
 ### Sortable attribute compounds
 

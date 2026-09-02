@@ -29,7 +29,6 @@ import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
-import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
@@ -100,7 +99,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 

@@ -28,7 +28,6 @@ import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiVoid;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;

@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PROXY;
 import static io.evitadb.test.TestTags.CACHE;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for the various {@link ProxyInstanceCacheKey} implementations used
@@ -130,7 +131,7 @@ class ProxyInstanceCacheKeyTest {
 					"brand", 1, ReferencedObjectType.TARGET
 				);
 			// just verify it's an instanceof
-			assertEquals(true, key instanceof ProxyInstanceCacheKey);
+			assertTrue(key instanceof ProxyInstanceCacheKey);
 		}
 	}
 
