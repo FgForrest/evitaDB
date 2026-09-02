@@ -63,15 +63,15 @@ The test suite is split across four sibling modules under `evita_test/`:
 
 - **Default fast loop** — the `unitAndFunctional` profile excludes `slow`/`flaky`-tagged tests in functional_tests; the long-running and documentation modules are skipped via their own surefire config:
   ```bash
-  rtk mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
+  mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
   ```
 - **Tag-filter expressions** — pass to surefire via `-Dgroups` / `-DexcludedGroups`; JUnit 5 supports boolean expressions:
   ```bash
-  rtk mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
-  rtk mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
+  mvn -pl evita_test/evita_functional_tests test -Dgroups="facet & external_api"
+  mvn -pl evita_test/evita_functional_tests test -Dgroups="(query | indexing) & !slow"
   ```
-- **Documentation runners** — `rtk mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run.
-- **Slow / long-running tests** — `rtk mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
+- **Documentation runners** — `mvn -P documentation`. The matching profile in the docs module flips its `skipTests` to `false`; the root profile sets `skipTests=true` everywhere else, so only documentation tests run.
+- **Slow / long-running tests** — `mvn -P longRunning`. Same pattern as `documentation`; selects only the long-running module.
 - **Picking the right tags for a code change** — map the changed source path to layer + capability tags. For example, a change under `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `(facet | indexing) & !slow`; under `evita_external_api/evita_external_api_rest/` use `rest & external_api`. The full path-to-tag mapping is documented in the `TestTags` JavaDoc and in the bulk-tagging script committed during the rollout.
 
 ## Reading test results — the false-green traps
@@ -88,7 +88,7 @@ expect, as unproven until you have read the count.
   freshly-compiled `target/classes`. After any signature / type-parameter / method change in `evita_engine`,
   reinstall it before running dependent-module tests:
   ```bash
-  rtk mvn -o -pl evita_engine install -DskipTests
+  mvn -o -pl evita_engine install -DskipTests
   ```
   Skip this and the failure surfaces as a **compile** error in the test module (e.g. `wrong number of type arguments; required 3`, `NoSuchMethodError`) that points at test code which is actually fine — the stale binary is the real cause.
 - **The local repository is not always `~/.m2` — check `MAVEN_OPTS` before you reason about what is installed.**
@@ -115,7 +115,7 @@ expect, as unproven until you have read the count.
   signatures (`AssertionUtils.assertSavepointCommitKeeps` and friends) pointing at long-running test code
   that is perfectly correct. Always use one reactor:
   ```bash
-  rtk mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+  mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
   ```
   The tell is a signature in the error that exists nowhere in the source: compare the compiler's
   `declared in method` line against the current declaration **before** touching a single call site.
