@@ -31,6 +31,8 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
@@ -43,6 +45,7 @@ import io.evitadb.dataType.Range;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -64,6 +67,8 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -81,8 +86,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.ToLongFunction;
 
 /**
  * **P1 of the catalog-wide value-ids line - the per-domain stratified dedup decision census.** Boots an embedded
@@ -155,6 +162,47 @@ import java.util.TreeSet;
  * column prices a reverse id-to-value directory and is **informational only** - it is never added to the net, because
  * a dedup-only domain needs no reverse lookup.
  *
+ * # The second spine variant - the dictionary on an exact-sized tree
+ *
+ * `candidateSpine` above models a **container**: a handful of parallel arrays with no tree above them, which is the
+ * shape the published marginal was computed against. Once the reduced trees themselves are exact-sized, the
+ * counterfactual worth pricing is a different object - the tree stays a tree and only its key column is swapped:
+ *
+ * ```text
+ * keyColumnBytes = the live key columns of every leaf, priced by the engine's own column arithmetic
+ * idColumnBytes  = the `IntValueColumn`-shaped 4-byte-per-value columns that would replace them
+ * treeSpine      = removableBytes - keyColumnBytes + idColumnBytes
+ * treeSaving     = removableBytes - treeSpine = keyColumnBytes - idColumnBytes
+ * ```
+ *
+ * Everything else - the index object, the tree object, every internal node, every leaf, the record column and the
+ * overflow column - enters at its **measured** size and cancels out of the saving, so no part of the scaffolding is
+ * modelled or hardcoded. {@link #keyColumnFootprintOf} carries the arithmetic and reconciles it against the 464 B
+ * one-key index the exact-sized-column work measured.
+ *
+ * The two variants are **two counterfactuals for one lever** and are never added. Reporting both is what says how
+ * much of the published marginal was the container's doing rather than the dictionary's.
+ *
+ * # Which dictionary shape a domain would need
+ *
+ * An unordered `valueId -> bitmap` map cannot stand in for a reduced value tree when the reduced index's value side
+ * has to be evaluated in comparator order, which is what happens whenever a `referenceHaving` or `hierarchyWithin`
+ * plan wins. Each eligible domain is therefore classified `SIMPLE` (an id-keyed map suffices) or `ORDERED` (the
+ * ordered dictionary is required), from the schema rather than from observed traffic - per-index usage statistics
+ * are not persisted, so a snapshot reads zeros from them. See {@link #dictionaryShapeOf}. The tree-shaped net saving
+ * is rolled up by shape in the headline, because a prize sitting entirely in `ORDERED` domains is a planner
+ * follow-up rather than a storage one.
+ *
+ * # The bucket-cardinality histogram (issue #1455)
+ *
+ * Issue #1455 replaces a small bucket's Roaring bitmap with a plain sorted array, and its prize is
+ * `(buckets holding 2..T records) x (Roaring fixed overhead - array cost)`. The census already charged the second
+ * factor's raw material as `bitmapBytes`, but nobody had ever counted the first: how the reduced catalog's buckets
+ * are actually distributed over record counts. The bucket walk therefore also bins every bucket into the strata
+ * **2-8, 9-32, 33-128, >128** records, carrying both the bucket count and the Roaring bytes behind it, with
+ * single-record buckets counted separately because they hold no bitmap at all. The bins are asserted against
+ * `bitmapBytes` and against the bucket count, so a mis-binned bucket fails the run rather than skewing the answer.
+ *
  * # Decisions this class took where the plan deferred them
  *
  * 1. **Scope does not live in {@link AttributeIndexKey}** - that record carries reference name, attribute name and
@@ -173,6 +221,16 @@ import java.util.TreeSet;
  *    bucket stays auditable rather than being taken on trust. **Ranges are `CONTAINER_ONLY`**: a range's whole
  *    comparison identity is its two `long` bounds, so a container carries it in two parallel `long[]` columns with no
  *    dictionary and no owner - see {@link #containerKeyColumnBytes(VMLayout, int, int)}.
+ * 5. **The tree-shaped projection is measured only for dictionary-eligible domains.** Pricing a key column costs a
+ *    leaf walk and four reflective calls per leaf, and the dictionary lever never touches a primitive-keyed tree, so
+ *    walking every one of them would buy nothing. Their `spineTree` / `netTree` columns read `-` rather than `0`,
+ *    so an absent measurement can never be mistaken for a measured zero.
+ * 6. **The cardinality histogram covers every domain, not only the eligible ones.** The Roaring fixed overhead a
+ *    small bucket pays has nothing to do with what its key looks like, so restricting it the way the strata tables
+ *    are restricted would hide most of the buckets issue #1455 is about.
+ * 7. **The `UNKNOWN` dictionary shape is reported, never defaulted.** A domain whose attribute the schema does not
+ *    describe gets its own bucket, the same treatment a `MISSING` canonical owner gets and for the same reason: a
+ *    silent default would put bytes in a column nobody could audit.
  *
  * # Two independent levers
  *
@@ -186,27 +244,38 @@ import java.util.TreeSet;
  *
  * A `SKIP` verdict means "out of scope for the dictionary lever", not "nothing to gain here"; the container roll-up
  * is where those domains are priced.
- * 5. **The A3 cross-check is computed inside this run**, not by re-running `TrigramReplicationCensus`: the same
+ * 8. **The A3 cross-check is computed inside this run**, not by re-running `TrigramReplicationCensus`: the same
  *    walk accumulates that census's definition of "reduced value trees" (every non-GLOBAL index) beside this one's
  *    (the two reduced kinds only). The two differ exactly by the reference-type indexes, which A3 measured at
  *    &le;0.2% of the attribute heap - hence the ~10% tolerance.
- * 6. **A tree with no buckets is counted and skipped**, not thrown on. It is a legitimate transient shape and the
+ * 9. **A tree with no buckets is counted and skipped**, not thrown on. It is a legitimate transient shape and the
  *    count is reported, so the skip is never silent.
- * 7. **The coverage gap counts distinct values**, and the owner is probed once per newly-seen value rather than once
+ * 10. **The coverage gap counts distinct values**, and the owner is probed once per newly-seen value rather than once
  *    per bucket occurrence - the probe is driven off the domain's union map. {@link InvertedIndex#contains} applies
  *    the *owner's* normalizer to the already-normalized reduced value; that is deliberate and is the
  *    provably-identical-normalizer argument, so the census never re-normalizes on its own.
- * 8. **The per-domain strata table is capped on stdout** at the {@link #STRATA_DOMAIN_LIMIT} domains with the largest
+ * 11. **The per-domain strata table is capped on stdout** at the {@link #STRATA_DOMAIN_LIMIT} domains with the largest
  *    removable bytes, because a fan-out catalog has hundreds of domains and six strata each. The TSV carries every
  *    stratum of every domain.
  *
  * # Reflection
  *
- * Three private/protected fields are read reflectively, in the spirit of `TrigramReplicationCensus`'s single
- * read and for the same reason - the spike may not edit the engine:
- * {@link EntityIndex}`.attributeIndex`, {@link OwnerSortIndex}`.ownedTree` and {@link InvertedIndex}`.buckets`. The
- * last one is needed only for the host increment, which prices the owner's id column from the tree's own leaf count
- * and leaf capacity rather than from a hard-coded block size.
+ * Members that no accessor exposes are read reflectively, in the spirit of `TrigramReplicationCensus`'s single read
+ * and for the same reason - the spike may not edit the engine:
+ *
+ * - {@link EntityIndex}`.attributeIndex` and {@link OwnerSortIndex}`.ownedTree`, to reach the trees themselves;
+ * - {@link InvertedIndex}`.buckets`, needed for the host increment, which prices the owner's id column from the
+ *   tree's own leaf count and leaf capacity rather than from a hard-coded block size;
+ * - the leaf-page handle's `leaf` and the leaf node's `keys`, plus `ValueColumn#size()` and
+ *   `ValueColumn#getHeapSizeInBytes(ToLongFunction)`, which together price the key column the tree-shaped
+ *   dictionary projection would replace. The B+ tree's leaf node, its page-handle implementation and the whole
+ *   column family are package-private, so the two classes are resolved by name and the two methods are looked up on
+ *   the sealed `ValueColumn` interface, where one handle dispatches virtually across every implementation.
+ *
+ * The alternative to the last group was an engine accessor for a column's byte size. It was declined for this spike:
+ * the measurement is a one-off input to a decision, and a public accessor on a package-private column family would
+ * outlive it as API. The cost is that a rename in the tree package breaks the census - loudly, at class
+ * initialization, which is what {@link #openField}, {@link #openMethod} and {@link #classFor} are for.
  *
  * # Configuration
  *
@@ -331,6 +400,29 @@ public class ValueDedupCensus {
 	static final String[] STRATA_LABELS = {"1", "2-4", "5-16", "17-64", "65-256", ">256"};
 
 	/**
+	 * Band edges of the **bucket-cardinality** histogram, upper bounds inclusive, over the number of records a single
+	 * bucket holds. The last band is open-ended, and the whole scale starts at two: a single-record bucket carries no
+	 * bitmap at all (its lone pk sits in the leaf's record column), so it is counted separately rather than binned.
+	 *
+	 * These are issue #1455's strata, fixed by the plan rather than chosen here - see the *#1455* section of this
+	 * class's JavaDoc.
+	 */
+	static final int[] BUCKET_CARDINALITY_UPPER_BOUNDS = {8, 32, 128, Integer.MAX_VALUE};
+
+	/**
+	 * Human labels of {@link #BUCKET_CARDINALITY_UPPER_BOUNDS}, aligned by position.
+	 */
+	static final String[] BUCKET_CARDINALITY_LABELS = {"2-8", "9-32", "33-128", ">128"};
+
+	/**
+	 * The smallest physical backing array a non-empty leaf column ever holds - a replica of the engine's
+	 * `io.evitadb.index.bPlusTree.ColumnSizing#MIN_PHYSICAL_LENGTH`, which is package-private and therefore
+	 * unreachable from this module. It is duplicated rather than reached for, because the spike may not edit the
+	 * engine; a change to the engine constant must be mirrored here or the projected id column mis-prices every leaf.
+	 */
+	static final int MIN_COLUMN_PHYSICAL_LENGTH = 4;
+
+	/**
 	 * Relative distance from zero within which a net saving counts as `MARGINAL` rather than `WIN` or `LOSE`.
 	 */
 	private static final double MARGINAL_BAND = 0.10d;
@@ -341,14 +433,21 @@ public class ValueDedupCensus {
 	 */
 	private static final String DECISION_HEADER_FORMAT =
 		"%-18s %-24s %-6s %-8s %-10s %-7s %-12s %7s %6s %6s %10s %12s %6s " +
-			"%11s %11s %11s %11s %11s %4s %-8s%n";
+			"%11s %11s %11s %11s %11s %4s %-8s %11s %11s %-7s%n";
 
 	/**
 	 * Column layout of the decision table's data rows.
 	 */
 	private static final String DECISION_ROW_FORMAT =
 		"%-18s %-24s %-6s %-8s %-10s %-7s %-12s %,7d %,6d %,6d %,10d %,12d %6s " +
-			"%11s %11s %11s %11s %11s %,4d %-8s%n";
+			"%11s %11s %11s %11s %11s %,4d %-8s %11s %11s %-7s%n";
+
+	/**
+	 * How many trailing TSV columns a `STRATUM` row leaves empty beyond the verdict the closing newline already
+	 * terminates: the five tree-shaped-projection columns and the nine cardinality-histogram columns, every one of
+	 * which is a domain-wide reading with no per-stratum meaning.
+	 */
+	private static final int STRATUM_EMPTY_TRAILING_COLUMNS = 5 + 1 + 2 * BUCKET_CARDINALITY_LABELS.length;
 
 	/**
 	 * Relative drift the A3 cross-check tolerates before it reports a failure. The two definitions differ by the
@@ -374,6 +473,55 @@ public class ValueDedupCensus {
 	 * host id column from the tree's real leaf count and leaf capacity.
 	 */
 	private static final Field BUCKETS_FIELD = openField(InvertedIndex.class, "buckets");
+
+	/**
+	 * The leaf-node class of the bucket B+ tree, resolved by name because it is package-private. Only its `keys`
+	 * field is read - see {@link #LEAF_KEY_COLUMN_FIELD}.
+	 */
+	private static final Class<?> LEAF_NODE_CLASS = classFor(
+		"io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree$BPlusLeafTreeNode"
+	);
+
+	/**
+	 * The leaf-page-handle implementation returned by `BucketBPlusTree#leafPageHandles()`, resolved by name because
+	 * it is private. It is the only publicly reachable route to a live leaf node.
+	 */
+	private static final Class<?> LEAF_HANDLE_CLASS = classFor(
+		"io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree$LeafPageHandleImpl"
+	);
+
+	/**
+	 * The `leaf` field of the leaf-page handle - the live leaf node the handle wraps.
+	 */
+	private static final Field LEAF_HANDLE_NODE_FIELD = openField(LEAF_HANDLE_CLASS, "leaf");
+
+	/**
+	 * The `keys` field of a leaf node - the leaf's key column. Read so the tree-shaped dictionary projection can
+	 * price the front-coded key payload a 4-byte value id would replace, using the engine's own arithmetic rather
+	 * than a re-derivation of front coding in this module.
+	 */
+	private static final Field LEAF_KEY_COLUMN_FIELD = openField(LEAF_NODE_CLASS, "keys");
+
+	/**
+	 * The key-column interface of the B+ tree family, resolved by name because it is package-private and sealed.
+	 * Both methods below are looked up on the interface rather than on each implementation, so one {@link Method}
+	 * dispatches virtually across the front-coded, boxed and primitive columns alike.
+	 */
+	private static final Class<?> VALUE_COLUMN_CLASS = classFor("io.evitadb.index.bPlusTree.ValueColumn");
+
+	/**
+	 * `ValueColumn#size()` - the column's live entry count, which is also the leaf's live bucket count.
+	 */
+	private static final Method VALUE_COLUMN_SIZE_METHOD = openMethod(VALUE_COLUMN_CLASS, "size");
+
+	/**
+	 * `ValueColumn#getHeapSizeInBytes(ToLongFunction)` - the sizer-aware overload, which is the one the leaf itself
+	 * charges. The sizer matters for a {@link ValueClass#COMPOUND} domain, whose keys sit in a boxed column that owns
+	 * the objects it points at; a front-coded or primitive column ignores the sizer entirely.
+	 */
+	private static final Method VALUE_COLUMN_HEAP_SIZE_METHOD = openMethod(
+		VALUE_COLUMN_CLASS, "getHeapSizeInBytes", ToLongFunction.class
+	);
 
 	/**
 	 * Entry point. Any failure exits the JVM explicitly: a partially constructed Evita instance has already started
@@ -492,6 +640,7 @@ public class ValueDedupCensus {
 		printDecisionTable(allDomains);
 		printCatalogStrataTable(allDomains);
 		printDomainStrataTable(allDomains);
+		printBucketCardinalityTable(allDomains);
 		printHeadline(allDomains, totals);
 		printSelfChecks(allDomains, totals);
 		writeTsv(allDomains, catalogName, reportDir);
@@ -664,6 +813,9 @@ public class ValueDedupCensus {
 		final Scope scope = index.getIndexKey().scope();
 		final String entityType = collection.getEntityType();
 		final String referenceName = row.referenceName();
+		// the schema is the Stage 5 shape proxy's only input, and it is read once per reduced index rather than once
+		// per tree - a collection hands back the same sealed instance every time
+		final EntitySchemaContract schema = collection.getSchema();
 
 		totals.reducedAttributeBytes += attributeIndex.getHeapSizeInBytes();
 		totals.reducedIndexCount++;
@@ -683,7 +835,7 @@ public class ValueDedupCensus {
 			final InvertedIndex tree = filterIndex.getInvertedIndex();
 			totals.reducedFilterTreeBytes += tree.getHeapSizeInBytes();
 			foldTree(
-				new DomainKey(entityType, scope, key, DomainKind.FILTER), referenceName, tree, sortable,
+				new DomainKey(entityType, scope, key, DomainKind.FILTER), referenceName, schema, tree, sortable,
 				owners, domains, totals
 			);
 		}
@@ -703,7 +855,8 @@ public class ValueDedupCensus {
 			final InvertedIndex tree = ownedTreeOf(ownerSortIndex);
 			final DomainKind kind = kindOfOwnedTree(tree);
 			foldTree(
-				new DomainKey(entityType, scope, key, kind), referenceName, tree, true, owners, domains, totals
+				new DomainKey(entityType, scope, key, kind), referenceName, schema, tree, true, owners, domains,
+				totals
 			);
 		}
 	}
@@ -712,12 +865,14 @@ public class ValueDedupCensus {
 	 * Measures one reduced value tree and folds the reading into its domain, creating the domain (and resolving its
 	 * canonical owner) on first sight.
 	 *
-	 * The bucket walk does five things in one pass, because every one of them is `O(K)` and the bucket array is
-	 * materialized once: it counts records, prices the surviving record bitmaps, feeds the domain's union map,
-	 * probes the canonical owner for newly-seen values, and classifies the domain's value class from the first bucket.
+	 * The bucket walk does six things in one pass, because every one of them is `O(K)` and the bucket array is
+	 * materialized once: it counts records, prices the surviving record bitmaps, bins each bucket into the
+	 * cardinality histogram issue #1455 needs, feeds the domain's union map, probes the canonical owner for
+	 * newly-seen values, and classifies the domain's value class from the first bucket.
 	 *
 	 * @param domainKey     identity of the domain this tree belongs to
 	 * @param referenceName reference the owning reduced index belongs to, used to resolve a reference-type owner
+	 * @param schema        schema of the owning collection, the Stage 5 shape proxy's only input
 	 * @param tree          the value tree to measure
 	 * @param sortable      whether this tree also serves ordering, which adds the sort-slot term to the projection
 	 * @param owners        the owner registry
@@ -727,6 +882,7 @@ public class ValueDedupCensus {
 	private static void foldTree(
 		@Nonnull DomainKey domainKey,
 		@Nullable String referenceName,
+		@Nonnull EntitySchemaContract schema,
 		@Nonnull InvertedIndex tree,
 		boolean sortable,
 		@Nonnull OwnerRegistry owners,
@@ -746,7 +902,8 @@ public class ValueDedupCensus {
 			final ValueClass valueClass = valueClassOf(sample, domainKey.attributeKey().locale());
 			domain = new Domain(
 				domainKey, valueClass,
-				valueClass.eligible() ? 0 : containerKeyBytesOf(sample)
+				valueClass.eligible() ? 0 : containerKeyBytesOf(sample),
+				dictionaryShapeOf(schema, domainKey, valueClass)
 			);
 			domain.sampleTypeName = sample.getClass().getSimpleName();
 			domain.bindOwner(owners.resolve(domainKey, referenceName, sample));
@@ -763,7 +920,13 @@ public class ValueDedupCensus {
 			records += cardinality;
 			if (cardinality > 1) {
 				multiCount++;
-				bitmapBytes += bucket.getRecordIds().getHeapSizeInBytes();
+				// the very charge that feeds `bitmapBytes`, binned by cardinality on the way past - see the #1455
+				// section of the class JavaDoc for why the first term of that issue's prize needs counting here
+				final long bucketBitmapBytes = bucket.getRecordIds().getHeapSizeInBytes();
+				bitmapBytes += bucketBitmapBytes;
+				domain.cardinalities.addMultiRecordBucket(cardinality, bucketBitmapBytes);
+			} else {
+				domain.cardinalities.addSingleRecordBucket();
 			}
 			final Serializable value = bucket.getValue();
 			// probing only on first sight turns the coverage probe from O(sum K) into O(V_union) per domain, and it is
@@ -788,7 +951,21 @@ public class ValueDedupCensus {
 			);
 		}
 
-		domain.addTree(bucketCount, records, treeBytes, bitmapBytes, multiCount, sortable);
+		// the tree-shaped dictionary projection is measured only where the dictionary lever applies at all; walking
+		// the leaves of every primitive-keyed tree would cost the whole catalog's reflection for a column the lever
+		// would never touch
+		final KeyColumnFootprint footprint = domain.valueClass.eligible()
+			? keyColumnFootprintOf(tree) : KeyColumnFootprint.NONE;
+		if (footprint.keyColumnBytes() + bitmapBytes > treeBytes) {
+			throw new GenericEvitaInternalError(
+				"Tree of domain `" + domainKey + "` charges " + footprint.keyColumnBytes() + " B of key columns and " +
+					bitmapBytes + " B of record bitmaps out of " + treeBytes + " B of tree - both are part of the " +
+					"tree and cannot together exceed it!",
+				"Key columns and record bitmaps exceed the tree that holds them!"
+			);
+		}
+
+		domain.addTree(bucketCount, records, treeBytes, bitmapBytes, multiCount, sortable, footprint);
 		totals.treeCount++;
 	}
 
@@ -893,6 +1070,70 @@ public class ValueDedupCensus {
 	}
 
 	/**
+	 * Decides which of the two dictionary shapes a domain would need - the Stage 5 classification.
+	 *
+	 * An unordered `valueId -> bitmap` map cannot stand in for a reduced value tree whenever the reduced index's own
+	 * value side has to be evaluated in comparator order: when a `referenceHaving` or `hierarchyWithin` plan wins,
+	 * the whole filter tree executes against that value side, so `between`, `greaterThan`, `startsWith`,
+	 * `attributeNatural` and `attributeHistogram` all have to work there. A domain that needs any of those needs the
+	 * ordered-dictionary shape - the dictionary held once in the global tree, the reduced index holding membership
+	 * plus id-keyed postings, and ordered predicates evaluated once globally then ANDed with each membership bitmap.
+	 * A domain that needs none of them could take the cheap id-keyed shape.
+	 *
+	 * **This is a schema proxy, not an observation.** Per-index usage statistics are not persisted and a census boot
+	 * reads zeros from them, so which predicates a domain *actually* serves cannot be recovered from a snapshot; it
+	 * needs a live instance observed over a real window. The proxy the plan prescribes is used instead, and it is
+	 * conservative in the right direction - it over-counts the domains needing the ordered shape rather than
+	 * under-counting them:
+	 *
+	 * - a sortable attribute is ordered by definition;
+	 * - a `String` reachable by a filter is always prefix-capable, so it is ordered too. Reachability is
+	 *   {@link AttributeSchemaContract#hasFilterIndexInScope}, not `isFilterableInScope` alone, because a
+	 *   `unique()`-only attribute gets a filter index implicitly and a filter may reach it without it ever having
+	 *   been declared filterable;
+	 * - a sortable attribute compound exists only to order, so it is ordered without a lookup;
+	 * - anything else takes the simple shape.
+	 *
+	 * A domain whose attribute the schema does not describe is reported as `UNKNOWN` rather than defaulted into
+	 * either bucket - the same treatment a `MISSING` canonical owner gets, and for the same reason: a silent default
+	 * would put bytes in a column nobody could audit.
+	 *
+	 * @param schema     schema of the collection the domain belongs to
+	 * @param domainKey  identity of the domain
+	 * @param valueClass the shape of the domain's keys
+	 * @return the dictionary shape the domain would need
+	 */
+	@Nonnull
+	private static DictionaryShape dictionaryShapeOf(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull DomainKey domainKey,
+		@Nonnull ValueClass valueClass
+	) {
+		if (!valueClass.eligible()) {
+			return DictionaryShape.NONE;
+		}
+		if (domainKey.kind() == DomainKind.COMPOUND) {
+			// a sortable attribute compound has no other purpose than ordering
+			return DictionaryShape.ORDERED;
+		}
+		final AttributeIndexKey attributeKey = domainKey.attributeKey();
+		final String referenceName = attributeKey.referenceName();
+		final Optional<? extends AttributeSchemaContract> attributeSchema = referenceName == null
+			? schema.getAttribute(attributeKey.attributeName())
+			: schema.getReference(referenceName)
+				.flatMap(reference -> reference.getAttribute(attributeKey.attributeName()));
+		if (attributeSchema.isEmpty()) {
+			return DictionaryShape.UNKNOWN;
+		}
+		final AttributeSchemaContract attribute = attributeSchema.get();
+		final Scope scope = domainKey.scope();
+		if (attribute.isSortableInScope(scope) || attribute.hasFilterIndexInScope(scope)) {
+			return DictionaryShape.ORDERED;
+		}
+		return DictionaryShape.SIMPLE;
+	}
+
+	/**
 	 * Renders a value into the canonical string form the union hash is taken over. Strings are their own canonical
 	 * form; a compound is joined element-wise with separators that cannot occur inside a rendered element, so two
 	 * different compounds cannot collapse into one string.
@@ -979,6 +1220,134 @@ public class ValueDedupCensus {
 		}
 		final long sortSlots = sortable ? layout.sizeOfArray(bucketCount, Integer.BYTES) : 0L;
 		return fixed + keys + postings + sortSlots;
+	}
+
+	/**
+	 * Measures the two halves of the **dictionary-on-exact-tree** projection for one live tree: the key payload that
+	 * would move out to the canonical owner, and the value-id column that would take its place.
+	 *
+	 * This is the Option B counterfactual, and it is a different object from the one {@link #candidateSpineOf}
+	 * prices. That method models a *container*-shaped reduced index - a handful of parallel arrays with no tree
+	 * above them. This one models a reduced **tree**: the exact-sized B+ tree stays exactly as it is, keeps its
+	 * record column, its overflow column, its leaves and its internal nodes, and only the key column is swapped.
+	 * Reporting both is the point of Stage 5 - the pair says how much of the published marginal was the container's
+	 * doing rather than the dictionary's.
+	 *
+	 * **The scaffolding is measured, never modelled.** The projection is arranged so that everything except the key
+	 * column is carried across from the live measurement:
+	 *
+	 * ```text
+	 * treeSpine = (treeBytes - bitmapBytes) - keyColumnBytes + idColumnBytes
+	 * saving    = removableBytes - treeSpine = keyColumnBytes - idColumnBytes
+	 * ```
+	 *
+	 * so the index object, the tree object, every internal node, every leaf object, the record column and the
+	 * overflow column all enter at their real measured size and cancel out of the saving. Only the two key columns
+	 * are priced explicitly, and the front-coded one is priced by the engine's own
+	 * `ValueColumn#getHeapSizeInBytes(ToLongFunction)` rather than by a re-derivation here.
+	 *
+	 * **Reconciliation against the 464 B one-key index.** A one-key *integral* inverted index measures 464 B after
+	 * the exact-sized-column work, and running that same tree through the arithmetic above on a compressed-oops VM
+	 * (4 B references, 12 B object header, 16 B array header, 8 B alignment) gives `464 - 0 - 80 + 56 = 440 B`:
+	 *
+	 * ```text
+	 * keyColumnBytes = 80 = a `LongValueColumn` object (32 B: codec + keys references, capacity, size)
+	 *                     + its four-slot `long[]` (48 B)
+	 * idColumnBytes  = 56 = an `IntValueColumn` object (24 B: keys reference, capacity, size)
+	 *                     + its four-slot `int[]` (32 B)
+	 * ```
+	 *
+	 * so the tree-shaped variant returns 24 B on a one-key tree - a narrower key array and a column object with one
+	 * reference slot fewer. The remaining 384 B is the index / tree / leaf / record-column scaffolding the variant
+	 * keeps by construction and Option A would have had to attack instead. These figures are measured, not asserted
+	 * here: an integral index is the shape the 464 B was published for, while a string domain's key column is a
+	 * front-coded one whose size no closed form predicts, which is precisely why it is measured rather than modelled.
+	 *
+	 * @param index the live reduced tree
+	 * @return its measured key-column bytes and the projected id-column bytes that would replace them
+	 */
+	@Nonnull
+	private static KeyColumnFootprint keyColumnFootprintOf(@Nonnull InvertedIndex index) {
+		final BucketBPlusTree<?> tree = bucketTreeOf(index);
+		if (!(tree instanceof final TransactionalBucketBPlusTree<?> transactionalTree)) {
+			throw new GenericEvitaInternalError(
+				"Bucket tree of an inverted index is a `" + tree.getClass().getName() +
+					"`, which exposes no leaf capacity - the tree-shaped dictionary spine cannot be priced!",
+				"Bucket tree exposes no leaf capacity!"
+			);
+		}
+		final int leafCapacity = transactionalTree.getValueBlockSize();
+		final VMLayout layout = VMLayout.current();
+		long keyColumnBytes = 0L;
+		long idColumnBytes = 0L;
+		for (final Object handle : tree.leafPageHandles()) {
+			final Object keyColumn = readField(LEAF_KEY_COLUMN_FIELD, readField(LEAF_HANDLE_NODE_FIELD, handle));
+			keyColumnBytes += (long) invokeMethod(
+				VALUE_COLUMN_HEAP_SIZE_METHOD, keyColumn, IndexHeapSize.OWNED_KEY_SIZER
+			);
+			idColumnBytes += projectedIdColumnBytes(
+				layout, (int) invokeMethod(VALUE_COLUMN_SIZE_METHOD, keyColumn), leafCapacity
+			);
+		}
+		return new KeyColumnFootprint(keyColumnBytes, idColumnBytes);
+	}
+
+	/**
+	 * Prices the `IntValueColumn`-shaped value-id column one leaf would carry in place of its key column: the column
+	 * object itself plus one exact-sized `int[]`, sized to the leaf's live entry count by the engine's own grow
+	 * policy.
+	 *
+	 * The object payload mirrors `IntValueColumn`'s three fields - the array reference plus the logical capacity and
+	 * the live size - and the array length follows the {@link #MIN_COLUMN_PHYSICAL_LENGTH} floor and the
+	 * doubling-capped-at-capacity rule replicated in {@link #physicalColumnLengthOf}.
+	 *
+	 * @param layout       the running VM's object layout
+	 * @param size         the leaf's live entry count
+	 * @param leafCapacity the tree's value block size, which is every column's logical capacity
+	 * @return the projected id column's size in bytes
+	 */
+	static long projectedIdColumnBytes(@Nonnull VMLayout layout, int size, int leafCapacity) {
+		// `keys` reference + `capacity` + `size`, matching `IntValueColumn#getHeapSizeInBytes`
+		long bytes = layout.sizeOfObject(layout.referenceSize() + 2L * Integer.BYTES);
+		final int physicalLength = physicalColumnLengthOf(size, leafCapacity);
+		if (physicalLength > 0) {
+			bytes += layout.sizeOfArray(physicalLength, Integer.BYTES);
+		}
+		return bytes;
+	}
+
+	/**
+	 * Replicates the physical length the engine's column grow policy lands on for a column that reached `size` live
+	 * entries one insert at a time - the steady state of every leaf in a committed tree.
+	 *
+	 * The policy it mirrors is `io.evitadb.index.bPlusTree.ColumnSizing#grownLength`, which is package-private and
+	 * unreachable from this module: an empty column allocates nothing at all, the first allocation is
+	 * {@link #MIN_COLUMN_PHYSICAL_LENGTH} slots, growth doubles, and a required length past half the block size goes
+	 * straight to the block size rather than doubling past it. That last rule is why the answer is not simply the
+	 * next power of two.
+	 *
+	 * @param size         the column's live entry count
+	 * @param leafCapacity the column's logical capacity, i.e. the tree's value block size
+	 * @return the physical backing-array length, `0` for an empty column
+	 */
+	static int physicalColumnLengthOf(int size, int leafCapacity) {
+		if (size <= 0) {
+			return 0;
+		}
+		if (size > leafCapacity >> 1) {
+			return leafCapacity;
+		}
+		return Math.max(MIN_COLUMN_PHYSICAL_LENGTH, nextPowerOfTwo(size));
+	}
+
+	/**
+	 * Rounds a positive value up to the nearest power of two, mirroring the engine's own column arithmetic.
+	 *
+	 * @param value the value to round up
+	 * @return the smallest power of two greater than or equal to `value`, at least `1`
+	 */
+	private static int nextPowerOfTwo(int value) {
+		return value <= 1 ? 1 : Integer.highestOneBit(value - 1) << 1;
 	}
 
 	/**
@@ -1120,7 +1489,8 @@ public class ValueDedupCensus {
 		System.out.printf(
 			DECISION_HEADER_FORMAT,
 			"entityType", "attribute", "locale", "scope", "kind", "class", "owner", "trees", "K p50", "K p95",
-			"V_union", "M", "r", "removable", "spine", "host", "+dir", "net", "gap", "verdict"
+			"V_union", "M", "r", "removable", "spine", "host", "+dir", "net", "gap", "verdict", "spineTree",
+			"netTree", "shape"
 		);
 		for (int i = 0; i < domains.size(); i++) {
 			final Domain domain = domains.get(i);
@@ -1132,7 +1502,10 @@ public class ValueDedupCensus {
 				domain.bucketP95, domain.unionSize, domain.recordCount, ratio(domain.bucketCount, domain.unionSize),
 				bytes(domain.removableBytes), bytes(domain.spineBytes), bytes(domain.hostIncrementBytes),
 				bytes(domain.reverseDirectoryBytes), signedBytes(domain.netSavingBytes), domain.coverageGap,
-				domain.verdict.label()
+				domain.verdict.label(),
+				domain.valueClass.eligible() ? bytes(domain.treeSpineBytes) : "-",
+				domain.valueClass.eligible() ? signedBytes(domain.treeNetSavingBytes) : "-",
+				domain.dictionaryShape
 			);
 		}
 		System.out.println(
@@ -1140,7 +1513,10 @@ public class ValueDedupCensus {
 				"  trigram line paid for that column already. `+dir` is informational and is NOT part of `net`.\n" +
 				"  `r` is sum(K) / V_union - how many trees replicate the average distinct value of the domain.\n" +
 				"  `net` prices the DICTIONARY lever. A `SKIP` row is out of scope for that lever only - see the\n" +
-				"  `lever` column of the TSV and the container-only roll-up in the headline."
+				"  `lever` column of the TSV and the container-only roll-up in the headline.\n" +
+				"  `spineTree` / `netTree` price the SAME dictionary lever against a reduced TREE rather than a\n" +
+				"  container - the Option B counterfactual, in which only the key column is swapped for value ids.\n" +
+				"  `shape` is which dictionary shape the domain would need: ORDERED needs the ordered dictionary."
 		);
 	}
 
@@ -1233,12 +1609,66 @@ public class ValueDedupCensus {
 	}
 
 	/**
+	 * Prints the catalog-wide bucket-cardinality histogram - the distribution issue #1455 turns on.
+	 *
+	 * Unlike the strata tables above it, this one covers **every** domain rather than the dictionary-eligible ones:
+	 * the Roaring fixed overhead a small bucket pays has nothing to do with what its key looks like, so restricting
+	 * the roll-up to string domains would hide most of the very buckets the issue is about.
+	 *
+	 * @param domains every domain of the catalog
+	 */
+	private static void printBucketCardinalityTable(@Nonnull List<Domain> domains) {
+		System.out.printf("%n=== BUCKET CARDINALITY - WHOLE CATALOG (every domain; input to issue #1455) ===%n");
+		final CardinalityHistogram rollUp = new CardinalityHistogram();
+		for (int i = 0; i < domains.size(); i++) {
+			rollUp.addAll(domains.get(i).cardinalities);
+		}
+		final long totalBuckets = rollUp.totalBucketCount();
+		final long totalBitmapBytes = rollUp.totalBitmapBytes();
+		System.out.printf(
+			"    %-10s %14s %8s %15s %8s %12s%n",
+			"records", "buckets", "share", "roaring", "share", "per bucket"
+		);
+		System.out.printf(
+			"    %-10s %,14d %8s %15s %8s %12s%n",
+			"1", rollUp.singleRecordBuckets, percent(rollUp.singleRecordBuckets, totalBuckets), "-", "-", "-"
+		);
+		for (int band = 0; band < BUCKET_CARDINALITY_LABELS.length; band++) {
+			final long bandBuckets = rollUp.bucketCounts[band];
+			final long bandBytes = rollUp.bitmapBytes[band];
+			System.out.printf(
+				"    %-10s %,14d %8s %15s %8s %12s%n",
+				BUCKET_CARDINALITY_LABELS[band], bandBuckets, percent(bandBuckets, totalBuckets), bytes(bandBytes),
+				percent(bandBytes, totalBitmapBytes), bandBuckets == 0 ? "-" : bytes(bandBytes / bandBuckets)
+			);
+		}
+		System.out.printf(
+			"    %-10s %,14d %8s %15s %8s %12s%n",
+			"TOTAL", totalBuckets, percent(totalBuckets, totalBuckets), bytes(totalBitmapBytes),
+			percent(totalBitmapBytes, totalBitmapBytes),
+			totalBuckets == 0 ? "-" : bytes(totalBitmapBytes / totalBuckets)
+		);
+		System.out.println(
+			"  A single-record bucket holds no bitmap at all - its lone pk sits in the leaf's record column - so it\n" +
+				"  is counted but carries no Roaring bytes. Issue #1455's prize is `(buckets in 2..T) x (Roaring\n" +
+				"  fixed overhead - array cost)`; this table counts the first term, per band, so a threshold T can\n" +
+				"  be chosen against real bucket counts rather than against an assumption."
+		);
+	}
+
+	/**
 	 * Prints the catalog headline: what the dedup line would actually return, set against the A3 replication ceiling
 	 * measured in the same walk.
 	 *
 	 * The ceiling is quoted twice on purpose. The attribute-heap figure is the number A3 reports and the one people
 	 * remember; the value-tree figure is the part this line can actually reach, and the difference between them is the
 	 * membership bitmaps, postings and scaffolding a reduced index keeps no matter what.
+	 *
+	 * The dictionary lever is priced **twice** - once against the container-shaped candidate and once against the
+	 * tree-shaped one - and the two are never added. They are two counterfactuals for the same proposal, and the
+	 * pair is what says how much of the container-shaped figure was the container's doing rather than the
+	 * dictionary's. The tree-shaped total is then split by the shape each domain would need, because a prize sitting
+	 * entirely in ordered domains is a planner follow-up rather than a storage one.
 	 *
 	 * @param domains every domain of the catalog
 	 * @param totals  catalog-wide accumulators
@@ -1249,9 +1679,15 @@ public class ValueDedupCensus {
 		long eligibleHost = 0L;
 		long eligibleNet = 0L;
 		long eligibleDir = 0L;
+		long eligibleKeyColumns = 0L;
+		long eligibleIdColumns = 0L;
+		long eligibleTreeSpine = 0L;
+		long eligibleTreeNet = 0L;
 		int eligibleDomains = 0;
 		int skippedDomains = 0;
 		int winners = 0;
+		final long[] treeNetByShape = new long[DictionaryShape.values().length];
+		final int[] domainsByShape = new int[DictionaryShape.values().length];
 		for (int i = 0; i < domains.size(); i++) {
 			final Domain domain = domains.get(i);
 			if (!domain.valueClass.eligible()) {
@@ -1264,6 +1700,12 @@ public class ValueDedupCensus {
 			eligibleHost += domain.hostIncrementBytes;
 			eligibleDir += domain.reverseDirectoryBytes;
 			eligibleNet += domain.netSavingBytes;
+			eligibleKeyColumns += domain.keyColumnBytes;
+			eligibleIdColumns += domain.idColumnBytes;
+			eligibleTreeSpine += domain.treeSpineBytes;
+			eligibleTreeNet += domain.treeNetSavingBytes;
+			treeNetByShape[domain.dictionaryShape.ordinal()] += domain.treeNetSavingBytes;
+			domainsByShape[domain.dictionaryShape.ordinal()]++;
 			if (domain.verdict == Verdict.WIN) {
 				winners++;
 			}
@@ -1300,6 +1742,48 @@ public class ValueDedupCensus {
 		);
 		System.out.printf(
 			"  reverse directory if ever needed (excluded)  : %13s%n", bytes(eligibleDir)
+		);
+
+		System.out.printf(
+			"%ndictionary lever, SECOND spine variant - the dictionary on an exact-sized TREE (Option B)%n"
+		);
+		System.out.printf(
+			"  front-coded / boxed key columns measured     : %13s%n", bytes(eligibleKeyColumns)
+		);
+		System.out.printf(
+			"  4-byte value-id columns replacing them       : %13s%n", bytes(eligibleIdColumns)
+		);
+		System.out.printf(
+			"  candidate spine (tree-shaped)                : %13s%n", bytes(eligibleTreeSpine)
+		);
+		System.out.printf(
+			"  host increment (owner id columns, unchanged) : %13s%n", bytes(eligibleHost)
+		);
+		System.out.printf(
+			"  NET SAVING                                   : %13s (%s of the reduced attribute heap)%n",
+			signedBytes(eligibleTreeNet), percent(Math.max(eligibleTreeNet, 0L), totals.reducedAttributeBytes)
+		);
+		System.out.printf("  by shape the domain would need:%n");
+		for (final DictionaryShape shape : DictionaryShape.values()) {
+			if (shape == DictionaryShape.NONE) {
+				// the lever does not apply to those domains at all, so they carry no tree-shaped marginal
+				continue;
+			}
+			System.out.printf(
+				"    %-8s %,5d domains %13s (%s of the tree-shaped net)%n",
+				shape, domainsByShape[shape.ordinal()], signedBytes(treeNetByShape[shape.ordinal()]),
+				percent(Math.max(treeNetByShape[shape.ordinal()], 0L), Math.max(eligibleTreeNet, 0L))
+			);
+		}
+		System.out.println(
+			"  ORDERED domains need the ordered-dictionary shape - the dictionary held once in the global tree, the\n" +
+				"  reduced index holding membership plus id-keyed postings, and ordered predicates evaluated once\n" +
+				"  globally then ANDed with each membership bitmap. SIMPLE domains could take the id-keyed map.\n" +
+				"  UNKNOWN means the schema does not describe the attribute, so neither shape can be claimed.\n" +
+				"  The classification is a schema proxy - per-index usage statistics are not persisted, so a\n" +
+				"  snapshot cannot say which predicates a domain actually serves. It over-counts ORDERED.\n" +
+				"  This variant and the container-shaped one above are TWO counterfactuals for ONE lever and must\n" +
+				"  never be added together."
 		);
 
 		long containerRemovable = 0L;
@@ -1379,6 +1863,9 @@ public class ValueDedupCensus {
 		System.out.println("invariants - M >= K >= 1 per tree               :          PASS (throws otherwise)");
 		System.out.println("invariants - bitmapBytes <= treeBytes per tree  :          PASS (throws otherwise)");
 		System.out.println("invariants - V_union <= sum K per domain        :          PASS (throws otherwise)");
+		System.out.println("invariants - keyColumn + bitmaps <= tree        :          PASS (throws otherwise)");
+		System.out.println("invariants - histogram covers every bucket      :          PASS (throws otherwise)");
+		System.out.println("invariants - histogram bytes == bitmapBytes     :          PASS (throws otherwise)");
 
 		int entityLevelDomains = 0;
 		int entityLevelGaps = 0;
@@ -1402,6 +1889,18 @@ public class ValueDedupCensus {
 		);
 		System.out.printf(
 			"coverage   - domains with no canonical owner    : %,13d of %,d%n", missingOwners, domains.size()
+		);
+
+		int unknownShapes = 0;
+		for (int i = 0; i < domains.size(); i++) {
+			if (domains.get(i).dictionaryShape == DictionaryShape.UNKNOWN) {
+				unknownShapes++;
+			}
+		}
+		System.out.printf(
+			"shape      - eligible domains the schema misses : %,13d  [%s]%n",
+			unknownShapes,
+			unknownShapes == 0 ? "PASS" : "INVESTIGATE - those domains are in neither shape roll-up"
 		);
 	}
 
@@ -1428,7 +1927,10 @@ public class ValueDedupCensus {
 					"sampleType\towner\tsharedWithTrigram\tstratum\ttrees\tsumK\tsumM\tkP50\tkP95\tvUnion\t" +
 					"replication\ttreeBytes\tbitmapBytes\tremovableBytes\tspineBytes\thostIncrementBytes\t" +
 					"reverseDirectoryBytes\tnetSavingBytes\tcontainerSpineBytes\tcontainerSavingBytes\t" +
-					"coverageGap\tverdict\n"
+					"coverageGap\tverdict\tkeyColumnBytes\tidColumnBytes\ttreeSpineBytes\t" +
+					"treeNetSavingBytes\tdictionaryShape\tsingleRecordBuckets\tbucketsCard2to8\t" +
+					"bitmapBytesCard2to8\tbucketsCard9to32\tbitmapBytesCard9to32\tbucketsCard33to128\t" +
+					"bitmapBytesCard33to128\tbucketsCardOver128\tbitmapBytesCardOver128\n"
 			);
 			for (int i = 0; i < domains.size(); i++) {
 				final Domain domain = domains.get(i);
@@ -1470,7 +1972,18 @@ public class ValueDedupCensus {
 			.append(domain.containerSpineBytes).append('\t')
 			.append(domain.containerSavingBytes).append('\t')
 			.append(domain.coverageGap).append('\t')
-			.append(domain.verdict.label()).append('\n');
+			.append(domain.verdict.label()).append('\t')
+			.append(domain.keyColumnBytes).append('\t')
+			.append(domain.idColumnBytes).append('\t')
+			.append(domain.treeSpineBytes).append('\t')
+			.append(domain.treeNetSavingBytes).append('\t')
+			.append(domain.dictionaryShape).append('\t')
+			.append(domain.cardinalities.singleRecordBuckets);
+		for (int band = 0; band < BUCKET_CARDINALITY_LABELS.length; band++) {
+			row.append('\t').append(domain.cardinalities.bucketCounts[band])
+				.append('\t').append(domain.cardinalities.bitmapBytes[band]);
+		}
+		row.append('\n');
 		writer.write(row.toString());
 	}
 
@@ -1504,8 +2017,14 @@ public class ValueDedupCensus {
 			.append('\t').append('\t')
 			.append(stratum.savingBytes).append('\t')
 			.append('\t').append('\t')
-			.append('\t')
-			.append('\n');
+			.append('\t');
+		// the tree-shaped projection, the shape and the cardinality histogram are domain-wide readings with no
+		// per-stratum meaning, so their columns are left empty rather than repeated - exactly as the host increment,
+		// the coverage gap and the verdict already are
+		for (int column = 0; column < STRATUM_EMPTY_TRAILING_COLUMNS; column++) {
+			row.append('\t');
+		}
+		row.append('\n');
 		writer.write(row.toString());
 	}
 
@@ -1633,6 +2152,116 @@ public class ValueDedupCensus {
 				"Cannot open `" + owner.getSimpleName() + "#" + fieldName + "` - the census reads it because no " +
 					"accessor exposes it.",
 				"Cannot open a field the census needs!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Opens one method for invocation, for the same reason and under the same conditions as {@link #openField}.
+	 *
+	 * The lookup is done on the *declaring* type - which for the key column is a package-private sealed interface -
+	 * so a single handle dispatches virtually across every implementation the tree family can put in a leaf.
+	 *
+	 * @param owner          the declaring class or interface
+	 * @param methodName     the method to open
+	 * @param parameterTypes its erased parameter types
+	 * @return the opened method
+	 */
+	@Nonnull
+	private static Method openMethod(
+		@Nonnull Class<?> owner,
+		@Nonnull String methodName,
+		@Nonnull Class<?>... parameterTypes
+	) {
+		try {
+			final Method method = owner.getDeclaredMethod(methodName, parameterTypes);
+			method.setAccessible(true);
+			return method;
+		} catch (final NoSuchMethodException | SecurityException e) {
+			throw new GenericEvitaInternalError(
+				"Cannot open `" + owner.getSimpleName() + "#" + methodName + "` - the census calls it because no " +
+					"public accessor exposes it.",
+				"Cannot open a method the census needs!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Resolves one class by name. Used for the two B+ tree types the census has to reach that are not public, so they
+	 * cannot be named in a declaration from this module.
+	 *
+	 * @param className the binary name of the class
+	 * @return the resolved class
+	 */
+	@Nonnull
+	private static Class<?> classFor(@Nonnull String className) {
+		try {
+			return Class.forName(className);
+		} catch (final ClassNotFoundException e) {
+			throw new GenericEvitaInternalError(
+				"Cannot resolve `" + className + "` - the census reaches it reflectively because it is not public, " +
+					"so a rename or a repackaging breaks it silently unless it fails here.",
+				"Cannot resolve a class the census needs!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Reads one field the census opened, wrapping the access failure in the same self-describing error every other
+	 * reflective read here uses.
+	 *
+	 * @param field  the opened field
+	 * @param target the instance to read it from
+	 * @return the field value
+	 */
+	@Nonnull
+	private static Object readField(@Nonnull Field field, @Nonnull Object target) {
+		try {
+			final Object value = field.get(target);
+			if (value == null) {
+				throw new GenericEvitaInternalError(
+					"Field `" + field.getName() + "` of `" + target.getClass().getName() + "` is null - the census " +
+						"reads it only where the structure guarantees it is set!",
+					"A field the census reads is unexpectedly null!"
+				);
+			}
+			return value;
+		} catch (final IllegalAccessException e) {
+			throw new GenericEvitaInternalError(
+				"Cannot read `" + field.getName() + "` of `" + target.getClass().getName() + "`!",
+				"Cannot read a field the census needs!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Invokes one method the census opened, wrapping both failure modes in a self-describing error.
+	 *
+	 * @param method    the opened method
+	 * @param target    the receiver
+	 * @param arguments the call arguments
+	 * @return the returned value
+	 */
+	@Nonnull
+	private static Object invokeMethod(@Nonnull Method method, @Nonnull Object target, @Nonnull Object... arguments) {
+		try {
+			final Object result = method.invoke(target, arguments);
+			if (result == null) {
+				throw new GenericEvitaInternalError(
+					"Method `" + method.getName() + "` of `" + target.getClass().getName() + "` returned null - the " +
+						"census calls only methods that return a primitive!",
+					"A method the census calls returned null!"
+				);
+			}
+			return result;
+		} catch (final IllegalAccessException | InvocationTargetException e) {
+			throw new GenericEvitaInternalError(
+				"Cannot invoke `" + method.getName() + "` on `" + target.getClass().getName() + "`!",
+				"Cannot invoke a method the census needs!",
 				e
 			);
 		}
@@ -2038,6 +2667,25 @@ public class ValueDedupCensus {
 	}
 
 	/**
+	 * Which of the two dictionary shapes a domain would need if the dictionary lever were pulled on it.
+	 *
+	 * The split is the Stage 5 question that decides what kind of follow-up the lever would even be: a prize sitting
+	 * entirely in {@link #ORDERED} domains is not reachable by the cheap id-keyed map and turns the follow-up into a
+	 * planner change rather than a storage change. See {@link #dictionaryShapeOf} for how a domain is classified and
+	 * why the classification is a schema proxy rather than an observation.
+	 */
+	enum DictionaryShape {
+		/** An id-keyed `valueId -> bitmap` map suffices - the domain serves no ordered predicate. */
+		SIMPLE,
+		/** The ordered dictionary is required - the domain serves prefix, range, sort or histogram predicates. */
+		ORDERED,
+		/** The schema does not describe this domain's attribute, so neither shape can be claimed for it. */
+		UNKNOWN,
+		/** The dictionary lever does not apply to this domain at all. */
+		NONE
+	}
+
+	/**
 	 * The census's verdict on a domain.
 	 */
 	private enum Verdict {
@@ -2171,6 +2819,120 @@ public class ValueDedupCensus {
 	}
 
 	/**
+	 * The two halves of one tree's dictionary-on-exact-tree projection, as measured by {@link #keyColumnFootprintOf}.
+	 *
+	 * @param keyColumnBytes the live key columns of every leaf, priced by the engine's own column arithmetic
+	 * @param idColumnBytes  the `IntValueColumn`-shaped value-id columns that would replace them
+	 */
+	private record KeyColumnFootprint(long keyColumnBytes, long idColumnBytes) {
+
+		/**
+		 * The footprint of a tree the dictionary lever does not apply to, whose leaves are therefore never walked.
+		 */
+		private static final KeyColumnFootprint NONE = new KeyColumnFootprint(0L, 0L);
+
+	}
+
+	/**
+	 * The per-bucket record-count distribution of a domain - the one reading issue #1455 needs and the census had no
+	 * way of producing before.
+	 *
+	 * Single-record buckets are counted but not binned: their lone pk lives in the leaf's record column and there is
+	 * no bitmap behind them, so they carry none of the fixed Roaring overhead the issue is about. The four bands are
+	 * {@link #BUCKET_CARDINALITY_UPPER_BOUNDS}, and each carries both the bucket count and the Roaring bytes behind
+	 * it - the same charge that feeds `bitmapBytes`, so the two must agree exactly, which {@link Domain#finish()}
+	 * asserts.
+	 */
+	static final class CardinalityHistogram {
+		/** How many buckets hold exactly one record, and therefore no bitmap at all. */
+		private long singleRecordBuckets;
+		/** Bucket counts per band, aligned with {@link #BUCKET_CARDINALITY_LABELS}. */
+		@Nonnull private final long[] bucketCounts = new long[BUCKET_CARDINALITY_LABELS.length];
+		/** Roaring bytes per band, aligned with {@link #BUCKET_CARDINALITY_LABELS}. */
+		@Nonnull private final long[] bitmapBytes = new long[BUCKET_CARDINALITY_LABELS.length];
+
+		/**
+		 * Counts one single-record bucket.
+		 */
+		void addSingleRecordBucket() {
+			this.singleRecordBuckets++;
+		}
+
+		/**
+		 * Bins one multi-record bucket and the Roaring bytes behind it.
+		 *
+		 * @param cardinality how many records the bucket holds; always above one
+		 * @param bitmapBytes the bucket's record bitmap footprint
+		 */
+		void addMultiRecordBucket(int cardinality, long bitmapBytes) {
+			final int band = bandOf(cardinality);
+			this.bucketCounts[band]++;
+			this.bitmapBytes[band] += bitmapBytes;
+		}
+
+		/**
+		 * Folds another histogram in, so the catalog roll-up needs no second walk.
+		 *
+		 * @param other the histogram to add
+		 */
+		void addAll(@Nonnull CardinalityHistogram other) {
+			this.singleRecordBuckets += other.singleRecordBuckets;
+			for (int band = 0; band < this.bucketCounts.length; band++) {
+				this.bucketCounts[band] += other.bucketCounts[band];
+				this.bitmapBytes[band] += other.bitmapBytes[band];
+			}
+		}
+
+		/**
+		 * @return how many buckets the histogram covers, single-record ones included
+		 */
+		long totalBucketCount() {
+			long total = this.singleRecordBuckets;
+			for (int band = 0; band < this.bucketCounts.length; band++) {
+				total += this.bucketCounts[band];
+			}
+			return total;
+		}
+
+		/**
+		 * @return the Roaring bytes across every band
+		 */
+		long totalBitmapBytes() {
+			long total = 0L;
+			for (int band = 0; band < this.bitmapBytes.length; band++) {
+				total += this.bitmapBytes[band];
+			}
+			return total;
+		}
+
+		/**
+		 * Maps a bucket's record count onto its band.
+		 *
+		 * @param cardinality how many records the bucket holds
+		 * @return the band index
+		 */
+		static int bandOf(int cardinality) {
+			if (cardinality < 2) {
+				throw new GenericEvitaInternalError(
+					"Bucket cardinality " + cardinality + " is not a stratum - a bucket below two records holds no " +
+						"bitmap and is counted separately!",
+					"Bucket cardinality below two cannot be binned!"
+				);
+			}
+			for (int band = 0; band < BUCKET_CARDINALITY_UPPER_BOUNDS.length; band++) {
+				if (cardinality <= BUCKET_CARDINALITY_UPPER_BOUNDS[band]) {
+					return band;
+				}
+			}
+			throw new GenericEvitaInternalError(
+				"Bucket cardinality " + cardinality + " falls in no band - the last band is open-ended and cannot " +
+					"be missed!",
+				"Bucket cardinality falls in no band!"
+			);
+		}
+	}
+
+	/**
 	 * One tree-size stratum of a domain: the same six figures the decision table carries, restricted to the trees
 	 * whose bucket count falls in this band.
 	 */
@@ -2227,6 +2989,10 @@ public class ValueDedupCensus {
 		@Nonnull private int[] bucketCounts = new int[16];
 		/** Per-band totals, aligned with {@link #STRATA_LABELS}. */
 		@Nonnull private final Stratum[] strata = new Stratum[STRATA_LABELS.length];
+		/** The per-bucket record-count distribution issue #1455 needs, accumulated across every tree. */
+		@Nonnull private final CardinalityHistogram cardinalities = new CardinalityHistogram();
+		/** Which dictionary shape this domain would need; `NONE` when the dictionary lever does not apply. */
+		@Nonnull private final DictionaryShape dictionaryShape;
 		/** Where the canonical owner was found. */
 		@Nonnull private OwnerRole ownerRole = OwnerRole.MISSING;
 		/** The canonical owner tree, `null` when none was found. */
@@ -2247,6 +3013,14 @@ public class ValueDedupCensus {
 		private long removableBytes;
 		/** Sum of the projected candidate spines. */
 		private long spineBytes;
+		/** Sum of the live key-column bytes across every tree; zero unless the dictionary lever applies. */
+		private long keyColumnBytes;
+		/** Sum of the projected value-id columns that would replace them. */
+		private long idColumnBytes;
+		/** Sum of the projected dictionary-on-exact-tree spines - the Option B counterfactual. */
+		private long treeSpineBytes;
+		/** `sum(removable - treeSpine) - hostIncrement` - the tree-shaped variant's net saving. */
+		private long treeNetSavingBytes;
 		/** Width of a container-only key slot, or `0` when that lever does not apply to this domain. */
 		private final int containerKeyBytes;
 		/** Sum of the projected container-only spines; zero unless {@link #containerKeyBytes} is positive. */
@@ -2272,10 +3046,16 @@ public class ValueDedupCensus {
 		/** Simple class name of a sample bucket value, so the `PRIM` bucket stays auditable. */
 		@Nonnull private String sampleTypeName = "?";
 
-		Domain(@Nonnull DomainKey key, @Nonnull ValueClass valueClass, int containerKeyBytes) {
+		Domain(
+			@Nonnull DomainKey key,
+			@Nonnull ValueClass valueClass,
+			int containerKeyBytes,
+			@Nonnull DictionaryShape dictionaryShape
+		) {
 			this.key = key;
 			this.valueClass = valueClass;
 			this.containerKeyBytes = containerKeyBytes;
+			this.dictionaryShape = dictionaryShape;
 			for (int i = 0; i < this.strata.length; i++) {
 				this.strata[i] = new Stratum();
 			}
@@ -2301,11 +3081,25 @@ public class ValueDedupCensus {
 		 * @param bitmapBytes the record bitmaps of its multi-record buckets
 		 * @param multiCount  how many buckets hold more than one record
 		 * @param sortable    whether the tree also serves ordering
+		 * @param footprint   the tree's measured key columns and the id columns that would replace them
 		 */
-		void addTree(int buckets, long records, long treeBytes, long bitmapBytes, int multiCount, boolean sortable) {
+		void addTree(
+			int buckets,
+			long records,
+			long treeBytes,
+			long bitmapBytes,
+			int multiCount,
+			boolean sortable,
+			@Nonnull KeyColumnFootprint footprint
+		) {
 			final long removable = treeBytes - bitmapBytes;
 			final long spine = candidateSpineOf(buckets, multiCount, sortable, 0);
 			final long saving = removable - spine;
+			// the tree-shaped variant keeps every measured byte of the tree except the key column, and pays a
+			// 4-byte-per-value id column in its place - see `keyColumnFootprintOf`
+			this.keyColumnBytes += footprint.keyColumnBytes();
+			this.idColumnBytes += footprint.idColumnBytes();
+			this.treeSpineBytes += removable - footprint.keyColumnBytes() + footprint.idColumnBytes();
 			if (this.containerKeyBytes > 0) {
 				final long containerSpine = candidateSpineOf(buckets, multiCount, sortable, this.containerKeyBytes);
 				this.containerSpineBytes += containerSpine;
@@ -2343,6 +3137,22 @@ public class ValueDedupCensus {
 		 */
 		void finish() {
 			this.unionSize = this.union.size();
+			if (this.cardinalities.totalBucketCount() != this.bucketCount) {
+				throw new GenericEvitaInternalError(
+					"Domain `" + this.key + "` binned " + this.cardinalities.totalBucketCount() + " buckets into the " +
+						"cardinality histogram out of " + this.bucketCount + " it holds - every bucket is either " +
+						"single-record or binned!",
+					"The cardinality histogram does not cover every bucket of a domain!"
+				);
+			}
+			if (this.cardinalities.totalBitmapBytes() != this.bitmapBytes) {
+				throw new GenericEvitaInternalError(
+					"Domain `" + this.key + "` binned " + this.cardinalities.totalBitmapBytes() + " B of record " +
+						"bitmaps into the cardinality histogram out of " + this.bitmapBytes + " B it charges - the " +
+						"histogram bins the very same charge!",
+					"The cardinality histogram disagrees with the bitmap bytes of a domain!"
+				);
+			}
 			if (this.unionSize > this.bucketCount) {
 				throw new GenericEvitaInternalError(
 					"Domain `" + this.key + "` holds " + this.unionSize + " distinct values across only " +
@@ -2364,6 +3174,10 @@ public class ValueDedupCensus {
 				this.reverseDirectoryBytes = reverseDirectoryBytes(this.owner);
 			}
 			this.netSavingBytes = (this.removableBytes - this.spineBytes) - this.hostIncrementBytes;
+			// a domain the dictionary lever does not apply to walks no leaves, so its tree-shaped spine was never
+			// accumulated and reporting `removable - 0` for it would be a number about nothing
+			this.treeNetSavingBytes = this.valueClass.eligible()
+				? (this.removableBytes - this.treeSpineBytes) - this.hostIncrementBytes : 0L;
 
 			if (!this.valueClass.eligible()) {
 				this.verdict = Verdict.SKIP;

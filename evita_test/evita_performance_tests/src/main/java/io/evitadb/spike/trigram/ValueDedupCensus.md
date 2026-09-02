@@ -49,6 +49,34 @@ the dictionary lever has no host for these domains.
 `DateTimeRange` by 3.08% — so the real prizes are slightly *larger* than the engine self-reports. That
 is a separate defect, not a census artefact.
 
+## What the re-run also collects
+
+Two readings were added for the post-Stage-1 re-run, and neither changes a column that was already there.
+
+**A bucket-cardinality histogram, for [#1455](https://github.com/FgForrest/evitaDB/issues/1455).** That issue
+replaces a small bucket's Roaring bitmap with a plain sorted array, and its prize is
+`(buckets holding 2..T records) x (Roaring fixed overhead - array cost)`. The census already charged the
+second factor's raw material; nobody had counted the first. The bucket walk now bins every bucket into
+**2-8, 9-32, 33-128, >128** records, carrying the bucket count *and* the Roaring bytes behind each band,
+with single-record buckets counted separately because they hold no bitmap at all. It prints as its own
+catalog-wide table and rides the TSV per domain. The bins are asserted against `bitmapBytes` and against the
+bucket count, so a mis-binned bucket fails the run rather than skewing the answer.
+
+**A second dictionary spine variant — the dictionary on an exact-sized *tree*.** The original `spine` column
+models a *container*: parallel arrays with no tree above them. Once the reduced trees are themselves
+exact-sized, the counterfactual worth pricing keeps the tree and swaps only its key column, so
+`treeSpine = removable - keyColumnBytes + idColumnBytes` and the saving reduces to `keyColumn - idColumn`.
+Every other byte — index, tree, internal nodes, leaves, record column, overflow column — enters at its
+measured size and cancels. The key column is measured through the engine's own column arithmetic; the id
+column is modelled as an `IntValueColumn` sized by the engine's grow policy. Both variants are reported
+side by side and are **never** added: they are two counterfactuals for one lever, and the pair is what says
+how much of the +128.2 MB above was the container's doing rather than the dictionary's.
+
+Each eligible domain also carries the **shape** it would need — `SIMPLE` (an id-keyed map suffices) or
+`ORDERED` (the ordered dictionary is required) — classified from the schema, because per-index usage
+statistics are not persisted and a snapshot reads zeros from them. The tree-shaped saving is rolled up by
+shape, since a prize sitting entirely in `ORDERED` domains is a planner follow-up rather than a storage one.
+
 ## Why it is still live
 
 Acceptance criterion 3 of [#1486](https://github.com/FgForrest/evitaDB/issues/1486) requires re-running
@@ -59,8 +87,10 @@ materializes in live heap**. It is the gate, not just the motivation.
 
 Takes the same properties as [`TrigramCorpusExtractor`](TrigramCorpusExtractor.md) — `catalogName`,
 `dataDir`, `workDir` — plus one of its own. Keep `-Xmx` **below 32 GB** when comparing to the figures
-above: they assume the compressed-oops regime. Three private/protected engine fields are read
-reflectively, for the same reason the replication census does it: a spike may not edit the engine.
+above: they assume the compressed-oops regime. Several private/protected engine members are read
+reflectively, for the same reason the replication census does it: a spike may not edit the engine. Three
+are the trees themselves; the rest reach a leaf's key column, whose byte size no accessor exposes and which
+the tree-shaped spine variant has to price. All of them fail loudly at class initialization if renamed.
 
 A cross-check against the replication census's own definition of "reduced value trees" is computed
 **inside** the run rather than by re-running that census — the same walk accumulates both definitions,
