@@ -84,7 +84,7 @@ class InstantValueColumnTest {
 		@Test
 		@DisplayName("Instant round-trips including non-zero nanos")
 		void shouldRoundTripInstantWithNanos() {
-			final ValueColumn<Instant> column = new InstantValueColumn<>(new long[BLOCK_SIZE], new int[BLOCK_SIZE]);
+			final ValueColumn<Instant> column = new InstantValueColumn<>(BLOCK_SIZE);
 			final List<Instant> values = List.of(
 				Instant.ofEpochSecond(-1_000_000L, 123),
 				Instant.ofEpochSecond(0L, 0),
@@ -110,7 +110,7 @@ class InstantValueColumnTest {
 			assertTrue(earlierNano.compareTo(laterNano) < 0);
 			assertTrue(laterNano.compareTo(nextSecond) < 0);
 
-			final ValueColumn<Instant> column = new InstantValueColumn<>(new long[BLOCK_SIZE], new int[BLOCK_SIZE]);
+			final ValueColumn<Instant> column = new InstantValueColumn<>(BLOCK_SIZE);
 			column.insertKeyAt(0, earlierNano);
 			column.insertKeyAt(1, laterNano);
 			column.insertKeyAt(2, nextSecond);
@@ -149,7 +149,7 @@ class InstantValueColumnTest {
 				Instant.ofEpochSecond(10L, 0),
 				Instant.ofEpochSecond(10L, 1)
 			};
-			final ValueColumn<Instant> primitive = new InstantValueColumn<>(new long[BLOCK_SIZE], new int[BLOCK_SIZE]);
+			final ValueColumn<Instant> primitive = new InstantValueColumn<>(BLOCK_SIZE);
 			final ValueColumn<Instant> boxed = new BoxedObjectColumn<>(Instant.class, BLOCK_SIZE);
 			for (int i = 0; i < dataset.length; i++) {
 				primitive.insertKeyAt(i, dataset[i]);
@@ -194,7 +194,7 @@ class InstantValueColumnTest {
 				Instant.ofEpochSecond(5L, 999_999_999),
 				Instant.ofEpochSecond(9L, 500_000_000)
 			};
-			final ValueColumn<Instant> primitive = new InstantValueColumn<>(new long[BLOCK_SIZE], new int[BLOCK_SIZE]);
+			final ValueColumn<Instant> primitive = new InstantValueColumn<>(BLOCK_SIZE);
 			final ValueColumn<Instant> boxed = new BoxedObjectColumn<>(Instant.class, BLOCK_SIZE);
 			for (int i = 0; i < dataset.length; i++) {
 				primitive.insertKeyAt(i, dataset[i]);

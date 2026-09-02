@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -35,8 +36,6 @@ import java.util.Comparator;
 import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
-import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
-import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
 
 /**
  * Pluggable key (bucket value) column of a {@link TransactionalBucketBPlusTree} leaf. It abstracts the leaf's key
@@ -62,26 +61,93 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
  * - {@link #copyRangeTo} assumes {@code dst} is the **same concrete kind** as this column — true within one tree (one
  *   attribute index = one value type); it is asserted defensively.
  *
+ * ## Logical capacity, physical backing (the whole family, not just the front-coded column)
+ *
+ * {@link #capacity()} is the **logical** block size the column was created with and never moves. The **physical**
+ * backing array is sized to the live content instead: an empty column allocates nothing, the first write allocates
+ * {@code ColumnSizing.MIN_PHYSICAL_LENGTH} slots, and growth doubles up to the logical capacity. A leaf holding four
+ * values therefore pays for four slots rather than for the whole block. {@code ColumnSizing} states the policy and
+ * its numbers.
+ *
+ * Three consequences the implementations all share, and which every caller may rely on:
+ *
+ * - **A column is a logical run of {@code capacity()} slots of which the first {@link #size()} are materialized.**
+ *   Everything at or beyond {@code size()} reads as empty — {@code null} for a reference column, {@code 0} for a
+ *   primitive one — exactly as the fixed, zero-filled arrays this family used to allocate did. Slots in
+ *   {@code [size(), physical length)} are kept cleared, so no stale key survives past the live tail.
+ * - **{@link #clearAt} and {@link #fillEmpty} are size-authoritative**: they truncate the live run rather than
+ *   poking a single slot, and are strict no-ops for anything already past it.
+ * - **{@link #copyRangeTo} grows its destination**, and {@link #insertKeyAt} grows before it shifts. Neither
+ *   requires the destination to have been pre-sized.
+ *
+ * **{@code size() == peek + 1} is the leaf's intended invariant, not a guarantee a reader may lean on.** Every
+ * reader must bound itself by the leaf's {@code peek}, never by {@link #size()}. Three windows break it today:
+ *
+ * - **Two transient, inside a single mutation.** {@code insertNewSingleBucket} / {@code insertNewBucket} grow the
+ *   columns before incrementing {@code peek}, and {@code deleteBucketAt} shrinks them before decrementing it —
+ *   which is precisely why {@link #clearAt} has to answer by {@link #size()} rather than by the leaf's {@code peek}.
+ * - **One that is not transient and can reach a committed column.** The downward branch of the leaf's
+ *   {@code setPeek} decouples its record and value-id columns with {@link #duplicate()} but skips the
+ *   {@link #fillEmpty} its key-column branch performs, so those two keep {@code size == originPeek + 1} after
+ *   {@code peek} has already dropped, and the commit merge carries that column straight into the new committed
+ *   leaf. It is repaired by whichever comes first of the next {@code createLayer()} (whose self-copy is followed by
+ *   {@code fillEmpty(peek + 1, capacity())}) and the next {@code deleteBucketAt}. Every consequence is benign under
+ *   these semantics — reads are {@code peek}-bounded, {@link #trimmed()} merely under-reclaims — but a future change
+ *   that trusts the invariant would be wrong. Closing that window, and asserting the invariant at the leaf's
+ *   mutation exits, belongs to the leaf and is not part of this change.
+ *
  * @param <M> the (boxed) key type as seen by the tree's generic API
  */
 sealed interface ValueColumn<M extends Comparable<M>>
 	permits BoxedObjectColumn, LongValueColumn, InstantValueColumn, IntValueColumn, FrontCodedStringColumn {
 
 	/**
-	 * Returns the backing capacity (== the leaf's block size); slots in {@code [size, capacity)} are unused.
+	 * Returns the **logical** capacity — the leaf block size this column was created with, which no mutation ever
+	 * changes. The physical backing array is usually shorter (see the interface javadoc); slots in
+	 * {@code [size(), capacity())} are unused and read as empty.
 	 *
-	 * @return the backing capacity
+	 * This is what the leaf's {@code isFull()} / {@code isNearlyFull()} / {@code capacity()} read to decide whether
+	 * to split, so it must never be answered with the backing array's length: a column shortened to its content
+	 * would otherwise make a five-value tree split, gain an internal root and start persisting leaf pages.
+	 *
+	 * @return the logical capacity (the leaf block size)
 	 */
 	int capacity();
 
 	/**
-	 * Creates a new **empty** column of the same concrete kind and the given capacity (split / layer target).
+	 * Returns the number of live keys in this column — the length of the materialized run, kept equal to the owning
+	 * leaf's {@code peek + 1}. Everything from here to {@link #capacity()} reads as empty.
 	 *
-	 * @param capacity the capacity of the new column
+	 * @return the live key count
+	 */
+	int size();
+
+	/**
+	 * Creates a new **empty** column of the same concrete kind and the given **logical** capacity (split / layer
+	 * target). The returned column allocates no backing storage until its first write.
+	 *
+	 * @param capacity the logical capacity of the new column (the leaf block size)
 	 * @return a fresh empty column of the same kind
 	 */
 	@Nonnull
 	ValueColumn<M> allocate(int capacity);
+
+	/**
+	 * Returns a column holding the same keys with its physical backing shrunk to the live content, or {@code this}
+	 * when the slack does not justify the copy.
+	 *
+	 * This is the counterpart to the growth on the write path, and it belongs at exactly one place: the commit merge,
+	 * on the branches that build a new committed leaf anyway. Calling it on the merge's {@code return this} fast path
+	 * would rebuild every leaf of every commit and dirty every persistence page. The identity return is what lets the
+	 * caller stay unconditional — the common case allocates nothing and hands the same reference back.
+	 *
+	 * A trim fires only when the live count has fallen to a quarter of the physical length, and lands on a power of
+	 * two; see {@code ColumnSizing} for why the gap has to be that wide.
+	 *
+	 * @return a shrunk copy, or {@code this} when no shrink is warranted
+	 */
+	@Nonnull
+	ValueColumn<M> trimmed();
 
 	/**
 	 * Creates an independent, non-aliasing copy of this column (new identity) used to decouple a transactional
@@ -89,6 +155,11 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * one that mutates exclusively by whole-reference replacement (never edits bytes/elements of a retained array in
 	 * place) may instead structurally share that backing state — see {@link FrontCodedStringColumn#duplicate()} for
 	 * the concrete example and the invariant that safety depends on.
+	 *
+	 * **The copy keeps the source's physical length verbatim and never trims it** (use {@link #trimmed()} for that).
+	 * This method is both the MVCC decouple primitive and the savepoint memento primitive: a decoupled layer is
+	 * about to be written, so shrinking it would be undone one statement later, and a memento has to be a faithful
+	 * pre-image — a rollback must not change the leaf's physical shape as a side effect.
 	 *
 	 * @return an independent copy of this column, safe to mutate without affecting the source
 	 */
@@ -99,7 +170,11 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * Returns the (boxed) key at the given index. Boxing boundary — call only where the boxed leaf already materialized
 	 * a key (per-visited-bucket / per-leaf-separator / cold paths).
 	 *
-	 * @param index the slot to read
+	 * Unlike the record column's readers this one is strict: the result is declared {@code @Nonnull}, so there is no
+	 * value it could answer for an empty slot. {@code index} must be below {@link #size()}, which every caller
+	 * satisfies by bounding its walk with the leaf's {@code peek}.
+	 *
+	 * @param index the live slot to read ({@code < size()})
 	 * @return the boxed key at {@code index}
 	 */
 	@Nonnull
@@ -158,10 +233,18 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	}
 
 	/**
-	 * Inserts {@code value} at {@code index}, shifting the tail one slot to the right (the leaf grows {@code peek}
-	 * afterwards). Mirrors {@code ArrayUtils.insertRecordIntoSameArrayOnIndex} on the key array.
+	 * Inserts {@code value} at {@code index}, shifting the live tail one slot to the right and raising {@link #size()}
+	 * by one (the leaf grows {@code peek} afterwards).
 	 *
-	 * @param index the insertion position
+	 * **Grows the physical backing first when the live run already fills it**, so the caller never has to pre-size the
+	 * column. Only the live tail moves — {@code size() - index} slots — never the whole block.
+	 *
+	 * {@code index} must not **exceed** {@link #size()} — the leaf bounds it by {@code peek + 1}. Unlike
+	 * {@link RecordColumn#insertAt}, which absorbs an index past its live run by degenerating to a plain write
+	 * (shifting a run of zeroes right changes nothing), a key column cannot: there is no empty key to shift, so a
+	 * violation corrupts the column rather than being absorbed.
+	 *
+	 * @param index the insertion position; must not exceed {@link #size()}
 	 * @param value the key to insert
 	 */
 	void insertKeyAt(int index, @Nonnull M value);
@@ -177,24 +260,35 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * column on every call (O(current size) per call, O(count²) total for `count` calls) — this method builds the
 	 * same content with a single encode pass, O(count) total.
 	 *
+	 * **Sizes the physical backing exactly to {@code count}** and sets {@link #size()} to it, so every persisted page
+	 * and every inline load lands at its exact footprint with no overshoot at all.
+	 *
 	 * @param keys  the ascending-ordered keys to load; only {@code keys[0, count)} are read
 	 * @param count the number of live keys ({@code <= capacity()})
 	 */
 	void bulkLoad(@Nonnull Object[] keys, int count);
 
 	/**
-	 * Removes the key at {@code index}, shifting the tail one slot to the left (the leaf clears the freed last slot via
-	 * {@link #clearAt} and shrinks {@code peek} afterwards). Mirrors {@code ArrayUtils.removeRecordFromSameArrayOnIndex}.
+	 * Removes the key at {@code index}, shifting the live tail one slot to the left and lowering {@link #size()} by one
+	 * (the leaf clears the freed last slot via {@link #clearAt} and shrinks {@code peek} afterwards). The vacated slot
+	 * is cleared, so nothing stale survives past the live run.
+	 *
+	 * Removing a slot at or beyond {@link #size()} is a no-op rather than an error: that region is already empty, and
+	 * dropping one empty slot out of it leaves it empty.
 	 *
 	 * @param index the slot to remove
 	 */
 	void removeKeyAt(int index);
 
 	/**
-	 * Clears (nulls / zeroes) the slot at {@code index} — used to release the freed last slot after a delete or a
-	 * downward {@code setPeek}.
+	 * Truncates the live run to {@code index}, clearing everything from there on — used to release the freed last slot
+	 * after a delete, and reached with a still-live slot when a downward {@code setPeek} shortens a leaf.
 	 *
-	 * @param index the slot to clear
+	 * **Size-authoritative, so it is a strict no-op for {@code index >= size()}.** That is what makes it safe on the
+	 * committed column a transactional layer still aliases, and it is why the leaf may call it with its pre-decrement
+	 * {@code peek} right after {@link #removeKeyAt} has already dropped the entry.
+	 *
+	 * @param index the first slot to release
 	 */
 	void clearAt(int index);
 
@@ -202,6 +296,18 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * Bulk lockstep move: copies {@code length} keys from {@code this[srcPos]} into {@code dst[dstPos]} (supports
 	 * overlapping ranges when {@code dst == this}, like {@code System.arraycopy}). {@code dst} must be the same concrete
 	 * kind as this column.
+	 *
+	 * **Grows the destination to {@code dstPos + length} before any key moves** and sets its {@link #size()} to
+	 * {@code max(oldSize, dstPos + length)}, gap-clearing anything between the destination's old live end and
+	 * {@code dstPos}. The destination therefore never has to be pre-sized, and the in-place right shift the leaf's
+	 * steal-from-left performs ({@code dst == this}) becomes a copy into a larger array rather than an overlapping
+	 * move.
+	 *
+	 * The **source** range must lie within this column's own live run ({@code srcPos + length <= size()}); the leaf
+	 * always bounds it by {@code peek}. Only the destination is grown. **Every implementation refuses a violation**
+	 * with a premise failure rather than substituting empty keys: a key column has no empty key, so absorbing it
+	 * would turn a caller bug into a tree that silently holds wrong keys. {@link RecordColumn#copyRangeTo} takes the
+	 * opposite view, and for a reason particular to it — see there.
 	 *
 	 * @param srcPos the start index in this column
 	 * @param dst    the destination column (same concrete kind)
@@ -211,10 +317,15 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length);
 
 	/**
-	 * Clears the slots in {@code [fromInclusive, toExclusive)} (truncated-tail cleanup on split / {@code setPeek}).
+	 * Truncates the live run to {@code fromInclusive}, clearing everything from there on (truncated-tail cleanup on
+	 * split / {@code setPeek}).
 	 *
-	 * @param fromInclusive the first slot to clear (inclusive)
-	 * @param toExclusive   the slot to stop at (exclusive)
+	 * **Size-authoritative: {@code toExclusive} bounds nothing and needs no relation to the physical length.** The
+	 * split constructor passes {@link #capacity()} there, and {@code createLayer()} routes it onto the committed
+	 * column, where the call has to be a harmless no-op rather than an out-of-bounds fill.
+	 *
+	 * @param fromInclusive the first slot to release (inclusive); a value at or beyond {@link #size()} is a no-op
+	 * @param toExclusive   the caller's idea of where the released run ends; retained for call-site readability
 	 */
 	void fillEmpty(int fromInclusive, int toExclusive);
 
@@ -244,7 +355,12 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * {@link BoxedObjectColumn} this is the zero-copy backing array; primitive columns materialize on demand (cold
 	 * paths only — never the query hot path).
 	 *
-	 * @return the boxed key array (length == {@link #capacity()})
+	 * **The array's length is at least {@link #size()}; anything past the live run is {@code null}.** It is not
+	 * {@link #capacity()} and the implementations deliberately disagree about how much longer than the live run they
+	 * return — the front-coded column answers at its full logical capacity, the others at their live content. Every
+	 * caller walks it bounded by the leaf's {@code peek}, so only the live prefix is ever read.
+	 *
+	 * @return the boxed key array, live keys first
 	 */
 	@Nonnull
 	M[] asBoxedArray();
@@ -252,14 +368,15 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	/**
 	 * Returns the heap this column occupies in bytes, **excluding whatever its slots point at**.
 	 *
-	 * The figure covers the column object and every backing array it owns, each at its *allocated* length rather than
-	 * its live entry count: a column keeps the capacity it was allocated with, so the slots in `[size, capacity)` are
-	 * paid for even while they hold nothing. That is the honest number for a leaf block, which is sized once and then
-	 * fills up — so for these columns the figure does **not** move as keys are inserted.
+	 * The figure covers the column object and every backing array it owns, each at its *allocated* length — which now
+	 * tracks the live content rather than the leaf block size, because the backing arrays are grown on demand and
+	 * trimmed at the commit merge. **The figure therefore moves as keys are inserted and removed**, and an empty
+	 * column costs its object alone: it parks on the JVM-wide shared empty arrays and owns no storage at all.
 	 *
-	 * {@link FrontCodedStringColumn} is the one exception, and deliberately so: it allocates no per-slot storage at
-	 * all, encoding its keys into a variable-length blob that is re-trimmed on every write. Its figure therefore
-	 * *does* grow with the content it holds. Do not assume uniformity across the family here.
+	 * The family is uniform in this. {@link FrontCodedStringColumn} used to be the one column whose figure followed
+	 * its content; it is now simply the one that stores its content as a variable-length blob instead of as slots.
+	 * Growth overshoots the live count by up to a factor of two between reallocations (see {@code ColumnSizing}), so
+	 * the figure tracks content in steps rather than exactly.
 	 *
 	 * For the primitive-backed columns this is the whole story - their keys are values living inside the array. Only
 	 * {@link BoxedObjectColumn} stores references, and here it charges the reference slots alone; use
@@ -292,10 +409,24 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer);
 }
 
+
 /**
  * Universal {@link ValueColumn} backed by a boxed {@code M[]}. It is behavior-identical to the inline boxed key array:
  * every operation delegates to the very same {@code ArrayUtils} / {@code System.arraycopy} primitives the leaf invoked
- * directly, so introducing it is a pure refactor.
+ * directly, so introducing it was a pure refactor.
+ *
+ * The backing array is sized to the live content rather than to the leaf block size: an empty column holds a
+ * zero-length array, the first insert allocates {@code ColumnSizing.MIN_PHYSICAL_LENGTH} slots and growth doubles up
+ * to {@link #capacity()}. Slots between {@link #size()} and the array's length are kept {@code null}, so the element
+ * scan in {@link #getHeapSizeInBytes(ToLongFunction)} still sees exactly the live keys.
+ *
+ * **Why the empty array is a fresh zero-length one rather than the shared {@code ArrayUtils.EMPTY_OBJECT_ARRAY}.**
+ * {@link #asBoxedArray()} hands the backing array out as an {@code M[]}, and its caller assigns it to an
+ * {@code M[]}-typed local — a checkcast to the erased element type, which an {@code Object[]} fails. A zero-length
+ * array of the real component type keeps that contract, and it also keeps this column's arithmetic and a JOL walk in
+ * agreement without teaching the test-side shared-array exclusion list about a seventh constant. The price is one
+ * empty array header per empty column, sixteen bytes, against the roughly one kilobyte the exact sizing saves on the
+ * same leaf.
  *
  * @param <M> the key type
  */
@@ -305,36 +436,57 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	 */
 	@Nonnull private final Class<M> keyType;
 	/**
-	 * The boxed key backing array.
+	 * The logical capacity — the leaf block size, fixed for the column's lifetime. See {@link #capacity()}.
 	 */
-	@Nonnull private final M[] keys;
+	private final int capacity;
+	/**
+	 * The number of live keys held in {@link #keys}, normally equal to the owning leaf's {@code peek + 1} — see
+	 * {@link ValueColumn} for the three windows in which it is not.
+	 */
+	private int size;
+	/**
+	 * The boxed key backing array, sized to the live content rather than to {@link #capacity}. Slots in
+	 * {@code [size, keys.length)} are always {@code null}.
+	 */
+	@Nonnull private M[] keys;
 
 	/**
-	 * Creates an empty column with the given component type and capacity.
+	 * Creates an empty column with the given component type and logical capacity. No backing storage is allocated
+	 * until the first write.
 	 *
 	 * @param keyType  the key component type
-	 * @param capacity the backing capacity (block size)
+	 * @param capacity the logical capacity (the leaf block size)
 	 */
 	BoxedObjectColumn(@Nonnull Class<M> keyType, int capacity) {
 		this.keyType = keyType;
-		//noinspection unchecked
-		this.keys = (M[]) Array.newInstance(keyType, capacity);
+		this.capacity = capacity;
+		this.size = 0;
+		this.keys = newArray(keyType, 0);
 	}
 
 	/**
-	 * Wraps an existing backing array (split / duplicate paths).
+	 * Wraps an existing backing array (duplicate / trim paths).
 	 *
-	 * @param keyType the key component type
-	 * @param keys    the backing array to adopt
+	 * @param keyType  the key component type
+	 * @param capacity the logical capacity
+	 * @param size     the live key count
+	 * @param keys     the backing array to adopt
 	 */
-	private BoxedObjectColumn(@Nonnull Class<M> keyType, @Nonnull M[] keys) {
+	private BoxedObjectColumn(@Nonnull Class<M> keyType, int capacity, int size, @Nonnull M[] keys) {
 		this.keyType = keyType;
+		this.capacity = capacity;
+		this.size = size;
 		this.keys = keys;
 	}
 
 	@Override
 	public int capacity() {
-		return this.keys.length;
+		return this.capacity;
+	}
+
+	@Override
+	public int size() {
+		return this.size;
 	}
 
 	@Nonnull
@@ -345,8 +497,22 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 
 	@Nonnull
 	@Override
+	public ValueColumn<M> trimmed() {
+		final int target = ColumnSizing.trimmedLength(this.size, this.keys.length, this.capacity);
+		if (target == this.keys.length) {
+			return this;
+		}
+		return new BoxedObjectColumn<>(this.keyType, this.capacity, this.size, Arrays.copyOf(this.keys, target));
+	}
+
+	@Nonnull
+	@Override
 	public ValueColumn<M> duplicate() {
-		return new BoxedObjectColumn<>(this.keyType, this.keys.clone());
+		// an empty column keeps its own zero-length array rather than cloning it into a second one - there is no
+		// element to mutate, and every mutator replaces the field wholesale rather than writing in place
+		return new BoxedObjectColumn<>(
+			this.keyType, this.capacity, this.size, this.keys.length == 0 ? this.keys : this.keys.clone()
+		);
 	}
 
 	@Nonnull
@@ -357,35 +523,85 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 
 	@Override
 	public void insertKeyAt(int index, @Nonnull M value) {
-		insertRecordIntoSameArrayOnIndex(value, this.keys, index);
+		if (this.size == this.keys.length) {
+			growAndInsertKeyAt(index, value);
+			return;
+		}
+		System.arraycopy(this.keys, index, this.keys, index + 1, this.size - index);
+		this.keys[index] = value;
+		this.size++;
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		// always a fresh array: the contract says this column is freshly allocated, and reusing the existing backing
+		// would make this the one mutator in the family that writes into an array it did not allocate
+		final M[] target = newArray(this.keyType, count);
 		for (int i = 0; i < count; i++) {
-			this.keys[i] = (M) keys[i];
+			target[i] = (M) keys[i];
 		}
+		this.keys = target;
+		this.size = count;
 	}
 
 	@Override
 	public void removeKeyAt(int index) {
-		removeRecordFromSameArrayOnIndex(this.keys, index);
+		if (index >= this.size) {
+			// the run past `size` is already empty - dropping one empty slot out of it leaves it empty
+			return;
+		}
+		System.arraycopy(this.keys, index + 1, this.keys, index, this.size - index - 1);
+		this.size--;
+		this.keys[this.size] = null;
 	}
 
 	@Override
 	public void clearAt(int index) {
-		this.keys[index] = null;
+		if (index < this.size) {
+			Arrays.fill(this.keys, index, this.size, null);
+			this.size = index;
+		}
 	}
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
-		System.arraycopy(this.keys, srcPos, asSameKind(dst).keys, dstPos, length);
+		assertSourceRangeIsLive(srcPos, length);
+		final BoxedObjectColumn<M> target = asSameKind(dst);
+		final int oldSize = target.size;
+		final int required = dstPos + length;
+		target.ensurePhysicalLength(required);
+		if (dstPos > oldSize) {
+			// a right shift opens a hole between the destination's old live end and dstPos; it must read as empty
+			Arrays.fill(target.keys, oldSize, dstPos, null);
+		}
+		System.arraycopy(this.keys, srcPos, target.keys, dstPos, length);
+		target.size = Math.max(oldSize, required);
+	}
+
+	/**
+	 * Refuses a source range that reaches past this column's live run. A key column has no empty key it could
+	 * substitute, so absorbing the violation would turn a caller bug into a tree that silently holds wrong keys —
+	 * the failure mode the leaf's split-range argument already warns about, where half a leaf can vanish with no
+	 * exception at all.
+	 *
+	 * @param srcPos the start index the caller is reading from
+	 * @param length the number of keys the caller is reading
+	 */
+	private void assertSourceRangeIsLive(int srcPos, int length) {
+		Assert.isPremiseValid(
+			srcPos >= 0 && srcPos + length <= this.size,
+			() -> "Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ") — a key column has no empty key to substitute."
+		);
 	}
 
 	@Override
 	public void fillEmpty(int fromInclusive, int toExclusive) {
-		Arrays.fill(this.keys, fromInclusive, toExclusive, null);
+		if (fromInclusive < this.size) {
+			Arrays.fill(this.keys, fromInclusive, this.size, null);
+			this.size = fromInclusive;
+		}
 	}
 
 	@Nonnull
@@ -410,20 +626,21 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the column itself: the `keyType` and `keys` references. `keyType` addresses a Class object, which the JVM
-		// owns for the lifetime of its class loader and shares with every other holder - only the slot is charged
-		return layout.sizeOfObject(2L * layout.referenceSize())
+		// the column itself: the `keyType` and `keys` references plus the two ints. `keyType` addresses a Class
+		// object, which the JVM owns for the lifetime of its class loader and shares with every other holder - only
+		// the slot is charged
+		return layout.sizeOfObject(2L * layout.referenceSize() + 2L * Integer.BYTES)
 			+ layout.sizeOfArray(this.keys.length, layout.referenceSize());
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * Unlike the primitive columns, which answer in `O(1)`, this one scans the backing array: the column does not
-	 * track its own live count, so the null slots are what distinguishes the tail. That makes the cost `O(capacity)`
-	 * — one leaf block, not one index — and it **depends on the leaf nulling the truncated tail** through
-	 * {@link #fillEmpty}. Should `peek` ever shrink without that call, stale references would survive past the live
-	 * range and be priced here, over-charging the column.
+	 * Unlike the primitive columns, which answer in `O(1)`, this one scans the backing array: the null slots are what
+	 * distinguishes the tail from the live run, so the scan follows the same rule the reference walk does. That makes
+	 * the cost `O(physical length)` — which now follows the live content rather than the whole leaf block — and it
+	 * **depends on every mutator clearing the slots it releases**. Should a slot ever be freed without being nulled,
+	 * a stale reference would survive past the live range and be priced here, over-charging the column.
 	 */
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
@@ -434,6 +651,49 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 			}
 		}
 		return size;
+	}
+
+	/**
+	 * Reallocates {@link #keys} so it holds at least {@code requiredLength} slots, carrying the live keys across. Kept
+	 * out of the mutators so their steady-state path stays a single field compare against the array length — the
+	 * cursor-free insert path's escape analysis depends on that path staying small.
+	 *
+	 * @param requiredLength the number of slots the caller is about to address
+	 */
+	private void ensurePhysicalLength(int requiredLength) {
+		if (requiredLength > this.keys.length) {
+			this.keys = Arrays.copyOf(
+				this.keys, ColumnSizing.grownLength(this.keys.length, requiredLength, this.capacity)
+			);
+		}
+	}
+
+	/**
+	 * The out-of-line half of {@link #insertKeyAt}: grows the backing array, then performs the very same shift-and-set
+	 * the fast path performs.
+	 *
+	 * @param index the insertion position
+	 * @param value the key to insert
+	 */
+	private void growAndInsertKeyAt(int index, @Nonnull M value) {
+		ensurePhysicalLength(this.size + 1);
+		System.arraycopy(this.keys, index, this.keys, index + 1, this.size - index);
+		this.keys[index] = value;
+		this.size++;
+	}
+
+	/**
+	 * Allocates a zero-filled array of the column's component type.
+	 *
+	 * @param keyType the component type
+	 * @param length  the array length
+	 * @param <M>     the key type
+	 * @return the fresh array
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static <M extends Comparable<M>> M[] newArray(@Nonnull Class<M> keyType, int length) {
+		return (M[]) Array.newInstance(keyType, length);
 	}
 
 	/**

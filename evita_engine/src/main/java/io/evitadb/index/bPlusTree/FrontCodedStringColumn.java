@@ -60,9 +60,10 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * never has to match the comparator, so a single implementation serves both localized and non-localized string
  * attributes — the factory selects it for every {@link String} key.
  *
- * **Slot contract.** The leaf drives every column as a fixed-capacity, slot-indexed array kept in lockstep with its
- * {@code int[]} record column. A variable-length blob honours that contract by tracking a live entry count
- * ({@link #size}, always equal to the leaf's {@code peek + 1}) and emulating each array-slot operation
+ * **Slot contract.** The leaf drives every column as a slot-indexed run of {@link #capacity} logical slots, kept in
+ * lockstep with its record column, of which the first {@link #size} hold live keys — see {@link ValueColumn} for the
+ * family-wide statement of it. A variable-length blob honours that contract by tracking the live entry count
+ * ({@link #size}, normally equal to the leaf's {@code peek + 1}) and emulating each array-slot operation
  * ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo} / {@link #fillEmpty} / {@link #clearAt}) by
  * decoding the affected entries, applying the exact {@code System.arraycopy} slot semantics, and re-encoding a fresh
  * dense blob. The hot mutators ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo}) decode into
@@ -224,12 +225,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	private static final ThreadLocal<DecodeScratch> SCRATCH = ThreadLocal.withInitial(DecodeScratch::new);
 
 	/**
-	 * The fixed leaf block size — the value returned by {@link #capacity()}. The blob itself is variable-length and
-	 * never sized to this; the leaf uses it only to size its parallel record column and to bound tail clears.
+	 * The logical leaf block size — the value returned by {@link #capacity()}, fixed for the column's lifetime. The
+	 * blob itself is variable-length and never sized to this; the leaf reads it to decide when to split, and it is
+	 * what {@link #asBoxedArray()} pads its cold-path result out to.
 	 */
 	private final int capacity;
 	/**
-	 * The number of live entries currently encoded in {@link #data}, kept equal to the owning leaf's {@code peek + 1}.
+	 * The number of live entries currently encoded in {@link #data}, normally equal to the owning leaf's
+	 * {@code peek + 1} — see {@link ValueColumn} for the three windows in which it is not.
 	 */
 	private int size;
 	/**
@@ -322,10 +325,29 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		return this.capacity;
 	}
 
+	@Override
+	public int size() {
+		return this.size;
+	}
+
 	@Nonnull
 	@Override
 	public ValueColumn<M> allocate(int capacity) {
 		return new FrontCodedStringColumn<>(capacity, this.naturalOrderSafe);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Always {@code this}. Unlike the fixed-slot columns of the family, this one holds no per-slot storage to shrink:
+	 * every {@code encode()} pass already trims the blob and the restart table to exactly the bytes the live keys
+	 * occupy, so a column that has just shed most of its entries is exact the moment the mutation returns. There is
+	 * nothing left for the commit merge's trim to reclaim.
+	 */
+	@Nonnull
+	@Override
+	public ValueColumn<M> trimmed() {
+		return this;
 	}
 
 	@Nonnull
@@ -391,6 +413,11 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void removeKeyAt(int index) {
+		if (index >= this.size) {
+			// the run past `size` is already empty - dropping one empty slot out of it leaves it empty. Guarded
+			// rather than left to fail on the offset table, so the whole column family answers this the same way
+			return;
+		}
 		final DecodeScratch scratch = SCRATCH.get();
 		decodeAllToFlat(scratch);
 		final int n = this.size;
@@ -420,6 +447,15 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
+		// a key column has no empty key to substitute for a slot past its live run, so a source range that reaches
+		// past it is refused rather than absorbed - stated once here and identically on the four fixed-slot key
+		// columns, so the whole family answers this the same way. Left to itself, the decode below would walk the
+		// offset table past its live end and produce a silently wrong slice
+		Assert.isPremiseValid(
+			srcPos >= 0 && srcPos + length <= this.size,
+			() -> "Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ") — a key column has no empty key to substitute."
+		);
 		final DecodeScratch scratch = SCRATCH.get();
 		// snapshot the moved slice into flat2/offsets2 and decode the destination's own live entries into
 		// flat/offsets - two DISTINCT thread-local buffer pairs, so both can be live at once even when dst == this

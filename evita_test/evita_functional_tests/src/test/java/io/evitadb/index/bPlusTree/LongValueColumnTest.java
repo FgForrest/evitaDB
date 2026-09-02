@@ -177,7 +177,7 @@ class LongValueColumnTest {
 		@DisplayName("insert / remove / findKeyPosition / duplicate match the boxed column")
 		void shouldBehaveLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 
 			// build the same ordered prefix [10, 20, 30, 40] in both columns
@@ -224,7 +224,7 @@ class LongValueColumnTest {
 		@DisplayName("copyRangeTo moves a key block like the boxed column")
 		void shouldCopyRangeLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> srcPrimitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> srcPrimitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> srcBoxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			for (int i = 0; i < 4; i++) {
 				srcPrimitive.insertKeyAt(i, (i + 1) * 7);
@@ -249,7 +249,7 @@ class LongValueColumnTest {
 		@DisplayName("fillEmpty clears slots and appendKey renders the decoded key like the boxed column")
 		void shouldClearSlotsAndRenderKeyLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			final int[] inserted = {3, 6, 9, 12};
 			for (int i = 0; i < inserted.length; i++) {

@@ -24,6 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -32,6 +33,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.ToLongFunction;
+
+import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
+import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
 
 /**
  * Primitive {@link ValueColumn} backed by **two** parallel arrays — a {@code long[]} of epoch-seconds and an
@@ -51,6 +55,11 @@ import java.util.function.ToLongFunction;
  * a key. All bulk / single-slot moves operate in **lockstep** on the two primitive arrays, so no per-element boxing ever
  * occurs and the two arrays can never drift apart (every mutation touches both, with identical indices/lengths).
  *
+ * Both arrays follow the live content rather than the leaf block size and are grown, trimmed and cleared **in
+ * lockstep**, so they always share one physical length: an empty column parks both on the JVM-wide shared empty arrays
+ * and owns nothing, the first insert allocates {@code ColumnSizing.MIN_PHYSICAL_LENGTH} slots in each, and growth
+ * doubles up to {@link #capacity()}. See {@link ValueColumn} for the family-wide contract that follows from it.
+ *
  * Selected only when the tree comparator is natural order and the normalized key type is {@link Instant} (i.e. the
  * declared attribute type is {@code OffsetDateTime}, {@code Instant} or {@code LocalDateTime}); see
  * {@link ValueColumnFactory}. Otherwise the
@@ -61,41 +70,92 @@ import java.util.function.ToLongFunction;
  */
 final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	/**
-	 * The epoch-second component of each key (parallel with {@link #nanos}).
+	 * The logical capacity — the leaf block size, fixed for the column's lifetime. See {@link #capacity()}.
 	 */
-	@Nonnull private final long[] seconds;
+	private final int capacity;
 	/**
-	 * The nano-of-second component of each key, each in {@code [0, 999_999_999]} (parallel with {@link #seconds}).
+	 * The number of live keys held in the two backing arrays, normally equal to the owning leaf's {@code peek + 1}
+	 * — see {@link ValueColumn} for the three windows in which it is not.
 	 */
-	@Nonnull private final int[] nanos;
+	private int size;
+	/**
+	 * The epoch-second component of each key (parallel with {@link #nanos}, always the same physical length). Slots in
+	 * {@code [size, seconds.length)} are always zero.
+	 */
+	@Nonnull private long[] seconds;
+	/**
+	 * The nano-of-second component of each key, each in {@code [0, 999_999_999]} (parallel with {@link #seconds},
+	 * always the same physical length). Slots in {@code [size, nanos.length)} are always zero.
+	 */
+	@Nonnull private int[] nanos;
 
 	/**
-	 * Creates a column wrapping the given parallel backing arrays (allocate / duplicate / split paths). The two arrays
-	 * must have the same length (== the leaf block size); slots are kept in lockstep by every mutation.
+	 * Creates an empty column for a leaf of the given block size. No backing storage is allocated until the first
+	 * write — both array fields park on the JVM-wide shared empty arrays.
 	 *
-	 * @param seconds the epoch-second backing array to adopt
-	 * @param nanos   the nano-of-second backing array to adopt (same length as {@code seconds})
+	 * @param capacity the logical capacity (the leaf block size)
 	 */
-	InstantValueColumn(@Nonnull long[] seconds, @Nonnull int[] nanos) {
+	InstantValueColumn(int capacity) {
+		this.capacity = capacity;
+		this.size = 0;
+		this.seconds = EMPTY_LONG_ARRAY;
+		this.nanos = EMPTY_INT_ARRAY;
+	}
+
+	/**
+	 * Internal constructor adopting pre-built state (duplicate / trim paths). The two arrays must have the same
+	 * length; slots are kept in lockstep by every mutation.
+	 *
+	 * @param capacity the logical capacity
+	 * @param size     the live key count
+	 * @param seconds  the epoch-second backing array to adopt
+	 * @param nanos    the nano-of-second backing array to adopt (same length as {@code seconds})
+	 */
+	private InstantValueColumn(int capacity, int size, @Nonnull long[] seconds, @Nonnull int[] nanos) {
+		this.capacity = capacity;
+		this.size = size;
 		this.seconds = seconds;
 		this.nanos = nanos;
 	}
 
 	@Override
 	public int capacity() {
-		return this.seconds.length;
+		return this.capacity;
+	}
+
+	@Override
+	public int size() {
+		return this.size;
 	}
 
 	@Nonnull
 	@Override
 	public ValueColumn<M> allocate(int capacity) {
-		return new InstantValueColumn<>(new long[capacity], new int[capacity]);
+		return new InstantValueColumn<>(capacity);
+	}
+
+	@Nonnull
+	@Override
+	public ValueColumn<M> trimmed() {
+		final int target = ColumnSizing.trimmedLength(this.size, this.seconds.length, this.capacity);
+		if (target == this.seconds.length) {
+			return this;
+		}
+		return new InstantValueColumn<>(
+			this.capacity, this.size, Arrays.copyOf(this.seconds, target), Arrays.copyOf(this.nanos, target)
+		);
 	}
 
 	@Nonnull
 	@Override
 	public ValueColumn<M> duplicate() {
-		return new InstantValueColumn<>(this.seconds.clone(), this.nanos.clone());
+		// an empty column keeps the shared empty arrays rather than cloning them into private zero-length ones - the
+		// clones would cost two object headers and break the shared-array identity every heap walk subtracts
+		return new InstantValueColumn<>(
+			this.capacity, this.size,
+			this.seconds.length == 0 ? this.seconds : this.seconds.clone(),
+			this.nanos.length == 0 ? this.nanos : this.nanos.clone()
+		);
 	}
 
 	@Nonnull
@@ -108,48 +168,100 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 
 	@Override
 	public void insertKeyAt(int index, @Nonnull M value) {
+		if (this.size == this.seconds.length) {
+			growAndInsertKeyAt(index, value);
+			return;
+		}
 		// lockstep right-shift of BOTH arrays, then write both components of the new key
-		System.arraycopy(this.seconds, index, this.seconds, index + 1, this.seconds.length - index - 1);
-		System.arraycopy(this.nanos, index, this.nanos, index + 1, this.nanos.length - index - 1);
+		System.arraycopy(this.seconds, index, this.seconds, index + 1, this.size - index);
+		System.arraycopy(this.nanos, index, this.nanos, index + 1, this.size - index);
 		final Instant inst = (Instant) value;
 		this.seconds[index] = inst.getEpochSecond();
 		this.nanos[index] = inst.getNano();
+		this.size++;
 	}
 
 	@Override
 	public void bulkLoad(@Nonnull Object[] keys, int count) {
+		// always fresh arrays: the contract says this column is freshly allocated, and reusing the existing backing
+		// would make this the one mutator in the family that writes into arrays it did not allocate
+		final long[] targetSeconds = newLongArray(count);
+		final int[] targetNanos = newIntArray(count);
 		for (int i = 0; i < count; i++) {
 			final Instant inst = (Instant) keys[i];
-			this.seconds[i] = inst.getEpochSecond();
-			this.nanos[i] = inst.getNano();
+			targetSeconds[i] = inst.getEpochSecond();
+			targetNanos[i] = inst.getNano();
 		}
+		this.seconds = targetSeconds;
+		this.nanos = targetNanos;
+		this.size = count;
 	}
 
 	@Override
 	public void removeKeyAt(int index) {
+		if (index >= this.size) {
+			// the run past `size` is already empty - dropping one empty slot out of it leaves it empty
+			return;
+		}
 		// lockstep left-shift of BOTH arrays
-		System.arraycopy(this.seconds, index + 1, this.seconds, index, this.seconds.length - index - 1);
-		System.arraycopy(this.nanos, index + 1, this.nanos, index, this.nanos.length - index - 1);
+		System.arraycopy(this.seconds, index + 1, this.seconds, index, this.size - index - 1);
+		System.arraycopy(this.nanos, index + 1, this.nanos, index, this.size - index - 1);
+		this.size--;
+		this.seconds[this.size] = 0L;
+		this.nanos[this.size] = 0;
 	}
 
 	@Override
 	public void clearAt(int index) {
-		this.seconds[index] = 0L;
-		this.nanos[index] = 0;
+		if (index < this.size) {
+			Arrays.fill(this.seconds, index, this.size, 0L);
+			Arrays.fill(this.nanos, index, this.size, 0);
+			this.size = index;
+		}
 	}
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
+		assertSourceRangeIsLive(srcPos, length);
 		// lockstep bulk move of BOTH arrays (overlap-safe, like System.arraycopy)
 		final InstantValueColumn<M> target = asSameKind(dst);
+		final int oldSize = target.size;
+		final int required = dstPos + length;
+		target.ensurePhysicalLength(required);
+		if (dstPos > oldSize) {
+			// a right shift opens a hole between the destination's old live end and dstPos; it must read as empty
+			Arrays.fill(target.seconds, oldSize, dstPos, 0L);
+			Arrays.fill(target.nanos, oldSize, dstPos, 0);
+		}
 		System.arraycopy(this.seconds, srcPos, target.seconds, dstPos, length);
 		System.arraycopy(this.nanos, srcPos, target.nanos, dstPos, length);
+		target.size = Math.max(oldSize, required);
+	}
+
+	/**
+	 * Refuses a source range that reaches past this column's live run. A key column has no empty key it could
+	 * substitute, so absorbing the violation would turn a caller bug into a tree that silently holds wrong keys —
+	 * the failure mode the leaf's split-range argument already warns about, where half a leaf can vanish with no
+	 * exception at all.
+	 *
+	 * @param srcPos the start index the caller is reading from
+	 * @param length the number of keys the caller is reading
+	 */
+	private void assertSourceRangeIsLive(int srcPos, int length) {
+		Assert.isPremiseValid(
+			srcPos >= 0 && srcPos + length <= this.size,
+			() -> "Key column source range [" + srcPos + ", " + (srcPos + length) + ") runs past its live run ("
+				+ this.size + ") — a key column has no empty key to substitute."
+		);
 	}
 
 	@Override
 	public void fillEmpty(int fromInclusive, int toExclusive) {
-		Arrays.fill(this.seconds, fromInclusive, toExclusive, 0L);
-		Arrays.fill(this.nanos, fromInclusive, toExclusive, 0);
+		if (fromInclusive < this.size) {
+			Arrays.fill(this.seconds, fromInclusive, this.size, 0L);
+			Arrays.fill(this.nanos, fromInclusive, this.size, 0);
+			this.size = fromInclusive;
+		}
 	}
 
 	@Nonnull
@@ -193,9 +305,10 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	@Override
 	@SuppressWarnings("unchecked")
 	public M[] asBoxedArray() {
-		// cold path only (consistency verification / toString) — never the query hot path
-		final Instant[] boxed = new Instant[this.seconds.length];
-		for (int i = 0; i < this.seconds.length; i++) {
+		// cold path only (consistency verification / toString) — never the query hot path; the live run is the whole
+		// array, which satisfies the interface's "length >= size, tail empty" contract exactly
+		final Instant[] boxed = new Instant[this.size];
+		for (int i = 0; i < this.size; i++) {
 			boxed[i] = Instant.ofEpochSecond(this.seconds[i], this.nanos[i]);
 		}
 		return (M[]) boxed;
@@ -204,10 +317,17 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// two parallel arrays, both allocated at the leaf block size and always the same length
-		return layout.sizeOfObject(2L * layout.referenceSize())
-			+ layout.sizeOfArray(this.seconds.length, Long.BYTES)
-			+ layout.sizeOfArray(this.nanos.length, Integer.BYTES);
+		// two parallel arrays, always the same length, both following the live content
+		long size = layout.sizeOfObject(2L * layout.referenceSize() + 2L * Integer.BYTES);
+		// an empty column parks both fields on the JVM-wide shared empty arrays, which cost it nothing beyond the
+		// two slots already counted above
+		if (this.seconds != EMPTY_LONG_ARRAY) {
+			size += layout.sizeOfArray(this.seconds.length, Long.BYTES);
+		}
+		if (this.nanos != EMPTY_INT_ARRAY) {
+			size += layout.sizeOfArray(this.nanos.length, Integer.BYTES);
+		}
+		return size;
 	}
 
 	@Override
@@ -215,6 +335,60 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 		// keys decompose into primitive (seconds, nanos) slots - the Instant is materialized on demand and never
 		// retained, so there is nothing for the sizer to price
 		return getHeapSizeInBytes();
+	}
+
+	/**
+	 * Reallocates both backing arrays so each holds at least {@code requiredLength} slots, carrying the live keys
+	 * across. Kept out of the mutators so their steady-state path stays a single field compare against the array
+	 * length — the cursor-free insert path's escape analysis depends on that path staying small.
+	 *
+	 * @param requiredLength the number of slots the caller is about to address
+	 */
+	private void ensurePhysicalLength(int requiredLength) {
+		if (requiredLength > this.seconds.length) {
+			final int grown = ColumnSizing.grownLength(this.seconds.length, requiredLength, this.capacity);
+			this.seconds = Arrays.copyOf(this.seconds, grown);
+			this.nanos = Arrays.copyOf(this.nanos, grown);
+		}
+	}
+
+	/**
+	 * The out-of-line half of {@link #insertKeyAt}: grows both backing arrays, then performs the very same lockstep
+	 * shift-and-set the fast path performs.
+	 *
+	 * @param index the insertion position
+	 * @param value the key to insert
+	 */
+	private void growAndInsertKeyAt(int index, @Nonnull M value) {
+		ensurePhysicalLength(this.size + 1);
+		System.arraycopy(this.seconds, index, this.seconds, index + 1, this.size - index);
+		System.arraycopy(this.nanos, index, this.nanos, index + 1, this.size - index);
+		final Instant inst = (Instant) value;
+		this.seconds[index] = inst.getEpochSecond();
+		this.nanos[index] = inst.getNano();
+		this.size++;
+	}
+
+	/**
+	 * Allocates an epoch-second backing array of the given length, keeping a zero length on the shared empty array.
+	 *
+	 * @param length the array length
+	 * @return the fresh array
+	 */
+	@Nonnull
+	private static long[] newLongArray(int length) {
+		return length == 0 ? EMPTY_LONG_ARRAY : new long[length];
+	}
+
+	/**
+	 * Allocates a nano-of-second backing array of the given length, keeping a zero length on the shared empty array.
+	 *
+	 * @param length the array length
+	 * @return the fresh array
+	 */
+	@Nonnull
+	private static int[] newIntArray(int length) {
+		return length == 0 ? EMPTY_INT_ARRAY : new int[length];
 	}
 
 	/**

@@ -36,6 +36,7 @@ import java.util.UUID;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.utils.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
+import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,9 +53,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * # The accounting rules being pinned
  *
- * - **Capacity, not cardinality.** A column is allocated at the leaf block size and pays for every slot, live or not.
+ * - **Live content, not capacity.** A column's backing array follows what it holds: an empty one owns nothing at
+ *   all, and the figure moves as keys are inserted and removed. This rule is the inverse of the one this class
+ *   pinned until the columns were given a logical `capacity()` over a content-sized backing — the whole point of
+ *   that work was that a leaf holding four values stops paying for a 256-slot block. Growth doubles, so the figure
+ *   tracks content in steps rather than exactly.
  * - **Shared objects are not charged to their holders.** {@link LongValueColumn}'s codec is a JVM-wide enum constant,
- *   and an empty {@link FrontCodedStringColumn} parks on shared empty arrays — both cost only their reference slot.
+ *   and every empty column parks on shared empty arrays — both cost only their reference slot.
  * - **Elements are the caller's policy, not the column's.** {@link BoxedObjectColumn} charges reference slots alone by
  *   default; the sizer overload adds the referenced objects. Nothing hard-codes which elements are shared.
  *
@@ -64,9 +69,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("B+ tree column heap-size reporting")
 class ColumnHeapSizeTest {
 	/**
-	 * Leaf block size used throughout — large enough that capacity slack is visible, small enough to stay readable.
+	 * Leaf block size used throughout — large enough that the gap between a full block and a sparse one is visible,
+	 * small enough to stay readable.
 	 */
 	private static final int BLOCK_SIZE = 64;
+
+	/**
+	 * How many keys the "populated" fixtures hold. Deliberately not a power of two, so the backing array carries real
+	 * growth slack (32 slots for 30 keys) and the arithmetic has to price the allocation rather than the live count.
+	 */
+	private static final int POPULATED_ENTRIES = 30;
 
 	/**
 	 * Produces a deterministic {@link UUID} for the given seed. {@link UUID} is the element type of choice for the
@@ -103,21 +115,30 @@ class ColumnHeapSizeTest {
 
 		@Test
 		void shouldMatchMeasuredHeapForIntValueColumn() {
-			final ValueColumn<Integer> column = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> column = new IntValueColumn<>(BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, i);
+			}
 			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
 		}
 
 		@Test
 		void shouldMatchMeasuredHeapForLongValueColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> column = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> column = new LongValueColumn<>(codec, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, i);
+			}
 			// the codec is excluded from the measurement because it is a shared enum constant, not this column's
 			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes());
 		}
 
 		@Test
 		void shouldMatchMeasuredHeapForInstantValueColumn() {
-			final ValueColumn<Instant> column = new InstantValueColumn<>(new long[BLOCK_SIZE], new int[BLOCK_SIZE]);
+			final ValueColumn<Instant> column = new InstantValueColumn<>(BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, Instant.ofEpochSecond(i, i));
+			}
 			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
 		}
 
@@ -133,14 +154,34 @@ class ColumnHeapSizeTest {
 
 		@Test
 		void shouldMatchMeasuredHeapForIntRecordColumn() {
-			final RecordColumn column = new IntRecordColumn(new int[BLOCK_SIZE]);
+			final RecordColumn column = new IntRecordColumn(BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertAt(i, i + 1L);
+			}
 			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
 		}
 
 		@Test
 		void shouldMatchMeasuredHeapForLongRecordColumn() {
-			final RecordColumn column = new LongRecordColumn(new long[BLOCK_SIZE]);
+			final RecordColumn column = new LongRecordColumn(BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertAt(i, i + 1L);
+			}
 			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForATrimmedColumn() {
+			// the commit merge's trim rebuilds the backing array at the floor of four slots; the arithmetic has to
+			// follow the shrunk allocation, not the capacity the column still reports
+			final ValueColumn<Integer> column = new IntValueColumn<>(BLOCK_SIZE);
+			for (int i = 0; i < BLOCK_SIZE; i++) {
+				column.insertKeyAt(i, i);
+			}
+			column.fillEmpty(1, BLOCK_SIZE);
+			final ValueColumn<Integer> trimmed = column.trimmed();
+			assertEquals(JolHeapSize.ownedSize(trimmed), trimmed.getHeapSizeInBytes());
+			assertTrue(trimmed.getHeapSizeInBytes() < column.getHeapSizeInBytes());
 		}
 	}
 
@@ -151,14 +192,20 @@ class ColumnHeapSizeTest {
 		@Test
 		void shouldNotChargeTheSharedCodecToTheLongColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> column = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> column = new LongValueColumn<>(codec, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, i);
+			}
 
 			// the codec really is reachable from the column, so a naive deep walk would bill it here...
 			final long naiveDeepWalk = JolHeapSize.ownedSize(column);
 			assertTrue(naiveDeepWalk > column.getHeapSizeInBytes());
 
 			// ...and every column of this key type would be billed for the same one enum constant
-			final ValueColumn<Integer> sibling = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> sibling = new LongValueColumn<>(codec, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				sibling.insertKeyAt(i, i);
+			}
 			assertEquals(column.getHeapSizeInBytes(), sibling.getHeapSizeInBytes());
 		}
 
@@ -171,6 +218,44 @@ class ColumnHeapSizeTest {
 				JolHeapSize.ownedSize(column, EMPTY_BYTE_ARRAY, EMPTY_INT_ARRAY),
 				column.getHeapSizeInBytes()
 			);
+		}
+
+		@Test
+		void shouldNotChargeTheSharedEmptyArraysToAnyFreshPrimitiveColumn() {
+			// the same rule, now across the whole family: since the backing arrays follow the live content, EVERY
+			// empty column parks on the shared constants and owns nothing at all. A created-and-never-written tree
+			// is the dominant shape in a reduced index, so this is where most of the reclaimed bytes come from
+			assertEquals(
+				JolHeapSize.ownedSize(new IntValueColumn<Integer>(BLOCK_SIZE), EMPTY_INT_ARRAY),
+				new IntValueColumn<Integer>(BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
+			assertEquals(
+				JolHeapSize.ownedSize(new LongValueColumn<Integer>(codec, BLOCK_SIZE), codec, EMPTY_LONG_ARRAY),
+				new LongValueColumn<Integer>(codec, BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.ownedSize(new InstantValueColumn<Instant>(BLOCK_SIZE), EMPTY_LONG_ARRAY, EMPTY_INT_ARRAY),
+				new InstantValueColumn<Instant>(BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.ownedSize(new IntRecordColumn(BLOCK_SIZE), EMPTY_INT_ARRAY),
+				new IntRecordColumn(BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.ownedSize(new LongRecordColumn(BLOCK_SIZE), EMPTY_LONG_ARRAY),
+				new LongRecordColumn(BLOCK_SIZE).getHeapSizeInBytes()
+			);
+		}
+
+		@Test
+		void shouldChargeTheBoxedColumnsOwnEmptyArray() {
+			// the boxed column is the one that does NOT park on a shared constant: `asBoxedArray` hands its backing
+			// array out as an `M[]` and the caller checkcasts it to the erased element type, which an `Object[]`
+			// fails. It therefore allocates a zero-length array of its real component type and pays the sixteen
+			// bytes - which also keeps the arithmetic and a JOL walk in agreement without a sixth shared constant
+			final ValueColumn<UUID> column = new BoxedObjectColumn<>(UUID.class, BLOCK_SIZE);
+			assertEquals(JolHeapSize.ownedSize(column, UUID.class), column.getHeapSizeInBytes());
 		}
 
 		@Test
@@ -214,9 +299,9 @@ class ColumnHeapSizeTest {
 			}
 			sparse.insertKeyAt(0, uuid(0));
 
-			// the empty tail addresses nothing, so the sizer must not be asked to price it - a sizer that threw on
-			// null would otherwise blow up on every partially filled leaf in the catalog
-			assertEquals(full.getHeapSizeInBytes(), sparse.getHeapSizeInBytes());
+			// the sparse column owns four reference slots against the full one's sixty-four, so even the
+			// element-free figure separates them now
+			assertTrue(full.getHeapSizeInBytes() > sparse.getHeapSizeInBytes());
 			assertTrue(
 				full.getHeapSizeInBytes(JolHeapSize::shallowSize)
 					> sparse.getHeapSizeInBytes(JolHeapSize::shallowSize),
@@ -225,8 +310,24 @@ class ColumnHeapSizeTest {
 		}
 
 		@Test
+		void shouldNotAskTheSizerToPriceAClearedSlot() {
+			// a cleared tail addresses nothing, so the sizer must not be asked to price it - a sizer that threw on
+			// null would otherwise blow up on every leaf that has ever shed a key
+			final ValueColumn<UUID> column = new BoxedObjectColumn<>(UUID.class, BLOCK_SIZE);
+			for (int i = 0; i < 5; i++) {
+				column.insertKeyAt(i, uuid(i));
+			}
+			// one live key over a backing array of eight, so seven slots must be null and must contribute nothing
+			column.fillEmpty(1, BLOCK_SIZE);
+			assertEquals(
+				column.getHeapSizeInBytes() + JolHeapSize.shallowSize(uuid(0)),
+				column.getHeapSizeInBytes(JolHeapSize::shallowSize)
+			);
+		}
+
+		@Test
 		void shouldIgnoreTheSizerInPrimitiveColumns() {
-			final ValueColumn<Integer> column = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> column = new IntValueColumn<>(BLOCK_SIZE);
 			for (int i = 0; i < 30; i++) {
 				column.insertKeyAt(i, i);
 			}
@@ -241,29 +342,43 @@ class ColumnHeapSizeTest {
 	}
 
 	@Nested
-	@DisplayName("prices capacity rather than cardinality")
-	class CapacitySlack {
+	@DisplayName("prices live content rather than capacity")
+	class ContentTracking {
 
 		@Test
-		void shouldChargeTheWholeBlockRegardlessOfLiveEntries() {
-			final ValueColumn<Integer> empty = new IntValueColumn<>(new int[BLOCK_SIZE]);
-			final ValueColumn<Integer> full = new IntValueColumn<>(new int[BLOCK_SIZE]);
+		void shouldChargeLiveContentRatherThanTheWholeBlock() {
+			final ValueColumn<Integer> empty = new IntValueColumn<>(BLOCK_SIZE);
+			final ValueColumn<Integer> full = new IntValueColumn<>(BLOCK_SIZE);
 			for (int i = 0; i < BLOCK_SIZE; i++) {
 				full.insertKeyAt(i, i);
 			}
 
-			// a leaf block is allocated once and then fills up; its footprint does not move as it does
-			assertEquals(empty.getHeapSizeInBytes(), full.getHeapSizeInBytes());
+			// the footprint moves with the content: an empty block owns no storage at all, a full one owns all of it
+			assertTrue(empty.getHeapSizeInBytes() < full.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(empty, EMPTY_INT_ARRAY), empty.getHeapSizeInBytes());
 			assertEquals(JolHeapSize.ownedSize(full), full.getHeapSizeInBytes());
 		}
 
 		@Test
-		void shouldScaleWithBlockSizeNotEntryCount() {
-			final ValueColumn<Integer> small = new IntValueColumn<>(new int[BLOCK_SIZE]);
-			final ValueColumn<Integer> large = new IntValueColumn<>(new int[BLOCK_SIZE * 4]);
+		void shouldScaleWithEntryCountNotBlockSize() {
+			// same content, four times the logical block size: the figure must not move, because nothing was
+			// allocated for the slack
+			final ValueColumn<Integer> small = new IntValueColumn<>(BLOCK_SIZE);
+			final ValueColumn<Integer> large = new IntValueColumn<>(BLOCK_SIZE * 4);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				small.insertKeyAt(i, i);
+				large.insertKeyAt(i, i);
+			}
 
-			assertTrue(large.getHeapSizeInBytes() > small.getHeapSizeInBytes());
+			assertEquals(small.getHeapSizeInBytes(), large.getHeapSizeInBytes());
 			assertEquals(JolHeapSize.ownedSize(large), large.getHeapSizeInBytes());
+
+			// ...while the same block size holding four times the content does move it
+			final ValueColumn<Integer> denser = new IntValueColumn<>(BLOCK_SIZE);
+			for (int i = 0; i < BLOCK_SIZE; i++) {
+				denser.insertKeyAt(i, i);
+			}
+			assertTrue(denser.getHeapSizeInBytes() > small.getHeapSizeInBytes());
 		}
 	}
 

@@ -46,9 +46,11 @@ import java.util.Comparator;
 public interface ValueColumnFactory<M extends Comparable<M>> {
 
 	/**
-	 * Creates a new empty column of the chosen kind with the given backing capacity (== the leaf block size).
+	 * Creates a new empty column of the chosen kind with the given **logical** capacity (== the leaf block size). The
+	 * column allocates no backing storage until its first write — see {@link ValueColumn} for the logical / physical
+	 * split.
 	 *
-	 * @param capacity the backing capacity
+	 * @param capacity the logical capacity
 	 * @return a fresh empty column
 	 */
 	@Nonnull
@@ -100,17 +102,17 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 			if (normalizedType == Instant.class) {
 				// temporal keys (OffsetDateTime / Instant) decompose losslessly into a (seconds, nanos) parallel-array
 				// column whose lexicographic order matches natural Instant order (see InstantValueColumn)
-				return (ValueColumnFactory) capacity -> new InstantValueColumn(new long[capacity], new int[capacity]);
+				return (ValueColumnFactory) capacity -> new InstantValueColumn(capacity);
 			}
 			if (plainType == BigDecimal.class) {
 				// BigDecimal filter/sort keys are normalized upstream to a scaled int (indexedDecimalPlaces);
 				// store them in a 4-byte int[] column. The column never sees a BigDecimal (already converted).
-				return (ValueColumnFactory) capacity -> new IntValueColumn(new int[capacity]);
+				return (ValueColumnFactory) capacity -> new IntValueColumn(capacity);
 			}
 			final LongKeyCodec codec = LongKeyCodec.forType(normalizedType);
 			if (codec != null) {
 				// raw lambda → the wildcard return is closed over the codec's monotonic encoding (natural order only)
-				return (ValueColumnFactory) capacity -> new LongValueColumn(codec, new long[capacity]);
+				return (ValueColumnFactory) capacity -> new LongValueColumn(codec, capacity);
 			}
 		}
 		// boxed fallback keyed by Comparable.class (the raw key type the tree uses today)

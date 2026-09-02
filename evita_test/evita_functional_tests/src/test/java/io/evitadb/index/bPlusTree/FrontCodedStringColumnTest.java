@@ -1690,9 +1690,9 @@ class FrontCodedStringColumnTest {
 			boxed.insertKeyAt(0, "abc");
 			final ValueColumn<?>[] columns = {
 				boxed,
-				new IntValueColumn<Integer>(new int[BLOCK_SIZE]),
-				new LongValueColumn<Integer>(LongKeyCodec.forType(Integer.class), new long[BLOCK_SIZE]),
-				new InstantValueColumn<Instant>(new long[BLOCK_SIZE], new int[BLOCK_SIZE])
+				new IntValueColumn<Integer>(BLOCK_SIZE),
+				new LongValueColumn<Integer>(LongKeyCodec.forType(Integer.class), BLOCK_SIZE),
+				new InstantValueColumn<Instant>(BLOCK_SIZE)
 			};
 			final byte[] pattern = "abc".getBytes(StandardCharsets.UTF_8);
 			for (final ValueColumn<?> column : columns) {
