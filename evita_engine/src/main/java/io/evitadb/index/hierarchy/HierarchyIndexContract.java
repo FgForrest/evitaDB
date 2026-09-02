@@ -305,6 +305,12 @@ public interface HierarchyIndexContract {
 	 * fetch and the parent hierarchy statistics computer - turn `level` into a `stopAt(level(N))` decision, and the
 	 * true depth of a fragment whose upper part is unreadable cannot be known, so the fragment behaves as the tree the
 	 * index can actually see.
+	 *
+	 * A ring of nodes pointing at one another is treated exactly like a break, placed at the node the walk would
+	 * otherwise have to visit a second time, so every node of the fragment is visited once and the traversal always
+	 * terminates. Such a ring is a legal state of the index and not a corrupted one: re-pointing a node at one of its
+	 * own descendants detaches that node together with its whole subtree - all of them become orphans - and leaves the
+	 * detached fragment closing on itself. A ring has no top, so nothing above the revisited node can be reported.
 	 */
 	void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node);
 

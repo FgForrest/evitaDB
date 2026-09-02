@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -64,10 +65,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -682,6 +685,13 @@ public class HierarchyIndex
 	 * actually see. {@link #computeLevel(HierarchyNode)} answers the different question of a node's
 	 * level within the whole tree and keeps reporting -1 for a broken chain.
 	 *
+	 * A ring of nodes pointing at one another is treated exactly like a break, placed at the node the
+	 * walk would otherwise have to visit a second time, so every node of the fragment is visited once
+	 * and the walk always terminates. Such a ring is a legal state of this index and not a corrupted
+	 * one: re-pointing a node at one of its own descendants detaches that node together with its whole
+	 * subtree - all of them become registered orphans - and leaves the detached fragment closing on
+	 * itself. A ring has no top, so nothing above the revisited node can be reported.
+	 *
 	 * @param visitor the visitor to invoke for the node and each reachable ancestor
 	 * @param node    the primary key of the node to start the upward traversal from
 	 */
@@ -690,45 +700,62 @@ public class HierarchyIndex
 		final HierarchyNode theNode = this.itemIndex.get(node);
 		// if the node is missing, just skip traversal
 		if (theNode != null) {
-			// count only the ancestors the walk can really reach, so that the topmost reachable one -
-			// which is not necessarily a root when the chain is broken - ends up at level 1
+			// collect the fragment the walk can really reach - the start node first and each ancestor
+			// above it next - so that the topmost reachable node, which is not necessarily a root when
+			// the chain is broken, ends up at level 1
+			final List<HierarchyNode> reachableChain = new ArrayList<>(16);
+			final IntHashSet collectedNodes = new IntHashSet();
+			reachableChain.add(theNode);
+			collectedNodes.add(node);
+
 			HierarchyNode hierarchyNode = theNode;
-			int nodeLevel = 1;
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-				if (parentNode == null) {
-					// the chain is broken here - the current node is the top of the reachable fragment
+				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+				final HierarchyNode parentNode = this.itemIndex.get(parentPrimaryKey);
+				if (parentNode == null || !collectedNodes.add(parentPrimaryKey)) {
+					// the chain either breaks or closes into a ring here - the node reached last is the
+					// top of the reachable fragment
 					break;
 				}
-				nodeLevel++;
+				reachableChain.add(parentNode);
 				hierarchyNode = parentNode;
 			}
 
-			final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
-			final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
-				() -> {
-					final HierarchyNode parent = this.itemIndex.get(nodeId);
-					// stop silently at the same ancestor the level pre-walk above stopped at
-					if (parent != null) {
-						visitor.visit(
-							parent, level, distance,
-							ofNullable(parent.parentEntityPrimaryKey())
-								.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
-								.orElse(() -> {
-								})
-						);
-					}
-				};
-			factoryHolder.set(childrenTraverseCreator);
-
-			int finalNodeLevel = nodeLevel;
+			// the visit phase replays the collected fragment instead of resolving the parent primary keys
+			// a second time, so neither phase can disagree with the other about where the fragment ends,
+			// and the recursion cannot outrun it
 			visitor.visit(
-				theNode,
-				nodeLevel, 0,
-				ofNullable(theNode.parentEntityPrimaryKey())
-					.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
-					.orElse(() -> {
-					})
+				theNode, reachableChain.size(), 0,
+				createAncestorTraverser(visitor, reachableChain, 1)
+			);
+		}
+	}
+
+	/**
+	 * Creates the traverser handed to the {@link HierarchyVisitor} for the ancestor sitting at `index`
+	 * of the chain collected by {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}. That chain
+	 * holds the traversal start node at index 0 and every reachable ancestor above it in order, so
+	 * `index` is at the same time the ancestor's distance from the start node, while its level is what
+	 * is left of the chain from it upwards - 1 for the last element, which tops the fragment.
+	 *
+	 * @param visitor        the visitor to invoke for the ancestor
+	 * @param reachableChain the collected chain of reachable nodes, traversal start node first
+	 * @param index          position of the ancestor to visit, or the chain size once the top is passed
+	 * @return the traverser to hand to the visitor, doing nothing once the top of the chain is passed
+	 */
+	@Nonnull
+	private static Runnable createAncestorTraverser(
+		@Nonnull HierarchyVisitor visitor,
+		@Nonnull List<HierarchyNode> reachableChain,
+		int index
+	) {
+		if (index >= reachableChain.size()) {
+			return () -> {
+			};
+		} else {
+			return () -> visitor.visit(
+				reachableChain.get(index), reachableChain.size() - index, index,
+				createAncestorTraverser(visitor, reachableChain, index + 1)
 			);
 		}
 	}

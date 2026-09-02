@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -655,6 +656,56 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			);
 			// 9 is the first primary key the index cannot resolve, so the walk ends at the orphan 10
 			assertEquals("|10|20|", nodeIds.toString());
+			assertEquals("|1|2|", levels.toString());
+			assertEquals("|1|0|", distances.toString());
+		}
+
+		/**
+		 * A ring - the chain leads back to a node the walk has already visited instead of ever reaching a
+		 * top. Re-pointing a root at one of its own descendants detaches the whole fragment and leaves it
+		 * closing on itself, so this is a state the index legitimately holds rather than a corrupted one.
+		 * The walk has to treat the return to an already visited node as a break: both ring members are
+		 * reported exactly once, the node the walk stops at tops the fragment at level one, and the
+		 * traversal terminates instead of following the ring forever.
+		 */
+		@Test
+		@DisplayName("ring of orphans terminates and visits each of its nodes once")
+		void shouldTerminateOnRingOfOrphansVisitingEachNodeOnce() {
+			// 30 starts out as a root with 31 below it and is then re-pointed at 31, which detaches both of
+			// them and leaves the ring 30 -> 31 -> 30
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, null);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(31, 30);
+			HierarchyIndexTest.this.hierarchyIndex.addNode(30, 31);
+
+			// both ring members really are registered orphans pointing at each other
+			assertEquals(OptionalInt.of(31), HierarchyIndexTest.this.hierarchyIndex.getParentNode(30));
+			assertEquals(OptionalInt.of(30), HierarchyIndexTest.this.hierarchyIndex.getParentNode(31));
+			final Bitmap orphanNodes = HierarchyIndexTest.this.hierarchyIndex.getOrphanHierarchyNodes();
+			assertTrue(
+				orphanNodes.contains(30) && orphanNodes.contains(31),
+				"Both members of the ring were expected to be registered as orphans."
+			);
+
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			// the timeout is the point of this case - a walk that follows the ring never returns at all
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(5),
+				() -> {
+					HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+						(node, level, distance, childrenTraverser) -> {
+							childrenTraverser.run();
+							nodeIds.append(node.entityPrimaryKey()).append("|");
+							levels.append(level).append("|");
+							distances.append(distance).append("|");
+						},
+						30
+					);
+				}
+			);
+			// the walk stops where it would have to visit 30 a second time, so 31 tops the two node fragment
+			assertEquals("|31|30|", nodeIds.toString());
 			assertEquals("|1|2|", levels.toString());
 			assertEquals("|1|0|", distances.toString());
 		}
