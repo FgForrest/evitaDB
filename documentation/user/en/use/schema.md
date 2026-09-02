@@ -595,6 +595,13 @@ through the accelerator is slower than a plain scan, and the plain scan is used 
 deliberately cautious, so occasionally a query is scanned that the accelerator would in fact have answered faster.
 The results are the same either way.
 
+**Queries issued from inside a read-write session are always scanned.** The accelerator answers from the
+last published version of the data, so it cannot see the changes an open transaction has made but not yet committed.
+Rather than return an answer that ignores them, evitaDB falls back to the scan for the whole of such a query. This
+matters for an import or synchronization job that reads with `attributeContains` from the same session it writes with:
+the results are correct, but they arrive at scan speed. Read with a separate read-only session
+(`evita.queryCatalog(...)`) to get the accelerated path.
+
 ### Sortable attribute compounds
 
 Sortable attribute compound is a virtual attribute composed of the values of several other attributes, which can only be

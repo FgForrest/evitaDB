@@ -96,6 +96,8 @@ are found, and searches for patterns shorter than three characters fall back to 
 
 The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
 attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
+It is also skipped for queries issued from inside a read-write session, which are always scanned - see
+[filter accelerators](../../use/schema.md#filter-accelerators).
 
 </Note>
 
@@ -254,6 +256,8 @@ are found, and searches for patterns shorter than three characters fall back to 
 
 The catch worth knowing before you plan around it: the accelerator costs memory, and it **must be declared on the
 attribute before the first entity is inserted** - it cannot be switched on for a collection that already holds data.
+It is also skipped for queries issued from inside a read-write session, which are always scanned - see
+[filter accelerators](../../use/schema.md#filter-accelerators).
 
 </Note>
 

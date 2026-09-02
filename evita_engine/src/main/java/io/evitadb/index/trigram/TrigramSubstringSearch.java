@@ -324,7 +324,14 @@ public final class TrigramSubstringSearch {
 		@Nonnull StringSearchShape shape
 	) {
 		// pre-flight rather than catch: the reverse lookup REFUSES inside a transaction, and the answer to that refusal
-		// is this fallback, so the condition is tested before anything commits to the accelerated path
+		// is this fallback, so the condition is tested before anything commits to the accelerated path.
+		//
+		// The reach of this is wider than it looks and is a documented limitation rather than an edge case:
+		// `EvitaSession#executeInTransactionIfPossible` binds a transaction around EVERY `execute()` /
+		// `updateCatalog()` body on a transactional catalog, so a read-write session's queries are scanned - an import
+		// job that reads with `attributeContains` from the session it writes with never sees the accelerator it
+		// declared. Answers stay correct; only their cost changes. `documentation/user/en/use/schema.md` says so to
+		// users. Lifting it means serving the committed directory for candidates whose leaves carry no diff layer
 		if (Transaction.isTransactionAvailable()) {
 			return null;
 		}
