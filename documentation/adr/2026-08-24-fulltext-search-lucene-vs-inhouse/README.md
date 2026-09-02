@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-08-31 19:20
+updated: 2026-09-02 11:40
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -95,7 +95,7 @@ database entirely:
 | 2026-08-12 | Order the prototypes P5 → P1 → P2 and put a numeric decision gate after them | The biggest risks (memory, scan latency, the write-path tax) fall first, and the prototypes build the final structures, so the gate also calibrates the estimate for the rest | [`management-summary.md`](management-summary.md) ch. 4 |
 | 2026-08-24 | Target the P8 trigram substring index before P1, with its offline analyzer as phase 0; P5 may run in parallel (disjoint scopes) | P8's value is independent of the fulltext gate (it fixes today's naive `contains`/`endsWith` and carries [#545](https://github.com/FgForrest/evitaDB/issues/545) regardless of the gate's outcome), it path-finds the shared hard parts — a new persisted index component, the scoped schema flag with reindex refusal, an MVCC-safe allocator, the formula-cache contract — at membership-only scale, and it closes P1's Q6 and Q7 before P1/P2 hit them | [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) §33–§34 |
 | 2026-08-25 | SUBSTRING ships as an additive **capability of `filterable(...)`**, not as a sibling schema flag | It makes substring-without-filterable unrepresentable, following the `unique(AttributeUniquenessType)` precedent instead of minting a second axis over the same physical structure; every API mirror gains an optional field and old clients keep seeing `filterable: true` | `FilterIndexCapability` (`evita_api`), `SetAttributeSchemaFilterableMutation`; [`prototypes/schema-design.md`](prototypes/schema-design.md) §5.4 records why fulltext `searchable()` is deliberately **not** folded the same way. **Superseded by the 2026-08-31 row below** — the fold bound the capability to the wrong identifier |
-| 2026-08-25 | Value ids are a lazy parallel column on the shared value tree, and switching them on or off is **refused** on a populated tree rather than made persistable | The back-fill writes id columns into leaves that nothing marks dirty, so the ids never reach disk and a reload would disagree with what is in memory — in both directions. The refusal is affordable only because the capability is already refused on a non-empty collection, so the tree is empty whenever an attach happens | `InvertedIndex#enableValueIds` / `#attachValueIdConsumer` / `#detachValueIdConsumer`; the two load premises in `AttributeIndexLoader` — the id column is all-or-nothing across a generation, and the root's high-water agrees with the pages about whether ids exist at all |
+| 2026-08-25 | Value ids are a lazy parallel column on the shared value tree: switching them **on** is refused on a populated tree, and switching them **off** there keeps the column instead of dropping it | The back-fill writes id columns into leaves that nothing marks dirty, so the ids never reach disk and a reload would disagree with what is in memory — in both directions. The refusal to attach is affordable because the capability is already refused on a non-empty collection, so the tree is empty whenever an attach happens; a withdrawal is legal at any time and cannot be refused, so the detach drops the CONSUMER and leaves the column standing (2026-09-02, see *Open items*) | `InvertedIndex#enableValueIds` / `#attachValueIdConsumer` / `#detachValueIdConsumer`; the two load premises in `AttributeIndexLoader` — the id column is all-or-nothing across a generation, and the root's high-water agrees with the pages about whether ids exist at all |
 | 2026-08-26 | The value birth/death seam is a **sink threaded through the write call**, not a listener stored on the index | Every commit re-shells the inverted index, the attribute index and the global index, and the shared value tree is created lazily on first write — a stored listener needs re-binding at four separate points, and a missed re-bind stops maintenance with no symptom until a query silently under-reports. A parameter is compile-checked at every hop and holds no state that can go stale | `ValueLifecycleSink`, the sink-aware `InvertedIndex#addRecord` / `#removeRecord` overloads |
 | 2026-08-26 | The posting store is a `TransactionalLongBPlusTree` — **overturning the spike's flat open-addressing table** | The spike measured the flat table at 1.1–1.6 ns/lookup, 40–60× a binary search over a sorted `long[]`, and it still lost: a published flat table is immutable, so one touched posting clones both spine arrays (`O(K)` per touched index per commit, ~1.5 MB at the largest measured `K`), which is exactly the large short-lived allocation this codebase moved its indexes onto B+ trees to escape. A pattern issues 2–15 lookups, so the whole probe penalty is under a microsecond against a query whose verification phase alone runs for tens to hundreds of microseconds | `TrigramPostingStore`; the spike's contrary measurement is [`prototypes/p8-trigram-substring-index.md`](prototypes/p8-trigram-substring-index.md) §35.2 |
 | 2026-08-27 | **No persisted trigram format.** The index stays derived state, the rebuild is made bulk instead, and the duplicate global-index load is removed | The rebuild cost was the entire case for persisting, and it had been mis-costed: measured in tree order the incremental loop costs ~77 s on `article/title/cs`, and the catalog paid it twice (~154 s) because the global index was deserialized once serially and again inside the async task. An ordered-append bulk build does the same work in 4.0 s, once — after which a persisted form buys a second or two of catalog open and costs whole-posting rewrites on every commit forever | `TrigramPostingAccumulator`, `TrigramIndex#rebuildAll`, `Catalog` (the second read removed); the write-amplification numbers are under *Rejected outright* |
@@ -886,12 +886,18 @@ rather than a tuning one. Both are open items below.
   the "search by product code" use case the accelerator's strongest result serves, not an independent
   nicety. The trigram index inherits whatever the shared normalization contract decides, so the two
   must land in that order.
-- **A withdrawn `SUBSTRING` capability orphans the value-id column.** `detachValueIdConsumer` has no
-  production caller, so after a withdrawal plus a restart the tree carries ids with an empty consumer
-  registry — its own gate invariant, violated permanently, since the restore path dirties nothing. This
-  is memory, not correctness, and the JavaDoc says so rather than claiming the withdrawal stops costing
-  anything. Whoever writes the cleanup must know that `detachValueIdConsumer` no-ops on a null
-  registry, so a name-keyed sweep silently misses exactly these orphans. Attribute *removal*
+- **A withdrawn `SUBSTRING` capability leaves the value-id column behind on a populated tree.**
+  `detachValueIdConsumer` now has a production caller — `GlobalEntityIndex#reconcileTrigramIndexAbsence`
+  drops the consumer with the index it dropped — so the registry no longer outlives the accelerator, and
+  an EMPTY tree outside a transaction gives the column back for real. A populated one does not, and that
+  is a decision rather than an omission: the drop dirties no leaf page while the root's high-water
+  returns to unassigned, which is exactly the pairing `AttributeIndexLoader` refuses, so the alternative
+  is re-emitting every live leaf page **inside the entity write that observes the withdrawal**. The
+  residue is therefore one `int` per distinct value on disk plus a mint per newly created bucket, read by
+  nobody — memory, not correctness, and the JavaDoc on `detachValueIdConsumer` says exactly that. The
+  drop is also skipped while a transaction is bound, because the allocator and the tree's minter are
+  owner-resident: clearing them writes through to the live index, and an abort would restore the trigram
+  index around a tree that had lost the ids its postings name. Attribute *removal*
   (`RemoveAttributeSchemaMutation`, which has no `evita_engine` caller) is the second route past the
   index-level reconciliation and was not traced.
 - **`CacheOptions#minimalComplexityThreshold` gates twice, in two different dimensions.** It is passed

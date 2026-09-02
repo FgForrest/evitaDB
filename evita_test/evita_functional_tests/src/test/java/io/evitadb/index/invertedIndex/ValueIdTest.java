@@ -253,35 +253,50 @@ class ValueIdTest {
 		}
 
 		@Test
-		@DisplayName("a tree that already holds values refuses to let its last consumer leave")
-		void shouldRefuseDetachingLastConsumerFromPopulatedTree() {
+		@DisplayName("a tree that already holds values keeps its id column when its last consumer leaves")
+		void shouldKeepIdColumnWhenLastConsumerLeavesPopulatedTree() {
 			final InvertedIndex index = indexWithIds(5, 10);
 			final int idOfFive = index.getValueId(5);
 
-			// dropping the id columns of a populated tree dirties no leaf page either, so the ids already written
-			// would outlive the drop and a reload would resurrect them
-			assertThrows(GenericEvitaInternalError.class, () -> index.detachValueIdConsumer(TEST_CONSUMER));
+			// dropping the id columns of a populated tree dirties no leaf page, so the ids already written would
+			// outlive the drop while the root's high-water went back to unassigned - the pairing the loader refuses
+			// outright. The withdrawal of a filter accelerator is deliberately legal and arrives on an ordinary entity
+			// write, so it cannot be refused either: the CONSUMER leaves and the column stays behind, unread
+			index.detachValueIdConsumer(TEST_CONSUMER);
 
-			assertTrue(index.carriesValueIds(), "a refused detach must leave the tree exactly as it was");
-			assertEquals(idOfFive, index.getValueId(5));
-			assertEquals(Set.of(TEST_CONSUMER), index.getValueIdConsumerNames());
+			assertTrue(
+				index.carriesValueIds(),
+				"the id column of a populated tree must survive its last consumer, or the persisted pages and the " +
+					"root would disagree on the next open"
+			);
+			assertEquals(idOfFive, index.getValueId(5), "the ids themselves must not move either");
+			assertTrue(
+				index.getValueIdConsumerNames().isEmpty(),
+				"the consumer itself must be gone - nothing reads the column any more"
+			);
 		}
 
 		@Test
-		@DisplayName("the last consumer may leave an empty tree even with a transaction open")
-		void shouldAllowLastConsumerToLeaveAnEmptyTreeInsideTransaction() {
-			// a schema mutation reaches the indexes with a transaction bound to the thread, so this is the shape every
-			// production capability drop arrives in. The walk the tree's own guard protects has nothing to write on an
-			// empty tree, so refusing here would make the detach path unreachable from its only real caller
+		@DisplayName("inside a transaction the last consumer leaves the id column standing, even on an empty tree")
+		void shouldKeepIdColumnWhenLastConsumerLeavesInsideTransaction() {
+			// the withdrawal of a filter accelerator is observed by the next ordinary entity write, which on a
+			// transactional catalog runs with a transaction bound - so this is the shape every production drop
+			// arrives in. The allocator and the tree's minter are owner-resident rather than transactional: clearing
+			// them writes straight through to the LIVE index, and an abort would then restore the consumer's own
+			// structures around a tree that had lost the ids they post against, failing the next upsert on the tree's
+			// own premise. The consumer is unregistered - which is what stops its cost from outliving it - and the
+			// column is left to the empty-tree drop outside a transaction
 			final InvertedIndex index = emptyIndex();
 			index.attachValueIdConsumer(TEST_CONSUMER);
 
 			executeInsideTransaction(() -> {
 				index.detachValueIdConsumer(TEST_CONSUMER);
 
-				assertFalse(index.carriesValueIds());
-				assertEquals(ValueIdAllocator.UNASSIGNED_VALUE_ID, index.getNextValueId());
-				assertTrue(index.getValueIdConsumerNames().isEmpty());
+				assertTrue(
+					index.carriesValueIds(),
+					"an aborting transaction must not be able to take the ids away from the live index"
+				);
+				assertTrue(index.getValueIdConsumerNames().isEmpty(), "the consumer itself leaves regardless");
 			});
 		}
 
@@ -295,8 +310,8 @@ class ValueIdTest {
 			assertFalse(neverEnabled.carriesValueIds());
 			assertTrue(neverEnabled.getValueIdConsumerNames().isEmpty());
 
-			// and on a populated id-carrying tree the unknown name passes the "is this the last consumer" premise -
-			// it is not registered, so it cannot be the sole one - and then unregisters nothing
+			// and on a populated id-carrying tree the unknown name unregisters nothing, so the registry never reports
+			// the transition to an unclaimed column and the tree is not touched at all
 			final InvertedIndex enabled = indexWithIds(5, 10);
 			final int idOfFive = enabled.getValueId(5);
 

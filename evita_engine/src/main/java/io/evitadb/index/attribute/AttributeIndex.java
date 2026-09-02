@@ -1085,6 +1085,31 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
+	 * Tells the shared value tree of `lookupKey` that `consumerName` no longer needs its stable value ids — the drop
+	 * half of {@link #attachSharedValueIdConsumer}, performed by the write that observes the capability behind the
+	 * consumer withdrawn.
+	 *
+	 * Resolves the view read-only and does nothing when the attribute has no shared value tree: a withdrawal reaching
+	 * an attribute that was never written to has nothing to detach from, and creating the tree in order to unregister
+	 * from it would be absurd. Unlike the attach it costs nothing to call on a tree that carries no ids at all.
+	 *
+	 * What the tree does with the last consumer's departure — and why a populated one keeps its id column —
+	 * is stated on {@link InvertedIndex#detachValueIdConsumer(String)}.
+	 *
+	 * @param lookupKey    the attribute and locale whose shared value tree carried the ids
+	 * @param consumerName the stable name of the subsystem that no longer needs them
+	 */
+	public void detachSharedValueIdConsumer(
+		@Nonnull AttributeIndexKey lookupKey,
+		@Nonnull String consumerName
+	) {
+		final FilterIndex filterIndex = resolveFilterView(lookupKey);
+		if (filterIndex != null) {
+			filterIndex.getInvertedIndex().detachValueIdConsumer(consumerName);
+		}
+	}
+
+	/**
 	 * Registers `value` for `recordId` in the sort structure of `attributeSchema`. A {@link Predecessor} /
 	 * {@link ReferencedEntityPredecessor} value goes into a {@link ChainIndex} (predecessor ordering); any other value
 	 * goes into a {@link SortIndex}, which is a view over the shared tree for both-flagged attributes or a standalone

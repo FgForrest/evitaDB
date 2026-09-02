@@ -661,6 +661,13 @@ public class GlobalEntityIndex extends EntityIndex
 	 * write to a plain attribute of a capable collection from opening a transactional layer over a map it does not
 	 * change.
 	 *
+	 * The removal drops the value id CONSUMER with the index, which is the other half of what
+	 * {@link #obtainTrigramIndex} registers: the postings are the only reader of those ids, so leaving the
+	 * registration behind would keep the shared value tree minting an id per new value, invalidating its directory on
+	 * every write and re-attaching an allocator on every catalog open, for nobody. What the tree does with that —
+	 * and why a populated one keeps the id column itself — is on
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex#detachValueIdConsumer(String)}.
+	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
 	 * @param attributeSchema the schema of the attribute being written
 	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
@@ -682,6 +689,12 @@ public class GlobalEntityIndex extends EntityIndex
 		//noinspection RedundantCollectionOperation
 		if (this.trigramIndex.containsKey(lookupKey)) {
 			this.trigramIndex.remove(lookupKey);
+			// the index is gone, so nothing consumes the shared value tree's ids any more. Without this the tree
+			// would keep minting them, keep the per-write directory invalidation and keep re-attaching an allocator on
+			// every restart for no reader at all - the drop half of `obtainTrigramIndex`'s attach, and the only
+			// production caller of it. The tree keeps the id COLUMN when it holds values; see
+			// `InvertedIndex#detachValueIdConsumer` for why that residue cannot be collected from here
+			this.attributeIndex.detachSharedValueIdConsumer(lookupKey, TrigramIndex.VALUE_ID_CONSUMER_NAME);
 		}
 	}
 

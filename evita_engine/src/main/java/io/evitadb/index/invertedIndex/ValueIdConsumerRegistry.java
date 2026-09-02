@@ -118,18 +118,6 @@ public final class ValueIdConsumerRegistry implements Serializable {
 	}
 
 	/**
-	 * Tells whether `consumerName` is the only subsystem currently registered — equivalently, whether unregistering it
-	 * would take the id column of the owning tree away. The owning index asks this BEFORE mutating the registry, so
-	 * that a detach it must refuse leaves the registry and the tree still agreeing with each other.
-	 *
-	 * @param consumerName the consumer's stable name
-	 * @return `true` when this consumer is registered and no other one is
-	 */
-	public boolean isSoleConsumer(@Nonnull String consumerName) {
-		return this.consumerNames.size() == 1 && this.consumerNames.contains(consumerName);
-	}
-
-	/**
 	 * Returns the names of the registered consumers — for diagnostics, so an operator can see which subsystem the id
 	 * column of a given tree is being paid for.
 	 *

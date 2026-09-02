@@ -677,31 +677,30 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Unregisters `consumerName`. When it was the last consumer, the tree leaves id-carrying mode and every id it ever
-	 * minted is discarded — any structure still keyed by them must be discarded with them.
+	 * Unregisters `consumerName`. When it was the last consumer AND the tree is still empty, the tree also leaves
+	 * id-carrying mode and every id it ever minted is discarded — any structure still keyed by them must be discarded
+	 * with them.
 	 *
-	 * The last consumer may only leave while the tree is still EMPTY, symmetrically with
-	 * {@link #attachValueIdConsumer(String)}: dropping the id columns of a populated tree clears them in memory but
-	 * marks no leaf page dirty, so the columns already written would survive on disk and the next reload would
-	 * silently resurrect the ids this call discarded.
+	 * ## Why a POPULATED tree keeps its id column after the last consumer leaves
 	 *
-	 * ## The schema boundary does NOT refuse this, and is not going to
+	 * Dropping the columns of a populated tree clears them in memory but marks no leaf page dirty, so the columns
+	 * already written would survive on disk while the persisted root's high-water mark returned to
+	 * {@link ValueIdAllocator#UNASSIGNED_VALUE_ID}. `AttributeIndexLoader` refuses precisely that pairing, and the
+	 * catalog would not open at all. The obvious repair — dirty every live leaf so the pages are rewritten without the
+	 * column — is not available where this is actually called from: the withdrawal takes effect on an ordinary entity
+	 * write, inside a transaction, and the id-column walk writes through the BASE leaves (which is why
+	 * {@link TransactionalBucketBPlusTree#removeValueIdMinter()} refuses to run there at all). It would also rewrite
+	 * every page of the attribute's index during one entity upsert.
 	 *
-	 * Do not read the restriction above as "someone upstream already prevents it". Removing a filter accelerator from a
-	 * populated collection is **deliberately legal**:
-	 * `EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection` refuses *additions* only, on the stated
-	 * grounds that "dropping an index needs no data", and
-	 * `AttributeFilterAcceleratorRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection` pins that. The trigram
-	 * substring index DOES register a consumer in production — `GlobalEntityIndex#obtainTrigramIndex`, on the first
-	 * write to an accelerator-declaring attribute — but nothing ever unregisters one: a withdrawn accelerator drops the
-	 * accelerator through `GlobalEntityIndex#reconcileTrigramIndexAbsence` and leaves the tree's id column standing.
-	 * So this method is still unreachable from production, now for want of a CALLER rather than for want of a
-	 * registration. Whoever writes that caller owes the missing half rather than a new refusal upstream: unregister,
-	 * drop the minter, mark every leaf page dirty so the columns actually leave the disk, and let
-	 * {@link #isValueIdHighWaterDirty()} — which
-	 * already reports the mark's return to {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} — force the root out with it.
-	 * Until that exists the premise below fails loudly, which is the right failure: the alternative is a catalog whose
-	 * persisted root claims ids its pages no longer carry, and the loader refuses to open that at all.
+	 * So the drop is deliberately partial: the CONSUMER goes, the column stays. What that leaves behind is one `int`
+	 * per distinct value on disk and a mint on each newly created bucket — nothing reads either, since a reader
+	 * reaches the ids only through a consumer's structure. The tree keeps minting rather than stopping, because a
+	 * column with a hole in it is what would really break the loader.
+	 *
+	 * The residue is collected on its own: a tree that empties out is dropped whole, and the accelerator can only be
+	 * re-declared on an empty collection (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection` refuses
+	 * additions, and `AttributeFilterAcceleratorRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection`
+	 * pins that removals stay legal), so a re-attach always meets a tree whose column is empty anyway.
 	 *
 	 * Unregistering a consumer that is not the last one is unrestricted — the tree keeps its ids and nothing
 	 * structural happens.
@@ -715,17 +714,18 @@ public class InvertedIndex implements
 		if (this.valueIdConsumers == null) {
 			return;
 		}
-		// checked BEFORE the registry is mutated, so a refused detach leaves the tree and its registry in agreement
-		Assert.isPremiseValid(
-			!this.valueIdConsumers.isSoleConsumer(consumerName) || this.buckets.size() == 0,
-			"The last value id consumer can only leave while the tree is still empty - dropping the id columns of a " +
-				"populated tree dirties no leaf page, so the ids already persisted would survive on disk and a " +
-				"reload would resurrect them. The schema boundary does NOT refuse this (removing a filter " +
-				"accelerator from a populated collection is deliberately legal), so whoever wires a consumer to a " +
-				"accelerator owes the drop path: unregister, drop the minter, and mark every leaf page dirty so the " +
-				"columns really leave the disk."
-		);
-		if (this.valueIdConsumers.unregister(consumerName)) {
+		// `unregister` reports the transition to an unclaimed column, so it already answers "was that the last one?"
+		if (this.valueIdConsumers.unregister(consumerName)
+			&& this.buckets.size() == 0
+			&& !Transaction.isTransactionAvailable()) {
+			// only an empty tree can give the column back - see the section above for what a populated one does
+			// instead, and why it is not merely a deferral.
+			//
+			// The transaction test guards the OTHER half: this field and the tree's minter are owner-resident, so
+			// clearing them writes straight through to the live index rather than into the transaction's layer. An
+			// abort would restore the trigram index that asked for the drop and leave the tree without the ids it
+			// posts against - a mismatch the next value born would raise on an ordinary upsert. Keeping the column of
+			// an empty tree costs nothing, so the transactional case simply keeps it
 			this.buckets.removeValueIdMinter();
 			this.valueIdAllocator = null;
 		}

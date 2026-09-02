@@ -1095,6 +1095,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * through the base leaves rather than the transaction's own layers. An EMPTY tree is allowed, because the walk
 	 * then has no column to clear and nothing to leak — and that is the only shape this ever arrives in, since a
 	 * schema mutation reaches the indexes with a transaction bound to the thread.
+	 *
+	 * ## The persistence half of the same restriction
+	 *
+	 * Even outside a transaction the walk below only clears the columns IN MEMORY: it dirties no leaf, so nothing
+	 * rewrites the pages that already carry the ids, while the root's high-water mark returns to
+	 * `UNASSIGNED_VALUE_ID` and IS rewritten (`InvertedIndex#isValueIdHighWaterDirty` reports the move). A restart
+	 * then meets a root and its leaf pages disagreeing about value ids, which `AttributeIndexLoader` refuses outright
+	 * — the catalog does not open.
+	 *
+	 * That is why {@link io.evitadb.index.invertedIndex.InvertedIndex#detachValueIdConsumer(String)} reaches this
+	 * only for an empty tree, and leaves the column of a populated one standing when its last consumer goes. Making a
+	 * populated drop actually work means re-emitting every live leaf page inside the same commit, not merely relaxing
+	 * the guard.
 	 */
 	public void removeValueIdMinter() {
 		if (this.valueIdMinter == null) {

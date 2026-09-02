@@ -612,14 +612,15 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should keep the shared value tree usable when the capability is dropped from populated data")
 		void shouldKeepSharedValueTreeConsistentWhenCapabilityIsDroppedFromPopulatedCollection() {
-			// The tripwire for the increment that wires a value id consumer to this capability. Removal is
-			// deliberately legal on a populated collection (the sibling test above pins that), but
-			// `InvertedIndex#detachValueIdConsumer` refuses to take the LAST consumer off a populated tree - dropping
-			// the id columns dirties no leaf page, so the ids already written would outlive the drop on disk. Nothing
-			// registers a consumer today, so the drop below simply goes through. The moment the trigram substring
-			// index is attached to SUBSTRING, this test starts failing on that premise - which is the intent: the
-			// drop path (unregister, drop the minter, dirty every leaf page, let the high-water force the root out)
-			// has to land in the same breath as the wiring, not afterwards.
+			// The end-to-end shape of the value id drop path. Removal is deliberately legal on a populated
+			// collection (the sibling test above pins that), and the trigram substring index DOES register a value id
+			// consumer, so the withdrawal below reaches `InvertedIndex#detachValueIdConsumer` for real - through the
+			// next write to the attribute, which is where `GlobalEntityIndex#reconcileTrigramIndexAbsence` observes
+			// it. What that call must NOT do is take the id column off a populated tree: the drop dirties no leaf
+			// page, so the ids already written would outlive it on disk while the root's high-water returned to
+			// unassigned, and the loader refuses that pairing outright - the catalog would stop opening. It keeps the
+			// column and drops only the consumer, which is why the write below still finds a tree that stamps the
+			// value it is asked to stamp.
 			AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
