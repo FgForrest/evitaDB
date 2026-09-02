@@ -282,8 +282,8 @@ public class InvertedIndex implements
 	private volatile boolean valueIdDirectoryStale;
 	/**
 	 * Stamp of the {@link WarmUpSavepoint} whose rollback already has this index's directory invalidation
-	 * journalled — see {@link #journalValueIdDirectoryInvalidation()}. Transient because it is per-savepoint
-	 * scratch state of a live instance and means nothing to a deserialized one.
+	 * recorded — see {@link #markValueIdDirectoryStale()}. Transient because it is per-savepoint scratch state of
+	 * a live instance and means nothing to a deserialized one.
 	 */
 	@Getter @Setter private transient long warmUpTouchStamp;
 
@@ -985,6 +985,20 @@ public class InvertedIndex implements
 	 * the entries of every leaf whose version token is unchanged, and an in-place mutation keeps the token. The merge
 	 * in {@link #createCopyWithMergedTransactionalMemory} reads the flag to choose between the two rebuilds.
 	 *
+	 * ## Why a rollback records one too
+	 *
+	 * A rollback is also a write to published leaves, and it can move a bucket to a slot other than the one the
+	 * directory records for it — but it puts the leaves back through the undo journal rather than through the mutators
+	 * that call this method, so nothing on that path raises the flag, and a reader that rebuilt the directory while
+	 * the savepoint was open has already cleared it. The re-raise is therefore recorded as a POST-RESTORE
+	 * invalidation (see {@link WarmUpSavepoint#pushPostRestoreInvalidation(Runnable)}), which runs once the leaves
+	 * are back rather than at its own position in the reverse replay.
+	 *
+	 * It restores the constant `true` rather than the pre-image a scalar memento would capture. That pre-image reads
+	 * `false` only because the directory agreed with a tree the rollback is about to undo, so putting it back would
+	 * re-bless a directory describing slots that have since moved. `true` is correct on every path and costs at most
+	 * one rebuild, on a mutation that has already failed.
+	 *
 	 * Guarded on the allocator so that the volatile store - a StoreLoad barrier, drained on every write - is paid only
 	 * by trees that actually carry value ids. Most inverted indexes never do: ids are switched on only where a filter
 	 * accelerator is declared, so every other attribute would otherwise pay a barrier on every single record write to
@@ -995,53 +1009,13 @@ public class InvertedIndex implements
 	 * {@link #enableValueIds}), and every route that enables them - that one, {@link #restoreValueIds(int, int[])} and
 	 * the commit merge - rebuilds the directory and clears this flag itself.
 	 */
-	/**
-	 * Journals the rollback's own invalidation of the value id directory, once per savepoint.
-	 *
-	 * ## Why the rollback needs one at all
-	 *
-	 * {@link #markValueIdDirectoryStale()} states the invariant this upholds: every write that mutates a PUBLISHED
-	 * leaf in place raises the staleness flag, because such a write can move a bucket to a slot other than the one
-	 * the directory records for it. A rollback is exactly such a write — it puts the leaves back through the journal
-	 * rather than through the mutators above, so nothing on that path raises the flag — and a reader that rebuilt the
-	 * directory while the savepoint was open has already cleared it. The directory is then left describing slots the
-	 * rewind has since moved, and the slot validation in `TransactionalBucketBPlusTree#recordsOfMatchingValueId`
-	 * turns every one of them into a miss: a substring query silently under-reports until the next write happens to
-	 * raise the flag again.
-	 *
-	 * ## Why the restored value is the constant `true`, not the captured pre-image
-	 *
-	 * The scalar family rule would capture the flag as it stood at first touch and put that back. It is the wrong
-	 * pre-image here, and wrong precisely in the case this method exists for: the flag read `false` at first touch
-	 * only because the directory then agreed with the tree, and the mid-savepoint rebuild has since replaced it with
-	 * one built over the state the rollback is about to undo. Restoring `false` would re-bless that. `true` is
-	 * correct on every path and costs at most one directory rebuild on a mutation that has just failed anyway.
-	 *
-	 * ## Why it is journalled BEFORE the write rather than beside the flag-raise after it
-	 *
-	 * The journal replays in strict reverse order, so the entry pushed FIRST runs LAST. Recording the invalidation
-	 * ahead of this savepoint's first leaf write is what puts it underneath every inverse of this index, and
-	 * therefore what makes the flag go up only once every leaf is back where it belongs. Raised any earlier in the
-	 * replay, a reader arriving mid-rewind would rebuild over a half-restored tree and clear the flag again, which is
-	 * the very state this is here to prevent.
-	 *
-	 * No `isTransactionAvailable()` gate is needed to match {@link #markValueIdDirectoryStale()}'s: a savepoint is
-	 * open only where there is no transaction — see {@link WarmUpSavepoint#open()} — so the open savepoint is itself
-	 * the stronger test. Guarded on the allocator for the same reason the flag-raiser is: an index that mints no ids
-	 * has no directory to invalidate and must not pay a thread-local read per write to learn it.
-	 */
-	private void journalValueIdDirectoryInvalidation() {
-		if (this.valueIdAllocator != null) {
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
-			if (savepoint != null && savepoint.claimFirstTouch(this)) {
-				savepoint.push(() -> this.valueIdDirectoryStale = true);
-			}
-		}
-	}
-
 	private void markValueIdDirectoryStale() {
 		if (this.valueIdAllocator != null && !Transaction.isTransactionAvailable()) {
 			this.valueIdDirectoryStale = true;
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && savepoint.claimFirstTouch(this)) {
+				savepoint.pushPostRestoreInvalidation(() -> this.valueIdDirectoryStale = true);
+			}
 		}
 	}
 
@@ -1132,7 +1106,6 @@ public class InvertedIndex implements
 	 * @param sink     learns about a value born by this write, or `null` when nobody is interested
 	 */
 	public void addRecord(@Nonnull Serializable value, int recordId, @Nullable ValueLifecycleSink sink) {
-		journalValueIdDirectoryInvalidation();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {
 			this.buckets.addRecord(normalizedValue, recordId);
@@ -1168,7 +1141,6 @@ public class InvertedIndex implements
 	 */
 	public void addRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
-		journalValueIdDirectoryInvalidation();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {
 			this.buckets.addRecord(normalizedValue, recordId);
@@ -1209,7 +1181,6 @@ public class InvertedIndex implements
 	 */
 	public void removeRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
-		journalValueIdDirectoryInvalidation();
 		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);

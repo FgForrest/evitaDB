@@ -224,7 +224,7 @@ for a given slot runs last and wins, so the pre-savepoint value survives however
 was rewritten inside the savepoint. This is the same absolute-inverse rule the transactional
 `UndoJournal` already requires.
 
-### The four recording APIs
+### The five recording APIs
 
 | API | For a participant that... | Dedup |
 |-----|---------------------------|-------|
@@ -232,6 +232,7 @@ was rewritten inside the savepoint. This is the same absolute-inverse rule the t
 | `claimFirstTouch(Object)` + `push(Runnable)` | is **not** a `Snapshotable` and captures its own `O(1)` pre-image | first touch only |
 | `push(Runnable)` | must capture per operation, because its whole-state pre-image is too expensive | none |
 | `writeLayer(creator, baseNode)` | is its **own** diff layer -- the B+ tree nodes | first touch only |
+| `pushPostRestoreInvalidation(Runnable)` | drops state **derived** from other participants -- a memoized bitmap, a positional directory | none (pair it with a first-touch API) |
 
 The two first-touch APIs are **mutually exclusive per participant**: `claimFirstTouch` throws
 `GenericEvitaInternalError` when handed a `Snapshotable`, because routing one through the self-capture
@@ -239,7 +240,10 @@ path would skip the activation its own memento mechanism performs (for a journal
 the snapshot is what *arms* the journal) and would leave `releaseMemento` with nothing to hand back.
 
 Every recording call must happen **before** the forward mutation, and every inverse must be **total** --
-it may never throw for a benign reason. See [Rollback failure is fatal](#rollback-failure-is-fatal).
+it may never throw for a benign reason. See [Rollback failure is terminal for the catalog](#rollback-failure-is-terminal-for-the-catalog).
+
+The last row is the exception to the first half of that sentence, and it is the subject of
+[Derived state does not belong in the journal](#derived-state-does-not-belong-in-the-journal) below.
 
 `writeLayer` is the packaged form of the first row, for the roughly hundred B+ tree node mutation sites
 that repeat `layer = getOrCreateTransactionalMemoryLayer(this); if (layer == null) { mutate own fields }
@@ -269,6 +273,34 @@ a `long[1024]`, 8 KB), and bulk ingest re-clones and re-defrosts once per entity
 reference corpus that deferred copying was 13.2 % of all allocation on the bracketed warm-up write
 path. The bitmap now journals per operation like the collection wrappers.
 
+### Derived state does not belong in the journal
+
+A journal entry is an **absolute restore**: it puts one slot back to a value captured before the write, so it
+lands correctly whenever it runs. An invalidation is not. It drops a value **derived** from state that other
+entries are still restoring, and derived state can be recomputed by anyone -- `FilterIndex#getAllRecords` and
+`InvertedIndex#getValueById` both re-memoize from any reader thread, without a lock.
+
+Replayed at its own position inside the strict reverse order, an invalidation therefore clears the cache while
+the structures beneath it are still half-rewound, and a query arriving in that window recomputes over the
+half-rewound state and caches *that*. The rollback then completes and reports success over a cache that
+outlived it. The forward path has no equivalent window, because the mutators invalidate **after** they write.
+
+`pushPostRestoreInvalidation` restores that ordering for the reverse path: `rollback()` drains the journal,
+releases the mementos, and runs the recorded invalidations last. `commit()` discards them unrun -- the writes
+stand, so the forward path's own invalidation is the correct one.
+
+Pushing the invalidation into the journal instead *can* be made to work -- record it before the participant's
+first write and strict reverse order will run it last -- but that requirement is invisible at the call site,
+holds only relative to that one participant's own entries, and is silently broken by the next participant
+added. The phase makes it structural.
+
+The value id directory is the case that made this concrete rather than theoretical. It is a **positional**
+cache (`valueId -> (leaf, slot)`), so a rollback that moves a bucket back invalidates it even with no
+concurrency involved at all: a reader that rebuilt the directory mid-savepoint clears the staleness flag, the
+rewind moves the slots, and nothing raises the flag again. Every subsequent substring query then under-reports
+-- the slot check in `TransactionalBucketBPlusTree#recordsOfMatchingValueId` refuses the mismatch, so the
+answer is a miss rather than a wrong bucket -- until the next write happens to raise the flag.
+
 ### Per-family strategies
 
 | Family | Strategy | Pre-image |
@@ -279,8 +311,9 @@ path. The bitmap now journals per operation like the collection wrappers.
 | `TransactionalBitmap` | per operation | the membership each operation actually changes -- one inverse per single-record write, one inverse per bulk write covering exactly the ids whose membership that call flipped |
 | B+ tree nodes and `UnorderedLookupTree` nodes | first touch, via `writeLayer` | each node's own `Snapshotable` memento, bounded by block size |
 | Composite index layers -- `CatalogIndex`, `AttributeIndex`, `ChainIndex`, the facet and price index layers | *(nothing to record)* | their diff layer is pure in-transaction bookkeeping that only a commit-merge consumes; outside a transaction there is no state of their own to rewind, and the real state sits in contained structures that journal their own writes |
-| Memoized caches -- `FilterIndex`, `SortIndex`, `OwnerUniqueIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes | first touch | *none* -- the inverse is a re-invalidation, see [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
+| Memoized caches -- `FilterIndex`, `SortIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes, and `InvertedIndex`'s value id directory | first touch, recorded through `pushPostRestoreInvalidation` | *none* -- the inverse is a re-invalidation, see [Derived state does not belong in the journal](#derived-state-does-not-belong-in-the-journal) and [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
 | Index population counters (`IndexPopulation`) | first touch, self-captured | a clone of the fixed-size per-`(EntityIndexType, Scope)` count array |
+| `ValueIdAllocator` | first touch, self-captured | the `int` high-water mark, restored absolutely rather than decremented -- the ids minted inside the savepoint go back to the pool |
 | `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write -- see below |
 
 `DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its

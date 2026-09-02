@@ -374,6 +374,67 @@ class WarmUpSavepointTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Post-restore invalidations")
+	class PostRestoreInvalidations {
+
+		@Test
+		@DisplayName("An invalidation recorded before every write still runs after every restore")
+		void shouldRunInvalidationsOnceTheStateIsWhole() {
+			final RecordingLayer first = new RecordingLayer("a", 1);
+			final RecordingLayer second = new RecordingLayer("b", 10);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// recorded BEFORE either write, which is precisely the position at which the journal's strict reverse
+			// replay would run it LAST-pushed-first, i.e. ahead of both restores. A cache dropped there is derived
+			// from state the rewind has not finished putting back, and a reader arriving in that window re-caches it
+			savepoint.pushPostRestoreInvalidation(() -> WarmUpSavepointTest.this.events.add("invalidate"));
+			touchAndMutate(savepoint, first, 2);
+			touchAndMutate(savepoint, second, 20);
+			WarmUpSavepointTest.this.events.clear();
+
+			savepoint.rollback();
+			final List<String> observed = WarmUpSavepointTest.this.events;
+			assertTrue(
+				observed.containsAll(List.of("a:restore", "b:restore")),
+				"self-check: both participants must actually have been rewound"
+			);
+			assertEquals(
+				"invalidate", observed.get(observed.size() - 1),
+				"An invalidation drops state DERIVED from the participants, so it must run only once every one of " +
+					"them is back - never at its own position inside the reverse replay."
+			);
+		}
+
+		@Test
+		@DisplayName("Every recorded invalidation runs, in the order it was recorded")
+		void shouldRunAllInvalidationsInRecordingOrder() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			savepoint.pushPostRestoreInvalidation(() -> WarmUpSavepointTest.this.events.add("first"));
+			savepoint.pushPostRestoreInvalidation(() -> WarmUpSavepointTest.this.events.add("second"));
+
+			savepoint.rollback();
+			assertEquals(
+				List.of("first", "second"), WarmUpSavepointTest.this.events,
+				"Invalidations are independent drops of derived state, so all of them run and none is deduplicated."
+			);
+		}
+
+		@Test
+		@DisplayName("A committed savepoint discards its invalidations unrun")
+		void shouldDiscardInvalidationsOnCommit() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			savepoint.pushPostRestoreInvalidation(() -> WarmUpSavepointTest.this.events.add("invalidate"));
+
+			savepoint.commit();
+			assertFalse(
+				WarmUpSavepointTest.this.events.contains("invalidate"),
+				"The writes stand on a commit, and the forward path already invalidated every memo they touched - " +
+					"running the inverse here would drop a cache that is correct."
+			);
+		}
+	}
+
 	/**
 	 * Records a touch of the given participant into the savepoint and then mutates it, in the order a real mutator
 	 * uses: the pre-image must be captured before the change it has to undo.

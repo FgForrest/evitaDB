@@ -820,7 +820,7 @@ public abstract sealed class SortIndex
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> this.cachedAscendingArrays = null);
+			savepoint.pushPostRestoreInvalidation(() -> this.cachedAscendingArrays = null);
 		}
 	}
 

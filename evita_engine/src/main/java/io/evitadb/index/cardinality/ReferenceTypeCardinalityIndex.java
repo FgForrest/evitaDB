@@ -406,7 +406,7 @@ public class ReferenceTypeCardinalityIndex
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> this.memoizedAllReferencedPrimaryKeys = null);
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedAllReferencedPrimaryKeys = null);
 		}
 	}
 

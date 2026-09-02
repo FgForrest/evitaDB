@@ -569,7 +569,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> this.memoizedIndexedPriceIds = null);
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedIndexedPriceIds = null);
 		}
 	}
 

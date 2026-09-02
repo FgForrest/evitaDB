@@ -56,10 +56,14 @@ import java.util.concurrent.atomic.AtomicLong;
  *   the inverse itself.
  * - {@link #push(Runnable)} records one inverse without any dedup, for a participant whose pre-image must be captured
  *   per operation rather than once.
+ * - {@link #pushPostRestoreInvalidation(Runnable)} records the drop of state DERIVED from other participants —
+ *   a memoized bitmap, a positional directory — which must run once the journal has put those participants back,
+ *   not at its own position inside it.
  * - {@link #writeLayer(TransactionalLayerCreator, boolean)} is the packaged form of the first bullet for a structure
  *   that is its OWN diff layer — the B+ tree nodes. It resolves the layer to write into exactly as before and folds
  *   the first-touch record into the branch where there is none, so a mutator reaches the savepoint without naming it.
- * - {@link #rollback()} replays the journal in strict reverse, then releases every captured memento.
+ * - {@link #rollback()} replays the journal in strict reverse, releases every captured memento, and finally runs
+ *   the recorded invalidations.
  * - {@link #commit()} discards the journal entries without running them, then releases every captured memento.
  *
  * **How a repeat touch is recognised.** Every participant carries its own {@link WarmUpTouchStamped} mark holding the
@@ -171,6 +175,12 @@ public final class WarmUpSavepoint {
 	 * this by always draining to zero; a future feature needing partial rollback marks must not reuse this journal.
 	 */
 	private final UndoJournal undoJournal = new UndoJournal();
+	/**
+	 * Cache invalidations to run once the {@link #undoJournal} has drained COMPLETELY — see
+	 * {@link #pushPostRestoreInvalidation(Runnable)} for why they cannot live in the journal itself. Allocated on
+	 * first use, because a savepoint that touches no memoized structure must not pay for a list it never fills.
+	 */
+	@Nullable private ArrayList<Runnable> postRestoreInvalidations;
 	/**
 	 * The {@link Snapshotable} participants whose memento this savepoint still has to hand back, in capture order, with
 	 * {@link #mementos} holding each one's memento at the same index.
@@ -507,6 +517,36 @@ public final class WarmUpSavepoint {
 	}
 
 	/**
+	 * Records one cache invalidation to run AFTER the whole undo journal has been replayed, rather than at its own
+	 * position within it.
+	 *
+	 * ## Why an invalidation cannot live in the journal
+	 *
+	 * A journal entry is an ABSOLUTE restore: it puts one slot back to a value it captured, so it lands correctly
+	 * whenever it runs. An invalidation is not — it drops a value DERIVED from state other entries are still
+	 * restoring, and derived state can be recomputed by anyone. Replayed at its journal position, it clears the memo
+	 * while the structures beneath it are still half-rewound, and a concurrent reader arriving in that window
+	 * recomputes over the half-rewound state and caches THAT. The rollback then completes and reports success over a
+	 * cache that outlived it.
+	 *
+	 * The forward path has no such window because the mutators invalidate AFTER they write, which is exactly the
+	 * ordering this method restores for the reverse path. Pushing the invalidation into the journal cannot achieve
+	 * it: strict reverse replay would need the invalidation pushed before the participant's first write, an ordering
+	 * requirement invisible at the call site and silently broken by the next participant added.
+	 *
+	 * The invalidation must be idempotent and TOTAL — it runs after the state is whole, and a throw here fails the
+	 * rollback exactly as a failing inverse does.
+	 *
+	 * @param invalidation drops the derived state that the restored structures no longer justify
+	 */
+	public void pushPostRestoreInvalidation(@Nonnull Runnable invalidation) {
+		if (this.postRestoreInvalidations == null) {
+			this.postRestoreInvalidations = new ArrayList<>(EXPECTED_CAPTURED_PARTICIPANTS);
+		}
+		this.postRestoreInvalidations.add(invalidation);
+	}
+
+	/**
 	 * Records one inverse operation to be replayed on {@link #rollback()}, with no first-touch dedup — the granularity
 	 * a participant uses when its whole-state pre-image is too expensive to capture and it captures the individual slot
 	 * each operation overwrites instead (see the type JavaDoc).
@@ -548,8 +588,10 @@ public final class WarmUpSavepoint {
 
 	/**
 	 * Reverts every change made while this savepoint was open: the recorded inverses are replayed in strict reverse
-	 * order, then every captured memento is released so participants drop the scratch state they kept for it. The
-	 * warm-up write path continues afterwards as if the bracketed entity mutation had never run.
+	 * order, every captured memento is released so participants drop the scratch state they kept for it, and the
+	 * invalidations recorded through {@link #pushPostRestoreInvalidation(Runnable)} run last — once the state they
+	 * are derived from is whole again. The warm-up write path continues afterwards as if the bracketed entity
+	 * mutation had never run.
 	 *
 	 * A failure here means the state could not be rewound and is therefore untrustworthy; the caller is responsible for
 	 * making sure such state can never be published (see the barrier raised in `LocalMutationExecutorCollector`).
@@ -562,6 +604,9 @@ public final class WarmUpSavepoint {
 		detach();
 		this.undoJournal.rollbackTo(0);
 		releaseMementos();
+		// dead last, so nothing that runs as part of closing this savepoint can leave a memo derived from state
+		// the rewind has since replaced
+		runPostRestoreInvalidations();
 	}
 
 	/**
@@ -575,6 +620,8 @@ public final class WarmUpSavepoint {
 		// re-record into the savepoint being closed (mirrors TransactionalLayerMaintainer#commitSavepoint)
 		detach();
 		this.undoJournal.releaseFrom(0);
+		// the writes stand, and the forward path already invalidated every memo they touched
+		this.postRestoreInvalidations = null;
 		releaseMementos();
 	}
 
@@ -593,6 +640,20 @@ public final class WarmUpSavepoint {
 			)
 		);
 		CURRENT.remove();
+	}
+
+	/**
+	 * Runs the invalidations recorded through {@link #pushPostRestoreInvalidation(Runnable)}, in the order they were
+	 * recorded — they are independent drops of derived state, so no ordering among them is meaningful; what matters
+	 * is only that all of them run after the state they are derived from is whole again.
+	 */
+	private void runPostRestoreInvalidations() {
+		if (this.postRestoreInvalidations != null) {
+			for (int i = 0; i < this.postRestoreInvalidations.size(); i++) {
+				this.postRestoreInvalidations.get(i).run();
+			}
+			this.postRestoreInvalidations = null;
+		}
 	}
 
 	/**

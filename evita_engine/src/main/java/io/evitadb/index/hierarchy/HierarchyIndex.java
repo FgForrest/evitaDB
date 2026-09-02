@@ -1438,7 +1438,7 @@ public class HierarchyIndex
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(this::resetMemoizedValues);
+			savepoint.pushPostRestoreInvalidation(this::resetMemoizedValues);
 		}
 	}
 

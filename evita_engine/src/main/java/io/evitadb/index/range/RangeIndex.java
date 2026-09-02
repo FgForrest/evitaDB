@@ -431,7 +431,7 @@ public class RangeIndex
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> this.envelopingNowCache = null);
+			savepoint.pushPostRestoreInvalidation(() -> this.envelopingNowCache = null);
 		}
 	}
 

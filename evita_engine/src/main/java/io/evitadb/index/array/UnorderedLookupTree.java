@@ -2375,7 +2375,7 @@ public class UnorderedLookupTree implements
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> this.memoizedArray = null);
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedArray = null);
 		}
 	}
 

@@ -1584,7 +1584,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	private void recordWarmUpSavepointTouch() {
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint != null && savepoint.claimFirstTouch(this)) {
-			savepoint.push(() -> {
+			savepoint.pushPostRestoreInvalidation(() -> {
 				this.memoizedAllRecords = null;
 				this.memoizedRangeHistogramSubSet = null;
 			});
