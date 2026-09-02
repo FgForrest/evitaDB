@@ -24,6 +24,7 @@
 package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,11 +33,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Comparator;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Verifies that the value id machinery a substring accelerator installs on a shared value tree rewinds its
@@ -255,6 +258,79 @@ class WarmUpSavepointValueIdRollbackTest {
 				ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(20),
 				"A committed death must leave the value gone - ids are monotonic with holes, so its id is simply " +
 					"never handed out again."
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Value id directory")
+	class Directory {
+
+		private static final String TEST_CONSUMER = "test-consumer";
+
+		/**
+		 * @return a fresh tree of `String` values that already carries value ids, as one does once a substring
+		 * accelerator has attached to it
+		 */
+		@Nonnull
+		private InvertedIndex treeWithIds() {
+			final InvertedIndex tree = new InvertedIndex(
+				String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			tree.attachValueIdConsumer(TEST_CONSUMER);
+			return tree;
+		}
+
+		@Test
+		@DisplayName("A read that rebuilds the directory mid-savepoint does not survive the rollback")
+		void shouldNotLeaveTheDirectoryDescribingARewoundTree() {
+			final InvertedIndex tree = treeWithIds();
+			tree.addRecord("alpha", 1);
+			tree.addRecord("beta", 2);
+			final int alphaId = tree.getValueId("alpha");
+			final int betaId = tree.getValueId("beta");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord("gamma", 3);
+			final int gammaId = tree.getValueId("gamma");
+			// the read is what makes this reachable: it finds the directory stale, rebuilds it over the tree as it
+			// stands INSIDE the savepoint, and clears the staleness flag on the way out. A query arriving between a
+			// write and its rollback does exactly this
+			assertEquals("alpha", tree.getValueById(alphaId), "self-check: the directory answers before the rollback");
+			savepoint.rollback();
+
+			assertNull(
+				tree.getValueById(gammaId),
+				"The rolled-back value must be gone. A rollback mutates the leaves in place without going back " +
+					"through the write path, so nothing re-raises the staleness flag the read above cleared - and a " +
+					"directory left marked fresh keeps answering from slot positions the rewind has since moved."
+			);
+			assertEquals(
+				"alpha", tree.getValueById(alphaId),
+				"The values that survived the rollback must still resolve to themselves."
+			);
+			assertEquals(
+				"beta", tree.getValueById(betaId),
+				"The values that survived the rollback must still resolve to themselves."
+			);
+		}
+
+		@Test
+		@DisplayName("A committed savepoint leaves the directory answering for the values it added")
+		void shouldKeepTheDirectoryUsableAfterCommit() {
+			final InvertedIndex tree = treeWithIds();
+			tree.addRecord("alpha", 1);
+			final int alphaId = tree.getValueId("alpha");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.addRecord("gamma", 3);
+			final int gammaId = tree.getValueId("gamma");
+			assertEquals("alpha", tree.getValueById(alphaId), "self-check: the directory answers before the commit");
+			savepoint.commit();
+
+			assertEquals(
+				"gamma", tree.getValueById(gammaId),
+				"A committed savepoint keeps its writes, so the directory must resolve the value it added."
 			);
 		}
 	}
