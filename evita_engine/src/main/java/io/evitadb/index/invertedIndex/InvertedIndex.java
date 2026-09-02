@@ -257,13 +257,18 @@ public class InvertedIndex implements
 	 */
 	private int emittedNextValueId = ValueIdAllocator.UNASSIGNED_VALUE_ID;
 	/**
-	 * Whether the tree has been mutated since its value id directory was last built.
+	 * Whether a leaf of the published tree has been mutated IN PLACE since its value id directory was last built.
 	 *
 	 * The directory is normally rebuilt at a publication point — a commit merge, a load, or the moment ids are
 	 * switched on. The warm-up path has no such point: it mutates this very instance outside any transaction and
 	 * never reaches a merge, so without this flag the first query after a bulk load would resolve against a directory
 	 * built when the tree was still empty. Setting it costs one field write per mutation; acting on it costs one
 	 * change-detecting walk, and only on a read that follows a write.
+	 *
+	 * Only writes made OUTSIDE a transaction raise it — see {@link #markValueIdDirectoryStale()} for why a
+	 * transactional write leaves the published leaves untouched, and why the narrowed meaning is what lets
+	 * {@link #createCopyWithMergedTransactionalMemory} decide which of the tree's two rebuilds the commit merge may
+	 * take.
 	 *
 	 * `volatile` because the catch-up it drives happens on the READ path, where several query threads meet it at once
 	 * — see {@link #refreshValueIdDirectory()}. The flag is cleared only after the rebuild has finished, so a reader
@@ -945,7 +950,30 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Marks the value id directory as needing a rebuild before the next probe reads it.
+	 * Marks the value id directory as needing a rebuild before the next probe reads it — and, equivalently, records
+	 * that a leaf of the published tree has been mutated IN PLACE.
+	 *
+	 * ## Why a transactional write does not raise it
+	 *
+	 * Every node of this tree is created with its transactional layer enabled, so a write made with a transaction
+	 * bound to the thread lands in that transaction's own layer and leaves the published leaves — the ones the
+	 * directory addresses — byte-for-byte as they were. The directory therefore does not go stale: it keeps
+	 * describing exactly the version every reader outside that transaction still sees, and the readers inside it are
+	 * refused outright by {@link #getValueById(int)} and {@link #getRecordsOfValueIdsMatching}.
+	 *
+	 * Raising the flag there was not merely redundant, it was expensive in the one place that cannot afford it. Trunk
+	 * incorporation of a transaction that inserts N distinct values would flip the volatile N times on the shared live
+	 * instance, and every read-only accelerated query arriving between two of those writes would enter the
+	 * synchronized {@link #refreshValueIdDirectory()} and copy the whole location array — an `O(V)` walk on the QUERY
+	 * path, repeated up to N times, to rebuild a directory that had not changed.
+	 *
+	 * ## What the narrowed meaning buys the commit merge
+	 *
+	 * With transactional writes excluded, this flag says precisely *"a leaf changed content without changing its
+	 * instance identity"*, which is the ONE condition under which
+	 * {@link TransactionalBucketBPlusTree#rebuildValueIdDirectoryAfterMerge()} may not be used — that variant reuses
+	 * the entries of every leaf whose version token is unchanged, and an in-place mutation keeps the token. The merge
+	 * in {@link #createCopyWithMergedTransactionalMemory} reads the flag to choose between the two rebuilds.
 	 *
 	 * Guarded on the allocator so that the volatile store - a StoreLoad barrier, drained on every write - is paid only
 	 * by trees that actually carry value ids. Most inverted indexes never do: ids are switched on only where a filter
@@ -958,7 +986,7 @@ public class InvertedIndex implements
 	 * the commit merge - rebuilds the directory and clears this flag itself.
 	 */
 	private void markValueIdDirectoryStale() {
-		if (this.valueIdAllocator != null) {
+		if (this.valueIdAllocator != null && !Transaction.isTransactionAvailable()) {
 			this.valueIdDirectoryStale = true;
 		}
 	}
@@ -1795,8 +1823,21 @@ public class InvertedIndex implements
 				committedTree.installValueIdMinter(merged.valueIdAllocator::allocate);
 				// the directory belongs to the version it was built against: building it here, once, makes it
 				// immutable for the lifetime of this committed index, so a reader holding an older version keeps
-				// resolving against that version's own directory and MVCC needs no diff layer for it
-				committedTree.rebuildValueIdDirectoryAfterMerge();
+				// resolving against that version's own directory and MVCC needs no diff layer for it.
+				//
+				// WHICH rebuild is not a free choice. The incremental one reuses the entries of every leaf whose
+				// version token the merge carried forward unchanged, and an in-place mutation - a warm-up write, the
+				// only writer that reaches the published leaves directly - changes a leaf's content while keeping
+				// that token. Taking it after such a write would silently leave the values it added out of the
+				// directory, and the flag has just been cleared for the merged copy, so the lazy catch-up on the read
+				// path would not repair them either: accelerated `attributeContains` would answer NO_LOCATION for
+				// values the collection does hold, until a restart. The flag says exactly whether that happened
+				// (see `markValueIdDirectoryStale`), so it is what chooses here
+				if (this.valueIdDirectoryStale) {
+					committedTree.rebuildValueIdDirectory();
+				} else {
+					committedTree.rebuildValueIdDirectoryAfterMerge();
+				}
 				merged.valueIdDirectoryStale = false;
 			}
 			return merged;
