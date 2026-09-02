@@ -293,7 +293,18 @@ public interface HierarchyIndexContract {
 	void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
-	 * Method traverses entire hierarchy of (non-orphan) nodes from the node up to the root node.
+	 * Method traverses the hierarchy from the passed node up to the root node, visiting the node itself and every
+	 * ancestor above it the index still holds. Unlike the downward traversals this one passes through orphan nodes,
+	 * and it stops silently at the first ancestor the index does not hold - which is what a deleted ancestor and an
+	 * entity upserted with a parent primary key that was never created both look like. Nothing is visited at all when
+	 * the passed node itself is not present in the index.
+	 *
+	 * The `level` handed to the visitor is counted from the top of the reachable fragment: the highest ancestor the
+	 * walk gets to is level 1, exactly as if that fragment were a tree of its own, while `distance` always counts from
+	 * the passed node (0) upwards and is therefore unaffected by a break. Both callers - the `hierarchyContent` parents
+	 * fetch and the parent hierarchy statistics computer - turn `level` into a `stopAt(level(N))` decision, and the
+	 * true depth of a fragment whose upper part is unreadable cannot be known, so the fragment behaves as the tree the
+	 * index can actually see.
 	 */
 	void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node);
 

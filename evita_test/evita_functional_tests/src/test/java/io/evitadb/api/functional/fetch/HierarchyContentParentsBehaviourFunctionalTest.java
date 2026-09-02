@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -49,7 +48,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -87,7 +85,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -98,10 +95,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * This class pins the `today` column of the behaviour matrix in
  * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`, measured on 2026-09-02. It
  * asserts what the engine does right now, defects included - it does **not** assert what it ought to
- * do. Several of the pinned rows are the very defects #1365 reports, and three of the pinned
- * situations (a deleted mid-chain ancestor two levels up, a never-created ancestor two levels up, and
- * a deleted Czech-only mid-chain ancestor two levels up) pin a thrown exception as the current
- * outcome.
+ * do. Several of the pinned rows are the very defects #1365 reports. The broken chains are the one
+ * exception: the traversal to root now reports every ancestor the index still holds and stops
+ * silently at the first one it cannot resolve, so those rows pin that rule instead of the exception a
+ * break exactly two levels above the queried entity used to raise.
  *
  * When the `HierarchyParentsBehaviour` argument lands, each row moves to the `COMPLETE` or the
  * `MATCHING` column of that same matrix; every row a change does not touch must keep passing
@@ -702,26 +699,6 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Asserts that fetching a leaf over a broken ancestor chain fails with the exact exception the
-	 * index raises today - the base {@link EvitaInvalidUsageException} rather than any of its
-	 * subtypes, carrying the complete message that names the ancestor the walk could not resolve.
-	 *
-	 * @param fetch                   the fetch expected to fail
-	 * @param missingParentPrimaryKey the primary key the message must name as unresolvable
-	 */
-	private static void assertBrokenChainThrows(@Nonnull Executable fetch, int missingParentPrimaryKey) {
-		final EvitaInvalidUsageException exception = assertThrows(EvitaInvalidUsageException.class, fetch);
-		assertSame(
-			EvitaInvalidUsageException.class, exception.getClass(),
-			"The broken chain must surface as the base client error, not as one of its subtypes."
-		);
-		assertEquals(
-			"The node parent `" + missingParentPrimaryKey + "` is unexpectedly not present in the index!",
-			exception.getMessage()
-		);
-	}
-
-	/**
 	 * Pins the rows of the behaviour matrix where a query-level locale makes an ancestor
 	 * unmaterializable - the defect #1365 reports - together with the fully materializable control and
 	 * the typed-proxy view of the resulting bodyless pointer.
@@ -1091,9 +1068,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Pins how a chain broken by a deleted or never-created ancestor behaves. Whether the walk stays
-	 * silent or throws depends on whether the vanished node had a parent of its own and on how far
-	 * above the queried entity the break sits.
+	 * Pins how a chain broken by a deleted or never-created ancestor behaves. Every ancestor the index
+	 * still holds is reported and the walk stops silently at the first primary key it cannot resolve,
+	 * regardless of how far above the queried entity the break sits or of whether the vanished node had
+	 * a parent of its own. What still differs between the rows is the shape of the reported ancestors,
+	 * since a body is attached only where one can be materialized.
 	 */
 	@Nested
 	@DisplayName("Broken chains (K rows)")
@@ -1114,8 +1093,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Matrix row K2 - `83 -> 82 -> 81`, where 81 was a deleted root. Deleting a root never throws,
-		 * because a removed root is never un-indexed and its children are never orphaned.
+		 * Matrix row K2 - `83 -> 82 -> 81`, where 81 was a deleted root. A removed root is never un-indexed
+		 * and its children are never orphaned, so the chain is not structurally broken here at all - the walk
+		 * reaches 81 and it is the missing body of 81 that ends the reported chain below it.
 		 *
 		 * The terminal `B(82)` reports `parentAvailable() == true`, which a genuine root does as well (see
 		 * the control row), so neither observable separates this cut from the end of a hierarchy.
@@ -1136,8 +1116,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * Variant of matrix row K2 - `94 -> 93 -> 92 -> 91`, where the deleted root 91 sits three levels
-		 * up. The walk stays silent at depth three as well, which is what proves the throw of K4 needs the
-		 * vanished node to have had a parent of its own rather than merely to sit two or more levels up.
+		 * up. The phantom root keeps the chain intact at that depth too, so this row separates a chain the
+		 * index can still walk from the genuinely broken ones the K4 and K5 rows measure.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
@@ -1191,72 +1171,70 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * Matrix row K4 - `124 -> 123 -> 122 -> 121`, where the deleted mid-chain 122 sits exactly two
-		 * levels above the queried entity. This is the one matrix row whose current outcome is an
-		 * exception.
+		 * levels above the queried entity. The reachable ancestor 123 is reported with its body and the
+		 * chain ends there, because neither 122 nor the root 121 above it can be reached any more.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4: a deleted mid-chain ancestor exactly two levels up makes the query throw")
+		@DisplayName("K4: a deleted mid-chain ancestor two levels up leaves the reachable ancestor reported")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldThrowWhenDeletedMidChainAncestorSitsTwoLevelsUp_K4(Evita evita) {
-			// the pre-walk in HierarchyIndex#traverseHierarchyToRoot starts at the queried entity's parent,
-			// so the assert only fires when the break sits exactly two levels above the queried entity
-			assertBrokenChainThrows(() -> fetchLeaf(evita, 124, standardRequirement(), true), 122);
+		void shouldReportReachableAncestorWhenDeletedMidChainAncestorSitsTwoLevelsUp_K4(Evita evita) {
+			assertChain(standardParentChain(evita, 124), "B(123)");
 		}
 
 		/**
-		 * Variant of matrix row K4 with a bare `hierarchyContent()`. The pre-walk runs before any body is
-		 * fetched, so dropping the ancestor `entityFetch` does not avoid the throw.
+		 * Variant of matrix row K4 with a bare `hierarchyContent()`. The walk reaches the same single
+		 * ancestor either way; dropping the ancestor `entityFetch` only leaves it a bodyless pointer.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4 variant: the throw survives when no ancestor bodies are requested")
+		@DisplayName("K4 variant: without ancestor bodies the reachable ancestor stays a bodyless pointer")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldThrowWhenDeletedMidChainAncestorSitsTwoLevelsUpWithoutBodies_K4variant(Evita evita) {
-			assertBrokenChainThrows(() -> fetchLeaf(evita, 124, hierarchyContent(), true), 122);
+		void shouldReportBodylessReachableAncestorWhenDeletedMidChainAncestorSitsTwoLevelsUp_K4variant(Evita evita) {
+			assertChain(fetchParentChain(evita, 124, hierarchyContent(), true), "P(123)");
 		}
 
 		/**
 		 * Variant of matrix row K4 with no query locale. The break is structural, so removing the locale
-		 * that gates every P row leaves the throw untouched.
+		 * that gates every P row leaves the reported chain untouched.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4 variant: the throw survives when the query carries no locale")
+		@DisplayName("K4 variant: the reported chain is the same when the query carries no locale")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldThrowWhenDeletedMidChainAncestorSitsTwoLevelsUpWithoutQueryLocale_K4variant(Evita evita) {
-			assertBrokenChainThrows(() -> fetchLeaf(evita, 124, standardRequirement(), false), 122);
+		void shouldReportReachableAncestorWhenBreakSitsTwoLevelsUpWithoutQueryLocale_K4variant(Evita evita) {
+			assertChain(fetchParentChain(evita, 124, standardRequirement(), false), "B(123)");
 		}
 
 		/**
 		 * Variant of matrix row K4 on the Czech-only mid-chain deletion - `134 -> 133 -> 132 -> 131`. The
-		 * deleted 132 held Czech data only, and the deletion path is unaffected by the ancestor's locale.
+		 * deleted 132 held Czech data only, and the deletion path is unaffected by the ancestor's locale -
+		 * the reachable 133 holds English data and is reported with its body, exactly as K4 reports 123.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4 variant: a deleted Czech-only ancestor two levels up throws the same way")
+		@DisplayName("K4 variant: a deleted Czech-only ancestor two levels up leaves its child reported the same way")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldThrowWhenDeletedLocaleLessMidChainAncestorSitsTwoLevelsUp_K4variant(Evita evita) {
-			assertBrokenChainThrows(() -> fetchLeaf(evita, 134, standardRequirement(), true), 132);
+		void shouldReportReachableAncestorWhenDeletedLocaleLessMidChainAncestorSitsTwoLevelsUp_K4variant(Evita evita) {
+			assertChain(standardParentChain(evita, 134), "B(133)");
 		}
 
 		/**
-		 * Matrix row K5 - `125 -> 124 -> 123 -> 122`, where the break sits three levels up. No exception,
-		 * but the materializable immediate parent is demoted to a pointer.
+		 * Matrix row K5 - `125 -> 124 -> 123 -> 122`, where the break sits three levels up. Both ancestors
+		 * below the break carry English data, so both are reported with their bodies and the chain ends at
+		 * the break.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K5: a break three levels up demotes the materializable parent to a pointer")
+		@DisplayName("K5: a break three levels up leaves both reachable ancestors carrying their bodies")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldDemoteMaterializableParentToPointerWhenBreakSitsThreeLevelsUp_K5(Evita evita) {
-			// 124 carries English data and would materialize; three levels up the traversal is silent and
-			// the body is lost all the same
-			assertChain(standardParentChain(evita, 125), "P(124)");
+		void shouldReportBothReachableAncestorsWhenBreakSitsThreeLevelsUp_K5(Evita evita) {
+			assertChain(standardParentChain(evita, 125), "B(124)", "B(123)");
 		}
 
 		/**
@@ -1274,17 +1252,17 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Companion of matrix row K6 - `112 -> 111 -> 999`. The dangling parent primary key reaches the same
-		 * assert as K4 from the ingest side, with no deletion involved.
+		 * Companion of matrix row K6 - `112 -> 111 -> 999`. A parent primary key that was never created
+		 * breaks the chain from the ingest side exactly as a deletion breaks it, with no deletion involved:
+		 * 111 is reported with its body and the dangling 999 above it is not reported at all.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K6 variant: a never-created ancestor two levels up makes the query throw")
+		@DisplayName("K6 variant: a never-created ancestor two levels up leaves the reachable ancestor reported")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldThrowWhenNeverCreatedAncestorSitsTwoLevelsUp_K6variant(Evita evita) {
-			// the dangling-parent ingest path reaches the very same assert as K4, with no deletion involved
-			assertBrokenChainThrows(() -> fetchLeaf(evita, 112, standardRequirement(), true), 999);
+		void shouldReportReachableAncestorWhenNeverCreatedAncestorSitsTwoLevelsUp_K6variant(Evita evita) {
+			assertChain(standardParentChain(evita, 112), "B(111)");
 		}
 	}
 

@@ -33,7 +33,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.IndexComponent;
@@ -82,7 +81,6 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -669,10 +667,22 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Traverses the hierarchy from the given `node` upward to the root, invoking the `visitor` for
-	 * the node and each of its ancestors. Traversal is silently skipped if the node is an orphan.
+	 * Traverses the hierarchy from the given `node` upward, invoking the `visitor` for the node itself
+	 * and for every ancestor above it the index still holds. The walk passes through registered
+	 * orphans and stops silently at the first parent primary key {@link #itemIndex} does not hold; a
+	 * deleted ancestor and a parent primary key that was never created are the same case here, the
+	 * latter being a state an entity may legitimately be upserted in. Nothing at all is visited when
+	 * the start node itself is absent from the index.
 	 *
-	 * @param visitor the visitor to invoke for the node and each ancestor
+	 * Levels are counted from the top of the reachable fragment - the highest ancestor the walk gets
+	 * to is reported at level 1, exactly as if that fragment were a tree of its own - while `distance`
+	 * keeps counting from the start node (0) upwards and is therefore unaffected by a break. Both
+	 * callers turn `level` into a `stopAt(level(N))` decision, and the true depth of a fragment whose
+	 * upper part is unreadable cannot be known, so the fragment behaves as the tree the index can
+	 * actually see. {@link #computeLevel(HierarchyNode)} answers the different question of a node's
+	 * level within the whole tree and keeps reporting -1 for a broken chain.
+	 *
+	 * @param visitor the visitor to invoke for the node and each reachable ancestor
 	 * @param node    the primary key of the node to start the upward traversal from
 	 */
 	@Override
@@ -680,30 +690,34 @@ public class HierarchyIndex
 		final HierarchyNode theNode = this.itemIndex.get(node);
 		// if the node is missing, just skip traversal
 		if (theNode != null) {
+			// count only the ancestors the walk can really reach, so that the topmost reachable one -
+			// which is not necessarily a root when the chain is broken - ends up at level 1
 			HierarchyNode hierarchyNode = theNode;
 			int nodeLevel = 1;
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				nodeLevel++;
-				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
-				if (parentNode.isPresent()) {
-					hierarchyNode = parentNode.get();
-				} else {
-					// no traversal will happen - orphan found
-					return;
+				final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
+				if (parentNode == null) {
+					// the chain is broken here - the current node is the top of the reachable fragment
+					break;
 				}
+				nodeLevel++;
+				hierarchyNode = parentNode;
 			}
 
 			final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
 			final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
 				() -> {
-					final HierarchyNode parent = getHierarchyNodeOrThrowException(nodeId);
-					visitor.visit(
-						parent, level, distance,
-						ofNullable(parent.parentEntityPrimaryKey())
-							.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
-							.orElse(() -> {
-							})
-					);
+					final HierarchyNode parent = this.itemIndex.get(nodeId);
+					// stop silently at the same ancestor the level pre-walk above stopped at
+					if (parent != null) {
+						visitor.visit(
+							parent, level, distance,
+							ofNullable(parent.parentEntityPrimaryKey())
+								.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
+								.orElse(() -> {
+								})
+						);
+					}
 				};
 			factoryHolder.set(childrenTraverseCreator);
 
@@ -1114,22 +1128,24 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Returns the parent {@link HierarchyNode} for the given node, or an empty optional if the node
-	 * is a root or its parent is an orphan. Throws an exception if the parent is expected to exist
-	 * but is missing from the index.
+	 * Returns the parent {@link HierarchyNode} of the given node, or an empty optional whenever the
+	 * node has no parent that is part of the tree - i.e. when the node is a root, when its parent is a
+	 * registered orphan, or when the parent primary key is not present in the index at all.
+	 *
+	 * The last case is not an error and must not be reported as one: an ancestor may be deleted from
+	 * underneath the node, and an entity may be upserted with a parent primary key that does not exist
+	 * yet, which `documentation/user/en/use/schema.md` describes as a legitimate orphan state. Both
+	 * leave a node pointing at a primary key nobody can resolve.
 	 *
 	 * @param hierarchyNode the node whose parent to look up
-	 * @return optional parent node, or empty if the node is a root or its parent is an orphan
-	 * @throws IllegalArgumentException if the parent is expected but unexpectedly absent
+	 * @return the parent node, or empty when the node is a root or its parent is not part of the tree
 	 */
 	@Nonnull
-	private Optional<HierarchyNode> getParentNodeOrThrowException(@Nonnull HierarchyNode hierarchyNode) {
+	private Optional<HierarchyNode> getParentNodeIfExists(@Nonnull HierarchyNode hierarchyNode) {
 		if (hierarchyNode.parentEntityPrimaryKey() == null || this.orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
 			return empty();
 		} else {
-			final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-			Assert.isTrue(parentNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
-			return of(parentNode);
+			return ofNullable(this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey()));
 		}
 	}
 
@@ -1357,28 +1373,31 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Returns the level of the passed hierarchy node in the hierarchy tree.
+	 * Returns the level of the passed hierarchy node in the hierarchy tree, root nodes sitting at
+	 * level 1.
+	 *
+	 * The question this method answers is "which level does the node occupy in the whole tree", so it
+	 * reports -1 for every node that is not part of that tree - an orphan, or a node whose ancestor
+	 * chain is broken by a deleted or never-created ancestor. That is deliberately a different
+	 * contract from {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}, which reports levels
+	 * within the fragment it can reach and therefore hands out a level even for a broken chain.
 	 *
 	 * @param rootNode the node to compute level for
 	 * @return level of the node or -1 if the node is not part of the tree
 	 */
 	private int computeLevel(@Nonnull HierarchyNode rootNode) {
-		try {
-			int level = 1;
-			HierarchyNode theNode = rootNode;
-			while (theNode.parentEntityPrimaryKey() != null) {
-				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(theNode);
-				if (parentNode.isPresent()) {
-					theNode = parentNode.get();
-					level++;
-				} else {
-					return -1;
-				}
+		int level = 1;
+		HierarchyNode theNode = rootNode;
+		while (theNode.parentEntityPrimaryKey() != null) {
+			final Optional<HierarchyNode> parentNode = getParentNodeIfExists(theNode);
+			if (parentNode.isPresent()) {
+				theNode = parentNode.get();
+				level++;
+			} else {
+				return -1;
 			}
-			return level;
-		} catch (EvitaInvalidUsageException ex) {
-			return -1;
 		}
+		return level;
 	}
 
 	/**

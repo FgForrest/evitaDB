@@ -547,14 +547,16 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	/**
 	 * Pins how {@link HierarchyIndex#traverseHierarchyToRoot} behaves when the ancestor chain is
-	 * broken, i.e. when a node still references a parent primary key that is no longer registered. The
-	 * three depths behave differently today, and that difference is what makes a deleted mid-chain
-	 * ancestor throw at one position in the query layer and vanish silently at another. These cases
-	 * are characterisation pins for issue #1365 - see
+	 * broken, i.e. when a node still references a parent primary key that is no longer registered. One
+	 * rule covers every depth: the walk reports the start node and every ancestor the item index still
+	 * holds, passing through registered orphans on the way, and stops silently at the first primary key
+	 * it cannot resolve. Levels are counted from the top of the reachable fragment, so the highest
+	 * ancestor the walk gets to is level 1 even though it is not a root, while distances keep counting
+	 * from the start node. These cases belong to issue #1365 - see
 	 * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`.
 	 *
-	 * Two of the three cases assert that nothing is visited, which on its own would also hold if the
-	 * traversal had become a no-op. The positive control that rules that out is
+	 * The first case asserts that nothing is visited, which on its own would also hold if the traversal
+	 * had become a no-op. The positive control that rules that out is
 	 * {@link VisitorTraversalTest#shouldTraverseEntireTreeToRoot}, which pins the visited node ids,
 	 * levels and distances for an intact chain built by the very same fixture.
 	 */
@@ -590,35 +592,43 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		/**
-		 * Depth two - the start node is present, but its own parent is absent from the item index and
-		 * is not a registered orphan. The pre-walk asserts and the traversal throws. This is the index
-		 * level of matrix row K4.
+		 * Depth two - the start node is present as an orphan and its own parent is absent from the item
+		 * index. The reachable fragment is the start node alone, so it is reported as the top of a tree of
+		 * its own - level 1, distance 0 - and nothing above it is visited. This is the index level of
+		 * matrix row K4.
 		 */
 		@Test
-		@DisplayName("start node whose parent is absent and not an orphan throws")
-		void shouldThrowWhenStartNodeParentIsAbsentAndNotAnOrphan() {
+		@DisplayName("start node whose parent is absent is visited alone at level one")
+		void shouldVisitStartNodeAloneWhenItsParentIsAbsent() {
 			// 10 stays in the item index as an orphan, while its parent 9 is gone entirely
 			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
 
-			final EvitaInvalidUsageException exception = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
-					(node, level, distance, childrenTraverser) -> {
-					},
-					10
-				)
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
+			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
+				(node, level, distance, childrenTraverser) -> {
+					childrenTraverser.run();
+					nodeIds.append(node.entityPrimaryKey()).append("|");
+					levels.append(level).append("|");
+					distances.append(distance).append("|");
+				},
+				10
 			);
-			assertEquals("The node parent `9` is unexpectedly not present in the index!", exception.getMessage());
+			assertEquals("|10|", nodeIds.toString());
+			assertEquals("|1|", levels.toString());
+			assertEquals("|0|", distances.toString());
 		}
 
 		/**
-		 * Depth three - the start node's parent is present in the item index but registered as an
-		 * orphan. The orphan guard fires first, so the traversal returns silently without visiting
-		 * anything. This is the index level of matrix row K5.
+		 * Depth three - the start node's parent is present in the item index but registered as an orphan,
+		 * and the break sits one node further up. The walk passes straight through the orphan and stops at
+		 * the absent node above it, so both reachable nodes are reported and the orphan becomes the
+		 * level-one top of the fragment. This is the index level of matrix row K5.
 		 */
 		@Test
-		@DisplayName("start node whose parent is a registered orphan visits nothing")
-		void shouldSkipTraversalSilentlyWhenStartNodeParentIsARegisteredOrphan() {
+		@DisplayName("walk passes through a registered orphan and stops at the absent node above it")
+		void shouldWalkThroughRegisteredOrphanAndStopAtAbsentNodeAboveIt() {
 			HierarchyIndexTest.this.hierarchyIndex.removeNode(9);
 			// 20 hangs below the orphan 10, so it becomes an orphan itself
 			HierarchyIndexTest.this.hierarchyIndex.addNode(20, 10);
@@ -631,15 +641,22 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				"Node 10 was expected to be registered as an orphan."
 			);
 
-			final StringBuilder visited = new StringBuilder(128);
+			final StringBuilder nodeIds = new StringBuilder("|");
+			final StringBuilder levels = new StringBuilder("|");
+			final StringBuilder distances = new StringBuilder("|");
 			HierarchyIndexTest.this.hierarchyIndex.traverseHierarchyToRoot(
-				(node, level, distance, childrenTraverser) -> visited.append(node.entityPrimaryKey()).append('|'),
+				(node, level, distance, childrenTraverser) -> {
+					childrenTraverser.run();
+					nodeIds.append(node.entityPrimaryKey()).append("|");
+					levels.append(level).append("|");
+					distances.append(distance).append("|");
+				},
 				20
 			);
-			assertEquals(
-				"", visited.toString(),
-				"Visitor must never be called when the start node's parent is a registered orphan"
-			);
+			// 9 is the first primary key the index cannot resolve, so the walk ends at the orphan 10
+			assertEquals("|10|20|", nodeIds.toString());
+			assertEquals("|1|2|", levels.toString());
+			assertEquals("|1|0|", distances.toString());
 		}
 	}
 
