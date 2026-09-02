@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -50,6 +51,7 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -304,6 +306,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -414,6 +417,19 @@ public final class CatalogSchema implements CatalogSchemaContract {
 
 	@Override
 	public void validate() throws SchemaAlteringException {
+		// the catalog's own global attributes are validated here rather than by the collections that adopt them - a
+		// global attribute exists even while no collection uses it, and a collection-side check would report the same
+		// problem once per adopting collection
+		final List<String> errors = this.attributes.values()
+			.stream()
+			.flatMap(GlobalAttributeSchemaContract::validate)
+			.map(it -> "\t" + it)
+			.toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Catalog schema `" + getName() + "` contains validation errors:\n" + String.join("\n", errors)
+			);
+		}
 		final Collection<EntitySchemaContract> entitySchemas = this.entitySchemaAccessor.getEntitySchemas();
 		for (EntitySchemaContract entitySchema : entitySchemas) {
 			entitySchema.validate(this);

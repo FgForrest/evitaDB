@@ -128,7 +128,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=222
+   *     See GrpcAttributeSchemaMutations.proto;l=244
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -143,7 +143,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=222
+   *     See GrpcAttributeSchemaMutations.proto;l=244
    * @return The uniqueGlobally.
    */
   @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
@@ -744,7 +744,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=222
+     *     See GrpcAttributeSchemaMutations.proto;l=244
      * @return The enum numeric value on the wire for uniqueGlobally.
      */
     @java.lang.Override @java.lang.Deprecated public int getUniqueGloballyValue() {
@@ -759,7 +759,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=222
+     *     See GrpcAttributeSchemaMutations.proto;l=244
      * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=222
+     *     See GrpcAttributeSchemaMutations.proto;l=244
      * @return The uniqueGlobally.
      */
     @java.lang.Override
@@ -795,7 +795,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=222
+     *     See GrpcAttributeSchemaMutations.proto;l=244
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
      */
@@ -817,7 +817,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation.uniqueGlobally is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=222
+     *     See GrpcAttributeSchemaMutations.proto;l=244
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearUniqueGlobally() {

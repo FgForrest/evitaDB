@@ -31,6 +31,7 @@ import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.utils.VMLayout;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -149,6 +150,24 @@ public class TransactionalRangePoint
 		return this.threshold == that.threshold
 			&& Objects.equals(this.starts, that.starts)
 			&& Objects.equals(this.ends, that.ends);
+	}
+
+	/**
+	 * Returns the heap this point occupies, in bytes — its own object, its dirty flag and both record bitmaps.
+	 *
+	 * Both bitmaps are charged in full. Every constructor builds them fresh, including the two that take existing
+	 * record sets and copy them into new {@link TransactionalBitmap} instances, so this point is the sole owner of
+	 * each — there is no path by which it comes to share one with the caller that supplied the records.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// threshold + the dirty / starts / ends slots
+		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.starts.getHeapSizeInBytes()
+			+ this.ends.getHeapSizeInBytes();
 	}
 
 	@Override

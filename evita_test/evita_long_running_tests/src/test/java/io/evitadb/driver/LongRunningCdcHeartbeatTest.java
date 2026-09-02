@@ -23,7 +23,6 @@
 
 package io.evitadb.driver;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;

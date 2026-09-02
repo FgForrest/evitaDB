@@ -37,6 +37,7 @@ import java.util.EnumSet;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,7 +95,7 @@ class ConflictingCatalogMutationExceptionTest {
 			"testCatalog", CONFLICT_KEY, 7L, resolution, ConflictResolutionLayer.ENGINE_DEFAULT
 		);
 		assertTrue(ex.getMessage().contains(ConflictResolutionLayer.ENGINE_DEFAULT.name()), ex.getMessage());
-		assertTrue(!ex.getMessage().contains("granular refinement"), ex.getMessage());
+		assertFalse(ex.getMessage().contains("granular refinement"), ex.getMessage());
 	}
 
 	@Test

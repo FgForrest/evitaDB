@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.PriceNotIndexedException;
 import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
@@ -81,6 +82,11 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 				() -> new PriceNotIndexedException(schema, scope)
 			);
 		}
+		// a price histogram depends on the flag just as a price filter does - counted here too, so a catalog whose
+		// only price usage is the histogram does not report the flag as unused
+		extraResultPlanner.getQueryContext().recordRequestedEntityCapability(
+			schema, Capability.PRICED, scopes
+		);
 
 		// find FilteredPricesSorter among the sorters (if any)
 		final Optional<FilteredPricesSorter> filteredPricesSorter = ofNullable(

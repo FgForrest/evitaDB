@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -103,6 +104,18 @@ public final class ReferenceSchemaAttributeAndCompoundSchemaProvider implements 
 			.getSortableAttributeCompoundsForAttribute(attributeName)
 			.stream()
 			.map(SortableAttributeCompoundSchema.class::cast);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Always the reference's name — this provider serves attributes and compounds the reference declares, and they
+	 * remain the reference's however many indexes maintain them.
+	 */
+	@Nullable
+	@Override
+	public String getContainerName() {
+		return this.referenceSchema.getName();
 	}
 
 }

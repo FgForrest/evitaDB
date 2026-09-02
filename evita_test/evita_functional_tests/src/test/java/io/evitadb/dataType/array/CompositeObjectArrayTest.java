@@ -533,7 +533,7 @@ class CompositeObjectArrayTest {
 			array.add(1);
 			final Integer[] result = array.toArray();
 			// verify result is Integer[] not Object[]
-			assertTrue(result instanceof Integer[]);
+			assertInstanceOf(Integer[].class, result);
 			assertEquals(1, result[0]);
 		}
 	}

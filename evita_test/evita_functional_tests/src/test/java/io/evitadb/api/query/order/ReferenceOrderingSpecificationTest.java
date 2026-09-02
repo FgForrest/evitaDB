@@ -24,7 +24,6 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.OrderConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

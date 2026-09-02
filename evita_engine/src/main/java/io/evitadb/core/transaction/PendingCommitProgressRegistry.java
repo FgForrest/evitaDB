@@ -173,6 +173,14 @@ public final class PendingCommitProgressRegistry {
 	 * guaranteed to have completed records at or below this version" invariant that a version-based
 	 * sweep needs is avoided entirely.
 	 *
+	 * **That independence from pipeline state is also the limitation.** Elapsed time is a proxy for
+	 * liveness, and the proxy breaks when the host is oversubscribed: a starved executor makes a
+	 * healthy-but-slow commit indistinguishable from a genuinely dropped one, so this sweep will fail
+	 * it and log the "missed completion path" warning below with nothing actually wrong. The warning is
+	 * therefore evidence of a stall, not proof of a pipeline defect — rule out CPU contention first.
+	 * The deadline is chosen by `TransactionManager#safetyDeadlineMs`, where the reasoning for leaving
+	 * it wall-clock-based (and how a contended caller should widen it instead) is recorded.
+	 *
 	 * @param maxAge the maximum age a record may stay pending before being considered dangling
 	 * @return the number of records failed by this sweep, useful for tests and observability
 	 */

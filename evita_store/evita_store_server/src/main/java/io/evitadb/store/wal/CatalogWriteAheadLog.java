@@ -43,6 +43,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
 import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
@@ -87,13 +88,16 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	 */
 	private final String catalogName;
 	/**
-	 * This lambda allows trimming the bootstrap file to the given date.
+	 * Advances the history horizon of the catalog - trims the bootstrap file and reclaims the data files that fall
+	 * below the given catalog version. WAL retention is one of two independent drivers of that seam (the other being
+	 * the `timeTravelSizeLimitBytes` guard), which is why the log only reports the floor it needs and leaves clamping,
+	 * ordering and idempotency to the seam itself.
+	 *
+	 * `null` only for a WAL opened through the internal-use constructor, which is never wired into a live catalog
+	 * and is therefore never expected to rotate a file out - see {@link #updateFirstVersionKept(long)}.
 	 */
-	protected final LongConsumer bootstrapFileTrimmer;
-	/**
-	 * Callback to be called when the WAL file is purged.
-	 */
-	protected final WalPurgeCallback onWalPurgeCallback;
+	@Nullable
+	protected final LongConsumer historyHorizonAdvancer;
 
 	/**
 	 * Creates a new instance of CatalogTransactionChanges based on the given parameters.
@@ -143,8 +147,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	 * @param kryoPool               pool of Kryo instances for serialization
 	 * @param storageSettings        storage configuration including checksum and compression factories
 	 * @param scheduler              scheduler for background tasks
-	 * @param bootstrapFileTrimmer   callback to trim the bootstrap file after WAL purge
-	 * @param onWalPurgeCallback     callback invoked when WAL files are purged
+	 * @param historyHorizonAdvancer callback advancing the catalog history horizon once WAL files are purged
 	 */
 	public CatalogWriteAheadLog(
 		long catalogVersion,
@@ -154,8 +157,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 		@Nonnull Pool<Kryo> kryoPool,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimmer,
-		@Nonnull WalPurgeCallback onWalPurgeCallback
+		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
 		super(
 			catalogVersion,
@@ -167,14 +169,14 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
-		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
-		this.onWalPurgeCallback = onWalPurgeCallback;
+		this.historyHorizonAdvancer = historyHorizonAdvancer;
 	}
 
 	/**
 	 * Creates a new CatalogWriteAheadLog for internal use only.
-	 * This constructor creates a WAL without bootstrap file trimming or purge callbacks,
-	 * typically used for testing or specific internal scenarios.
+	 * This constructor creates a WAL without a history horizon advancer, for read-only scenarios (testing or
+	 * post-mortem analysis of an existing WAL) that never append to it and therefore never rotate a file out of it.
+	 * {@link #updateFirstVersionKept(long)} throws if that assumption is ever violated.
 	 *
 	 * @param catalogVersion         the last processed catalog version number
 	 * @param catalogName            the name of the catalog, or null for system catalog
@@ -203,8 +205,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
-		this.bootstrapFileTrimmer = null;
-		this.onWalPurgeCallback = null;
+		this.historyHorizonAdvancer = null;
 	}
 
 	@Override
@@ -292,15 +293,20 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	@Override
 	protected void updateFirstVersionKept(long firstVersionToBeKept) {
-		// clamp the version by the active-reader floor so that neither the bootstrap-record trimming nor the catalog
-		// data file purge ever removes data still needed by an active reader (time-travel invariant)
-		final long effectiveVersionToBeKept = this.onWalPurgeCallback.effectivePurgeVersion(firstVersionToBeKept);
-		// first trim the bootstrap record file
-		this.bootstrapFileTrimmer.accept(effectiveVersionToBeKept);
-		// call the listener to remove the obsolete files
-		if (effectiveVersionToBeKept > -1) {
-			this.onWalPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
+		if (this.historyHorizonAdvancer == null) {
+			// this WAL was opened through the internal-use constructor precisely because it is never wired into a
+			// live catalog - a file rotating out of it means it is being appended to like a live one, which is a
+			// misuse of that constructor. A no-op here would silently reintroduce the retention leak this seam
+			// exists to close, so it fails loudly instead.
+			throw new GenericEvitaInternalError(
+				"WAL file rotated out on a `" + CatalogWriteAheadLog.class.getSimpleName() + "` opened without a " +
+					"history horizon advancer - this constructor variant must never be used for a WAL that appends " +
+					"and rotates."
+			);
 		}
+		// WAL retention is only one of the floors the history horizon obeys - the seam clamps the request by the
+		// active-reader floor, trims the bootstrap file and reclaims the unreachable data files in one serialized step
+		this.historyHorizonAdvancer.accept(firstVersionToBeKept);
 	}
 
 	@Override

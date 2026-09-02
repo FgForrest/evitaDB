@@ -29,14 +29,19 @@ convention IDEs recognise automatically.
 
 ## Tag taxonomy
 
-Every test in `evita_functional_tests` and `evita_long_running_tests` must be categorised on two
-orthogonal axes using JUnit 5 `@Tag`s drawn from `io.evitadb.test.TestTags`:
+Every test in `evita_functional_tests`, `evita_long_running_tests` and `evita_documentation_tests`
+must be categorised on two orthogonal axes using JUnit 5 `@Tag`s drawn from
+`io.evitadb.test.TestTags`:
 
 - **Layer axis (≥1 required)** — *where* in the stack the test exercises: e.g. `CONTRACT`, `ENGINE`,
   `INDEXING`, `STORAGE`, `DRIVER`, `SERVER`, `EXTERNAL_API`, `REST`, `GRAPHQL`, `GRPC`, `LAB`, …
 - **Capability axis (≥1 required)** — *what* behaviour is tested: e.g. `QUERY`, `FILTER`, `ORDER`,
   `FACET`, `HIERARCHY`, `PRICE`, `SCHEMA`, `TRANSACTION`, `SERIALIZATION`, `SESSION`, …
 - **Cost axis (optional, mutually exclusive)** — `SLOW`, `FLAKY`. Untagged-for-cost tests are fast.
+
+`INDEXING` and `TEST_HARNESS` sit on *both* required axes, so either one satisfies the policy alone.
+`TEST_HARNESS` is the home for tests of the test infrastructure itself — the tag-policy gate, the
+dataset-provisioning extensions, the generators — which exercise no database capability at all.
 
 `TestTags` is the single authoritative catalogue — consult it for the complete list and the per-tag
 JavaDoc rather than relying on this excerpt. Tags are referenced via static import:
@@ -50,11 +55,16 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 class NumberUtilsTest { /* ... */ }
 ```
 
-The policy is enforced by `TestTagPolicyListener` (auto-registered through the JUnit `ServiceLoader`
+The policy is enforced by `TestTagPolicyFilter` (auto-registered through the JUnit `ServiceLoader`
 in `evita_test_support`) in **strict mode by default**: a test method missing a layer or a capability
-tag fails the build *before any test executes*. Downgrade with `-Dtest.tag.policy=warn` (log only) or
-`-Dtest.tag.policy=off` (silence) for ad-hoc local iteration on freshly-stubbed classes. Tags may be
-applied at class level (inherited by every method) or per method.
+tag aborts discovery, so the build fails *before any test executes*. Downgrade with
+`-Dtest.tag.policy=warn` (log only) or `-Dtest.tag.policy=off` (silence) for ad-hoc local iteration
+on freshly-stubbed classes. Tags may be applied at class level (inherited by every method) or per
+method.
+
+The gate is a `PostDiscoveryFilter` rather than a `TestExecutionListener` because the platform
+swallows anything a listener throws — see
+`documentation/adr/2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md` before reworking it.
 
 **Picking tags** — map the changed source path to its axes. A change under
 `evita_engine/src/main/java/io/evitadb/index/facet/` calls for `@Tag(INDEXING) @Tag(FACET)`; a REST

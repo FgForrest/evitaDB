@@ -23,6 +23,8 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -52,8 +54,18 @@ import java.util.function.Function;
 
 /**
  * Reduced entity index is a "helper" index that maintains primarily bitmaps of primary keys that are connected to
- * a limited scope view of the data. All memory expensive objects are referred and maintained in {@link GlobalEntityIndex}
- * so that it's ensured they exist solely on the heap.
+ * a limited scope view of the data.
+ *
+ * **Sharing with {@link GlobalEntityIndex} is limited to prices.** A reduced index's price sub-index
+ * ({@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex}) refers to the immutable
+ * {@link io.evitadb.index.price.model.priceRecord.PriceRecordContract} instances owned by the global super index and
+ * persists ids only, re-attaching them on load. Nothing else is shared: every reduced index owns its own
+ * {@link io.evitadb.index.attribute.AttributeIndex}, hence its own value trees, so the attribute values fanned out
+ * into it (every filterable and sortable entity-level attribute, for a reference marked
+ * `FOR_FILTERING_AND_PARTITIONING`) are replicated per index, on heap and on disk alike. On a catalog with many
+ * distinct referenced entities that replication is the single largest known value duplication in the engine —
+ * deduplicating it is its own line of work, whose prerequisite is the stable value id introduced on the global shared
+ * value tree (see `documentation/adr/2026-08-24-fulltext-search-lucene-vs-inhouse`).
  *
  * Reduced indexes are used for handling queries that target {@link ReferenceContract}
  * of the entities. In such case we may prefer using data from reduced entity index because it may substantially limit
@@ -78,7 +90,24 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReducedEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
@@ -100,6 +129,8 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	 * @param priceIndex          the price reference index
 	 * @param hierarchyIndex      the hierarchy index
 	 * @param facetIndex          the facet index
+	 * @param activity            the activity holder to keep counting into — the copied index's own instance on the
+	 *                            commit-time merge copy, a fresh one when loading from disk; see {@link IndexActivity}
 	 */
 	public ReducedEntityIndex(
 		int primaryKey,
@@ -110,12 +141,13 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, activity
 		);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
@@ -170,7 +202,10 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
-				facet.facetIndex()
+				facet.facetIndex(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 
@@ -189,7 +224,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			(ReferenceAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(getPriceIndex()),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 
@@ -330,6 +367,16 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return getReducedBaseHeapSizeInBytes(0L);
 	}
 
 	@Override

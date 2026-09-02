@@ -163,13 +163,60 @@ Data records contain the actual data payload for each record type and are used t
 
 The write-ahead log is a separate data structure to which all transactional changes are written in the form of serialized "mutations" when a transaction commit is accepted. Individual mutations are written using the <a href="#record-structure-in-the-storage">standard structure</a>, one after the other, in the order they were performed in the transaction. Transactions are separated by a header that contains the overall transaction length in bytes (`int32`). Also, at the start of each transaction, a <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> record is written, containing basic information about the transaction itself for easier orientation. After this, the list of individual mutations follows. The transaction length header allows fast navigation between transactions in the WAL file without deserializing each mutation.
 
-Each transaction in the WAL is followed by a cumulative CRC32C checksum (8 bytes as `int64`). This checksum is calculated over all bytes written to the WAL file from the beginning up to (but not including) the checksum itself. This includes the transaction length headers, TransactionMutation records, and all mutation payloads. The cumulative nature of this checksum means that any corruption in any part of the WAL file will be detected when reading subsequent transactions. If a checksum mismatch is detected during WAL reading, the database will truncate the WAL at the point of corruption and recover using only the valid preceding transactions.
+Each transaction in the WAL is followed by a cumulative CRC32C checksum (8 bytes as `int64`). This checksum is calculated over all bytes written to the WAL file from the beginning up to (but not including) the checksum itself. This includes the transaction length headers, TransactionMutation records, and all mutation payloads. If a checksum mismatch is detected during WAL reading, the database will truncate the WAL at the point of corruption and recover using only the valid preceding transactions.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What the cumulative checksum does and does not detect
+
+</NoteTitle>
+
+The name *cumulative* makes it sound as though each checksum vouches for the whole file up to that point. In practice each one vouches for its own transaction. The distinction matters if you are reasoning about what the WAL protects you from, so it is worth a paragraph.
+
+The checksum after a transaction is calculated from every byte before it, and those bytes include the checksums of the earlier transactions. That last part is the catch. CRC checksums have a well-known property: if you feed some data into the calculation and then feed in that data's own checksum, you always land on the same fixed number, whatever the data was. It is the trick network protocols use to check a packet in a single pass. Here it means the calculation effectively starts fresh at every checksum, so each one ends up describing only the transaction it follows.
+
+That still leaves your data covered, just by two mechanisms rather than one:
+
+- **A half-written or damaged transaction is caught by the checksum.** This is the failure that actually happens — the server loses power in the middle of a commit, or a disk hands back bad bytes. The damaged transaction fails its check and everything written before it stays valid. It is also why turning `computeCRC32C` off makes writes slower: without the checksum to spot the damage, evitaDB has to prevent it instead, by flushing every write to the device in order (see the <a href="/documentation/operate/configure?lang=evitaql#storage-configuration" target="_blank">storage configuration</a>).
+- **Transactions that are shuffled, repeated or missing are caught by the catalog version.** Every transaction is stamped with the catalog version it produces, and those numbers increase by exactly one. When evitaDB replays the log it insists on seeing them in that order with none skipped, so a log whose transactions have been reordered, duplicated, or copied in from elsewhere is rejected before any of it is applied.
+
+Neither mechanism is intended to protect against someone deliberately editing the WAL, and a cleverer checksum would not change that — anyone who can alter the data can recalculate the checksums to match. Checksums catch accidents, not sabotage.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What happens when a bit flips on disk
+
+</NoteTitle>
+
+Storage hardware occasionally returns something other than what was written to it — a bit flipped by a failing cell, a controller firmware bug, a cable glitch. No database can stop that from happening. What evitaDB guarantees is that it will not *silently replay* the result: corrupted transactions are recognised as corrupted rather than applied as if they were genuine changes to your data.
+
+A flipped bit anywhere inside a transaction changes the bytes the checksum was calculated from, so the value on disk no longer matches what gets recalculated on the way in. That holds wherever the flip lands — in a mutation payload, in the record headers, in the transaction length prefix, or even inside the stored checksum itself. Any of them produce a mismatch.
+
+CRC32C is chosen for this because its detection guarantees are precise rather than probabilistic in the cases that matter most:
+
+- a single flipped bit is **always** detected;
+- a run of consecutive damaged bits up to 32 bits long — the typical shape of a hardware read error — is **always** detected;
+- for wider or more scattered damage, the chance of corruption slipping through is about one in four billion.
+
+A transaction also passes a second, independent check. Every record inside it carries its own CRC32C as part of the <a href="#record-structure-in-the-storage">standard record structure</a>, verified when the record is deserialized during replay. Damage therefore has to defeat two separate checksums to reach your data.
+
+When a mismatch is found, evitaDB trims the WAL back to the last transaction that verified and keeps the original file as `_damaged_wal.bck`, so the untrimmed bytes remain available for inspection. Note that this drops the damaged transaction *and everything recorded after it* — the log is a sequence, and there is no way to safely apply later changes across a gap. Everything before the damaged transaction is kept and replayed as normal.
+
+One consequence worth planning around: **all of this depends on `computeCRC32C` being enabled** (it is by default). Switch it off and both layers of checking become no-ops that always answer "matches", so damaged data would be replayed as though it were real. The write-ordering mode that replaces it protects against a crash leaving a half-written transaction; it does nothing about a disk that hands back the wrong bytes. Leave checksums on unless you specifically want that write throughput and accept losing silent-corruption detection to get it.
+
+</Note>
 
 The write-ahead log has a maximum file size set by the <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileSizeBytes</a> setting. Once this limit is reached, the file is closed and a new one is created with the next index number in its name. The maximum number of WAL files is determined by <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileCountKept</a>. When this maximum is reached, the oldest file is removed. This mechanism ensures WAL files never grow excessively large and do not accumulate indefinitely on the disk.
 
-Each WAL file starts and ends with cumulative CRC32C checksum. Initial cumulative checksum refers to the end cumulative checksum of the previous WAL file (or zero if it’s the first file). This allows for continuous verification of the entire WAL sequence across multiple files.
+Each WAL file starts and ends with a cumulative CRC32C checksum. The one at the start is a copy of the closing checksum of the previous WAL file (or zero for the very first file), so each file records which one it followed. As the note above explains, it is the catalog versions rather than this value that actually verify that order when the database starts.
 
-At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by a third `int64` value containing the final cumulative CRC32C checksum of the entire WAL file content. This allows quick navigation among WAL files if you need to locate a particular transaction that made changes to the catalog matching a specific version and also verification that the file content is intact.
+At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by a third `int64` value containing the final cumulative CRC32C checksum, calculated over everything before it including those two versions. The version pair is what lets evitaDB go straight to the right file when it needs the transaction that moved the catalog to a particular version, instead of opening them all.
 
 #### WAL Transaction Format
 
@@ -195,7 +242,7 @@ Each transaction in the WAL file has the following structure:
 | Mutation payloads     | record[]  | variable        |
 | Cumulative CRC32C     | int64     | 8B              |
 
-The cumulative CRC32C is computed incrementally as bytes are written to the WAL file. When reading transactions, this checksum is verified to ensure data integrity. If verification fails, a `WriteAheadLogCorruptedException` (for catalog WAL) or `EngineMutationLogCorruptedException` (for engine WAL) is thrown, and the WAL is truncated to the last valid transaction.
+The cumulative CRC32C is computed as the bytes are written to the WAL file, and checked again when transactions are read back. A transaction that fails the check on startup does not stop the database. evitaDB trims the WAL back to the last transaction that verified, keeps the untrimmed file next to it as `_damaged_wal.bck` so nothing disappears silently, and logs a warning. Recovering as far as the data is sound is deliberate — the alternative would be a database that refuses to start because its last commit was interrupted. A `WriteAheadLogCorruptedException` (for catalog WAL) or `EngineMutationLogCorruptedException` (for engine WAL) is raised only for damage that cannot be handled this way, such as a WAL file that is missing altogether or too short to make sense of.
 
 If the end of a WAL file contains a partially written record or transaction (i.e., its size does not match the size specified in the transaction header or in a transaction mutation), the WAL file is truncated to the last valid WAL entry upon database startup.
 
@@ -224,6 +271,19 @@ The original data file is either removed, or—if <a href="#time-travel">time tr
 Because data is stored in an append-only manner, it is possible to access data that has been changed or even removed in the current version, as long as the original data file still exists. The entire principle of time travel is based on locating the corresponding record in the bootstrap file, reading the appropriate offset index in the relevant data file (whether actively used or left on disk after <a href="#cleaning-up-the-clutter">compaction</a>), finding the relevant entry in the offset index, and finally reading the data record from the data file.
 
 This process is not heavily optimized for speed—rather, it simply takes advantage of the append-only nature of the data for historical record lookup (this feature alone does not make evitaDB a fully temporal database specialized in time-based queries). However, it does allow you to retroactively track the history of a record (or set of records), and also enables you to perform point-in-time backups of the database.
+
+#### How far back you can travel
+
+A bootstrap record can only be read when *all three* of these hold: the record is still present in the bootstrap file, the catalog data file it points at is still on disk, and every entity collection alive at that version still has its collection data file on disk. Call that tuple a **generation**—it, and not the individual bootstrap record, is what retention actually keeps or gives up, because consecutive records routinely share one generation.
+
+Every file index a record pins only ever increases, so history has exactly one *horizon*: deleting the lowest-index file of any component kills a prefix of the records, and what remains reachable is always a suffix. Per-collection compaction happening at different moments therefore never leaves a ragged frontier—it only means that moving the horizon frees a different amount per component, sometimes nothing at all.
+
+Two independent bounds move that horizon, and the higher one wins:
+
+- **Write-ahead log retention** (`transaction.walFileSizeBytes` × `transaction.walFileCountKept`) bounds how far the mutation history reaches.
+- **[`storage.timeTravelSizeLimitBytes`](../operate/configure.md#storage-configuration)** bounds how much disk the retained generations may occupy on top of the active data set. Without it, retention was bounded only by the write-ahead log—which bounds WAL bytes, not disk bytes, and let historical data files grow without limit.
+
+Neither can pull data out from under a session that is still reading it: both are clamped by the oldest catalog version an open session or writer still references.
 
 ### Backup and Restore
 

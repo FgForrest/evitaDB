@@ -137,10 +137,14 @@ Connection settings are configured via
         the client sends a PING; if the peer does not acknowledge it within the same interval, the connection is
         closed. The interval is therefore the *stall budget* — it must comfortably exceed the worst tolerable
         GC / CPU-starvation pause, not act as a probe frequency, otherwise a slow-but-alive call may be killed
-        mid-flight. Set `0` to disable the client ping entirely (the connection is then reaped by
-        `idleTimeoutMillis` alone); any other value must be at least `1000` ms. The ping must stay strictly below
-        `idleTimeoutMillis`, otherwise the underlying HTTP client silently disables it — the default pair
-        (`30000` ping, `300000` idle) satisfies this, and the client logs a warning if a custom pair does not.</p>
+        mid-flight; this is why the interval is 30 s rather than a much shorter probe frequency. Set `0` to disable
+        the client ping entirely (the connection is then reaped by `idleTimeoutMillis` alone); any other value must
+        be at least `1000` ms. The ping must also stay strictly below `idleTimeoutMillis`, otherwise the underlying
+        HTTP client silently disables it — the default pair (`30000` ping, `300000` idle) satisfies this, and the
+        client logs a warning if a custom pair does not. Separately, it must stay below the *server's* own
+        `idleTimeoutInMillis` (see [API configuration](../../operate/configure.md#api-configuration), default 60 s)
+        or the server reaps the connection before a scheduled ping ever gets a chance to run — the server's default
+        is chosen with exactly this 30 s client default in mind.</p>
     </dd>
     <dt>idleTimeoutMillis</dt>
     <dd>
@@ -255,7 +259,7 @@ Timeout settings are configured via
     </dd>
     <dt>streamingTimeout</dt>
     <dd>
-        <p>**Default: `3600`**</p>
+        <p>**Default: `300`**</p>
         <p>Number of `streamingTimeoutUnit` time units the client should wait for server to send next streamed message
         before it cancels the stream.</p>
     </dd>
@@ -301,7 +305,12 @@ The following options are configured directly on
     <dt>retry</dt>
     <dd>
         <p>**Default: `false`**</p>
-        <p>Whether the client will retry the call in case of timeout or other network related problems.</p>
+        <p>Whether the broader, potentially-duplicating retry rule set is active: timeouts, `503`/`504`/`UNKNOWN`
+        statuses, and `429` back-off. These can match a request the server already processed (e.g. a mutation
+        whose response was lost to a transport abort), so they stay opt-in. Independently of this flag, a request
+        Armeria can prove never reached the server (a refused connection, or a GOAWAY received before the request's
+        stream was accepted) is always retried automatically with backoff, bounded by the per-call timeout, since
+        replaying it can never duplicate an already-applied mutation.</p>
     </dd>
     <dt>trackedTaskLimit</dt>
     <dd>

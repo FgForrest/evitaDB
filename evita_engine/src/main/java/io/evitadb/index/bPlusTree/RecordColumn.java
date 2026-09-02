@@ -165,4 +165,17 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	 */
 	void fillEmpty(int fromInclusive, int toExclusive);
 
+	/**
+	 * Returns the heap this column occupies in bytes.
+	 *
+	 * The backing array is measured at its *allocated* length rather than the live record count - a record column is
+	 * allocated at the leaf block size and the slots past the live tail are paid for regardless.
+	 *
+	 * Unlike {@link ValueColumn}, this family needs no element sizer: records are primitive ids stored as values
+	 * inside the array, so a record column can never point at an object owned by somebody else.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
 }

@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;

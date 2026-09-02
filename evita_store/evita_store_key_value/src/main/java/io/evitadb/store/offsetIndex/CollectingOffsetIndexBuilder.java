@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex;
 
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -39,25 +40,51 @@ import java.util.concurrent.ConcurrentHashMap;
 @Getter
 class CollectingOffsetIndexBuilder implements OffsetIndexBuilder {
 	private final ConcurrentHashMap<RecordKey, FileLocation> builtIndex = CollectionUtils.createConcurrentHashMap(OffsetIndex.KEY_HASH_MAP_INITIAL_SIZE);
-	private final ConcurrentHashMap<Byte, Integer> histogram = CollectionUtils.createConcurrentHashMap(OffsetIndex.HISTOGRAM_INITIAL_CAPACITY);
+	private final ConcurrentHashMap<Byte, RecordTypeUsage> histogram = CollectionUtils.createConcurrentHashMap(
+		OffsetIndex.HISTOGRAM_INITIAL_CAPACITY
+	);
 	private long totalSizeBytes;
 	private int maxSizeBytes;
 
 	@Override
 	public void register(@Nonnull RecordKey recordKey, @Nonnull FileLocation fileLocation) {
 		final FileLocation previousValue = this.builtIndex.put(recordKey, fileLocation);
+		// every branch below feeds the per-type byte accumulator with exactly the delta it feeds `totalSizeBytes`,
+		// including the count-neutral one - that is what makes `Σ histogram bytes == totalSizeBytes` true by
+		// construction rather than by coincidence
 		if (previousValue == null) {
-			this.histogram.merge(recordKey.recordType(), 1, Integer::sum);
+			addUsage(recordKey.recordType(), 1, fileLocation.recordLength());
 			this.totalSizeBytes += fileLocation.recordLength();
 		} else if (recordKey.recordType() < 0) {
-			this.histogram.merge(recordKey.recordType(), -1, Integer::sum);
+			addUsage(recordKey.recordType(), -1, -fileLocation.recordLength());
 			this.totalSizeBytes -= fileLocation.recordLength();
 		} else {
+			addUsage(recordKey.recordType(), 0, fileLocation.recordLength() - previousValue.recordLength());
 			this.totalSizeBytes += fileLocation.recordLength() - previousValue.recordLength();
 		}
 		if (this.maxSizeBytes < fileLocation.recordLength()) {
 			this.maxSizeBytes = fileLocation.recordLength();
 		}
+	}
+
+	/**
+	 * Folds a signed `(count, bytes)` delta into the histogram entry of `recordType`. Written as a get/put pair rather
+	 * than {@link ConcurrentHashMap#merge(Object, Object, java.util.function.BiFunction)} to keep the allocation
+	 * count per registered record at one: the builder is filled by the single deserializing thread, which is the same
+	 * assumption the plain `long` accumulators above already make.
+	 *
+	 * @param recordType  the record type whose usage to adjust
+	 * @param countDelta  how many records of that type were added (negative when removed)
+	 * @param bytesDelta  how many bytes those records added (negative when removed or replaced by a smaller record)
+	 */
+	private void addUsage(byte recordType, int countDelta, long bytesDelta) {
+		final RecordTypeUsage existing = this.histogram.get(recordType);
+		this.histogram.put(
+			recordType,
+			existing == null ?
+				new RecordTypeUsage(countDelta, bytesDelta) :
+				new RecordTypeUsage(existing.count() + countDelta, existing.totalBytes() + bytesDelta)
+		);
 	}
 
 	@Override

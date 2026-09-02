@@ -56,6 +56,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -654,6 +655,19 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the number of distinct values this index orders by - the public form of {@link #valueCount()}, read from
+	 * the value tree's cached bucket counter and therefore `O(1)`.
+	 *
+	 * Read against {@link #size()} it says how large the blocks of ties are: a sort index with few distinct values
+	 * imposes almost no ordering.
+	 *
+	 * @return number of distinct ordering values
+	 */
+	public int getDistinctValueCount() {
+		return valueCount();
+	}
+
+	/**
 	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
 	 *
 	 * A plain query opens no transaction at all (read-only sessions never do, and even a read-write session only binds
@@ -817,6 +831,74 @@ public abstract sealed class SortIndex
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes.
+	 *
+	 * Each variant adds its own value side — {@code OwnerSortIndex} the inverted index it owns, {@code SortIndexView}
+	 * only a slot, because the tree it points at belongs to the enclosing {@code AttributeIndex}. Everything the two
+	 * have in common is priced by {@link #getSharedHeapSizeInBytes}.
+	 *
+	 * Like every walk over a tree or an ordered array this is `O(records)` rather than `O(1)`, so it belongs to
+	 * the index detail call and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Prices everything both variants hold, given how many bytes of fields the concrete subclass adds.
+	 *
+	 * A subclass's fields live in the **same allocation** as the base's — one header, one round of padding — so the
+	 * subclass passes its field bytes in rather than sizing a second object and adding it, which would charge a
+	 * phantom header and round twice.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * - {@link #sortedRecords} and {@link #dirty} in full, and {@link #comparatorBase} with every
+	 *   {@link ComparatorSource} record in it. The descriptor array is handed **by reference** to the successor
+	 *   instance on every commit-merge, so it is shared with a version this one supersedes — charged in full on both
+	 *   sides, since the predecessor is garbage the moment the commit completes.
+	 * - {@link #sortIndexChanges} when present, which is whenever the catalog is in bulk-insert or read-only state.
+	 *   It prices only its own fields; the back-reference to this index is never followed.
+	 * - {@link #cachedAscendingArrays} when built, bitmap included — an independent `materialize()` produced it, so
+	 *   it shares nothing with the layer's own memos. Being lazily built it makes the figure **jump on the first
+	 *   sorted read**: an index that has never served a sort reports less than the identical index that has.
+	 * - {@link #normalizer} and {@link #comparator} contribute their **slot alone**, despite being built here rather
+	 *   than injected. They are fixed scaffolding chosen by the attribute schema — a wrapper around a natural-order
+	 *   or collating comparator, one per compound element — whose size is a few hundred bytes at most and does not
+	 *   grow with the indexed data. Pricing them exactly would mean a heap method on every comparator implementation
+	 *   in the codebase, and a collating one additionally drags the ~30 KB per-locale collation tables that belong to
+	 *   the JVM rather than to any index.
+	 * - {@link #referenceKey} and {@link #attributeIndexKey} contribute their slot: both are the enclosing index's,
+	 *   handed to every sub-index under it.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the heap footprint in bytes of everything both variants share, including alignment padding
+	 */
+	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer / comparator / referenceKey
+		// / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
+		long size = layout.sizeOfObject(
+			Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
+		)
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.sortedRecords.getHeapSizeInBytes()
+			// every ComparatorSource component addresses a Class or an enum constant, both JVM-owned - the records
+			// themselves are this index's, their contents are nobody's
+			+ layout.sizeOfArray(this.comparatorBase.length, layout.referenceSize())
+			+ this.comparatorBase.length * layout.sizeOfObject(3L * layout.referenceSize());
+		if (this.sortIndexChanges != null) {
+			size += this.sortIndexChanges.getHeapSizeInBytes();
+		}
+		// read the volatile field ONCE: a concurrent reader can publish or drop the cache between two reads
+		final SortIndexChanges.MaterializedSortRecords ascending = this.cachedAscendingArrays;
+		if (ascending != null) {
+			size += SortIndexChanges.sizeOfMaterializedSortRecords(ascending, true);
+		}
+		return size;
 	}
 
 	/**
@@ -1370,17 +1452,60 @@ public abstract sealed class SortIndex
 		}
 
 		/**
-		 * {@link ComparableArray} carries no ordering of its own: it is always ordered through the owning
-		 * {@link SortIndex}'s configured {@link ComparableArrayComparator} (per-element comparators with direction and
-		 * NULL handling). This method exists only to satisfy the {@link Comparable} key bound of the owner value tree,
-		 * which never invokes it because a comparator is always supplied, so a direct call is a programming error and
-		 * fails fast.
+		 * {@link ComparableArray} carries no *domain* ordering of its own: the owning {@link SortIndex} always orders
+		 * it through the configured {@link ComparableArrayComparator} (per-element comparators honouring direction and
+		 * NULL handling), which the index constructor wires unconditionally. This method deliberately does NOT
+		 * reproduce that ordering — it supplies only the element-wise natural order the {@link Comparable} contract
+		 * requires, and callers that need the index's ordering must keep using the comparator.
+		 *
+		 * It must never *refuse* to answer. {@link java.util.HashMap} promotes a bin holding at least eight entries
+		 * into a red-black tree and then navigates it by the key's natural order on every hash tie — it accepts
+		 * any class declaring `Comparable` of itself, which this record does. A `ComparableArray` used as an ordinary
+		 * map key (the sparse `value → cardinality` map of a sort index storage part, for one) therefore reaches this
+		 * method from inside the JDK, with no comparator in sight; refusing to answer there turns a plain lookup — or
+		 * even the `put` that triggers the promotion — into a hard failure, and only on datasets large enough to
+		 * treeify a bin.
+		 *
+		 * The one case that still propagates is a {@link ClassCastException} from comparing two elements of different
+		 * types at the same position. That is deliberate and must not be swallowed: within a single compound every
+		 * value shares the element types declared by its {@link ComparatorSource} array — the write path enforces it
+		 * through the validating constructor — so mixed types mean corrupted data or a schema whose compound element
+		 * types changed without a reindex. Masking it with a fallback tie-break would trade a loud failure for a
+		 * silently wrong order. Note this differs from the refusal above: the refusal fired on perfectly valid data,
+		 * whereas this fires only on data that is genuinely broken. Arrays of *differing length* are not affected —
+		 * they never reach an element comparison past their shared prefix.
+		 *
+		 * Ordering is element-wise with `null` first, falling back to array length. That is a total order across the
+		 * values of any single compound, because they all share the element types declared by the comparator base. It
+		 * is intentionally NOT consistent with {@link #equals(Object)} for element types whose own `compareTo`
+		 * disagrees with `equals` ({@link java.math.BigDecimal} scale, for one); {@link java.util.HashMap} tolerates
+		 * that, resolving identity through `equals` and ties through its own fallback ordering.
 		 */
 		@Override
 		public int compareTo(@Nonnull ComparableArray o) {
-			throw new GenericEvitaInternalError(
-				"ComparableArray must be ordered through the SortIndex comparator, never its natural order!"
-			);
+			final Serializable[] left = this.array;
+			final Serializable[] right = o.array;
+			final int sharedLength = Math.min(left.length, right.length);
+			for (int i = 0; i < sharedLength; i++) {
+				final Serializable leftValue = left[i];
+				final Serializable rightValue = right[i];
+				if (leftValue == null || rightValue == null) {
+					// nulls sort first; two nulls are equal on this element and the comparison moves on
+					if (leftValue != null) {
+						return 1;
+					}
+					if (rightValue != null) {
+						return -1;
+					}
+					continue;
+				}
+				//noinspection unchecked,rawtypes
+				final int result = ((Comparable) leftValue).compareTo(rightValue);
+				if (result != 0) {
+					return result;
+				}
+			}
+			return Integer.compare(left.length, right.length);
 		}
 
 	}

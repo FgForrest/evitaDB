@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Extends the senesi stale-leaf-page-twin reproduction (`documentation/adr/2026-07-18-paged-index-corruption-and-flush-failure-boundary/`) to the
+ * Extends the production-catalog stale-leaf-page-twin reproduction (`documentation/adr/2026-07-18-paged-index-corruption-and-flush-failure-boundary/`) to the
  * {@link OwnerUniqueIndex} paged restore path. The value → owning-record-id map is a UNIQUE bucket tree persisted per
  * leaf page; a frozen stale leaf referenced alongside the page that superseded it (the twin) duplicates a value run in a
  * UNIQUE tree and misroutes equality probes once the twins diverge. Its {@code assembleFromSingleLeafTrees} spine

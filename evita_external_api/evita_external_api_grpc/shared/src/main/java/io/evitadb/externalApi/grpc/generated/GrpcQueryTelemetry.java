@@ -231,7 +231,7 @@ private static final long serialVersionUID = 0L;
   private long spentTime_ = 0L;
   /**
    * <pre>
-   * Duration in nanoseconds.
+   * Duration in nanoseconds, covering this step and everything nested below it.
    * </pre>
    *
    * <code>int64 spentTime = 5;</code>
@@ -283,6 +283,118 @@ private static final long serialVersionUID = 0L;
     return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
   }
 
+  public static final int SELFTIME_FIELD_NUMBER = 7;
+  private long selfTime_ = 0L;
+  /**
+   * <pre>
+   * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+   * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+   * much of a phase is the phase itself rather than the phases inside it.
+   *
+   * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+   * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+   * that clients which consume the wire format directly do not each have to sum the children themselves.
+   * </pre>
+   *
+   * <code>int64 selfTime = 7;</code>
+   * @return The selfTime.
+   */
+  @java.lang.Override
+  public long getSelfTime() {
+    return selfTime_;
+  }
+
+  public static final int METRICS_FIELD_NUMBER = 8;
+  private io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics_;
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return Whether the metrics field is set.
+   */
+  @java.lang.Override
+  public boolean hasMetrics() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return The metrics.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics() {
+    return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+  }
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder() {
+    return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+  }
+
+  public static final int PLAN_FIELD_NUMBER = 9;
+  private io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan_;
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return Whether the plan field is set.
+   */
+  @java.lang.Override
+  public boolean hasPlan() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return The plan.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan() {
+    return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+  }
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder() {
+    return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -314,6 +426,15 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(6, getStartedAt());
+    }
+    if (selfTime_ != 0L) {
+      output.writeInt64(7, selfTime_);
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(8, getMetrics());
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(9, getPlan());
     }
     getUnknownFields().writeTo(output);
   }
@@ -352,6 +473,18 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getStartedAt());
     }
+    if (selfTime_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(7, selfTime_);
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getMetrics());
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(9, getPlan());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -380,6 +513,18 @@ private static final long serialVersionUID = 0L;
     if (hasStartedAt()) {
       if (!getStartedAt()
           .equals(other.getStartedAt())) return false;
+    }
+    if (getSelfTime()
+        != other.getSelfTime()) return false;
+    if (hasMetrics() != other.hasMetrics()) return false;
+    if (hasMetrics()) {
+      if (!getMetrics()
+          .equals(other.getMetrics())) return false;
+    }
+    if (hasPlan() != other.hasPlan()) return false;
+    if (hasPlan()) {
+      if (!getPlan()
+          .equals(other.getPlan())) return false;
     }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
@@ -411,6 +556,17 @@ private static final long serialVersionUID = 0L;
     if (hasStartedAt()) {
       hash = (37 * hash) + STARTEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getStartedAt().hashCode();
+    }
+    hash = (37 * hash) + SELFTIME_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getSelfTime());
+    if (hasMetrics()) {
+      hash = (37 * hash) + METRICS_FIELD_NUMBER;
+      hash = (53 * hash) + getMetrics().hashCode();
+    }
+    if (hasPlan()) {
+      hash = (37 * hash) + PLAN_FIELD_NUMBER;
+      hash = (53 * hash) + getPlan().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -548,6 +704,8 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getStepsFieldBuilder();
         getStartedAtFieldBuilder();
+        getMetricsFieldBuilder();
+        getPlanFieldBuilder();
       }
     }
     @java.lang.Override
@@ -570,6 +728,17 @@ private static final long serialVersionUID = 0L;
       if (startedAtBuilder_ != null) {
         startedAtBuilder_.dispose();
         startedAtBuilder_ = null;
+      }
+      selfTime_ = 0L;
+      metrics_ = null;
+      if (metricsBuilder_ != null) {
+        metricsBuilder_.dispose();
+        metricsBuilder_ = null;
+      }
+      plan_ = null;
+      if (planBuilder_ != null) {
+        planBuilder_.dispose();
+        planBuilder_ = null;
       }
       return this;
     }
@@ -636,6 +805,21 @@ private static final long serialVersionUID = 0L;
             ? startedAt_
             : startedAtBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.selfTime_ = selfTime_;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.metrics_ = metricsBuilder_ == null
+            ? metrics_
+            : metricsBuilder_.build();
+        to_bitField0_ |= 0x00000002;
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
+        result.plan_ = planBuilder_ == null
+            ? plan_
+            : planBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -732,6 +916,15 @@ private static final long serialVersionUID = 0L;
       if (other.hasStartedAt()) {
         mergeStartedAt(other.getStartedAt());
       }
+      if (other.getSelfTime() != 0L) {
+        setSelfTime(other.getSelfTime());
+      }
+      if (other.hasMetrics()) {
+        mergeMetrics(other.getMetrics());
+      }
+      if (other.hasPlan()) {
+        mergePlan(other.getPlan());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -799,6 +992,25 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000020;
               break;
             } // case 50
+            case 56: {
+              selfTime_ = input.readInt64();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 56
+            case 66: {
+              input.readMessage(
+                  getMetricsFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
+            case 74: {
+              input.readMessage(
+                  getPlanFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000100;
+              break;
+            } // case 74
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1398,7 +1610,7 @@ private static final long serialVersionUID = 0L;
     private long spentTime_ ;
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1410,7 +1622,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1426,7 +1638,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1603,6 +1815,427 @@ private static final long serialVersionUID = 0L;
         startedAt_ = null;
       }
       return startedAtBuilder_;
+    }
+
+    private long selfTime_ ;
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @return The selfTime.
+     */
+    @java.lang.Override
+    public long getSelfTime() {
+      return selfTime_;
+    }
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @param value The selfTime to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSelfTime(long value) {
+
+      selfTime_ = value;
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSelfTime() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      selfTime_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder> metricsBuilder_;
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     * @return Whether the metrics field is set.
+     */
+    public boolean hasMetrics() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     * @return The metrics.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics() {
+      if (metricsBuilder_ == null) {
+        return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+      } else {
+        return metricsBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder setMetrics(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics value) {
+      if (metricsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        metrics_ = value;
+      } else {
+        metricsBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder setMetrics(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder builderForValue) {
+      if (metricsBuilder_ == null) {
+        metrics_ = builderForValue.build();
+      } else {
+        metricsBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder mergeMetrics(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics value) {
+      if (metricsBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          metrics_ != null &&
+          metrics_ != io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance()) {
+          getMetricsBuilder().mergeFrom(value);
+        } else {
+          metrics_ = value;
+        }
+      } else {
+        metricsBuilder_.mergeFrom(value);
+      }
+      if (metrics_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder clearMetrics() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      metrics_ = null;
+      if (metricsBuilder_ != null) {
+        metricsBuilder_.dispose();
+        metricsBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder getMetricsBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getMetricsFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder() {
+      if (metricsBuilder_ != null) {
+        return metricsBuilder_.getMessageOrBuilder();
+      } else {
+        return metrics_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+      }
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder> 
+        getMetricsFieldBuilder() {
+      if (metricsBuilder_ == null) {
+        metricsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder>(
+                getMetrics(),
+                getParentForChildren(),
+                isClean());
+        metrics_ = null;
+      }
+      return metricsBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder> planBuilder_;
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     * @return Whether the plan field is set.
+     */
+    public boolean hasPlan() {
+      return ((bitField0_ & 0x00000100) != 0);
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     * @return The plan.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan() {
+      if (planBuilder_ == null) {
+        return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+      } else {
+        return planBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder setPlan(io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan value) {
+      if (planBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        plan_ = value;
+      } else {
+        planBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder setPlan(
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder builderForValue) {
+      if (planBuilder_ == null) {
+        plan_ = builderForValue.build();
+      } else {
+        planBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder mergePlan(io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan value) {
+      if (planBuilder_ == null) {
+        if (((bitField0_ & 0x00000100) != 0) &&
+          plan_ != null &&
+          plan_ != io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance()) {
+          getPlanBuilder().mergeFrom(value);
+        } else {
+          plan_ = value;
+        }
+      } else {
+        planBuilder_.mergeFrom(value);
+      }
+      if (plan_ != null) {
+        bitField0_ |= 0x00000100;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder clearPlan() {
+      bitField0_ = (bitField0_ & ~0x00000100);
+      plan_ = null;
+      if (planBuilder_ != null) {
+        planBuilder_.dispose();
+        planBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder getPlanBuilder() {
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return getPlanFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder() {
+      if (planBuilder_ != null) {
+        return planBuilder_.getMessageOrBuilder();
+      } else {
+        return plan_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+      }
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder> 
+        getPlanFieldBuilder() {
+      if (planBuilder_ == null) {
+        planBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder>(
+                getPlan(),
+                getParentForChildren(),
+                isClean());
+        plan_ = null;
+      }
+      return planBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

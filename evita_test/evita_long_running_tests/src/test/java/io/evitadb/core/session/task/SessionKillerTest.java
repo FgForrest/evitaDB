@@ -24,7 +24,6 @@
 package io.evitadb.core.session.task;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;

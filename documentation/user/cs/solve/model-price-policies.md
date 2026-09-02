@@ -1,11 +1,11 @@
 ---
-title: Cenové politiky modelů
-perex: Cenové politiky v B2B prostředí jsou často složité a vyžadují velkou dávku kreativity pro jejich přesné modelování, přičemž je třeba zachovat efektivní a rychlé výpočty. Tento článek obsahuje různé přístupy, které jsme v minulosti použili a které by vám mohly být užitečné. Očekáváme, že se tento článek bude postupně rozšiřovat, jak budeme objevovat nové přístupy.
+title: Modelování cenových politik
+perex: Cenové politiky v B2B prostředí jsou často složité a vyžadují velkou dávku kreativity, aby byly přesně namodelovány a zároveň byly výpočty efektivní a rychlé. Tento článek obsahuje různé přístupy, které jsme v minulosti použili a které by vám mohly být užitečné. Očekává se, že tento článek bude postupně rozšiřován, jak budeme objevovat nové přístupy.
 date: '25.2.2023'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '734e5a570edecd6d7697813622fe09fc1de1cd83'
 ---
 ## Přirozené modelování
 

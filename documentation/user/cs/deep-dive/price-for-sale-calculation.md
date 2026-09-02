@@ -1,11 +1,11 @@
 ---
 title: Algoritmus výpočtu prodejní ceny
 date: '7.11.2023'
-perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny, včetně toho, jak zohledňuje faktory jako výběr měny, uplatnění slev a výběr ceníku na základě uživatelského kontextu. Projdeme si logiku pomocí ukázek kódu a reálných scénářů, abychom jasně vysvětlili, jak algoritmus funguje a umožňuje přesný výpočet prodejních cen v dynamickém prostředí e-commerce.
+perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny a zkoumá, jak zohledňuje faktory jako výběr měny, uplatnitelné slevy a výběr ceníku na základě uživatelského kontextu. Projdeme si logiku pomocí ukázek kódu a reálných scénářů, abychom poskytli jasné pochopení toho, jak algoritmus funguje a jak přesně vypočítává prodejní ceny v dynamickém prostředí e-commerce.
 author: Ing. Jan Novotný
 proofreading: needed
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '78fa5b536d1f3268373739452a5b5841134350f5'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>

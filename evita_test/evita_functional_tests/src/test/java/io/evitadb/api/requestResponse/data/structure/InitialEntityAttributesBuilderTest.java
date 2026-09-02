@@ -118,7 +118,7 @@ class InitialEntityAttributesBuilderTest
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"abc", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					Integer.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -129,7 +129,7 @@ class InitialEntityAttributesBuilderTest
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"def", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					IntegerNumberRange.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -140,7 +140,7 @@ class InitialEntityAttributesBuilderTest
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"dd", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					BigDecimal.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -151,7 +151,7 @@ class InitialEntityAttributesBuilderTest
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"greetings", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					true, false, false,
 					String.class, null,
 					ConflictResolutionOverride.INHERITED

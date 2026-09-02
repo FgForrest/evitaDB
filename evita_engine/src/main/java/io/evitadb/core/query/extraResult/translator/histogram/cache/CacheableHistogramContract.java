@@ -263,7 +263,8 @@ public interface CacheableHistogramContract extends Serializable {
 		 * (`occurrences` + object header contribution) and two {@link java.math.BigDecimal} references
 		 * (`threshold` + `relativeFrequency`). Used by {@link CacheableHistogramContract#estimateSize()}.
 		 */
-		public static final int BUCKET_MEMORY_SIZE = (MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_SIZE << 1);
+		public static final int BUCKET_MEMORY_SIZE =
+			(MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE << 1);
 		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull

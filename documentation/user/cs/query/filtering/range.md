@@ -1,12 +1,12 @@
 ---
 title: Filtrování podle rozsahu
 date: '17.1.2023'
-perex: Filtrování podle rozsahu se používá k filtrování entit podle hodnoty jejich atributů, které jsou typu rozsah. Umožňuje vám zúžit množinu entit na ty, jejichž atribut rozsahu zahrnuje hodnotu parametru. Pokud je hodnota parametru sama o sobě rozsahem, budou vybrány pouze ty entity, jejichž rozsahový atribut se překrývá s tímto rozsahem.
+perex: Filtrování podle rozsahu se používá k filtrování entit podle hodnoty jejich atributů, které jsou typu rozsah. Umožňuje zúžit množinu entit na ty, jejichž atribut rozsahu zahrnuje hodnotu parametru. Pokud je hodnota parametru sama o sobě rozsahem, budou vybrány pouze ty entity, jejichž rozsahový atribut se překrývá s tímto rozsahem.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 <Note type="info">
 V kontextu omezení popsaných v této kapitole by vás mohly zajímat obecná pravidla pro práci s datovými typy a poli, která jsou popsána v [základech dotazovacího jazyka](../basics.md#obecná-pravidla-dotazů).

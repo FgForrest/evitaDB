@@ -23,6 +23,8 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -62,6 +64,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -122,6 +125,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * for all locale variants of each histogram definition.
 	 */
 	@Nonnull private final TransactionalMap<String, HistogramIndex> histogramIndexes;
+	/**
+	 * The {@link HistogramIndexMapComponent} wrapper registered over {@link #histogramIndexes}, held here **only** so
+	 * {@link #getHeapSizeInBytes()} can ask it what it weighs - see the identically-named field of
+	 * {@link ReferencedTypeEntityIndex} for why this one component is priced through itself.
+	 *
+	 * Assigned by {@link #registerSubclassComponents()} rather than in a constructor, so it cannot be `final`.
+	 */
+	@Nonnull private HistogramIndexMapComponent histogramComponent;
 
 	/**
 	 * Creates a new empty reduced group entity index.
@@ -135,7 +146,24 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReducedGroupEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY,
 			() -> "ReducedGroupEntityIndex only supports REFERENCED_GROUP_ENTITY type, got: " +
@@ -174,6 +202,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param referencedPrimaryKeysIndex maps referenced entity PKs to bitmaps of entity PKs
 	 * @param cardinalityIndexes         cardinality tracking for filter attributes
 	 * @param histogramIndexes           histogram indexes by histogram name
+	 * @param activity                   the activity holder to keep counting into — the copied index's own instance on
+	 *                                   the commit-time merge copy, a fresh one when loading from disk; see
+	 *                                   {@link IndexActivity}
 	 */
 	public ReducedGroupEntityIndex(
 		int primaryKey,
@@ -188,12 +219,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Map<Integer, Integer> pkCardinalities,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull Map<String, HistogramIndex> histogramIndexes
+		@Nonnull Map<String, HistogramIndex> histogramIndexes,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
 		this.pkCardinalities = new PersistentTransactionalMap<>(pkCardinalities);
@@ -271,7 +303,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				groupCardinality.pkCardinalities(),
 				groupCardinality.referencedPrimaryKeysIndex(),
 				cardinalities.cardinalityIndexes(),
-				histograms.histogramIndexes()
+				histograms.histogramIndexes(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 
@@ -376,7 +411,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 */
 	private void registerSubclassComponents() {
 		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
-		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		this.histogramComponent = new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey);
+		addComponent(this.histogramComponent);
 		addComponent(
 			new GroupCardinalityComponent(
 				this.cardinalityDirty,
@@ -778,8 +814,47 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			transactionalLayer.getStateCopyWithCommittedChanges(this.pkCardinalities),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.referencedPrimaryKeysIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The cardinality maps are keyed by {@link AttributeIndexKey} instances this index mints itself — a separate
+	 * `computeIfAbsent` from the one the attribute index performs, so the two maps hold distinct objects and each
+	 * charges its own. The histogram map is keyed by the schema's histogram names and charges slots alone.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// the reference name, attribute name and locale of an attribute key all belong to the schema
+		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
+		// the cardinalityDirty / pkCardinalities / referencedPrimaryKeysIndex / cardinalityIndexes
+		// / histogramIndexes / histogramComponent slots
+		return getReducedBaseHeapSizeInBytes(6L * layout.referenceSize())
+			+ this.cardinalityDirty.getHeapSizeInBytes()
+			+ this.pkCardinalities.getHeapSizeInBytes(key -> boxedInteger, cardinality -> boxedInteger)
+			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
+				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
+			)
+			+ this.cardinalityIndexes.getHeapSizeInBytes(
+				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
+			)
+			+ this.histogramIndexes.getHeapSizeInBytes(
+				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
+			)
+			// two of the three components this class registers are pure adapters over fields charged above, so their
+			// shells are all they cost: a cardinality map component holding its map plus the index key, and a group
+			// cardinality one holding the dirty flag, both cardinality maps and the reference name
+			+ layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfObject(4L * layout.referenceSize())
+			// the histogram map component prices itself, because alongside its map and the index key it holds the
+			// on-disk leaf-page baseline of the last flush - see `ReferencedTypeEntityIndex` for the same charge
+			+ this.histogramComponent.getHeapSizeInBytes();
 	}
 
 	@Override

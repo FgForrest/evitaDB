@@ -45,7 +45,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Refer
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ConflictResolutionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
@@ -277,6 +276,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS,
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
@@ -414,6 +414,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(ModifyAttributeSchemaTypeMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveAttributeSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name()),

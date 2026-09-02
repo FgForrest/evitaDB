@@ -16,9 +16,9 @@ read-path regression.
 `SortIndex.createStoragePart` rewrites the **entire** part whenever the index is dirty
 (`SortIndex.java:630-647`). One add/remove → `dirty=true` → next flush materialises the whole
 `sortedRecords` array + whole value column into **one** `SortIndexStoragePart` → persistence writes it as
-a single record. At 10M records that is **~47 MB rewritten for a one-record change** (decodoma gate
+a single record. At 10M records that is **~47 MB rewritten for a one-record change** (re-measure gate
 extrapolation: Product byte-23 part max 89 KB @18.7K products ⇒ ~4.7 MB @1M, ~47 MB @10M;
-`partb-remeasure-gate-decodoma`). This is the **only** storage-side 10M problem. There is a *separate*
+`partb-remeasure-gate`). This is the **only** storage-side 10M problem. There is a *separate*
 heap problem (Section 4) that most options here deliberately do not touch.
 
 The fix is constrained by one structural fact (Section 5): the persisted form is **position-indexed**, so
@@ -276,7 +276,7 @@ At ~47 MB and 128 KiB pages ⇒ ~376 leaf pages; a value-region move rewrites ~2
   re-litigate dropping the materialised array.
 - `cumulative-weight-tree-and-ult-balancing` — the ULT is balanced with **zero order-key reassignment**;
   this is the property that makes order-key paging viable.
-- `partb-remeasure-gate-decodoma` — SortIndex is the **smallest** of four churn walls (~47 MB @10M,
+- `partb-remeasure-gate` — SortIndex is the **smallest** of four churn walls (~47 MB @10M,
   marginal @1M); PriceSuper / GlobalUnique / RefTypeCardinality are larger/live. Scope expectations
   accordingly.
 - `sortindex-bplustree-plan` — the value→cardinality consolidation + the read-perf fixes (leaf-array

@@ -25,6 +25,7 @@ package io.evitadb.utils;
 
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
@@ -79,15 +80,39 @@ public class ExceptionUtils {
 		@Nonnull Throwable throwable,
 		@Nonnull Class<? extends Throwable> exceptionType
 	) {
+		return findInCauseChain(throwable, exceptionType) != null;
+	}
+
+	/**
+	 * Returns the first throwable in the causal chain that matches the specified exception type - the
+	 * instance itself rather than a mere yes/no, so the caller can read state off it (a configured
+	 * limit, a status code, a file name) when building a diagnostic.
+	 *
+	 * Prefer this over an ad-hoc `while (current != null) current = current.getCause()` loop at the
+	 * call site: the traversal handles circular references, which a naive loop turns into an infinite
+	 * one. Guarding only against a self-referencing cause (`current.getCause() == current`) is *not*
+	 * enough - a two-element cycle `A -> B -> A` passes that check and spins forever.
+	 *
+	 * @param throwable the throwable to evaluate, must not be null
+	 * @param exceptionType the class of the exception type to look for, must not be null
+	 * @return the first matching throwable in the causal chain, or null when the chain holds none
+	 * @param <T> the exception type being looked for
+	 */
+	@Nullable
+	public static <T extends Throwable> T findInCauseChain(
+		@Nonnull Throwable throwable,
+		@Nonnull Class<T> exceptionType
+	) {
 		final Set<Throwable> visited = new HashSet<>();
 		Throwable current = throwable;
+		// `visited.add` returning false means the chain has looped back on itself - stop rather than spin
 		while (current != null && visited.add(current)) {
 			if (exceptionType.isInstance(current)) {
-				return true;
+				return exceptionType.cast(current);
 			}
 			current = current.getCause();
 		}
-		return false;
+		return null;
 	}
 
 	/**

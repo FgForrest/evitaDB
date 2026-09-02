@@ -1,10 +1,10 @@
 ---
 title: Transakce
-perex: Transakce jsou základní součástí databázového systému. Zajišťují, že databáze zůstává v konzistentním stavu i v případě selhání nebo souběžného přístupu více uživatelů. V tomto článku se budeme zabývat pojmem transakce, jejich vlastnostmi a tím, jak jsou implementovány v evitaDB.
+perex: Transakce jsou základní součástí databázového systému. Zajišťují, že databáze zůstane v konzistentním stavu i v případě selhání nebo souběžného přístupu více uživatelů. V tomto článku se budeme zabývat pojmem transakcí, jejich vlastnostmi a tím, jak jsou implementovány v evitaDB.
 date: '16.5.2025'
 author: Jan Novotný
 translated: 'true'
-commit: '06fcc4ec8b25e03267dabdb0a0ada99c3e20b05a'
+commit: '11b89d48b8aa32ddd9661347ff52948281048425'
 ---
 Čtenáři, kteří jsou obeznámeni s úrovněmi izolace databází, si možná vzpomenou, že evitaDB podporuje pouze [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation), takže mohou přeskočit tuto úvodní kapitolu, která popisuje kontext vztahující se k této úrovni izolace.
 

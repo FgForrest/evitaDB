@@ -458,6 +458,81 @@ class TransactionalLongBPlusTreeTest {
 			assertEquals("Value42", tree.search(42).orElse(null));
 		}
 
+		@Test
+		@DisplayName("the nullable search answers exactly what unwrapping the optional one would, for every key")
+		void shouldAnswerTheSameAsTheOptionalSearchForEveryKey() {
+			// `searchOrNull` exists only to save the Optional a hot caller unwraps immediately, so the property that
+			// matters is that it saves NOTHING ELSE. It is asserted key by key over a multi-level tree rather than on
+			// a single lookup, because the two forms share a descent whose leaf selection is where they could
+			// plausibly diverge.
+			final TransactionalLongBPlusTree<String> empty = new TransactionalLongBPlusTree<>(3, String.class);
+			assertNull(empty.searchOrNull(42), "an empty tree holds nothing, so there is nothing to answer with");
+
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final TransactionalLongBPlusTree<String> tree = testTree.bPlusTree();
+			assertTrue(testTree.totalElements() > 10, "the tree must be deep enough to carry internal nodes");
+			for (final long key : testTree.plainArray()) {
+				assertEquals("Value" + key, tree.searchOrNull(key));
+				assertEquals(tree.search(key).orElse(null), tree.searchOrNull(key));
+			}
+			assertNull(tree.searchOrNull(99999), "an absent key answers null rather than throwing");
+			assertEquals(tree.search(99999).orElse(null), tree.searchOrNull(99999));
+		}
+
+		@Test
+		@DisplayName("inside a transaction the nullable search reads the writer's own layer, not the published one")
+		void shouldReadTheTransactionalLayerFromTheNullableSearch() {
+			// The leaf picks its key/value/peek arrays off the transactional layer when one exists, and that selection
+			// is duplicated in the nullable lookup rather than shared with the optional one - so it is a branch of its
+			// own, and until now it was reached only through the trigram index's own tests.
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(10, "Value10");
+			tree.insert(20, "Value20");
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.insert(30, "Value30");
+					tested.insert(20, "Rewritten20");
+					tested.delete(10);
+					// the writer sees its own writes through the nullable form exactly as through the optional one
+					assertEquals("Value30", tested.searchOrNull(30));
+					assertEquals("Rewritten20", tested.searchOrNull(20));
+					assertNull(tested.searchOrNull(10));
+				},
+				(original, committed) -> {
+					assertEquals("Value30", committed.searchOrNull(30));
+					assertEquals("Rewritten20", committed.searchOrNull(20));
+					assertNull(committed.searchOrNull(10));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled-back transaction leaves the nullable search answering the published values")
+		void shouldForgetARolledBackWriteInTheNullableSearch() {
+			// the counterpart of the case above: the layer the nullable lookup selected must go with the transaction,
+			// or a discarded write would keep being answered
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(10, "Value10");
+			tree.insert(20, "Value20");
+
+			assertStateAfterRollback(
+				tree,
+				tested -> {
+					tested.insert(30, "Value30");
+					tested.delete(20);
+					assertEquals("Value30", tested.searchOrNull(30));
+					assertNull(tested.searchOrNull(20));
+				},
+				(original, committed) -> {
+					assertNull(original.searchOrNull(30), "the discarded insert must not survive the rollback");
+					assertEquals("Value20", original.searchOrNull(20));
+					assertEquals("Value10", original.searchOrNull(10));
+				}
+			);
+		}
+
 	}
 
 	@Nested
@@ -484,6 +559,30 @@ class TransactionalLongBPlusTreeTest {
 					verifyTreeConsistency(committed, expectedArray);
 				}
 			);
+		}
+
+		@Test
+		@DisplayName("refuses an updater that returns null instead of storing it")
+		void shouldRefuseAnUpdaterReturningNull() {
+			// A stored null would not surface as a failure anywhere: `search` and the leaf's `getValue` both answer
+			// `Optional.ofNullable`, so the key would read back as ABSENT while it demonstrably sits in a leaf. The
+			// updater's result is the only door a null can come through - `insert` takes a `@Nonnull V` - so both of
+			// upsert's branches refuse it, and the tree is left exactly as it was.
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(10, "Value10");
+			tree.insert(20, "Value20");
+
+			// the update branch: the key exists, so the updater is handed the value it would replace
+			assertThrows(GenericEvitaInternalError.class, () -> tree.upsert(20, existing -> null));
+			assertEquals("Value20", tree.search(20).orElse(null));
+
+			// the insert branch: the key is absent, so the updater is handed null and must not hand one back
+			assertThrows(GenericEvitaInternalError.class, () -> tree.upsert(30, existing -> null));
+			assertTrue(tree.search(30).isEmpty());
+			assertEquals(2, tree.size());
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
 		}
 
 		@Test
@@ -657,7 +756,7 @@ class TransactionalLongBPlusTreeTest {
 		 * @param blockSize the leaf and internal node block size for the tree
 		 * @param seed      the random seed for reproducibility
 		 */
-		private void exerciseTransactionalChurn(int blockSize, long seed) {
+		private static void exerciseTransactionalChurn(int blockSize, long seed) {
 			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(
 				blockSize, 1, blockSize, 1, String.class
 			);

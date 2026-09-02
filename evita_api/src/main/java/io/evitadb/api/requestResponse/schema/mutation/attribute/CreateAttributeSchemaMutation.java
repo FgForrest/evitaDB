@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
@@ -82,12 +83,18 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @EqualsAndHashCode(callSuper = true)
 public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutation
 	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -469815390440407269L;
+	@Serial private static final long serialVersionUID = -469815390440407268L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 	@Getter @Nonnull private final Scope[] filterableInScopes;
+	/**
+	 * Optional accelerations the filter index should maintain for the newly created attribute, per scope. Never `null`
+	 * after construction - the field is optional on the wire, and an older client that never sends it lands on the
+	 * empty array, i.e. plain filterability.
+	 */
+	@Getter @Nonnull private final ScopedAttributeFilterAccelerators[] acceleratorsInScopes;
 	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
@@ -160,9 +167,57 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, sortableInScopes,
+			uniqueInScopes, filterableInScopes, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * Creates a mutation that will set up a new attribute schema with the given properties, without any optional
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator filter accelerator}.
+	 *
+	 * This is the signature that was public before accelerators existed. It is kept as a delegating overload so that
+	 * an integration compiled against it keeps both source and binary compatibility - the accelerator argument the
+	 * canonical constructor gained is optional by design, and omitting it means "no acceleration", which is exactly
+	 * what every schema written before this feature meant.
+	 *
+	 * @param name                       unique name of the attribute
+	 * @param description                optional human-readable description of the attribute
+	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
+	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
+	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
+	 * @param localized                  whether the attribute values are locale-specific
+	 * @param nullable                   whether the attribute value can be null
+	 * @param representative             whether the attribute is representative for the entity
+	 * @param type                       the data type stored in this attribute (must be a supported evitaDB type or
+	 *                                   its array)
+	 * @param defaultValue               optional default value for the attribute
+	 * @param indexedDecimalPlaces       number of decimal places indexed for number-based attribute types
+	 * @param conflictResolutionOverride the per-item override of the conflict resolution granularity
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 */
+	public CreateAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride
+	) {
+		this(
+			name, description, deprecationNotice,
+			uniqueInScopes, filterableInScopes, null, sortableInScopes,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 
@@ -174,6 +229,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param deprecationNotice          optional deprecation notice if the attribute is deprecated
 	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
+	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null
@@ -186,7 +242,12 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 *                                   applied to this attribute (never `null`; use
 	 *                                   {@link ConflictResolutionOverride#INHERITED} to follow the
 	 *                                   resolved conflict resolution)
-	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes
+	 * @throws InvalidSchemaMutationException if the type is not allowed in attributes, if a carrier in
+	 *                                         {@code acceleratorsInScopes} names a scope outside
+	 *                                         {@code filterableInScopes} (see
+	 *                                         {@link #verifyAcceleratorScopesHaveFilterIndex}), or if a carried
+	 *                                         accelerator does not apply to {@code type} (see
+	 *                                         {@link #verifyAcceleratorsApplicableToType})
 	 */
 	@SerializableCreator
 	public CreateAttributeSchemaMutation(
@@ -195,6 +256,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nullable String deprecationNotice,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -215,6 +277,17 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)} :
 			uniqueInScopes;
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
+		this.acceleratorsInScopes = acceleratorsInScopes == null ?
+			ScopedAttributeFilterAccelerators.EMPTY : acceleratorsInScopes;
+		// a create mutation carries the attribute type and both filter-index declarations itself, so both accelerator
+		// checks can run right here rather than waiting for the schema - which is what closes the gap for a mutation
+		// assembled field by field over the wire, where no set-accelerated mutation follows to validate on its behalf
+		verifyAcceleratorScopesHaveFilterIndex(
+			this.name, scopesWithFilterIndex(this.filterableInScopes, this.uniqueInScopes), this.acceleratorsInScopes
+		);
+		verifyAcceleratorsApplicableToType(
+			this.name, type, AttributeSchema.toAcceleratorsEnumMap(this.acceleratorsInScopes)
+		);
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
@@ -292,6 +365,23 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
+							// the accelerator axis is its own difference: one carrier per scope declaring at least one,
+							// so that withdrawing the last accelerator of a scope still reads as a change
+							schema -> Arrays.stream(Scope.values())
+								.filter(scope -> !schema.getAcceleratorsInScope(scope).isEmpty())
+								.map(
+									scope -> new ScopedAttributeFilterAccelerators(
+										scope,
+										schema.getAcceleratorsInScope(scope)
+											.toArray(AttributeFilterAccelerator[]::new)
+									)
+								)
+								.toArray(ScopedAttributeFilterAccelerators[]::new),
+							newValue -> new SetAttributeSchemaAcceleratedMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingSchema,
 							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
 								// filter out default values
@@ -333,6 +423,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 						)
 					)
 					.filter(Objects::nonNull)
+					.map(LocalEntitySchemaMutation.class::cast)
 					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
@@ -347,7 +438,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name, this.description, this.deprecationNotice,
-				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
+				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
@@ -357,7 +448,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
 				this.name, this.description, this.deprecationNotice,
-				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
+				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
@@ -421,9 +512,14 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchemaContract, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		// the constructor already refused an accelerator on the wrong type or in a non-filterable scope, but only here
+		// does the mutation learn it is targeting a reference - the same mutation class serves both locations
+		verifyAcceleratorNotOnReferenceAttribute(
+			this.name, referenceSchema.getName(), entitySchemaContract.getName(), this.acceleratorsInScopes
+		);
 		@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema newAttributeSchema = AttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
-			this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
+			this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
@@ -505,6 +601,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
 			", unique=(" + join(this.uniqueInScopes) + ")" +
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
+			(this.acceleratorsInScopes.length == 0 ?
+				"" : ", accelerators=(" + join(this.acceleratorsInScopes) + ")") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +

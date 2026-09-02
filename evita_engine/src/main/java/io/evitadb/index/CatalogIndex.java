@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -45,17 +46,18 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
@@ -64,8 +66,12 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This class represents main data structure that keeps all information connected with shared catalog data, that could
- * be used for searching, sorting or another computational task upon these data. There is always only one catalog index
- * present anytime.
+ * be used for searching, sorting or another computational task upon these data.
+ *
+ * There is **one instance per {@link Scope}**, not one per catalog: the `LIVE` one exists for the whole life of the
+ * catalog, and the `ARCHIVED` one is created lazily the first time something globally unique is indexed in that scope
+ * - see `Catalog#getCatalogIndex(Scope)`. Anything counting or iterating catalog indexes must go over the scopes;
+ * treating "the catalog index" as a single object is how `Catalog#countIndexes` came to undercount.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -92,23 +98,66 @@ public class CatalogIndex implements
 	 * transaction is committed and anything in this index was changed).
 	 */
 	@Getter private final int version;
+	/**
+	 * Query / update counters and last-activity stamps of this index — see {@link IndexActivity}.
+	 *
+	 * Threaded **by reference** through the reconstruction constructor, so both the commit-time merge copy and
+	 * {@link #createShallowCopyWithResetDirtyFlag()} keep counting into the very same holder, while a reload from disk
+	 * starts a fresh one. It is the one piece of state here that is neither transactional nor persisted.
+	 *
+	 * **Null when `server.usageStatisticsTracking` is off** — see {@link Index#getActivity()} for why the absence must
+	 * be reported as *not measured* rather than as zero counts.
+	 */
+	@Nullable private final IndexActivity activity;
 
 	public CatalogIndex(@Nonnull Scope scope) {
+		this(scope, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a brand-new catalog index, stating whether it counts its own usage.
+	 *
+	 * @param scope                   the scope this index covers
+	 * @param usageStatisticsTracking whether to allocate an {@link IndexActivity} holder; false leaves it null for the
+	 *                                index's whole lifetime, because the decision is per server rather than per index
+	 */
+	public CatalogIndex(@Nonnull Scope scope, boolean usageStatisticsTracking) {
 		this.version = 1;
 		this.indexKey = new CatalogIndexKey(scope);
 		this.dirty = new TransactionalBoolean();
+		// a brand-new index has been neither queried nor updated yet - and is not counting at all when the server runs
+		// with usage statistics switched off
+		this.activity = usageStatisticsTracking ? new IndexActivity() : null;
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
+	/**
+	 * Reconstructs a catalog index from persisted or committed state.
+	 *
+	 * @param version     version this index carries forward
+	 * @param indexKey    the key identifying this index — a bare scope
+	 * @param uniqueIndex the global unique indexes this index holds
+	 * @param activity    the activity holder to keep counting into — the copied index's own instance on either copy
+	 *                    path, a fresh one when loading from disk; see {@link IndexActivity}. Null when the server does
+	 *                    not track usage statistics, which every copy path passes straight through
+	 */
 	public CatalogIndex(
 		int version,
 		@Nonnull CatalogIndexKey indexKey,
-		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex
+		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex,
+		@Nullable IndexActivity activity
 	) {
 		this.version = version;
 		this.indexKey = indexKey;
 		this.dirty = new TransactionalBoolean();
+		this.activity = activity;
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
+	}
+
+	@Nullable
+	@Override
+	public IndexActivity getActivity() {
+		return this.activity;
 	}
 
 	/**
@@ -131,19 +180,13 @@ public class CatalogIndex implements
 	 */
 	@Nonnull
 	public CatalogIndex createShallowCopyWithResetDirtyFlag() {
-		return new CatalogIndex(
-			this.version,
-			this.indexKey,
-			this.uniqueIndex
-				.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Entry::getKey,
-						Entry::getValue
-					)
-				)
-		);
+		// `forEach` into a pre-sized map, never `entrySet()`: asking a `HashMap` for a view parks it on the map for
+		// the lifetime of the index - see `documentation/developer/heap-size-testing.md`, trap 6
+		final Map<AttributeKey, GlobalUniqueIndex> copy = CollectionUtils.createHashMap(this.uniqueIndex.size());
+		copy.putAll(this.uniqueIndex);
+		// the activity holder travels by reference, exactly as on the transactional copy: going live and renaming a
+		// catalog both carry the same logical index forward, and neither is a catalog load
+		return new CatalogIndex(this.version, this.indexKey, copy, this.activity);
 	}
 
 	@Override
@@ -151,12 +194,48 @@ public class CatalogIndex implements
 		if (this.dirty.isTrue()) {
 			trappedChanges.addChangeToStore(createStoragePart());
 		}
-		for (Entry<AttributeKey, GlobalUniqueIndex> entry : this.uniqueIndex.entrySet()) {
+		// `forEach`, never `entrySet()`: a `HashMap` keeps the view it hands out, and this runs on the flush path -
+		// see `documentation/developer/heap-size-testing.md`, trap 6
+		this.uniqueIndex.forEach((attributeKey, uniqueIndex) ->
 			// granular flush: a PAGED index emits its changed leaf pages + freed-page removals + a paged root; a SINGLE
 			// index emits the inline root (and collapse removals if it just shrank from PAGED). See
 			// GlobalUniqueIndex#appendStorageParts.
-			entry.getValue().appendStorageParts(entry.getKey(), trappedChanges);
-		}
+			uniqueIndex.appendStorageParts(attributeKey, trappedChanges)
+		);
+	}
+
+	/**
+	 * Estimates the heap this catalog index occupies, in bytes.
+	 *
+	 * The index owns its key, its dirty latch and the map of {@link GlobalUniqueIndex} instances - each of which
+	 * prices itself. {@link #indexKey} is charged as the record object alone, because the {@link Scope} it holds is an
+	 * enum constant shared by the whole JVM; the map keys likewise, because an {@link AttributeKey}'s name comes from
+	 * the catalog schema and its locale is JVM-interned, so only the key record itself belongs to this index.
+	 *
+	 * Walking a global unique index's value tree is `O(values / blockSize)`, so this belongs to the index detail call
+	 * rather than to anything polled.
+	 *
+	 * {@link #activity} is charged in full even though it is shared with the superseded versions of this same logical
+	 * index - only one version is ever walked, and the predecessor is garbage-in-waiting, so reporting the five longs
+	 * as shared would show them belonging to nobody (accounting rule 2). A server that does not track usage statistics
+	 * holds no such object and is charged nothing for it.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id and version, then the indexKey / dirty / uniqueIndex / activity slots
+		final long attributeKey = layout.sizeOfObject(2L * layout.referenceSize());
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 4L * layout.referenceSize())
+			// the key record holds a single reference, to a JVM-shared enum constant
+			+ layout.sizeOfObject(layout.referenceSize())
+			// the activity holder: five longs and nothing else, since its CAS updaters are static - and nothing at all
+			// when usage statistics are not tracked, because then there is no holder to charge for
+			+ (this.activity == null ? 0L : layout.sizeOfObject(5L * Long.BYTES))
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.uniqueIndex.getHeapSizeInBytes(
+				key -> attributeKey, GlobalUniqueIndex::getHeapSizeInBytes
+			);
 	}
 
 	/**
@@ -233,6 +312,25 @@ public class CatalogIndex implements
 	}
 
 	/**
+	 * Returns every {@link GlobalUniqueIndex} this catalog index holds, keyed by the attribute - and, for an attribute
+	 * that is unique globally only within a locale, the locale - it covers.
+	 *
+	 * Unlike {@link #getGlobalUniqueIndex(GlobalAttributeSchemaContract, Locale)} this needs no schema to address an
+	 * index, which is what lets a caller enumerate the indexes rather than ask for one it already knows about. The
+	 * locale-scoped indexes cannot be reached any other way without knowing the catalog's locale set, which lives in
+	 * the data rather than in the schema.
+	 *
+	 * The returned map is an unmodifiable view over the live map, not a copy: its size is bounded by
+	 * (globally-unique attributes × locales) and therefore by the schema, never by the catalog's data volume.
+	 *
+	 * @return unmodifiable view of the global unique indexes
+	 */
+	@Nonnull
+	public Map<AttributeKey, GlobalUniqueIndex> getGlobalUniqueIndexes() {
+		return Collections.unmodifiableMap(this.uniqueIndex);
+	}
+
+	/**
 	 * Returns true if index contains no data whatsoever.
 	 */
 	public boolean isEmpty() {
@@ -264,7 +362,9 @@ public class CatalogIndex implements
 		final CatalogIndex newCatalogIndex = new CatalogIndex(
 			this.version + (wasDirty ? 1 : 0),
 			this.indexKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			this.activity
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;
@@ -355,9 +455,14 @@ public class CatalogIndex implements
 	 */
 	@Nonnull
 	private StoragePart createStoragePart() {
-		return new CatalogIndexStoragePart(
-			this.version, this.indexKey, this.uniqueIndex.keySet()
-		);
+		// `forEach` into a pre-sized set, never `keySet()`: outside a transaction that accessor hands out the backing
+		// `HashMap`'s own view, which the map then keeps for the lifetime of the index - see
+		// `documentation/developer/heap-size-testing.md`, trap 6. The copy is also the safer thing to hand a storage
+		// part: it is serialized after this call returns, and a live view would let a later write change what gets
+		// written
+		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(this.uniqueIndex.size());
+		this.uniqueIndex.forEach((attributeKey, uniqueIndex) -> attributeKeys.add(attributeKey));
+		return new CatalogIndexStoragePart(this.version, this.indexKey, attributeKeys);
 	}
 
 }

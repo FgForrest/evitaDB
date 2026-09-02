@@ -29,6 +29,7 @@ import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.grpc.ForwardingServerCall.SimpleForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
@@ -100,27 +101,32 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 	/**
 	 * Observability server call that logs access log messages and fires gRPC procedure called event.
+	 *
+	 * It must extend {@link SimpleForwardingServerCall} rather than {@link ServerCall} directly: several
+	 * {@link ServerCall} methods are non-abstract and carry defaults that silently disagree with the
+	 * transport. {@link ServerCall#isReady()} is the dangerous one — it returns an unconditional `true`,
+	 * so a hand-rolled decorator that forgets to override it reports every transport as writable and
+	 * disables any {@code isReady()}-driven flow control in the service method underneath it. This is
+	 * the only {@link ServerCall} decorator in evitaDB's interceptor chain - the other two wrap the
+	 * *listener* - so it is what a service's {@code ServerCallStreamObserver} actually queries, and
+	 * what {@code GlobalExceptionHandlerInterceptor} sees when it decides whether it may still close a
+	 * failing call. {@link ServerCall#setOnReadyThreshold(int)}, {@link ServerCall#getAttributes()},
+	 * {@link ServerCall#getAuthority()}, {@link ServerCall#getSecurityLevel()},
+	 * {@link ServerCall#setCompression(String)} and {@link ServerCall#setMessageCompression(boolean)}
+	 * have the same problem in a less visible way. Forwarding by default and overriding only what
+	 * genuinely adds behaviour keeps the decorator correct as gRPC adds methods.
+	 *
+	 * Guarded by `ObservabilityInterceptorReadinessTest`.
 	 */
-	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
-		private final ServerCall<M, R> serverCall;
+	private static class ObservabilityServerCall<M, R> extends SimpleForwardingServerCall<M, R> {
 		private final AbstractProcedureCalledEvent event;
 
 		protected ObservabilityServerCall(
 			@Nonnull ServerCall<M, R> serverCall,
 			@Nonnull AbstractProcedureCalledEvent event
 		) {
-			this.serverCall = serverCall;
+			super(serverCall);
 			this.event = event;
-		}
-
-		@Override
-		public void request(int numMessages) {
-			this.serverCall.request(numMessages);
-		}
-
-		@Override
-		public void sendHeaders(Metadata headers) {
-			this.serverCall.sendHeaders(headers);
 		}
 
 		@Override
@@ -128,23 +134,13 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			if (this.event.streamsResponses()) {
 				this.event.setInitiator(InitiatorType.SERVER);
 			}
-			this.serverCall.sendMessage(message);
+			super.sendMessage(message);
 		}
 
 		@Override
 		public void close(Status status, Metadata trailers) {
 			this.event.finish().commit();
-			this.serverCall.close(status, trailers);
-		}
-
-		@Override
-		public boolean isCancelled() {
-			return this.serverCall.isCancelled();
-		}
-
-		@Override
-		public MethodDescriptor<M, R> getMethodDescriptor() {
-			return this.serverCall.getMethodDescriptor();
+			super.close(status, trailers);
 		}
 
 	}

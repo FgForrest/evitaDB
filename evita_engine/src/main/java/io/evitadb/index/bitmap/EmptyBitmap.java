@@ -112,6 +112,17 @@ public class EmptyBitmap implements Bitmap {
 		return ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
+	/**
+	 * Always zero. {@link #INSTANCE} is a JVM-wide singleton shared by every holder, so charging its 16-odd
+	 * bytes to each of them would bill one object thousands of times over and stop per-index figures from
+	 * summing to anything meaningful. What a holder genuinely pays is the reference slot pointing here, and
+	 * that is already counted inside the holder's own object size.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return 0L;
+	}
+
 	@Nonnull
 	@Override
 	public OfInt iterator() {

@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
@@ -55,6 +56,7 @@ import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
@@ -69,7 +71,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -89,7 +91,8 @@ import java.util.stream.Stream;
  *
  * Lifecycle: an instance is created by {@link CatalogPersistenceServiceFactory} (loaded via `ServiceLoader`) and
  * lives as long as the catalog is open. It must be closed with {@link #close()} when the catalog shuts down.
- * Calling {@link #closeAndDelete()} additionally removes all persistent files from disk.
+ * Removing the files themselves is not this service's job: the folder a catalog occupies is owned by the engine
+ * and is wiped through the folder context once the engine state no longer references it.
  *
  * The interface is parameterized to allow the storage-module implementation to use its own concrete types for
  * WAL file references, collection file references, and entity collection headers without exposing those types
@@ -127,6 +130,28 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	String RESTORE_FLAG = ".restored";
 
 	/**
+	 * Marker file written into a catalog directory the instant it is created, and removed **before** the engine
+	 * state commits the binding that points at it. Its presence on an unreferenced folder therefore means an
+	 * operation that was materialising that folder died part-way through, and the folder holds no data anyone
+	 * can still reach — it is the only positive evidence that lets boot-time cleanup delete something.
+	 *
+	 * This is the opposite polarity to {@link #RESTORE_FLAG}: `.restored` says *"complete, adapt the name on
+	 * load"*, `.provisional` says *"incomplete, do not trust"*. Both are needed; they answer different questions.
+	 */
+	String PROVISIONAL_FLAG = ".provisional";
+
+	/**
+	 * Marker file holding the name of the catalog whose data a folder carries. Written whenever the binding
+	 * changes, so a folder that outlived a rename still says which catalog it belongs to — folder names are
+	 * cosmetic and are only brought back in line at the next boot, while the server is not running.
+	 *
+	 * It exists for the operator doing disaster recovery against a bare storage directory with no server to
+	 * ask; nothing in the engine reads it to make a decision, because the engine state is the sole authority
+	 * on where a catalog lives.
+	 */
+	String CATALOG_NAME_FLAG = ".catalogname";
+
+	/**
 	 * Pre-compiled regex pattern that matches any entity collection file name and extracts the entity type primary
 	 * key (group 1) and the file rotation index (group 2) from the name. Used for bulk discovery of all collection
 	 * files in a catalog directory without knowing the entity types in advance.
@@ -136,29 +161,49 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
+	 *
+	 * The argument is the *storage prefix* the folder's files are named with, which historically equalled the catalog
+	 * name but no longer has to — see `DefaultCatalogPersistenceService#discoverStoragePrefix`.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return name of the bootstrap file
 	 */
 	@Nonnull
-	static String getCatalogBootstrapFileName(@Nonnull String catalogName) {
-		return catalogName + BOOT_FILE_SUFFIX;
+	static String getCatalogBootstrapFileName(@Nonnull String storagePrefix) {
+		return storagePrefix + BOOT_FILE_SUFFIX;
 	}
 
 	/**
 	 * Returns name of the catalog data file that contains catalog schema and catalog indexes.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     rotation index of the data file
+	 * @return name of the catalog data file
 	 */
 	@Nonnull
-	static String getCatalogDataStoreFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + CATALOG_FILE_SUFFIX;
+	static String getCatalogDataStoreFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + CATALOG_FILE_SUFFIX;
 	}
 
 	/**
-	 * Returns the pattern used to match the data store file names for a specific catalog.
+	 * Returns the pattern used to match the data store file names carrying the passed storage prefix.
 	 *
-	 * @param catalogName the name of the catalog to get the file name pattern for
-	 * @return the pattern used to match the data store file names
+	 * The prefix is quoted rather than interpolated raw. Catalog names legally contain `.`
+	 * (`ClassifierUtils.SUPPORTED_FORMAT_PATTERN` allows `[\p{Alnum}_.\-~]`), which is a regex wildcard, so an
+	 * unquoted prefix matches files belonging to a *different* prefix — `my.catalog` would also match
+	 * `myXcatalog_1.catalog`. That was harmless only while a catalog owned its folder exclusively and the prefix was
+	 * a validated catalog name; once the prefix is discovered from disk and a folder can hold files under both an old
+	 * and a new prefix, an over-permissive pattern selects the wrong catalog's data files.
+	 *
+	 * The suffix is quoted for the same reason — `.catalog` begins with a regex wildcard, so unquoted it would also
+	 * match a file name ending `Xcatalog`.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return the pattern used to match the data store file names, capturing the rotation index as group 1
 	 */
 	@Nonnull
-	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String catalogName) {
-		return Pattern.compile(catalogName + "_(\\d+)" + CATALOG_FILE_SUFFIX);
+	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String storagePrefix) {
+		return Pattern.compile(Pattern.quote(storagePrefix) + "_(\\d+)" + Pattern.quote(CATALOG_FILE_SUFFIX));
 	}
 
 	/**
@@ -229,13 +274,13 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Returns name of the Write-Ahead-Log file that contains all mutations that were not yet propagated to the catalog
 	 * data file.
 	 *
-	 * @param catalogName name of the catalog
-	 * @param fileIndex   index of the WAL file
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     index of the WAL file
 	 * @return name of the WAL file
 	 */
 	@Nonnull
-	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
+	static String getWalFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + WAL_FILE_SUFFIX;
 	}
 
 	/**
@@ -408,11 +453,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Method deletes entire catalog persistent storage and closes the persistence factory.
-	 */
-	void closeAndDelete();
-
-	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
@@ -455,7 +495,16 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Replaces folder of the `catalogNameToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `catalogNameToBeReplaced`, in place.
+	 *
+	 * The name is rewritten into the catalog's header and schema and a fresh bootstrap record is written — that
+	 * is the whole of it. **Nothing is moved, copied or deleted**: the catalog keeps the folder it already
+	 * occupies and every file inside keeps the name it already has. File names inside a folder are
+	 * discovered from the folder's own bootstrap file rather than derived from the catalog name, which is what
+	 * lets them stay put; the folder that the replaced catalog used to occupy is the caller's concern, retired
+	 * through the engine state rather than deleted here.
+	 *
+	 * The returned service addresses the same folder under the new name; this one is closed.
 	 *
 	 * @param catalogVersion                    version of the catalog
 	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog
@@ -626,7 +675,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -635,27 +683,29 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> createFullBackupTask(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
 
 	/**
 	 * Duplicates an existing catalog to create a new catalog with a different name.
 	 *
+	 * The folder the copy lands in is passed in rather than derived from the target name: which directory a
+	 * catalog occupies is engine state, and the duplicate is one of the three paths that materialise a folder.
+	 * The caller allocates it, marks it provisional, and clears that marker once this future completes.
+	 *
 	 * @param targetCatalogName name of the target catalog to be created
+	 * @param targetFolderId    folder the copy is written into, already allocated by the caller
 	 * @param storageOptions storage configuration options
 	 * @return progressing future that tracks the duplication process
 	 *
@@ -664,6 +714,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	@Nonnull
 	ProgressingFuture<Void> duplicateCatalog(
 		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId,
 		@Nonnull StorageOptions storageOptions
 	) throws EvitaIOException;
 
@@ -679,11 +730,88 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	void verifyIntegrity();
 
 	/**
-	 * Returns size taken by all catalog data structures in bytes.
+	 * Measures the catalog's disk footprint and attributes it to the storage classes that have different remedies -
+	 * live data, compaction waste, retained write-ahead log, files awaiting deletion and the bootstrap file. The
+	 * measured total is {@link CatalogStorageFootprint#totalBytes()}; it is the sum of a single flat listing of the
+	 * catalog directory rather than a recursive walk.
 	 *
-	 * @return size taken by all catalog data structures in bytes
+	 * This replaced a plain size-on-disk scalar, which had no caller left once the statistics path stopped needing
+	 * it. Reintroduce one only if something genuinely wants the total without the breakdown - the breakdown costs
+	 * one listing plus a counter read per open data store, so the scalar was never the cheaper answer.
+	 *
+	 * @return the decomposed footprint of this catalog
 	 */
-	long getSizeOnDiskInBytes();
+	@Nonnull
+	CatalogStorageFootprint measureStorageFootprint();
+
+	/**
+	 * Breaks the catalog's **own** data store down by storage-part type - the file holding the catalog schema, the
+	 * headers and the catalog-level indexes. Entity collections keep their records - their entity schema included - in
+	 * their own data stores and answer for themselves through
+	 * {@link EntityCollectionPersistenceService#measureStoragePartComposition()}; there is deliberately no
+	 * catalog-wide sum, because adding records of different types out of different data stores yields a number with
+	 * no operational meaning.
+	 *
+	 * The breakdown is an in-memory map read - the per-type counts and bytes are maintained as the flush is promoted,
+	 * never recomputed by walking the file.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	StoragePartFootprint[] measureStoragePartComposition();
+
+	/**
+	 * Reports what the catalog's **own** data store is holding in memory rather than on disk - the records written but
+	 * not yet flushed, and the multi-version history it cannot release while an old session is still reading it.
+	 *
+	 * Scoped to this one data store, like {@link #measureStoragePartComposition()} and unlike
+	 * {@link #measureStorageFootprint()}. A catalog-wide figure is the sum of this and every collection's
+	 * {@link EntityCollectionPersistenceService#measureVolatileData()}; unlike the storage-part breakdown that sum is
+	 * meaningful, because bytes held in memory add up across stores no matter what they hold.
+	 *
+	 * Every value is a counter read; nothing is walked and no file is touched.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	VolatileDataFootprint measureVolatileData();
+
+	/**
+	 * Measures everything the fragmentation report needs: how the catalog directory's bytes classify, whether any of
+	 * its data stores is due for compaction, and when the next one will be - the latter two both for the catalog's
+	 * own store alone and folded across every collection store it currently holds open.
+	 *
+	 * Unlike {@link #measureStoragePartComposition()} the fold **is** meaningful here, for the same reason
+	 * {@link #measureVolatileData()} may be summed by its caller: eligibility is a disjunction and a rate of stranded
+	 * bytes adds up regardless of which store stranded them. A collection whose persistence service this catalog does
+	 * not hold open is absent from the sum rather than guessed at - the same rule
+	 * {@link #measureStorageFootprint()} applies to a file whose live size no open index can report.
+	 *
+	 * **This returns the footprint too, rather than leaving the caller to fetch it**, because the predicate is
+	 * evaluated against the very file lengths the footprint classifies - see {@link CatalogFragmentationSnapshot} for
+	 * why they have to come from one listing. A caller that wants only the byte classification calls
+	 * {@link #measureStorageFootprint()} and pays for no forecast at all.
+	 *
+	 * The predicate is evaluated here rather than by the caller so that it cannot drift from the trigger that
+	 * actually fires compaction - see {@link CompactionForecast}.
+	 *
+	 * @return the footprint and the compaction forecast, measured together
+	 */
+	@Nonnull
+	CatalogFragmentationSnapshot measureFragmentation();
+
+	/**
+	 * Describes how this catalog's deferred-checkpoint fence is behaving - what the last completed checkpoint cost and
+	 * how far behind the physical device the catalog is allowed to run.
+	 *
+	 * Free of file-system access: every figure is an in-memory read of state the checkpoint path already maintains.
+	 *
+	 * @return the durability snapshot, or `null` when this catalog checkpoints at the end of every round and there is
+	 * therefore no fence to describe - either because no checkpoint interval is configured or because writes are not
+	 * synced to the device at all
+	 */
+	@Nullable
+	DurabilitySnapshot measureDurability();
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

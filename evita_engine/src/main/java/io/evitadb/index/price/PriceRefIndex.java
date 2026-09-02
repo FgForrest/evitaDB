@@ -43,6 +43,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -114,6 +115,31 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		for (final PriceListAndCurrencyPriceRefIndex refIndex : this.priceIndexes.values()) {
 			refIndex.restorePriceRecordsFrom(superPriceIndex.getPriceIndexOrThrow(refIndex.getPriceIndexKey()));
 		}
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its map of per-combination reference indexes and the tree
+	 * spines those own, but **no** price record bodies.
+	 *
+	 * Every record a reference index reaches belongs to the {@link PriceListAndCurrencyPriceSuperIndex} of the same
+	 * combination, which charges it. That is what keeps this figure proportional to the number of prices a scope
+	 * references rather than to the size of the price payload itself, however many reduced indexes point at it.
+	 *
+	 * {@link #scope} is an enum constant and contributes its slot alone.
+	 *
+	 * Walking every sub-index makes this `O(price ids)` rather than `O(1)`, so it belongs to the index detail call and
+	 * must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the inherited id, then the scope and priceIndexes slots
+		return layout.sizeOfObject(Long.BYTES + 2L * layout.referenceSize())
+			+ this.priceIndexes.getHeapSizeInBytes(
+				PRICE_INDEX_KEY_SIZER,
+				PriceListAndCurrencyPriceRefIndex::getHeapSizeInBytes
+			);
 	}
 
 	/*

@@ -5,10 +5,8 @@
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
 import org.antlr.v4.runtime.tree.*;
 import java.util.List;
-import java.util.Iterator;
 import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue", "this-escape"})
@@ -19,19 +17,19 @@ public class EvitaELParser extends Parser {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		LPAREN=1, RPAREN=2, LBRACKET=3, RBRACKET=4, DOUBLE_QUESTION_MARK=5, QUESTION_MARK=6, 
-		STAR_QUESTION_MARK=7, DOT_STAR=8, DOT=9, EXCLAMATION_MARK=10, COMMA=11, 
-		PLUS=12, MINUS=13, DIV=14, STAR=15, PERCENT=16, GT=17, GT_EQ=18, LT=19, 
-		LT_EQ=20, EQ=21, NOT_EQ=22, XOR=23, AND=24, OR=25, NULL=26, INT=27, FLOAT=28, 
+		LPAREN=1, RPAREN=2, LBRACKET=3, RBRACKET=4, DOUBLE_QUESTION_MARK=5, QUESTION_MARK=6,
+		STAR_QUESTION_MARK=7, DOT_STAR=8, DOT=9, EXCLAMATION_MARK=10, COMMA=11,
+		PLUS=12, MINUS=13, DIV=14, STAR=15, PERCENT=16, GT=17, GT_EQ=18, LT=19,
+		LT_EQ=20, EQ=21, NOT_EQ=22, XOR=23, AND=24, OR=25, NULL=26, INT=27, FLOAT=28,
 		BOOLEAN=29, IDENTIFIER=30, VARIABLE=31, STRING=32, WS=33;
 	public static final int
-		RULE_root = 0, RULE_expression = 1, RULE_operandOperationOperand = 2, 
-		RULE_methodAccessExpression = 3, RULE_elementAccessExpression = 4, RULE_propertyAccessExpression = 5, 
+		RULE_root = 0, RULE_expression = 1, RULE_operandOperationOperand = 2,
+		RULE_methodAccessExpression = 3, RULE_elementAccessExpression = 4, RULE_propertyAccessExpression = 5,
 		RULE_spreadAccessExpression = 6, RULE_variable = 7, RULE_literal = 8;
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"root", "expression", "operandOperationOperand", "methodAccessExpression", 
-			"elementAccessExpression", "propertyAccessExpression", "spreadAccessExpression", 
+			"root", "expression", "operandOperationOperand", "methodAccessExpression",
+			"elementAccessExpression", "propertyAccessExpression", "spreadAccessExpression",
 			"variable", "literal"
 		};
 	}
@@ -39,18 +37,18 @@ public class EvitaELParser extends Parser {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'('", "')'", "'['", "']'", "'??'", "'?'", "'*?'", "'.*'", "'.'", 
-			"'!'", "','", "'+'", "'-'", "'/'", "'*'", "'%'", "'>'", "'>='", "'<'", 
+			null, "'('", "')'", "'['", "']'", "'??'", "'?'", "'*?'", "'.*'", "'.'",
+			"'!'", "','", "'+'", "'-'", "'/'", "'*'", "'%'", "'>'", "'>='", "'<'",
 			"'<='", "'=='", "'!='", "'^'", "'&&'", "'||'", "'null'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK", 
-			"QUESTION_MARK", "STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK", 
-			"COMMA", "PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT", 
-			"LT_EQ", "EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT", 
+			null, "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "DOUBLE_QUESTION_MARK",
+			"QUESTION_MARK", "STAR_QUESTION_MARK", "DOT_STAR", "DOT", "EXCLAMATION_MARK",
+			"COMMA", "PLUS", "MINUS", "DIV", "STAR", "PERCENT", "GT", "GT_EQ", "LT",
+			"LT_EQ", "EQ", "NOT_EQ", "XOR", "AND", "OR", "NULL", "INT", "FLOAT",
 			"BOOLEAN", "IDENTIFIER", "VARIABLE", "STRING", "WS"
 		};
 	}
@@ -159,7 +157,7 @@ public class EvitaELParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_expression; }
-	 
+
 		public ExpressionContext() { }
 		public void copyFrom(ExpressionContext ctx) {
 			super.copyFrom(ctx);
@@ -924,7 +922,7 @@ public class EvitaELParser extends Parser {
 							}
 							break;
 						}
-						} 
+						}
 					}
 					setState(50);
 					_errHandler.sync(this);
@@ -1197,7 +1195,7 @@ public class EvitaELParser extends Parser {
 						}
 						break;
 					}
-					} 
+					}
 				}
 				setState(114);
 				_errHandler.sync(this);
@@ -1222,7 +1220,7 @@ public class EvitaELParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_operandOperationOperand; }
-	 
+
 		public OperandOperationOperandContext() { }
 		public void copyFrom(OperandOperationOperandContext ctx) {
 			super.copyFrom(ctx);
@@ -1706,7 +1704,7 @@ public class EvitaELParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_literal; }
-	 
+
 		public LiteralContext() { }
 		public void copyFrom(LiteralContext ctx) {
 			super.copyFrom(ctx);

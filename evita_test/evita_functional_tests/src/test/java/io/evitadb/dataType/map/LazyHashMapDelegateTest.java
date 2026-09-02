@@ -306,8 +306,8 @@ class LazyHashMapDelegateTest {
 			clearedMap.put("a", 1);
 			clearedMap.clear();
 
-			assertTrue(uninitMap.equals(clearedMap));
-			assertTrue(clearedMap.equals(uninitMap));
+			assertEquals(uninitMap, clearedMap);
+			assertEquals(clearedMap, uninitMap);
 		}
 	}
 

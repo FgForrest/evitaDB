@@ -27,7 +27,7 @@ import io.evitadb.core.buffer.DataStoreChanges.DataStoreChangesMemento;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;

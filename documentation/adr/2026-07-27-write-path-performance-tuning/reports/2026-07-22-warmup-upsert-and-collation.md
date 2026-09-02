@@ -5,7 +5,7 @@ collation-key cache built here is the same cache the replay rounds later resized
 
 **Staleness note.** Status language is a historical snapshot. PR #1280 and the follow-ups have merged.
 
-**Workload:** a single-threaded WARM_UP bulk copy of the senesi catalog (380 016 entities across 18
+**Workload:** a single-threaded WARM_UP bulk copy of the production catalog (380 016 entities across 18
 collections) driven over gRPC by `WarmupCopyCatalogBenchmark` — see `../SPIKE_BENCHMARKS.md`. Baseline
 copy **2 020 s (33.7 min)**, of which **`Product` is 90.3 %** (113 136 entities at 16.1 ms each).
 
@@ -109,7 +109,7 @@ they barely sample; **~7.9 % of CPU was still in `getCollationKey`, i.e. misses*
 
 The diagnosis — *"at 8192 slots (2-way direct-mapped) Product's localized-value working set
 thrashes"* — is exactly what the WAL-replay round 1 then confirmed and fixed by sizing the cache to
-1 M slots for a **2.02×** win. See `2026-07-27-senesi-wal-replay-rounds.md`.
+1 M slots for a **2.02×** win. See `2026-07-27-wal-replay-rounds.md`.
 
 ---
 

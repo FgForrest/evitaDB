@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -92,12 +92,26 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	 */
 	@Getter @Nullable private final List<String> exportedQueryLabels;
 
+	/**
+	 * Selects which error hierarchies have the place they were created written to the log the first time that place
+	 * is seen - see {@link ErrorOriginLogging}. Never affects the error metrics themselves, which are always
+	 * collected under exactly the same names and labels.
+	 *
+	 * Defaults to {@link ErrorOriginLogging#INTERNAL}: `io_evitadb_errors_total` counts an exception being
+	 * *constructed* and is labelled with nothing but the class name, so an internal error that is swallowed - or
+	 * thrown at a caller that has already gone away - moves the counter and leaves no other trace at all. Internal
+	 * errors are rare and are faults by definition, so recording where they came from is worth its cost. Client
+	 * errors are not included by default because they are raised on ordinary rejection paths.
+	 */
+	@Getter @Nonnull private final ErrorOriginLogging errorOriginLogging;
+
 	public ObservabilityOptions() {
 		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
+		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
 	}
 
 	public ObservabilityOptions(@Nonnull String host) {
@@ -106,6 +120,7 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
+		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
 	}
 
 	@JsonCreator
@@ -118,6 +133,7 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	                            @Nullable @JsonProperty("tracing") TracingConfig tracing,
 	                            @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
 	                            @Nullable @JsonProperty("exportedQueryLabels") List<String> exportedQueryLabels,
+	                            @Nullable @JsonProperty("errorOriginLogging") ErrorOriginLogging errorOriginLogging,
 	                            @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
@@ -144,5 +160,6 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 			PrometheusLabelNames.assignDimensions(exportedQueryLabels, Set.of());
 		}
 		this.exportedQueryLabels = exportedQueryLabels;
+		this.errorOriginLogging = Optional.ofNullable(errorOriginLogging).orElse(ErrorOriginLogging.INTERNAL);
 	}
 }

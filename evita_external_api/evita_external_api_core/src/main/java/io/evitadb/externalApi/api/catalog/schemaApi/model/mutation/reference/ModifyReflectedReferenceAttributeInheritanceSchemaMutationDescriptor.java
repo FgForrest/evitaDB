@@ -29,8 +29,6 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedR
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -47,7 +45,7 @@ public interface ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescr
 		.name("attributeInheritanceBehavior")
 		.description("""
 			Specifies the inheritance behavior for attributes in the reflected schema. There are two options:
-			
+
 			- INHERIT_ALL_EXCEPT: All attributes are inherited by default, except those listed in the `attributeInheritanceFilter`.
 			- INHERIT_ONLY_SPECIFIED: No attributes are inherited by default, only those explicitly listed in the `attributeInheritanceFilter`.
 			""")
@@ -57,7 +55,7 @@ public interface ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescr
 		.name("attributeInheritanceFilter")
 		.description("""
 			Returns the array of attribute names that filtered in the way driven by the `attributeInheritanceBehavior` property:
-			
+
 			- INHERIT_ALL_EXCEPT: inherits all attributes defined on original reference except those listed in this filter
 			- INHERIT_ONLY_SPECIFIED: inherits only attributes that are listed in this filter
 			""")

@@ -32,6 +32,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -315,6 +316,56 @@ public class UnorderedLookupTree implements
 	 */
 	public boolean isEmpty() {
 		return size() == 0;
+	}
+
+	/**
+	 * Returns the heap this tree occupies, in bytes.
+	 *
+	 * The figure is exact rather than an estimate: node arrays are charged at their allocated capacity (they are
+	 * always {@link #DEFAULT_BLOCK_SIZE}-sized regardless of how full the node is, so the slack is real and is
+	 * reported), and object headers plus alignment padding come from the running VM.
+	 *
+	 * Everything this structure stores is a primitive — record ids, order-keys, per-child counts — so unlike the B+
+	 * tree family there is no element to price and no ownership question: nothing here can be shared with anyone.
+	 * The two exceptions are charged deliberately:
+	 *
+	 * - the boxed `Integer` inside {@link #size} is charged in full rather than treated as a possible JVM
+	 *   autobox-cache singleton, because that cache's boundary is JVM-configurable and an estimator keyed on it
+	 *   would answer differently per VM;
+	 * - {@link #memoizedArray} is charged when populated — it is a read-cache that genuinely occupies heap for as
+	 *   long as it lives.
+	 *
+	 * `O(n)` in the number of nodes.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + orderKeyGap + five block-size ints + headAware/paged + root/size/memoizedArray slots
+		long size = layout.sizeOfObject(
+			2L * Long.BYTES + 5L * Integer.BYTES + 2L + 3L * layout.referenceSize()
+		);
+		// each TransactionalReference is itself an object wrapping an AtomicReference
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		size += 2L * transactionalReference;
+		// the size reference holds a boxed Integer - see the note above on why it is charged outright
+		size += layout.sizeOfObject(Integer.BYTES);
+		if (this.memoizedArray != null) {
+			size += layout.sizeOfArray(this.memoizedArray.length, Integer.BYTES);
+		}
+		return size + getNodeGraphHeapSizeInBytes();
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts except the
+	 * tree object itself and its two reference wrappers, which the tests assert separately.
+	 *
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes() {
+		final Node<?> theRoot = getRoot();
+		return theRoot == null ? 0L : theRoot.getHeapSizeInBytes();
 	}
 
 	/**
@@ -1044,7 +1095,7 @@ public class UnorderedLookupTree implements
 		for (final LeafNode leaf : collectLeaves()) {
 			// create-free reset: this runs at flush time after commit() has forbidden new layer creation, and the walk
 			// visits EVERY leaf including collapse survivors this transaction never touched (which carry no layer) - so
-			// it must NOT route through the create-on-write setPageSequence/clearDirty (see LeafNode.forgetPage)
+			// it must not create a layer either (see LeafNode.forgetPage)
 			leaf.forgetPage();
 		}
 	}
@@ -2586,6 +2637,17 @@ public class UnorderedLookupTree implements
 	 * concrete node type so the transactional accessors stay strongly typed.
 	 */
 	interface Node<N extends Node<N>> extends TransactionalLayerProducer<N, N>, Serializable {
+
+		/**
+		 * Returns the heap this node and everything below it occupies, in bytes.
+		 *
+		 * Every implementation must pair the arrays it measures with **its own** count field rather than with a
+		 * transactional accessor: a node and its per-transaction layer are two distinct objects owning two distinct
+		 * arrays, so bounding one object's array by the other's count reads slots that array never filled.
+		 *
+		 * @return the owned heap footprint of this subtree in bytes, including alignment padding
+		 */
+		long getHeapSizeInBytes();
 	}
 
 	/**
@@ -2683,6 +2745,23 @@ public class UnorderedLookupTree implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		@Override
+		public long getHeapSizeInBytes() {
+			final VMLayout layout = VMLayout.current();
+			// id + orderKey + transactionalLayer + dirty + count + pageSequence + recordIds/headMask slots
+			long size = layout.sizeOfObject(
+				2L * Long.BYTES + 2L + 2L * Integer.BYTES + 2L * layout.referenceSize()
+			);
+			// the record array is allocated at `leafCapacity + 1` and never trimmed, so the slack above `count` is
+			// real occupied heap and is reported as such
+			size += layout.sizeOfArray(this.recordIds.length, Integer.BYTES);
+			// allocated only on a head-aware tree - the SortIndex family pays nothing here
+			if (this.headMask != null) {
+				size += layout.sizeOfArray(this.headMask.length, Long.BYTES);
+			}
+			return size;
+		}
+
 		/**
 		 * Returns the container order-key (read-only view).
 		 */
@@ -2759,12 +2838,26 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
-		 * Stamps this leaf's logical persistence page sequence, decoupling into the transactional layer when present.
-		 * Structural bookkeeping only — does NOT flag the leaf dirty.
+		 * Stamps this leaf's logical persistence page sequence, writing through an EXISTING transactional layer when
+		 * one is present but NEVER creating one — the same create-free contract as {@link #forgetPage()}, and for the
+		 * same reason. Structural bookkeeping only — does NOT flag the leaf dirty.
+		 *
+		 * This is called from the flush path ({@code PageStreamRegistry.collectChangedPages}), which runs INSIDE the
+		 * commit — {@code TransactionTrunkFinalizer.commitCatalogChanges} flushes the catalog after
+		 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has already forbidden new
+		 * layer creation. The emitter walks EVERY leaf and stamps each one not yet paged, so a leaf the transaction
+		 * never touched (which carries no layer) reaches this method routinely: a create-on-write stamp would trip the
+		 * "already committed" premise on it and abort the commit. That is exactly what happens on the first write to a
+		 * chain index restored from a legacy, non-paged `ChainIndexStoragePart` — every leaf of such a tree is fresh
+		 * (see issue #1437).
+		 *
+		 * Writing the committed baseline field in place is what the merge carries forward anyway: with no layer,
+		 * {@link #createCopyWithMergedTransactionalMemory} returns `this`. When a layer DOES exist the merge takes the
+		 * layer's value, so the stamp must land there — hence the branch rather than an unconditional field write.
 		 */
 		void setPageSequence(int pageSequence) {
 			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
 			if (layer == null) {
 				this.pageSequence = pageSequence;
 			} else {
@@ -2782,12 +2875,15 @@ public class UnorderedLookupTree implements
 		}
 
 		/**
-		 * Clears this leaf's dirty flag, decoupling into the transactional layer when present. Called by the page emitter
-		 * once the leaf's page has been collected for the current flush.
+		 * Clears this leaf's dirty flag, writing through an EXISTING transactional layer when one is present but NEVER
+		 * creating one. Called by the page emitter once the leaf's page has been collected for the current flush —
+		 * i.e. from the very same post-{@code commit()} flush pass as {@link #setPageSequence(int)}, and therefore
+		 * bound by the same create-free contract (see that method for the full rationale). Symmetric with the
+		 * create-free read path {@link #isDirty()}: the flag is cleared exactly where it was read from.
 		 */
 		void clearDirty() {
 			final LeafNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
 			if (layer == null) {
 				this.dirty = false;
 			} else {
@@ -2798,9 +2894,10 @@ public class UnorderedLookupTree implements
 		/**
 		 * Resets this leaf's page bookkeeping — un-assigns the page sequence and clears the dirty flag — as part of a
 		 * `PAGED->SINGLE` collapse (see {@link #forgetPageStream()}). Writes through an EXISTING transactional layer when
-		 * one is present, but NEVER creates one — unlike {@link #setPageSequence(int)} / {@link #clearDirty()}, which route
-		 * through the create-on-write path. This runs at flush time, INSIDE the commit, after
-		 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has forbidden new layer creation;
+		 * one is present, but NEVER creates one — the same create-free contract the rest of the flush-path page
+		 * bookkeeping ({@link #setPageSequence(int)} / {@link #clearDirty()}) obeys. This runs at flush time, INSIDE
+		 * the commit, after {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#commit} has
+		 * forbidden new layer creation;
 		 * because `forgetPageStream` walks EVERY leaf (a collapse survivor can be a leaf this transaction never touched, so
 		 * it carries no layer), a create-on-write reset would trip the "already committed" premise on that untouched leaf.
 		 * A leaf with no layer has no pending diff, so resetting its committed baseline field in place is what the merge
@@ -3070,6 +3167,29 @@ public class UnorderedLookupTree implements
 			this.headCounts = headCounts;
 			this.childCount = childCount;
 			this.transactionalLayer = transactionalLayer;
+		}
+
+		@Override
+		public long getHeapSizeInBytes() {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + childCount + children/separators/counts/headCounts slots
+			long size = layout.sizeOfObject(
+				Long.BYTES + 1L + Integer.BYTES + 4L * layout.referenceSize()
+			);
+			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			size += layout.sizeOfArray(this.separators.length, Long.BYTES);
+			size += layout.sizeOfArray(this.counts.length, Integer.BYTES);
+			// allocated only on a head-aware tree, in lock-step with `counts`
+			if (this.headCounts != null) {
+				size += layout.sizeOfArray(this.headCounts.length, Integer.BYTES);
+			}
+			// THIS instance's own count, deliberately not `getChildCount()`: that accessor resolves the calling
+			// thread's transactional layer, which is a separate node object owning a separate `children` array, and
+			// bounding the array measured above by its count would walk slots this one never filled
+			for (int i = 0; i < this.childCount; i++) {
+				size += this.children[i].getHeapSizeInBytes();
+			}
+			return size;
 		}
 
 		/**

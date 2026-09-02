@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -67,6 +68,7 @@ import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -190,6 +192,15 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * for all locale variants of each histogram definition.
 	 */
 	@Nonnull private final TransactionalMap<String, HistogramIndex> histogramIndexes;
+	/**
+	 * The {@link HistogramIndexMapComponent} wrapper registered over {@link #histogramIndexes}, held here **only** so
+	 * {@link #getHeapSizeInBytes()} can ask it what it weighs. It is the one component carrying state of its own -
+	 * the on-disk leaf-page baseline of the last flush - which nothing else can reach and which would otherwise be
+	 * charged nowhere; every other wrapper is a pure adapter over fields charged at this index, priced inline there.
+	 *
+	 * Assigned by {@link #registerSubclassComponents()} rather than in a constructor, so it cannot be `final`.
+	 */
+	@Nonnull private HistogramIndexMapComponent histogramComponent;
 
 	/**
 	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
@@ -235,7 +246,24 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReferencedTypeEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.indexPrimaryKeyCardinality = new ReferenceTypeCardinalityIndex();
 		this.cardinalityIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), AttributeCardinalityIndex.class, Function.identity()
@@ -249,6 +277,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		captureOriginalsFromComponents();
 	}
 
+	/**
+	 * Reconstructs a reference-type entity index from persisted or committed state.
+	 *
+	 * @param activity the activity holder to keep counting into — the copied index's own instance on the commit-time
+	 *                 merge copy, a fresh one when loading from disk; see {@link IndexActivity}
+	 */
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
@@ -260,12 +294,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull Map<String, HistogramIndex> histogramIndexes
+		@Nonnull Map<String, HistogramIndex> histogramIndexes,
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
 		this.cardinalityIndexes = new TransactionalMap<>(
@@ -339,7 +374,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				facet.facetIndex(),
 				refTypeCardinality.referenceTypeCardinalityIndex(),
 				cardinalities.cardinalityIndexes(),
-				histograms.histogramIndexes()
+				histograms.histogramIndexes(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 
@@ -450,7 +488,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// consistency with peer subclasses — it is a no-op on every loop step
 		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
 		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
-		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		this.histogramComponent = new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey);
+		addComponent(this.histogramComponent);
 		addComponent(
 			new ReferenceTypeCardinalityComponent(this.indexPrimaryKeyCardinality, getReferenceName())
 		);
@@ -711,6 +750,37 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #priceIndex} is {@link io.evitadb.index.price.VoidPriceIndex#INSTANCE} — one instance for the whole JVM
+	 * that this index shares with every other reference-type index — so only its slot is charged.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the reference name, attribute name and locale of an attribute key all belong to the schema
+		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
+		// the priceIndex / indexPrimaryKeyCardinality / cardinalityIndexes / histogramIndexes / histogramComponent
+		// slots
+		return getBaseHeapSizeInBytes(5L * layout.referenceSize())
+			+ this.indexPrimaryKeyCardinality.getHeapSizeInBytes()
+			+ this.cardinalityIndexes.getHeapSizeInBytes(
+				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
+			)
+			+ this.histogramIndexes.getHeapSizeInBytes(
+				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
+			)
+			// the four components this class registers: a price one over the void singleton, a cardinality one holding
+			// its map plus the index key, and a reference-type cardinality one holding its index plus the reference
+			// name. All three are pure adapters over fields charged above, so their shells are all they cost
+			+ layout.sizeOfObject(layout.referenceSize())
+			+ 2L * layout.sizeOfObject(2L * layout.referenceSize())
+			// the fourth prices itself: alongside its map and the index key it holds the on-disk leaf-page baseline of
+			// the last flush, which no field of this index points at and which a shell charge would report as free
+			+ this.histogramComponent.getHeapSizeInBytes();
+	}
+
 	@Override
 	public String toString() {
 		return "ReducedEntityTypeIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) +
@@ -734,7 +804,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

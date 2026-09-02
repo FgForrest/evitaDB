@@ -40,15 +40,19 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.transaction.engine.operators.*;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -59,9 +63,9 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -141,6 +145,11 @@ public class EngineTransactionManager implements Closeable {
 	 */
 	private final EnginePersistenceService<LogRecordReference> enginePersistenceService;
 	/**
+	 * Everything the engine knows about catalog storage folders. Held here — beyond being handed to the operators
+	 * — so that the engine-state commit path can discharge the tombstones of folders already confirmed gone.
+	 */
+	private final CatalogFolderContext folderContext;
+	/**
 	 * Lock that is used to synchronize access to the engine state.
 	 */
 	private final ReentrantLock engineStateLock = new ReentrantLock();
@@ -167,6 +176,11 @@ public class EngineTransactionManager implements Closeable {
 	 * wedged, every public mutation-issuing entry point refuses to run until an operator intervenes
 	 * and hand-reconciles the bootstrap file.
 	 *
+	 * Also set at runtime by `updateEngineStateAfterEngineMutation` when a commit that is already
+	 * durable cannot be published in memory. That is the same hazard arriving by a different route:
+	 * the durable version has moved and the live state has not, so the next append would build on a
+	 * snapshot the engine can no longer vouch for.
+	 *
 	 * Structural WAL corruption (header without body) is NOT routed through this flag; the
 	 * persistence layer throws `WriteAheadLogCorruptedException` (with `WalKind.ENGINE`) directly, aborting the
 	 * `EngineTransactionManager` constructor and failing engine boot — a corrupt WAL cannot be
@@ -178,9 +192,9 @@ public class EngineTransactionManager implements Closeable {
 	 * `stateV + 1` again — duplicating (or clobbering) the crashed mutation. A loud fail-fast is
 	 * always better than silent corruption, so we gate every mutation entry on this flag.
 	 *
-	 * Marked `volatile` defensively: today the flag is only set during construction (so safe
-	 * publication via the constructor's happens-before is sufficient), but `volatile` hardens
-	 * the field against future refactorings that move wedge-setting onto a runtime path.
+	 * Marked `volatile` because it is genuinely set on a runtime path (the post-durability publish
+	 * failure above), not only during construction — a mutation on one thread must be refused by
+	 * the wedge another thread has just raised.
 	 */
 	private volatile boolean wedged;
 
@@ -234,27 +248,57 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService,
 		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
-		final Path storageDirectory = evita.getConfiguration().storage().storageDirectory();
+		// Single choke point for the catalog-name-to-folder mapping. Every operator acts on catalog
+		// folders through this context rather than joining the catalog name onto the storage directory, which
+		// is what let the folder be decoupled from the name in one implementation instead of at every site.
+		// Checked here rather than left to fail at first use: every operator captures the context at
+		// construction but only dereferences it when a mutation runs, so a missing one would otherwise
+		// surface as an NPE deep inside an unrelated operator - possibly during WAL replay at boot.
+		final CatalogFolderContext folderContext = Objects.requireNonNull(
+			evita.getCatalogFolderContext(),
+			"Catalog folder context is not available on the Evita instance!"
+		);
+		this.folderContext = folderContext;
 
 		this.engineMutationOperators = new HashMap<>(16);
 		// register all engine mutation operators that are used to process specific types of mutations
-		this.engineMutationOperators.put(CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator());
-		this.engineMutationOperators.put(ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator());
-		this.engineMutationOperators.put(RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(RestoreCatalogSchemaMutation.class, new RestoreCatalogSchemaMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationOperator());
-		this.engineMutationOperators.put(SetCatalogStateMutation.class, new SetCatalogStateMutationOperator(storageDirectory));
+		this.engineMutationOperators.put(
+			CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator()
+		);
+		this.engineMutationOperators.put(
+			RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			RestoreCatalogSchemaMutation.class, new RestoreCatalogSchemaMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationOperator()
+		);
+		this.engineMutationOperators.put(
+			SetCatalogStateMutation.class, new SetCatalogStateMutationOperator(folderContext)
+		);
 		// Per-catalog format-upgrade infrastructure. The operator drives the state transitions
 		// (`OUT_OF_DATE → BEING_UPGRADED → prior state`); the injected `upgradeExecutor` (production:
 		// `DefaultUpgradeExecutor`; tests/standalone: `NoOpUpgradeExecutor`) performs the actual on-disk migration
 		// during the work phase.
 		this.engineMutationOperators.put(
 			UpgradeCatalogFormatMutation.class,
-			new UpgradeCatalogFormatMutationOperator(storageDirectory, upgradeExecutor)
+			new UpgradeCatalogFormatMutationOperator(folderContext, upgradeExecutor)
 		);
 
 		this.evita = evita;
@@ -272,9 +316,33 @@ public class EngineTransactionManager implements Closeable {
 		// away before the replay can read it, silently losing the committed mutation. After a successful replay
 		// the bootstrap is rewritten at `walV` with a matching `walReference`, so truncation at that point becomes
 		// a no-op by construction.
-		replayCrashedMutationIfNeeded(engineState);
-		// Truncation uses the latest engine state — replay may have advanced it to `walV`.
-		truncateWalFile(this.evita.getEngineState());
+		final boolean replayed = replayCrashedMutationIfNeeded(engineState);
+		if (replayed) {
+			// A replay can commit a folder tombstone, and the boot drain that would act on it ran a layer down in
+			// the persistence-service constructor - before this, and against the state the crash left. Its ordering
+			// is deliberate and stays as it is: draining against an already-healed state would cost the ability to
+			// diagnose a drifted boot from the disk it left behind. So the tombstone gets a second, narrower pass
+			// here instead, and the superseded folder goes on the boot that recovered rather than the one after it.
+			//
+			// Only reachable on a boot that replayed something, so a steady-state boot pays nothing for it. Each
+			// discharge is noted the same way the divergence drain notes its own, and dropped from persisted state
+			// by whichever engine mutation commits next.
+			for (final CatalogFolderId drained : this.enginePersistenceService.drainRetiredFolders()) {
+				this.folderContext.noteFolderDrained(drained);
+			}
+		} else {
+			// Truncation exists to discard the tail of a commit that never finished writing. After a successful
+			// replay there is no such tail: the trailing record was read in full, applied, and made durable in the
+			// bootstrap, and the startup invariant guarantees nothing follows it. Running truncation anyway
+			// **destroyed that record** - the in-memory snapshot handed to `setNextEngineState` is the one the
+			// operator rebuilt, and it still carries the WAL reference from before the crash, so the log was cut
+			// back to the version the bootstrap had just moved past.
+			//
+			// The result was a bootstrap at `walV` over a WAL at `walV - 1`, which is in no allowed row of the
+			// startup table: the **next** boot refused to start. A recovery that bricked the installation one
+			// restart later, and only when no other commit had happened in between to paper over the gap.
+			truncateWalFile(this.evita.getEngineState());
+		}
 	}
 
 	/**
@@ -295,9 +363,10 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
-		// Fail fast if forward WAL replay during startup wedged the engine — see `wedged`.
-		// Continuing would let the next append reuse a version that the WAL already committed,
-		// clobbering the crashed record and masking the original incident.
+		// Fail fast if the engine is wedged — by forward WAL replay during startup, or by a durable
+		// commit that could not be published in memory; see `wedged`. Continuing would let the next
+		// append build on a stale snapshot and reuse a version the WAL already committed, clobbering
+		// that record and masking the original incident.
 		if (this.wedged) {
 			throw new GenericEvitaInternalError(
 				"Engine is wedged and refuses further mutations: "
@@ -439,9 +508,12 @@ public class EngineTransactionManager implements Closeable {
 	}
 
 	/**
-	 * Truncates the write-ahead log (WAL) file associated with the provided {@link ExpandedEngineState}.
-	 * This method ensures that any non-processed actions within the WAL are executed,
-	 * and subsequently truncates the WAL file through the engine persistence service.
+	 * Cuts the write-ahead log back to the record the given state's reference ends at, discarding anything beyond
+	 * it as the residue of a commit that never finished writing.
+	 *
+	 * **Never call this after a successful forward replay.** The state's reference is then the *pre-crash* one —
+	 * the operator rebuilds state, not WAL positions — so it would cut away the very record the replay recovered.
+	 * There is nothing to discard on that path anyway: the trailing record was read whole before it was applied.
 	 *
 	 * @param engineState the current expanded engine state containing the reference to the WAL file;
 	 *                    must not be null
@@ -494,17 +566,17 @@ public class EngineTransactionManager implements Closeable {
 	 *
 	 * @param engineState the initial expanded engine state at `stateV` just restored from disk
 	 */
-	private void replayCrashedMutationIfNeeded(@Nonnull ExpandedEngineState engineState) {
+	private boolean replayCrashedMutationIfNeeded(@Nonnull ExpandedEngineState engineState) {
 		final long walVersion = this.enginePersistenceService.getLastVersionInMutationStream();
 		final long stateVersion = engineState.version();
 		if (walVersion == stateVersion) {
 			// Steady state — nothing to replay.
-			return;
+			return false;
 		}
 		if (walVersion == 0L && stateVersion == 1L) {
 			// Never-used service — initial engine state exists at version 1 before any WAL
 			// file is created. Both boot paths must treat `(walV=0, stateV=1)` as legitimate.
-			return;
+			return false;
 		}
 		if (walVersion != stateVersion + 1L) {
 			// The constructor of DefaultEnginePersistenceService enforces the allowed
@@ -520,7 +592,7 @@ public class EngineTransactionManager implements Closeable {
 					+ walVersion + ", stateVersion=" + stateVersion + ". Further mutations refused "
 					+ "until the on-disk state is reconciled by an operator."
 			);
-			return;
+			return false;
 		}
 
 		// Fetch the unprocessed transaction record at walVersion. The record bundles everything the replay path
@@ -560,7 +632,7 @@ public class EngineTransactionManager implements Closeable {
 					+ crashedMutation.getClass().getName() + " but no operator is registered. "
 					+ "Engine wedged — operator intervention required."
 			);
-			return;
+			return false;
 		}
 
 		// Ask the operator to reconstruct the completion-phase state purely from the mutation.
@@ -581,7 +653,7 @@ public class EngineTransactionManager implements Closeable {
 					+ ". Engine wedged — operator intervention required to reconcile the bootstrap "
 					+ "file manually."
 			);
-			return;
+			return false;
 		}
 		final ExpandedEngineState replayedEngineState = replayedOpt.get();
 
@@ -596,6 +668,7 @@ public class EngineTransactionManager implements Closeable {
 		this.evita.setNextEngineState(replayedEngineState);
 
 		log.info("Forward-replayed mutation at version {} after crash recovery.", walVersion);
+		return true;
 	}
 
 	/**
@@ -713,7 +786,24 @@ public class EngineTransactionManager implements Closeable {
 			// persisted `EngineState` from this snapshot by embedding the fresh
 			// WAL reference.
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
+			// Tombstones of folders that are provably gone are discharged here rather than by whoever deleted
+			// them: the delete happens *after* its own commit, so the operator that performed it has no further
+			// commit to record the fact in. Riding on the next engine mutation - any engine mutation - is what
+			// keeps a discharged tombstone from being carried in persisted state for the lifetime of the
+			// installation. The snapshot is taken before the state is built so that a folder drained concurrently
+			// is left for the following commit rather than being forgotten below without having been pruned.
+			final Set<CatalogFolderId> drainedFolders = Set.copyOf(this.folderContext.getDrainedFolders());
+			final ExpandedEngineState mutatedEngineState = engineStateUpdater.apply(
+				nextStateVersion, this.evita.getEngineState()
+			);
+			final ExpandedEngineState nextEngineState = drainedFolders.isEmpty() ?
+				mutatedEngineState :
+				ExpandedEngineState.builder(mutatedEngineState)
+					// the version stays exactly where the mutation put it - discharging a tombstone is bookkeeping
+					// that rides along with a commit, never a commit of its own
+					.withVersion(nextStateVersion)
+					.withoutRetiredFolders(drainedFolders)
+					.build();
 
 			// Fused WAL append + bootstrap rewrite. The persistence service takes its WAL lock for the whole
 			// critical section, so there is no longer a window in which engine state could advance without a
@@ -732,17 +822,174 @@ public class EngineTransactionManager implements Closeable {
 					)
 				);
 
-			// notify system observer about the mutation
-			this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
-			this.changeObserver.processMutation(engineMutation);
-
-			this.lastStoredEngineStateVersion++;
-			this.evita.setNextEngineState(nextEngineState);
-			// finally, notify the change observer about the new version
-			this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
+			// **The mutation is durable from here, and nothing below may report failure.** The write-ahead log
+			// record is appended and the bootstrap rewritten, so it survives a restart whatever happens next.
+			// A caller told "this failed" would be told something untrue, and would act on it: an operator
+			// undoes bookkeeping the durable state has already recorded, and a client retries an operation that
+			// has already happened. Everything after this line is therefore best-effort and logged - the same
+			// rule the operators apply to their own post-commit work, and for the same reason.
+			//
+			// Reporting nothing costs nothing that reporting would have recovered. The realistic failure here is
+			// a change observer closing underneath an in-flight operation, and the capture it refuses is lost
+			// either way: `processMutation` is what fills the replay buffer, so failing the caller's future
+			// neither redelivers the event nor lets anyone else recover it. It only adds a lie to a loss.
+			try {
+				// notify system observer about the mutation - before the publish, as it always has been
+				this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
+				this.changeObserver.processMutation(engineMutation);
+			} catch (Throwable ex) {
+				log.error(
+					"Change data capture dispatch failed for engine state version `{}`, which is already " +
+						"durable - subscribers have missed this mutation and cannot replay it, because the " +
+						"buffer they would replay from is filled by the dispatch that just failed.",
+					nextStateVersion, ex
+				);
+			}
+			// **The publish, alone in its own guard.** It is the only statement past the boundary whose failure
+			// is not survivable, so it is the only one allowed to wedge - see the catch below for why, and the
+			// second block for why nothing else may join it there.
+			try {
+				// Published unconditionally, whatever the observers did: durable state sitting ahead of the state
+				// every reader resolves against is a split brain nobody can compensate for, and - because the
+				// version counter moves with it - the next mutation would otherwise append at a version the log
+				// already holds.
+				this.lastStoredEngineStateVersion++;
+				this.evita.setNextEngineState(nextEngineState);
+			} catch (Throwable ex) {
+				// **Wedged rather than merely logged**, and this is the one post-durability failure that earns
+				// it, because the version counter has already moved. The next mutation would then derive its
+				// snapshot from `evita.getEngineState()` - still the pre-commit state - and persist it at the
+				// advanced version, durably erasing whatever this commit recorded: a catalog binding, a
+				// tombstone. And it would do so silently, once per commit, for as long as the process runs.
+				//
+				// Refusing further mutations is what stops that, and it is the same escalation the forward-replay
+				// path already uses for a state it cannot reconcile on its own. The caller of *this* mutation is
+				// still not told it failed - it did not, it is durable - but nothing else is allowed to build on
+				// a snapshot the engine can no longer vouch for.
+				wedge(
+					"engine state version `" + nextStateVersion + "` was committed durably but could not be " +
+						"published in memory: " + ex.getMessage()
+				);
+				log.error(
+					"Publishing engine state version `{}` in memory failed after it had been made durable. The " +
+						"mutation survives a restart, but this process now refuses further engine mutations - " +
+						"restart it to resume from the durable state.",
+					nextStateVersion, ex
+				);
+				// Returned rather than fallen through: every statement below reads `nextEngineState` as the state
+				// that is now live, and it is not. Their work is retention bookkeeping for a version no reader
+				// can see, and the engine accepts no further mutation to make use of it.
+				return;
+			}
+			try {
+				// only now is the pruning durable, so the confirmations that produced it can be forgotten
+				this.folderContext.forgetDrainedFolders(drainedFolders);
+				// and only now can a generation counter be retired, for the same reason: the evidence that the name
+				// holds nothing any more is exactly the pruned state that was just made durable
+				retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
+				// finally, notify the change observer about the new version
+				this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
+			} catch (Throwable ex) {
+				// **Logged and never wedged**, in deliberate contrast to the publish above. These three are
+				// retention bookkeeping and a notification, and the next commit performs all of them again from
+				// the state it publishes then - a drained folder stays confirmed, a generation counter stays
+				// unretired, a subscriber wakes one version late. Nothing here can put the durable and live
+				// halves out of step, which is the only thing the wedge exists to prevent.
+				//
+				// The distinction is not academic: `notifyVersionPresentInLiveView` walks change-capture
+				// subscribers and `SystemChangeObserver` refuses it outright once closed, exactly as
+				// `processMutation` does two blocks above. Wedging on that would refuse every future mutation
+				// across every catalog because a subscriber went away during a shutdown - stopping the engine to
+				// protect state that is, by then, perfectly in step.
+				log.error(
+					"Post-publish bookkeeping for engine state version `{}` did not complete. The version is " +
+						"durable and live, so this costs only retention work and a change-capture wake-up that " +
+						"the next commit performs again.",
+					nextStateVersion, ex
+				);
+			}
 		} finally {
 			this.engineStateLock.unlock();
 		}
+	}
+
+	/**
+	 * Discards the folder generation counters of catalog names the commit just stopped referring to.
+	 *
+	 * The counters live in an engine-scoped {@link SequenceService} whose maps are
+	 * append-only, so without this a server that churns catalogs retains one entry per catalog name ever
+	 * materialised, for the life of the process. Nothing behaved wrongly — it is pure retention — and the
+	 * discard is likewise pure bookkeeping, which is why it rides along with a commit rather than being one.
+	 *
+	 * **The tombstone drain is the only place this can be decided**, and that is not an implementation
+	 * convenience. Dropping a catalog does not free its name: the folder removal is *owed* rather than done, and
+	 * a tombstone is a standing order to delete one specific directory. Retiring the counter while such an order
+	 * is outstanding would let a recreated catalog of the same name draw the number the order names, and — if
+	 * the directory happened to be gone already — bind itself to a token something is still under instructions
+	 * to destroy. Only once the last of a name's tombstones has been pruned is that unreachable.
+	 *
+	 * A name is retired when the durable state that has just been published carries no binding for it and no
+	 * tombstone naming it, and nothing is materialising it. That rule is loose in three deliberate ways:
+	 *
+	 * - **Litter is not consulted.** Folders a failed attempt left behind are invisible to the engine state, so
+	 *   a restarted counter can walk back onto one. That costs a number rather than data:
+	 *   `CatalogFolderAllocator` treats a directory it cannot create as a number to burn and draws the next,
+	 *   bounded by its attempt limit. The residual trade is that a name with as many surviving litter folders as
+	 *   that limit now fails allocation where a monotonic counter would have stepped over them.
+	 * - **A tombstone is matched by the catalog name it records, not by the shape of its token.** Renaming is a
+	 *   pointer swap that leaves the folder where it is, so a tombstone can carry `orders` while its token reads
+	 *   `products_3`. Such a token is never *nominated* here either — the drain nominates `orders` — so the old
+	 *   name simply keeps its counter. That is retention this does not reclaim, not a counter retired unsafely.
+	 * - **A folder both bound and tombstoned is safe by classification**, not by timing: boot classification
+	 *   ranks `REFERENCED` above `RETIRED`, so a directory a live catalog occupies is never drained whatever
+	 *   else claims it.
+	 *
+	 * @param stateBeforePruning state carrying the tombstones about to be discharged, so their names are readable
+	 * @param stateAfterPruning  durable state the commit published
+	 * @param drainedFolders     folders whose tombstones this commit discharged
+	 */
+	private void retireGenerationSequences(
+		@Nonnull ExpandedEngineState stateBeforePruning,
+		@Nonnull ExpandedEngineState stateAfterPruning,
+		@Nonnull Set<CatalogFolderId> drainedFolders
+	) {
+		if (drainedFolders.isEmpty()) {
+			return;
+		}
+		final RetiredFolder[] remainingTombstones = stateAfterPruning.engineState().retiredFolders();
+		for (final RetiredFolder discharged : stateBeforePruning.engineState().retiredFolders()) {
+			if (!drainedFolders.contains(discharged.folderId())) {
+				continue;
+			}
+			// A name with several folders draining at once is nominated once per folder; the repeat calls below
+			// are no-ops, which is cheaper than de-duplicating a set that almost always holds one entry.
+			final String catalogName = discharged.catalogName();
+			if (stateAfterPruning.boundFolderIdFor(catalogName) != null
+				|| this.folderContext.isMaterialising(catalogName)
+				|| namedByAnyOf(remainingTombstones, catalogName)) {
+				continue;
+			}
+			// Safe against this service and only this one: it is the engine-scoped instance holding nothing but
+			// `CATALOG_GENERATION` counters. `removeSequences` drops *every* sequence recorded for the name, so
+			// against a catalog-scoped service it would take that catalog's entity primary-key sequences with it.
+			this.evita.getCatalogGenerationSequences().removeSequences(catalogName);
+		}
+	}
+
+	/**
+	 * Tells whether any of the passed tombstones was recorded for the given catalog name.
+	 *
+	 * @param tombstones  tombstones to search
+	 * @param catalogName name to look for
+	 * @return true when at least one tombstone names the catalog
+	 */
+	private static boolean namedByAnyOf(@Nonnull RetiredFolder[] tombstones, @Nonnull String catalogName) {
+		for (final RetiredFolder tombstone : tombstones) {
+			if (catalogName.equals(tombstone.catalogName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

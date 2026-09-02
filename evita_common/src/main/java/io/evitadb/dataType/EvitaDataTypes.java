@@ -927,6 +927,12 @@ public class EvitaDataTypes {
 	 * query processing pipeline. Use {@link #toTargetType(Serializable, Class)} for explicit type
 	 * conversion.
 	 *
+	 * It must **not** be used to normalize a value on its way into storage: the `LocalDateTime`
+	 * rewrite above would strip an attribute of the very type its schema declares. Use
+	 * {@link #toSupportedStoredType(Serializable)} there. The rewrite is harmless on the query path
+	 * because every attribute constraint coerces its value to the attribute's declared type anyway
+	 * (`toTargetType`), and both directions of that coercion preserve the wall clock.
+	 *
 	 * @param unknownObject the value to validate and normalize
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB (includes Float
@@ -934,6 +940,50 @@ public class EvitaDataTypes {
 	 */
 	@Nullable
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
+		return toSupportedType(unknownObject, true);
+	}
+
+	/**
+	 * Validates and normalizes a value that is about to be **stored** in the database — an entity
+	 * attribute value carried by a mutation, as opposed to a value used in a query.
+	 *
+	 * The normalization is identical to {@link #toSupportedType(Serializable)} with one deliberate
+	 * exception: a `LocalDateTime` is passed through untouched instead of being rewritten to an
+	 * `OffsetDateTime` at UTC. `LocalDateTime` is itself one of the supported data types, so an
+	 * attribute *declared* as `LocalDateTime` has to be able to carry one. Rewriting the value in
+	 * the mutation constructor — before the schema is ever consulted — made such an attribute
+	 * impossible to write at all, and silently derived an `OffsetDateTime` attribute when the
+	 * schema was auto-evolved from the value instead of being declared up front.
+	 *
+	 * Query values deliberately keep the rewrite; see {@link #toSupportedType(Serializable)}.
+	 *
+	 * @param unknownObject the value to validate and normalize
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 */
+	@Nullable
+	public static Serializable toSupportedStoredType(
+		@Nullable Serializable unknownObject
+	) throws UnsupportedDataTypeException {
+		return toSupportedType(unknownObject, false);
+	}
+
+	/**
+	 * Shared implementation of {@link #toSupportedType(Serializable)} and
+	 * {@link #toSupportedStoredType(Serializable)}.
+	 *
+	 * @param unknownObject           the value to validate and normalize
+	 * @param coerceLocalDateTime     when `true`, `LocalDateTime` is rewritten to `OffsetDateTime`
+	 *                                at UTC; when `false` it is passed through as the supported
+	 *                                type it already is
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 */
+	@Nullable
+	private static Serializable toSupportedType(
+		@Nullable Serializable unknownObject,
+		boolean coerceLocalDateTime
+	) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
 			// nulls are allowed
 			return null;
@@ -949,8 +999,9 @@ public class EvitaDataTypes {
 			}
 			// normalize doubles to big decimal
 			return new BigDecimal(unknownObject.toString());
-		} else if (unknownObject instanceof LocalDateTime) {
-			// always convert local date time to zoned
+		} else if (coerceLocalDateTime && unknownObject instanceof LocalDateTime) {
+			// always convert local date time to zoned - on the query path only, a stored value must
+			// keep the type its attribute schema declares
 			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
 		} else if (unknownObject.getClass().isEnum()) {
 			return unknownObject.getClass().isAnnotationPresent(SupportedEnum.class) ?
@@ -980,6 +1031,67 @@ public class EvitaDataTypes {
 	public static Serializable toSupportedTypeOrItsArray(
 		@Nullable Serializable unknownObject
 	) throws UnsupportedDataTypeException {
+		return toSupportedTypeOrItsArray(unknownObject, true);
+	}
+
+	/**
+	 * Scalar-or-array counterpart of {@link #toSupportedStoredType(Serializable)} — the entry point
+	 * used by attribute mutations, which must preserve the data type the attribute schema declares.
+	 * For scalar values delegates to {@link #toSupportedStoredType(Serializable)}; for arrays
+	 * normalizes each element individually and returns a new array if any element changed.
+	 *
+	 * @param unknownObject the value to validate and normalize (scalar or array, may be `null`)
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type (or array component type) is not supported
+	 */
+	@Nullable
+	public static Serializable toSupportedStoredTypeOrItsArray(
+		@Nullable Serializable unknownObject
+	) throws UnsupportedDataTypeException {
+		return toSupportedTypeOrItsArray(unknownObject, false);
+	}
+
+	/**
+	 * Resolves the component type for an array rebuilt from normalized elements. The type is taken from the first
+	 * **non-null** normalized element, falling back to the source array's component type when every element is `null`.
+	 *
+	 * Deriving it from element zero alone is not enough: a leading `null` says nothing about what the remaining
+	 * elements normalized to, so `{null, 1.5f}` would rebuild as a `Float[]` and then throw on `Array.set` when the
+	 * normalized `BigDecimal` is stored into it. The same applies to a query-path `{null, LocalDateTime}` array, whose
+	 * non-null element normalizes to `OffsetDateTime`.
+	 *
+	 * @param normalizedElements  the already-normalized elements
+	 * @param sourceComponentType component type of the source array, used when every element is `null`
+	 * @return component type the rebuilt array must be created with
+	 */
+	@Nonnull
+	private static Class<?> normalizedComponentType(
+		@Nonnull Serializable[] normalizedElements,
+		@Nonnull Class<?> sourceComponentType
+	) {
+		for (int i = 0; i < normalizedElements.length; i++) {
+			if (normalizedElements[i] != null) {
+				return normalizedElements[i].getClass();
+			}
+		}
+		return sourceComponentType;
+	}
+
+	/**
+	 * Shared implementation of {@link #toSupportedTypeOrItsArray(Serializable)} and
+	 * {@link #toSupportedStoredTypeOrItsArray(Serializable)}.
+	 *
+	 * @param unknownObject       the value to validate and normalize (scalar or array, may be `null`)
+	 * @param coerceLocalDateTime when `true`, `LocalDateTime` elements are rewritten to
+	 *                            `OffsetDateTime` at UTC; when `false` they are passed through
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type (or array component type) is not supported
+	 */
+	@Nullable
+	private static Serializable toSupportedTypeOrItsArray(
+		@Nullable Serializable unknownObject,
+		boolean coerceLocalDateTime
+	) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
 			return null;
 		} else if (unknownObject.getClass().isArray()) {
@@ -989,7 +1101,7 @@ public class EvitaDataTypes {
 			for (int i = 0; i < length; i++) {
 				final Object element = Array.get(unknownObject, i);
 				if (element instanceof Serializable s) {
-					final Serializable normalized = toSupportedType(s);
+					final Serializable normalized = toSupportedType(s, coerceLocalDateTime);
 					result[i] = normalized;
 					changed = changed || normalized != s;
 				} else if (element == null) {
@@ -1002,9 +1114,9 @@ public class EvitaDataTypes {
 			}
 			if (changed) {
 				// create a properly typed array with the normalized component type
-				final Class<?> componentType = result[0] != null
-					? result[0].getClass()
-					: unknownObject.getClass().getComponentType();
+				final Class<?> componentType = normalizedComponentType(
+					result, unknownObject.getClass().getComponentType()
+				);
 				final Object typedArray = Array.newInstance(componentType, length);
 				for (int i = 0; i < length; i++) {
 					Array.set(typedArray, i, result[i]);
@@ -1013,7 +1125,7 @@ public class EvitaDataTypes {
 			}
 			return unknownObject;
 		} else {
-			return toSupportedType(unknownObject);
+			return toSupportedType(unknownObject, coerceLocalDateTime);
 		}
 	}
 
@@ -1293,16 +1405,29 @@ public class EvitaDataTypes {
 	 * ranges). The estimation is NOT precise and should not be relied upon for exact memory
 	 * accounting.
 	 *
+	 * **Only objects this value owns are counted.** A shared instance - a JVM singleton, an interned value, a
+	 * structure maintained elsewhere - belongs to its owner and is charged there, never here. Counting it in both
+	 * places would make the parts stop summing to the whole, which is a wrong answer rather than a cautious one.
+	 * Where an estimate is genuinely uncertain the larger reading is taken instead, so a caller is never told a
+	 * structure is cheap when it is the expensive one.
+	 *
+	 * Every object size is rounded up to the VM's allocation granularity, since a heap object always occupies a whole
+	 * number of allocation units.
+	 *
 	 * Size estimation rules (using {@link MemoryMeasuringConstants}):
 	 * - null: 0 bytes
-	 * - Arrays: base size + element reference sizes + recursive size of each element
+	 * - Arrays: header + inline element slots, plus the recursive size of each element for **reference** arrays only
+	 *   (a primitive array stores its values inline and owns nothing further)
 	 * - String: computed via `MemoryMeasuringConstants.computeStringSize()`
-	 * - Primitive wrappers: object header + primitive size
-	 * - BigDecimal: object header + constant size
-	 * - Date/time types: object header + component sizes
+	 * - Primitive wrappers: object header + primitive size, aligned
+	 * - BigDecimal: object header + field payload; an over-`long` magnitude's `BigInteger` is not included
+	 * - LocalDate / LocalTime: object header + component fields, aligned
+	 * - LocalDateTime: its own object plus the LocalDate and LocalTime it owns
+	 * - OffsetDateTime: its own object plus its LocalDateTime; the **ZoneOffset is excluded** - it is interned and
+	 *   drags the shared timezone-rules database with it, so it belongs to the JVM rather than to this value
 	 * - DateTimeRange: object header + 2 OffsetDateTime sizes + 2 longs
 	 * - NumberRange: object header + 2 number sizes + reference + int + 2 longs
-	 * - Locale, Currency, Enum: 0 (assumed flyweight/singleton)
+	 * - Locale, Currency, Enum: 0 - flyweights owned by the JVM
 	 * - UUID: object header + 2 longs
 	 * - Predecessor, ReferencedEntityPredecessor: object header + int
 	 * - ComplexDataObject, DataItem: delegates to instance's `estimateSize()` method
@@ -1315,40 +1440,50 @@ public class EvitaDataTypes {
 		if (unknownObject == null) {
 			return 0;
 		} else if (unknownObject.getClass().isArray()) {
-			final int elementSize = getElementSize(unknownObject.getClass().getComponentType());
-			int size = ARRAY_BASE_SIZE + Array.getLength(unknownObject) * elementSize;
-			for (int i = 0; i < Array.getLength(unknownObject); i++) {
-				size += EvitaDataTypes.estimateSize((Serializable) Array.get(unknownObject, i));
+			final Class<?> componentType = unknownObject.getClass().getComponentType();
+			final int length = Array.getLength(unknownObject);
+			long size = MemoryMeasuringConstants.align(ARRAY_BASE_SIZE + (long) length * getElementSize(componentType));
+			// only a reference array owns anything beyond its slots. Recursing into a PRIMITIVE array would box every
+			// element through `Array.get` and then charge that throw-away wrapper's header - 20 bytes per int on top
+			// of the 4 already counted inline, which over-reported an `int[]` by 6x
+			if (!componentType.isPrimitive()) {
+				for (int i = 0; i < length; i++) {
+					size += EvitaDataTypes.estimateSize((Serializable) Array.get(unknownObject, i));
+				}
 			}
-			return size;
+			return (int) size;
 		} else if (unknownObject instanceof String s) {
 			return computeStringSize(s);
 		} else if (unknownObject instanceof Byte) {
-			return OBJECT_HEADER_SIZE + BYTE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BYTE_SIZE);
 		} else if (unknownObject instanceof Short) {
-			return OBJECT_HEADER_SIZE + SMALL_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + SMALL_SIZE);
 		} else if (unknownObject instanceof Integer) {
-			return OBJECT_HEADER_SIZE + INT_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + INT_SIZE);
 		} else if (unknownObject instanceof Long) {
-			return OBJECT_HEADER_SIZE + LONG_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LONG_SIZE);
 		} else if (unknownObject instanceof Boolean) {
-			return OBJECT_HEADER_SIZE + BYTE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BYTE_SIZE);
 		} else if (unknownObject instanceof Character) {
-			return OBJECT_HEADER_SIZE + CHAR_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + CHAR_SIZE);
 		} else if (unknownObject instanceof BigDecimal) {
-			return OBJECT_HEADER_SIZE + BIG_DECIMAL_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BIG_DECIMAL_SIZE);
 		} else if (unknownObject instanceof OffsetDateTime) {
-			return OBJECT_HEADER_SIZE + LOCAL_DATE_TIME_SIZE + REFERENCE_SIZE;
+			// the ZoneOffset is NOT counted: `ZoneOffset.ofTotalSeconds` interns the common offsets and each one drags
+			// the shared timezone-rules database behind it, so charging it here would bill one global structure to
+			// every timestamp. Only the reference slot pointing at it belongs to this object
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE)
+				+ LOCAL_DATE_TIME_SIZE;
 		} else if (unknownObject instanceof LocalDateTime) {
-			return OBJECT_HEADER_SIZE+ LOCAL_DATE_TIME_SIZE;
+			return LOCAL_DATE_TIME_SIZE;
 		} else if (unknownObject instanceof LocalDate) {
-			return OBJECT_HEADER_SIZE+ LOCAL_DATE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LOCAL_DATE_SIZE);
 		} else if (unknownObject instanceof LocalTime) {
-			return OBJECT_HEADER_SIZE + LOCAL_TIME_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LOCAL_TIME_SIZE);
 		} else if (unknownObject instanceof DateTimeRange) {
-			return OBJECT_HEADER_SIZE
-				+ 2 * (OBJECT_HEADER_SIZE + LOCAL_DATE_TIME_SIZE + REFERENCE_SIZE)
-				+ 2 * (LONG_SIZE);
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE + 2L * LONG_SIZE)
+				+ 2 * ((int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE)
+					+ LOCAL_DATE_TIME_SIZE);
 		} else if (unknownObject instanceof final NumberRange<?> numberRange) {
 			final Number innerDataType;
 			if (numberRange.getPreciseFrom() != null) {
@@ -1358,9 +1493,9 @@ public class EvitaDataTypes {
 			} else {
 				innerDataType = null;
 			}
-			return OBJECT_HEADER_SIZE
-				+ 2 * (innerDataType == null ? 0 : estimateSize(innerDataType))
-				+ REFERENCE_SIZE + INT_SIZE + 2 * (LONG_SIZE);
+			return (int) MemoryMeasuringConstants.align(
+				OBJECT_HEADER_SIZE + 3L * REFERENCE_SIZE + INT_SIZE + 2L * LONG_SIZE
+			) + 2 * (innerDataType == null ? 0 : estimateSize(innerDataType));
 		} else if (unknownObject instanceof Locale) {
 			return 0;
 		} else if (unknownObject instanceof Enum) {
@@ -1368,9 +1503,9 @@ public class EvitaDataTypes {
 		} else if (unknownObject instanceof Currency) {
 			return 0;
 		} else if (unknownObject instanceof UUID) {
-			return OBJECT_HEADER_SIZE + 2 * LONG_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * LONG_SIZE);
 		} else if (unknownObject instanceof Predecessor || unknownObject instanceof ReferencedEntityPredecessor) {
-			return OBJECT_HEADER_SIZE + INT_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + INT_SIZE);
 		} else if (unknownObject instanceof final ComplexDataObject complexDataObject) {
 			return REFERENCE_SIZE + complexDataObject.estimateSize();
 		} else if (unknownObject instanceof final DataItem dataItem) {

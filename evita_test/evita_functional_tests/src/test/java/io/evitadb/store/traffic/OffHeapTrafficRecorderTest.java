@@ -55,6 +55,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -896,7 +897,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						"Injected disk write failure.", "Injected disk write failure.");
 				}
 				return invocation.callRealMethod();
-			}).when(spyDiskBuffer).append(Mockito.any());
+			}).when(spyDiskBuffer).append(ArgumentMatchers.any());
 			writeField(recorder, "diskBuffer", spyDiskBuffer);
 			final EnumMap<TrafficRecorderMissReason, Long> droppedBaseline = captureReasonBaseline(
 				recorder, "droppedSessionsByReason");

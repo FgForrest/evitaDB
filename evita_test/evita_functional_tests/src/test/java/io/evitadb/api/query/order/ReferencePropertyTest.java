@@ -40,7 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;

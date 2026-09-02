@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
@@ -98,7 +99,8 @@ class EntityIndexBitmapEvictionTest {
 			new EntityAttributeIndex(ENTITY_TYPE),
 			new PriceSuperIndex(),
 			new HierarchyIndex(),
-			new FacetIndex()
+			new FacetIndex(),
+			new IndexActivity()
 		);
 	}
 
@@ -133,7 +135,7 @@ class EntityIndexBitmapEvictionTest {
 	private static AttributeSchemaContract filterableStringSchema(@Nonnull String name) {
 		return AttributeSchema._internalBuild(
 			name, null,
-			new Scope[]{Scope.LIVE}, Scope.NO_SCOPE,
+			new Scope[]{Scope.LIVE}, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null,
 			ConflictResolutionOverride.INHERITED

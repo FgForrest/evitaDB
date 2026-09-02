@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.CatalogNotAliveException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -46,8 +47,18 @@ import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+// shadows the legacy same-package `io.evitadb.api.CatalogStatistics`, which survives only to feed the deprecated
+// instance-wide RPC and is not what this contract speaks in any more
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,7 +70,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 /**
@@ -198,12 +209,16 @@ public interface CatalogContract {
 		throws SchemaAlteringException;
 
 	/**
-	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
-	 */
-	void terminateAndDelete();
-
-	/**
-	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `updatedSchema.getName()`, so that it becomes the catalog known under that name.
+	 *
+	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
+	 * occupies; the operation rewrites the name held in that folder's header and schema and hands back a catalog
+	 * instance addressing the same data under the new name. Retiring the folder the replaced catalog used
+	 * to occupy is the caller's concern — it is tombstoned through the engine state, not deleted here.
+	 *
+	 * @param updatedSchema        schema carrying the name this catalog is to be known under
+	 * @param catalogToBeReplaced  catalog being superseded, or `null` when this is a rename onto a free name
+	 * @return future producing the catalog instance serving the new name
 	 */
 	@Nonnull
 	ProgressingFuture<CatalogContract> replace(
@@ -349,8 +364,8 @@ public interface CatalogContract {
 	 *                       when set not null, the pastMoment parameter is ignored
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -359,8 +374,7 @@ public interface CatalogContract {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException;
 
 	/**
@@ -369,32 +383,88 @@ public interface CatalogContract {
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
 
 	/**
-	 * Duplicates the current catalog to another catalog with the specified name.
+	 * Returns a component-selected snapshot of this catalog's statistics.
 	 *
-	 * @param targetCatalogName the name of the target catalog to which the current catalog will be duplicated
-	 * @return a future that will be completed when the duplication is finished
+	 * Only the named components are computed; each of them gets an entry in
+	 * {@link CatalogStatistics#componentStatus()} saying whether it was delivered and, if not, why.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is always delivered, requested or not.
+	 *
+	 * The result carries **catalog-wide aggregates only** - never a per-collection breakdown. Statistics of a single
+	 * entity collection are obtained from {@link EntityCollectionContract#getStatistics(Set)}, and the two are
+	 * independent snapshots that may observe different catalog versions.
+	 *
+	 * @param components the components to compute; at least one must be named
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws EvitaInvalidUsageException when no component is requested
 	 */
 	@Nonnull
-	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
+	CatalogStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
 
 	/**
-	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
+	 * Returns one page of the indexes this catalog holds itself, filtered and ordered as asked.
 	 *
-	 * @return catalog statistics
+	 * The catalog-level counterpart of {@link EntityCollectionContract#browseIndexes(IndexBrowseCriteria)}, answering
+	 * with the same rows under the same criteria so that a client browsing both runs one code path. What it enumerates
+	 * is the globally-unique attribute index there is one of per {@link io.evitadb.dataType.Scope} - never a
+	 * collection's indexes, which stay behind the collection's own call.
+	 *
+	 * **This one is cheap, where the collection's is not.** A catalog holds at most one index per scope, so the walk is
+	 * over a constant rather than over the data; the criteria's paging and ordering exist to keep the two surfaces
+	 * identical rather than because anything here needs bounding.
+	 *
+	 * @param criteria which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
 	 */
 	@Nonnull
-	CatalogStatistics getStatistics();
+	IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria);
+
+	/**
+	 * Describes one index this catalog holds itself - what it occupies on the heap, and how well it discriminates.
+	 *
+	 * The drill-down that follows {@link #browseIndexes(IndexBrowseCriteria)}, and the catalog-level counterpart of
+	 * {@link EntityCollectionContract#describeIndex(int)}. Hand back the {@link BrowsedIndex#indexPrimaryKey()} of the
+	 * row that looked worth investigating.
+	 *
+	 * @param indexPrimaryKey identity of the index to describe, as reported by {@link BrowsedIndex#indexPrimaryKey()}
+	 * @return the full description of that one index
+	 * @throws IndexNotFoundException when the catalog holds no index under that handle. A catalog index is created
+	 *                                lazily per scope, so this ordinarily means nothing globally unique has been written
+	 *                                into that scope yet - and unlike a collection's, the handle can start resolving
+	 *                                later, to the same logical index it always denoted
+	 */
+	@Nonnull
+	IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException;
+
+	/**
+	 * Returns how often each capability the **catalog schema itself** declares was asked for by queries, against how
+	 * often mutations had to maintain it.
+	 *
+	 * The catalog-level counterpart of {@link EntityCollectionContract#listCapabilityUsage()}, answering with the same
+	 * rows so that a client reading both runs one code path. What it reports are the capabilities of the catalog's
+	 * **globally-unique attributes** - never a collection's, which stay behind the collection's own call. Those live
+	 * here because a query filtering by such an attribute may name no collection at all, being served from the
+	 * catalog's own global unique index, and because dropping one of their flags is a catalog schema mutation.
+	 *
+	 * Every row therefore carries a null {@link SchemaCapabilityUsageStatistics#entityType()} and a null
+	 * {@link SchemaCapabilityUsageStatistics#containerName()}: a catalog schema declares no references and no
+	 * compounds.
+	 *
+	 * @return one row per observed capability, empty when nothing has been observed since the catalog was loaded
+	 */
+	@Nonnull
+	List<SchemaCapabilityUsageStatistics> listCapabilityUsage();
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

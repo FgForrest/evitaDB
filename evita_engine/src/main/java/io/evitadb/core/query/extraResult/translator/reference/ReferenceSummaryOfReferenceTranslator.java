@@ -43,6 +43,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -105,7 +106,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("deprecation")
 public class ReferenceSummaryOfReferenceTranslator
 	implements RequireConstraintTranslator<ReferenceSummaryOfReference>, SelfTraversingTranslator {
 
@@ -386,6 +386,12 @@ public class ReferenceSummaryOfReferenceTranslator
 		isTrue(
 			scopes.stream().allMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
+		);
+		// the *OfReference forms route through here rather than through the sibling translator's own
+		// `createProducerInternal`, so the dependency has to be recorded in both. Past the assertion, which has just
+		// established the flag is on in every requested scope
+		extraResultPlanner.getQueryContext().recordRequestedReferenceCapability(
+			entitySchema, referenceName, Capability.FACETED, scopes
 		);
 
 		// collect all facet statistics — filter by scope so that only live/archived indexes

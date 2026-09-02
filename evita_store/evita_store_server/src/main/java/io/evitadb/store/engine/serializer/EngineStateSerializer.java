@@ -28,7 +28,11 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
@@ -45,6 +49,7 @@ import java.time.OffsetDateTime;
  * - Introduction timestamp
  * - WAL file reference
  * - Active, inactive, read-only, and missing catalogs
+ * - Catalog-to-folder bindings, retired folders awaiting deletion and per-catalog generation peaks
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -100,6 +105,27 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		for (String catalogName : engineState.missingCatalogs()) {
 			output.writeString(catalogName);
 		}
+
+		// Write the name-to-folder bindings — the engine state's sole authority for where a catalog's data lives
+		output.writeVarInt(engineState.catalogFolders().length, true);
+		for (final CatalogFolderBinding binding : engineState.catalogFolders()) {
+			output.writeString(binding.catalogName());
+			output.writeString(binding.folderId().id());
+		}
+
+		// Write the tombstones — folders no catalog points at any more, awaiting deletion
+		output.writeVarInt(engineState.retiredFolders().length, true);
+		for (final RetiredFolder retiredFolder : engineState.retiredFolders()) {
+			output.writeString(retiredFolder.catalogName());
+			output.writeString(retiredFolder.folderId().id());
+		}
+
+		// Write the generation peaks — highest folder generation ever handed out per catalog name
+		output.writeVarInt(engineState.generationPeaks().length, true);
+		for (final CatalogGenerationPeak peak : engineState.generationPeaks()) {
+			output.writeString(peak.catalogName());
+			output.writeVarInt(peak.peak(), true);
+		}
 	}
 
 	@Nonnull
@@ -151,13 +177,37 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			readOnlyCatalogs[i] = input.readString();
 		}
 
-		// Read missing catalogs. The backward-compatible serializer handles the legacy format where this section is
-		// absent — readers of this serializer always see the new tail present because the writer above always emits
-		// it.
+		// Read missing catalogs. The backward-compatible serializers handle the legacy formats where this section
+		// and the folder sections below are absent — readers of this serializer always see every tail present
+		// because the writer above always emits them.
 		final int missingCatalogsCount = input.readVarInt(true);
 		final String[] missingCatalogs = new String[missingCatalogsCount];
 		for (int i = 0; i < missingCatalogsCount; i++) {
 			missingCatalogs[i] = input.readString();
+		}
+
+		// Read the name-to-folder bindings
+		final int catalogFoldersCount = input.readVarInt(true);
+		final CatalogFolderBinding[] catalogFolders = new CatalogFolderBinding[catalogFoldersCount];
+		for (int i = 0; i < catalogFoldersCount; i++) {
+			final String catalogName = input.readString();
+			catalogFolders[i] = new CatalogFolderBinding(catalogName, new CatalogFolderId(input.readString()));
+		}
+
+		// Read the tombstones
+		final int retiredFoldersCount = input.readVarInt(true);
+		final RetiredFolder[] retiredFolders = new RetiredFolder[retiredFoldersCount];
+		for (int i = 0; i < retiredFoldersCount; i++) {
+			final String catalogName = input.readString();
+			retiredFolders[i] = new RetiredFolder(catalogName, new CatalogFolderId(input.readString()));
+		}
+
+		// Read the generation peaks
+		final int generationPeaksCount = input.readVarInt(true);
+		final CatalogGenerationPeak[] generationPeaks = new CatalogGenerationPeak[generationPeaksCount];
+		for (int i = 0; i < generationPeaksCount; i++) {
+			final String catalogName = input.readString();
+			generationPeaks[i] = new CatalogGenerationPeak(catalogName, input.readVarInt(true));
 		}
 
 		// Create and return a new EngineState with the read values
@@ -169,7 +219,10 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			activeCatalogs,
 			inactiveCatalogs,
 			readOnlyCatalogs,
-			missingCatalogs
+			missingCatalogs,
+			catalogFolders,
+			retiredFolders,
+			generationPeaks
 		);
 	}
 }

@@ -564,6 +564,9 @@ public class ExternalApiServer implements AutoCloseable {
 			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
 			.bindTo(meterRegistry);
 
+		// reports RST_STREAM floods and erroneous GOAWAY teardowns that would otherwise leave no trace on the server
+		final Http2ConnectionMonitor http2ConnectionMonitor = Http2ConnectionMonitor.fromSystemProperties();
+
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
@@ -594,9 +597,22 @@ public class ExternalApiServer implements AutoCloseable {
 			.decorator(TracingDecorator.newDecorator())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
-			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
+			// keepAliveOnPing = true makes a client's inbound keep-alive ping count as connection activity, so a
+			// connection with an actively pinging client is never reaped by the idle timeout - set explicitly
+			// rather than riding Armeria's global Flags.defaultServerKeepAliveOnPing (false by default). Without
+			// this, the server ignores the driver's own keep-alive ping and reaps the connection regardless.
+			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis(), true)
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.pingIntervalMillis(apiOptions.pingIntervalMillis())
+			// Netty's Rapid-Reset (CVE-2023-44487) defence, which stock Armeria enables at 400 resets per minute -
+			// evitaDB turns it OFF by default, because it kills the whole connection (and every unrelated in-flight
+			// request on it) for a client that is merely timing out a lot, and evitaDB's clients are usually trusted.
+			// The flood is reported by Http2ConnectionMonitor instead of being enforced against
+			.http2MaxResetFramesPerWindow(
+				http2ConnectionMonitor.getMaxRstFramesPerWindow(),
+				http2ConnectionMonitor.getRstFrameWindowSeconds()
+			)
+			.childChannelPipelineCustomizer(http2ConnectionMonitor::install)
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)

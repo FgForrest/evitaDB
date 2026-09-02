@@ -1,12 +1,12 @@
 ---
-title: Filtrování podle ceny
+title: Filtrování cen
 date: '11.5.2026'
-perex: 'V oblasti e-commerce uživatelé očekávají, že uvidí ceny přizpůsobené jejich kontextu: místní měnu pro snadné porozumění, přesné prodejní ceny ze správného ceníku a aktuální nabídky, které mohou být platné pouze v určitých obdobích. Splnění těchto očekávání pomocí sofistikovaného filtrování v databázi nejen zlepšuje uživatelský zážitek, ale také zjednodušuje nákupní proces, což zvyšuje spokojenost i prodeje.'
+perex: 'V oblasti e-commerce uživatelé očekávají, že uvidí ceny přizpůsobené jejich kontextu: v místní měně pro snadné pochopení, přesné prodejní ceny ze správného ceníku a aktuální nabídky, které mohou být platné pouze v určitých obdobích. Splnění těchto očekávání pomocí sofistikovaného filtrování v databázi nejen zvyšuje uživatelský zážitek, ale také zjednodušuje nákupní proces, což vede k vyšší spokojenosti a prodejům.'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '4f4bf94120e5667bded014a2e6e81839c94d4a17'
 ---
 Tato kapitola obsahuje popis constraintů evitaDB, které vám pomáhají kontrolovat výběr prodejní ceny a filtrovat produkty podle ceny.
 

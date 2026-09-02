@@ -34,12 +34,9 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies contract of {@link ListBuilder} class.
@@ -59,7 +56,7 @@ class ListBuilderTest {
 		@DisplayName("Should create empty list")
 		void shouldCreateEmptyList() {
 			final Object result = list().build();
-			assertTrue(result instanceof List);
+			assertInstanceOf(List.class, result);
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertTrue(listResult.isEmpty());
@@ -74,7 +71,7 @@ class ListBuilderTest {
 				.i(true)
 				.build();
 
-			assertTrue(result instanceof List);
+			assertInstanceOf(List.class, result);
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(3, listResult.size());
@@ -120,7 +117,7 @@ class ListBuilderTest {
 		@DisplayName("Should create empty array")
 		void shouldCreateEmptyArray() {
 			final Object result = array().build();
-			assertTrue(result instanceof Object[]);
+			assertInstanceOf(Object[].class, result);
 			final Object[] arrayResult = (Object[]) result;
 			assertEquals(0, arrayResult.length);
 		}
@@ -134,7 +131,7 @@ class ListBuilderTest {
 				.i(true)
 				.build();
 
-			assertTrue(result instanceof Object[]);
+			assertInstanceOf(Object[].class, result);
 			final Object[] arrayResult = (Object[]) result;
 			assertEquals(3, arrayResult.length);
 			assertArrayEquals(new Object[]{"first", 42, true}, arrayResult);
@@ -169,7 +166,7 @@ class ListBuilderTest {
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(1, listResult.size());
-			assertTrue(listResult.get(0) instanceof Map);
+			assertInstanceOf(Map.class, listResult.get(0));
 			@SuppressWarnings("unchecked")
 			final Map<String, Object> mapElement = (Map<String, Object>) listResult.get(0);
 			assertEquals("value", mapElement.get("key"));
@@ -187,7 +184,7 @@ class ListBuilderTest {
 			@SuppressWarnings("unchecked")
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(1, listResult.size());
-			assertTrue(listResult.get(0) instanceof List);
+			assertInstanceOf(List.class, listResult.get(0));
 			@SuppressWarnings("unchecked")
 			final List<Object> nestedList = (List<Object>) listResult.get(0);
 			assertEquals(2, nestedList.size());
@@ -208,8 +205,8 @@ class ListBuilderTest {
 			final List<Object> listResult = (List<Object>) result;
 			assertEquals(3, listResult.size());
 			assertEquals("plain", listResult.get(0));
-			assertTrue(listResult.get(1) instanceof Map);
-			assertTrue(listResult.get(2) instanceof List);
+			assertInstanceOf(Map.class, listResult.get(1));
+			assertInstanceOf(List.class, listResult.get(2));
 		}
 
 		@Test
@@ -222,8 +219,8 @@ class ListBuilderTest {
 
 			final Object[] arrayResult = (Object[]) result;
 			assertEquals(2, arrayResult.length);
-			assertTrue(arrayResult[0] instanceof Map);
-			assertTrue(arrayResult[1] instanceof List);
+			assertInstanceOf(Map.class, arrayResult[0]);
+			assertInstanceOf(List.class, arrayResult[1]);
 		}
 	}
 }

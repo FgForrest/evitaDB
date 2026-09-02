@@ -51,6 +51,9 @@ final class SortResolutionStrategies {
 	 */
 	private static final SortResolutionStrategy[] STRATEGIES = SortResolutionStrategy.values();
 
+	/**
+	 * This class is a holder of static helpers only and is never instantiated.
+	 */
 	private SortResolutionStrategies() {
 		throw new UnsupportedOperationException("This class cannot be instantiated!");
 	}
@@ -77,11 +80,15 @@ final class SortResolutionStrategies {
 
 	/**
 	 * Allocates a per-sort tally of resolution strategies (indexed by {@link SortResolutionStrategy#ordinal()}), or
-	 * `null` when query telemetry is not being collected - in which case the caller skips tallying entirely and pays no
+	 * `null` when no telemetry step is open - in which case the caller skips tallying entirely and pays no
 	 * overhead.
 	 *
+	 * The probe is whether a telemetry step is currently open, which is the precondition {@link #report} actually
+	 * needs - there is no point tallying into an array that would have nowhere to be reported to. Deciding it once
+	 * here, up front, is what lets the per-record {@link #tally} collapse to a single null check.
+	 *
 	 * @param queryContext the execution context whose telemetry state is probed
-	 * @return a zeroed tally array, or `null` when telemetry is off
+	 * @return a zeroed tally array, or `null` when no step is open to report into
 	 */
 	@Nullable
 	static int[] newStrategyTally(@Nonnull QueryExecutionContext queryContext) {
@@ -101,9 +108,22 @@ final class SortResolutionStrategies {
 	}
 
 	/**
-	 * Emits the accumulated `tally` as a labeled child of the current {@link QueryPhase#EXECUTION_SORT_AND_SLICE}
-	 * telemetry step (e.g. `sortResolution=TREE_DENSE_WALKx1,ARRAY_MERGE_WALKx2`). A no-op when `tally` is `null`
-	 * (telemetry off) or the current step is absent.
+	 * Annotates whichever telemetry step is currently open - normally
+	 * {@link QueryPhase#EXECUTION_SORT_AND_SLICE} - with the accumulated `tally`
+	 * (e.g. `sortResolution=TREE_DENSE_WALKx1,ARRAY_MERGE_WALKx2`). A no-op when `tally` is `null` or the current
+	 * step is absent.
+	 *
+	 * It reads the step off the planning context rather than through
+	 * {@link io.evitadb.core.query.QueryExecutionContext}, so unlike a pushed step this annotation is *not*
+	 * suppressed during a plan-verification dry run, where the open step is `PLANNING` rather than the sort phase.
+	 *
+	 * The tally is an argument *of* the sort step, not a step of its own. It used to be emitted as a child step, which
+	 * nothing ever finished - so it reported a `spentTime` of `0` and was indistinguishable from a span that genuinely
+	 * took no time, sprouting zero-width children in flame charts and nesting `EXECUTION_SORT_AND_SLICE` under itself.
+	 *
+	 * It also cannot be expressed as one of the typed numeric metrics: it is a count per
+	 * {@link PositionResolution#strategy()} value, keyed by an enum of the sorter's own, and lifting it into a shared
+	 * metric vocabulary would couple that vocabulary to the sorter's internals.
 	 *
 	 * @param queryContext the execution context whose current telemetry step is annotated
 	 * @param tally        the accumulated per-strategy counts, or `null` when telemetry is off
@@ -114,7 +134,7 @@ final class SortResolutionStrategies {
 		}
 		final QueryTelemetry currentStep = queryContext.getQueryContext().getCurrentStep();
 		if (currentStep != null) {
-			currentStep.addStep(QueryPhase.EXECUTION_SORT_AND_SLICE, formatTally(tally));
+			currentStep.annotate(formatTally(tally));
 		}
 	}
 

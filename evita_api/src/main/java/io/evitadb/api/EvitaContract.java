@@ -462,8 +462,22 @@ public interface EvitaContract extends AutoCloseable {
 	 * successfully finished, the catalog `catalogNameToBeReplacedWith` will be known under the name of the
 	 * `catalogNameToBeReplaced` and the original contents of the `catalogNameToBeReplaced` will be purged entirely.
 	 *
-	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
-	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
+	 * In case exception occurs, **no data is lost on either side**. The replacement is a pointer swap committed
+	 * in a single engine-state transaction: nothing is copied, no folder is created or moved, and none is removed
+	 * until after that commit has succeeded. The only residue a crash can leave is a folder that outlived its
+	 * removal, which the next start-up reclaims.
+	 *
+	 * It is not a full rollback, and the difference matters if the call fails: the name stored *inside*
+	 * `catalogNameToBeReplacedWith`'s folder is rewritten before the commit, and its open persistence service is
+	 * closed. Its data is intact and the next load reconciles the stored name from the engine state, but the
+	 * running engine may need the operation retried before that catalog is usable again.
+	 *
+	 * Readers are not yanked. A query already in flight against either catalog runs to completion — sessions are
+	 * closed only once the method executing on them returns. Sessions held open across the operation are closed
+	 * on both sides, and a session opened against `catalogNameToBeReplaced` while the swap commits is refused,
+	 * because that is the catalog whose data is being discarded; on `catalogNameToBeReplacedWith` it is merely
+	 * postponed for the duration of the commit. A client that opens a session per query sees no failure it would
+	 * not see from the catalog simply having been renamed.
 	 *
 	 * At the end of this method the catalog is already replaced and the new name should be used for any further
 	 * operations with the catalog.
@@ -483,8 +497,22 @@ public interface EvitaContract extends AutoCloseable {
 	 * successfully finished, the catalog `catalogNameToBeReplacedWith` will be known under the name of the
 	 * `catalogNameToBeReplaced` and the original contents of the `catalogNameToBeReplaced` will be purged entirely.
 	 *
-	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
-	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
+	 * In case exception occurs, **no data is lost on either side**. The replacement is a pointer swap committed
+	 * in a single engine-state transaction: nothing is copied, no folder is created or moved, and none is removed
+	 * until after that commit has succeeded. The only residue a crash can leave is a folder that outlived its
+	 * removal, which the next start-up reclaims.
+	 *
+	 * It is not a full rollback, and the difference matters if the call fails: the name stored *inside*
+	 * `catalogNameToBeReplacedWith`'s folder is rewritten before the commit, and its open persistence service is
+	 * closed. Its data is intact and the next load reconciles the stored name from the engine state, but the
+	 * running engine may need the operation retried before that catalog is usable again.
+	 *
+	 * Readers are not yanked. A query already in flight against either catalog runs to completion — sessions are
+	 * closed only once the method executing on them returns. Sessions held open across the operation are closed
+	 * on both sides, and a session opened against `catalogNameToBeReplaced` while the swap commits is refused,
+	 * because that is the catalog whose data is being discarded; on `catalogNameToBeReplacedWith` it is merely
+	 * postponed for the duration of the commit. A client that opens a session per query sees no failure it would
+	 * not see from the catalog simply having been renamed.
 	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
@@ -496,7 +524,13 @@ public interface EvitaContract extends AutoCloseable {
 
 	/**
 	 * Deletes catalog with name `catalogName` along with its contents on disk. At the end of this method the catalog
-	 * is guaranteed to be removed from the Evita instance and its contents on disk are also removed.
+	 * is guaranteed to be removed from the Evita instance.
+	 *
+	 * Removing the files is deliberately *not* part of that guarantee. The removal commits a tombstone for the
+	 * catalog's storage folder and then attempts the wipe; a wipe the operating system refuses — a reader still
+	 * holding the directory open — leaves the folder for the next start-up to reclaim rather than failing an
+	 * operation that has already succeeded. The catalog is gone either way, and its name is immediately
+	 * free to reuse.
 	 *
 	 * @param catalogName name of the removed catalog
 	 */
@@ -510,7 +544,8 @@ public interface EvitaContract extends AutoCloseable {
 	}
 
 	/**
-	 * Deletes catalog with name `catalogName` along with its contents on disk.
+	 * Deletes catalog with name `catalogName`, and its contents on disk on a best-effort basis — see
+	 * {@link #deleteCatalogIfExists(String)} for why the wipe is allowed to be postponed to the next start-up.
 	 *
 	 * @param catalogName name of the removed catalog
 	 * @return progress that can be used to track the progress of the operation

@@ -26,7 +26,9 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NamingConvention;
@@ -50,7 +52,7 @@ import java.util.Set;
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class EntityAttributeSchema extends AttributeSchema implements EntityAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = 8168305590483159083L;
+	@Serial private static final long serialVersionUID = 8168305590483159084L;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
@@ -68,7 +70,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			null, null, null,
+			null, null, null, null,
 			localized, false, false,
 			type, null,
 			0,
@@ -87,6 +89,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull String name,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -104,6 +107,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			null, null,
 			theUniquenessType,
 			theFilterableInScopes,
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -125,6 +129,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable String deprecationNotice,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -143,6 +148,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			description, deprecationNotice,
 			theUniquenessType,
 			theFilterableInScopes,
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -164,6 +170,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -178,6 +185,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			description, deprecationNotice,
 			uniqueInScopes,
 			filterableInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -200,6 +208,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -214,6 +223,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			description, deprecationNotice,
 			uniqueInScopes,
 			filterableInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -236,6 +246,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable String deprecationNotice,
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -254,6 +265,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			description, deprecationNotice,
 			theUniquenessType,
 			theFilterableInScopes,
+			toAcceleratorsEnumMap(acceleratorsInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -269,6 +281,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable String deprecationNotice,
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -280,7 +293,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, sortableInScopes,
+			uniqueInScopes, filterableInScopes, acceleratorsInScopes, sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride
@@ -294,6 +307,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			", unique=(" + join(this.uniquenessTypeInScopes) + ")" +
 			", filterable=" +
 			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
+			(this.acceleratorsInScopes.isEmpty() ?
+				"" : ", accelerators=(" + joinAccelerators(this.acceleratorsInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +

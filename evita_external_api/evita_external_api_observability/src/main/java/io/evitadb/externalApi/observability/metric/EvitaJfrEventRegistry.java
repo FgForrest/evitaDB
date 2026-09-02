@@ -57,6 +57,8 @@ import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.event.Http2GoAwayEvent;
+import io.evitadb.externalApi.event.Http2RstFloodEvent;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
@@ -156,6 +158,8 @@ public class EvitaJfrEventRegistry {
 		AnteroomWastedEvent.class,
 
 		// api
+		Http2GoAwayEvent.class,
+		Http2RstFloodEvent.class,
 		ReadinessEvent.class,
 		RequestEvent.class,
 

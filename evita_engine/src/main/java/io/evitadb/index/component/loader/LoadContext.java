@@ -23,9 +23,11 @@
 
 package io.evitadb.index.component.loader;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -65,6 +67,10 @@ import java.util.Map;
  * @param referenceKey           the discriminator for `REFERENCED_ENTITY` /
  *                               `REFERENCED_GROUP_ENTITY` indexes; `null` for `GLOBAL` and
  *                               `REFERENCED_*_TYPE` indexes
+ * @param usageStatisticsTracking whether the reloaded index allocates an
+ *                               {@link io.evitadb.index.IndexActivity} holder — carried through the reload
+ *                               because an index restored from disk starts a fresh observation window, and
+ *                               a server running with `server.usageStatisticsTracking` off must not open one
  */
 public record LoadContext(
 	long catalogVersion,
@@ -76,6 +82,44 @@ public record LoadContext(
 	@Nonnull Bitmap entityIds,
 	@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
-	@Nullable RepresentativeReferenceKey referenceKey
+	@Nullable RepresentativeReferenceKey referenceKey,
+	boolean usageStatisticsTracking
 ) {
+
+	/**
+	 * Builds a context that tracks usage statistics — the default, and the form every caller that has no opinion on
+	 * the matter should use.
+	 */
+	public LoadContext(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull EntityIndexStoragePart entityIndexStoragePart,
+		int version,
+		@Nonnull Bitmap entityIds,
+		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull StoragePartPersistenceService<?> storagePartService,
+		@Nullable RepresentativeReferenceKey referenceKey
+	) {
+		this(
+			catalogVersion, entityIndexId, entitySchema, entityIndexKey, entityIndexStoragePart,
+			version, entityIds, entityIdsByLanguage, storagePartService, referenceKey,
+			ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
+		);
+	}
+
+	/**
+	 * Hands back the activity holder a reloaded index should carry: a fresh one when the server tracks usage
+	 * statistics — the counters start over, which is what *"since catalog load"* means — and none at all when it does
+	 * not.
+	 *
+	 * Resolved here rather than at each of the four reload plans so that all of them cannot drift apart on it.
+	 *
+	 * @return the holder to hand to the index constructor, or null when usage statistics are not tracked
+	 */
+	@Nullable
+	public IndexActivity createActivity() {
+		return this.usageStatisticsTracking ? new IndexActivity() : null;
+	}
 }

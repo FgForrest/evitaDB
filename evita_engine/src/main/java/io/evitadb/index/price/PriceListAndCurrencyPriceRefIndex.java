@@ -40,6 +40,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,8 +55,18 @@ import java.util.Objects;
  *
  * RefIndex attempts to store minimal data set in order to save memory on heap. For memory expensive objects such as
  * {@link PriceRecord} and {@link EntityPrices} it relies on the {@link PriceListAndCurrencyPriceSuperIndex} of the same
- * combination, which the caller supplies per operation - this index keeps no pointer to it, so it carries no
- * catalog-version pin and can be forwarded across catalog versions by reference.
+ * combination, which the caller supplies per operation. This index keeps no pointer to *the super index object*, so it
+ * carries no catalog-version pin and can be forwarded across catalog versions by reference.
+ *
+ * **That is a statement about the super index, not about the records.** This index does hold the shared payload:
+ * {@link AbstractPriceListAndCurrencyPriceIndex#priceRecords} is its own tree, but its elements are the very same
+ * {@link PriceRecord} instances the super index owns - created once on the add-price path, carried forward by the copy
+ * constructor, and reconstructed onto those same instances by
+ * {@link #restorePriceRecordsFrom(PriceListAndCurrencyPriceSuperIndex)} after a disk-load attach. Reading "keeps no
+ * pointer" as "shares nothing" is the trap, and it is load-bearing for heap accounting: a reduced index owns its tree
+ * **spine** - the nodes and the reference slots - while the price bodies belong to the super index alone, so only the
+ * super index may ever charge them. Counting them here too would multiply the whole price payload by the number of
+ * reference-reduced indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -286,6 +297,28 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Override
 	public String toString() {
 		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " " + this.priceIndexKey.toString() + (isTerminated() ? " (TERMINATED)" : "");
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its tree **spine only**, never the price record bodies.
+	 *
+	 * This is the canonical borrowed-structure case. A reference index is built by copying references out of the
+	 * {@link PriceListAndCurrencyPriceSuperIndex} for its price list and currency, so its `priceRecords` tree holds the
+	 * very same {@link io.evitadb.index.price.model.priceRecord.PriceRecordContract} instances the super index owns and
+	 * charges. Pricing them here as well would bill every price record once more for each scope and reduced index that
+	 * references it — a figure that would grow with the number of *views* of the data rather than with the data.
+	 *
+	 * {@link #scope} is an enum constant owned by the JVM for the lifetime of its class loader, so it contributes its
+	 * slot alone.
+	 *
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
+	 * be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		// the scope slot, on top of the base's own fields
+		return getBaseHeapSizeInBytes(priceRecord -> 0L, VMLayout.current().referenceSize());
 	}
 
 	@Nonnull

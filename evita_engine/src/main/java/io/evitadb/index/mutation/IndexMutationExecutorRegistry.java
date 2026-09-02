@@ -23,9 +23,11 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -92,6 +94,30 @@ public class IndexMutationExecutorRegistry {
 			() -> "No executor registered for mutation type `" + mutation.getClass().getName() + "`."
 		);
 		executor.execute(mutation, target);
+	}
+
+	/**
+	 * Read-only companion to {@link #dispatch}: evaluates the histogram conditions a
+	 * {@link ReevaluateExpressionMutation} depends on **without applying anything**, so a caller holding
+	 * pre-mutation state can capture the answer while it is still the pre-mutation one.
+	 *
+	 * It lives on the registry rather than being reached through the executor directly because
+	 * `ReevaluateExpressionExecutor` is deliberately package-private — the registry is this package's single
+	 * public door for acting on an {@link IndexMutation} against an {@link IndexMutationTarget}, and this keeps
+	 * it that way.
+	 *
+	 * @param mutation the cross-entity re-evaluation signal about to be applied
+	 * @param target   limited view of the target `EntityCollection`
+	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 *         declares no histogram trigger
+	 * @see ReevaluateExpressionExecutor#evaluateHistogramConditionState
+	 */
+	@Nullable
+	public Map<String, Bitmap> evaluateHistogramConditionState(
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull IndexMutationTarget target
+	) {
+		return ReevaluateExpressionExecutor.evaluateHistogramConditionState(mutation, target);
 	}
 
 }

@@ -23,8 +23,6 @@
 
 package io.evitadb.api.configuration;
 
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -66,6 +64,17 @@ import javax.annotation.Nullable;
  * @param readOnly                              Starts the database in full read-only mode, prohibiting write operations
  *                                              on `EntityContract` level and open read-write `EvitaSessionContract`.
  * @param quiet                                 If true, all output to the system console is suppressed.
+ * @param usageStatisticsTracking               Whether the engine counts how often each index and each schema
+ *                                              capability flag is *queried* against how often it is *maintained* - the
+ *                                              readings behind `BrowseIndexes` and `ListSchemaCapabilityUsage`. Enabled
+ *                                              by default, because those readings are what tells an operator that a
+ *                                              `filterable()` flag is being paid for and never used. Switching it off
+ *                                              costs the diagnosis but reclaims the accounting: no `IndexActivity`
+ *                                              holder is allocated per index (five longs each, and a large catalog runs
+ *                                              to hundreds of thousands of indexes), and neither the query nor the
+ *                                              write path resolves a capability holder. The surfaces keep working and
+ *                                              keep listing every declared capability - each row simply reports itself
+ *                                              as not measured rather than as never requested.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -79,7 +88,8 @@ public record ServerOptions(
 	@Nonnull ChangeDataCaptureOptions changeDataCapture,
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
-	boolean quiet
+	boolean quiet,
+	boolean usageStatisticsTracking
 ) {
 	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
 	/** Default read-write transaction timeout: 5 minutes (`300 * 1000` ms). */
@@ -106,6 +116,12 @@ public record ServerOptions(
 	public static final int DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY = 60 * 5;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
+	/**
+	 * Usage statistics are tracked by default: the counters are what make an unused index or an unused capability flag
+	 * visible at all, and a diagnostic that has to be switched on before it can answer is one nobody has switched on
+	 * when the question finally gets asked.
+	 */
+	public static final boolean DEFAULT_USAGE_STATISTICS_TRACKING = true;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -137,7 +153,8 @@ public record ServerOptions(
 		@Nullable ChangeDataCaptureOptions changeDataCapture,
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
-		boolean quiet
+		boolean quiet,
+		boolean usageStatisticsTracking
 	) {
 		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
 		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
@@ -150,6 +167,7 @@ public record ServerOptions(
 		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
 		this.readOnly = readOnly;
 		this.quiet = quiet;
+		this.usageStatisticsTracking = usageStatisticsTracking;
 	}
 
 	public ServerOptions() {
@@ -164,7 +182,8 @@ public record ServerOptions(
 			ChangeDataCaptureOptions.builder().build(),
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
-			DEFAULT_QUIET
+			DEFAULT_QUIET,
+			DEFAULT_USAGE_STATISTICS_TRACKING
 		);
 	}
 
@@ -184,6 +203,7 @@ public record ServerOptions(
 		private TrafficRecordingOptions trafficRecording = TrafficRecordingOptions.builder().build();
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
+		private boolean usageStatisticsTracking = DEFAULT_USAGE_STATISTICS_TRACKING;
 
 		Builder() {
 		}
@@ -200,6 +220,7 @@ public record ServerOptions(
 			this.changeDataCapture = serverOptions.changeDataCapture();
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
+			this.usageStatisticsTracking = serverOptions.usageStatisticsTracking();
 		}
 
 		@Nonnull
@@ -274,6 +295,18 @@ public record ServerOptions(
 			return this;
 		}
 
+		/**
+		 * Sets whether index and schema-capability usage counters are maintained - see the record's own
+		 * `usageStatisticsTracking` documentation for what switching this off costs and what it reclaims.
+		 *
+		 * @param usageStatisticsTracking true to keep counting, false to pay nothing for the counters
+		 */
+		@Nonnull
+		public ServerOptions.Builder usageStatisticsTracking(boolean usageStatisticsTracking) {
+			this.usageStatisticsTracking = usageStatisticsTracking;
+			return this;
+		}
+
 		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
@@ -287,7 +320,8 @@ public record ServerOptions(
 				this.changeDataCapture,
 				this.trafficRecording,
 				this.readOnly,
-				this.quiet
+				this.quiet,
+				this.usageStatisticsTracking
 			);
 		}
 

@@ -53,6 +53,9 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
+import io.evitadb.api.statistics.ActivityStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
@@ -292,6 +295,32 @@ public class TransactionManager implements Closeable {
 	 * Effective conflict resolution that is used in this transaction manager.
 	 */
 	private final ConflictResolution conflictResolution;
+	/**
+	 * Counters and short-window rates behind {@link CatalogStatisticsComponent#ACTIVITY}, sampled at the moment a
+	 * transaction's bytes reach the write-ahead log.
+	 *
+	 * This is the right home for them precisely because this instance is *not* recreated per catalog version - see
+	 * {@link #lastFinalizedCatalog} - so the counters survive every generation switch a write load produces. They are
+	 * process-scoped all the same: a catalog reopened after a restart starts from zero, which is what
+	 * {@link #countingSince} records.
+	 */
+	private final AtomicReference<ActivityAccumulation> activity = new AtomicReference<>(ActivityAccumulation.NONE);
+	/**
+	 * Transactions discarded at session close because the session was marked rollback-only. Counted separately from
+	 * {@link #activity} because they never reach the pipeline at all - the count arrives from
+	 * {@link io.evitadb.core.session.SessionRegistry}, not from any commit stage.
+	 */
+	private final AtomicLong transactionsRolledBack = new AtomicLong();
+	/**
+	 * Transactions rejected by conflict resolution. Counted separately from {@link #activity} for the same reason:
+	 * a conflicted transaction never gets as far as the write-ahead log, so it has no sample to contribute.
+	 */
+	private final AtomicLong transactionsConflicted = new AtomicLong();
+	/**
+	 * The instant the counters above were zeroed, which is when this manager - and with it the catalog it serves - was
+	 * created. Reported alongside the counters so a client can tell "since the catalog was opened" from "ever".
+	 */
+	private final OffsetDateTime countingSince = OffsetDateTime.now();
 	/**
 	 * Name of the catalog.
 	 */
@@ -895,8 +924,15 @@ public class TransactionManager implements Closeable {
 		final Catalog previousLivingCatalog = getLivingCatalog();
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
+			// what this guards is that the live view never regresses to an older state - so the comparison is
+			// "must not go backwards", not "must strictly advance". Republishing the same version used to be
+			// possible only by publishing the very same instance again; a rename is the second way, since it
+			// produces a new instance holding the same data under a new name and deliberately consumes no
+			// catalog version (it appends nothing to the WAL that a version could be accounted against).
+			// The identity escape stays: relaxing `<` to `<=` only ever admits more, but dropping the escape
+			// would reject a republication of the very same instance that used to be allowed at any version
 			Assert.isPremiseValid(
-				previousLivingCatalog.getVersion() < catalogVersion || (previousLivingCatalog == livingCatalog),
+				previousLivingCatalog.getVersion() <= catalogVersion || previousLivingCatalog == livingCatalog,
 				"Catalog versions must be in order! " +
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
@@ -1441,6 +1477,11 @@ public class TransactionManager implements Closeable {
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
+							// this continuity check is also what guards the write-ahead log against reordered,
+							// duplicated or dropped transactions - the log's cumulative checksum cannot see them,
+							// because folding a checksum into the state that produced it resets that state (the
+							// full account is on `AbstractMutationLog#checksum`). Relaxing this to "greater than"
+							// or dropping it would leave that entire class of damage undetected.
 							Assert.isPremiseValid(
 								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
@@ -1659,6 +1700,26 @@ public class TransactionManager implements Closeable {
 	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
 	 * threshold sensible on deployments that tune the acceptance timeout very low.
 	 *
+	 * **The assumption, and where it does not hold.** This is a *wall-clock* deadline standing in for a
+	 * liveness signal: "pending longer than the worst-case pipeline latency ⇒ dangling". That inference
+	 * is sound whenever the pipeline gets to run, and false exactly when the host is oversubscribed —
+	 * a starved executor makes a perfectly healthy commit look identical to a dropped one, because the
+	 * only thing being measured is elapsed time. Symptom: commits failed by
+	 * {@link PendingCommitProgressRegistry#sweepRecordsOlderThan} on a loaded machine with nothing wrong
+	 * in the pipeline. Before hunting a transaction bug, check the load.
+	 *
+	 * The threshold is deliberately **not** tuned for that case: on a live deployment a commit pending
+	 * 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI box would
+	 * trade a real guard for a test-harness convenience. Callers that knowingly run oversubscribed
+	 * should instead raise
+	 * {@link io.evitadb.api.configuration.TransactionOptions.Builder#waitForTransactionAcceptanceInMillis(long)},
+	 * which scales this deadline with it — see `SharedRgeiSoakTest` in `evita_long_running_tests`.
+	 *
+	 * A progress-aware sweep (re-anchoring the clock whenever a record advances a pipeline stage, or
+	 * failing only records the live catalog version has already moved past) would separate "slow" from
+	 * "dropped" without a bigger number, and is the principled upgrade should this become a recurring
+	 * problem in production rather than in tests.
+	 *
 	 * @return the stall-detection deadline in milliseconds
 	 */
 	private long safetyDeadlineMs() {
@@ -1744,6 +1805,112 @@ public class TransactionManager implements Closeable {
 	public void emitObservabilityEvents() {
 		this.conflictRingBuffer.emitObservabilityEvents();
 		this.changeObserver.emitObservabilityEvents();
+	}
+
+	/**
+	 * Records a transaction whose bytes have reached the write-ahead log.
+	 *
+	 * Called from the appending stage at its point of no return - after the append succeeded and before any of the
+	 * bookkeeping that must not be able to roll the version back. That is deliberately *not* the moment the
+	 * transaction becomes visible to readers: once the bytes are in the log the transaction is committed whatever
+	 * happens downstream, and counting it at trunk incorporation instead would also count every transaction replayed
+	 * from the log at startup as if it had just been written.
+	 *
+	 * **Deliberately separate from {@link #updateLastWrittenCatalogVersion(long)}, which the same call site invokes a
+	 * line later.** Folding it in there looks like it would remove a duplicated call, but that method is not
+	 * transaction-specific: {@link #advanceVersion(long)} also drives it when the catalog version moves for external
+	 * reasons such as a rename, and every such advance would then be counted as a committed transaction carrying zero
+	 * mutations. The two arguments below are the second half of the argument - a version advance has no mutation count
+	 * and no appended bytes to report, so the watermark update would have to take two parameters that only one of its
+	 * callers can answer.
+	 *
+	 * @param mutationCount mutations the transaction carried
+	 * @param walBytes      bytes it appended to the write-ahead log
+	 */
+	public void recordCommittedTransaction(int mutationCount, long walBytes) {
+		final long now = System.currentTimeMillis();
+		this.activity.updateAndGet(current -> current.sampled(mutationCount, walBytes, now));
+	}
+
+	/**
+	 * Records a transaction discarded at session close because the session was marked rollback-only.
+	 */
+	public void recordRolledBackTransaction() {
+		this.transactionsRolledBack.incrementAndGet();
+	}
+
+	/**
+	 * Records a transaction rejected by conflict resolution.
+	 */
+	public void recordConflictedTransaction() {
+		this.transactionsConflicted.incrementAndGet();
+	}
+
+	/**
+	 * Reads the four watermarks this pipeline maintains. All four are counter reads, and they are read in *reverse*
+	 * pipeline order - finalized, durable, written, assigned - so that the deltas the record derives from them cannot
+	 * come out negative through a stage advancing between two reads.
+	 *
+	 * The direction matters and is the opposite of the intuitive one. Every watermark only grows, and
+	 * `assigned >= written >= durable >= finalized` holds at every instant. Reading the *trailing* watermark first
+	 * therefore bounds it below by a value the next read cannot have overtaken: whatever `written` turns out to be, it
+	 * was `>= durable` at the moment it was read, and `durable` has not gone down since it was read a moment earlier.
+	 * Reading forwards gives no such bound - `assigned` is captured, both stages then advance, and the `written` read
+	 * a moment later can legitimately exceed it, reporting a negative write lag on a perfectly healthy pipeline.
+	 *
+	 * Only meaningful for a transactional catalog; the caller reports
+	 * {@link io.evitadb.api.statistics.ComponentAvailability#FEATURE_DISABLED} otherwise.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COMMIT_PIPELINE} component
+	 */
+	@Nonnull
+	public CommitPipelineStatistics describeCommitPipeline() {
+		final long finalizedVersion = getLastFinalizedCatalogVersion();
+		final long durableVersion = getLastDurableCatalogVersion();
+		final long writtenVersion = getLastWrittenCatalogVersion();
+		final long assignedVersion = getLastAssignedCatalogVersion();
+		return new CommitPipelineStatistics(
+			assignedVersion, writtenVersion, durableVersion, finalizedVersion
+		);
+	}
+
+	/**
+	 * Describes how much write work this catalog has done and how fast it is doing it.
+	 *
+	 * The rates are read through the accumulation's `effective...` methods rather than off its fields, so an idle
+	 * catalog reports a rate falling towards zero instead of the load it last saw - see {@link ActivityAccumulation}
+	 * for why that correction cannot be applied when the sample is taken.
+	 *
+	 * **The pipeline snapshot is handed in rather than taken here**, and the parameter is the whole
+	 * {@link CommitPipelineStatistics} rather than the depth alone precisely so it cannot be anything else. The depth
+	 * is by definition the span between two of those watermarks, so a second read of them would let this component
+	 * and the commit pipeline component describe two different moments of the same pipeline within one response -
+	 * a client comparing them would see a depth that does not match the watermarks it is derived from, and would be
+	 * right to call it a bug.
+	 *
+	 * Only meaningful for a transactional catalog; the caller reports
+	 * {@link io.evitadb.api.statistics.ComponentAvailability#FEATURE_DISABLED} otherwise.
+	 *
+	 * @param commitPipeline the watermark snapshot this response is already reporting, from
+	 *                       {@link #describeCommitPipeline()}
+	 * @return the {@link CatalogStatisticsComponent#ACTIVITY} component
+	 */
+	@Nonnull
+	public ActivityStatistics describeActivity(@Nonnull CommitPipelineStatistics commitPipeline) {
+		final ActivityAccumulation current = this.activity.get();
+		final long now = System.currentTimeMillis();
+		return new ActivityStatistics(
+			current.transactionsCommitted(),
+			this.transactionsRolledBack.get(),
+			this.transactionsConflicted.get(),
+			current.mutationsApplied(),
+			current.walBytesAppended(),
+			commitPipeline.lastAssignedCatalogVersion() - commitPipeline.lastFinalizedCatalogVersion(),
+			current.effectiveTransactionsPerSecond(now),
+			current.effectiveMutationsPerSecond(now),
+			current.effectiveWalBytesPerSecond(now),
+			this.countingSince
+		);
 	}
 
 	/**

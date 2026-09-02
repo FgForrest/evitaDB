@@ -53,7 +53,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;

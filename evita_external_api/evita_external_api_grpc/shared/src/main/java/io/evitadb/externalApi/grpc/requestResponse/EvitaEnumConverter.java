@@ -45,17 +45,26 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.AttributeIndexType;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.statistics.IndexBrowseOrdering;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -71,6 +80,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -965,6 +975,101 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcAttributeFilterAccelerator} to {@link AttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link GrpcAttributeFilterAccelerator} to convert
+	 * @return the converted {@link AttributeFilterAccelerator}
+	 * @throws EvitaInvalidUsageException when the accelerator is unknown to this side of the wire, or when the
+	 *                                    unspecified default leaked into an `accelerators` list
+	 */
+	@Nonnull
+	public static AttributeFilterAccelerator toAttributeFilterAccelerator(
+		@Nonnull GrpcAttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH -> AttributeFilterAccelerator.SUBSTRING_SEARCH;
+			case ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized remote filter accelerator: " + accelerator);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeFilterAccelerator} to {@link GrpcAttributeFilterAccelerator}.
+	 *
+	 * @param accelerator the {@link AttributeFilterAccelerator} to convert
+	 * @return the converted {@link GrpcAttributeFilterAccelerator}
+	 */
+	@Nonnull
+	public static GrpcAttributeFilterAccelerator toGrpcAttributeFilterAccelerator(
+		@Nonnull AttributeFilterAccelerator accelerator
+	) {
+		return switch (accelerator) {
+			case SUBSTRING_SEARCH -> GrpcAttributeFilterAccelerator.ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH;
+		};
+	}
+
+	/**
+	 * Converts a gRPC scoped accelerator list to the domain model carriers. The field is optional on the wire - an
+	 * older client or server simply never sends it - and proto3 renders that absence as an empty list, which is
+	 * indistinguishable from "no acceleration anywhere". Both therefore map to `null`, the value every consumer
+	 * already reads as "not provided".
+	 *
+	 * @param scopedList the gRPC scoped list, empty when the peer did not send the field
+	 * @return array of scoped accelerators, or `null` when nothing was declared
+	 */
+	@Nullable
+	public static ScopedAttributeFilterAccelerators[] toScopedAttributeFilterAccelerators(
+		@Nonnull List<GrpcScopedAttributeFilterAccelerators> scopedList
+	) {
+		if (scopedList.isEmpty()) {
+			return null;
+		}
+		final ScopedAttributeFilterAccelerators[] result = new ScopedAttributeFilterAccelerators[scopedList.size()];
+		for (int i = 0; i < result.length; i++) {
+			final GrpcScopedAttributeFilterAccelerators scopedAccelerators = scopedList.get(i);
+			final List<GrpcAttributeFilterAccelerator> accelerators = scopedAccelerators.getAcceleratorsList();
+			final AttributeFilterAccelerator[] converted = accelerators.isEmpty() ?
+				ScopedAttributeFilterAccelerators.NO_ACCELERATORS :
+				new AttributeFilterAccelerator[accelerators.size()];
+			for (int j = 0; j < accelerators.size(); j++) {
+				converted[j] = toAttributeFilterAccelerator(accelerators.get(j));
+			}
+			result[i] = new ScopedAttributeFilterAccelerators(toScope(scopedAccelerators.getScope()), converted);
+		}
+		return result;
+	}
+
+	/**
+	 * Converts the domain model carriers to their gRPC form, one message per carrier. A carrier listing no accelerator
+	 * at all is kept rather than dropped, so that a mutation carrying one round-trips through the wire unchanged. The
+	 * *schema* direction never produces them - {@link
+	 * io.evitadb.api.requestResponse.schema.dto.AttributeSchema#toAcceleratorsArray} omits scopes declaring nothing -
+	 * so an attribute with no acceleration still serializes identically everywhere.
+	 *
+	 * @param acceleratorsInScopes the carriers to convert, may be null
+	 * @return the gRPC form, empty when nothing is declared
+	 */
+	@Nonnull
+	public static List<GrpcScopedAttributeFilterAccelerators> toGrpcScopedAttributeFilterAccelerators(
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes
+	) {
+		if (acceleratorsInScopes == null || acceleratorsInScopes.length == 0) {
+			return List.of();
+		}
+		final List<GrpcScopedAttributeFilterAccelerators> result = new ArrayList<>(acceleratorsInScopes.length);
+		for (final ScopedAttributeFilterAccelerators scopedAccelerators : acceleratorsInScopes) {
+			final GrpcScopedAttributeFilterAccelerators.Builder builder =
+				GrpcScopedAttributeFilterAccelerators.newBuilder()
+					.setScope(toGrpcScope(scopedAccelerators.scope()));
+			for (final AttributeFilterAccelerator accelerator : scopedAccelerators.accelerators()) {
+				builder.addAccelerators(toGrpcAttributeFilterAccelerator(accelerator));
+			}
+			result.add(builder.build());
+		}
+		return result;
+	}
+
+	/**
 	 * Converts a gRPC scope list to a domain model scope array. When the scoped list is empty
 	 * (backward compatibility), falls back to the legacy boolean field: `true` yields default scopes,
 	 * `false` yields no scopes.
@@ -1623,6 +1728,295 @@ public class EvitaEnumConverter {
 			case ASSOCIATED_DATA -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_ASSOCIATED_DATA;
 			case PRICE -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_PRICE;
 			case HIERARCHY -> GrpcGranularConflictPolicy.GRANULAR_CONFLICT_POLICY_HIERARCHY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcCatalogStatisticsComponent} to {@link CatalogStatisticsComponent}.
+	 *
+	 * `COMPONENT_UNSPECIFIED` is a client error rather than a value: the component list selects what the engine
+	 * computes, so silently dropping an unspecified entry would answer a different question than the one asked.
+	 *
+	 * @param grpcComponent the component to convert
+	 * @return the corresponding statistics component
+	 * @throws EvitaInvalidUsageException when the component is unspecified or unknown to this server
+	 */
+	@Nonnull
+	public static CatalogStatisticsComponent toCatalogStatisticsComponent(
+		@Nonnull GrpcCatalogStatisticsComponent grpcComponent
+	) {
+		return switch (grpcComponent) {
+			case COMPONENT_IDENTITY -> CatalogStatisticsComponent.IDENTITY;
+			case COMPONENT_RECORD_COUNTS -> CatalogStatisticsComponent.RECORD_COUNTS;
+			case COMPONENT_COLLECTIONS -> CatalogStatisticsComponent.COLLECTIONS;
+			case COMPONENT_SESSIONS -> CatalogStatisticsComponent.SESSIONS;
+			case COMPONENT_COMMIT_PIPELINE -> CatalogStatisticsComponent.COMMIT_PIPELINE;
+			case COMPONENT_ACTIVITY -> CatalogStatisticsComponent.ACTIVITY;
+			case COMPONENT_STORAGE_SIZE -> CatalogStatisticsComponent.STORAGE_SIZE;
+			case COMPONENT_STORAGE_COMPOSITION -> CatalogStatisticsComponent.STORAGE_COMPOSITION;
+			case COMPONENT_FRAGMENTATION -> CatalogStatisticsComponent.FRAGMENTATION;
+			case COMPONENT_HISTORY -> CatalogStatisticsComponent.HISTORY;
+			case COMPONENT_DURABILITY -> CatalogStatisticsComponent.DURABILITY;
+			case COMPONENT_INDEX_SUMMARY -> CatalogStatisticsComponent.INDEX_SUMMARY;
+			case COMPONENT_INDEX_CARDINALITY -> CatalogStatisticsComponent.INDEX_CARDINALITY;
+			case COMPONENT_VOLATILE_STATE -> CatalogStatisticsComponent.VOLATILE_STATE;
+			case COMPONENT_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized statistics component: " + grpcComponent);
+		};
+	}
+
+	/**
+	 * Converts {@link CatalogStatisticsComponent} to {@link GrpcCatalogStatisticsComponent}.
+	 *
+	 * @param component the component to convert
+	 * @return the corresponding gRPC statistics component
+	 */
+	@Nonnull
+	public static GrpcCatalogStatisticsComponent toGrpcCatalogStatisticsComponent(
+		@Nonnull CatalogStatisticsComponent component
+	) {
+		return switch (component) {
+			case IDENTITY -> GrpcCatalogStatisticsComponent.COMPONENT_IDENTITY;
+			case RECORD_COUNTS -> GrpcCatalogStatisticsComponent.COMPONENT_RECORD_COUNTS;
+			case COLLECTIONS -> GrpcCatalogStatisticsComponent.COMPONENT_COLLECTIONS;
+			case SESSIONS -> GrpcCatalogStatisticsComponent.COMPONENT_SESSIONS;
+			case COMMIT_PIPELINE -> GrpcCatalogStatisticsComponent.COMPONENT_COMMIT_PIPELINE;
+			case ACTIVITY -> GrpcCatalogStatisticsComponent.COMPONENT_ACTIVITY;
+			case STORAGE_SIZE -> GrpcCatalogStatisticsComponent.COMPONENT_STORAGE_SIZE;
+			case STORAGE_COMPOSITION -> GrpcCatalogStatisticsComponent.COMPONENT_STORAGE_COMPOSITION;
+			case FRAGMENTATION -> GrpcCatalogStatisticsComponent.COMPONENT_FRAGMENTATION;
+			case HISTORY -> GrpcCatalogStatisticsComponent.COMPONENT_HISTORY;
+			case DURABILITY -> GrpcCatalogStatisticsComponent.COMPONENT_DURABILITY;
+			case INDEX_SUMMARY -> GrpcCatalogStatisticsComponent.COMPONENT_INDEX_SUMMARY;
+			case INDEX_CARDINALITY -> GrpcCatalogStatisticsComponent.COMPONENT_INDEX_CARDINALITY;
+			case VOLATILE_STATE -> GrpcCatalogStatisticsComponent.COMPONENT_VOLATILE_STATE;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcComponentAvailability} to {@link ComponentAvailability}.
+	 *
+	 * `AVAILABILITY_UNSPECIFIED` is never sent by a server; receiving it means the status message was
+	 * default-constructed, and reading that as `DELIVERED` would report a component as computed when it was not.
+	 *
+	 * @param grpcAvailability the availability to convert
+	 * @return the corresponding component availability
+	 * @throws EvitaInvalidUsageException when the availability is unspecified or unknown to this client
+	 */
+	@Nonnull
+	public static ComponentAvailability toComponentAvailability(@Nonnull GrpcComponentAvailability grpcAvailability) {
+		return switch (grpcAvailability) {
+			case AVAILABILITY_DELIVERED -> ComponentAvailability.DELIVERED;
+			case AVAILABILITY_CATALOG_UNUSABLE -> ComponentAvailability.CATALOG_UNUSABLE;
+			case AVAILABILITY_FEATURE_DISABLED -> ComponentAvailability.FEATURE_DISABLED;
+			case AVAILABILITY_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized component availability: " + grpcAvailability);
+		};
+	}
+
+	/**
+	 * Converts {@link ComponentAvailability} to {@link GrpcComponentAvailability}.
+	 *
+	 * @param availability the availability to convert
+	 * @return the corresponding gRPC component availability
+	 */
+	@Nonnull
+	public static GrpcComponentAvailability toGrpcComponentAvailability(@Nonnull ComponentAvailability availability) {
+		return switch (availability) {
+			case DELIVERED -> GrpcComponentAvailability.AVAILABILITY_DELIVERED;
+			case CATALOG_UNUSABLE -> GrpcComponentAvailability.AVAILABILITY_CATALOG_UNUSABLE;
+			case FEATURE_DISABLED -> GrpcComponentAvailability.AVAILABILITY_FEATURE_DISABLED;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcEntityIndexType} to {@link EntityIndexType}.
+	 *
+	 * @param grpcIndexType the index kind to convert
+	 * @return the corresponding entity index type
+	 * @throws EvitaInvalidUsageException when the kind is unspecified or unknown to this client
+	 */
+	@Nonnull
+	public static EntityIndexType toEntityIndexType(@Nonnull GrpcEntityIndexType grpcIndexType) {
+		return switch (grpcIndexType) {
+			case INDEX_TYPE_GLOBAL -> EntityIndexType.GLOBAL;
+			case INDEX_TYPE_REFERENCED_ENTITY_TYPE -> EntityIndexType.REFERENCED_ENTITY_TYPE;
+			case INDEX_TYPE_REFERENCED_ENTITY -> EntityIndexType.REFERENCED_ENTITY;
+			case INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE -> EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE;
+			case INDEX_TYPE_REFERENCED_GROUP_ENTITY -> EntityIndexType.REFERENCED_GROUP_ENTITY;
+			case INDEX_TYPE_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized entity index type: " + grpcIndexType);
+		};
+	}
+
+	/**
+	 * Converts {@link EntityIndexType} to {@link GrpcEntityIndexType}.
+	 *
+	 * @param indexType the index kind to convert
+	 * @return the corresponding gRPC entity index type
+	 */
+	@Nonnull
+	public static GrpcEntityIndexType toGrpcEntityIndexType(@Nonnull EntityIndexType indexType) {
+		return switch (indexType) {
+			case GLOBAL -> GrpcEntityIndexType.INDEX_TYPE_GLOBAL;
+			case REFERENCED_ENTITY_TYPE -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_ENTITY_TYPE;
+			case REFERENCED_ENTITY -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY_TYPE -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE;
+			case REFERENCED_GROUP_ENTITY -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_GROUP_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcIndexBrowseOrdering} to {@link IndexBrowseOrdering}.
+	 *
+	 * This carries only the *key* half of an order; the direction it is read in travels beside it and is converted by
+	 * {@link #toOrderDirection(GrpcOrderDirection)}, which the browse surface shares with the query language rather
+	 * than restating.
+	 *
+	 * @param grpcOrdering the ordering key to convert
+	 * @return the corresponding index browse ordering key
+	 * @throws EvitaInvalidUsageException when the ordering key is unknown to this client
+	 */
+	@Nonnull
+	public static IndexBrowseOrdering toIndexBrowseOrdering(@Nonnull GrpcIndexBrowseOrdering grpcOrdering) {
+		return switch (grpcOrdering) {
+			case INDEX_BROWSE_ORDERING_MAP_ORDER -> IndexBrowseOrdering.MAP_ORDER;
+			case INDEX_BROWSE_ORDERING_ENTITY_COUNT -> IndexBrowseOrdering.ENTITY_COUNT;
+			case INDEX_BROWSE_ORDERING_QUERY_COUNT -> IndexBrowseOrdering.QUERY_COUNT;
+			case INDEX_BROWSE_ORDERING_UPDATE_COUNT -> IndexBrowseOrdering.UPDATE_COUNT;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized index browse ordering: " + grpcOrdering);
+		};
+	}
+
+	/**
+	 * Converts {@link IndexBrowseOrdering} to {@link GrpcIndexBrowseOrdering}.
+	 *
+	 * @param ordering the ordering key to convert
+	 * @return the corresponding gRPC index browse ordering key
+	 */
+	@Nonnull
+	public static GrpcIndexBrowseOrdering toGrpcIndexBrowseOrdering(@Nonnull IndexBrowseOrdering ordering) {
+		return switch (ordering) {
+			case MAP_ORDER -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER;
+			case ENTITY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_ENTITY_COUNT;
+			case QUERY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_QUERY_COUNT;
+			case UPDATE_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UPDATE_COUNT;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeIndexType} to {@link AttributeIndexType}.
+	 *
+	 * @param grpcIndexType the received attribute index structure
+	 * @return its Java form
+	 */
+	@Nonnull
+	public static AttributeIndexType toAttributeIndexType(@Nonnull GrpcAttributeIndexType grpcIndexType) {
+		return switch (grpcIndexType) {
+			case ATTRIBUTE_INDEX_TYPE_UNIQUE -> AttributeIndexType.UNIQUE;
+			case ATTRIBUTE_INDEX_TYPE_FILTER -> AttributeIndexType.FILTER;
+			case ATTRIBUTE_INDEX_TYPE_SORT -> AttributeIndexType.SORT;
+			case ATTRIBUTE_INDEX_TYPE_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized attribute index type: " + grpcIndexType);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeIndexType} to {@link GrpcAttributeIndexType}.
+	 *
+	 * @param indexType the attribute index structure to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcAttributeIndexType toGrpcAttributeIndexType(@Nonnull AttributeIndexType indexType) {
+		return switch (indexType) {
+			case UNIQUE -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_UNIQUE;
+			case FILTER -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_FILTER;
+			case SORT -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_SORT;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaElementKind} to {@link ElementKind}.
+	 *
+	 * @param grpcElementKind the kind of schema element to convert
+	 * @return the corresponding schema element kind
+	 * @throws EvitaInvalidUsageException when the kind is unknown to this client
+	 */
+	@Nonnull
+	public static ElementKind toSchemaElementKind(@Nonnull GrpcSchemaElementKind grpcElementKind) {
+		return switch (grpcElementKind) {
+			case SCHEMA_ELEMENT_KIND_ATTRIBUTE -> ElementKind.ATTRIBUTE;
+			case SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND -> ElementKind.SORTABLE_COMPOUND;
+			case SCHEMA_ELEMENT_KIND_REFERENCE -> ElementKind.REFERENCE;
+			case SCHEMA_ELEMENT_KIND_ENTITY -> ElementKind.ENTITY;
+			case SCHEMA_ELEMENT_KIND_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema element kind: " + grpcElementKind);
+		};
+	}
+
+	/**
+	 * Converts {@link ElementKind} to {@link GrpcSchemaElementKind}.
+	 *
+	 * @param elementKind the kind of schema element to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaElementKind toGrpcSchemaElementKind(@Nonnull ElementKind elementKind) {
+		return switch (elementKind) {
+			case ATTRIBUTE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE;
+			case SORTABLE_COMPOUND -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND;
+			case REFERENCE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_REFERENCE;
+			case ENTITY -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaCapability} to {@link Capability}.
+	 *
+	 * Not interchangeable with {@link #toAttributeIndexType(GrpcAttributeIndexType)} despite the matching value names:
+	 * that one names a physical index structure, this one a schema flag an operator can drop.
+	 *
+	 * @param grpcCapability the schema capability to convert
+	 * @return the corresponding schema capability
+	 * @throws EvitaInvalidUsageException when the capability is unknown to this client
+	 */
+	@Nonnull
+	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
+		return switch (grpcCapability) {
+			case SCHEMA_CAPABILITY_FILTERABLE -> Capability.FILTERABLE;
+			case SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED -> Capability.SUBSTRING_ACCELERATED;
+			case SCHEMA_CAPABILITY_SORTABLE -> Capability.SORTABLE;
+			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
+			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
+			case SCHEMA_CAPABILITY_INDEXED -> Capability.INDEXED;
+			case SCHEMA_CAPABILITY_BUCKETED -> Capability.BUCKETED;
+			case SCHEMA_CAPABILITY_HIERARCHY_INDEXED -> Capability.HIERARCHICAL;
+			case SCHEMA_CAPABILITY_PRICE_INDEXED -> Capability.PRICED;
+			case SCHEMA_CAPABILITY_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema capability: " + grpcCapability);
+		};
+	}
+
+	/**
+	 * Converts {@link Capability} to {@link GrpcSchemaCapability}.
+	 *
+	 * @param capability the schema capability to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
+		return switch (capability) {
+			case FILTERABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE;
+			case SUBSTRING_ACCELERATED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED;
+			case SORTABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORTABLE;
+			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
+			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;
+			case INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_INDEXED;
+			case BUCKETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_BUCKETED;
+			case HIERARCHICAL -> GrpcSchemaCapability.SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
+			case PRICED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
 		};
 	}
 }

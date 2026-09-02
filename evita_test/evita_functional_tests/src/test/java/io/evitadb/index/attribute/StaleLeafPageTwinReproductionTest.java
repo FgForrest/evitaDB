@@ -157,6 +157,7 @@ class StaleLeafPageTwinReproductionTest {
 			OffsetDateTime.class,
 			pageSequences,
 			pages,
+			null,
 			pages.length - 1,
 			FilterIndex.getNormalizer(OffsetDateTime.class, 0),
 			FilterIndex.getComparator(PUBLISHED_KEY, OffsetDateTime.class),

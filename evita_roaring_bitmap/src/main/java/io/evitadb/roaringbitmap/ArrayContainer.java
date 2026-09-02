@@ -630,6 +630,18 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
+	 * Heap footprint: this object (an `int` cardinality and one reference) plus the `content` array measured
+	 * at its allocated length. The gap against {@link #getSizeInBytes()} is widest here of the three
+	 * encodings, because this is the only container whose backing array both grows geometrically and is
+	 * never trimmed when values are removed.
+	 */
+	@Override
+	public long getHeapSizeInBytes(@Nonnull HeapLayout layout) {
+		return layout.sizeOfObject(Integer.BYTES + layout.referenceSize())
+			+ layout.sizeOfArray(this.content.length, Character.BYTES);
+	}
+
+	/**
 	 * Order-sensitive hash over the stored values.
 	 */
 	// content/cardinality are read while non-final on purpose: containers are mutable and the hash

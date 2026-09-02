@@ -27,6 +27,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -123,6 +124,23 @@ class SinglePriceEntityPrices extends EntityPrices {
 			"Price with id `" + priceRecord.priceId() + "` (internal id `" + priceRecord.internalPriceId() + "`) was not found!"
 		);
 		return EMPTY_PRICES;
+	}
+
+	/**
+	 * Returns the heap this wrapper occupies, in bytes — its own object and its arrays, never the price records
+	 * they point at, which the owning super index's price-record tree charges.
+	 *
+	 * Here one price, so the lowest price IS that price - there is no second array to alias it.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the price and internalPriceId slots
+		return layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfArray(this.price.length, layout.referenceSize())
+			+ layout.sizeOfArray(this.internalPriceId.length, Integer.BYTES);
 	}
 
 }

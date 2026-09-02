@@ -14,7 +14,7 @@ relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-perfo
 
 # Paged-index corruption on warm-up flush, and the failure boundary for a failed flush
 
-A production catalog ("senesi") failed to reload after a bulk re-index: a cold load reassembled a
+A production catalog failed to reload after a bulk re-index: a cold load reassembled a
 survivor leaf followed by its stale sibling. The root cause was a page baseline that stayed empty for
 the whole warm-up, so every freed-page reclaim and root-rewrite decision was taken against a baseline
 that did not describe what disk actually held. The fix publishes the previous flush's staged baseline
@@ -165,7 +165,7 @@ Not carried over: the investigation's mid-flight state (`STATE.md`, `PLAN.md`, `
 
 ## Timeline
 
-- **2026-07-12 → 07-16** — five failure signatures reproduced and root-caused on the senesi dataset;
+- **2026-07-12 → 07-16** — five failure signatures reproduced and root-caused on the production dataset;
   the client library investigated and exonerated
 - **2026-07-16** — the four fix-session items merge as PR #1284, together with B+ tree dirty-scope
   validation

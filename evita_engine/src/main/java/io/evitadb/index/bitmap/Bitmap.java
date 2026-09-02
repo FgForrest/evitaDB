@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
+import net.openhft.hashing.LongHashFunction;
+
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.PrimitiveIterator.OfInt;
@@ -150,6 +152,56 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	 * Produces (allocates) new sorted array of the records stored in the bitmap.
 	 */
 	int[] getArray();
+
+	/**
+	 * Returns the heap this bitmap occupies, in bytes — the figure reported through the statistics API's
+	 * memory-footprint component.
+	 *
+	 * # What is counted
+	 *
+	 * Everything the bitmap **owns**: its own object and whatever backing structure it allocated, measured
+	 * at that structure's *allocated capacity* rather than at {@link #size()}. The two differ without bound.
+	 * A roaring container never trims its backing array when records are removed, so a bitmap grown large
+	 * and then emptied keeps the whole allocation; pricing it by cardinality can under-report by more than
+	 * an order of magnitude, and an under-report is the one error a heap figure must never make.
+	 *
+	 * Structure aliased with a **previous version** of the same bitmap is counted in full. evitaDB's roaring
+	 * fork is copy-on-write and the commit path merges through operations that alias, so a freshly committed
+	 * bitmap shares almost everything with the version it replaced. That predecessor is collected shortly
+	 * afterwards, leaving this bitmap the sole owner, so excluding the aliased part would describe a state
+	 * lasting milliseconds and would report a near-empty figure for a mature index.
+	 *
+	 * # What is not counted
+	 *
+	 * Anything the bitmap merely borrows and does not own: a shared singleton such as
+	 * {@link EmptyBitmap#INSTANCE} costs its holder nothing beyond the reference slot, and a
+	 * {@link TransactionalBitmap}'s uncommitted diff belongs to the open transaction rather than to the
+	 * bitmap. This is what keeps per-index figures summing to a sensible total instead of exceeding the heap.
+	 *
+	 * Implementations must answer in `O(1)` or `O(chunks)` — never by walking the record ids.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
+	/**
+	 * Returns hash of the record ids this bitmap holds, computed with the passed `hashFunction`.
+	 *
+	 * The hash identifies the bitmap by its **contents**: two bitmaps holding the same record ids answer with
+	 * the same value regardless of their identity, class or internal representation. That is what makes it usable
+	 * as the discriminating part of a formula cache key for bitmaps that carry no transactional identity of their
+	 * own — an aggregated result computed on the fly has no id to key on, only its contents.
+	 *
+	 * The default implementation materializes the whole record id array and is therefore `O(size)`. An
+	 * implementation that is handed out repeatedly — an index memo answering the same query over and over — should
+	 * memoize the result instead of paying the walk per caller; {@link BaseBitmap} does.
+	 *
+	 * @param hashFunction hash function to compute the value with
+	 * @return hash of the record ids stored in this bitmap
+	 */
+	default long getContentHash(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashInts(getArray());
+	}
 
 	/**
 	 * Produces iterator over all record ids.

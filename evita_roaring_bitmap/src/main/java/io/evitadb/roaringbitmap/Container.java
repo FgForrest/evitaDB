@@ -432,6 +432,22 @@ public abstract class Container
 	public abstract int getSizeInBytes();
 
 	/**
+	 * Computes the **actual heap footprint** of this container: its own object plus its backing array
+	 * measured at the array's allocated `length`.
+	 *
+	 * This is what {@link #getSizeInBytes()} is not, and the difference is not a rounding one. That method
+	 * reports the *payload* a container logically holds, derived from its cardinality and carrying no object
+	 * or array headers. A container never shrinks its backing array on removal, so the two diverge without
+	 * bound: an array container grown to 4 096 values and then emptied back down to 100 still occupies
+	 * 8 368 bytes of heap while `getSizeInBytes()` answers 214 — a 39x under-report. Capacity is visible
+	 * only from inside this package, which is why this method lives here rather than in the caller.
+	 *
+	 * @param layout the running VM's object layout, which this module cannot detect for itself
+	 * @return the container's heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes(@Nonnull HeapLayout layout);
+
+	/**
 	 * Add all shorts in [begin,end) using an unsigned interpretation. May generate a new container.
 	 *
 	 * @param begin start of range (inclusive)

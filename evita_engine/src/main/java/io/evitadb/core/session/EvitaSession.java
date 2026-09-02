@@ -1453,8 +1453,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
 			pastMoment, catalogVersion, includingWAL,
-			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
-			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
+			// a backup holds a version against reclamation, but it is not a session at that version - registering it
+			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
+			ccControl::pinCatalogVersion
 		);
 	}
 
@@ -1471,8 +1472,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.fullBackup(
-			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
-			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
+			// a backup holds a version against reclamation, but it is not a session at that version - registering it
+			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
+			ccControl::pinCatalogVersion
 		);
 	}
 
@@ -1867,6 +1869,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					);
 					final ProgressingFuture<Void> flushFuture;
 					try {
+						// the schema is validated BEFORE anything is written, unlike in the transactional branch
+						// below where the enclosing transaction can still be marked rollback-only after the fact.
+						// A warm-up flush has no such undo: it persists the schema exactly as it stands, and
+						// a reopened catalog is past the version gate in validateCatalogSchema and so never
+						// revalidates - so validating after the flush would report a refusal about a schema that
+						// is already on disk and from then on permanent. This keeps the refused session from
+						// performing the write it is refused for; it does not un-exchange the schema, which
+						// EntityCollection#updateSchema has already swapped into the running catalog and which
+						// Catalog#terminate still flushes on shutdown - that residual gap is tracked as #1466
+						validateCatalogSchema(this.catalog);
 						// building the warm-up flush future pops the trapped changes SYNCHRONOUSLY
 						// (Catalog.flush -> EntityCollection.createFlushFuture -> popTrappedChanges); a throw
 						// here (e.g. a corrupted index serialized at close) must complete the close future
@@ -1887,7 +1899,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							(__, throwable) -> {
 								if (throwable == null) {
 									try {
-										validateCatalogSchema(this.catalog);
 										this.commitProgress.complete(
 											new CommitVersions(
 												this.catalog.getVersion(),

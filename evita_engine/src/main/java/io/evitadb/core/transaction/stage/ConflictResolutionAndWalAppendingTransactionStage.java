@@ -192,6 +192,13 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			// and the version cannot be reclaimed without corrupting the mutation stream
 			droppedCatalogVersions = 0;
 			droppedCatalogSchemaVersionDelta = 0;
+			// this is the point of no return, and therefore where the ACTIVITY component counts a transaction as
+			// committed: downstream bookkeeping may still fail, but the bytes are in the log and the version can no
+			// longer be reclaimed without corrupting the mutation stream. Note this is the *written* watermark, not
+			// the durable one - the force still lies ahead, which is why the counter is not a durability statement.
+			// Counting at trunk incorporation instead would also count every transaction replayed from the WAL at
+			// startup as if it had just been written
+			this.transactionManager.recordCommittedTransaction(task.mutationCount(), writtenLength);
 			// the bytes are in the WAL, so the reserved version is spoken for and the append-ordering
 			// check for the next transaction must already see it
 			this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
@@ -208,6 +215,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			// Emitted before the rollback so the counter is independent of rollback success.
 			if (ex instanceof ConflictingCatalogMutationException conflict) {
 				new TransactionConflictEvent(task.catalogName(), conflict).commit();
+				this.transactionManager.recordConflictedTransaction();
 			}
 			rollbackFailedTask(
 				task,

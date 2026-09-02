@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -47,6 +48,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,7 +60,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.utils.Assert.isTrue;
@@ -119,12 +120,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Keeps information about all record ids present in this index.
 	 */
 	@Nonnull private final TransactionalBitmap recordIds;
-	/**
-	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
-	 * computed anytime by calling `new ConstantFormula(getRecordIds())`. Original operation
-	 * needs to perform costly creation of new internal bitmap that's why we memoize the result.
-	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
 
 	/**
 	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
@@ -294,17 +289,57 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A **fresh** formula is returned on every call, wrapping the {@link #recordIds} bitmap this index already
+	 * holds — there is nothing left to memoize, because the expensive part was always the bitmap and never the
+	 * few scalars of scaffolding around it.
+	 *
+	 * Building one per call is `O(1)` here for a reason worth knowing: {@link #recordIds} is a
+	 * {@link TransactionalBitmap} and therefore a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}, so `ConstantFormula` keys its cache
+	 * entry on the transactional id and never looks at the contents. A filter index's multi-bucket memo is a plain
+	 * `BaseBitmap` with no such id and has to hash the records instead, which is why that bitmap memoizes the hash
+	 * — see `FilterIndex#memoizedAllRecords`. Do not "harmonise" the two; they are not the same case.
+	 *
+	 * The formula must not be cached here. A {@link Formula} node carries per-query state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it joins, and that context transitively
+	 * reaches the session and the whole catalog generation the query ran against. An index-lifetime formula would
+	 * pin the first session that ever used it until the index is next written to.
+	 */
 	@Override
 	public Formula getRecordIdsFormula() {
-		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return new ConstantFormula(this.recordIds);
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = new ConstantFormula(this.recordIds);
-			}
-			return this.memoizedAllRecordsFormula;
-		}
+		return new ConstantFormula(this.recordIds);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The value tree is charged in full, its **keys included** — they are attribute values this index owns, priced by
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. {@link #recordIds} is likewise charged in full: every construction
+	 * site builds it fresh rather than adopting a caller's set.
+	 *
+	 * **No formula is charged, because none is retained.** {@link #getRecordIdsFormula()} builds
+	 * `new ConstantFormula(this.recordIds)` fresh per call and that wrapper dies with the query it served, so there
+	 * is nothing of index lifetime to price. It wrapped the very set already charged above in any case, so charging
+	 * it would have risked counting one bitmap twice.
+	 *
+	 * {@link #plainType} is a `Class` and {@link #comparator} is fixed scaffolding chosen by the attribute type, so
+	 * both contribute their slot alone — the same call {@code SortIndex} makes, for the same reason.
+	 * {@link #pageStreamRegistry} is excluded as single-writer flush bookkeeping.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds slots
+		return getSharedHeapSizeInBytes(6L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.recordIds.getHeapSizeInBytes();
 	}
 
 	@Nonnull
@@ -316,6 +351,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Override
 	public int size() {
 		return this.recordIds.size();
+	}
+
+	@Override
+	public int getDistinctValueCount() {
+		return this.tree.size();
 	}
 
 	@Override
@@ -578,10 +618,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			registerUniqueKeyValue((T) key, recordId);
 		}
 
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
-
 		this.dirty.setToTrue();
 	}
 
@@ -631,10 +667,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		} else {
 			verifyValue(key);
 			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
-		}
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
 		}
 
 		this.dirty.setToTrue();

@@ -47,6 +47,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndC
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -538,6 +539,41 @@ public class PriceListAndCurrencyPriceSuperIndex
 	@Override
 	public String toString() {
 		return this.priceIndexKey.toString() + (isTerminated() ? " (TERMINATED)" : "");
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes.
+	 *
+	 * # Where the price record bodies are charged
+	 *
+	 * A super index is the **owner** of every {@link PriceRecordContract} in its price list and currency, so its
+	 * {@link #priceRecords} tree prices the bodies in full. Everything else that reaches them holds the very same
+	 * instances and must not charge them again:
+	 *
+	 * - {@link #entityPrices} is, by its own definition, "the same information as in `priceRecords`, but indexed by
+	 *   entityId". Its map spine, its {@link EntityPrices} wrappers and their arrays are this index's and are charged;
+	 *   the records those arrays point at are not.
+	 * - a {@link PriceListAndCurrencyPriceRefIndex} copies references out of this index and prices its tree spine
+	 *   alone, for the same reason.
+	 *
+	 * {@link #pageStreamRegistry} contributes its **slot alone**: it is flush bookkeeping carried by reference across
+	 * commits rather than index content, and it is consulted only on the single-writer flush path.
+	 *
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
+	 * be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the entityPrices and pageStreamRegistry slots, on top of the base's own fields
+		return getBaseHeapSizeInBytes(PRICE_RECORD_SIZER, 2L * layout.referenceSize())
+			// the map owns its spine and its values; the boxed entity id keys are its own, while the price records
+			// the values point at belong to the tree above - hence a zero value-side contribution for those bodies
+			+ this.entityPrices.getHeapSizeInBytes(
+				key -> layout.sizeOfObject(Integer.BYTES),
+				EntityPrices::getHeapSizeInBytes
+			);
 	}
 
 	@Nonnull

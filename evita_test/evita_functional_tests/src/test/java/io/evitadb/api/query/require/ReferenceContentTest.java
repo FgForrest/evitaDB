@@ -26,7 +26,6 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;

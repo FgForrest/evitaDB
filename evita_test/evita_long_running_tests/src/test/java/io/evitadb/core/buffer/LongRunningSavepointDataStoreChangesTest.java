@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -268,10 +269,23 @@ class LongRunningSavepointDataStoreChangesTest implements TimeBoundedTestSupport
 	 * Layer-less stand-in {@link Index} stored by reference in the dirty-index map; its contents are never read.
 	 */
 	private record StubIndex(@Nonnull StubIndexKey key) implements Index<StubIndexKey> {
+		/**
+		 * One holder for every stub: nothing here plans a query or applies an entity mutation, so it is never recorded
+		 * into and never read. Kept static rather than made a record component so that two stubs with the same key stay
+		 * equal, which is what the dirty-index bookkeeping under test compares.
+		 */
+		private static final IndexActivity NO_ACTIVITY = new IndexActivity();
+
 		@Nonnull
 		@Override
 		public StubIndexKey getIndexKey() {
 			return this.key;
+		}
+
+		@Nonnull
+		@Override
+		public IndexActivity getActivity() {
+			return NO_ACTIVITY;
 		}
 
 		@Override

@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
-import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

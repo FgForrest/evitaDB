@@ -148,7 +148,7 @@ public interface GrpcQueryTelemetryOrBuilder extends
 
   /**
    * <pre>
-   * Duration in nanoseconds.
+   * Duration in nanoseconds, covering this step and everything nested below it.
    * </pre>
    *
    * <code>int64 spentTime = 5;</code>
@@ -185,4 +185,89 @@ public interface GrpcQueryTelemetryOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder();
+
+  /**
+   * <pre>
+   * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+   * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+   * much of a phase is the phase itself rather than the phases inside it.
+   *
+   * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+   * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+   * that clients which consume the wire format directly do not each have to sum the children themselves.
+   * </pre>
+   *
+   * <code>int64 selfTime = 7;</code>
+   * @return The selfTime.
+   */
+  long getSelfTime();
+
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return Whether the metrics field is set.
+   */
+  boolean hasMetrics();
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return The metrics.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics();
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder();
+
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return Whether the plan field is set.
+   */
+  boolean hasPlan();
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return The plan.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan();
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder();
 }

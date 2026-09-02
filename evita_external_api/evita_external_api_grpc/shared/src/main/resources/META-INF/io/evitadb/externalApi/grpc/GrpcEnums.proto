@@ -84,6 +84,40 @@ enum GrpcGlobalAttributeUniquenessType {
   UNIQUE_WITHIN_CATALOG_LOCALE = 2;
 }
 
+// An optional acceleration an attribute's filter index maintains on top of the plain index that `filterable` or
+// `unique` already provides. Each member costs extra memory and extra write-path work, which is why none of them is
+// implied by those declarations - an attribute declares the ones its workload actually queries and nothing else.
+//
+// A capability is always declared together with filterability and per scope, carried by
+// `GrpcScopedAttributeFilterAccelerators`. "Accelerated but not filterable" is not a representable state - a mutation
+// arriving
+// over the wire that names a scope the attribute is not filterable in is refused by the server.
+//
+// The members name the capability the index *gains*, never the physical structure that provides it - the structure is
+// an engine implementation detail that may change without the schema changing.
+enum GrpcAttributeFilterAccelerator {
+
+  // Default value, never sent by the server and rejected when received. Absence of an acceleration is expressed by
+  // an empty `accelerators` list, not by this member, so an explicit zero on the wire is always a client mistake.
+  ATTRIBUTE_FILTER_ACCELERATOR_UNSPECIFIED = 0;
+  // Substring matching against the attribute's values is served from a dedicated index instead of scanning every
+  // distinct value of the attribute.
+  //
+  // It accelerates `attributeContains` and `attributeEndsWith`, and only those two. `attributeStartsWith` is
+  // deliberately excluded - it already has an anchored range-scan fast path over the shared value tree, so routing it
+  // through this index would trade a cheap prefix walk for a more expensive one. Declaring the capability never
+  // changes what a query matches; only the way candidates are found differs.
+  //
+  // Patterns shorter than three code points cannot be decomposed into a trigram and fall back to the ordinary value
+  // scan, so an attribute queried only with one- or two-character patterns gains nothing while still paying the cost.
+  //
+  // Allowed only on attributes of type `String` or `String[]`; any other type is refused at schema-mutation time.
+  // Enabling it on an entity collection that already holds data is refused as well - the index is built as entities
+  // are indexed, so the accelerator must be declared before the data is inserted.
+  ATTRIBUTE_FILTER_ACCELERATOR_SUBSTRING_SEARCH = 1;
+
+}
+
 // Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
   // Price computation operations will use actual price with tax added for filtering.
@@ -901,5 +935,297 @@ message GrpcConflictResolution {
   GrpcConflictPolicy policy = 1;
   // The set of sub-entity refinements; non-empty only when policy is set to entity level.
   repeated GrpcGranularConflictPolicy granularity = 2;
+
+}
+
+// Independently selectable parts of a catalog or entity collection statistics snapshot. A client names the components
+// it wants and the engine computes only those - a component that was not asked for is never computed, and its
+// sub-message is absent from the response with no status entry.
+//
+// A component may exist at the catalog level, at the entity collection level, or at both. The catalog level reports
+// aggregates only and never breaks them down per collection, so that its response stays a fixed size no matter how
+// many collections the catalog holds; anything about one collection is fetched by naming that collection. Requesting
+// a component at a level where it does not exist is an error, not a silently empty result.
+enum GrpcCatalogStatisticsComponent {
+
+  // Default value, never valid in a request. Naming it is rejected with an error rather than silently ignored, so
+  // a client that forgot to fill the component list is told instead of receiving an identity-only response.
+  COMPONENT_UNSPECIFIED = 0;
+  // Catalog id, name, state, version, read-only / unusable flags and transactional capabilities. Always delivered
+  // whether or not it was requested - no other component can be interpreted without knowing which catalog produced
+  // it and whether that catalog is usable. Available at both levels.
+  COMPONENT_IDENTITY = 1;
+  // Total / live / archived entity counts. The catalog level sums the per-collection counters, the collection level
+  // reports the counters of the named collection. Available at both levels.
+  COMPONENT_RECORD_COUNTS = 2;
+  // Maps to a different sub-message at each level: at the catalog level it is the *inventory* of entity collections
+  // (which collections exist, and their entity type primary keys) carrying no statistics at all, while at the
+  // collection level it is the header counters of the named collection.
+  COMPONENT_COLLECTIONS = 3;
+  // Number of sessions currently open against the catalog, split into read-only and read-write. Sessions are opened
+  // against a catalog, never against a collection - catalog level only.
+  COMPONENT_SESSIONS = 4;
+  // The four commit pipeline version watermarks and the lags between them. The pipeline is catalog-wide - catalog
+  // level only.
+  COMPONENT_COMMIT_PIPELINE = 5;
+  // Transaction, mutation and write-ahead log counters together with their short-window rates. Transactions span the
+  // whole catalog - catalog level only.
+  COMPONENT_ACTIVITY = 6;
+  // Disk footprint broken into the classes that have different remedies - live bytes, waste, write-ahead log, files
+  // awaiting deletion, bootstrap and the unaccounted remainder. Available at both levels, and the only component
+  // still delivered for a catalog that could not be loaded, because file lengths are readable regardless.
+  COMPONENT_STORAGE_SIZE = 7;
+  // Storage-part histogram - where the bytes actually go, per storage-part type. The catalog level covers the
+  // catalog's own data store (schemas, catalog indexes), the collection level the named collection's data store.
+  // There is deliberately no cross-collection sum. Available at both levels.
+  COMPONENT_STORAGE_COMPOSITION = 8;
+  // Active record share, and whether the data store already satisfies the compaction predicate. Available at both
+  // levels; the configured thresholds driving that predicate are catalog-wide and reported at the catalog level only.
+  COMPONENT_FRAGMENTATION = 9;
+  // Time-travel window, retained write-ahead log files and the awaiting-deletion breakdown. The write-ahead log is
+  // catalog-wide - catalog level only.
+  COMPONENT_HISTORY = 10;
+  // Checkpoint cadence, fence depth and files forced - how much replay a crash would cost right now. A property of
+  // the catalog's write-ahead log - catalog level only.
+  COMPONENT_DURABILITY = 11;
+  // Index counts. The catalog level reports the plain total, which every collection answers from a map size; the
+  // breakdown by index kind and scope walks the index keys and is therefore collection level only. Available at both
+  // levels, with different detail at each.
+  COMPONENT_INDEX_SUMMARY = 12;
+  // Distinct values and records covered per index. Expensive - never part of a polled refresh. Collection level only,
+  // because a catalog-wide form would mean paying that cost for every collection of the catalog at once.
+  COMPONENT_INDEX_CARDINALITY = 13;
+  // Pending (not yet flushed) state, and the in-memory history retained for sessions that started long ago.
+  // Available at both levels.
+  COMPONENT_VOLATILE_STATE = 15;
+
+  // 14 held `COMPONENT_MEMORY_FOOTPRINT`, a component that reported a per-index heap estimate. It never shipped in a
+  // release and was withdrawn before one: a heap measurement is per *index* rather than per collection, so it is
+  // reached through `GetIndexDetail` - which names one index and measures only that - instead of
+  // through a component that would have had to measure every index of a collection to answer. Kept reserved rather
+  // than reused so a client built against a pre-release proto is answered with an unrecognized-value error rather
+  // than being quietly given a different component.
+  reserved 14;
+  reserved "COMPONENT_MEMORY_FOOTPRINT";
+
+}
+
+// Outcome of computing one requested `GrpcCatalogStatisticsComponent`. Without it a client cannot tell a component it
+// never requested from one the engine could not compute - both arrive as an absent sub-message - which is how a
+// corrupted catalog ends up rendering as an empty one. A component is reported only if it was requested.
+enum GrpcComponentAvailability {
+
+  // Default value, never sent by the server. A status message always carries an explicit availability; receiving this
+  // means the message was default-constructed and must not be read as `AVAILABILITY_DELIVERED`.
+  AVAILABILITY_UNSPECIFIED = 0;
+  // The component was requested and computed - its sub-message is present in the response.
+  AVAILABILITY_DELIVERED = 1;
+  // The catalog is corrupted and could not be loaded, and this component reads state that only a loaded catalog has.
+  // Components reading the file system directly - notably `COMPONENT_STORAGE_SIZE` - stay delivered even then.
+  AVAILABILITY_CATALOG_UNUSABLE = 2;
+  // The component depends on an engine feature switched off in the current configuration, for example time-travel
+  // history when write-ahead log retention is disabled. A configuration change makes it available.
+  AVAILABILITY_FEATURE_DISABLED = 3;
+
+  // 4 held `AVAILABILITY_NOT_SUPPORTED`, for a component this server build cannot compute at all. It never shipped in
+  // a release and no component ever produced it - every component of this build either answers or is unavailable for
+  // one of the two reasons above. It was dropped rather than kept for a hypothetical future producer because adding
+  // an enum value is the wire-compatible direction: the day a component genuinely cannot be computed, the value comes
+  // back without breaking any client, whereas keeping it forces every client to branch on an outcome no server sends.
+  // Kept reserved rather than reused so a client built against a pre-release proto is answered with an
+  // unrecognized-value error rather than being quietly given a different availability.
+  reserved 4;
+  reserved "AVAILABILITY_NOT_SUPPORTED";
+
+}
+
+// Type of entity index, as reported by the per-collection index summary and by an index browse. This is the engine's
+// own index type vocabulary rather than a mirror of it, so the values cannot drift apart. A catalog index has no value
+// here: the engine addresses those by scope alone because there is exactly one kind of them.
+enum GrpcEntityIndexType {
+
+  // Default value, never sent by the server. Every reported index carries an explicit type.
+  INDEX_TYPE_UNSPECIFIED = 0;
+  // Index covering all entities of the collection.
+  INDEX_TYPE_GLOBAL = 1;
+  // Index covering entities that reference any entity of a particular referenced entity type.
+  INDEX_TYPE_REFERENCED_ENTITY_TYPE = 2;
+  // Index covering entities that reference one particular referenced entity.
+  INDEX_TYPE_REFERENCED_ENTITY = 3;
+  // Index covering entities that reference any entity belonging to a particular group entity type.
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;
+  // Index covering entities that reference one particular group entity.
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;
+
+}
+
+// What an index browse ranks its results by - the key half of the order, whose other half is the direction carried
+// beside it in `GrpcIndexBrowseRequest.direction`. Every key walks every index of the collection; what they differ in
+// is how much of that walk has to be kept in memory to produce a page, and what the kept entries are ranked by.
+//
+// The two halves are separate fields because they are separate choices: the same key read in the other direction
+// answers the opposite question (the largest indexes or the smallest, the busiest or the untouched), and every key
+// but map order is meaningful both ways.
+enum GrpcIndexBrowseOrdering {
+
+  // The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
+  // a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
+  // a client should read into.
+  //
+  // It holds the zero slot, so an unset `ordering` reads as "enumerate everything, cheaply" - the one answer that
+  // cannot be mistaken for a ranking the client did not ask for. It is also the one key with no ranking to reverse:
+  // it is accepted with direction `ASC` alone, which is how the walk order is spelled, and rejected with `DESC`
+  // rather than the direction being silently ignored.
+  INDEX_BROWSE_ORDERING_MAP_ORDER = 0;
+  // `entityCount`, ties broken deterministically by index kind, then scope, then discriminator - descending for the
+  // largest indexes first, ascending for the smallest. The tiebreaker matters: index counts are heavily tied in
+  // practice, and without it successive pages would re-order the tied block and show duplicates while hiding other
+  // indexes.
+  //
+  // This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
+  // narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
+  // is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
+  // mean estimating every index in the collection on every call.
+  //
+  // A catalog browse has nothing for this key to rank by in either direction - a catalog index reports no entity
+  // count at all - so there it degenerates to the same order `INDEX_BROWSE_ORDERING_MAP_ORDER` yields, ascending as
+  // much as descending. It is accepted rather than rejected so that one client can send the same request to either.
+  INDEX_BROWSE_ORDERING_ENTITY_COUNT = 1;
+  // `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
+  //
+  // Descending answers which indexes are earning the memory they occupy. Read each count against the same row's
+  // `observedSince` rather than on its own: the observation window opens per index, so two raw counts only become
+  // comparable once each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_ENTITY_COUNT` this key is
+  // meaningful for a catalog browse too, because a catalog index is queried and maintained like any other.
+  //
+  // Ascending is the hunt for indexes that may be worth dropping, and it is dominated by ties at zero, because on
+  // most catalogs the majority of indexes have never been chosen by a query; the kind-then-scope-then-discriminator
+  // tiebreaker is the whole of what makes a page boundary drawn inside that block of zeros reproducible. A zero is
+  // not by itself a verdict - it is a statement about the window the row's `observedSince` opens.
+  //
+  // The rank is a best-effort reading taken as the walk passes each index, not a snapshot of one instant - the
+  // counters move under live traffic. Each index is read once, and the count a row reports for the counter it was
+  // ranked by is the reading that placed it, so no row contradicts its own position. Pages are nevertheless unstable
+  // across calls: recording activity does not advance the catalog version, so two pages agreeing on `catalogVersion`
+  // may still have been ranked by counters that moved between them, and one index can appear on two pages or on
+  // neither. This is a top-N access pattern - page in `INDEX_BROWSE_ORDERING_MAP_ORDER` to enumerate the whole set -
+  // and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`, in both
+  // directions.
+  INDEX_BROWSE_ORDERING_QUERY_COUNT = 2;
+  // `updateCount`, same tiebreaker. Descending, read beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` descending, finds
+  // the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount` documents
+  // about the maintenance it counts before acting on the head of that direction: a global index leads it on
+  // essentially every catalog and is never a drop candidate, and maintenance driven by a write to another collection
+  // is not counted at all.
+  //
+  // Ascending surfaces the indexes nothing is writing to. It is dominated by ties at zero exactly as
+  // `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending is, and reproducible inside that block for the same reason. A
+  // never-updated index is not thereby a drop candidate: it may be precisely the one every query reads, so read it
+  // beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending rather than acting on it alone.
+  //
+  // The caveats on `INDEX_BROWSE_ORDERING_QUERY_COUNT` apply unchanged, in both directions.
+  INDEX_BROWSE_ORDERING_UPDATE_COUNT = 3;
+
+}
+
+// Which of an attribute's index structures a cardinality reading describes. One attribute can be indexed several ways
+// at once - a filterable AND sortable attribute has both a filter and a sort index - and their distinct-value counts
+// are not interchangeable, so a reading always names the structure it came from.
+//
+// The chain index used for ordered references has no value dimension at all: it stores predecessor links between
+// records rather than values, so "distinct values" is not a question that can be asked of it and it is deliberately
+// absent here.
+enum GrpcAttributeIndexType {
+
+  // Default value, never sent by the server. Every reported cardinality carries an explicit structure.
+  ATTRIBUTE_INDEX_TYPE_UNSPECIFIED = 0;
+  // The unique index - a value maps to at most one record.
+  ATTRIBUTE_INDEX_TYPE_UNIQUE = 1;
+  // The filter index - the inverted index used to resolve equality, prefix and range predicates.
+  ATTRIBUTE_INDEX_TYPE_FILTER = 2;
+  // The sort index - records ordered by their attribute value.
+  ATTRIBUTE_INDEX_TYPE_SORT = 3;
+
+}
+
+// What kind of schema element one schema-capability usage row describes. Deliberately not split by owner - an entity
+// attribute and a reference attribute are the same kind of thing declared in two places, and
+// `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the things that would
+// otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container,
+// and a reference is both a container of elements and an element in its own right.
+enum GrpcSchemaElementKind {
+
+  // Default value, never sent by the server. Every reported row carries an explicit kind.
+  SCHEMA_ELEMENT_KIND_UNSPECIFIED = 0;
+  // An attribute, of the entity, of one of its references, or of the catalog schema itself.
+  SCHEMA_ELEMENT_KIND_ATTRIBUTE = 1;
+  // A sortable attribute compound, of the entity or of one of its references.
+  SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;
+  // A reference itself rather than something declared on it - the element carrying `indexed()`, `faceted()` and
+  // `bucketed()`. `containerName` is empty on such a row and `elementName` holds the reference name, because a
+  // reference is declared by the entity schema directly and has no container of its own. Not to be confused with a
+  // row about an attribute *of* that reference, which names it in `containerName` instead.
+  SCHEMA_ELEMENT_KIND_REFERENCE = 3;
+  // The entity itself - the element carrying `withHierarchy()` and `withPrice()`. Both are declared on the entity
+  // schema rather than on anything inside it, so `containerName` is empty and `elementName` repeats the entity type.
+  SCHEMA_ELEMENT_KIND_ENTITY = 4;
+
+}
+
+// One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
+//
+// The values are named after the schema flags they report - `filterable()`, `sortable()`, `unique()` - which is what
+// separates them from `GrpcAttributeIndexType`, whose values name the physical index structure a cardinality reading
+// came from. Dropping a flag here takes every physical structure maintaining it with it, and the two axes do not
+// correspond even where their names meet: a unique attribute that is not filterable carries
+// `SCHEMA_CAPABILITY_FILTERABLE`, because a filter against it is served from its uniqueness index - while no filter
+// index exists for it at all. Keeping the two apart is the whole point of the schema-capability surface - see
+// `GrpcSchemaCapabilityUsage`.
+//
+// The values span every schema flag whose maintenance a physical index pays for, and which of them a row can carry is
+// fixed by its `GrpcSchemaElementKind`: an attribute has three, a sortable compound exactly one, a reference three of
+// its own, and the entity two. Nothing outside that set is reported, because a flag no index maintains costs nothing
+// to keep and is therefore not a thing an operator would act on.
+enum GrpcSchemaCapability {
+
+  // Default value, never sent by the server. Every reported row carries an explicit capability.
+  SCHEMA_CAPABILITY_UNSPECIFIED = 0;
+  // The element can be filtered by - `filterable()`, and the inverted indexes it costs. A unique attribute carries
+  // this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
+  SCHEMA_CAPABILITY_FILTERABLE = 1;
+  // The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
+  SCHEMA_CAPABILITY_SORTABLE = 2;
+  // The element's values are unique - `unique()`, whether within the entity collection or globally, and the
+  // uniqueness index it costs.
+  SCHEMA_CAPABILITY_UNIQUE = 3;
+  // The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_FACETED = 4;
+  // The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  //
+  // This is the widest flag reported here, and the one to read most carefully: dropping it takes the whole reduced
+  // index family for that reference with it, so every filter, ordering and fetch path reaching *through* the
+  // reference stops being answerable - not merely slower. A low request count means far less here than the same
+  // number on an attribute's `filterable()`.
+  SCHEMA_CAPABILITY_INDEXED = 5;
+  // The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+  // maintenance. Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_BUCKETED = 6;
+  // The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index it
+  // costs. Carried by a `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_HIERARCHY_INDEXED = 7;
+  // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
+  // The element's filter index also answers substring matching -
+  // `filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)`, and the trigram index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_ATTRIBUTE` row, always *alongside*
+  // `SCHEMA_CAPABILITY_FILTERABLE` rather than instead of it: the acceleration is strictly additive, so an attribute
+  // carrying this one is filterable too and the two rows describe two separately-droppable costs. Read them together
+  // - a high filterable count with a near-zero count here says the attribute is filtered often but almost never by
+  // `attributeContains` or `attributeEndsWith`, which is exactly the reading that justifies dropping the capability
+  // while keeping the attribute filterable.
+  SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
 
 }

@@ -1,0 +1,107 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2021-2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.index;
+
+import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+
+/**
+ * EntityIndexType enumeration keeps constants for all types of entity indexes that are used to find data about
+ * {@link Entity entities} quickly.
+ *
+ * **This lives in the API module although the engine is its main consumer.** It is the vocabulary the engine keys its
+ * entity indexes by *and* the vocabulary the statistics API reports them in, and the API module must not depend on
+ * `evita_engine` - so the shared half lives here and the engine imports it, rather than the two being kept as mirror
+ * enums that have to be mapped and can drift apart. It sits in its own package rather than under
+ * `io.evitadb.api.statistics` because the engine's index hierarchy is built on it: reporting is one consumer among
+ * many, not what the enum is for.
+ *
+ * A catalog index deliberately has no constant here. The engine addresses those by `CatalogIndexKey`, which carries a
+ * scope and nothing else because there is exactly one kind of them; should catalog-level indexes ever diversify they
+ * get their own enum next to this one, rather than a value that every entity-index switch would have to reject.
+ *
+ * **These constant names are persisted.** An entity index storage part stores its type as {@link Enum#name()}, so
+ * renaming a constant changes the on-disk format and removing one makes catalogs that still name it unreadable -
+ * `REFERENCED_HIERARCHY_NODE`, retired in 2024.12, is folded on read by `EntityIndexTypeSerializer` rather than being
+ * resolvable here. Ordinals are not persisted and may move freely.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+public enum EntityIndexType {
+	/**
+	 * Global index is the main index with all record ids of particular {@link Entity#getType()}.
+	 * It's the slowest index possible and can be compared to SQL DB full-scan. When accessing this index it means
+	 * there is no better index usable for this particular query.
+	 */
+	GLOBAL,
+	/**
+	 * Index contains attribute indexes containing only data for reference attributes and as indexed values
+	 * are used primary keys of entity indexes of {@link #REFERENCED_ENTITY} type.
+	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
+	 * contains indexed values of reference attributes only.
+	 *
+	 * Discriminator is `String` representing the {@link ReferenceSchemaContract#getName()}.
+	 */
+	REFERENCED_ENTITY_TYPE,
+	/**
+	 * Index that contains record ids that are connected with certain referenced {@link Entity#getType()} and
+	 * {@link Entity#getPrimaryKey()}.
+	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
+	 * contains copy of all indexed reference attributes and entity attributes of the indexed (source) entity.
+	 *
+	 * Discriminator is {@link RepresentativeReferenceKey} instance that combines information about the
+	 * {@link ReferenceSchemaContract#getName()}, referenced entity {@link EntityContract#getPrimaryKey()} and
+	 * set of representative attribute values that distinguish this reference from other references of the same type
+	 * and the same target entity.
+	 */
+	REFERENCED_ENTITY,
+	/**
+	 * Index contains attribute indexes containing only data for reference attributes indexed by the referenced
+	 * **group entity** primary key. Analogous to {@link #REFERENCED_ENTITY_TYPE} but for group-based indexing.
+	 * This index is used when query contains {@link GroupHaving} constraint and allows filtering and sorting
+	 * by reference attributes within a specific group.
+	 *
+	 * Discriminator is `String` representing the {@link ReferenceSchemaContract#getName()}.
+	 */
+	REFERENCED_GROUP_ENTITY_TYPE,
+	/**
+	 * Index that contains record ids connected with a certain referenced group entity type and primary key.
+	 * Analogous to {@link #REFERENCED_ENTITY} but for group-based indexing. This index is used when query
+	 * contains {@link GroupHaving} constraint and contains copy of all indexed reference attributes and entity
+	 * attributes of the indexed (source) entity, partitioned by the **referenced entity** primary key.
+	 *
+	 * Discriminator is {@link RepresentativeReferenceKey} instance that combines information about the
+	 * {@link ReferenceSchemaContract#getName()}, referenced entity {@link EntityContract#getPrimaryKey()} and
+	 * set of representative attribute values that distinguish this reference from other references of the same type
+	 * and the same target referenced entity. The group PK is resolved via the
+	 * {@link #REFERENCED_GROUP_ENTITY_TYPE} type-level index, which maps group PKs to storage PKs of individual
+	 * group indexes.
+	 */
+	REFERENCED_GROUP_ENTITY
+}

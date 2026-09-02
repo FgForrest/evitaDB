@@ -178,26 +178,60 @@ public class DelayedAsyncTask implements Closeable {
 
 		this.schedulingLock.lock();
 		try {
-			if (this.delay == Long.MAX_VALUE) {
-				// the task is manual task and will never be scheduled
-				return;
-			}
-
-			final OffsetDateTime now = OffsetDateTime.now();
-			final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
-			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
-				final long nowMillis = now.toInstant().toEpochMilli();
-				final long computedDelay = Math.max(
-					nextTick.toInstant().toEpochMilli() - nowMillis,
-					computeMinimalSchedulingGap(nowMillis)
-				);
-				scheduleTask(computedDelay);
-			} else if (this.running.get()) {
-				// if this task is currently running, we need to schedule it again after it finishes
-				this.reSchedule.set(true);
-			}
+			doSchedule();
 		} finally {
 			this.schedulingLock.unlock();
+		}
+	}
+
+	/**
+	 * Schedules the task the way {@link #schedule()} does, but reports a closed task instead of throwing.
+	 *
+	 * Every caller that schedules from a path which must not fail has to use this one. Checking a `closed` flag from
+	 * the outside and then calling {@link #schedule()} is not equivalent: `close()` landing between the two turns the
+	 * schedule into a `GenericEvitaInternalError` thrown out of - among others - the commit thread retiring a data
+	 * file, a maintainer parking a deferred purge, and the tail of this task's own run, where it would replace the
+	 * exception that actually explains the failure. Here the decision is made **under {@link #schedulingLock}**, which
+	 * is the same lock `close()` tears down under, so a task observed open here is still open when it is planned - and
+	 * a `close()` that wins the race simply cancels the future this call had just queued.
+	 *
+	 * @return true when the task was open and the scheduling request was accepted, false when it had been closed
+	 */
+	public boolean trySchedule() {
+		this.schedulingLock.lock();
+		try {
+			if (this.closed.get()) {
+				return false;
+			}
+			doSchedule();
+			return true;
+		} finally {
+			this.schedulingLock.unlock();
+		}
+	}
+
+	/**
+	 * The body shared by {@link #schedule()} and {@link #trySchedule()}. Must be called with {@link #schedulingLock}
+	 * held.
+	 */
+	private void doSchedule() {
+		if (this.delay == Long.MAX_VALUE) {
+			// the task is manual task and will never be scheduled
+			return;
+		}
+
+		final OffsetDateTime now = OffsetDateTime.now();
+		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
+		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+			final long nowMillis = now.toInstant().toEpochMilli();
+			final long computedDelay = Math.max(
+				nextTick.toInstant().toEpochMilli() - nowMillis,
+				computeMinimalSchedulingGap(nowMillis)
+			);
+			scheduleTask(computedDelay);
+		} else if (this.running.get()) {
+			// if this task is currently running, we need to schedule it again after it finishes
+			this.reSchedule.set(true);
 		}
 	}
 
@@ -299,7 +333,8 @@ public class DelayedAsyncTask implements Closeable {
 	 * Executes the task and sets the running flag to false when the task is finished.
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
-		final long planWithShorterDelay;
+		long planWithShorterDelay = -1L;
+		boolean started = false;
 		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(
 			this.catalogName, this.taskName
 		);
@@ -308,6 +343,7 @@ public class DelayedAsyncTask implements Closeable {
 				this.running.compareAndSet(false, true),
 				"Task is already running."
 			);
+			started = true;
 			new BackgroundTaskStartedEvent(this.catalogName, this.taskName).commit();
 			planWithShorterDelay = runnable.getAsLong();
 			this.lastFinishedExecution.set(OffsetDateTime.now());
@@ -316,18 +352,39 @@ public class DelayedAsyncTask implements Closeable {
 			throw ex;
 		} finally {
 			finishEvent.commit();
-			Assert.isPremiseValid(
-				this.running.compareAndSet(true, false),
-				"Task is not running."
-			);
-		}
-		if (planWithShorterDelay > -1L) {
-			scheduleWithDelayShorterBy(planWithShorterDelay);
-		} else {
-			pause();
-			if (this.reSchedule.compareAndSet(true, false)) {
+			// guarded by `started`, so a run that never acquired the flag does not clear it, re-plan, or pause on
+			// behalf of the invocation that actually holds it
+			if (started) {
+				// Clearing the flag and settling the next tick has to be atomic against `schedule()`, which is why
+				// both happen under the scheduling lock rather than in the open. Without it there is a window between
+				// the two in which a concurrent `schedule()` is simply lost: it finds a tick still planned so it plans
+				// nothing, finds the task no longer running so it records nothing, and the `pause()` below then
+				// discards the very tick it deferred to. Callers that defer work and rely on the next `schedule()` to
+				// bring it back would then wait for an unrelated event that may never come.
+				//
+				// The flag is cleared *first* inside that block, and the order matters: re-planning a zero-delay task
+				// can fire the next run before this method returns, and it would fail its own "task is already
+				// running" premise if the flag were still set.
+				this.schedulingLock.lock();
+				try {
+					this.running.set(false);
+					if (planWithShorterDelay > -1L && !this.closed.get()) {
+						scheduleWithDelayShorterBy(planWithShorterDelay);
+					} else {
+						// also reached when the run threw. A failed run must not leave its planned tick behind
+						// either, or `schedule()` can never plan another one and the task stays dead for good
+						pause();
+					}
+				} finally {
+					this.schedulingLock.unlock();
+				}
+			}
+			// never on a closed task - this runs on the way out of a failed run too, and scheduling a closed task
+			// throws, which would replace the exception that actually explains the failure. `trySchedule` decides that
+			// under the scheduling lock, so a `close()` arriving between the check and the plan cannot slip through
+			if (started && this.reSchedule.compareAndSet(true, false)) {
 				// reschedule the task if it was requested during the run
-				this.schedule();
+				trySchedule();
 			}
 		}
 	}

@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine.operators;
 
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.engine.TestCatalogFolderContexts;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
@@ -125,7 +126,9 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		};
 
 		final UpgradeCatalogFormatMutationOperator operator =
-			new UpgradeCatalogFormatMutationOperator(STORAGE_DIRECTORY, recordingExecutor);
+			new UpgradeCatalogFormatMutationOperator(
+				TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY), recordingExecutor
+			);
 
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);
@@ -176,7 +179,7 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		// The operation name is surfaced in progress reports and CDC notifications; both `from` and
 		// `to` versions must appear so operators can identify what migration is in flight.
 		final UpgradeCatalogFormatMutationOperator operator =
-			new UpgradeCatalogFormatMutationOperator(STORAGE_DIRECTORY);
+			new UpgradeCatalogFormatMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 		final UpgradeCatalogFormatMutation mutation = new UpgradeCatalogFormatMutation(CATALOG_NAME, 4, 5);
 
 		assertEquals(
@@ -209,7 +212,7 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		when(evita.getEngineState()).thenReturn(startingState);
 
 		final UpgradeCatalogFormatMutationOperator operator =
-			new UpgradeCatalogFormatMutationOperator(STORAGE_DIRECTORY);
+			new UpgradeCatalogFormatMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);
@@ -247,12 +250,13 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		// `BEING_ACTIVATED` state. When the auto-issued `UpgradeCatalogFormatMutation` runs over that
 		// snapshot the completion updater must not move the name into `inactiveCatalogs` just because
 		// `priorCatalog instanceof Catalog` is false.
-		final CatalogContract priorCatalog = new UnusableCatalog(
-			CATALOG_NAME,
-			CatalogState.BEING_ACTIVATED,
-			STORAGE_DIRECTORY.resolve(CATALOG_NAME),
-			(cn, path) -> new IllegalStateException("unused in test")
-		);
+		final CatalogContract priorCatalog = TestCatalogFolderContexts
+			.onDirectory(STORAGE_DIRECTORY)
+			.createUnusableCatalog(
+				CATALOG_NAME,
+				CatalogState.BEING_ACTIVATED,
+				(cn, folderId, root) -> new IllegalStateException("unused in test")
+			);
 
 		final ExpandedEngineState startingState = buildStartingState(priorCatalog);
 		assertEquals(1, startingState.engineState().activeCatalogs().length);
@@ -263,7 +267,7 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		when(evita.getEngineState()).thenReturn(startingState);
 
 		final UpgradeCatalogFormatMutationOperator operator =
-			new UpgradeCatalogFormatMutationOperator(STORAGE_DIRECTORY);
+			new UpgradeCatalogFormatMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);

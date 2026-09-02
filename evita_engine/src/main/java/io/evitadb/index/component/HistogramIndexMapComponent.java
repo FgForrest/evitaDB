@@ -28,12 +28,14 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
+import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePartRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey.StreamKind;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -114,9 +116,12 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 		}
 		final Map<HistogramIndexKey, PersistedHistogramLeafPages> snapshot =
 			CollectionUtils.createHashMap(histogramIndexes.size());
-		for (final HistogramIndex histogramIndex : histogramIndexes.values()) {
-			histogramIndex.collectPersistedLeafPages(pages -> snapshot.put(pages.key(), pages));
-		}
+		// `forEach` rather than `values()`: a HashMap keeps the view it hands out, and this runs against the LIVE map
+		// on every flush - see `TransactionalMap#forEach`
+		histogramIndexes.forEach(
+			(histogramName, histogramIndex) ->
+				histogramIndex.collectPersistedLeafPages(pages -> snapshot.put(pages.key(), pages))
+		);
 		return snapshot.isEmpty() ? Map.of() : snapshot;
 	}
 
@@ -174,6 +179,66 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 		}
 	}
 
+	/**
+	 * Returns the heap this component occupies, in bytes - its own object plus the leaf-page baseline it alone holds.
+	 *
+	 * # Why this component prices itself when its four siblings do not
+	 *
+	 * Every other {@link IndexComponent} wrapper is a pure adapter: its fields point at sub-indexes charged at the
+	 * owning {@link io.evitadb.index.EntityIndex}, so the index charges the wrapper's shell inline and is done. This
+	 * one owns {@link #persistedLeafPages} outright - a plain map nothing else in the tree can reach - and a shell
+	 * charge alone would report it as free. It is the histogram analogue of the five `persisted*LeafPages` snapshots
+	 * {@link io.evitadb.index.attribute.AttributeIndex} keeps as its own fields and prices there; the accounting is
+	 * deliberately the same, only the holder differs.
+	 *
+	 * # What is charged
+	 *
+	 * The keys **are** charged here, which is where this diverges from `AttributeIndex`: its snapshots are keyed by
+	 * the very instances its sub-index maps hold, so it charges them a slot and lets those maps pay. A
+	 * {@link HistogramIndexKey} is minted fresh by {@link HistogramIndex#persistedLeafPagesOf} for the snapshot and
+	 * this map is its only holder - the histogram map above is keyed by bare names, and the manifest's
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey} is a different
+	 * record entirely. What the key *points at* is borrowed: the histogram name belongs to the schema and the locale
+	 * is interned by the JVM.
+	 *
+	 * A page sequence array is charged only when it holds pages. An axis that never paged parks the field on
+	 * {@link io.evitadb.utils.ArrayUtils#EMPTY_INT_ARRAY}, one instance for the whole JVM that no index owns, and an
+	 * empty snapshot likewise sits on `Map.of()` and contributes nothing at all.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the histogramIndexes / entityIndexKey / persistedLeafPages slots - the first two are the owning index's
+		final long shell = layout.sizeOfObject(3L * layout.referenceSize());
+		if (this.persistedLeafPages.isEmpty()) {
+			return shell;
+		}
+		// the histogram name is the schema's and the locale is JVM-interned, so the key record's own object is all
+		// the snapshot owns of it
+		final long histogramIndexKey = layout.sizeOfObject(2L * layout.referenceSize());
+		return shell + MapHeapSize.sizeOf(
+			this.persistedLeafPages,
+			key -> histogramIndexKey,
+			// the record's `key` reference points at the map key already charged above, so only the two page
+			// sequences are added - each of them the shared empty singleton until that axis actually pages
+			pages -> layout.sizeOfObject(3L * layout.referenceSize())
+				+ pageSequencesHeapSizeInBytes(layout, pages.bucketPageSequences())
+				+ pageSequencesHeapSizeInBytes(layout, pages.rangePageSequences())
+		);
+	}
+
+	/**
+	 * Prices one axis' on-disk page-sequence array, or nothing when that axis never paged.
+	 *
+	 * @param layout        the VM layout to size against
+	 * @param pageSequences the axis' on-disk leaf-page sequences
+	 * @return the owned heap footprint in bytes, `0` for the shared empty singleton
+	 */
+	private static long pageSequencesHeapSizeInBytes(@Nonnull VMLayout layout, @Nonnull int[] pageSequences) {
+		return pageSequences.length == 0 ? 0L : layout.sizeOfArray(pageSequences.length, Integer.BYTES);
+	}
+
 	@Override
 	public void collectModifiedStorageParts(
 		int entityIndexPrimaryKey,
@@ -182,10 +247,10 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 	) {
 		// emit dirty storage parts and announce live histogram keys — manifest population is
 		// unconditional so a clean histogram still appears in the parent EntityIndexStoragePart
-		for (final HistogramIndex histogramIndex : this.histogramIndexes.values()) {
+		this.histogramIndexes.forEach((histogramName, histogramIndex) -> {
 			histogramIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
 			histogramIndex.collectStorageKeys(this.entityIndexKey, manifest.getHistogramKeys());
-		}
+		});
 		// empty-drop reclaim: a whole histogram (or a single locale) dropped from the map this commit still has its
 		// bucket / range leaf pages + cardinality sibling on disk, but the dropped sub-index's own flush never runs
 		// again — so diff the pre-commit on-disk snapshot against the surviving key set and reclaim the orphaned parts,
@@ -201,9 +266,7 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 	public void resetDirty() {
 		// HistogramIndex has no own dirty flag — its sub-structures track their own dirtiness;
 		// the parent EntityIndex.dirty bit is reset by the base loop
-		for (final HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.resetDirty();
-		}
+		this.histogramIndexes.forEach((histogramName, histogramIndex) -> histogramIndex.resetDirty());
 	}
 
 	@Override

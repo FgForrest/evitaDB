@@ -129,7 +129,7 @@ public enum GrpcFacetGroupRelationLevel
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(34);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(35);
   }
 
   private static final GrpcFacetGroupRelationLevel[] VALUES = values();

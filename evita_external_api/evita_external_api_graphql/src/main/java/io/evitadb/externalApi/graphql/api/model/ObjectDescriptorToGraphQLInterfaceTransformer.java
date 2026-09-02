@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.api.model;
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
-import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLTypeReference;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;

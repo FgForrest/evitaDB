@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,7 +60,7 @@ public final class UniqueIndexView extends UniqueIndex {
 	@Serial private static final long serialVersionUID = 2639205026498958518L;
 	/**
 	 * Direct reference to the shared {@link FilterIndex} view over the same attribute key — the source of truth this
-	 * folded view reads from (reusing its normalizer and memoized all-records formula). May be `null` for a transient
+	 * folded view reads from (reusing its normalizer and memoized all-records bitmap). May be `null` for a transient
 	 * live presence marker created before the shared tree exists; the filter-write path rebinds it to the live filter
 	 * view via {@link #bindFilterView}. Never reassigned on a published instance — a new view is built instead, so the
 	 * field is safe to share across snapshot versions. Transient because a reloaded view is reconstructed from the
@@ -123,7 +124,8 @@ public final class UniqueIndexView extends UniqueIndex {
 
 	@Override
 	public Formula getRecordIdsFormula() {
-		// reuse the filter view's already-memoized all-records formula over the same shared tree
+		// wrap the filter view's already-memoized all-records bitmap over the same shared tree - the formula itself
+		// is built fresh per call, because an index-lifetime one would pin the calling query's execution context
 		final FilterIndex filterView = this.sharedFilterView;
 		return filterView == null ? EmptyFormula.INSTANCE : filterView.getAllRecordsFormula();
 	}
@@ -141,10 +143,36 @@ public final class UniqueIndexView extends UniqueIndex {
 		return filterView == null ? 0 : filterView.size();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A view that is not yet bound to a shared tree reports `0`, exactly as {@link #size()} does - it is a live
+	 * presence marker created before the tree exists, so it genuinely holds no values yet.
+	 */
+	@Override
+	public int getDistinctValueCount() {
+		final FilterIndex filterView = this.sharedFilterView;
+		return filterView == null ? 0 : filterView.getDistinctValueCount();
+	}
+
 	@Override
 	public boolean isEmpty() {
 		final FilterIndex filterView = this.sharedFilterView;
 		return filterView == null || filterView.isEmpty();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #sharedFilterView} contributes its **slot alone**. The filter view — and the shared tree beneath it —
+	 * belongs to the enclosing {@code AttributeIndex}, which charges it once; a folded view holds no transactional
+	 * state of its own and is rebuilt fresh against the committed tree on every commit. Charging it here would report
+	 * the same values twice for every attribute that is both unique and filterable, which is all of them.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		// the sharedFilterView slot, on top of the base's own fields - and nothing beyond it
+		return getSharedHeapSizeInBytes(VMLayout.current().referenceSize());
 	}
 
 	@Override

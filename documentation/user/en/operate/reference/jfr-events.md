@@ -3,6 +3,10 @@
 #### API
 
 <dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/Http2GoAwayEvent.java</SourceClass> HTTP/2 connection closed with GOAWAY</dt>
+  <dd>Event that is fired when an HTTP/2 connection is closed by an erroneous GOAWAY frame, either sent by the server or received from the peer.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/Http2RstFloodEvent.java</SourceClass> HTTP/2 RST_STREAM flood</dt>
+  <dd>Event that is fired when a single HTTP/2 connection sends more RST_STREAM (cancelled request) frames within one window than the reporting threshold allows.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/ReadinessEvent.java</SourceClass> Readiness probe</dt>
   <dd>Event that is fired when a readiness probe is either executed by client or invoked on the server side.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/RequestEvent.java</SourceClass> Request</dt>

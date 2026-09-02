@@ -1,12 +1,12 @@
 ---
 title: Segmentace
-perex: Segmentace umožňuje řadit různé části výsledků vyhledávání odlišným způsobem. Některé e-shopy preferují v základním zobrazení zobrazovat nejprve nové produkty, zatímco jiné mohou upřednostnit top nabídky pro uživatele na základě jejich preferencí (nejlevnější, nejkvalitnější, zlatý střed apod.). Právě zde přichází segmentace na řadu.
+perex: Segmentace umožňuje různým částem výsledků vyhledávání přiřadit odlišné pořadí. Některé e-shopy preferují v základním zobrazení zobrazovat nejprve nové produkty, zatímco jiné mohou upřednostnit nejlepší volby pro uživatele na základě jejich preferencí (nejlevnější, nejkvalitnější, zlatý střed atd.). Právě zde přichází ke slovu segmentace.
 date: '15.10.2024'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 Bez podpory segmentace by klient musel spouštět více dotazů a výsledky slučovat na straně klienta, přičemž každý další dotaz by vylučoval výsledky předchozího. To je nejen neefektivní, ale také náchylné k chybám. Díky segmentaci mohou vývojáři jednoduše definovat pravidla pro řazení různých segmentů, omezit velikost každého segmentu a nechat těžkou práci na serveru.
 

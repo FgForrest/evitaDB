@@ -233,7 +233,8 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				perPageBuckets[i] = leafPage.getBuckets();
 			}
 			invertedIndex = InvertedIndex.fromPersistedPages(
-				plainType, orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence(),
+				// the histogram's own inverted index is private to it and carries no value ids
+				plainType, orderedPageSequences, perPageBuckets, null, part.getHighWaterPageSequence(),
 				normalizer, comparator, indexedDecimalPlaces
 			);
 		}

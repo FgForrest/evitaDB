@@ -2,127 +2,127 @@
 {
   "min" : "0.00",
   "max" : "5036.00",
-  "overallCount" : 4063,
+  "overallCount" : 6555,
   "buckets" : [
     {
       "threshold" : "0.00",
-      "occurrences" : 701,
+      "occurrences" : 912,
       "requested" : true,
-      "relativeFrequency" : "17.25"
+      "relativeFrequency" : "13.91"
     },
     {
       "threshold" : "251.80",
-      "occurrences" : 467,
+      "occurrences" : 719,
       "requested" : true,
-      "relativeFrequency" : "11.49"
+      "relativeFrequency" : "10.97"
     },
     {
       "threshold" : "503.60",
-      "occurrences" : 645,
+      "occurrences" : 1062,
       "requested" : true,
-      "relativeFrequency" : "15.87"
+      "relativeFrequency" : "16.20"
     },
     {
       "threshold" : "755.40",
-      "occurrences" : 529,
+      "occurrences" : 909,
       "requested" : true,
-      "relativeFrequency" : "13.02"
+      "relativeFrequency" : "13.87"
     },
     {
       "threshold" : "1007.20",
-      "occurrences" : 379,
+      "occurrences" : 640,
       "requested" : true,
-      "relativeFrequency" : "9.33"
+      "relativeFrequency" : "9.76"
     },
     {
       "threshold" : "1259.00",
-      "occurrences" : 334,
+      "occurrences" : 588,
       "requested" : true,
-      "relativeFrequency" : "8.22"
+      "relativeFrequency" : "8.97"
     },
     {
       "threshold" : "1510.80",
-      "occurrences" : 220,
+      "occurrences" : 370,
       "requested" : true,
-      "relativeFrequency" : "5.41"
+      "relativeFrequency" : "5.64"
     },
     {
       "threshold" : "1762.60",
-      "occurrences" : 232,
+      "occurrences" : 389,
       "requested" : true,
-      "relativeFrequency" : "5.71"
+      "relativeFrequency" : "5.93"
     },
     {
       "threshold" : "2014.40",
-      "occurrences" : 125,
+      "occurrences" : 219,
       "requested" : true,
-      "relativeFrequency" : "3.08"
+      "relativeFrequency" : "3.34"
     },
     {
       "threshold" : "2266.20",
-      "occurrences" : 123,
+      "occurrences" : 208,
       "requested" : true,
-      "relativeFrequency" : "3.03"
+      "relativeFrequency" : "3.17"
     },
     {
       "threshold" : "2518.00",
-      "occurrences" : 74,
+      "occurrences" : 131,
       "requested" : true,
-      "relativeFrequency" : "1.82"
+      "relativeFrequency" : "2.00"
     },
     {
       "threshold" : "2769.80",
-      "occurrences" : 64,
+      "occurrences" : 111,
       "requested" : true,
-      "relativeFrequency" : "1.58"
+      "relativeFrequency" : "1.69"
     },
     {
       "threshold" : "3021.60",
-      "occurrences" : 31,
+      "occurrences" : 58,
       "requested" : true,
-      "relativeFrequency" : "0.76"
+      "relativeFrequency" : "0.88"
     },
     {
       "threshold" : "3273.40",
-      "occurrences" : 34,
+      "occurrences" : 56,
       "requested" : true,
-      "relativeFrequency" : "0.84"
+      "relativeFrequency" : "0.85"
     },
     {
       "threshold" : "3525.20",
-      "occurrences" : 42,
+      "occurrences" : 70,
       "requested" : true,
-      "relativeFrequency" : "1.03"
+      "relativeFrequency" : "1.07"
     },
     {
       "threshold" : "3777.00",
-      "occurrences" : 21,
+      "occurrences" : 40,
       "requested" : true,
-      "relativeFrequency" : "0.52"
+      "relativeFrequency" : "0.61"
     },
     {
       "threshold" : "4028.80",
-      "occurrences" : 5,
+      "occurrences" : 8,
       "requested" : true,
       "relativeFrequency" : "0.12"
     },
     {
       "threshold" : "4280.60",
-      "occurrences" : 20,
+      "occurrences" : 34,
       "requested" : true,
-      "relativeFrequency" : "0.49"
+      "relativeFrequency" : "0.52"
     },
     {
       "threshold" : "4532.40",
-      "occurrences" : 12,
+      "occurrences" : 22,
       "requested" : true,
-      "relativeFrequency" : "0.30"
+      "relativeFrequency" : "0.34"
     },
     {
       "threshold" : "4784.20",
-      "occurrences" : 5,
+      "occurrences" : 9,
       "requested" : true,
-      "relativeFrequency" : "0.12"
+      "relativeFrequency" : "0.14"
     }
   ]
 }

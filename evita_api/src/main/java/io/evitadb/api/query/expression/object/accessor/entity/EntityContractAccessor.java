@@ -28,7 +28,6 @@ import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferencesContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.exception.ExpressionEvaluationException;

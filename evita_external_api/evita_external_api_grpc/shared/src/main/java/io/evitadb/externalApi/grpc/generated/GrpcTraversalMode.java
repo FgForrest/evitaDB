@@ -133,7 +133,7 @@ public enum GrpcTraversalMode
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(35);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(36);
   }
 
   private static final GrpcTraversalMode[] VALUES = values();

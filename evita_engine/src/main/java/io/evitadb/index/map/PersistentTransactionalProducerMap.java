@@ -33,6 +33,7 @@ import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,6 +42,7 @@ import java.io.Serial;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static java.util.Optional.ofNullable;
 
@@ -180,6 +182,27 @@ public class PersistentTransactionalProducerMap<K, V> extends PersistentTransact
 		this.valueType = null;
 		this.transactionalLayerWrapper = transactionalLayerWrapper;
 		this.explicitDirtyKeyMerge = true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Adds this subclass's three fields to the inherited figure. All three contribute a slot and nothing more:
+	 * `valueType` addresses a {@link Class} the JVM owns for the lifetime of its class loader, and
+	 * `transactionalLayerWrapper` is a function the caller supplied and continues to own — sometimes a JVM-wide
+	 * singleton such as {@link Function#identity()}, sometimes an instance of its own. Charging only the slot keeps
+	 * this consistent with {@link TransactionalMap}, which holds the same two fields and treats them the same way;
+	 * the difference either way is one small object per map.
+	 */
+	@Override
+	public long getHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		final VMLayout layout = VMLayout.current();
+		// the inherited id and state, then valueType / transactionalLayerWrapper / explicitDirtyKeyMerge
+		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize() + 1L)
+			+ getStateHeapSizeInBytes(keySizer, valueSizer);
 	}
 
 	/**

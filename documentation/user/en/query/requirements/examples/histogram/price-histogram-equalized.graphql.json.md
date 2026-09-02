@@ -2,127 +2,127 @@
 {
   "min" : "80.00",
   "max" : "150.00",
-  "overallCount" : 10,
+  "overallCount" : 13,
   "buckets" : [
     {
       "threshold" : "80.00",
-      "occurrences" : 2,
+      "occurrences" : 6,
       "requested" : true,
-      "relativeFrequency" : "9.01"
+      "relativeFrequency" : "54.53"
     },
     {
-      "threshold" : "81.70",
+      "threshold" : "84.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
-      "threshold" : "83.40",
+      "threshold" : "88.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
-      "threshold" : "85.10",
+      "threshold" : "92.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
-      "threshold" : "86.80",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "88.50",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "90.20",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "91.90",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "93.60",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "95.30",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "97.00",
-      "occurrences" : 3,
-      "requested" : true,
-      "relativeFrequency" : "76.56"
-    },
-    {
-      "threshold" : "98.50",
+      "threshold" : "96.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
       "threshold" : "100.00",
-      "occurrences" : 1,
+      "occurrences" : 2,
       "requested" : true,
-      "relativeFrequency" : "6.38"
+      "relativeFrequency" : "30.30"
     },
     {
-      "threshold" : "101.71",
+      "threshold" : "103.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
-      "threshold" : "103.43",
+      "threshold" : "106.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
-      "threshold" : "105.14",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "106.86",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "108.57",
-      "occurrences" : 0,
-      "requested" : true,
-      "relativeFrequency" : "0"
-    },
-    {
-      "threshold" : "110.29",
+      "threshold" : "109.00",
       "occurrences" : 0,
       "requested" : true,
       "relativeFrequency" : "0"
     },
     {
       "threshold" : "112.00",
+      "occurrences" : 1,
+      "requested" : true,
+      "relativeFrequency" : "4.78"
+    },
+    {
+      "threshold" : "115.80",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "119.60",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "123.40",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "127.20",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "131.00",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "134.80",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "138.60",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "142.40",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "146.20",
+      "occurrences" : 0,
+      "requested" : true,
+      "relativeFrequency" : "0"
+    },
+    {
+      "threshold" : "150.00",
       "occurrences" : 4,
       "requested" : true,
-      "relativeFrequency" : "8.06"
+      "relativeFrequency" : "10.39"
     }
   ]
 }

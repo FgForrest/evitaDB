@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -80,6 +81,28 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 */
 	public TransactionalIntArray(@Nonnull int[] delegate) {
 		this.delegate = delegate;
+	}
+
+	/**
+	 * Returns the heap this array occupies, in bytes — its own object and the `int[]` behind it, at allocated length.
+	 *
+	 * `ArrayUtils.EMPTY_INT_ARRAY` costs nothing: it is one JVM-wide instance handed to every array that starts out or
+	 * becomes empty, so charging it would bill the same 16 bytes to each of the thousands of childless
+	 * {@link io.evitadb.index.hierarchy.HierarchyIndex} nodes that share it. The test is **identity**, not `length ==
+	 * 0` — an array that shrank to empty by removal is this array's own allocation and is priced normally.
+	 *
+	 * The delegate is read directly rather than through {@link #getArray()}, which would return the transactional
+	 * layer's merged array when one exists. The figure describes the **committed** array this object owns; the layer
+	 * belongs to the transaction that created it and disappears on commit or rollback.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + the delegate slot
+		final long ownSize = layout.sizeOfObject(Long.BYTES + layout.referenceSize());
+		return this.delegate == ArrayUtils.EMPTY_INT_ARRAY ?
+			ownSize : ownSize + layout.sizeOfArray(this.delegate.length, Integer.BYTES);
 	}
 
 	/**

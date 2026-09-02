@@ -257,9 +257,7 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
-			this.offsetConsumer,
-			firstActiveCatalogVersion -> {
-			}
+			this.offsetConsumer
 		);
 	}
 

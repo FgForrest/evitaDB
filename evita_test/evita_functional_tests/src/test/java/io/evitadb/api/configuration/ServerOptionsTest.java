@@ -137,7 +137,7 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
 			);
 
 			assertNotNull(options.requestThreadPool());
@@ -162,7 +162,7 @@ class ServerOptionsTest {
 				ServerOptions
 					.DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 				null, null,
-				false, false
+				false, false, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING
 			);
 
 			assertNotNull(options.changeDataCapture());

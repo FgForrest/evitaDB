@@ -126,7 +126,7 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
    *
    * <code>int32 catalogsOk = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.catalogsOk is deprecated.
-   *     See GrpcEvitaManagementAPI.proto;l=25
+   *     See GrpcEvitaManagementAPI.proto;l=26
    * @return The catalogsOk.
    */
   @java.lang.Deprecated int getCatalogsOk();

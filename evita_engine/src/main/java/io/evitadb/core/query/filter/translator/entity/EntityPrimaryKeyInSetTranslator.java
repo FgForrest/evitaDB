@@ -41,7 +41,7 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;

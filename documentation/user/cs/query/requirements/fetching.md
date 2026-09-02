@@ -1,12 +1,12 @@
 ---
 title: Načítání
-perex: Omezení požadavků na načítání pomáhají řídit množství dat vracených v odpovědi na dotaz. Tato technika se používá ke snížení objemu dat přenášených po síti a ke snížení zátěže serveru. Načítání je podobné spojování a výběru sloupců v SQL, ale je inspirováno načítáním dat v protokolu GraphQL, kdy se postupně sledují vztahy v datech.
+perex: Omezení při načítání požadavků pomáhají kontrolovat množství dat vrácených v odpovědi na dotaz. Tato technika se používá ke snížení objemu dat přenášených po síti a ke snížení zátěže serveru. Načítání je podobné spojování a výběru sloupců v SQL, ale je inspirováno načítáním dat v protokolu GraphQL, kdy se postupně sledují vztahy v datech.
 date: '5.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: 77da5b36c170430534ee4d9a4a2903da4de68555
 translated: 'true'
+commit: '651df95a8191b549dc2d91d587f7cca8973faa5e'
 ---
 <LS to="e,j,c,r">
 
@@ -1379,7 +1379,7 @@ referenceContent(
         <p>
         nepovinný argument, pokud je nastaven na `EXISTING`, vrací pouze existující reference na spravované entity;
         výchozí chování je nastaveno na `ANY`, což vrací všechny reference nastavené na entitě, bez ohledu na to,
-        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](reference.md#managed-references-behaviour))
+        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](#chování-spravovaných-referencí))
         </p>
     </dd>
     <dt>argument:string*</dt>

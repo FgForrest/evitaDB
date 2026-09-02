@@ -318,6 +318,11 @@ handles inner records (`PriceInnerRecordHandling`), because that determines what
 | `SUM`                 | One — the cumulated price of all inner records |
 | `LOWEST_PRICE`        | **One per inner-record id** — the winning price of each variant |
 
+The rule is applied **per entity**, using that entity's own handling. A candidate pool that mixes handling
+modes — a category listing containing both simple products and master/variant products, for instance —
+therefore contributes the union of both rules: every `LOWEST_PRICE` master still expands into one data point
+per variant, while its `NONE` and `SUM` neighbours contribute a single price for sale each.
+
 To demonstrate the use of the histogram, we will use the following example:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>

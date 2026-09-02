@@ -23,13 +23,16 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
@@ -101,6 +104,58 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 */
 	@Nonnull
 	M keyAt(int index);
+
+	/**
+	 * Whether {@link #containsUtf8At} can answer for this column without materialising the key as an `M`.
+	 *
+	 * Consulted once per query rather than per candidate, because it is a property of the column's storage rather
+	 * than of the slot. Only {@link FrontCodedStringColumn} answers `true`: it is the only implementation that
+	 * already holds its keys as WTF-8 bytes (see {@code Wtf8}), so it is the only one for which byte matching
+	 * avoids work rather than inventing it.
+	 *
+	 * @return whether byte-level matching is available on this column
+	 */
+	default boolean supportsUtf8Matching() {
+		return false;
+	}
+
+	/**
+	 * Answers whether the key at `index` contains `patternUtf8` as a contiguous run of bytes, without materialising
+	 * the key.
+	 *
+	 * ## Why a byte comparison answers a question about characters
+	 *
+	 * UTF-8 is self-synchronizing: a continuation byte can never begin a sequence, so a byte-level occurrence of one
+	 * well-formed encoding inside another can only start at a character boundary. Byte containment and code-point
+	 * containment are therefore the same predicate, and the answer holds for supplementary characters and for
+	 * combining marks alike - the column's stored keys and the pattern have both passed through the same NFD
+	 * normalizer before they reach here.
+	 *
+	 * A front-coded column stores its keys as WTF-8 rather than UTF-8 (see {@code Wtf8}), which changes nothing here:
+	 * the two encodings differ only on unpaired surrogates, WTF-8 keeps the `10xxxxxx` continuation-byte form, and so
+	 * self-synchronization - the whole basis of the argument above - holds for it identically.
+	 *
+	 * **The caller must rule out an unpaired surrogate in the pattern.** The pattern is encoded with
+	 * `String#getBytes`, which substitutes `0x3F` (`'?'`) for one, so a pattern carrying one would match values that
+	 * literally contain a question mark - a divergence from `String#contains`, which compares UTF-16 code units and
+	 * would refuse them. A pattern that cannot be encoded faithfully must take the predicate path instead. Ruling it
+	 * out also makes the comparison homogeneous: a surrogate-free pattern's UTF-8 bytes ARE its WTF-8 bytes, so
+	 * pattern and stored key are being compared in one and the same encoding.
+	 *
+	 * A stored VALUE carrying an unpaired surrogate needs no guard, and for a stronger reason than it used to: the
+	 * column now stores it faithfully as its own three-byte sequence, which the pattern's `'?'` cannot match - the
+	 * same answer `String#contains` gives.
+	 *
+	 * @param index       the live slot whose key is tested
+	 * @param patternUtf8 the pattern's UTF-8 bytes, already normalized exactly as the stored keys are
+	 * @return whether the key at `index` contains the pattern
+	 */
+	default boolean containsUtf8At(int index, @Nonnull byte[] patternUtf8) {
+		throw new GenericEvitaInternalError(
+			"This column stores no UTF-8 keys, so it cannot match bytes - `supportsUtf8Matching` says so and must " +
+				"be consulted before this method is called."
+		);
+	}
 
 	/**
 	 * Inserts {@code value} at {@code index}, shifting the tail one slot to the right (the leaf grows {@code peek}
@@ -193,6 +248,48 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 */
 	@Nonnull
 	M[] asBoxedArray();
+
+	/**
+	 * Returns the heap this column occupies in bytes, **excluding whatever its slots point at**.
+	 *
+	 * The figure covers the column object and every backing array it owns, each at its *allocated* length rather than
+	 * its live entry count: a column keeps the capacity it was allocated with, so the slots in `[size, capacity)` are
+	 * paid for even while they hold nothing. That is the honest number for a leaf block, which is sized once and then
+	 * fills up — so for these columns the figure does **not** move as keys are inserted.
+	 *
+	 * {@link FrontCodedStringColumn} is the one exception, and deliberately so: it allocates no per-slot storage at
+	 * all, encoding its keys into a variable-length blob that is re-trimmed on every write. Its figure therefore
+	 * *does* grow with the content it holds. Do not assume uniformity across the family here.
+	 *
+	 * For the primitive-backed columns this is the whole story - their keys are values living inside the array. Only
+	 * {@link BoxedObjectColumn} stores references, and here it charges the reference slots alone; use
+	 * {@link #getHeapSizeInBytes(ToLongFunction)} to add the referenced objects where this column owns them.
+	 *
+	 * Backing state aliased with a **superseded** version of this column is charged in full - see
+	 * {@link FrontCodedStringColumn#duplicate()}, the one structural share in this family. The predecessor is
+	 * garbage-in-waiting and the survivor becomes its sole owner, so discounting it would under-report every
+	 * committed column.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
+	/**
+	 * Returns the heap this column occupies in bytes, **including the objects its slots point at**, each priced by
+	 * `elementSizer`.
+	 *
+	 * The sizer decides ownership and the caller decides the sizer: return `0` for an element this column merely
+	 * borrows - a JVM-cached {@link java.util.Locale} or {@link java.util.Currency}, or a value another index owns -
+	 * and its real footprint for one this column owns. Nothing here hard-codes which elements are shared, because
+	 * that answer belongs to the structure doing the asking rather than to the column.
+	 *
+	 * Only {@link BoxedObjectColumn} can differ from {@link #getHeapSizeInBytes()}. Every other implementation stores
+	 * keys as primitive values or as encoded bytes, has no referenced elements at all, and ignores the sizer.
+	 *
+	 * @param elementSizer prices a single element; must return `0` for elements this column does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer);
 }
 
 /**
@@ -308,6 +405,35 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	public M[] asBoxedArray() {
 		return this.keys;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the column itself: the `keyType` and `keys` references. `keyType` addresses a Class object, which the JVM
+		// owns for the lifetime of its class loader and shares with every other holder - only the slot is charged
+		return layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfArray(this.keys.length, layout.referenceSize());
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Unlike the primitive columns, which answer in `O(1)`, this one scans the backing array: the column does not
+	 * track its own live count, so the null slots are what distinguishes the tail. That makes the cost `O(capacity)`
+	 * — one leaf block, not one index — and it **depends on the leaf nulling the truncated tail** through
+	 * {@link #fillEmpty}. Should `peek` ever shrink without that call, stale references would survive past the live
+	 * range and be priced here, over-charging the column.
+	 */
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		long size = getHeapSizeInBytes();
+		for (final M key : this.keys) {
+			if (key != null) {
+				size += elementSizer.applyAsLong(key);
+			}
+		}
+		return size;
 	}
 
 	/**

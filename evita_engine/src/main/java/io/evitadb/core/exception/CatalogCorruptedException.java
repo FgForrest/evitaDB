@@ -26,6 +26,8 @@ package io.evitadb.core.exception;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.nio.file.Path;
@@ -38,14 +40,26 @@ import java.nio.file.Path;
 public class CatalogCorruptedException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -29086463503529567L;
 
+	/**
+	 * Reports an attempt to work with a catalog that could not be initialized.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 * @param cause       failure that left the catalog uninitialized
+	 */
 	public CatalogCorruptedException(
 		@Nonnull String catalogName,
-		@Nonnull Path absolutePath,
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull Path storageRoot,
 		@Nonnull Throwable cause
 	) {
 		super(
-			"Catalog on path `" + absolutePath +
-				"` was not correctly initialized due to: " + cause.getMessage() + ". " +
+			"Catalog in folder `" + folderId + "` (storage root: `" + storageRoot +
+				"`) was not correctly initialized due to: " + cause.getMessage() + ". " +
 				"The catalog `" + catalogName + "` cannot be used - only deleted or repaired.",
 			"Catalog `" + catalogName + "` cannot be used because it wasn't correctly " +
 				"initialized. You can only delete it or try to repair it manually.",

@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
@@ -57,6 +58,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumersListener;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
@@ -73,15 +75,24 @@ import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStoreGenerations;
+import io.evitadb.spi.store.catalog.persistence.CompactionForecast;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -92,14 +103,21 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueL
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.CatalogFolderOperations;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
+import io.evitadb.store.catalog.TimeTravelRetention.CatalogDataFile;
+import io.evitadb.store.catalog.TimeTravelRetention.DataFileInventory;
+import io.evitadb.store.catalog.TimeTravelRetention.EntityCollectionDataFile;
+import io.evitadb.store.catalog.TimeTravelRetention.GenerationPin;
+import io.evitadb.store.catalog.TimeTravelRetention.HorizonDecision;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.catalog.task.FullBackupTask;
 import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.engine.CatalogFolderAllocator;
 import io.evitadb.store.exception.BootstrapFileNotFound;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
-import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -111,6 +129,7 @@ import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
@@ -123,6 +142,7 @@ import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.WasteAccumulation;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -158,7 +178,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -167,6 +186,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -174,6 +195,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToIntBiFunction;
@@ -186,6 +208,7 @@ import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
 import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -213,6 +236,17 @@ public class DefaultCatalogPersistenceService
 	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 
 	/**
+	 * How many times {@link #advanceHistoryHorizon(long)} re-samples the retention floor within a single call before
+	 * leaving the remainder of the request to the next event that lowers it.
+	 *
+	 * A bound rather than a `while` loop on purpose: the retry exists to catch the one interleaving in which the
+	 * consumer that was blocking the request leaves *between* the sample and the record of the refusal, and every
+	 * further round can only be a fresh pin arriving - which brings its own release, and with it its own drain. An
+	 * unbounded loop would hand a busy catalog the ability to keep one thread inside the horizon lock indefinitely.
+	 */
+	private static final int MAX_HORIZON_ADVANCE_ATTEMPTS = 3;
+
+	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
 	static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
@@ -238,6 +272,13 @@ public class DefaultCatalogPersistenceService
 	 * Hoisted into a constant so the thread-local initial value costs no allocation per thread.
 	 */
 	private static final LongSupplier SYSTEM_TIME_MILLIS = System::currentTimeMillis;
+	/**
+	 * How far ahead a compaction projection is worth reporting - one year. Beyond it the extrapolation is describing
+	 * the arithmetic rather than the catalog: a trickle of stranded bytes against a large live set produces dates
+	 * decades out, and a date decades out on a management screen is noise that reads like information. Past this
+	 * horizon the forecast is reported as absent, which is the same answer a rate of zero gives.
+	 */
+	private static final long MAX_PROJECTED_COMPACTION_HORIZON_MILLIS = 365L * 24L * 60L * 60L * 1000L;
 	/**
 	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
 	 *
@@ -272,6 +313,17 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nonnull
 	private final String catalogName;
+	/**
+	 * Prefix shared by every file in {@link #catalogStoragePath} — the bootstrap file, the catalog data files and the
+	 * WAL files are all named `<prefix>…`.
+	 *
+	 * Historically this was always the catalog name, which is why renaming a catalog required physically renaming
+	 * every file in its folder. It is now discovered from the folder's own bootstrap file instead
+	 * (see {@link #discoverStoragePrefix}), so the two are free to diverge — that is what lets a rename become a
+	 * pointer swap rather than a filesystem walk.
+	 */
+	@Nonnull
+	private final String storagePrefix;
 	/**
 	 * Contains lambda that provides name of the WAL file for given WAL file index.
 	 */
@@ -386,6 +438,52 @@ public class DefaultCatalogPersistenceService
 	 */
 	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
 	/**
+	 * The single callback through which the history horizon is applied to the files on disk. It is a no-op unless
+	 * {@link StorageOptions#timeTravelEnabled()} is set - without time travel the files are deleted as soon as their
+	 * last reader leaves and no history accumulates to reclaim in the first place.
+	 */
+	private final WalPurgeCallback walPurgeCallback;
+	/**
+	 * The catalog version below which no history is retained any more. Guards {@link #advanceHistoryHorizon(long)}
+	 * against walking backwards: WAL retention and the {@link StorageOptions#timeTravelSizeLimitBytes()} guard drive
+	 * the same seam independently, so a request derived from a stale floor must not undo the other driver's work.
+	 */
+	private final AtomicLong historyHorizon = new AtomicLong(0L);
+	/**
+	 * Serializes the two independent drivers of {@link #advanceHistoryHorizon(long)}. The steps behind it - trimming
+	 * the bootstrap file and reclaiming the data files below the new horizon - only make sense as one atomic unit:
+	 * the purge derives its threshold by re-reading the oldest record of the freshly trimmed bootstrap file.
+	 *
+	 * It is also the fence every *reader* of the retention floor stands behind - {@link #catalogVersionPinned(long)},
+	 * {@link #catalogConsumersLeft(long, long)} and the size guard all sample it under this lock - so a pin can never
+	 * land in the middle of a decision taken against a floor that did not include it. And {@link #close()} flips
+	 * {@link #closed} beneath it, which is what makes the closed checks inside the two long-running paths conclusive
+	 * rather than best-effort.
+	 *
+	 * Lock order: {@link #bootstrapWriteLock} and {@link #cpsvLock} are taken beneath it, by way of
+	 * {@link #trimBootstrapFile(long)}. It is never taken while any other lock of this class is held - notably not
+	 * from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only ever *schedules*
+	 * the guard rather than driving it. {@link #checkpointLock} and this one are disjoint: no path takes both.
+	 * Moving the floor readers under this lock introduced no new edge - session close already took it a few
+	 * statements later through {@link #retentionStateChanged()}.
+	 */
+	private final ReentrantLock historyHorizonLock = new ReentrantLock();
+	/**
+	 * The highest history-horizon request a retention floor clamped away, or `-1` when none is outstanding.
+	 *
+	 * Only the write-ahead log driver needs this. It deletes its files *before* reporting the floor they imply and
+	 * then forgets them, so a request refused because a consumer pinned an older version is gone for good - nothing
+	 * will ever report it again, and the bootstrap records pointing at those deleted log files would be retained for
+	 * the rest of the catalog's life. Remembering it lets the release of the pin retry it. The budget driver needs no
+	 * such thing: it re-derives its horizon from scratch on every run.
+	 */
+	private final AtomicLong pendingHistoryHorizonRequest = new AtomicLong(-1L);
+	/**
+	 * Enforces {@link StorageOptions#timeTravelSizeLimitBytes()} off the commit thread. `null` when the limit cannot
+	 * bind - either time travel is off, or the operator asked for no limit at all.
+	 */
+	@Nullable private final DelayedAsyncTask timeTravelSizeGuardTask;
+	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
 	private final Pool<Kryo> walKryoPool = new Pool<>(true, false, 16) {
@@ -435,8 +533,11 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Flag indicating whether the catalog is closed. This flag is set to true when the catalog is closed and
 	 * should not be used anymore.
+	 *
+	 * Volatile because it is read off the closing thread: a backup task tearing down after its catalog went away asks
+	 * this before touching anything the shutdown has already torn down.
 	 */
-	private boolean closed;
+	private volatile boolean closed;
 
 	/**
 	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
@@ -448,10 +549,11 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	public static Stream<CatalogBootstrap> getCatalogBootstrapRecordStream(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings
 	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
+		final String storagePrefix = discoverStoragePrefix(catalogStoragePath, catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(storagePrefix);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -467,10 +569,18 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Check whether target directory exists and whether it is really directory.
 	 *
-	 * @return name of the directory (e.g. catalog name)
+	 * `requireEmpty` means *"holds no catalog data"*, not *"holds no directory entries"*. A folder handed to a
+	 * create or a restore has normally just been allocated, and allocation marks it
+	 * {@link CatalogPersistenceService#PROVISIONAL_FLAG} the instant it exists so a crash cannot leave
+	 * unexplained litter — so the marker is present precisely on the folders this check is expected to accept.
+	 * Counting it would reject every freshly allocated folder; ignoring the emptiness rule altogether would
+	 * drop the protection that stops a restore from being written over a populated catalog. Excluding our own
+	 * marker keeps that protection and nothing else.
+	 *
+	 * @param storageDirectory directory that must exist, be a directory, and optionally hold no catalog data
+	 * @param requireEmpty     whether the directory must hold no catalog data besides evitaDB's own markers
 	 */
-	@Nonnull
-	public static String verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
+	public static void verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
 		final File storageDirectoryFile = storageDirectory.toFile();
 		if (!storageDirectoryFile.exists()) {
 			Assert.isPremiseValid(
@@ -492,24 +602,9 @@ public class DefaultCatalogPersistenceService
 
 		if (requireEmpty) {
 			Assert.isTrue(
-				ofNullable(storageDirectoryFile.listFiles()).map(it -> it.length).orElse(0) == 0,
+				holdsNoCatalogData(storageDirectoryFile),
 				() -> new DirectoryNotEmptyException(storageDirectory.toString())
 			);
-		}
-
-		return storageDirectoryFile.getName();
-	}
-
-	/**
-	 * Verifies the name of the catalog and its uniqueness among other existing catalogs.
-	 */
-	@Nonnull
-	public static Path pathForCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
-		try {
-			return storageDirectory.resolve(catalogName);
-		} catch (InvalidPathException ex) {
-			throw new InvalidFileNameException(
-				"Name `" + catalogName + "` cannot be converted a valid file name: " + ex.getMessage() + "! Please rename the catalog.");
 		}
 	}
 
@@ -561,13 +656,18 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static Optional<CatalogBootstrap> getFirstCatalogBootstrap(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings
 	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
+		final String storagePrefix = discoverStoragePrefix(catalogStoragePath, catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(storagePrefix);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
-		if (bootstrapFile.exists()) {
+		// the record count and not merely the file's existence: an existing file too short to hold one whole record
+		// is what this method's contract calls empty, and reading position zero out of it yields a Kryo buffer
+		// underflow rather than an answer - on a path (`fetchOldestRetainedDataFilesInfo`) that every reclamation
+		// sweep and every catalog open goes through, which turns an empty file into a catalog nobody can open again
+		if (bootstrapFile.exists() && CatalogBootstrap.getRecordCount(bootstrapFile.length()) > 0) {
 			return of(
 				deserializeCatalogBootstrapRecord(storageSettings, bootstrapFilePath, 0));
 		} else {
@@ -589,6 +689,7 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static CatalogBootstrap getCatalogBootstrapForSpecificMoment(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull OffsetDateTime pastMoment
 	) {
@@ -597,12 +698,7 @@ public class DefaultCatalogPersistenceService
 			() -> new TemporalDataNotAvailableException()
 		);
 
-		return localizeCatalogBootstrap(
-			catalogName,
-			storageSettings,
-			pastMoment,
-			(catalogBootstrap, moment) -> catalogBootstrap.timestamp().compareTo(moment)
-		);
+		return localizeLastCatalogBootstrapNotAfter(catalogName, catalogStoragePath, storageSettings, pastMoment);
 	}
 
 	/**
@@ -619,10 +715,13 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static CatalogBootstrap getCatalogBootstrapForSpecificVersion(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		long catalogVersion
 	) {
-		final Optional<CatalogBootstrap> firstBootstrap = getFirstCatalogBootstrap(catalogName, storageSettings);
+		final Optional<CatalogBootstrap> firstBootstrap = getFirstCatalogBootstrap(
+			catalogName, catalogStoragePath, storageSettings
+		);
 		final long firstCatalogVersion = firstBootstrap.map(CatalogBootstrap::catalogVersion).orElse(0L);
 		Assert.isTrue(
 			firstBootstrap
@@ -633,7 +732,7 @@ public class DefaultCatalogPersistenceService
 
 		try (
 			final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(
-				catalogName, storageSettings
+				catalogName, catalogStoragePath, storageSettings
 			)
 		) {
 			final CatalogBootstrap bootstrapRecord = catalogBootstrapRecordStream
@@ -655,6 +754,7 @@ public class DefaultCatalogPersistenceService
 	 * @param catalogName        the name of the catalog
 	 * @param storageSettings    the storage options
 	 * @param scheduler          the executor service
+	 * @param historyHorizonAdvancer callback advancing the catalog history horizon once WAL files are purged
 	 * @param catalogFilePath    the path to the catalog file
 	 * @param kryoPool           the Kryo pool
 	 * @return a CatalogWriteAheadLog object if WAL files are present, otherwise null
@@ -666,8 +766,7 @@ public class DefaultCatalogPersistenceService
 		@Nonnull LogFileRecordReference logFileRecordReference,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimFunction,
-		@Nonnull Supplier<WalPurgeCallback> onWalPurgeCallback,
+		@Nonnull LongConsumer historyHorizonAdvancer,
 		@Nonnull Path catalogFilePath,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
@@ -679,7 +778,7 @@ public class DefaultCatalogPersistenceService
 		} else {
 			return new CatalogWriteAheadLog(
 				catalogVersion, catalogName, logFileRecordReference, catalogFilePath, kryoPool,
-				storageSettings, scheduler, bootstrapFileTrimFunction, onWalPurgeCallback.get()
+				storageSettings, scheduler, historyHorizonAdvancer
 			);
 		}
 	}
@@ -706,57 +805,82 @@ public class DefaultCatalogPersistenceService
 			storageSettings.syncWrites(),
 			storageSettings.lockTimeoutSeconds(),
 			storageSettings,
-			catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName))
+			catalogStoragePath.resolve(
+				getCatalogBootstrapFileName(discoverStoragePrefix(catalogStoragePath, catalogName))
+			)
 		);
 	}
 
 	/**
-	 * Localizes a catalog bootstrap record in the specified catalog based on a lookup value using a comparator.
-	 * This method deserializes the matching catalog bootstrap record from the storage file.
+	 * Localizes the **newest** catalog bootstrap record whose timestamp is not after the requested moment - i.e. the
+	 * record that describes the state of the catalog *as of* that moment.
 	 *
-	 * @param catalogName    The name of the catalog. Must not be null.
+	 * The search deliberately never reports an exact hit: the comparator classifies every record as either
+	 * "not after" (lesser) or "after" (greater), so the binary search always returns the insertion point of the first
+	 * record strictly newer than the moment. That is the **upper bound**, and the record right below it is the answer.
+	 * Resolving it this way rather than by an equality hit matters because bootstrap timestamps are only
+	 * millisecond-precise and are far from unique - a warm-up flush burst writes many records inside a single
+	 * millisecond - and an equality hit would land on an arbitrary one of them instead of the last.
+	 *
+	 * @param catalogName     The name of the catalog. Must not be null.
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageSettings The storage options containing the storage directory and configuration. Must not be null.
-	 * @param lookedUpValue  The value to be searched within the catalog. Must not be null.
-	 * @param comparator     The comparator function to determine the matching record based on the lookup value. Must not be null.
+	 * @param moment          The moment the returned record must not be newer than. Must not be null.
 	 * @return The localized catalog bootstrap record. Will never be null.
-	 * @throws TemporalDataNotAvailableException If the catalog bootstrap file does not exist.
+	 * @throws TemporalDataNotAvailableException If the catalog bootstrap file does not exist, is empty, or its oldest
+	 *                                           retained record is already newer than the requested moment.
 	 * @throws UnexpectedIOException             If there is an issue reading or accessing the catalog bootstrap file.
 	 */
 	@Nonnull
-	private static <T extends Comparable<T>> CatalogBootstrap localizeCatalogBootstrap(
+	private static CatalogBootstrap localizeLastCatalogBootstrapNotAfter(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
-		@Nonnull T lookedUpValue,
-		@Nonnull ToIntBiFunction<CatalogBootstrap, T> comparator
+		@Nonnull OffsetDateTime moment
 	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
+		final String storagePrefix = discoverStoragePrefix(catalogStoragePath, catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(storagePrefix);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		if (!bootstrapFilePath.toFile().exists()) {
 			throw new TemporalDataNotAvailableException();
 		}
+		final CatalogBootstrap oldestRetainedRecord;
 		try (
 			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
 				bootstrapFilePath, storageSettings, storageSettings
 			)
 		) {
 			final int recordCount = CatalogBootstrap.getRecordCount(readHandle.getLastWrittenPosition());
+			if (recordCount == 0) {
+				throw new TemporalDataNotAvailableException();
+			}
 			final int localizedIndex = ArrayUtils.binarySearch(
 				index -> deserializeCatalogBootstrapRecord(
 					CatalogBootstrap.getPositionForRecord(index),
 					readHandle
 				),
-				lookedUpValue,
+				moment,
 				0,
 				recordCount,
 				recordCount,
-				comparator
+				(catalogBootstrap, lookedUpMoment) ->
+					!catalogBootstrap.timestamp().isAfter(lookedUpMoment) ? -1 : 1
 			);
-			final int startIndex = localizedIndex < 0 ? -1 * (localizedIndex) - 1 : localizedIndex;
-			return deserializeCatalogBootstrapRecord(
-				CatalogBootstrap.getPositionForRecord(Math.min(recordCount - 1, startIndex)),
+			// the comparator above never reports a hit, so the result is always the negated insertion point
+			final int firstRecordAfterMoment = -1 * localizedIndex - 1;
+			if (firstRecordAfterMoment > 0) {
+				return deserializeCatalogBootstrapRecord(
+					CatalogBootstrap.getPositionForRecord(firstRecordAfterMoment - 1),
+					readHandle
+				);
+			}
+			// every retained record is newer than the requested moment - the history that covered it is gone
+			oldestRetainedRecord = deserializeCatalogBootstrapRecord(
+				CatalogBootstrap.getPositionForRecord(0),
 				readHandle
 			);
+		} catch (TemporalDataNotAvailableException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new UnexpectedIOException(
 				"Failed to open catalog bootstrap file `" + bootstrapFilePath.toAbsolutePath() + "`!",
@@ -764,6 +888,7 @@ public class DefaultCatalogPersistenceService
 				e
 			);
 		}
+		throw new TemporalDataNotAvailableException(oldestRetainedRecord.timestamp());
 	}
 
 	/**
@@ -772,6 +897,7 @@ public class DefaultCatalogPersistenceService
 	 * the catalog bootstrap file.
 	 *
 	 * @param catalogName    the name of the catalog for which the bootstrap file is located (must not be null)
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageSettings the storage options configuration, including the directory where the catalog files are stored (must not be null)
 	 * @param lookedUpValue  the value to search for within the catalog bootstrap records, must be a type that extends {@code Comparable} (must not be null)
 	 * @param comparator     a function that compares a catalog bootstrap record with the looked-up value to assist in locating the desired record (must not be null)
@@ -783,13 +909,14 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private static <T extends Comparable<T>> CatalogBootstrap[] localizeCatalogBootstrapPair(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull T lookedUpValue,
 		@Nonnull ToIntBiFunction<CatalogBootstrap, T> comparator,
 		int delta
 	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
+		final String storagePrefix = discoverStoragePrefix(catalogStoragePath, catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(storagePrefix);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		if (!bootstrapFilePath.toFile().exists()) {
 			throw new TemporalDataNotAvailableException();
@@ -951,8 +1078,7 @@ public class DefaultCatalogPersistenceService
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimFunction,
-		@Nonnull Supplier<WalPurgeCallback> onWalPurgeCallback
+		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
 		final LogFileRecordReference currentWalFileRef;
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && catalogHeader.walFileReference() == null) {
@@ -969,7 +1095,12 @@ public class DefaultCatalogPersistenceService
 				)
 			);
 		} else {
-			currentWalFileRef = catalogHeader.walFileReference();
+			// same rebase as the constructors perform: a header's own provider names files after the catalog
+			// name the header stores, which stopped tracking the folder's file prefix when rename became a
+			// pointer swap. Doing it here too covers every caller, including any added later.
+			currentWalFileRef = catalogHeader.walFileReference() == null ?
+				null :
+				new LogFileRecordReference(walFileNameProvider, catalogHeader.walFileReference());
 		}
 		return ofNullable(currentWalFileRef)
 			.map(
@@ -978,7 +1109,7 @@ public class DefaultCatalogPersistenceService
 					currentWalFileRef,
 					catalogStoragePath, catalogKryoPool,
 					storageSettings, scheduler,
-					bootstrapFileTrimFunction, onWalPurgeCallback.get()
+					historyHorizonAdvancer
 				)
 			)
 			.orElse(null);
@@ -1032,9 +1163,35 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Counts how many of the registered catalog persistence services became unreachable once the retained history
+	 * starts at the version whose insertion position is passed in.
+	 *
+	 * The service that **serves** the floor must survive: {@link #getStoragePartPersistenceService(long)} resolves
+	 * a version to the closest registered version at or below it, so a service registered at `v <= floor` still
+	 * serves everything from the floor upwards. That makes the count differ between the two branches:
+	 *
+	 * - **exact hit** - the insertion position is that version's own index, so all the services below it are
+	 *   obsolete and the one at the position itself keeps serving;
+	 * - **no hit** - the insertion position counts the versions strictly lower than the floor, and the last of them
+	 *   (index `position - 1`) is the one still serving the floor, so one fewer is obsolete.
+	 *
+	 * Gating the cleanup on an exact hit - which is what this did before it was extracted - made it practically
+	 * unreachable: the floor arrives from WAL retention as `lastVersionInFile + 1` and coincides with a version at
+	 * which a compaction registered a service only by accident. Every service left behind keeps read handles open
+	 * on a data file that the following purge is about to delete.
+	 *
+	 * @param position insertion position of the history floor within the registered service versions
+	 * @return number of obsolete services, counted from the oldest
+	 */
+	static int countObsoletePersistenceServices(@Nonnull InsertionPosition position) {
+		return position.alreadyPresent() ?
+			position.position() : Math.max(0, position.position() - 1);
+	}
+
+	/**
 	 * Decides whether a data file should be compacted now. This is the single decision function shared by both
-	 * compaction trigger sites (entity-collection flush and catalog-file bootstrap) - see
-	 * `docs/plans/optimizations/compaction-waste-threshold-auto-tuning.md` §3.1.
+	 * compaction trigger sites - entity-collection flush and catalog-file bootstrap - so the two cannot drift into
+	 * disagreeing about when a file is worth rewriting.
 	 *
 	 * The file is compacted when it exceeds `fileSizeCompactionThresholdBytes` (`fileBigEnough`) AND either:
 	 * (a) its active record share has fallen below `maxWasteActiveShare` - a hard override that forces compaction
@@ -1068,6 +1225,188 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Answers, for a single data store, both halves of what {@link CatalogStatisticsComponent#FRAGMENTATION} reports
+	 * about compaction: whether {@link #shouldCompact} already holds, and - when it does not - when it is projected to.
+	 *
+	 * **This is the only place the predicate is evaluated outside the trigger itself**, and it evaluates the same
+	 * function against the same inputs the trigger uses at flush time: the file length the offset index writes to, the
+	 * active record share derived from it, and the store's own last-compaction timestamp. Re-deriving any of that in
+	 * the engine would produce a second, silently diverging notion of "due for compaction".
+	 *
+	 * **How the projection is derived.** Two rates drive it, and conflating them is the classic error here: the file
+	 * lengthens by the bytes a flush *appends* (`g`), while the share erodes by the bytes it *strands* (`w`). A removal
+	 * strands and appends nothing; a record replaced by a larger one appends more than it strands. So after `t`
+	 * seconds the file holds `F + g·t` bytes of which `L + (g − w)·t` are live, an active share of
+	 * `(L + (g − w)·t) / (F + g·t)`. Setting that equal to a threshold `s` gives `t = (s·F − L) / (g·(1 − s) − w)`.
+	 * When `g = w` - a workload rewriting records at their own size - this reduces to `t = (L/s − F) / w`, which is
+	 * the single-rate formula this used to be, so the familiar case is unchanged.
+	 *
+	 * A non-negative denominator means live bytes are being added at least as fast as the share erodes: that threshold
+	 * is never reached and no date is produced for it. Two thresholds can fire: `maxWasteActiveShare` unconditionally,
+	 * and `minimalActiveRecordShare` - which is crossed earlier, being the higher share - only once the minimum
+	 * interval has elapsed. The answer is the earlier of the two, pushed out to whenever the file also grows past
+	 * `fileSizeCompactionThresholdBytes`, because no share crossing triggers anything below that size - and a file
+	 * that is not lengthening at all never gets there, however much of it is being wasted.
+	 *
+	 * A rate of zero yields no projection at all rather than a distant one: nothing is being stranded, so no crossing
+	 * follows, and a rendered date would read as a commitment the engine never made.
+	 *
+	 * @param offsetIndex            the data store to forecast
+	 * @param measuredFileSize       length of that store's file as a caller holding a directory listing already
+	 *                               measured it, or `null` to read it from the store - see below
+	 * @param storageSettings        the configured compaction thresholds
+	 * @param lastCompactionAtMillis wall-clock time of this store's last compaction, in epoch milliseconds
+	 * @param nowMillis              current wall-clock time in epoch milliseconds
+	 * @return the forecast for this one data store
+	 */
+	@Nonnull
+	static CompactionForecast forecastCompaction(
+		@Nonnull OffsetIndex offsetIndex,
+		@Nullable Long measuredFileSize,
+		@Nonnull StorageSettings storageSettings,
+		long lastCompactionAtMillis,
+		long nowMillis
+	) {
+		// a caller that has just listed the directory passes the length it read there, so the fragmentation report
+		// cannot classify a file's bytes at one length and judge its eligibility at another - see
+		// `CatalogFragmentationSnapshot`. Passing nothing is not a lesser answer: `OffsetIndex#getFileSize` resolves
+		// to `File#length()` on the same path for every data store, so the two agree by construction and a caller
+		// with no listing to share (one collection asked about itself) simply reads it here
+		final long fileSize = measuredFileSize == null ? offsetIndex.getFileSize() : measuredFileSize;
+		final double activeRecordShare = offsetIndex.getActiveRecordShare(fileSize);
+		final boolean eligibleNow = shouldCompact(
+			fileSize > storageSettings.fileSizeCompactionThresholdBytes(),
+			activeRecordShare,
+			storageSettings.minimalActiveRecordShare(),
+			storageSettings.maxWasteActiveShare(),
+			isCompactionIntervalElapsed(
+				nowMillis, lastCompactionAtMillis, storageSettings.minCompactionIntervalMilliseconds()
+			)
+		);
+		final WasteAccumulation wasteAccumulation = offsetIndex.getWasteAccumulation();
+		final double rate = wasteAccumulation.effectiveRateBytesPerSecond(nowMillis);
+		// the file lengthens at its own rate, which is not the waste rate - the projection needs both, while the
+		// reported figure stays the waste rate, because waste is what compaction reclaims
+		final double growthRate = wasteAccumulation.effectiveGrowthRateBytesPerSecond(nowMillis);
+		return new CompactionForecast(
+			eligibleNow,
+			wasteAccumulation.wasteBytesGenerated(),
+			rate,
+			eligibleNow ?
+				null :
+				projectCompactionTime(
+					offsetIndex.getTotalActiveSize(), fileSize, rate, growthRate,
+					storageSettings, lastCompactionAtMillis, nowMillis
+				)
+		);
+	}
+
+	/**
+	 * Extrapolates when a data store will satisfy the compaction predicate - see {@link #forecastCompaction} for the
+	 * derivation of the arithmetic and for why an absent answer is the honest one.
+	 *
+	 * @param liveBytes                bytes of active records the store holds
+	 * @param fileSize                 current length of the data file
+	 * @param wasteRateBytesPerSecond  rate at which waste is being stranded in it
+	 * @param growthRateBytesPerSecond rate at which the file itself is lengthening, which is a different quantity -
+	 *                                 see above
+	 * @param storageSettings          the configured compaction thresholds
+	 * @param lastCompactionAtMillis   wall-clock time of this store's last compaction, in epoch milliseconds
+	 * @param nowMillis                current wall-clock time in epoch milliseconds
+	 * Package-visible so that `CompactionCadenceGateTest` can pin the arithmetic directly, exactly as it does for
+	 * {@link #shouldCompact} and {@link #isCompactionIntervalElapsed}. Every interesting case here is about a
+	 * threshold being approached over time, which a functional test cannot reach without waiting for it.
+	 *
+	 * @return the projected crossing, or null when none follows from the given rates
+	 */
+	@Nullable
+	static OffsetDateTime projectCompactionTime(
+		long liveBytes,
+		long fileSize,
+		double wasteRateBytesPerSecond,
+		double growthRateBytesPerSecond,
+		@Nonnull StorageSettings storageSettings,
+		long lastCompactionAtMillis,
+		long nowMillis
+	) {
+		// nothing being stranded means nothing to reclaim, whatever the file is doing in length
+		if (wasteRateBytesPerSecond <= 0.0d || liveBytes <= 0L) {
+			return null;
+		}
+		// the hard override fires whenever the share is crossed; the softer threshold only once the cadence gate opens
+		final double hardOverrideMillis = millisUntilShareFallsBelow(
+			liveBytes, fileSize, wasteRateBytesPerSecond, growthRateBytesPerSecond,
+			storageSettings.maxWasteActiveShare()
+		);
+		final double gateOpensInMillis = Math.max(
+			0.0d, (double) (lastCompactionAtMillis + storageSettings.minCompactionIntervalMilliseconds() - nowMillis)
+		);
+		final double gatedMillis = Math.max(
+			millisUntilShareFallsBelow(
+				liveBytes, fileSize, wasteRateBytesPerSecond, growthRateBytesPerSecond,
+				storageSettings.minimalActiveRecordShare()
+			),
+			gateOpensInMillis
+		);
+		final double crossingMillis = Math.min(hardOverrideMillis, gatedMillis);
+		// nothing triggers while the file is below the size threshold, however wasteful it is - and a file that is
+		// not lengthening never reaches it, which is a real outcome of a delete-only workload rather than an edge case
+		final double bigEnoughInMillis;
+		if (fileSize > storageSettings.fileSizeCompactionThresholdBytes()) {
+			bigEnoughInMillis = 0.0d;
+		} else if (growthRateBytesPerSecond <= 0.0d) {
+			bigEnoughInMillis = Double.POSITIVE_INFINITY;
+		} else {
+			bigEnoughInMillis = (double) (storageSettings.fileSizeCompactionThresholdBytes() - fileSize)
+				* 1000.0d / growthRateBytesPerSecond;
+		}
+		final double millisFromNow = Math.max(crossingMillis, bigEnoughInMillis);
+		if (!Double.isFinite(millisFromNow) || millisFromNow > MAX_PROJECTED_COMPACTION_HORIZON_MILLIS) {
+			// past this horizon the extrapolation says more about the arithmetic than about the catalog
+			return null;
+		}
+		return Instant.ofEpochMilli(nowMillis + (long) millisFromNow)
+			.atZone(ZoneId.systemDefault())
+			.toOffsetDateTime();
+	}
+
+	/**
+	 * Returns how many milliseconds it takes for the active record share to fall below the given threshold, given a
+	 * file lengthening at `growthRateBytesPerSecond` and stranding `wasteRateBytesPerSecond` of that as waste.
+	 *
+	 * Live bytes are *not* held constant: they move at the difference of the two rates, which is what makes a
+	 * delete-only store - lengthening by nothing while shedding live bytes - reach the threshold rather than never.
+	 * See {@link #forecastCompaction} for the derivation and for why the single-rate form was wrong.
+	 *
+	 * @param liveBytes                bytes of active records the store holds
+	 * @param fileSize                 current length of the data file
+	 * @param wasteRateBytesPerSecond  rate at which waste is being stranded in it
+	 * @param growthRateBytesPerSecond rate at which the file is lengthening
+	 * @param targetShare              the share to fall below
+	 * @return milliseconds until the crossing, `0` when it has already happened, positive infinity when the threshold
+	 * is `0` or below, or when live bytes accrue fast enough that the share never reaches it
+	 */
+	private static double millisUntilShareFallsBelow(
+		long liveBytes,
+		long fileSize,
+		double wasteRateBytesPerSecond,
+		double growthRateBytesPerSecond,
+		double targetShare
+	) {
+		if (targetShare <= 0.0d) {
+			return Double.POSITIVE_INFINITY;
+		}
+		// share(t) = (L + (g - w)·t) / (F + g·t) = s  =>  t = (s·F - L) / (g·(1 - s) - w)
+		final double denominator = growthRateBytesPerSecond * (1.0d - targetShare) - wasteRateBytesPerSecond;
+		if (denominator >= 0.0d) {
+			// live bytes are being added at least as fast as the share erodes - this threshold is never crossed
+			return Double.POSITIVE_INFINITY;
+		}
+		final double numerator = targetShare * (double) fileSize - (double) liveBytes;
+		return Math.max(0.0d, numerator / denominator * 1000.0d);
+	}
+
+	/**
 	 * Retrieves last catalog bootstrap from the bootstrap file and returns it if the file is not empty.
 	 * When the bootstrap file is in old format, it performs automatic upgrade on it and all catalog files.
 	 *
@@ -1080,12 +1419,13 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private static CatalogBootstrap getLastCatalogBootstrapWithAutomaticUpgrade(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings bootstrapStorageSettings,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull ExportService exportService
 	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = bootstrapStorageSettings.storageDirectory().resolve(catalogName);
+		final String storagePrefix = discoverStoragePrefix(catalogStoragePath, catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(storagePrefix);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -1113,17 +1453,105 @@ public class DefaultCatalogPersistenceService
 				return oldBootstrap;
 			}
 		} else {
-			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
-				return new CatalogBootstrap(
-					0,
-					0,
-					Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-					null
-				);
-			} else {
-				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
-			}
+			// Every path that reaches here is *loading* a catalog that is supposed to exist, and none of them can
+			// legitimately meet a folder with no bootstrap file: a registered catalog has committed at least its
+			// schema, a restore has unpacked its archive, and `replaceWith` wrote a record into this very folder
+			// moments earlier. Creating a catalog does not come through here at all - `createNew` builds its own
+			// starting record inline - so there is no "brand-new catalog" case to serve.
+			//
+			// Inventing `CatalogBootstrap(0, 0, now, null)` here used to be that service, and it is why this
+			// failed the way it did: a null `fileLocation` makes the storage part service fabricate a header with
+			// a freshly minted random catalog id, so the load proceeds on an identity invented for data that does
+			// not exist and dies much later, at the schema read, reporting that the user's data are corrupted.
+			//
+			// `holdsNoCatalogData` therefore chooses the *message*, never whether to throw - an interrupted
+			// create/restore/duplicate leaves a folder wearing only its markers, which is worth saying out loud
+			// rather than reporting as missing data.
+			throw new BootstrapFileNotFound(
+				catalogStoragePath, bootstrapFile, holdsNoCatalogData(catalogStoragePath.toFile())
+			);
 		}
+	}
+
+	/**
+	 * Tells whether a catalog folder holds no catalog data yet.
+	 *
+	 * Deliberately *not* the same question as "has no directory entries". Allocation creates a folder and marks
+	 * it {@link CatalogPersistenceService#PROVISIONAL_FLAG} in the same breath, so that a crash between the two
+	 * cannot leave a directory nothing on disk explains. Every check that wants to know "has anything been
+	 * written here" therefore has to look past that marker — counting it would make a folder report itself
+	 * occupied from the instant it existed, which is the opposite of what it is for.
+	 *
+	 * {@link CatalogPersistenceService#CATALOG_NAME_FLAG} is excluded for the same reason: it is a label evitaDB
+	 * writes about the folder, not content anybody stored in it. **Every marker this project writes belongs in
+	 * this filter** — one that is missed reads as data and silently turns a fresh folder into an occupied one.
+	 *
+	 * @param folder folder to inspect; need not exist
+	 * @return true when the folder holds nothing but, at most, evitaDB's own markers
+	 */
+	private static boolean holdsNoCatalogData(@Nonnull File folder) {
+		final String[] entries = folder.list(
+			(dir, name) -> !CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
+				&& !CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
+				&& !CatalogPersistenceService.RESTORE_FLAG.equals(name)
+		);
+		return entries == null || entries.length == 0;
+	}
+
+	/**
+	 * Determines the prefix every file in the passed catalog folder is named with, by reading the folder itself
+	 * rather than assuming it equals the catalog name.
+	 *
+	 * The bootstrap file is the authority: exactly one `*.boot` exists per catalog folder and its name is
+	 * `<prefix>` + {@link CatalogPersistenceService#BOOT_FILE_SUFFIX}. Discovering the prefix here — inside the
+	 * storage layer — is deliberate: the engine binds catalogs to opaque folder tokens and must not learn how files
+	 * inside a folder are named (see `CatalogFolderId`), so the prefix cannot be passed in from
+	 * outside without re-breaching that boundary.
+	 *
+	 * A folder with no bootstrap file is only legitimate when nothing has been written yet, which is why an absent
+	 * or empty folder falls back to the catalog name — that is a catalog being created, and its first bootstrap file
+	 * will carry exactly that prefix. A folder that holds files but no bootstrap file is corruption and throws
+	 * rather than silently adopting the fallback, which would bind the service to a prefix no file on disk uses.
+	 *
+	 * "Empty" here means *holding no catalog data*. A freshly allocated folder always carries the
+	 * {@link CatalogPersistenceService#PROVISIONAL_FLAG} marker — allocation writes it before anything else, so a
+	 * crash cannot leave unexplained litter — and the very first thing that happens to such a folder is this
+	 * lookup. Counting our own marker as data would make every catalog creation report the folder it just
+	 * allocated as corrupt.
+	 *
+	 * @param catalogStoragePath folder holding the catalog's files
+	 * @param catalogName        name of the catalog, used as the prefix when the folder is still empty
+	 * @return prefix shared by the folder's files
+	 */
+	@Nonnull
+	private static String discoverStoragePrefix(
+		@Nonnull Path catalogStoragePath,
+		@Nonnull String catalogName
+	) {
+		final File folder = catalogStoragePath.toFile();
+		if (!folder.exists()) {
+			return catalogName;
+		}
+		final String[] bootstrapFiles = folder.list((dir, name) -> name.endsWith(BOOT_FILE_SUFFIX));
+		if (bootstrapFiles == null || bootstrapFiles.length == 0) {
+			Assert.isPremiseValid(
+				holdsNoCatalogData(folder),
+				() -> new GenericEvitaInternalError(
+					"Catalog folder `" + catalogStoragePath + "` contains files but no bootstrap file - " +
+						"the storage prefix of catalog `" + catalogName + "` cannot be determined!"
+				)
+			);
+			return catalogName;
+		}
+		Assert.isPremiseValid(
+			bootstrapFiles.length == 1,
+			() -> new GenericEvitaInternalError(
+				"Catalog folder `" + catalogStoragePath + "` contains " + bootstrapFiles.length +
+					" bootstrap files, but exactly one is expected!"
+			)
+		);
+		final String bootstrapFileName = bootstrapFiles[0];
+		return bootstrapFileName.substring(0, bootstrapFileName.length() - BOOT_FILE_SUFFIX.length());
 	}
 
 	/**
@@ -1158,6 +1586,7 @@ public class DefaultCatalogPersistenceService
 	 * and sets up the WAL and data storage infrastructure.
 	 *
 	 * @param catalogName        the name of the catalog to load
+	 * @param catalogFolderId   token identifying the folder the catalog's files live in
 	 * @param storageOptions     storage configuration including checksum and compression settings
 	 * @param transactionOptions transaction configuration for memory buffers and WAL settings
 	 * @param scheduler          scheduler for background tasks
@@ -1165,6 +1594,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -1182,8 +1612,11 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings
 		);
 		this.catalogName = catalogName;
-		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		this.catalogStoragePath = storageOptions.storageDirectory().resolve(catalogFolderId.id());
+		// the folder's own bootstrap file names the prefix - it is not derived from the catalog name any more
+		final String discoveredPrefix = discoverStoragePrefix(this.catalogStoragePath, catalogName);
+		this.storagePrefix = discoveredPrefix;
+		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(discoveredPrefix, index);
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
@@ -1200,6 +1633,8 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings.timeTravelEnabled(),
 			this::fetchOldestRetainedDataFilesInfo
 		);
+		this.walPurgeCallback = this.obsoleteFileMaintainer.createWalPurgeCallback();
+		this.timeTravelSizeGuardTask = createTimeTravelSizeGuardTask(catalogName, this.storageSettings, scheduler);
 		final CatalogBootstrap initialCatalogBootstrap = new CatalogBootstrap(
 			0, 0, Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(), null
 		);
@@ -1212,7 +1647,7 @@ public class DefaultCatalogPersistenceService
 
 		final Path catalogFilePath = this.catalogStoragePath.resolve(
 			getCatalogDataStoreFileName(
-				catalogName, initialCatalogBootstrap.catalogFileIndex()
+				this.storagePrefix, initialCatalogBootstrap.catalogFileIndex()
 			)
 		);
 
@@ -1251,13 +1686,14 @@ public class DefaultCatalogPersistenceService
 	 * Normal callers must never use it.
 	 *
 	 * The method constructs a {@link UnusableCatalog} stub as the nominal {@link CatalogContract}
-	 * passed to the load ctor — the ctor's only use of that instance is to satisfy the
-	 * `verifyCatalogNameMatches` check, which never dereferences anything beyond `getName` on the
-	 * non-restore path. The `allowInlineV4ToV5Upgrade = true` flag unlocks the inline v4→v5 migration
+	 * passed to the load ctor — the ctor's only use of that instance is to satisfy
+	 * `reconcileStoredCatalogIdentity`, which never dereferences anything beyond `getName` unless the stored
+	 * name actually differs. The `allowInlineV4ToV5Upgrade = true` flag unlocks the inline v4→v5 migration
 	 * inside `verifyAndUpgradeStorageFormat` that would otherwise throw
 	 * {@link CatalogRequiresUpgradeException}.
 	 *
 	 * @param catalogName        the catalog to upgrade
+	 * @param catalogFolderId    token identifying the folder the catalog data resides in
 	 * @param storageOptions     storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler          scheduler for background tasks
@@ -1265,23 +1701,29 @@ public class DefaultCatalogPersistenceService
 	 */
 	public static void runStorageProtocolUpgrade(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
-		final Path catalogFolder = pathForCatalog(catalogName, storageOptions.storageDirectory());
 		final CatalogContract upgradeStub = new UnusableCatalog(
 			catalogName,
 			CatalogState.OUT_OF_DATE,
-			catalogFolder,
-			(cn, path) -> new IllegalStateException(
+			catalogFolderId,
+			storageOptions.storageDirectory(),
+			CatalogFolderOperations.unsupported(
+				"Upgrade stub for catalog `" + catalogName + "` must not perform folder operations — " +
+					"it exists only for the duration of runStorageProtocolUpgrade."
+			),
+			(cn, folderId, root) -> new IllegalStateException(
 				"Upgrade stub for catalog `" + cn + "` should not be queried — " +
 					"only used internally by runStorageProtocolUpgrade."
 			)
 		);
 		try (DefaultCatalogPersistenceService svc = new DefaultCatalogPersistenceService(
-			upgradeStub, catalogName, storageOptions, transactionOptions, scheduler, exportService, true
+			upgradeStub, catalogName, catalogFolderId, storageOptions, transactionOptions,
+			scheduler, exportService, true
 		)) {
 			// ctor already ran the v4→v5 migration inline — try-with-resources releases handles.
 			// The body deliberately has no content; the work is a side effect of construction.
@@ -1305,6 +1747,7 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * @param catalogInstance    the catalog instance to persist
 	 * @param catalogName        the name of the catalog
+	 * @param catalogFolderId   token identifying the folder the catalog's files live in
 	 * @param storageOptions     storage configuration including checksum and compression settings
 	 * @param transactionOptions transaction configuration for memory buffers and WAL settings
 	 * @param scheduler          scheduler for background tasks
@@ -1313,12 +1756,16 @@ public class DefaultCatalogPersistenceService
 	public DefaultCatalogPersistenceService(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
-		this(catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportService, false);
+		this(
+			catalogInstance, catalogName, catalogFolderId, storageOptions, transactionOptions,
+			scheduler, exportService, false
+		);
 	}
 
 	/**
@@ -1334,6 +1781,7 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * @param catalogInstance          the catalog instance to persist
 	 * @param catalogName              the name of the catalog
+	 * @param catalogFolderId         token identifying the folder the catalog's files live in
 	 * @param storageOptions           storage configuration including checksum and compression settings
 	 * @param transactionOptions       transaction configuration for memory buffers and WAL settings
 	 * @param scheduler                scheduler for background tasks
@@ -1345,6 +1793,7 @@ public class DefaultCatalogPersistenceService
 	public DefaultCatalogPersistenceService(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -1363,8 +1812,11 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings
 		);
 		this.catalogName = catalogName;
-		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		this.catalogStoragePath = storageOptions.storageDirectory().resolve(catalogFolderId.id());
+		// the folder's own bootstrap file names the prefix - it is not derived from the catalog name any more
+		final String discoveredPrefix = discoverStoragePrefix(this.catalogStoragePath, catalogName);
+		this.storagePrefix = discoveredPrefix;
+		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(discoveredPrefix, index);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1380,11 +1832,19 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings.timeTravelEnabled(),
 			this::fetchOldestRetainedDataFilesInfo
 		);
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		this.walPurgeCallback = this.obsoleteFileMaintainer.createWalPurgeCallback();
+		this.timeTravelSizeGuardTask = createTimeTravelSizeGuardTask(catalogName, this.storageSettings, scheduler);
+		verifyDirectory(this.catalogStoragePath, false);
+		// The bootstrap file is named after the folder's storage prefix, NOT after the directory. The two are the
+		// same string only for as long as a folder is named after its catalog, which stopped being guaranteed
+		// once catalogs became bound to opaque folder tokens - a folder that outlives a rename keeps its
+		// old name. Deriving the prefix from the directory sends the lookup after a `<folder>.boot` that does not
+		// exist, which surfaces far downstream as "no schema found, the data are probably corrupted".
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
-		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
+		// TOBEDONE #538 - original contents:
+		// getLastCatalogBootstrap(<directory name>, this.bootstrapStorageSettings);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageSettings, this.storageSettings,
+			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
@@ -1393,7 +1853,7 @@ public class DefaultCatalogPersistenceService
 
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		final Path catalogFilePath = this.catalogStoragePath.resolve(
-			getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex())
+			getCatalogDataStoreFileName(this.storagePrefix, this.bootstrapUsed.catalogFileIndex())
 		);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -1445,49 +1905,66 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.getEntityTypeFileIndexes().size()
 		);
 
+		// The reference is ALWAYS rebased onto the provider built from the discovered storage prefix. A header's
+		// own provider is fabricated by `CatalogHeaderSerializer` from the catalog name it stored, and
+		// that name and the folder's file prefix now diverge permanently: `replaceWith` writes the new name
+		// into the header and deliberately leaves the files where they are. Trusting the header's provider
+		// therefore addresses `<newName>_N.wal`, a file that does not exist - the WAL of every renamed catalog
+		// that had committed a transaction would be silently abandoned and a fresh empty one created beside it.
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
-			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
+			new LogFileRecordReference(this.walFileNameProvider) :
+			new LogFileRecordReference(this.walFileNameProvider, catalogHeader.walFileReference());
 
-		final boolean restoreFlagExists;
-		try {
-			final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
-				.toFile();
-			verifyCatalogNameMatches(
-				catalogInstance, catalogVersion, this.catalogStoragePath,
-				catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
-					OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
-				this.bootstrapUsed
+		final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
+			.toFile();
+		// The name is reconciled unconditionally, in the direction the engine state dictates. That authority
+		// flip is the change here: the name being loaded under no longer comes from the folder, so a
+		// header naming a different catalog stopped being evidence of a mistake and became the ordinary trace of
+		// a rename or replace whose post-commit header rewrite did not land. Refusing the load would turn a
+		// recoverable lag into a catalog reported CORRUPTED; adapting makes the folder agree with the one
+		// durable fact there is.
+		//
+		// The restore flag rides along as a *separate* question - it marks a folder whose bytes were copied from
+		// another catalog, which is the one case that must not inherit the source's identity.
+		final boolean restoreFlagExists = restoreFlagFile.exists();
+		reconcileStoredCatalogIdentity(
+			catalogInstance, catalogVersion, catalogStoragePartPersistenceService, this.bootstrapUsed,
+			restoreFlagExists
+		);
+		if (restoreFlagExists) {
+			// the flag still carries its second meaning - "this folder arrived from outside, regenerate the
+			// naming variants" - which is why it is read here and deleted only once the reconcile has run
+			Assert.isPremiseValid(
+				restoreFlagFile.delete(),
+				() -> new UnexpectedIOException(
+					"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
+					"Unable to delete restore flag file!"
+				)
 			);
-			restoreFlagExists = restoreFlagFile.exists();
-			if (restoreFlagExists) {
-				Assert.isPremiseValid(
-					restoreFlagFile.delete(),
-					() -> new UnexpectedIOException(
-						"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
-						"Unable to delete restore flag file!"
-					)
-				);
-			}
-		} catch (UnexpectedCatalogContentsException ex) {
-			this.close();
-			throw ex;
 		}
 
+		// no restore-flag special case: the rebase above already covers it, and the restore direction (files
+		// renamed, header lagging) is the mirror of the rename direction (header rewritten, files staying)
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName,
-			restoreFlagExists ?
-				// the catalog name has changed, so we need to reinitialize the WAL file name provider
-				new LogFileRecordReference(this.walFileNameProvider, logFileRecordReference) :
-				logFileRecordReference,
+			logFileRecordReference,
 			this.storageSettings, scheduler,
-			this::trimBootstrapFile,
-			this.obsoleteFileMaintainer::createWalPurgeCallback,
+			this::advanceHistoryHorizon,
 			this.catalogStoragePath, this.walKryoPool
 		);
+
+		// the limit may have been lowered while this catalog was down, and nothing else would notice until the next
+		// compaction - which on an idle catalog may never come
+		scheduleTimeTravelSizeGuard();
+		// submitted rather than run inline: what it drives is a bootstrap trim followed by a sweep of the catalog
+		// folder, and reclaiming disk nobody is waiting for has no business lengthening the open of a catalog
+		// somebody is. Nothing later depends on it having run - every other driver re-derives its own horizon
+		this.scheduler.submit(this::reconcileHistoryHorizonWithWal);
 	}
 
 	private DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull DefaultCatalogPersistenceService formerService
 	) {
 		this.storageSettings = formerService.storageSettings;
@@ -1504,8 +1981,16 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings
 		);
 		this.catalogName = catalogName;
-		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		// this constructor serves `replaceWith`, which relabels a catalog without touching a single file name -
+		// so the prefix is whatever the folder's files already carry, inherited rather than derived from the new
+		// catalog name. Deriving it would send every read after files that do not exist, and it is precisely the
+		// assumption that a folder's contents are named after its catalog that the folder decoupling removes.
+		this.storagePrefix = formerService.storagePrefix;
+		final String inheritedPrefix = this.storagePrefix;
+		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(inheritedPrefix, index);
+		// internal constructor - the caller is inside the storage layer and already holds a concrete
+		// folder, so there is no token to resolve here
+		this.catalogStoragePath = catalogStoragePath;
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1521,11 +2006,17 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings.timeTravelEnabled(),
 			this::fetchOldestRetainedDataFilesInfo
 		);
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		this.walPurgeCallback = this.obsoleteFileMaintainer.createWalPurgeCallback();
+		this.timeTravelSizeGuardTask = createTimeTravelSizeGuardTask(
+			catalogName, this.storageSettings, this.scheduler);
+		verifyDirectory(this.catalogStoragePath, false);
+		// see the sibling constructor above: the bootstrap is found through the folder's storage prefix, never
+		// through the directory name, which is no longer guaranteed to be the catalog's name
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
-		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
+		// TOBEDONE #538 - original contents:
+		// getLastCatalogBootstrap(<directory name>, this.bootstrapStorageSettings);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageSettings, this.storageSettings,
+			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
@@ -1534,7 +2025,9 @@ public class DefaultCatalogPersistenceService
 
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 
-		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
+		final String catalogFileName = getCatalogDataStoreFileName(
+			this.storagePrefix, this.bootstrapUsed.catalogFileIndex()
+		);
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -1571,13 +2064,17 @@ public class DefaultCatalogPersistenceService
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion);
 
+		// rebased onto the discovered prefix for the reason given in the load constructor - and this is the very
+		// constructor that runs immediately after `replaceWith`, so it is the first place the header's name and
+		// the folder's file prefix disagree
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
-			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
+			new LogFileRecordReference(this.walFileNameProvider) :
+			new LogFileRecordReference(this.walFileNameProvider, catalogHeader.walFileReference());
 
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName, logFileRecordReference,
 			this.storageSettings, this.scheduler,
-			this::trimBootstrapFile, this.obsoleteFileMaintainer::createWalPurgeCallback,
+			this::advanceHistoryHorizon,
 			this.catalogStoragePath, this.walKryoPool
 		);
 
@@ -1591,6 +2088,10 @@ public class DefaultCatalogPersistenceService
 			this.close();
 			throw ex;
 		}
+
+		// the limit may have been lowered while this catalog was down, and nothing else would notice until the next
+		// compaction - which on an idle catalog may never come
+		scheduleTimeTravelSizeGuard();
 	}
 
 	@Override
@@ -1602,9 +2103,10 @@ public class DefaultCatalogPersistenceService
 			this.catalogName,
 			catalogHeader.getEntityTypeFileIndexes().size(),
 			FileUtils.getDirectorySize(this.catalogStoragePath),
-			getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+			getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 				.map(CatalogBootstrap::timestamp)
-				.orElse(null)
+				.orElse(null),
+			computeRetainedHistoryBytes()
 		).commit();
 		// emit WAL events if it exists
 		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
@@ -1794,7 +2296,10 @@ public class DefaultCatalogPersistenceService
 				new CatalogIndex(
 					catalogIndexStoragePart.getVersion(),
 					catalogIndexStoragePart.getCatalogIndexKey(),
-					sharedUniqueIndexes
+					sharedUniqueIndexes,
+					// loaded from disk — the activity counters start over, which is what "since catalog load" means,
+					// and are not opened at all when the server does not track usage statistics
+					catalog.isUsageStatisticsTracked() ? new IndexActivity() : null
 				)
 			);
 		}
@@ -1891,7 +2396,7 @@ public class DefaultCatalogPersistenceService
 			final CatalogBootstrap deferredBootstrap = this.deferredCheckpointBootstrap;
 			final CatalogBootstrap preparedBootstrap = prepareBootstrap(
 				catalogVersion,
-				this.catalogName,
+				this.storagePrefix,
 				// build on the newest record there is, written or not - a compaction inside a deferred round bumped
 				// the file index in that record while `bootstrapUsed` still names the file from before it. Using
 				// `bootstrapUsed` here reuses an index a previous round already took, and the compaction copy then
@@ -1912,7 +2417,7 @@ public class DefaultCatalogPersistenceService
 				return;
 			}
 
-			this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.catalogName, preparedBootstrap);
+			this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.storagePrefix, preparedBootstrap);
 			this.deferredCheckpointBootstrap = null;
 
 			// notify WAL that the new version was successfully stored
@@ -1936,9 +2441,10 @@ public class DefaultCatalogPersistenceService
 					this.catalogName,
 					entityHeaders.size(),
 					FileUtils.getDirectorySize(this.catalogStoragePath),
-					getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+					getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 						.map(CatalogBootstrap::timestamp)
-						.orElse(null)
+						.orElse(null),
+					computeRetainedHistoryBytes()
 				).commit();
 				this.lastCatalogStatisticsTimestamp = getNowEpochMillis();
 			}
@@ -2014,18 +2520,21 @@ public class DefaultCatalogPersistenceService
 				intervalElapsed
 			);
 			if (newDescriptor.version() > previousVersion && shouldCompact) {
+				// every figure here was already computed by the flush above - the message deliberately takes no
+				// measurement of its own, and the size it reports is handed to `compact` so the completion message
+				// can state what the rewrite actually reclaimed without reading the directory either
 				log.info(
-					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
-						"entity collection files on disk consume `{}` bytes.",
+					"Compacting catalog `{}` entity collection `{}`, its data store is `{}` bytes against a `{}` " +
+						"byte threshold and its active record share is `{}`%.",
 					this.catalogName,
 					entityCollectionHeader.entityType(),
 					newDescriptor.getFileSize(),
-					newDescriptor.getActiveRecordShare(),
-					entityCollectionPersistenceService.getSizeOnDiskInBytes()
+					this.storageSettings.fileSizeCompactionThresholdBytes(),
+					Math.round(newDescriptor.getActiveRecordShare() * 100.0D)
 				);
 
 				final EntityCollectionFileHeader compactedHeader = entityCollectionPersistenceService.compact(
-					this.catalogName, catalogVersion, headerInfoSupplier
+					this.catalogName, catalogVersion, headerInfoSupplier, newDescriptor.getFileSize()
 				);
 				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
 					new CollectionFileReference(
@@ -2050,7 +2559,7 @@ public class DefaultCatalogPersistenceService
 					warmUpDataStoreMemoryBuffer.setPersistenceService(
 						newPersistenceService.getStoragePartPersistenceService());
 				}
-				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+				retireDataFile(
 					catalogVersion,
 					this.catalogStoragePath.resolve(
 						getEntityCollectionDataStoreFileName(
@@ -2211,13 +2720,6 @@ public class DefaultCatalogPersistenceService
 	}
 
 	@Override
-	public void closeAndDelete() {
-		// close factory first and then delete The directory
-		this.close();
-		FileUtils.deleteDirectory(this.catalogStoragePath);
-	}
-
-	@Override
 	public long appendWalAndDiscardDeferringSync(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
@@ -2273,8 +2775,7 @@ public class DefaultCatalogPersistenceService
 							this.catalogStoragePath, catalogHeader, this.walKryoPool,
 							this.storageSettings,
 							this.scheduler,
-							this::trimBootstrapFile,
-							this.obsoleteFileMaintainer::createWalPurgeCallback
+							this::advanceHistoryHorizon
 						);
 					}
 					Assert.isPremiseValid(
@@ -2312,7 +2813,14 @@ public class DefaultCatalogPersistenceService
 		if (theCatalogWal == null) {
 			return Optional.empty();
 		} else {
-			return theCatalogWal.getFirstNonProcessedTransaction(getCatalogHeader(catalogVersion).walFileReference())
+			// the reference is resolved to a path through its OWN file-name provider, so it needs the same rebase
+			// the constructors perform - handed the header's provider it addresses `<newName>_N.wal` after a
+			// rename, finds nothing, and reports the catalog as having no unprocessed transactions at all
+			final LogFileRecordReference headerWalReference = getCatalogHeader(catalogVersion).walFileReference();
+			return theCatalogWal.getFirstNonProcessedTransaction(
+					headerWalReference == null ?
+						null : new LogFileRecordReference(this.walFileNameProvider, headerWalReference)
+				)
 				.map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
@@ -2327,20 +2835,20 @@ public class DefaultCatalogPersistenceService
 		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer,
 		@Nonnull BiIntConsumer progressObserver
 	) {
-		final Path newPath = pathForCatalog(catalogNameToBeReplaced, this.storageSettings.storageDirectory());
-		final boolean targetPathExists = newPath.toFile().exists();
-		if (targetPathExists) {
-			Assert.isPremiseValid(
-				newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
-		}
-
 		// store the catalog that replaces the original header
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
 			catalogVersion);
+		// An ALIVE catalog keeps its version: `verifyIntegrity` asserts the WAL's last written version equals the
+		// bootstrap's, which states that every version in the line was produced by a transaction. A rename moves no
+		// data and appends nothing to the WAL, so consuming a version for it breaks that invariant and leaves the
+		// catalog unopenable until the next commit puts the two counters back in step. Writing the header, the
+		// schema part and the bootstrap record at an already-flushed version is the same thing
+		// `reconcileStoredCatalogIdentity` does on the load path. WARMING_UP resets to 0 rather than bumping, so it
+		// is unaffected.
 		final long newCatalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-			0L : catalogHeader.version() + 1;
+			0L : catalogHeader.version();
 
 		// first changes and replace name of the catalog in the catalog schema in catalog that replaces the original
 		CatalogSchemaStoragePart.serializeWithCatalogName(
@@ -2353,100 +2861,92 @@ public class DefaultCatalogPersistenceService
 			}
 		);
 
-		storagePartPersistenceService.writeCatalogHeader(
-			STORAGE_PROTOCOL_VERSION,
-			newCatalogVersion,
-			newPath,
-			catalogHeader.walFileReference(),
-			catalogHeader.collectionFileIndex(),
-			catalogHeader.catalogId(),
-			catalogNameToBeReplaced,
-			catalogHeader.catalogState(),
-			catalogHeader.lastEntityCollectionPrimaryKey()
-		);
-
-		final int catalogIndex = this.bootstrapUsed.catalogFileIndex();
-		recordBootstrap(
-			newCatalogVersion,
-			catalogNameToBeReplaced,
-			catalogIndex,
-			dataStoreMemoryBuffer
-		);
-
-		// close the catalog
-		this.close();
-
-		// name files in the directory that replaces the original first
-		final File[] filesToRename = this.catalogStoragePath
-			.toFile()
-			.listFiles((dir, name) -> name.startsWith(this.catalogName));
-		if (filesToRename != null) {
-			for (int i = 0; i < filesToRename.length; i++) {
-				File it = filesToRename[i];
-				final Path filePath = it.toPath();
-				final String fileNameToRename;
-				if (it.getName().equals(getCatalogBootstrapFileName(this.catalogName))) {
-					fileNameToRename = getCatalogBootstrapFileName(catalogNameToBeReplaced);
-				} else if (it.getName().equals(getCatalogDataStoreFileName(this.catalogName, catalogIndex))) {
-					fileNameToRename = getCatalogDataStoreFileName(catalogNameToBeReplaced, catalogIndex);
-				} else {
-					continue;
-				}
-				final Path filePathForRename = filePath.getParent().resolve(fileNameToRename);
-				Assert.isPremiseValid(
-					it.renameTo(filePathForRename.toFile()),
-					() -> new GenericEvitaInternalError(
-						"Failed to rename `" + it.getAbsolutePath() + "` to `" + filePathForRename.toAbsolutePath() + "`!",
-						"Failed to rename one of the `" + this.catalogName + "` catalog files to target catalog name!"
-					)
-				);
-
-				progressObserver.accept(i + 1, filesToRename.length);
-			}
-		} else {
-			throw new GenericEvitaInternalError(
-				"No file found in directory `" + this.catalogStoragePath.toAbsolutePath() + "`!",
-				"Failed to rename catalog files to target catalog name!"
-			);
-		}
-
-		final Path temporaryOriginal;
-		if (targetPathExists) {
-			temporaryOriginal = newPath.getParent().resolve(catalogNameToBeReplaced + "_renamed");
-			Assert.isPremiseValid(
-				newPath.toFile().renameTo(temporaryOriginal.toFile()),
-				"Failed to rename original catalog directory `" + newPath.toAbsolutePath() + "`!"
-			);
-		} else {
-			temporaryOriginal = null;
-		}
-
+		// **Everything from here to the end of this method is past the operation's point of no return, and the
+		// wrapper is what tells the engine so.** The line falls here - not at the `close()` further down, and
+		// not at the top of the method - because what makes the rename irreversible is neither losing the
+		// service nor starting the work: it is the folder's stored identity ceasing to agree with engine state.
+		//
+		// The schema part written just above is what first commits that identity to the folder. It is not yet
+		// on disk - `recordBootstrap` below flushes the offset index and forces the pending syncs at its fence
+		// - but it does not need to be, because the offset index keeps it as a non-flushed value that the very
+		// next transaction or checkpoint will publish on our behalf. So from the moment that put *returns*,
+		// the relabel is going to reach disk whether this operation finishes or not, and a failure after it
+		// leaves the folder claiming a rename the engine-state commit will never make. What that costs is not
+		// theoretical: any transaction accepted afterwards is appended to the write-ahead log and replayed at
+		// the next boot against a name engine state has never heard of, and the catalog then fails to load.
+		//
+		// Nor can the engine take the queued value back once it exists. `reconcileStoredCatalogIdentity` repairs
+		// a divergent schema part only when the *header* name diverges too, so a published new-name schema part
+		// sitting under an old-name header is not something a restart notices - which is precisely why
+		// compensating past this point had to be abandoned rather than made to work.
+		//
+		// A failure *inside* that put is a different thing and stays compensable, which is why the span starts
+		// after it rather than before: the put streams the record before it registers the queued value
+		// (`OffsetIndex#doPut` -> `StorageRecord` -> `volatileValues.putValue`), and nothing between the
+		// registration and this line performs IO, so a write that fails has queued nothing and left the folder
+		// untouched. Declaring such a catalog unusable would take a perfectly healthy one offline, and
+		// `CatalogRenameFailurePathTest` holds this boundary from both sides.
+		//
+		// Only this layer knows where that line falls, so only this layer can draw it; the engine's part is to
+		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
 		try {
-			Assert.isPremiseValid(
-				this.catalogStoragePath.toFile().renameTo(newPath.toFile()),
-				"Failed to rename catalog directory `" + this.catalogStoragePath.toAbsolutePath() + "` to `" + newPath.toAbsolutePath() + "`!"
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				newCatalogVersion,
+				this.catalogStoragePath,
+				catalogHeader.walFileReference(),
+				catalogHeader.collectionFileIndex(),
+				catalogHeader.catalogId(),
+				catalogNameToBeReplaced,
+				catalogHeader.catalogState(),
+				catalogHeader.lastEntityCollectionPrimaryKey()
 			);
 
-			// finally remove original catalog contents
-			ofNullable(temporaryOriginal)
-				.ifPresent(FileUtils::deleteDirectory);
-
-			return new DefaultCatalogPersistenceService(
-				catalogNameToBeReplaced, this
+			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are
+			// not renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that
+			// does not exist and leave the real one holding a stale pointer
+			recordBootstrap(
+				newCatalogVersion,
+				this.storagePrefix,
+				this.bootstrapUsed.catalogFileIndex(),
+				dataStoreMemoryBuffer
 			);
-		} catch (RuntimeException ex) {
-			// rename original directory back
-			if (temporaryOriginal != null) {
-				Assert.isPremiseValid(
-					temporaryOriginal.toFile().renameTo(newPath.toFile()),
-					() -> new GenericEvitaInternalError(
-						"Failed to rename the original directory back to `" + newPath.toAbsolutePath() + "` the original catalog will not be available as well!",
-						"Failing to rename the original directory back to the original catalog will not be available as well!",
-						ex
-					)
-				);
+
+			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
+			// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
+			// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
+			// version it names - so that older pointer would land after the one just written and the service reopened
+			// at the end of this method would load the catalog under the name it had before the rename. Discarding it
+			// is right on the merits rather than merely expedient: the record written above already did everything the
+			// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
+			// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is
+			// scheduled, so the history this record reveals is still accounted for and the discard drops a duplicate
+			// publication rather than the bookkeeping that rides along with it. The field is only ever set together
+			// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
+			// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
+			if (this.deferredCheckpointBootstrap != null) {
+				this.deferredCheckpointBootstrap = null;
+				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
 			}
-			throw ex;
+
+			// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
+			// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
+			// progress waits forever on an operation that has already finished.
+			progressObserver.accept(1, 1);
+
+			// close the catalog and reopen it under its new name, in the very same folder. Past this close there
+			// is additionally no service behind the catalog at all, and this method cannot make one, having just
+			// failed to - so a caller resuming session admission would be admitting sessions against a catalog
+			// with no persistence layer. The span already covers it.
+			this.close();
+			return new DefaultCatalogPersistenceService(
+				catalogNameToBeReplaced, this.catalogStoragePath, this
+			);
+		} catch (Throwable ex) {
+			// `Throwable`, not `RuntimeException`: an `Error` raised past the relabel leaves exactly the same
+			// disagreement behind, and letting it through unmarked would send the engine down the compensating
+			// path for the one class of failure least likely to be survivable.
+			throw new CatalogHandoverFailedException(this.catalogName, catalogNameToBeReplaced, ex);
 		}
 	}
 
@@ -2524,7 +3024,7 @@ public class DefaultCatalogPersistenceService
 				return createEntityCollectionPersistenceService(newEntityCollectionHeader);
 			}
 		);
-		this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+		retireDataFile(
 			catalogVersion - 1L,
 			replacedEntityTypeFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(replacedEntityTypeFileReference)
@@ -2543,7 +3043,7 @@ public class DefaultCatalogPersistenceService
 			entityCollectionHeader.entityTypeFileIndex(),
 			entityCollectionHeader.fileLocation()
 		);
-		this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+		retireDataFile(
 			catalogVersion - 1L,
 			collectionFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(collectionFileReference)
@@ -2632,7 +3132,7 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public PaginatedList<MaterializedVersionBlock> getCatalogVersions(
 		@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(this.storagePrefix);
 		final Path bootstrapFilePath = this.catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -2655,10 +3155,7 @@ public class DefaultCatalogPersistenceService
 						if (i == 0) {
 							materializedVersionBlocks.add(
 								new MaterializedVersionBlock(
-									Math.min(
-										currentBootstrap.catalogVersion(),
-										resolveFirstCatalogVersionOfCatalogBootstrap(currentBootstrap)
-									),
+									resolveBlockStartVersionOf(currentBootstrap),
 									currentBootstrap.catalogVersion(),
 									currentBootstrap.timestamp()
 								)
@@ -2685,10 +3182,7 @@ public class DefaultCatalogPersistenceService
 							if (nextBootstrap != null) {
 								materializedVersionBlocks.add(
 									new MaterializedVersionBlock(
-										Math.min(
-											resolveFirstCatalogVersionOfCatalogBootstrap(nextBootstrap),
-											nextBootstrap.catalogVersion()
-										),
+										resolveBlockStartVersionOf(nextBootstrap),
 										nextBootstrap.catalogVersion(),
 										nextBootstrap.timestamp()
 									)
@@ -2701,7 +3195,12 @@ public class DefaultCatalogPersistenceService
 							if (nextBootstrap != null) {
 								materializedVersionBlocks.add(
 									new MaterializedVersionBlock(
-										currentBootstrap.catalogVersion() + 1,
+										// clamped for the same reason as the ascending branch above: two records may
+										// carry the same version when one of them materialises a version rather than
+										// producing it (a rename, or the identity reconciliation at load), and without
+										// the clamp such a pair reports a block that starts after it ends
+										Math.min(
+											currentBootstrap.catalogVersion() + 1, nextBootstrap.catalogVersion()),
 										nextBootstrap.catalogVersion(),
 										nextBootstrap.timestamp()
 									)
@@ -2751,7 +3250,7 @@ public class DefaultCatalogPersistenceService
 		if (catalogVersion.length == 0 || theCatalogWal == null) {
 			return Collections.emptyList();
 		}
-		final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
+		final String bootstrapFileName = getCatalogBootstrapFileName(this.storagePrefix);
 		final Path bootstrapFilePath = this.catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -2787,22 +3286,44 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void purgeAllObsoleteFiles() {
+		// A deleter in its own right, and the only one that consults neither the retention floor nor the directory
+		// hold. That is a decision, not an omission: it runs once, from write-ahead log replay on a catalog that is
+		// being brought up, before any session or backup can exist to hold anything. Both guards would be reading
+		// state that is empty by construction.
+		//
+		// It also carries its own copy of the survivor rules rather than going through `TimeTravelRetention`. The two
+		// agree on catalog data files; on a *dropped* collection they do not - `orElse(false)` below keeps the file
+		// where `TimeTravelRetention` reclaims it - so this one is the more conservative of the pair and the drift can
+		// only ever leave a file behind, never remove one that is needed. Unifying them would make replay delete more
+		// than it does today, which is not a change worth making off the back of a review. See the deleter matrix in
+		// `documentation/adr/2026-08-06-time-travel-disk-budget.md`, where this door is listed with that exemption
 		try {
 			final CatalogBootstrap catalogBootstrap = this.storageSettings.timeTravelEnabled() ?
 				// if time travel is enabled we need to keep all the files that are referenced in the bootstrap file
-				getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings).orElse(this.bootstrapUsed) :
+				getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
+						.orElse(this.bootstrapUsed) :
 				// otherwise we can remove all the files that are not referenced in the current catalog header
 				this.bootstrapUsed;
 
 			final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = fetchCatalogHeader(
 				catalogBootstrap);
 			final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(
-				this.catalogName);
+				this.storagePrefix);
 			final File[] filesToDelete = Objects.requireNonNull(
 				this.catalogStoragePath.toFile()
 					.listFiles((dir, name) -> {
+						// evitaDB's own markers are labels about the folder, not obsolete content - and this
+						// filter's tail deletes everything it does not recognise, so a marker missing from here
+						// is silently destroyed. `.catalogname` is the only record of which catalog a generated
+						// folder holds, and losing it costs the operator the one way to read a storage root back.
+						// Kept in step with `holdsNoCatalogData`, which excludes the same three.
+						if (CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
+							|| CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
+							|| CatalogPersistenceService.RESTORE_FLAG.equals(name)) {
+							return false;
+						}
 						// bootstrap file is never removed
-						if (name.equals(getCatalogBootstrapFileName(this.catalogName))) {
+						if (name.equals(getCatalogBootstrapFileName(this.storagePrefix))) {
 							return false;
 						}
 						// WAL is never removed
@@ -2857,8 +3378,7 @@ public class DefaultCatalogPersistenceService
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
 		// A backup is only as recent as the bootstrap record it copies, and it may be taken WITHOUT the write-ahead
 		// log - in which case that record is the sole pointer to the data and a stale one silently yields an older
@@ -2869,11 +3389,11 @@ public class DefaultCatalogPersistenceService
 		final CatalogBootstrap bootstrapRecord;
 		if (catalogVersion != null) {
 			bootstrapRecord = getCatalogBootstrapForSpecificVersion(
-				this.catalogName, this.bootstrapStorageSettings, catalogVersion
+				this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings, catalogVersion
 			);
 		} else if (pastMoment != null) {
 			bootstrapRecord = getCatalogBootstrapForSpecificMoment(
-				this.catalogName, this.bootstrapStorageSettings, pastMoment
+				this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings, pastMoment
 			);
 		} else {
 			bootstrapRecord = this.bootstrapUsed;
@@ -2881,15 +3401,14 @@ public class DefaultCatalogPersistenceService
 		return new BackupTask(
 			this.catalogName, pastMoment, catalogVersion, includingWAL,
 			bootstrapRecord, this.exportService, this,
-			onStart, onComplete
+			onStart
 		);
 	}
 
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> createFullBackupTask(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		// same reasoning as createBackupTask - the task captures the last checkpointed version on construction
 		checkpoint();
@@ -2897,7 +3416,7 @@ public class DefaultCatalogPersistenceService
 			this.catalogName,
 			this.exportService,
 			this,
-			onStart, onComplete
+			onStart
 		);
 	}
 
@@ -2905,12 +3424,22 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public ProgressingFuture<Void> duplicateCatalog(
 		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId,
 		@Nonnull StorageOptions storageOptions
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
-		final Path targetFolder = pathForCatalog(targetCatalogName, storageOptions.storageDirectory());
+		// the folder was allocated by the engine and already exists, carrying nothing but its provisional
+		// marker - which `holdsNoCatalogData` discounts, so the emptiness check below still passes
+		final Path targetFolder = storageOptions.storageDirectory().resolve(targetFolderId.id());
 
 		// verify target folder does not exist or is empty, create it
 		verifyDirectory(targetFolder, true);
+
+		// held from before the listing until the last file has been copied. What this reads cannot be described by
+		// a version: it copies whatever `Files.walk` finds, generations no retained bootstrap record points at
+		// included, and those are precisely what the deleters remove - so it holds the folder for the same reason
+		// a full backup does. The two halves are also separated in time: the listing happens here, the copy runs
+		// asynchronously once somebody executes the future below, and every file has to survive both moments
+		final CatalogDirectoryReadHold directoryReadHold = acquireDirectoryReadHold();
 
 		// collect all file paths into a collection and sort them
 		final List<FileInfo> filesToCopy;
@@ -2947,14 +3476,23 @@ public class DefaultCatalogPersistenceService
 						.thenComparing(FileInfo::creationTime))
 				.toList();
 		} catch (IOException e) {
+			// a listing that throws leaves no future behind, so this is the only place the hold can be given back.
+			// Leaking it here would not delay reclamation for this catalog, it would end it - silently, because the
+			// exception it rides out on looks perfectly handled to the caller
+			directoryReadHold.close();
 			throw new UnexpectedIOException(
 				"Failed to collect files in source catalog directory: " + e.getMessage(),
 				"Failed to collect files in source catalog directory!",
 				e
 			);
+		} catch (RuntimeException e) {
+			// the same, for the throw that does not come from the walk itself: reading a file's attributes fails
+			// inside the mapping lambda and leaves as an `UnexpectedIOException`
+			directoryReadHold.close();
+			throw e;
 		}
 
-		return new ProgressingFuture<>(
+		final ProgressingFuture<Void> duplicationFuture = new ProgressingFuture<>(
 			filesToCopy.size(),
 			progressingFuture -> {
 				try {
@@ -2989,9 +3527,17 @@ public class DefaultCatalogPersistenceService
 						"Failed to duplicate catalog!",
 						e
 					);
+				} finally {
+					// the copy is done with the folder whether it finished it or threw half-way through
+					directoryReadHold.close();
 				}
 			}
 		);
+		// and the same hold again for the future that is never executed at all - cancelled before it started, or
+		// completed by a caller that gave up on it. The lease is idempotent, so the body's own release and this one
+		// cannot both take effect; what must not happen is neither of them doing so
+		duplicationFuture.whenComplete((result, throwable) -> directoryReadHold.close());
+		return duplicationFuture;
 	}
 
 	@Override
@@ -3014,9 +3560,169 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
+	@Nonnull
 	@Override
-	public long getSizeOnDiskInBytes() {
-		return FileUtils.getDirectorySize(this.catalogStoragePath);
+	public StoragePartFootprint[] measureStoragePartComposition() {
+		// the catalog's own data store - schemas and catalog-level indexes. Collections keep their records in their
+		// own data stores and are asked separately, so nothing here is summed across them
+		return getStoragePartPersistenceService(this.bootstrapUsed.catalogVersion()).measureStoragePartComposition();
+	}
+
+	@Nonnull
+	@Override
+	public VolatileDataFootprint measureVolatileData() {
+		// the catalog's own data store only - the catalog-wide figure adds every collection's, which the engine sums
+		return getStoragePartPersistenceService(this.bootstrapUsed.catalogVersion()).measureVolatileData();
+	}
+
+	@Nullable
+	@Override
+	public DurabilitySnapshot measureDurability() {
+		// null coordinator means every round checkpoints inline - there is no fence, so there is nothing to describe
+		// rather than a fence of depth zero; the caller turns that into an explicit "feature disabled"
+		return this.checkpointCoordinator == null ? null : this.checkpointCoordinator.describeDurability();
+	}
+
+	@Nonnull
+	@Override
+	public CatalogFragmentationSnapshot measureFragmentation() {
+		// one snapshot of the mutable bootstrap reference drives the whole measurement - re-reading it per file or
+		// per store could straddle a compaction and mix two generations' notions of "current"
+		final CatalogBootstrap bootstrap = this.bootstrapUsed;
+		final long catalogVersion = bootstrap.catalogVersion();
+		final DataStoreGenerations generations = describeDataStoreGenerations(bootstrap);
+
+		// ONE listing feeds both halves of this answer: the byte classification below, and the file lengths the
+		// compaction predicate is evaluated against. Letting the forecast read those lengths itself would cost a
+		// `stat` per data store that this listing has already paid for, and would let the reported waste and the
+		// reported eligibility describe two different moments of a file that is being appended to
+		final File[] files = this.catalogStoragePath.toFile().listFiles();
+		// the *prefix*, not the catalog name: the two diverge after a rename or a `replaceCatalog`, and every file
+		// name the measurement matches on is built from the former
+		final CatalogStorageFootprint footprint = files == null ?
+			CatalogStorageFootprintMeasurer.measure(this.storagePrefix, this.catalogStoragePath, generations) :
+			CatalogStorageFootprintMeasurer.measure(this.storagePrefix, files, generations);
+		// keyed by name, restricted to the current generation of each store - the only files a forecast applies to.
+		// A directory that could not be listed leaves this empty, and every store falls back to reading its own
+		// length rather than being forecast against a length of zero
+		final Map<String, Long> currentFileLengths = CollectionUtils.createHashMap(
+			generations.currentDataStoreFiles().size()
+		);
+		if (files != null) {
+			for (final File file : files) {
+				if (file.isFile() && generations.currentDataStoreFiles().contains(file.getName())) {
+					currentFileLengths.put(file.getName(), file.length());
+				}
+			}
+		}
+
+		// one clock reading drives every store's cadence gate and every projection, so the forecasts cannot be
+		// anchored at moments that differ by however long the loop takes
+		final long nowMillis = getNowEpochMillis();
+		final CompactionForecast catalogDataStoreForecast = forecastCompaction(
+			getStoragePartPersistenceService(catalogVersion).getOffsetIndex(),
+			currentFileLengths.get(getCatalogDataStoreFileName(this.storagePrefix, bootstrap.catalogFileIndex())),
+			this.storageSettings,
+			this.lastCatalogCompactionAtMillis,
+			nowMillis
+		);
+		CompactionForecast totalForecast = catalogDataStoreForecast;
+		for (final CollectionFileReference reference : getCatalogHeader(catalogVersion).getEntityTypeFileIndexes()) {
+			final DefaultEntityCollectionPersistenceService collectionService =
+				this.entityCollectionPersistenceServices.get(reference);
+			// a collection this catalog does not hold open cannot be forecast and is left out rather than guessed at
+			if (collectionService != null) {
+				totalForecast = totalForecast.plus(
+					collectionService.measureCompactionForecast(
+						nowMillis,
+						currentFileLengths.get(
+							getEntityCollectionDataStoreFileName(
+								reference.entityType(), reference.entityTypePrimaryKey(), reference.fileIndex()
+							)
+						)
+					)
+				);
+			}
+		}
+		return new CatalogFragmentationSnapshot(footprint, catalogDataStoreForecast, totalForecast);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStorageFootprint measureStorageFootprint() {
+		// the *prefix*, not the catalog name - see `measureFragmentation` for why the two cannot be used
+		// interchangeably here
+		return CatalogStorageFootprintMeasurer.measure(
+			this.storagePrefix,
+			this.catalogStoragePath,
+			describeDataStoreGenerations(this.bootstrapUsed)
+		);
+	}
+
+	/**
+	 * Collects what a loaded catalog knows about its own data store files and cannot be recovered from the directory
+	 * listing alone - which generation of each store is current, and how much of it the offset index reports as live.
+	 *
+	 * Shared by {@link #measureStorageFootprint()} and {@link #measureFragmentation()} so that the two cannot disagree
+	 * about which generation is current; both pass in the same bootstrap snapshot for the same reason.
+	 *
+	 * @param bootstrap the snapshot of the mutable bootstrap reference this measurement is anchored at
+	 * @return the generations, for the classifier to attribute the listing with
+	 */
+	@Nonnull
+	private DataStoreGenerations describeDataStoreGenerations(@Nonnull CatalogBootstrap bootstrap) {
+		final long catalogVersion = bootstrap.catalogVersion();
+		final int currentCatalogFileIndex = bootstrap.catalogFileIndex();
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
+			catalogVersion
+		);
+		final Collection<CollectionFileReference> collectionReferences = catalogHeader.getEntityTypeFileIndexes();
+
+		// the data store files the header currently points at. Their bytes split into live and waste; every other
+		// data store file of the same kind is a superseded generation
+		final Set<String> currentDataStoreFiles = CollectionUtils.createHashSet(collectionReferences.size() + 1);
+		// ... and the size their offset index reports as active. Only an *open* service can answer that, so
+		// a collection whose service this catalog does not hold is simply absent here and its current file falls
+		// through to the unaccounted remainder rather than being guessed at
+		final Map<String, Long> activeSizeByCurrentFile = CollectionUtils.createHashMap(
+			collectionReferences.size() + 1
+		);
+		// the current generation index of every collection, keyed by entity type primary key - which is what
+		// a collection file name carries, so an obsolete generation can be recognised without parsing the type
+		final Map<Integer, Integer> currentIndexByEntityTypePrimaryKey = CollectionUtils.createHashMap(
+			collectionReferences.size()
+		);
+
+		final String currentCatalogFile = getCatalogDataStoreFileName(this.storagePrefix, currentCatalogFileIndex);
+		currentDataStoreFiles.add(currentCatalogFile);
+		activeSizeByCurrentFile.put(
+			currentCatalogFile,
+			getStoragePartPersistenceService(catalogVersion).getOffsetIndex().getTotalActiveSize()
+		);
+		for (final CollectionFileReference reference : collectionReferences) {
+			final String currentCollectionFile = getEntityCollectionDataStoreFileName(
+				reference.entityType(), reference.entityTypePrimaryKey(), reference.fileIndex()
+			);
+			currentDataStoreFiles.add(currentCollectionFile);
+			currentIndexByEntityTypePrimaryKey.put(reference.entityTypePrimaryKey(), reference.fileIndex());
+			final DefaultEntityCollectionPersistenceService collectionService =
+				this.entityCollectionPersistenceServices.get(reference);
+			if (collectionService != null) {
+				activeSizeByCurrentFile.put(
+					currentCollectionFile,
+					collectionService.getStoragePartPersistenceService().getOffsetIndex().getTotalActiveSize()
+				);
+			}
+		}
+
+		return new DataStoreGenerations(
+			currentCatalogFileIndex,
+			currentDataStoreFiles,
+			activeSizeByCurrentFile,
+			currentIndexByEntityTypePrimaryKey,
+			this.obsoleteFileMaintainer.getMaintainedFileVersions(),
+			this.obsoleteFileMaintainer.getActiveReaderFloor()
+		);
 	}
 
 	/**
@@ -3055,13 +3761,49 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void close() {
-		if (!this.closed) {
+		// The flag is flipped under the horizon lock, and that is what makes the `closed` checks in
+		// `enforceTimeTravelSizeLimit` and `advanceHistoryHorizon` conclusive rather than best-effort: both read it
+		// while holding this same lock, so a run that observes an open service cannot have the service closed
+		// underneath it half-way through. Closing the guard task is `cancel(false)` and does not stop a run that has
+		// already begun - and a run that gets as far as trimming the bootstrap file swaps in a fresh write handle
+		// that nothing will ever close, concurrently with the teardown below closing the old one.
+		// Only the flag is set under the lock - no teardown work happens beneath it, so no lock order is created
+		final boolean alreadyClosed;
+		this.historyHorizonLock.lock();
+		try {
+			alreadyClosed = this.closed;
 			this.closed = true;
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+		if (!alreadyClosed) {
+			// the guard only ever reads and reclaims history, and the flag above has fenced it out by now
+			if (this.timeTravelSizeGuardTask != null) {
+				IOUtils.closeQuietly(this.timeTravelSizeGuardTask::close);
+			}
 			// stop the ticker and settle the debt before anything is torn down: no service may go away still owing
 			// a device flush, or the bytes it wrote would depend on the operating system getting round to them.
-			// The bootstrap record is deliberately NOT written here - it is a checkpoint pointer, and leaving it at
-			// the last checkpoint simply means restart resumes from there and replays the rest from the WAL.
+			//
+			// A checkpoint owed by the last round is published first. That round already built the bootstrap record
+			// and left the index at its own version, so this publishes a state that is by construction complete -
+			// it does not wait for anything, and it does not drain: `TransactionManager#close` fails pending
+			// transactions rather than finishing them, so newer versions may still be missing and the write-ahead
+			// log remains the authority on them. What it buys is that a clean restart resumes from here instead of
+			// replaying from whichever checkpoint the ticker last happened to reach. Nothing is written when no
+			// checkpoint is owed, which is the case whenever the round that just finished checkpointed itself.
 			if (this.checkpointCoordinator != null) {
+				try {
+					// ordered before the WAL is closed: publishing also tells the log how far it has been processed
+					this.checkpointCoordinator.checkpointIfOwed();
+				} catch (RuntimeException ex) {
+					// shutdown must not be aborted by this - the state stays crash-consistent either way, the next
+					// start simply replays more of the write-ahead log than it would have needed to
+					log.error(
+						"Final checkpoint of catalog `{}` failed - the next start will resume from the previous " +
+							"checkpoint and replay the remainder from the write-ahead log!",
+						this.catalogName, ex
+					);
+				}
 				try {
 					this.checkpointCoordinator.forcePendingSyncs();
 				} catch (RuntimeException ex) {
@@ -3133,19 +3875,106 @@ public class DefaultCatalogPersistenceService
 			lastKnownMinimalActiveVersionRead,
 			lastKnownMinimalActiveVersionWritten
 		);
-		this.catalogStoragePartPersistenceService.values().forEach(
-			it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
+		// recorded first, so the clamp below is computed against the floor this very departure just raised rather than
+		// against the one it supersedes
 		this.obsoleteFileMaintainer.catalogConsumersLeft(
 			lastKnownMinimalActiveVersionRead,
 			lastKnownMinimalActiveVersionWritten
 		);
-		this.entityCollectionPersistenceServices.values()
-			.forEach(
-				it -> it.catalogConsumersLeft(
-					lastKnownMinimalActiveVersionRead,
-					lastKnownMinimalActiveVersionWritten
-				)
-			);
+		// This is a **deleter too**, even though it unlinks nothing: releasing a version's offset-index roots makes
+		// that version unreadable through the shared services just as surely as deleting its file would, and it does
+		// so silently - `Roots.floorIndex` clamps a request below everything retained to the oldest root it still has,
+		// so the read succeeds and returns a *different, newer* state. A backup of the current data resolves each
+		// collection separately through those very services, so it would write an archive stitched together from
+		// several versions and label it with the one it started from.
+		//
+		// Departure reports cannot express what has to be kept: they say "everyone at or below V has left", which only
+		// ever rises, while the thing that needs protecting is a consumer that arrived on a version and is still
+		// standing on it. That is exactly what the retention floor is, so this clamps by it like every other deleter.
+		// It costs nothing in the ordinary case - every session pins the version it registered at, so the pin floor
+		// tracks the departure floor - and it costs the roots accumulated during a backup while one is running.
+		//
+		// Sampled and applied under the horizon lock, the same fence `catalogVersionPinned` and `advanceHistoryHorizon`
+		// use, so a pin cannot land in the middle of the release. The lock is already taken further down this same
+		// call path by `retentionStateChanged`, so this adds no new blocking to session close.
+		this.historyHorizonLock.lock();
+		try {
+			final long releasableHistoryVersion = clampToRetentionFloor(lastKnownMinimalActiveVersion);
+			this.catalogStoragePartPersistenceService.values().forEach(
+				it -> it.purgeHistoryOlderThan(releasableHistoryVersion));
+			// both arguments are the already clamped floor - the collection services only take the minimum of the two
+			// and the clamp above has already resolved it
+			this.entityCollectionPersistenceServices.values()
+				.forEach(
+					it -> it.catalogConsumersLeft(releasableHistoryVersion, releasableHistoryVersion)
+				);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+		// the departure just published a new active-reader floor, which is the other half of the retention floor. This
+		// is reported *after* the maintainer has recorded it, so the drained request is clamped against the new value
+		// rather than the one that refused it
+		retentionStateChanged();
+	}
+
+	@Override
+	public void catalogVersionPinned(long catalogVersion) {
+		// taken under the horizon lock so that a pin and a horizon advance can never interleave: either the pin lands
+		// first and `advanceHistoryHorizon` observes it when it samples the retention floor, or the advance completes
+		// first and the caller - which must re-verify its version is still reachable once the pin is in place - sees
+		// that it lost. A pin registered outside this lock can be taken against a version whose files are being
+		// deleted at that very moment, which is how a point-in-time backup loses the data underneath it.
+		// The lock is uncontended unless time travel is enabled, which is opt-in and off by default.
+		this.historyHorizonLock.lock();
+		try {
+			this.obsoleteFileMaintainer.catalogVersionPinned(catalogVersion);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+	}
+
+	/**
+	 * Returns the lowest catalog version any consumer still holds - the floor every reclamation is clamped to, or
+	 * `-1` when nothing is held at all.
+	 *
+	 * Package-private so a test can assert that a pin was taken and released without reaching into the maintainer.
+	 *
+	 * @return the current retention floor
+	 */
+	long getRetentionFloor() {
+		return this.obsoleteFileMaintainer.getRetentionFloor();
+	}
+
+	/**
+	 * Returns the catalog version of the oldest bootstrap record still retained on disk - the lower end of the window
+	 * time travel can currently reach. Read under the horizon lock, because the driver that trims history replaces the
+	 * very file this reads.
+	 *
+	 * A consumer that needs the whole retained window rather than one particular version - a full backup copies every
+	 * file in the catalog folder - pins this value for its lifetime, which clamps every reclamation down to it through
+	 * {@link #clampToRetentionFloor(long)} and so freezes the history the backup is walking. Reading it a moment before
+	 * the pin is taken errs in the safe direction: the horizon only ever rises, so a stale value can only be lower than
+	 * the truth, and pinning lower merely holds back more than necessary.
+	 *
+	 * @return the oldest retained catalog version, or {@link #getLastCatalogVersion()} when no bootstrap record can be
+	 * read at all
+	 */
+	public long getOldestRetainedCatalogVersion() {
+		this.historyHorizonLock.lock();
+		try {
+			return getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
+				.map(CatalogBootstrap::catalogVersion)
+				.orElseGet(this::getLastCatalogVersion);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+	}
+
+	@Override
+	public void catalogVersionReleased(long catalogVersion) {
+		this.obsoleteFileMaintainer.catalogVersionReleased(catalogVersion);
+		// a released pin can only lower what is in use, so whatever the floor refused may now be affordable
+		retentionStateChanged();
 	}
 
 	@Override
@@ -3223,7 +4052,7 @@ public class DefaultCatalogPersistenceService
 		return CatalogOffsetIndexStoragePartPersistenceService.create(
 			this.catalogName,
 			this.catalogStoragePath.resolve(
-				getCatalogDataStoreFileName(this.catalogName, catalogBootstrap.catalogFileIndex())),
+				getCatalogDataStoreFileName(this.storagePrefix, catalogBootstrap.catalogFileIndex())),
 			this.storageSettings,
 			catalogBootstrap,
 			this.recordTypeRegistry,
@@ -3311,6 +4140,21 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Returns the write-ahead log this catalog appends to, or `null` when the catalog has never gone live and so
+	 * has no log at all.
+	 *
+	 * Exposed for tests that need the log's own draining seam rather than a wait: reclaiming a rotated log file is
+	 * scheduled work, so a test that merely commits transactions and then looks at the directory is polling for
+	 * something it could instead ask for. Production code reaches the log through the fields that already hold it.
+	 *
+	 * @return the catalog's write-ahead log, or `null` when none exists yet
+	 */
+	@Nullable
+	public CatalogWriteAheadLog getCatalogWal() {
+		return this.catalogWal;
+	}
+
+	/**
 	 * Publishes the checkpoint a previous round deferred: writes the bootstrap record that round already built and
 	 * lets the write-ahead log know it may stop retaining everything up to it.
 	 *
@@ -3327,7 +4171,7 @@ public class DefaultCatalogPersistenceService
 			"A checkpoint is owed but no bootstrap record was prepared for it!"
 		);
 		final long catalogVersion = preparedBootstrap.catalogVersion();
-		this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.catalogName, preparedBootstrap);
+		this.bootstrapUsed = writeCatalogBootstrap(catalogVersion, this.storagePrefix, preparedBootstrap);
 		this.deferredCheckpointBootstrap = null;
 		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
 		if (theCatalogWal != null) {
@@ -3340,7 +4184,7 @@ public class DefaultCatalogPersistenceService
 	 * Records a bootstrap in the catalog.
 	 *
 	 * @param catalogVersion        the version of the catalog
-	 * @param newCatalogName        the name of the new catalog
+	 * @param storagePrefix        prefix the catalog's files are named with
 	 * @param catalogFileIndex      the index of the catalog file
 	 * @param dataStoreMemoryBuffer the data store memory buffer
 	 * @return the recorded CatalogBootstrap object
@@ -3348,12 +4192,12 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	CatalogBootstrap recordBootstrap(
 		long catalogVersion,
-		@Nonnull String newCatalogName,
+		@Nonnull String storagePrefix,
 		int catalogFileIndex,
 		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		return recordBootstrap(
-			catalogVersion, newCatalogName, catalogFileIndex, getNowEpochMillis(), dataStoreMemoryBuffer);
+			catalogVersion, storagePrefix, catalogFileIndex, getNowEpochMillis(), dataStoreMemoryBuffer);
 	}
 
 	/**
@@ -3364,7 +4208,7 @@ public class DefaultCatalogPersistenceService
 	 * lives in the former, so it has to run on the thread that wrote the storage parts being pointed at.
 	 *
 	 * @param catalogVersion        the version of the catalog
-	 * @param newCatalogName        the name of the new catalog
+	 * @param storagePrefix        prefix the catalog's files are named with
 	 * @param catalogFileIndex      the index of the catalog file
 	 * @param timestamp             the timestamp of the boot record
 	 * @param dataStoreMemoryBuffer the data store memory buffer
@@ -3373,16 +4217,16 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	CatalogBootstrap recordBootstrap(
 		long catalogVersion,
-		@Nonnull String newCatalogName,
+		@Nonnull String storagePrefix,
 		int catalogFileIndex,
 		long timestamp,
 		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		return writeCatalogBootstrap(
 			catalogVersion,
-			newCatalogName,
+			storagePrefix,
 			prepareBootstrap(
-				catalogVersion, newCatalogName, catalogFileIndex, timestamp, dataStoreMemoryBuffer)
+				catalogVersion, storagePrefix, catalogFileIndex, timestamp, dataStoreMemoryBuffer)
 		);
 	}
 
@@ -3396,7 +4240,7 @@ public class DefaultCatalogPersistenceService
 	 * naming `V` while addressing `V+1`. Deferring the *write* of the record is safe; deferring this is not.
 	 *
 	 * @param catalogVersion        the version of the catalog
-	 * @param newCatalogName        the name of the new catalog
+	 * @param storagePrefix        prefix the catalog's files are named with
 	 * @param catalogFileIndex      the index of the catalog file to build upon
 	 * @param timestamp             the timestamp of the boot record
 	 * @param dataStoreMemoryBuffer the data store memory buffer
@@ -3405,7 +4249,7 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private CatalogBootstrap prepareBootstrap(
 		long catalogVersion,
-		@Nonnull String newCatalogName,
+		@Nonnull String storagePrefix,
 		int catalogFileIndex,
 		long timestamp,
 		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
@@ -3435,7 +4279,7 @@ public class DefaultCatalogPersistenceService
 			);
 
 			final int newCatalogFileIndex = catalogFileIndex + 1;
-			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
+			final String compactedFileName = getCatalogDataStoreFileName(storagePrefix, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor;
 			try (
 				final FileOutputStream compactedFileStream = new FileOutputStream(
@@ -3505,9 +4349,9 @@ public class DefaultCatalogPersistenceService
 						catalogVersion, this.catalogPersistenceServiceVersions);
 				}
 
-				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
+				retireDataFile(
 					catalogVersion,
-					this.catalogStoragePath.resolve(getCatalogDataStoreFileName(newCatalogName, catalogFileIndex)),
+					this.catalogStoragePath.resolve(getCatalogDataStoreFileName(storagePrefix, catalogFileIndex)),
 					() -> removeCatalogPersistenceServiceForVersion(currentVersion)
 				);
 
@@ -3545,6 +4389,500 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Hands a data file over to {@link ObsoleteFileMaintainer} and schedules the time travel size guard.
+	 *
+	 * With time travel enabled the maintainer runs the removal lambda but skips the `delete()`, and that skipped delete
+	 * is the entire disk cost of the feature - which makes these call sites the only events that grow retained history
+	 * and therefore the only ones the guard needs to be driven by. No polling is needed.
+	 *
+	 * @param catalogVersion the last catalog version that may still use the file
+	 * @param path           path of the file being retired
+	 * @param removalLambda  lambda releasing the in-memory resources bound to the file
+	 */
+	private void retireDataFile(long catalogVersion, @Nonnull Path path, @Nonnull Runnable removalLambda) {
+		this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+		scheduleTimeTravelSizeGuard();
+	}
+
+	/**
+	 * Schedules the time travel size guard, unless it cannot bind at all (time travel off, or no limit configured).
+	 */
+	private void scheduleTimeTravelSizeGuard() {
+		final DelayedAsyncTask theGuardTask = this.timeTravelSizeGuardTask;
+		// `close()` closes the guard task but leaves the field set, and scheduling a closed task throws. `trySchedule`
+		// is what keeps a late arrival - a task cancelled after its catalog went away - from throwing out of a
+		// tear-down path that has no business failing, or out of the commit thread retiring a data file. Reading a
+		// `closed` flag here and then calling `schedule()` would not do it: the close can land between the two
+		if (theGuardTask != null) {
+			theGuardTask.trySchedule();
+		}
+	}
+
+	/**
+	 * Takes a hold on the catalog folder for a consumer that reads it **by listing the directory** rather than by
+	 * following a bootstrap record - today that is a full backup, and a point-in-time backup taken during warm-up.
+	 * While the returned lease is open no file is removed from the folder.
+	 *
+	 * A version pin cannot stand in for this. The reclamation that removes unreachable files is keyed on
+	 * *reachability*, and a folder walker reads files that no retained record reaches - so no value of the retention
+	 * floor describes what it needs. The two guards are deliberately separate: pins are taken by every session and
+	 * gating the folder on them stops reclamation for as long as anything is connected.
+	 *
+	 * The lease is idempotent and captures the maintainer it was taken on, so closing it twice, or after the catalog
+	 * has been replaced underneath it, is a no-op rather than a counter that drifts and never recovers.
+	 *
+	 * @return the lease, to be closed by the consumer that took it - ideally through try-with-resources
+	 */
+	@Nonnull
+	public CatalogDirectoryReadHold acquireDirectoryReadHold() {
+		final ObsoleteFileMaintainer maintainer = this.obsoleteFileMaintainer;
+		maintainer.acquireDirectoryReadHold();
+		return new CatalogDirectoryReadHold(maintainer, this::retentionStateChanged);
+	}
+
+	/**
+	 * Tells whether any consumer currently holds the catalog folder against reclamation.
+	 *
+	 * Exists for tests. A hold that leaks instead of being released has exactly one symptom - reclamation silently
+	 * never happening again for the rest of this service's life - and nothing else can observe it.
+	 *
+	 * @return true when at least one consumer is reading the folder
+	 */
+	boolean isCatalogDirectoryHeld() {
+		return this.obsoleteFileMaintainer.isCatalogDirectoryHeld();
+	}
+
+	/**
+	 * Lowers a requested history floor to the version below which nothing may be reclaimed - the oldest version any
+	 * live consumer still holds, be it an open session or a backup pinning a version in the past.
+	 *
+	 * This clamp is deliberately **independent of {@link StorageOptions#timeTravelEnabled()}**. It used to be reached
+	 * through the write-ahead log purge callback, which is `NO_OP` whenever time travel is off - and `NO_OP` inherits
+	 * an identity default, so in the default configuration the seam ran with no floor at all. That is not a
+	 * time-travel concern: {@link #trimBootstrapFile(long)} closes the persistence services below the floor in **both**
+	 * modes, and {@link #getStoragePartPersistenceService(long)} resolves a version to the closest service at or below
+	 * it - so a service closed under a reader takes that reader's reads down with it. The maintainer tracks the floor
+	 * regardless of the mode, so the clamp reads it directly and cannot be switched off by configuration.
+	 *
+	 * @param requestedFirstVersionToBeKept the first catalog version a driver would like to keep
+	 * @return the request, lowered to the retention floor when any consumer holds an older version
+	 */
+	private long clampToRetentionFloor(long requestedFirstVersionToBeKept) {
+		final long retentionFloor = this.obsoleteFileMaintainer.getRetentionFloor();
+		// a floor of zero is a real floor and must clamp - only the negative "nothing is held" report leaves
+		// the request alone. Version `0` is what a catalog goes live with and is perfectly pinnable
+		return retentionFloor >= 0L ?
+			Math.min(requestedFirstVersionToBeKept, retentionFloor) :
+			requestedFirstVersionToBeKept;
+	}
+
+	/**
+	 * Gives up, at open, history that no surviving write-ahead log file can ever replay.
+	 *
+	 * Rotation announces the horizon its deletions imply exactly once and then forgets it - it deletes the files
+	 * *before* deriving the floor from them, so nothing can regenerate the announcement afterwards. A request refused
+	 * by a backup's pin is parked in {@link #pendingHistoryHorizonRequest} to be retried on release, and that park is
+	 * in memory only: a shutdown or a crash in between drops it, and everything below it stays retained for the life
+	 * of the catalog although no reader could reach it through replay. On an idle catalog with an unlimited budget
+	 * nothing else ever revisits the question.
+	 *
+	 * Deriving the same floor from the files that are actually on disk makes the announcement recoverable rather than
+	 * one-shot, and covers the crash case that no amount of orderly shutdown draining can. The value is identical to
+	 * the one rotation would have reported - see {@link AbstractMutationLog#getFirstReplayableVersion()} - so this can
+	 * never give up more than the running system already would, and it still passes through
+	 * {@link #advanceHistoryHorizon(long)}, which clamps to the retention floor: a backup that pinned the oldest
+	 * retained version moments after open is not undercut by it.
+	 *
+	 * A catalog with no log at all - one that never went live - has nothing to reconcile against and keeps everything
+	 * it has.
+	 */
+	void reconcileHistoryHorizonWithWal() {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
+			return;
+		}
+		final long firstReplayableVersion = theCatalogWal.getFirstReplayableVersion();
+		if (firstReplayableVersion > -1L) {
+			advanceHistoryHorizon(firstReplayableVersion);
+		}
+	}
+
+	/**
+	 * The single seam through which a lowered retention floor is acted upon. Every event that can lower the floor -
+	 * a pin released, the last reader of a version leaving - routes through here.
+	 *
+	 * It exists because the two things that have to happen are easy to wire to only one of those events. Draining the
+	 * owed request matters most for the write-ahead log driver: {@link AbstractMutationLog#removeWalFiles()} deletes
+	 * its files *before* reporting the floor they imply and then forgets them, so a request the floor refused is never
+	 * made again by anyone, and the bootstrap records pointing at those deleted log files would be retained for the
+	 * rest of the catalog's life. The budget driver needs no such thing - it re-derives its horizon on every run - but
+	 * it does need waking, because a floor that just dropped may have been the only reason it deferred.
+	 */
+	private void retentionStateChanged() {
+		if (this.closed) {
+			// a consumer can outlive the service: catalogs are closed before the scheduler cancels the tasks queued
+			// against them, so a backup's tear-down - releasing its pin, closing its folder hold - lands here after
+			// everything it would drive is already shut. Both halves below are actively harmful then, not merely
+			// pointless: the guard task throws when scheduled after close, and draining an owed request would run
+			// `trimBootstrapFile` on a closed service, rewriting the bootstrap file after shutdown and leaving behind
+			// a write handle nothing will ever close. There is nothing to settle either - a closed service has given
+			// up its whole history already
+			return;
+		}
+		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
+		if (owedRequest > -1L) {
+			try {
+				// if a lower pin still holds it back, `advanceHistoryHorizon` simply records it again - this converges
+				// rather than losing the request on the first release that happens not to be the blocking one
+				advanceHistoryHorizon(owedRequest);
+			} catch (RuntimeException ex) {
+				// The debt was taken out of the field *before* the attempt, and `advanceHistoryHorizon` only puts it
+				// back when the retention floor refuses it - a trim that failed on transient I/O would drop it for
+				// good, and nobody ever asks again: the write-ahead log driver deletes its files before reporting the
+				// floor they imply and then forgets them
+				this.pendingHistoryHorizonRequest.accumulateAndGet(owedRequest, Math::max);
+				// and it must not propagate either. Every caller is a notification - a session closing, a pin being
+				// released, a folder hold being given back - and the session-close path in particular reports the
+				// consumer's departure *after* this returns, so a throw here would leave the reader floor believing
+				// that session is still there for the rest of the catalog's life
+				log.warn(
+					"Failed to give up catalog `{}` history up to version {} - the request stays recorded and will " +
+						"be retried on the next event that lowers the retention floor: {}",
+					this.catalogName, owedRequest, ex.getMessage(), ex
+				);
+			}
+		}
+		scheduleTimeTravelSizeGuard();
+	}
+
+	/**
+	 * The single seam through which catalog history is given up. Trims the bootstrap file down to the requested
+	 * version and reclaims every data file that no retained record can reach any more.
+	 *
+	 * Two independent drivers call this and neither knows about the other: write-ahead log retention, which reports
+	 * the first version its files can still supply, and the {@link StorageOptions#timeTravelSizeLimitBytes()} guard,
+	 * which reports the oldest generation that fits the disk budget. Whichever floor is higher wins, which is what the
+	 * monotone {@link #historyHorizon} expresses - a request derived from a stale view must never walk the horizon
+	 * back over files the other driver already deleted. Both are additionally clamped by the active-reader floor, so
+	 * neither can pull data out from under a session that is still reading it.
+	 *
+	 * The two steps only make sense together and under one lock: the purge does not take the version as its threshold,
+	 * it re-derives the threshold from the oldest record left in the freshly trimmed bootstrap file.
+	 *
+	 * @param requestedFirstVersionToBeKept the first catalog version whose history should still be reachable
+	 */
+	void advanceHistoryHorizon(long requestedFirstVersionToBeKept) {
+		if (requestedFirstVersionToBeKept <= this.historyHorizon.get()) {
+			// the horizon already sits at or above the raw request - clamping it to the retention floor can only lower
+			// it further, so there is nothing left below it to reclaim and no reason to sample the floor at all
+			return;
+		}
+		this.historyHorizonLock.lock();
+		try {
+			for (int attempt = 0; attempt < MAX_HORIZON_ADVANCE_ATTEMPTS; attempt++) {
+				if (this.closed) {
+					// read under the same lock `close()` sets it under, so this is a decision and not a guess: past
+					// this point the service may be torn down at any moment, and a trim would rewrite the bootstrap
+					// file of a catalog that is gone and leave a write handle behind that nothing will close
+					return;
+				}
+				// the floor is sampled under the lock, never before it: `catalogVersionPinned` takes this same lock,
+				// so a pin this sample does not observe cannot have been taken yet, and one taken afterwards blocks
+				// here and then finds the horizon already moved. Sampling before the lock leaves exactly the window a
+				// point-in-time backup falls into - it pins the version it resolved, the sample taken moments earlier
+				// never sees the pin, and this call deletes the files the backup is about to read
+				final long effectiveVersionToBeKept = clampToRetentionFloor(requestedFirstVersionToBeKept);
+				// whatever the floor refused is still owed, whether this call made partial progress or none at all.
+				// Recording it only on the no-progress path loses every partially clamped request: with the horizon at
+				// 10, a pin at 20 and a request for 50, the horizon moves to 20 and the last 30 are never asked again
+				if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
+					this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
+				}
+				// the competing driver may have moved past us while we were waiting for it
+				if (effectiveVersionToBeKept > this.historyHorizon.get()) {
+					// first trim the bootstrap records, then reclaim the files the remaining records cannot reach
+					trimBootstrapFile(effectiveVersionToBeKept);
+					this.walPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
+					// the marker is set only once both steps have succeeded. Setting it first would make a failed trim
+					// permanent: the retry arrives with the same version, the monotonicity check above swallows it,
+					// and the bootstrap file stays untrimmed for the rest of the catalog's life
+					this.historyHorizon.set(effectiveVersionToBeKept);
+				}
+				if (effectiveVersionToBeKept >= requestedFirstVersionToBeKept) {
+					// nothing was refused, so there is no debt for anybody to come back and drain
+					return;
+				}
+				// The recorded debt is drained by whoever lowers the floor next - but that release may already have
+				// run its drain, in the window between this call sampling the floor and recording the refusal. It
+				// found nothing owed, returned, and is not coming back: the blocker is gone and the debt is nobody's.
+				// Re-sampling the floor here, still under the lock, is what closes that window - the release either
+				// happened before this sample (and the sample sees it) or after the record (and its drain sees that)
+				if (clampToRetentionFloor(requestedFirstVersionToBeKept) <= effectiveVersionToBeKept) {
+					// still clamped by a live consumer, whose departure will drain the request recorded above
+					return;
+				}
+			}
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+	}
+
+	/**
+	 * Creates the task that reclaims unreachable data files and keeps retained history within
+	 * {@link StorageOptions#timeTravelSizeLimitBytes()}, or returns `null` when time travel is switched off entirely.
+	 * Compaction is the only event that grows history - with time travel enabled the compacted-away file is kept
+	 * instead of deleted - so the task is driven by compaction rather than polled.
+	 *
+	 * The task binds whenever time travel is on, including when the operator asked for an unlimited budget: the budget
+	 * is only half of what it does. Reclaiming files no retained bootstrap record can reach is a correctness property
+	 * of time travel rather than a budget feature, and it is needed most precisely where history is unlimited.
+	 *
+	 * @param catalogName     name of the catalog the task belongs to
+	 * @param storageSettings settings deciding whether the task can bind at all
+	 * @param scheduler       scheduler the task is planned on
+	 * @return the guard task, or `null` when time travel is off
+	 */
+	@Nullable
+	private DelayedAsyncTask createTimeTravelSizeGuardTask(
+		@Nonnull String catalogName,
+		@Nonnull StorageSettings storageSettings,
+		@Nonnull Scheduler scheduler
+	) {
+		if (!storageSettings.timeTravelEnabled()) {
+			return null;
+		}
+		return new DelayedAsyncTask(
+			catalogName, "Time travel size guard",
+			scheduler,
+			this::enforceTimeTravelSizeLimit,
+			0L, TimeUnit.MILLISECONDS
+		);
+	}
+
+	/**
+	 * Moves the history horizon up until the retained history fits into
+	 * {@link StorageOptions#timeTravelSizeLimitBytes()}. Runs off the commit thread on the guard task.
+	 *
+	 * Costs one directory listing (where `File.length()` is a stat, not a read) plus `O(log n)` catalog header reads,
+	 * because the retained size is monotone non-increasing in the horizon - see {@link TimeTravelRetention}.
+	 *
+	 * Package-private so a test can run it synchronously instead of racing the scheduler.
+	 *
+	 * @return always `-1`, the guard is scheduled by compaction and never re-plans itself
+	 */
+	long enforceTimeTravelSizeLimit() {
+		// held across the measurement too, not just the advance: the bootstrap file is read record by record here and
+		// the competing driver replaces that very file when it trims, which on platforms without POSIX rename
+		// semantics cannot happen while a reader holds it open
+		this.historyHorizonLock.lock();
+		try {
+			if (this.closed) {
+				// closing the guard task is `cancel(false)`, so a run that had already started keeps going right
+				// through the shutdown. `close()` flips the flag under this very lock, which is what lets this read
+				// stand for the whole run rather than for the instant it was taken - everything below either happens
+				// entirely before the teardown, or not at all
+				return -1L;
+			}
+			final long limitBytes = this.storageSettings.timeTravelSizeLimitBytes();
+			// Files below what the oldest retained record pins are not history - no bootstrap record can reach them,
+			// so no budget can justify keeping them. Reclaim them unconditionally, before measuring anything.
+			// This is the only thing that ever reclaims a warm-up catalog's leftovers: warm-up rewrites the bootstrap
+			// file down to a single record on every flush (see `getOrCreateNewBootstrapTempWriteHandle`), so a bulk
+			// import compacting repeatedly with time travel on leaves every superseded data file stranded, and the
+			// write-ahead log purge that would normally sweep them never runs because warm-up has no log.
+			this.obsoleteFileMaintainer.reclaimUnreachableFiles();
+
+			if (limitBytes < 0L) {
+				// the operator asked for unlimited history - the sweep above still had to run, but nothing beyond it
+				// applies: no budget means no horizon to compute and no reason to read a single bootstrap record
+				return -1L;
+			}
+
+			final Path bootstrapFilePath = this.catalogStoragePath.resolve(
+				getCatalogBootstrapFileName(this.storagePrefix));
+			final int recordCount = CatalogBootstrap.getRecordCount(bootstrapFilePath.toFile().length());
+			if (recordCount < 2) {
+				// a single record pins the active data set only - there is no history left to give up
+				return -1L;
+			}
+
+			final DataFileInventory inventory = scanDataFileInventory();
+			final HorizonDecision decision;
+			final long horizonCatalogVersion;
+			try (
+				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
+					bootstrapFilePath, this.bootstrapStorageSettings, this.bootstrapStorageSettings
+				)
+			) {
+				decision = TimeTravelRetention.resolveHorizon(
+					recordCount,
+					recordIndex -> resolveGenerationPin(recordIndex, readHandle),
+					inventory,
+					limitBytes
+				);
+				horizonCatalogVersion = decision.recordIndex() == 0 ?
+					-1L :
+					deserializeCatalogBootstrapRecord(
+						CatalogBootstrap.getPositionForRecord(decision.recordIndex()), readHandle
+					).catalogVersion();
+			}
+
+			if (horizonCatalogVersion > -1L) {
+				// an active reader still holding an older version outranks the budget - give it up for this round and
+				// let the next compaction try again, rather than pulling data out from under a running session
+				if (clampToRetentionFloor(horizonCatalogVersion) < horizonCatalogVersion) {
+					log.info(
+						"Retained history of catalog `{}` exceeds `timeTravelSizeLimitBytes` ({} > {} bytes) but an " +
+							"active reader still needs it - deferring until the reader leaves.",
+						this.catalogName, decision.historyBytesBeforeAdvance(), limitBytes
+					);
+					return -1L;
+				}
+				log.info(
+					"Retained history of catalog `{}` exceeded `timeTravelSizeLimitBytes` ({} > {} bytes) - " +
+						"advancing the history horizon to catalog version `{}`, which leaves {} bytes of history.",
+					this.catalogName, decision.historyBytesBeforeAdvance(), limitBytes,
+					horizonCatalogVersion, decision.retainedHistoryBytes()
+				);
+				advanceHistoryHorizon(horizonCatalogVersion);
+				// reported only once the horizon has actually moved - a round deferred by an active reader gave up
+				// nothing, and saying otherwise would send an operator looking for history that is still there
+				if (decision.historyCollapsedToNothing()) {
+					log.warn(
+						"Time travel history of catalog `{}` had to be given up entirely: keeping even the oldest " +
+							"generation would cost more than the configured `timeTravelSizeLimitBytes` of {} bytes. " +
+							"Raise the limit above the size of a single generation, or accept that time travel is " +
+							"effectively disabled for this catalog.",
+						this.catalogName, limitBytes
+					);
+				}
+			}
+		} catch (Exception ex) {
+			// the guard is advisory - a failure must never take down the thread that scheduled it, and the next
+			// compaction will schedule it again anyway
+			log.warn(
+				"Failed to enforce the time travel size limit for catalog `{}`: {}",
+				this.catalogName, ex.getMessage(), ex
+			);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+		return -1L;
+	}
+
+	/**
+	 * Resolves the generation pinned by the bootstrap record at the given index - the tuple of data files that all have
+	 * to be present for that record to be readable.
+	 *
+	 * @param recordIndex         index of the record in the bootstrap file
+	 * @param bootstrapReadHandle open read handle over the bootstrap file
+	 * @return the pinned generation
+	 */
+	@Nonnull
+	private GenerationPin resolveGenerationPin(int recordIndex, @Nonnull ReadOnlyFileHandle bootstrapReadHandle) {
+		final CatalogBootstrap bootstrapRecord = deserializeCatalogBootstrapRecord(
+			CatalogBootstrap.getPositionForRecord(recordIndex), bootstrapReadHandle
+		);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = fetchCatalogHeader(
+			bootstrapRecord);
+		final Collection<CollectionFileReference> fileIndexes = catalogHeader.getEntityTypeFileIndexes();
+		final Map<Integer, Integer> pinnedFileIndexes = CollectionUtils.createHashMap(fileIndexes.size());
+		for (CollectionFileReference fileIndex : fileIndexes) {
+			pinnedFileIndexes.put(fileIndex.entityTypePrimaryKey(), fileIndex.fileIndex());
+		}
+		return new GenerationPin(
+			bootstrapRecord.catalogFileIndex(),
+			pinnedFileIndexes,
+			catalogHeader.lastEntityCollectionPrimaryKey()
+		);
+	}
+
+	/**
+	 * Measures how much disk the retained history occupies on top of the active data set - the quantity
+	 * {@link StorageOptions#timeTravelSizeLimitBytes()} bounds, reported as a gauge on
+	 * {@link CatalogStatisticsEvent}.
+	 *
+	 * Costs one directory listing plus two catalog header reads, next to the full-tree walk the same event already
+	 * performs for its occupied-disk-space gauge.
+	 *
+	 * Package-private so a test can measure without going through a statistics event.
+	 *
+	 * @return retained history in bytes; `0` when time travel is off, when no history exists, or when the measurement
+	 * itself failed - a statistics event must never be the thing that breaks
+	 */
+	long computeRetainedHistoryBytes() {
+		if (!this.storageSettings.timeTravelEnabled()) {
+			return 0L;
+		}
+		// the same lock the guard holds across its own measurement, and for the same reason it states there: this
+		// opens a read handle on the bootstrap file, which the trim replaces atomically - and on platforms without
+		// POSIX rename semantics a reader holding it open is what makes that replacement fail. A gauge must not be
+		// able to break the driver it observes
+		this.historyHorizonLock.lock();
+		try {
+			final Path bootstrapFilePath = this.catalogStoragePath.resolve(
+				getCatalogBootstrapFileName(this.storagePrefix));
+			final int recordCount = CatalogBootstrap.getRecordCount(bootstrapFilePath.toFile().length());
+			if (recordCount < 2) {
+				return 0L;
+			}
+			final DataFileInventory inventory = scanDataFileInventory();
+			try (
+				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
+					bootstrapFilePath, this.bootstrapStorageSettings, this.bootstrapStorageSettings
+				)
+			) {
+				final long activeBytes = TimeTravelRetention.retainedBytes(
+					inventory, resolveGenerationPin(recordCount - 1, readHandle));
+				return TimeTravelRetention.retainedBytes(
+					inventory, resolveGenerationPin(0, readHandle)) - activeBytes;
+			}
+		} catch (Exception ex) {
+			log.warn(
+				"Failed to measure the retained history of catalog `{}`: {}",
+				this.catalogName, ex.getMessage()
+			);
+			return 0L;
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+	}
+
+	/**
+	 * Lists the data files present in the catalog folder together with their sizes. Neither the write-ahead log nor the
+	 * bootstrap file is included - the size limit constrains historical data files, while the WAL keeps its own
+	 * independent retention bound.
+	 *
+	 * @return the inventory of data files on disk
+	 */
+	@Nonnull
+	private DataFileInventory scanDataFileInventory() {
+		final File catalogStorageFolder = this.catalogStoragePath.toFile();
+		final File[] catalogFiles = ofNullable(
+			catalogStorageFolder.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+		).orElse(new File[0]);
+		final File[] collectionFiles = ofNullable(
+			catalogStorageFolder.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
+		).orElse(new File[0]);
+
+		final CatalogDataFile[] catalogDataFiles = new CatalogDataFile[catalogFiles.length];
+		for (int i = 0; i < catalogFiles.length; i++) {
+			final File file = catalogFiles[i];
+			catalogDataFiles[i] = new CatalogDataFile(
+				getIndexFromCatalogFileName(file.getName()), file.length());
+		}
+		final EntityCollectionDataFile[] collectionDataFiles = new EntityCollectionDataFile[collectionFiles.length];
+		for (int i = 0; i < collectionFiles.length; i++) {
+			final File file = collectionFiles[i];
+			final EntityTypePrimaryKeyAndFileIndex parsedName = CatalogPersistenceService
+				.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
+			collectionDataFiles[i] = new EntityCollectionDataFile(
+				parsedName.entityTypePrimaryKey(), parsedName.fileIndex(), file.length());
+		}
+		return new DataFileInventory(catalogDataFiles, collectionDataFiles);
+	}
+
+	/**
 	 * Trims the bootstrap file so that it contains only records starting with the bootstrap record precedes the given
 	 * timestamp and all the records following it.
 	 *
@@ -3561,7 +4899,7 @@ public class DefaultCatalogPersistenceService
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
 			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-			final BootstrapWriteOnlyFileHandle newBootstrapHandle = createBootstrapTempWriteHandle(this.catalogName);
+			final BootstrapWriteOnlyFileHandle newBootstrapHandle = createBootstrapTempWriteHandle(this.storagePrefix);
 
 			// copy all bootstrap records since the timestamp to the new file
 			copyAllNecessaryBootstrapRecords(
@@ -3582,13 +4920,13 @@ public class DefaultCatalogPersistenceService
 				() -> new GenericEvitaInternalError(
 					"Failed to replace the bootstrap write handle in a critical section!")
 			);
-			// remove old persistence storages
-			final InsertionPosition position = ArrayUtils.computeInsertPositionOfLongInOrderedArray(
-				catalogVersion, this.catalogPersistenceServiceVersions);
-			if (position.alreadyPresent()) {
-				for (int i = 0; i < position.position(); i++) {
-					removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
-				}
+			// remove the persistence services of every generation that just fell below the retained history
+			final int obsoleteServiceCount = countObsoletePersistenceServices(
+				ArrayUtils.computeInsertPositionOfLongInOrderedArray(
+					catalogVersion, this.catalogPersistenceServiceVersions)
+			);
+			for (int i = 0; i < obsoleteServiceCount; i++) {
+				removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -3605,57 +4943,117 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Resolves the first catalog version of the specified CatalogBootstrap instance.
+	 * Resolves the version at which the materialized block of the given bootstrap record starts. Used only for
+	 * the **oldest** retained record, which has no predecessor to derive the block start from: its block reaches back
+	 * as far as the write-ahead log can still supply, which is the first version present in the WAL file that record's
+	 * catalog header points at.
 	 *
-	 * @param catalogBootstrap the CatalogBootstrap instance for which the first catalog version is to be resolved.
-	 * @return the first catalog version corresponding to the provided CatalogBootstrap instance or -1 if the WAL is not available.
+	 * The WAL file index must come from the header's {@link CatalogHeader#walFileReference()}. It is emphatically
+	 * **not** {@link CatalogBootstrap#catalogFileIndex()} - that counter is bumped by data file compaction while the
+	 * WAL index is bumped by log rotation, so the two diverge as soon as either happens on its own. Feeding the
+	 * catalog file index to the WAL made this resolve a foreign file's first version, or `-1` when no WAL file
+	 * carried that index at all - and the `-1` propagated into {@link MaterializedVersionBlock#startVersion()}.
+	 *
+	 * @param catalogBootstrap the bootstrap record whose block start version is to be resolved.
+	 * @return the first version covered by the record's block; never lower than the first version the WAL can supply
+	 * and never higher than the record's own version.
 	 */
-	private long resolveFirstCatalogVersionOfCatalogBootstrap(@Nonnull CatalogBootstrap catalogBootstrap) {
+	private long resolveBlockStartVersionOf(@Nonnull CatalogBootstrap catalogBootstrap) {
 		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
 		if (theCatalogWal == null) {
-			return -1L;
-		} else {
-			return theCatalogWal.getFirstVersionOf(catalogBootstrap.catalogFileIndex());
+			return catalogBootstrap.catalogVersion();
 		}
+		final LogFileRecordReference walFileReference;
+		try {
+			walFileReference = fetchCatalogHeader(catalogBootstrap).walFileReference();
+		} catch (Exception ex) {
+			// the data file this record points at is unreadable - fall back to the record's own version rather than
+			// reporting a block that starts nowhere
+			log.warn(
+				"Failed to read catalog header of bootstrap record for version `{}` of catalog `{}`: {}",
+				catalogBootstrap.catalogVersion(), this.catalogName, ex.getMessage()
+			);
+			return catalogBootstrap.catalogVersion();
+		}
+		if (walFileReference == null) {
+			return catalogBootstrap.catalogVersion();
+		}
+		final long firstVersionInWalFile = theCatalogWal.getFirstVersionOf(walFileReference.fileIndex());
+		return firstVersionInWalFile < 0L ?
+			catalogBootstrap.catalogVersion() :
+			Math.min(catalogBootstrap.catalogVersion(), firstVersionInWalFile);
 	}
 
 	/**
-	 * Verifies that the catalog name (derived from catalog directory) matches the catalog schema stored in the catalog
-	 * file.
+	 * Makes the identity stored inside the folder agree with the identity the catalog is being loaded under.
+	 *
+	 * Three independent reconciliations, the first two deliberately in one place because both rewrite the same
+	 * header:
+	 *
+	 * **The name.** The engine state is the sole authority on which catalog a folder holds, so this reconciles
+	 * in one direction only: whatever the header says is overwritten. Historically the incoming name was itself
+	 * derived from the folder's name, which made a disagreement evidence of a mistake worth refusing the load
+	 * over; now that a folder is bound to a catalog by an opaque token, a header naming a different catalog is
+	 * the ordinary trace of a rename or replace whose post-commit header rewrite did not land, and refusing
+	 * would report a perfectly loadable catalog as corrupted.
+	 *
+	 * **The id.** A catalog materialised from copied bytes — a restore or a duplicate — is a *new lineage*: its
+	 * version stream diverges from the source's at the moment of the copy, so a client cache keyed on the
+	 * source's `catalogId` is already stale with respect to it. Carrying the id across is therefore not merely
+	 * ambiguous but wrong, and it is what makes a duplicate indistinguishable from its source by the very field
+	 * clients use to decide whether their cached view still holds. The two copying paths are exactly the two
+	 * writers of the restore flag, which is why that flag drives this.
+	 *
+	 * Minting is **not** tied to the name changing, and the distinction is load-bearing: a rename must preserve
+	 * the id, and it is a rename that most often lands here with a differing name.
+	 *
+	 * The rewrite covers the header, the catalog schema (including its naming variants, only when the name
+	 * actually changed) and a fresh bootstrap record; it is deliberately not written to the WAL, since it
+	 * reconciles state that predates the load.
+	 *
+	 * **The label.** The `.catalogname` marker is reconciled *outside* that guard, and the placement is
+	 * load-bearing rather than tidy: the header is rewritten during a rename's **work** phase, so after a crash in
+	 * the commit window it already carries the new name while the label — written after the commit — does not.
+	 * Testing `nameDiffers` would therefore skip the one case the repair exists for. It converges **on load**: a
+	 * catalog nobody opens keeps a stale label until something does open it, which is the same bound as everything
+	 * else on this path and is accepted rather than chased.
 	 *
 	 * @param catalogInstance               the catalog contract instance
 	 * @param catalogVersion                the version of the catalog
-	 * @param catalogStoragePath            the path to the catalog storage directory
 	 * @param storagePartPersistenceService the storage part persistence service
-	 * @param onDifferentCatalogName        the action to take when catalog names differ
 	 * @param bootstrapUsed                 the bootstrap used to load the catalog
+	 * @param freshCatalogIdRequired        true when the folder's contents were copied from another catalog
 	 */
-	private void verifyCatalogNameMatches(
+	private void reconcileStoredCatalogIdentity(
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
-		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> storagePartPersistenceService,
-		@Nonnull OnDifferentCatalogName onDifferentCatalogName,
-		@Nonnull CatalogBootstrap bootstrapUsed
+		@Nonnull CatalogBootstrap bootstrapUsed,
+		boolean freshCatalogIdRequired
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
-		final boolean catalogNameIsSame = catalogHeader.catalogName().equals(this.catalogName);
-		if (onDifferentCatalogName.equals(OnDifferentCatalogName.THROW_EXCEPTION)) {
-			Assert.isTrue(
-				catalogNameIsSame,
-				() -> new UnexpectedCatalogContentsException(
-					"Directory " + catalogStoragePath + " contains data of " + catalogHeader.catalogName() +
-						" catalog. Cannot load catalog " + this.catalogName + " from this directory!"
-				)
-			);
-		} else if (!catalogNameIsSame) {
+		final boolean nameDiffers = !catalogHeader.catalogName().equals(this.catalogName);
+		if (nameDiffers || freshCatalogIdRequired) {
+			if (nameDiffers) {
+				log.info(
+					"Folder `{}` stores catalog `{}` but the engine binds it to `{}` — adapting the stored name.",
+					this.catalogStoragePath, catalogHeader.catalogName(), this.catalogName
+				);
+			}
+			final UUID catalogId = freshCatalogIdRequired ? UUID.randomUUID() : catalogHeader.catalogId();
+			if (freshCatalogIdRequired) {
+				log.info(
+					"Catalog `{}` was materialised from copied bytes — minting a fresh catalog id `{}` so it is " +
+						"not mistaken for the catalog it was copied from.", this.catalogName, catalogId
+				);
+			}
 			// update name in the catalog header
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
-				catalogStoragePath,
+				this.catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
 					.map(it -> new LogFileRecordReference(
 						this.walFileNameProvider, it.fileIndex(), it.fileLocation(),
@@ -3663,38 +5061,41 @@ public class DefaultCatalogPersistenceService
 					))
 					.orElse(null),
 				catalogHeader.collectionFileIndex(),
-				catalogHeader.catalogId(),
+				catalogId,
 				this.catalogName,
 				catalogHeader.catalogState(),
 				catalogHeader.lastEntityCollectionPrimaryKey()
 			);
 
-			// update name in the catalog schema
-			final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
-				catalogInstance,
-				() -> storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class)
-			);
-			final CatalogSchema catalogSchema = catalogSchemaStoragePart.catalogSchema();
+			// update name in the catalog schema - only when it actually changed, since rewriting it bumps the
+			// schema version and a restore under the catalog's own name has nothing to reword
+			if (nameDiffers) {
+				final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
+					catalogInstance,
+					() -> storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class)
+				);
+				final CatalogSchema catalogSchema = catalogSchemaStoragePart.catalogSchema();
 
-			// this will not be recorded in the WAL, but it's ok since this is the first time the catalog is loaded
-			final CatalogSchema updateCatalogSchema = CatalogSchema._internalBuild(
-				catalogSchema.version() + 1,
-				this.catalogName,
-				NamingConvention.generate(this.catalogName),
-				catalogSchema.getDescription(),
-				null,
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes(),
-				MutationEntitySchemaAccessor.INSTANCE
-			);
-			storagePartPersistenceService.putStoragePart(
-				catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
-			);
+				// this will not be recorded in the WAL, but it's ok since this is the first time the catalog is loaded
+				final CatalogSchema updateCatalogSchema = CatalogSchema._internalBuild(
+					catalogSchema.version() + 1,
+					this.catalogName,
+					NamingConvention.generate(this.catalogName),
+					catalogSchema.getDescription(),
+					null,
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes(),
+					MutationEntitySchemaAccessor.INSTANCE
+				);
+				storagePartPersistenceService.putStoragePart(
+					catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
+				);
+			}
 
 			final PersistentStorageDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 
 			writeCatalogBootstrap(
-				catalogVersion, this.catalogName,
+				catalogVersion, this.storagePrefix,
 				new CatalogBootstrap(
 					catalogVersion,
 					bootstrapUsed.catalogFileIndex(),
@@ -3703,11 +5104,20 @@ public class DefaultCatalogPersistenceService
 				)
 			);
 		}
+
+		// Deliberately unconditional - see the JavaDoc: the header can already be right while the label is still
+		// naming the folder's previous occupant, which is precisely the state a crash in the commit window leaves.
+		// The call reads before it writes, so a folder whose label already agrees costs one small read.
+		CatalogFolderAllocator.reconcileCatalogNameMarker(this.catalogStoragePath, this.catalogName);
 	}
 
 	/**
-	 * Verifies that the catalog name (derived from catalog directory) matches the catalog schema stored in the catalog
-	 * file.
+	 * Asserts that the folder this service has just re-opened really does store the catalog it was handed.
+	 *
+	 * Unlike {@link #reconcileStoredCatalogIdentity} this refuses rather than adapts, and deliberately so: its
+	 * only caller is the constructor that follows `replaceWith`, which wrote the new name into the header
+	 * moments earlier in this same process. A disagreement here is not a stale header but a broken invariant,
+	 * and adapting would paper over it.
 	 *
 	 * @param catalogVersion                the version of the catalog
 	 * @param catalogStoragePath            the path to the catalog storage directory
@@ -3737,14 +5147,14 @@ public class DefaultCatalogPersistenceService
 	 * {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)} instead.
 	 *
 	 * @param catalogVersion  the version of the catalog
-	 * @param newCatalogName  the name of the catalog
+	 * @param storagePrefix  prefix the catalog's files are named with
 	 * @param bootstrapRecord the bootstrap record to store
 	 * @return the stored CatalogBootstrap object
 	 */
 	@Nonnull
 	private CatalogBootstrap writeCatalogBootstrap(
 		long catalogVersion,
-		@Nonnull String newCatalogName,
+		@Nonnull String storagePrefix,
 		@Nonnull CatalogBootstrap bootstrapRecord
 	) {
 		final Kryo kryo = this.walKryoPool.obtain();
@@ -3759,7 +5169,7 @@ public class DefaultCatalogPersistenceService
 			}
 			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
 			final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
-				catalogVersion, newCatalogName, originalBootstrapHandle
+				catalogVersion, storagePrefix, originalBootstrapHandle
 			);
 
 			// append to the existing file (we will compact it when the WAL files are purged)
@@ -3789,6 +5199,14 @@ public class DefaultCatalogPersistenceService
 				);
 			}
 
+			// A retired generation only becomes history once the record that supersedes it is published, and that
+			// publication may be deferred long after the compaction that scheduled the guard from `retireDataFile`.
+			// Until then the newest published record still pins the retired file, so the guard counts it as active
+			// and sees no new history at all. Scheduling here - at the one point every bootstrap record passes
+			// through, deferred checkpoints included - is what makes the budget observe the generation that
+			// scheduling on retirement alone would skip.
+			scheduleTimeTravelSizeGuard();
+
 			return bootstrapRecord;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -3800,7 +5218,7 @@ public class DefaultCatalogPersistenceService
 		} finally {
 			this.bootstrapWriteLock.unlock();
 			this.walKryoPool.free(kryo);
-			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, this.catalogStoragePath);
+			log.debug("Catalog `{}` stored to `{}`.", storagePrefix, this.catalogStoragePath);
 		}
 	}
 
@@ -3967,7 +5385,7 @@ public class DefaultCatalogPersistenceService
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogHeader.version());
 		this.bootstrapUsed = writeCatalogBootstrap(
 			catalogHeader.version(),
-			catalogHeader.catalogName(),
+			this.storagePrefix,
 			new CatalogBootstrap(
 				catalogHeader.version(),
 				this.bootstrapUsed.catalogFileIndex(),
@@ -4049,7 +5467,7 @@ public class DefaultCatalogPersistenceService
 	 * a new file handle is created and returned. Otherwise, the original bootstrap handle is returned.
 	 *
 	 * @param catalogVersion          The version of the catalog.
-	 * @param newCatalogName          The name of the new catalog.
+	 * @param storagePrefix          prefix the catalog's files are named with
 	 * @param originalBootstrapHandle The original bootstrap handle.
 	 * @return The write handle for catalog persistence.
 	 * @throws UnexpectedIOException If an error occurs while creating the temporary bootstrap file.
@@ -4057,11 +5475,11 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private BootstrapWriteOnlyFileHandle getOrCreateNewBootstrapTempWriteHandle(
 		long catalogVersion,
-		@Nonnull String newCatalogName,
+		@Nonnull String storagePrefix,
 		@Nonnull BootstrapWriteOnlyFileHandle originalBootstrapHandle
 	) {
 		if (catalogVersion == 0) {
-			return createBootstrapTempWriteHandle(newCatalogName);
+			return createBootstrapTempWriteHandle(storagePrefix);
 		} else {
 			return originalBootstrapHandle;
 		}
@@ -4089,16 +5507,16 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Creates a new temporary file handle for writing bootstrap data.
 	 *
-	 * @param newCatalogName the name of the new catalog
+	 * @param storagePrefix prefix the catalog's files are named with
 	 * @return a WriteOnlyFileHandle object representing the new temporary file
 	 * @throws UnexpectedIOException if an error occurs while creating the temporary file
 	 */
 	@Nonnull
-	private BootstrapWriteOnlyFileHandle createBootstrapTempWriteHandle(@Nonnull String newCatalogName) {
+	private BootstrapWriteOnlyFileHandle createBootstrapTempWriteHandle(@Nonnull String storagePrefix) {
 		try {
 			// create new file and replace the former one with it
 			return new BootstrapWriteOnlyFileHandle(
-				Files.createTempFile(CatalogPersistenceService.getCatalogBootstrapFileName(newCatalogName), ".tmp"),
+				Files.createTempFile(CatalogPersistenceService.getCatalogBootstrapFileName(storagePrefix), ".tmp"),
 				this.bootstrapStorageSettings.outputBufferSize(),
 				this.bootstrapStorageSettings.syncWrites(),
 				this.bootstrapStorageSettings.lockTimeoutSeconds(),
@@ -4106,7 +5524,7 @@ public class DefaultCatalogPersistenceService
 			);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
-				"Failed to create temporary bootstrap file for catalog `" + newCatalogName + "`!",
+				"Failed to create temporary bootstrap file for catalog `" + storagePrefix + "`!",
 				"Failed to create temporary bootstrap file!",
 				e
 			);
@@ -4189,6 +5607,7 @@ public class DefaultCatalogPersistenceService
 		for (long catalogVersion : catalogVersions) {
 			final CatalogBootstrap[] catalogBootstraps = localizeCatalogBootstrapPair(
 				this.catalogName,
+				this.catalogStoragePath,
 				this.bootstrapStorageSettings,
 				catalogVersion,
 				(catalogBootstrap, version) -> Long.compare(catalogBootstrap.catalogVersion(), version),
@@ -4197,10 +5616,7 @@ public class DefaultCatalogPersistenceService
 			blocks.add(
 				new MaterializedVersionBlock(
 					catalogBootstraps[0] == null ?
-						Math.min(
-							catalogBootstraps[1].catalogVersion(),
-							resolveFirstCatalogVersionOfCatalogBootstrap(catalogBootstraps[1])
-						) :
+						resolveBlockStartVersionOf(catalogBootstraps[1]) :
 						catalogBootstraps[0].catalogVersion() + 1,
 					catalogBootstraps[1].catalogVersion(),
 					catalogBootstraps[1].timestamp()
@@ -4275,7 +5691,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nullable
 	private DataFilesBulkInfo fetchOldestRetainedDataFilesInfo() {
-		return getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+		return getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 			.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
 			.orElse(null);
 	}
@@ -4290,7 +5706,7 @@ public class DefaultCatalogPersistenceService
 	private CatalogHeader<LogFileRecordReference, CollectionFileReference> fetchCatalogHeader(
 		@Nonnull CatalogBootstrap bootstrap
 	) {
-		final String catalogFileName = getCatalogDataStoreFileName(this.catalogName, bootstrap.catalogFileIndex());
+		final String catalogFileName = getCatalogDataStoreFileName(this.storagePrefix, bootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 		return readCatalogHeader(this.storageSettings, catalogFilePath, bootstrap, this.recordTypeRegistry);
 	}
@@ -4312,8 +5728,8 @@ public class DefaultCatalogPersistenceService
 	) throws TemporalDataNotAvailableException {
 		final CatalogBootstrap[] catalogBootstraps;
 		if (moment == null) {
-			final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
-			final Path catalogStoragePath = this.bootstrapStorageSettings.storageDirectory().resolve(this.catalogName);
+			final String bootstrapFileName = getCatalogBootstrapFileName(this.storagePrefix);
+			final Path catalogStoragePath = this.catalogStoragePath;
 			final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 			final File bootstrapFile = bootstrapFilePath.toFile();
 			if (bootstrapFile.exists()) {
@@ -4334,6 +5750,7 @@ public class DefaultCatalogPersistenceService
 		} else {
 			catalogBootstraps = localizeCatalogBootstrapPair(
 				this.catalogName,
+				this.catalogStoragePath,
 				this.bootstrapStorageSettings,
 				moment,
 				(catalogBootstrap, timestamp) -> catalogBootstrap.timestamp().compareTo(timestamp),
@@ -4345,27 +5762,12 @@ public class DefaultCatalogPersistenceService
 			Math.min(
 				endVersion,
 				catalogBootstraps[0] == null ?
-					resolveFirstCatalogVersionOfCatalogBootstrap(catalogBootstraps[1]) :
+					resolveBlockStartVersionOf(catalogBootstraps[1]) :
 					catalogBootstraps[0].catalogVersion() + 1
 			),
 			endVersion,
 			catalogBootstraps[1].timestamp()
 		);
-	}
-
-	/**
-	 * Enumeration of possible actions to be taken when the catalog name is different from the target catalog name.
-	 */
-	enum OnDifferentCatalogName {
-		/**
-		 * Throw an exception when the catalog name is different from the target catalog name.
-		 */
-		THROW_EXCEPTION,
-		/**
-		 * Adapt the catalog name in the schema to the target catalog name.
-		 */
-		ADAPT
-
 	}
 
 	/**

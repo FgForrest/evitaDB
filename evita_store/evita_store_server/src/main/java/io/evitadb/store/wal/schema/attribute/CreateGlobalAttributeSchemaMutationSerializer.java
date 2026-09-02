@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
@@ -100,6 +101,9 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
+		// appended last - the release-2026.2 reader (CreateGlobalAttributeSchemaMutationSerializer_2026_2) stops
+		// before this point and never looks for the presence flag
+		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 	}
 
 	@Override
@@ -119,20 +123,27 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final boolean representative = input.readBoolean();
+		final Serializable defaultValue = kryo.readObjectOrNull(input, theType);
+		final int indexedDecimalPlaces = input.readVarInt(true);
+		final ConflictResolutionOverride conflictResolutionOverride =
+			kryo.readObject(input, ConflictResolutionOverride.class);
+		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
+			readScopedAcceleratorsArray(kryo, input);
 		return new CreateGlobalAttributeSchemaMutation(
 			name,
 			description,
 			deprecationNotice,
 			uniqueInScopes, uniqueGloballyInScopes,
 			filterableInScopes,
+			acceleratorsInScopes,
 			sortableInScopes,
 			localized,
 			nullable,
 			representative,
 			theType,
-			kryo.readObjectOrNull(input, theType),
-			input.readVarInt(true),
-			kryo.readObject(input, ConflictResolutionOverride.class)
+			defaultValue,
+			indexedDecimalPlaces,
+			conflictResolutionOverride
 		);
 	}
 }

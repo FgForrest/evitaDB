@@ -35,7 +35,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
@@ -78,15 +78,14 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final int primaryKey = input.readVarInt(true);
 		final int version = input.readVarInt(true);
 
-		final EntityIndexType readEntityIndexType = kryo.readObject(input, EntityIndexType.class);
-		final EntityIndexType entityIndexType = readEntityIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE ?
-			EntityIndexType.REFERENCED_ENTITY : readEntityIndexType;
+		// `EntityIndexTypeSerializer` folds the retired `REFERENCED_HIERARCHY_NODE` name into `REFERENCED_ENTITY`
+		// before it gets here, which is the type this format's hierarchy-node parts have always been reloaded as
+		final EntityIndexType entityIndexType = kryo.readObject(input, EntityIndexType.class);
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = switch (entityIndexType) {
 			case GLOBAL -> new EntityIndexKey(entityIndexType);
 			case REFERENCED_ENTITY_TYPE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
 			case REFERENCED_ENTITY -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
-			case REFERENCED_HIERARCHY_NODE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
 			case REFERENCED_GROUP_ENTITY_TYPE, REFERENCED_GROUP_ENTITY ->
 				throw new GenericEvitaInternalError("Unexpected index type `" + entityIndexType + "` in 2024.11 storage format!");
 		};

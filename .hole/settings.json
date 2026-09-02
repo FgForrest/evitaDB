@@ -1,8 +1,10 @@
 {
   "network": {
-	"domainWhitelist": [
-	  "demo.evitadb.io",
-	  "evitadb.io"
-	]
-  }
+      "allow": [
+        "demo.evitadb.io",
+        "*.demo.evitadb.io",
+        "evitadb.io",
+        "*.evitadb.io"
+      ]
+    }
 }

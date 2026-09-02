@@ -1,7 +1,7 @@
 # Trunk merge cascade — the design decisions behind the prune
 
 Consolidated from five working documents (2026-07-21 → 07-25). The *measurements* live in
-`2026-07-27-senesi-wal-replay-rounds.md`; this file records the **verdicts** — what was ruled out and
+`2026-07-27-wal-replay-rounds.md`; this file records the **verdicts** — what was ruled out and
 why, so none of it is re-litigated.
 
 **Staleness note.** Status language is a historical snapshot; the prune shipped in PR #1317.
@@ -11,7 +11,7 @@ why, so none of it is re-litigated.
 ## The problem
 
 On every commit evitaDB materializes the new committed state by walking down from the catalog through
-every container to every leaf index (`createCopyWithMergedTransactionalMemory`). On senesi (~1 M
+every container to every leaf index (`createCopyWithMergedTransactionalMemory`). On the production catalog (~1 M
 products) that walk **visits 140 000 – 1 100 000 producers per transaction, and only ~1.0 % of them
 have any change at all**.
 
@@ -191,7 +191,7 @@ Worst case ~13 µs per query. `facetFiltering` exceeds the 5 % gate, but it is a
 inside the ±9 % query-benchmark noise floor, so no end-to-end run can confirm it. Mitigation if ever
 needed: memoize resolved indexes per query in `QueryPlanningContext` (~250 lookups across only a
 handful of distinct keys ⇒ mostly repeats). Caveats on the numbers: the denominator is derived from
-JMH's op rate rather than counted (±25 %), and the artificial index map is far smaller than senesi's
+JMH's op rate rather than counted (±25 %), and the artificial index map is far smaller than the production catalog's
 251 k, so the real trie is deeper.
 
 ### Two corrections to the earlier record — do not re-adopt the old story

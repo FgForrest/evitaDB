@@ -129,7 +129,7 @@ public enum GrpcAttributeSpecialValue
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(7);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(8);
   }
 
   private static final GrpcAttributeSpecialValue[] VALUES = values();

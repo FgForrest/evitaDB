@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -41,12 +42,14 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
@@ -77,6 +80,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
 			},
 			Scope.NO_SCOPE,
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,
@@ -101,6 +105,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE)
 			},
 			Scope.NO_SCOPE,
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,
@@ -122,6 +127,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
 			},
 			Scope.NO_SCOPE,
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,
@@ -139,6 +145,74 @@ class CreateAttributeSchemaMutationTest {
 		Mockito.when(referenceSchema.getName()).thenReturn("referenceName");
 		Mockito.when(referenceSchema.getReferencedEntityType()).thenReturn("abd");
 		return referenceSchema;
+	}
+
+	/**
+	 * Builds a plain, non-filterable, capability-free attribute schema of the requested type. The `String` and
+	 * `String[]` forms are what the filter-capability tests across this package start from, since
+	 * {@link #createExistingAttributeSchema()} declares an `Integer` attribute the substring capability refuses on
+	 * type alone.
+	 *
+	 * @param type the attribute data type
+	 * @return the attribute schema
+	 */
+	@Nonnull
+	static AttributeSchemaContract createAttributeSchemaOfType(@Nonnull Class<? extends Serializable> type) {
+		return AttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			(ScopedAttributeUniquenessType[]) null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			false, false, false,
+			type, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * The `String` form of {@link #createAttributeSchemaOfType(Class)}.
+	 *
+	 * @return a non-filterable, capability-free `String` attribute schema
+	 */
+	@Nonnull
+	static AttributeSchemaContract createStringAttributeSchema() {
+		return createAttributeSchemaOfType(String.class);
+	}
+
+	/**
+	 * The entity-level counterpart of {@link #createStringAttributeSchema()} - a distinct DTO with its own
+	 * `_internalBuild` arm and its own serializer, so it cannot be a wrapper of the plain form.
+	 *
+	 * @return a non-filterable, capability-free `String` entity attribute schema
+	 */
+	@Nonnull
+	static EntityAttributeSchemaContract createStringEntityAttributeSchema() {
+		return EntityAttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			(ScopedAttributeUniquenessType[]) null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			false, false, false,
+			String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+	}
+
+	/**
+	 * The catalog-level counterpart of {@link #createStringAttributeSchema()}.
+	 *
+	 * @return a non-filterable, capability-free `String` global attribute schema
+	 */
+	@Nonnull
+	static GlobalAttributeSchemaContract createStringGlobalAttributeSchema() {
+		// the untyped nulls would leave the array- and map-shaped overloads equally applicable
+		return GlobalAttributeSchema._internalBuild(
+			ATTRIBUTE_NAME, null, null,
+			(ScopedAttributeUniquenessType[]) null,
+			(ScopedGlobalAttributeUniquenessType[]) null,
+			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			false, false, false,
+			String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
 	}
 
 	@Test
@@ -330,6 +404,185 @@ class CreateAttributeSchemaMutationTest {
 				mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema);
 			}
 		);
+	}
+
+	@Nested
+	@DisplayName("filter accelerators")
+	class Accelerators {
+
+		@Test
+		@DisplayName("Should carry the filter capabilities through to the created attribute schema")
+		void shouldCarryFilterCapabilitiesToCreatedSchema() {
+			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null,
+				null,
+				Scope.DEFAULT_SCOPES,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				},
+				Scope.NO_SCOPE, false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+			final AttributeSchemaContract created = mutation.mutate(
+				null, null, AttributeSchemaContract.class
+			);
+			assertEquals(
+				Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), created.getAcceleratorsInScope(Scope.LIVE)
+			);
+		}
+
+		@Test
+		@DisplayName("Should default the filter capabilities to none when the field is absent on the wire")
+		void shouldDefaultFilterCapabilitiesToNoneWhenAbsentOnTheWire() {
+			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null,
+				null, Scope.DEFAULT_SCOPES, null, Scope.NO_SCOPE, false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+			assertNotNull(mutation.getAcceleratorsInScopes());
+			assertEquals(0, mutation.getAcceleratorsInScopes().length);
+		}
+
+		@Test
+		@DisplayName("Should refuse creating a non-String attribute that declares the substring capability")
+		void shouldRefuseCreatingNonStringAttributeWithSubstringCapability() {
+			// no set-filterable mutation follows a create assembled field by field over the wire, so the create mutation
+			// has to make this check itself
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new CreateAttributeSchemaMutation(
+					ATTRIBUTE_NAME, null, null,
+					null,
+					Scope.DEFAULT_SCOPES,
+					new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+					},
+					Scope.NO_SCOPE, false, false, false,
+					Integer.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			);
+			assertTrue(exception.getMessage().contains("String"));
+		}
+
+		@Test
+		@DisplayName("Should refuse creating an attribute whose accelerator scope has no filter index")
+		void shouldRefuseCreatingAttributeWithAcceleratorInScopeWithoutFilterIndex() {
+			// LIVE is filterable and ARCHIVED is neither filterable nor unique, so the ARCHIVED carrier is orphaned
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new CreateAttributeSchemaMutation(
+					ATTRIBUTE_NAME, null, null,
+					null,
+					new Scope[]{Scope.LIVE},
+					new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(
+							Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH
+						)
+					},
+					Scope.NO_SCOPE, false, false, false,
+					String.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should accept an accelerator on a scope that is only unique, never filterable")
+		void shouldAcceptAcceleratorOnUniqueOnlyScope() {
+			// this is the case the filterability-bound rule rejected: the create mutation carries both declarations
+			// itself, so it can see that `unique()` already supplies the filter index the accelerator rides on
+			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null,
+				new ScopedAttributeUniquenessType[]{
+					new ScopedAttributeUniquenessType(
+						Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+					)
+				},
+				Scope.NO_SCOPE,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				},
+				Scope.NO_SCOPE, false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+
+			final AttributeSchemaContract created = mutation.mutate(null, null, AttributeSchemaContract.class);
+			assertFalse(created.isFilterableInScope(Scope.LIVE));
+			assertTrue(created.isUniqueInScope(Scope.LIVE));
+			assertTrue(created.hasFilterIndexInScope(Scope.LIVE));
+			assertEquals(
+				Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), created.getAcceleratorsInScope(Scope.LIVE)
+			);
+		}
+
+		@Test
+		@DisplayName("Should refuse an accelerator when the attribute is neither filterable nor unique anywhere")
+		void shouldRefuseAcceleratorWhenNeitherFilterableNorUnique() {
+			// the negative control for the relaxed rule - dropping the filterability requirement must not turn the
+			// check into a no-op
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new CreateAttributeSchemaMutation(
+					ATTRIBUTE_NAME, null, null,
+					null,
+					Scope.NO_SCOPE,
+					new ScopedAttributeFilterAccelerators[]{
+						new ScopedAttributeFilterAccelerators(
+							Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+						)
+					},
+					Scope.NO_SCOPE, false, false, false,
+					String.class, null, 0,
+					ConflictResolutionOverride.INHERITED
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Should refuse creating a reference attribute that declares the substring capability")
+		void shouldRefuseCreatingReferenceAttributeWithSubstringCapability() {
+			// only at mutate time does the mutation learn it is targeting a reference - the same mutation class serves
+			// entity attributes too, where the capability is perfectly legal
+			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null,
+				null,
+				Scope.DEFAULT_SCOPES,
+				new ScopedAttributeFilterAccelerators[]{
+					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+				},
+				Scope.NO_SCOPE, false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getName()).thenReturn("product");
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(entitySchema, createMockedReferenceSchema())
+			);
+			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
+			assertTrue(exception.getMessage().contains("referenceName"));
+		}
+
+		@Test
+		@DisplayName("Should still allow creating a plainly filterable reference attribute")
+		void shouldStillAllowCreatingPlainlyFilterableReferenceAttribute() {
+			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+				ATTRIBUTE_NAME, null, null,
+				null, Scope.DEFAULT_SCOPES, null, Scope.NO_SCOPE, false, false, false,
+				String.class, null, 0,
+				ConflictResolutionOverride.INHERITED
+			);
+			final ReferenceSchemaContract mutated = mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class), createMockedReferenceSchema()
+			);
+			assertNotNull(mutated);
+			assertTrue(mutated.getAttribute(ATTRIBUTE_NAME).orElseThrow().isFilterable());
+		}
 	}
 
 }

@@ -12,7 +12,7 @@ Savepoints exonerated for THIS failure (it fires on a freshly loaded pristine ca
 > physical order and the second copy of a twin key collides in the `CumulativeWeightBPlusTree`.
 > **See `bug-04-stale-leaf-page-twin.md` for the root corruption and full evidence.**
 >
-> Distilled failing reproduction (no senesi needed):
+> Distilled failing reproduction (no production dataset needed):
 > `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/attribute/StaleLeafPageTwinReproductionTest.java`
 > (`shouldSurviveSortIndexMaintenanceOverTwinCorruptedTree` — fails with this bug's exact signature).
 
@@ -96,11 +96,11 @@ key), independent of the warm-up path — any sort index that holds two same-ins
 OffsetDateTime values fails on its first `getValueTree()` build.
 
 ## Reproduction — deterministic single-entity (from pristine)
-`SenesiUpsertFuzzer` isolation mode replays exactly one entity from pristine using per-entity
+`ProductionCatalogUpsertFuzzer` isolation mode replays exactly one entity from pristine using per-entity
 `(seed,pk)` determinism:
 ```bash
 # from PLAN.md §3: server booted from pristine data_snapshot_pristine
-java ... io.evitadb.spike.SenesiUpsertFuzzer localhost 5555 senesi 1 500 1 /tmp/iso.txt 1340209
+java ... io.evitadb.spike.ProductionCatalogUpsertFuzzer localhost 5555 production-catalog 1 500 1 /tmp/iso.txt 1340209
 # -> batch 0: ok=0 perEntityFail=1   FAIL GenericEvitaInternalError: Key is already present in the tree!
 ```
 Op sequence applied to PRODUCT `1340209` (op-log `scenarios/bug-02-oplog.txt`):
@@ -126,7 +126,7 @@ target `SortIndexChanges.getValueTree()` / `CumulativeWeightBPlusTree.insert` di
 - Pre-fix: the synthetic test throws `Key is already present in the tree!` on the sort value-tree build.
 - Post-fix: two same-instant/different-offset OffsetDateTime values coexist in one sort index; the
   value-tree build merges them (single Instant key, weight 2) or the buckets are keyed consistently
-  (normalize OffsetDateTime→Instant at bucket-key level too). `SenesiUpsertFuzzer` from pristine no
+  (normalize OffsetDateTime→Instant at bucket-key level too). `ProductionCatalogUpsertFuzzer` from pristine no
   longer surfaces this signature.
 - Candidate fix areas: `InvertedIndex`/`SortIndex` normalization consistency (store/compare buckets in
   the SAME normalized space the value-tree keys use), or `getValueTree()` merging equal-normalized

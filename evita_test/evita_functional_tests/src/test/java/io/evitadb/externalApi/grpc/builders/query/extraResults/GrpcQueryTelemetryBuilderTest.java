@@ -23,9 +23,11 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
@@ -159,6 +162,66 @@ class GrpcQueryTelemetryBuilderTest {
 			}
 		}
 		return queryTelemetry.finish();
+	}
+
+	@Test
+	void shouldLeaveOutcomeFieldsUnsetForAFormulaThatNeverRan() {
+		// the contract that carries the whole feature across the wire: a node the engine never executed reports
+		// no cost and no result count *at all*. Defaulting either to zero would present a rejected plan
+		// alternative as one that ran and matched nothing, which is the opposite of what happened
+		final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.PLANNING_FILTER_ALTERNATIVE)
+			.recordPlan(
+				new FormulaPlan(0, null, 42L, "AND", 100L, null, null, List.of())
+			)
+			.finish();
+
+		final GrpcFormulaPlan plan = GrpcQueryTelemetryBuilder.buildQueryTelemetry(telemetry).getPlan();
+
+		assertTrue(plan.hasDescription());
+		assertEquals(100L, plan.getEstimatedCost());
+		assertFalse(plan.hasActualCost(), "A formula that never ran must not report a cost - not even zero!");
+		assertFalse(plan.hasResultCount(), "A formula that never ran must not report a result count!");
+		assertFalse(plan.hasRefTo(), "A described occurrence is not a back-reference!");
+	}
+
+	@Test
+	void shouldCarryBackReferenceNodesWithoutDetail() {
+		// the plan is a DAG: a repeat *instance* is emitted as a bare pointer, because describing it twice would
+		// invite the reader to count a shared sub-tree's cost twice over
+		final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.EXECUTION)
+			.recordPlan(
+				new FormulaPlan(
+					0, null, 42L, "AND", 100L, 90L, 5, List.of(
+						new FormulaPlan(1, 1, 7L, null, 10L, null, null, List.of())
+					)
+				)
+			)
+			.finish();
+
+		final GrpcFormulaPlan reference = GrpcQueryTelemetryBuilder.buildQueryTelemetry(telemetry)
+			.getPlan().getChildren(0);
+
+		assertTrue(reference.hasRefTo());
+		assertEquals(1, reference.getRefTo());
+		assertFalse(reference.hasDescription(), "A back-reference carries no detail - the node it points at does!");
+		assertEquals(0, reference.getChildrenCount(), "A back-reference carries no children!");
+	}
+
+	@Test
+	void shouldRoundTripThePlanThroughTheWire() {
+		// build and restore are two separate pieces of code and only a round trip exercises both; a restore that
+		// dropped `id`/`refTo` would still satisfy every assertion made on the built form alone
+		final FormulaPlan original = new FormulaPlan(
+			0, null, 42L, "AND", 100L, 90L, 5, List.of(
+				new FormulaPlan(1, null, 7L, "constant", 10L, 9L, 3, List.of()),
+				new FormulaPlan(2, null, 8L, "attribute", 20L, null, null, List.of()),
+				new FormulaPlan(1, 1, 7L, null, 10L, null, null, List.of())
+			)
+		);
+		final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.EXECUTION).recordPlan(original).finish();
+
+		final GrpcQueryTelemetry converted = GrpcQueryTelemetryBuilder.buildQueryTelemetry(telemetry);
+		GrpcAssertions.assertQueryTelemetry(telemetry, converted);
 	}
 
 	@Nonnull

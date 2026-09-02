@@ -30,6 +30,8 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
@@ -235,6 +237,20 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			scopes.stream().anyMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
 		);
+		// past the assertion, so the count means "a query depended on `faceted()` being on" - dropping the flag would
+		// make this query invalid rather than merely slower, which is what the reading is for. Recorded per scope
+		// rather than for the whole requested set, because the assertion above only demands *one* of the named scopes
+		// declare the flag: filing the rest would mint rows in scopes where no facet index exists and no write can
+		// ever file a matching maintenance count, which reads as "nothing maintains this" about a flag that is simply
+		// not declared there
+		for (final Scope scope : scopes) {
+			if (referenceSchema.isFacetedInScope(scope)) {
+				filterByVisitor.getQueryContext().recordRequestedCapability(
+					entitySchema, null, ElementKind.REFERENCE, referenceSchema.getName(),
+					Capability.FACETED, scope
+				);
+			}
+		}
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {

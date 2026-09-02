@@ -62,7 +62,6 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -80,17 +79,17 @@ import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatal
  * catalog header + the product {@link EntityCollectionFileHeader}, then
  * {@link DefaultEntityCollectionPersistenceService} to enumerate every {@link SortIndexStoragePart}).
  *
- * SAFETY: it only ever touches the DISPOSABLE COPY at {@code /var/tmp/decodoma-bench/decodoma_cz};
- * the original {@code data/decodoma_cz} is never opened.
+ * SAFETY: it only ever touches the DISPOSABLE COPY at {@code /var/tmp/catalog-bench/production_catalog};
+ * the original {@code data/production_catalog} is never opened.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class SortAnchorExtractor {
 	/** Disposable copy root (NEVER the original under the repo). */
-	private static final Path STORAGE_DIRECTORY = Path.of("/var/tmp/decodoma-bench");
-	private static final String CATALOG_NAME = "decodoma_cz";
+	private static final Path STORAGE_DIRECTORY = Path.of("/var/tmp/catalog-bench");
+	private static final String CATALOG_NAME = "production_catalog";
 	private static final String ENTITY_TYPE = "product";
-	private static final Path OUTPUT_FILE = Path.of("/var/tmp/decodoma-bench/sort-anchor.txt");
+	private static final Path OUTPUT_FILE = Path.of("/var/tmp/catalog-bench/sort-anchor.txt");
 	/** Selection thresholds for a representative sort-only single attribute. */
 	private static final int MIN_RECORDS = 5_000;
 	private static final int MIN_DISTINCT = 100;
@@ -113,7 +112,7 @@ public class SortAnchorExtractor {
 		);
 
 	public static void main(String[] args) throws Exception {
-		// the decodoma data files are written compressed - compression support must be enabled to read them back
+		// the production catalog data files are written compressed - compression support must be enabled to read them back
 		// (StorageOptions compression/CRC settings must MATCH what the DB was written with; they are not self-describing).
 		final StorageOptions storageOptions = StorageOptions.builder()
 			.storageDirectory(STORAGE_DIRECTORY)
@@ -234,7 +233,9 @@ public class SortAnchorExtractor {
 		@Nonnull StorageSettings storageSettings
 	) {
 		final AtomicReference<CatalogBootstrap> last = new AtomicReference<>();
-		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(CATALOG_NAME, storageSettings)) {
+		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(
+			CATALOG_NAME, storageSettings.storageDirectory().resolve(CATALOG_NAME), storageSettings
+		)) {
 			stream.forEach(last::set);
 		}
 		final CatalogBootstrap bootstrap = last.get();

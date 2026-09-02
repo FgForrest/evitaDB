@@ -2,7 +2,7 @@
 
 Consolidated from five working documents (2026-07-22 → 07-25). These are the *architectural* changes
 that made the commit-merge prune reach its ceiling — the measurements they enabled are in
-`2026-07-27-senesi-wal-replay-rounds.md`.
+`2026-07-27-wal-replay-rounds.md`.
 
 **Staleness note.** Status language is a historical snapshot; all of this has merged.
 
@@ -53,7 +53,7 @@ that `goLive`/rename depend on.
 
 ### The performance result: flat, and that is the correct outcome
 
-senesi JMH `gc.alloc.rate.norm` was **flat (+0.13 %, sign flips across runs)**. Phase 4 is therefore
+production-catalog JMH `gc.alloc.rate.norm` was **flat (+0.13 %, sign flips across runs)**. Phase 4 is therefore
 recorded as a **simplification, explicitly not an optimization**. *Do not re-litigate it expecting a
 win.* Its value is that it made the later carry-by-reference work legal.
 

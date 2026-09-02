@@ -19,8 +19,12 @@
     <dd><strong>Conflict policy</strong>: The coarse conflict policy (NONE/CATALOG/COLLECTION/ENTITY) in force for the conflicting scope.</dd>
     <dt>conflictScope</dt>
     <dd><strong>Conflict scope</strong>: The granularity of the conflicting key (e.g. entity, attribute, price, reference).</dd>
+    <dt>direction</dt>
+    <dd><strong>GOAWAY direction</strong>: SENT when the server closed the connection, RECEIVED when the peer did.</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
+    <dt>errorCode</dt>
+    <dd><strong>GOAWAY error code</strong>: The RFC 9113 error code carried by the GOAWAY frame, for example ENHANCE_YOUR_CALM(11).</dd>
     <dt>error_type</dt>
     <dd><strong>Error type</strong>: Class of the error being counted.</dd>
     <dt>fileType</dt>
@@ -95,6 +99,10 @@ duration of the probe.</dd>
 #### API
 
 <dl>
+  <dt><code>io_evitadb_external_api_http2_go_away_total</code> (COUNTER)</dt>
+  <dd>HTTP/2 connections closed with an erroneous GOAWAY total<br/><br/><strong>Labels:</strong> <Term>direction</Term>, <Term>errorCode</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_http2_rst_flood_total</code> (COUNTER)</dt>
+  <dd>HTTP/2 RST_STREAM floods detected total</dd>
   <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
@@ -337,6 +345,8 @@ duration of the probe.</dd>
   <dd><strong>Total occupied disk space in Bytes</strong>: The total amount of disk space used by the catalog in Bytes.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_oldest_catalog_version_timestamp_seconds</code> (GAUGE)</dt>
   <dd><strong>Timestamp of the oldest catalog version available in seconds</strong>: The age of the oldest available catalog version, in seconds. This value determines the furthest back in time the catalog can go.</dd>
+  <dt><code>io_evitadb_storage_catalog_statistics_retained_history_size_bytes</code> (GAUGE)</dt>
+  <dd><strong>Retained history size in Bytes</strong>: The disk space occupied by historical data files kept for time travel, on top of the active data set. Always zero unless time travel is enabled, and bounded by `timeTravelSizeLimitBytes`.</dd>
   <dt><code>io_evitadb_storage_data_file_compact_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Duration of OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
@@ -422,6 +432,8 @@ duration of the probe.</dd>
   <dd><strong>Maximum session inactivity time in seconds</strong>: Configured threshold for the maximum session inactivity time in seconds (`server.closeSessionsAfterSecondsOfInactivity`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_time_travel_enabled</code> (GAUGE)</dt>
   <dd><strong>Time travel enabled</strong>: Flag indicating whether the time travel is enabled.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_time_travel_size_limit_bytes</code> (GAUGE)</dt>
+  <dd><strong>Time travel size limit in Bytes</strong>: Configured upper bound on the disk space retained history may occupy on top of the active data set, per catalog (`storage.timeTravelSizeLimitBytes`). Negative means no limit.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_total</code> (COUNTER)</dt>
   <dd>Evita started total<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_traffic_recording_enabled</code> (GAUGE)</dt>

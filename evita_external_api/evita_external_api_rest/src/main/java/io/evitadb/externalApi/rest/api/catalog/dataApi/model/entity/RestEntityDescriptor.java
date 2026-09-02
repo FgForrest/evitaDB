@@ -26,8 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
-
 /**
  * Extension of {@link EntityDescriptor} with REST-specific properties.
  *
@@ -40,7 +38,7 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 		.description("""
 			Returns parent entity body. The entity fetch needs to be triggered using `hierarchyContent` requirement.
 			The property allows to fetch entire parent axis of the entity to the root if requested.
-			         
+
 	        Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
 	        may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	        Each entity must be part of at most single hierarchy (tree).

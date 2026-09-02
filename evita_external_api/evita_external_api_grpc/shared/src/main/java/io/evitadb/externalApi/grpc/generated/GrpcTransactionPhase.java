@@ -148,7 +148,7 @@ public enum GrpcTransactionPhase
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(24);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(25);
   }
 
   private static final GrpcTransactionPhase[] VALUES = values();

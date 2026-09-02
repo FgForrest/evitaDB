@@ -32,6 +32,7 @@ import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bPlusTree.LongPayloadBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -55,6 +56,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -637,6 +639,50 @@ public class ReferenceTypeCardinalityIndex
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag, the cardinality tree, the
+	 * referenced-key index and the helper bitmap over it when one has been built.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The cardinality tree's keys are composed `long`s under natural order, so its leaves keep them inline in a
+	 * primitive column - but its **internal nodes still box one separator key per leaf boundary**, and with the
+	 * leaves storing values nothing else holds those boxes. They are therefore priced through
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER} like any other key this structure owns; the tree itself decides which of
+	 * its keys the sizer is asked about.
+	 *
+	 * {@link #memoizedAllReferencedPrimaryKeys} is charged in full. It is built from the map's **keys** through a
+	 * fresh writer rather than by unioning the value bitmaps, so it aliases nothing that is also charged below.
+	 * Being lazily built it makes the figure **jump on first use**, the same way every memoized projection in this
+	 * layer does.
+	 *
+	 * {@link #pageStreamRegistry} is excluded: single-writer flush bookkeeping carried by reference across commits,
+	 * not index content.
+	 *
+	 * Walking the cardinality tree is `O(entries / blockSize)` rather than `O(1)`, so this belongs to
+	 * the index detail call and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
+		// memoizedAllReferencedPrimaryKeys slots
+		long size = layout.sizeOfObject(5L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.cardinalities.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
+				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
+			);
+		// read the volatile field ONCE: a concurrent reader can publish or drop the projection between two reads
+		final PersistentRoaringBitmap allReferenced = this.memoizedAllReferencedPrimaryKeys;
+		if (allReferenced != null) {
+			size += allReferenced.getHeapSizeInBytes(RoaringBitmapBackedBitmap.ROARING_HEAP_LAYOUT);
+		}
+		return size;
 	}
 
 	/*

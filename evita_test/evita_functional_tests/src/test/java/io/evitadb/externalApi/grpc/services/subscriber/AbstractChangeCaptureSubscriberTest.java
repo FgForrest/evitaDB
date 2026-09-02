@@ -414,7 +414,7 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 		 * used so these tests exercise the same idle-timeout fallback that production takes once
 		 * the request timeout is disabled, rather than an arbitrary stand-in value.
 		 */
-		private static final long REALISTIC_IDLE_TIMEOUT_MILLIS = 20_000L;
+		private static final long REALISTIC_IDLE_TIMEOUT_MILLIS = 60_000L;
 
 		/**
 		 * Armeria treats a request timeout of `0` as "disabled" and legitimately reports it from

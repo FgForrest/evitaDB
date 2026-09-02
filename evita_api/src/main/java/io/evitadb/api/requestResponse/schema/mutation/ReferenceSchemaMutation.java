@@ -24,7 +24,6 @@
 package io.evitadb.api.requestResponse.schema.mutation;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;

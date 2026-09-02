@@ -732,6 +732,17 @@ public final class BitmapContainer extends Container implements Cloneable {
 	}
 
 	/**
+	 * Heap footprint: this object (an `int` cardinality and one reference) plus the `bitmap` words. The word
+	 * array is allocated at full chunk width and never resized, so unlike the other two encodings this
+	 * container's cost does not depend on how many values it holds.
+	 */
+	@Override
+	public long getHeapSizeInBytes(@Nonnull HeapLayout layout) {
+		return layout.sizeOfObject(Integer.BYTES + layout.referenceSize())
+			+ layout.sizeOfArray(this.bitmap.length, Long.BYTES);
+	}
+
+	/**
 	 * Hash derived from the bitmap words, consistent with {@link #equals(Object)}.
 	 */
 	@Override

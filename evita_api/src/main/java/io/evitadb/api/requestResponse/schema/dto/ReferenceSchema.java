@@ -104,6 +104,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	protected final Map<Scope, ReferenceIndexType> indexedInScopes;
 	/**
+	 * Scopes in which this reference is actually indexed - i.e. the keys of {@link #indexedInScopes} whose value is
+	 * something else than {@link ReferenceIndexType#NONE}. Derived from an immutable input, so it is computed once in
+	 * the constructor instead of being re-collected into a new set on every {@link #getIndexedInScopes()} call.
+	 */
+	private final Set<Scope> indexedScopes;
+	/**
 	 * Indexed components configured per scope for this reference, specifying which parts
 	 * of the reference relationship (entity, group entity, or both) are indexed.
 	 */
@@ -218,6 +224,24 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			}
 		}
 		return theIndexType;
+	}
+
+	/**
+	 * Extracts the scopes the reference is actually indexed in - i.e. those mapped to an index type other than
+	 * {@link ReferenceIndexType#NONE}. The result backs {@link #getIndexedInScopes()} and is therefore immutable.
+	 *
+	 * @param indexedInScopes the per-scope index types of the reference
+	 * @return an unmodifiable set of the scopes the reference is indexed in
+	 */
+	@Nonnull
+	private static Set<Scope> toIndexedScopeSet(@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final Entry<Scope, ReferenceIndexType> entry : indexedInScopes.entrySet()) {
+			if (entry.getValue() != ReferenceIndexType.NONE) {
+				result.add(entry.getKey());
+			}
+		}
+		return result.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(result);
 	}
 
 	/**
@@ -866,6 +890,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
 		this.indexedInScopes = CollectionUtils.toUnmodifiableMap(indexedInScopes);
+		this.indexedScopes = toIndexedScopeSet(this.indexedInScopes);
 		this.indexedComponentsInScopes = CollectionUtils.toUnmodifiableMap(indexedComponentsInScopes);
 		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.facetedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(facetedPartiallyInScopes);
@@ -966,17 +991,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 	@Override
 	public boolean isIndexedInScope(@Nonnull Scope scope) {
-		return this.indexedInScopes.containsKey(scope) && this.indexedInScopes.get(scope) != ReferenceIndexType.NONE;
+		// single map lookup - a missing entry and an explicit NONE mean the same thing here
+		final ReferenceIndexType indexType = this.indexedInScopes.get(scope);
+		return indexType != null && indexType != ReferenceIndexType.NONE;
 	}
 
 	@Nonnull
 	@Override
 	public Set<Scope> getIndexedInScopes() {
-		return this.indexedInScopes.entrySet()
-			.stream()
-			.filter(entry -> entry.getValue() != ReferenceIndexType.NONE)
-			.map(Map.Entry::getKey)
-			.collect(Collectors.toSet());
+		return this.indexedScopes;
 	}
 
 	@Nonnull

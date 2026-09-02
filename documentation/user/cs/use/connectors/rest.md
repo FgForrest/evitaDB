@@ -1,11 +1,11 @@
 ---
 title: REST
-perex: Protokol Representational State Transfer (REST) je standardizovaný přístup k vytváření webových služeb, které využívají HTTP metody k vytváření, čtení, aktualizaci a mazání dat. Protokol je navržen kolem zdrojů, což jsou jakékoliv objekty, data nebo služby, ke kterým může klient přistupovat. Díky své jednoduchosti, škálovatelnosti a výkonu je REST nejpopulárnějším protokolem pro API a je široce používán v cloudových službách, mobilních službách a sociálních sítích.
+perex: Protokol Representational State Transfer (REST) je standardizovaný přístup k vytváření webových služeb, které využívají HTTP metody pro vytváření, čtení, aktualizaci a mazání dat. Protokol je navržen kolem zdrojů, což jsou jakékoliv objekty, data nebo služby, ke kterým může klient přistupovat. Díky své jednoduchosti, škálovatelnosti a výkonu je REST nejpopulárnějším protokolem pro API, široce využívaným v cloudových službách, mobilních aplikacích a sociálních sítích.
 date: '24.3.2023'
 author: Lukáš Hornych
 preferredLang: rest
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '151ed5c62c63f3e087500e5f2d76d7ffad686420'
 ---
 <LS to="e,j,c,g">
 Tato kapitola popisuje REST protokol pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají

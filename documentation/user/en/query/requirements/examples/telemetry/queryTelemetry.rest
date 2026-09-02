@@ -10,6 +10,6 @@ POST /rest/evita/Product/query
     }
   ],
   "require" : {
-    "queryTelemetry" : true
+    "queryTelemetry" : "TIMINGS"
   }
 }

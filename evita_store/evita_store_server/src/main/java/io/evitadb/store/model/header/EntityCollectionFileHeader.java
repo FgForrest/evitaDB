@@ -25,7 +25,7 @@ package io.evitadb.store.model.header;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.store.shared.model.FileLocation;
@@ -66,6 +66,14 @@ import static java.util.Optional.ofNullable;
  *                                    {@link KeyCompressor} for file offset index deserialization.
  * @param lastKeyId                   Contains last assigned id in {@link PersistentStorageDescriptor#compressedKeys()}.
  *                                    Newly registered key will obtain ID = `lastKeyId` + 1.
+ * @param lastModifiedMillis          Wall-clock time this header was written, in epoch milliseconds, or
+ *                                    {@link #NOT_STAMPED} when it predates 2026.3 and carries no timestamp. The
+ *                                    header is rewritten by every flush that changes the collection and by every
+ *                                    compaction of it, so this answers "when did anything last change here" - a
+ *                                    question the monotonic {@link #version()} cannot. It is deliberately not
+ *                                    `File.lastModified()` of the data store file: that survives no restore (a
+ *                                    restored catalog would report the restore as its last write) and compaction
+ *                                    moves it without any logical change.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see PersistentStorageHeader
  */
@@ -84,9 +92,17 @@ public record EntityCollectionFileHeader(
 	@Nullable Integer globalEntityIndexPrimaryKey,
 	@Nonnull List<Integer> usedEntityIndexPrimaryKeys,
 	int lastKeyId,
-	double activeRecordShare
+	double activeRecordShare,
+	long lastModifiedMillis
 ) implements PersistentStorageDescriptor, EntityCollectionHeader {
-	@Serial private static final long serialVersionUID = -2149051526452828365L;
+	@Serial private static final long serialVersionUID = 7284410593068317745L;
+
+	/**
+	 * Value of {@link #lastModifiedMillis()} meaning *no timestamp was recorded*. Headers written before 2026.3 carry
+	 * no timestamp at all, and {@link io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2026_2}
+	 * reconstructs them with this value; a reader must therefore treat it as *unknown*, never as the epoch.
+	 */
+	public static final long NOT_STAMPED = 0L;
 
 	/**
 	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
@@ -102,7 +118,9 @@ public record EntityCollectionFileHeader(
 		this(
 			entityType, entityTypePrimaryKey,
 			entityTypeFileIndex, 0, 0, 0, -1, 0.0,
-			null, null, Collections.emptyList()
+			null, null, Collections.emptyList(),
+			// a collection that has never been written has nothing to timestamp; the first flush stamps it
+			NOT_STAMPED
 		);
 	}
 
@@ -117,7 +135,8 @@ public record EntityCollectionFileHeader(
 		double activeRecordShare,
 		@Nullable PersistentStorageDescriptor storageDescriptor,
 		@Nullable Integer globalIndexId,
-		@Nonnull List<Integer> entityIndexIds
+		@Nonnull List<Integer> entityIndexIds,
+		long lastModifiedMillis
 	) {
 		this(
 			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::version).orElse(1L),
@@ -136,7 +155,8 @@ public record EntityCollectionFileHeader(
 			globalIndexId,
 			entityIndexIds,
 			storageDescriptor == null ? 1 : storageDescriptor.peakCompressedKeyId(),
-			activeRecordShare
+			activeRecordShare,
+			lastModifiedMillis
 		);
 	}
 
@@ -158,6 +178,13 @@ public record EntityCollectionFileHeader(
 		return this.lastKeyId;
 	}
 
+	/**
+	 * Compares the header's *identity and contents*, deliberately ignoring `activeRecordShare` and
+	 * `lastModifiedMillis`. Both are measurements taken while the header was written rather than part of what the
+	 * header addresses, and folding a wall clock into equality would make two headers describing identical data
+	 * unequal for no reason a caller could act on. `activeRecordShare` has been excluded since the field was
+	 * introduced; the timestamp follows it.
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof final EntityCollectionFileHeader that)) return false;

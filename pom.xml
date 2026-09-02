@@ -124,9 +124,9 @@
 		<java.version>17</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<slf4j.version>2.0.18</slf4j.version>
-		<logback.version>1.6.0</logback.version>
+		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.1</jackson.version>
+		<jackson.version>2.22.2</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.18</roaringbitmap.version>
@@ -136,27 +136,19 @@
 		<maven.compiler.version>3.15.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
-		<grpc.version>1.83.0</grpc.version>
+		<grpc.version>1.83.1</grpc.version>
 		<bouncyCastle.version>1.85</bouncyCastle.version>
-		<swagger.version>2.2.52</swagger.version>
-		<armeria.version>1.40.0</armeria.version>
-		<!--
-			Overrides the netty version armeria 1.40.0 itself pulls in (4.2.15.Final) to pick up
-			GHSA-558v-64gr-wgg4 / GHSA-q6cq-mhr2-jmr5 / GHSA-6jqx-86gh-f27w and the other netty-codec-*
-			advisories fixed in 4.2.16.Final, ahead of armeria's next release. Patch bump within the
-			same 4.2.x line - see the netty-codec-* overrides in dependencyManagement below for why
-			only those artifacts (not a full netty-bom import) are pinned. Drop this override (and the
-			property) once armeria itself depends on >= 4.2.16.Final.
-		-->
-		<netty.version>4.2.16.Final</netty.version>
+		<swagger.version>2.2.54</swagger.version>
+		<armeria.version>1.41.0</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
-		<okhttp.version>5.4.0</okhttp.version>
-		<opentelemetry.version>1.64.0</opentelemetry.version>
+		<okhttp.version>5.5.0</okhttp.version>
+		<opentelemetry.version>1.65.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
+		<jol.version>0.17</jol.version>
 		<!--
 			Thread fan-out for the `unit`/`unitAndFunctional` surefire profiles. Defaults to
 			unlimited (best for beefy, many-core dev machines). CI (ci-dev.yml / pr-review.yml)
@@ -202,41 +194,6 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<!--
-				See the netty.version comment in <properties> above: overrides only the netty-codec-*
-				artifacts armeria 1.40.0 pulls in that carry an open Dependabot advisory, without a full
-				netty-bom import - importing netty-bom manages every io.netty:* artifact (incl.
-				netty-handler and netty-resolver-dns, neither of which is itself vulnerable), which was
-				observed to flip netty-handler's mediated scope from "provided" to "runtime" in
-				evita_external_api_grpc_shared and break its module-info.java (`requires io.netty.handler`
-				needs compile-time visibility). Mixing patch versions within the same netty 4.2.x line is
-				binary-compatible, so pinning just the affected artifacts is sufficient and safer.
-			-->
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-http2</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-http</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-compression</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-haproxy</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.netty</groupId>
-				<artifactId>netty-codec-dns</artifactId>
-				<version>${netty.version}</version>
-			</dependency>
 			<dependency>
 				<groupId>com.esotericsoftware</groupId>
 				<artifactId>kryo</artifactId>
@@ -256,6 +213,25 @@
 				<groupId>one.edee.oss</groupId>
 				<artifactId>proxycian_bytebuddy</artifactId>
 				<version>1.4.0</version>
+			</dependency>
+			<!--
+				byteBuddy.version is declared on each direct dependency (evita_engine,
+				evita_external_api_graphql), which leaves it unmanaged wherever byte-buddy arrives only
+				transitively - and there the newest requestor wins. assertj-core 3.27.7 asks for 1.18.3, so
+				evita_functional_tests resolved byte-buddy 1.18.3 against byte-buddy-agent 1.17.8: two halves
+				of one library, at different minor versions, on the same classpath. The agent code under test
+				is instrumentation, so the suite was exercising a Byte Buddy production does not ship. Managing
+				both artifacts here pins them together everywhere, including transitive-only modules.
+			-->
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy</artifactId>
+				<version>${byteBuddy.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy-agent</artifactId>
+				<version>${byteBuddy.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.squareup.okhttp3</groupId>
@@ -386,6 +362,30 @@
 				<groupId>org.bouncycastle</groupId>
 				<artifactId>bcutil-jdk18on</artifactId>
 				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<!--
+				Ground truth for every heap-footprint estimate in the codebase - `MemoryMeasuringConstants`,
+				`EvitaDataTypes.estimateSize` and the index size estimators. Managed here because two modules
+				consume it at DIFFERENT scopes (evita_performance_tests compiles its memory spikes against it,
+				evita_functional_tests only asserts with it), and the two must never drift apart: a JOL upgrade
+				that changed a reported layout would silently move the spikes' documented numbers away from the
+				figures the tests assert. Deliberately not given a scope here so each module keeps its own.
+			-->
+			<dependency>
+				<groupId>org.openjdk.jol</groupId>
+				<artifactId>jol-core</artifactId>
+				<version>${jol.version}</version>
+			</dependency>
+			<!--
+				Force httpclient5 to the first patched version across all modules. Without this,
+				software.amazon.awssdk:apache5-client drags a vulnerable httpclient5 5.6.2 transitively
+				into evita_functional_tests (CVE-2026-64607, connection leak on Content-Encoding decode
+				error leading to pool exhaustion DoS).
+			-->
+			<dependency>
+				<groupId>org.apache.httpcomponents.client5</groupId>
+				<artifactId>httpclient5</artifactId>
+				<version>5.6.3</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -602,7 +602,7 @@
 					-->
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-jar-plugin</artifactId>
-					<version>3.5.0</version>
+					<version>3.5.1</version>
 					<configuration>
 						<archive>
 							<manifest>
@@ -695,7 +695,24 @@
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
 					-->
-					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
+						`Unsafe.objectFieldOffset` refuses outright - records and field-carrying lambdas. Without it
+						the heap-size tests cannot measure `AttributeIndexKey`, `ComparatorSource`,
+						`ChainDescriptor` and friends, which means `SortIndex`, `ChainIndex`, `AttributeIndex` and
+						every entity index above them cannot be verified against a real walk at all. It affects only
+						the path that would otherwise throw: the whole heap-size regression returns identical
+						figures with it on, and the record sizes it reports are arithmetically exact. Note that
+						the add-opens flags below cannot substitute for it, because this is not a package-access
+						restriction.
+					-->
+					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us
+						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang=ALL-UNNAMED
+						--add-opens java.base/java.math=ALL-UNNAMED
+						--add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -783,7 +800,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.14</version>
+				<version>0.8.15</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -855,7 +872,7 @@
 			<plugin>
 				<groupId>one.edee.oss</groupId>
 				<artifactId>comenius-maven-plugin</artifactId>
-				<version>1.2.0</version>
+				<version>1.3.0</version>
 				<configuration>
 					<llmProvider>openai</llmProvider>
 					<llmUrl>https://api.openai.com/v1</llmUrl>

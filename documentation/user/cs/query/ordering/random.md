@@ -1,12 +1,12 @@
 ---
-title: Náhodné řazení
+title: Náhodné pořadí
 date: '25.6.2023'
-perex: Náhodné řazení je užitečné v situacích, kdy chcete uživateli pokaždé zobrazit jedinečný seznam entit při jeho přístupu.
+perex: Náhodné pořadí je užitečné v situacích, kdy chcete uživateli pokaždé zobrazit jedinečný seznam entit, když k němu přistupuje.
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Náhodné
 

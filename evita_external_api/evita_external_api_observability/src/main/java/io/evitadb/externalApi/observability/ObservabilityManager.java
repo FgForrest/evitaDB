@@ -38,6 +38,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.NotMonitored;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
@@ -46,6 +47,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
+import io.evitadb.externalApi.observability.agent.ErrorOriginLogger;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
@@ -123,6 +125,25 @@ public class ObservabilityManager {
 	 * Name of the OutOfMemoryError class to detect the problems of OOM kind.
 	 */
 	private static final String OOM_NAME = OutOfMemoryError.class.getSimpleName();
+	/**
+	 * Caches, per concrete error class, whether that class is monitored - i.e. whether it does *not* carry
+	 * {@link NotMonitored}.
+	 *
+	 * The agent instruments only the two roots of the evitaDB error hierarchy, so it counts each instance exactly
+	 * once whatever its depth; the price is that the opt-out marker, which sits on the concrete subtype, can no
+	 * longer be evaluated while instrumenting. Deciding it here instead preserves the marker's meaning precisely -
+	 * the check runs before any counter moves, so an opted-out type is as absent from the metrics as it was when
+	 * the agent skipped it outright.
+	 *
+	 * {@link ClassValue} is used rather than a map because it is the JDK's own per-class cache: the lookup is a
+	 * field read on the class, and the entry dies with the class rather than pinning a classloader.
+	 */
+	private static final ClassValue<Boolean> MONITORED_ERROR_TYPES = new ClassValue<>() {
+		@Override
+		protected Boolean computeValue(@Nonnull Class<?> type) {
+			return !type.isAnnotationPresent(NotMonitored.class);
+		}
+	};
 
 	static {
 		ClassLoader classLoader = null;
@@ -133,13 +154,17 @@ public class ObservabilityManager {
 				classLoader = classLoader.getParent();
 			}
 			try {
+				// the setters are resolved by erased descriptor, so widening the consumer's type argument from
+				// String to Throwable leaves these lookups untouched - but the lambdas below and `ErrorMonitor`
+				// still have to agree, since a mismatch surfaces as a ClassCastException thrown from inside an
+				// exception constructor. Both live in this module and ship in the same jar, so they cannot skew.
 				final Class<?> errorMonitorClass = classLoader.loadClass(ErrorMonitor.class.getName());
 				final Method setJavaErrorConsumer = errorMonitorClass.getDeclaredMethod("setJavaErrorConsumer", Consumer.class);
-				setJavaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::javaErrorEvent);
+				setJavaErrorConsumer.invoke(null, (Consumer<Throwable>) ObservabilityManager::javaErrorEvent);
 				final Method setEvitaErrorConsumer = errorMonitorClass.getDeclaredMethod("setEvitaErrorConsumer", Consumer.class);
-				setEvitaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::evitaErrorEvent);
+				setEvitaErrorConsumer.invoke(null, (Consumer<Throwable>) ObservabilityManager::evitaErrorEvent);
 				final Method setClientErrorConsumer = errorMonitorClass.getDeclaredMethod("setClientErrorConsumer", Consumer.class);
-				setClientErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::clientErrorEvent);
+				setClientErrorConsumer.invoke(null, (Consumer<Throwable>) ObservabilityManager::clientErrorEvent);
 			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
 			         InvocationTargetException e) {
 				// do nothing, the errors won't be monitored
@@ -171,8 +196,11 @@ public class ObservabilityManager {
 
 	/**
 	 * Method increments the counter of Java errors in the Prometheus metrics.
+	 *
+	 * @param error the error being constructed; not yet fully initialised, so only its class is inspected
 	 */
-	public static void javaErrorEvent(@Nonnull String simpleName) {
+	public static void javaErrorEvent(@Nonnull Throwable error) {
+		final String simpleName = error.getClass().getSimpleName();
 		MetricHandler.JAVA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		JAVA_ERRORS.incrementAndGet();
 		if (simpleName.equals(OOM_NAME)) {
@@ -182,17 +210,31 @@ public class ObservabilityManager {
 
 	/**
 	 * Method increments the counter of evitaDB errors in the Prometheus metrics.
+	 *
+	 * @param error the error being constructed; not yet fully initialised, so only its class is inspected
 	 */
-	public static void evitaErrorEvent(@Nonnull String simpleName) {
-		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(simpleName).inc();
+	public static void evitaErrorEvent(@Nonnull Throwable error) {
+		final Class<?> errorClass = error.getClass();
+		if (!MONITORED_ERROR_TYPES.get(errorClass)) {
+			return;
+		}
+		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(errorClass.getSimpleName()).inc();
 		EVITA_ERRORS.incrementAndGet();
+		ErrorOriginLogger.reportInternalError(error);
 	}
 
 	/**
 	 * Method increments the counter of client errors in the Prometheus metrics.
+	 *
+	 * @param error the error being constructed; not yet fully initialised, so only its class is inspected
 	 */
-	public static void clientErrorEvent(@Nonnull String simpleName) {
-		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(simpleName).inc();
+	public static void clientErrorEvent(@Nonnull Throwable error) {
+		final Class<?> errorClass = error.getClass();
+		if (!MONITORED_ERROR_TYPES.get(errorClass)) {
+			return;
+		}
+		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(errorClass.getSimpleName()).inc();
+		ErrorOriginLogger.reportClientError(error);
 	}
 
 	public ObservabilityManager(
@@ -204,6 +246,9 @@ public class ObservabilityManager {
 		this.config = config;
 		this.evita = evita;
 		this.objectMapper = new ObjectMapper();
+		// the error consumers are wired from this class's static initializer, long before any configuration is
+		// read, so the logger starts on its own default and is only narrowed or widened here
+		ErrorOriginLogger.configure(config.getErrorOriginLogging());
 		createAndRegisterPrometheusServlet();
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();

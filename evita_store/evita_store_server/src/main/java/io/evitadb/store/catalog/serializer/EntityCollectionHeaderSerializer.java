@@ -62,6 +62,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		serializeKeys(object.compressedKeys(), output, kryo);
 		kryo.writeObjectOrNull(output, object.globalEntityIndexPrimaryKey(), Integer.class);
 		serializeEntityIndexIds(output, object);
+		output.writeVarLong(object.lastModifiedMillis(), true);
 	}
 
 	@Override
@@ -83,6 +84,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
+		final long lastModifiedMillis = input.readVarLong(true);
 
 		return new EntityCollectionFileHeader(
 			entityType,
@@ -95,7 +97,8 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			activeRecordShare,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()),
 			globalIndexKey,
-			entityIndexIds
+			entityIndexIds,
+			lastModifiedMillis
 		);
 	}
 

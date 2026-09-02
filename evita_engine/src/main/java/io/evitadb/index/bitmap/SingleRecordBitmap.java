@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.utils.VMLayout;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
@@ -52,6 +54,20 @@ public class SingleRecordBitmap implements Bitmap {
 
 	public SingleRecordBitmap(int recordId) {
 		this.recordId = recordId;
+	}
+
+	/**
+	 * Returns the lone record id this bitmap holds.
+	 *
+	 * {@link #get(int)} answers exactly the same thing at index `0` and allocates nothing either, so this is a naming
+	 * convenience rather than a cheaper route: a fold reading `getRecordId()` says what it means, where `get(0)`
+	 * carries an index that could only ever be zero. What such a fold must NOT reach for is {@link #getArray()},
+	 * which allocates a one-element array per call - the very cost the fold exists to avoid.
+	 *
+	 * @return the record id
+	 */
+	public int getRecordId() {
+		return this.recordId;
 	}
 
 	@Override
@@ -137,6 +153,16 @@ public class SingleRecordBitmap implements Bitmap {
 	@Override
 	public int[] getArray() {
 		return new int[]{this.recordId};
+	}
+
+	/**
+	 * Just this object: one `int` field and no backing structure at all. That is the whole reason this
+	 * implementation exists — a roaring-backed bitmap holding the same single record costs an order of
+	 * magnitude more, almost all of it fixed overhead.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return VMLayout.current().sizeOfObject(Integer.BYTES);
 	}
 
 	@Nonnull

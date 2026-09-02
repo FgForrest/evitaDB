@@ -1141,6 +1141,85 @@ class SortIndexTest {
 			assertNotEquals(null, a);
 			assertNotEquals("not-a-comparable-array", a);
 		}
+
+		/**
+		 * The natural order exists so the JDK can key a `HashMap` on a compound value (a treeified bin is navigated by
+		 * the key's natural order); it is deliberately NOT the index's domain order, which always goes through the
+		 * configured comparator. These cases pin the contract independently of `HashMap`'s treeify heuristics, so it
+		 * stays verified even if those internals change.
+		 */
+		@Test
+		@DisplayName("should order element-wise on the first differing element")
+		void shouldOrderElementWise() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", 2});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"B", 1});
+
+			// the first element decides - the second is never consulted
+			assertTrue(a.compareTo(b) < 0);
+			assertTrue(b.compareTo(a) > 0);
+		}
+
+		@Test
+		@DisplayName("should fall through equal elements to the next position")
+		void shouldFallThroughEqualElements() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", 1});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"A", 2});
+
+			assertTrue(a.compareTo(b) < 0);
+			assertTrue(b.compareTo(a) > 0);
+		}
+
+		@Test
+		@DisplayName("should report equal arrays as equal")
+		void shouldReportEqualArraysAsEqual() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", 1});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"A", 1});
+
+			assertEquals(0, a.compareTo(b));
+			assertEquals(0, b.compareTo(a));
+		}
+
+		@Test
+		@DisplayName("should sort a null element before a non-null one")
+		void shouldSortNullElementFirst() {
+			final ComparableArray nullFirst = new ComparableArray(new Serializable[]{"A", null});
+			final ComparableArray nonNull = new ComparableArray(new Serializable[]{"A", 1});
+
+			assertTrue(nullFirst.compareTo(nonNull) < 0);
+			assertTrue(nonNull.compareTo(nullFirst) > 0);
+		}
+
+		@Test
+		@DisplayName("should treat two null elements as equal on that position")
+		void shouldTreatTwoNullElementsAsEqual() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", null, 1});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"A", null, 2});
+
+			// both nulls cancel out, so the decision falls to the third element
+			assertTrue(a.compareTo(b) < 0);
+			assertEquals(
+				0,
+				new ComparableArray(new Serializable[]{null, null})
+					.compareTo(new ComparableArray(new Serializable[]{null, null}))
+			);
+		}
+
+		@Test
+		@DisplayName("should break a tie on the shared prefix by array length")
+		void shouldBreakTieByLength() {
+			final ComparableArray shorter = new ComparableArray(new Serializable[]{"A"});
+			final ComparableArray longer = new ComparableArray(new Serializable[]{"A", 1});
+
+			assertTrue(shorter.compareTo(longer) < 0);
+			assertTrue(longer.compareTo(shorter) > 0);
+
+			// an empty array never reaches an element comparison - it is ordered purely by length, which is what keeps
+			// the empty sentinel used by the reference compound comparators safe against any other value
+			final ComparableArray empty = new ComparableArray(new Serializable[0]);
+			assertTrue(empty.compareTo(longer) < 0);
+			assertTrue(longer.compareTo(empty) > 0);
+			assertEquals(0, empty.compareTo(new ComparableArray(new Serializable[0])));
+		}
 	}
 
 	@Nested

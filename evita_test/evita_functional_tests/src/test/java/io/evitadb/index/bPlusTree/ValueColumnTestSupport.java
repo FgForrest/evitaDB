@@ -43,6 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * against a {@link TreeMap} oracle; the cursor-vs-oracle walk and the structural-consistency check
  * are identical across all of them and live here so the column tests do not each repeat them.
  *
+ * {@link #describe(String)} joins them because the two surrogate-carrying suites
+ * ({@code FrontCodedStringColumnTest} and {@code Wtf8Test}) both need a failure message that tells
+ * unprintable code units apart, and had grown an identical private copy each.
+ *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 final class ValueColumnTestSupport {
@@ -90,5 +94,21 @@ final class ValueColumnTestSupport {
 			tree.getConsistencyReport().state(),
 			tree.getConsistencyReport().report()
 		);
+	}
+
+	/**
+	 * Renders `value` as its UTF-16 code units, so a failure message distinguishes shapes that would
+	 * otherwise all print as the same unprintable glyph.
+	 *
+	 * @param value the value to describe
+	 * @return the value's code units in hex
+	 */
+	@Nonnull
+	static String describe(@Nonnull String value) {
+		final StringBuilder result = new StringBuilder(value.length() * 5 + 2);
+		for (int i = 0; i < value.length(); i++) {
+			result.append(String.format("%04X ", (int) value.charAt(i)));
+		}
+		return "[" + result.toString().trim() + "]";
 	}
 }

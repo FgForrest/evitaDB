@@ -32,7 +32,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  *
  * Before carry-by-reference this test would fail (the reduced index came back as a fresh re-shelled instance); the
  * assertions therefore pin the alloc-saving mechanism against a silent revert to per-commit re-shelling (the actual
- * allocation win is measured separately by the senesi JMH gate).
+ * allocation win is measured separately by the production-catalog JMH gate).
  */
 @DisplayName("Reduced index carried by reference across a clean catalog version bump")
 @Tag(INDEXING)

@@ -73,6 +73,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetRelationType.class, new EnumSerializer(FacetRelationType.class), index++);
 		kryo.register(FacetGroupRelationLevel.class, new EnumSerializer(FacetGroupRelationLevel.class), index++);
 		kryo.register(TraversalMode.class, new EnumSerializer(TraversalMode.class), index++);
+		// appended rather than inserted: ids are assigned positionally, so inserting anywhere above would
+		// renumber every enum below it and break recordings this change has no business touching
+		kryo.register(QueryTelemetryContent.class, new EnumSerializer(QueryTelemetryContent.class), index++);
 
 		index = QUERY_BASE + 100;
 		kryo.register(Head.class, new HeadSerializer(), index++);

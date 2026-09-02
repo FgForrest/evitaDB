@@ -23,8 +23,6 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts;
 
-import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
-
 /**
  * Marks {@link StoragePart} implementations (or their payload types) whose {@link StoragePart#getStoragePartPK()
  * primary key} is derived with the help of a {@link KeyCompressor}. When a part is written for the first time the

@@ -28,8 +28,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -47,7 +45,7 @@ public interface SetAttributeSchemaFilterableMutationDescriptor extends Attribut
 			When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
 			as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
 			(memory/disk) space in the form of index.
-			
+
 			This array defines in which scopes the attribute will be filterable. It will not be filterable in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))

@@ -30,9 +30,12 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.store.engine.DefaultEnginePersistenceService;
@@ -58,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
@@ -99,6 +103,22 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		cleanupTestPaths(this.testPaths);
+	}
+
+	/**
+	 * Creates a folder in the shape boot-time discovery is willing to adopt: suffix-free and holding a catalog
+	 * bootstrap file. A bare directory is classified as junk and deliberately left alone, since registering
+	 * every unknown directory is what turned an operator's stray folder into a catalog the engine claimed.
+	 *
+	 * Folders standing in for a *reappeared* catalog need none of this — those are found through their binding
+	 * rather than through discovery — which is why the `d` fixtures below stay bare.
+	 *
+	 * @param catalogName name of the catalog whose folder is being faked
+	 * @throws IOException when the folder or the bootstrap file cannot be created
+	 */
+	private void createDiscoverableCatalogFolder(@Nonnull String catalogName) throws IOException {
+		final Path folder = Files.createDirectory(this.storageDirectory.resolve(catalogName));
+		Files.createFile(folder.resolve(catalogName + ".boot"));
 	}
 
 	@Test
@@ -154,7 +174,7 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	@DisplayName("should register auto-discovered folder as INACTIVE via WAL on boot")
 	void shouldRegisterAutoDiscoveredFolderAsInactive() throws IOException {
 		// Empty baseline, single folder on disk → auto-discovered.
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY);
 
 		try (final Evita evita = bootEvita()) {
@@ -178,7 +198,7 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 		// 2) RestoreCatalogSchemaMutation(d) and RestoreCatalogSchemaMutation(c) in EITHER order — Phase 2
 		//    dispatches them in parallel so their relative WAL order is non-deterministic by design.
 		Files.createDirectory(this.storageDirectory.resolve("d"));
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, new String[]{"b"}, new String[]{"d"});
 
 		try (final Evita evita = bootEvita()) {
@@ -207,9 +227,74 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("should rename an adopted folder into the generation shape and bind the catalog to it")
+	void shouldRenameAdoptedFolderIntoGenerationShape() throws IOException {
+		// A bare `c` folder is what an older evitaDB leaves behind and what an operator hand-copies in; the
+		// two are indistinguishable on disk and take the same path. Adoption brings it into the canonical
+		// shape so it participates in the generation scheme from then on.
+		createDiscoverableCatalogFolder("c");
+		seedEngineState(
+			2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY
+		);
+
+		try (final Evita evita = bootEvita()) {
+			evita.waitUntilFullyInitialized();
+
+			// asserted through the binding rather than against the string `c_1`: what has to be true is that
+			// the engine points at the folder holding the data, not that a particular name was produced
+			final CatalogFolderId bound = evita.getCatalogFolderContext().folderIdFor("c");
+			assertEquals(new CatalogFolderId("c_1"), bound);
+			assertTrue(Files.notExists(this.storageDirectory.resolve("c")));
+			assertTrue(Files.exists(this.storageDirectory.resolve(bound.id()).resolve("c.boot")));
+			assertEquals(
+				"c",
+				Files.readString(
+					this.storageDirectory.resolve(bound.id())
+						.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG)
+				)
+			);
+
+			// Asserted here rather than in a test of its own because adoption only happens during a boot that
+			// finds an adoptable folder, and this test has already paid for exactly that boot - a dedicated
+			// test would duplicate the whole fixture to assert one more thing about the same event.
+			//
+			// Boot adoption is the one path that puts a reservation into the map without handing the caller a
+			// closeable handle - it is released indirectly, by the registering mutation's `completeFolder`. If
+			// that release is ever dropped, an adopted catalog keeps a stale claim for the life of the process
+			// and every later restore or duplicate over its name is refused with an error blaming concurrency
+			// for a single-threaded cause.
+			try (final CatalogFolderReservation laterAttempt =
+				     evita.getCatalogFolderContext().allocateFolderFor("c")) {
+				assertNotNull(laterAttempt.folderId());
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("should not adopt onto a generation a folder already on disk has taken")
+	void shouldSkipGenerationsAlreadyPresentOnDiskWhenAdopting() throws IOException {
+		// `c_4` is litter from an operation that died before persisting its generation peak, so nothing in
+		// the engine state knows the number was handed out. The disk scan is the term that catches it — and
+		// if it did not, adoption would try to rename onto an occupied name.
+		createDiscoverableCatalogFolder("c");
+		Files.createDirectory(this.storageDirectory.resolve("c_4"));
+		seedEngineState(
+			2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY
+		);
+
+		try (final Evita evita = bootEvita()) {
+			evita.waitUntilFullyInitialized();
+
+			assertEquals(new CatalogFolderId("c_5"), evita.getCatalogFolderContext().folderIdFor("c"));
+			assertTrue(Files.isDirectory(this.storageDirectory.resolve("c_4")),
+				"Adoption must not disturb the folder whose name it skipped past!");
+		}
+	}
+
+	@Test
 	@DisplayName("should detect no further divergence on second boot (idempotency)")
 	void shouldNotEmitFurtherWalMutationsOnSecondBoot() throws IOException {
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY);
 
 		// First boot — drains the auto-discovery and bumps version once.

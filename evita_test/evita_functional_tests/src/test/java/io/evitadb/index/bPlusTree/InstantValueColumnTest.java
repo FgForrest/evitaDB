@@ -31,6 +31,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,7 +58,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies the temporal parallel-array value column: the lossless
  * {@code Instant ↔ (seconds, nanos)} decomposition, the {@link InstantValueColumn} array operations (proven equivalent
  * to the boxed {@link BoxedObjectColumn}, including the nano tiebreak), the {@link ValueColumnFactory} selection of the
- * column for {@code OffsetDateTime} / {@code Instant} natural-order keys, an end-to-end randomized workload on an
+ * column for {@code OffsetDateTime} / {@code Instant} / {@code LocalDateTime} natural-order keys (and its
+ * deliberate non-selection for {@code LocalDate} / {@code LocalTime}, which stay on the cheaper single-long
+ * column), an end-to-end randomized workload on an
  * {@link Instant}-keyed {@link TransactionalBucketBPlusTree} matched against a {@link TreeMap} oracle, and the MVCC
  * commit / rollback of such a tree (so the two-array lockstep deep copy runs across a real transaction layer).
  *
@@ -240,6 +245,37 @@ class InstantValueColumnTest {
 			assertInstanceOf(
 				InstantValueColumn.class,
 				ValueColumnFactory.forKey(Instant.class, null).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("LocalDateTime natural-order keys select the Instant column too")
+		void shouldSelectInstantColumnForLocalDateTime() {
+			// `LocalDateTime` is normalized to an `Instant` at UTC by `FilterIndex#getNormalizer`, so the column
+			// selection in `ValueColumnFactory#normalizedTypeOf` has to agree - the two must stay in lockstep or the
+			// tree would be handed `Instant` keys while sizing itself for a boxed column
+			assertInstanceOf(
+				InstantValueColumn.class,
+				ValueColumnFactory.forKey(LocalDateTime.class, Comparator.naturalOrder()).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				InstantValueColumn.class,
+				ValueColumnFactory.forKey(LocalDateTime.class, null).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("LocalDate / LocalTime keep the cheaper single-long column")
+		void shouldKeepLongColumnForLocalDateAndLocalTime() {
+			// both fit losslessly in one `long` (epoch-day / nano-of-day), so routing them through `Instant` would
+			// cost an extra all-but-unused `int[]` per leaf - they must NOT be swept into the temporal branch
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forKey(LocalDate.class, Comparator.naturalOrder()).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forKey(LocalTime.class, null).create(BLOCK_SIZE)
 			);
 		}
 

@@ -39,6 +39,7 @@ import jdk.jfr.Category;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -57,6 +58,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -65,6 +68,8 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(ENGINE)
+@Tag(OBSERVABILITY)
 public class JfrDocumentation implements EvitaTestSupport {
 	private static final String PATH_PREFIX = "evita_engine/src/main/java/";
 	private static final String JFR_REFERENCE_DOCUMENTATION = "documentation/user/en/operate/reference/jfr-events.md";

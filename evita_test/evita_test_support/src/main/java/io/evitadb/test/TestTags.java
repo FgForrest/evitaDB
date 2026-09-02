@@ -37,7 +37,7 @@ import java.util.Set;
  * `mvn test -Dgroups="(facet | hierarchy) & external_api & !slow"`.
  *
  * The {@link #LAYER_TAGS} and {@link #CAPABILITY_TAGS} sets are consumed by
- * {@code TestTagPolicyListener} to enforce that every test method has been
+ * {@code TestTagPolicyFilter} to enforce that every test method has been
  * categorised on both axes.
  */
 public interface TestTags {
@@ -106,6 +106,13 @@ public interface TestTags {
 
 	/** Command-line tooling. */
 	String CLI = "cli";
+
+	/**
+	 * The test harness itself rather than the database — the tag-policy gate, the dataset
+	 * provisioning extensions, the generators. Dual-axis, like {@link #INDEXING}: such a test has no
+	 * meaningful database capability to declare, so this single tag satisfies both requirements.
+	 */
+	String TEST_HARNESS = "test_harness";
 
 	// ---------------------------------------------------------------------
 	// Capability axis — what behaviour is being tested
@@ -196,7 +203,7 @@ public interface TestTags {
 	String MANAGEMENT = "management";
 
 	// ---------------------------------------------------------------------
-	// Tag dictionaries consumed by TestTagPolicyListener
+	// Tag dictionaries consumed by TestTagPolicyFilter
 	// ---------------------------------------------------------------------
 
 	/**
@@ -205,19 +212,20 @@ public interface TestTags {
 	Set<String> LAYER_TAGS = Set.of(
 		CONTRACT, ENGINE, INDEXING, STORAGE, DRIVER, SERVER,
 		EXTERNAL_API, REST, GRAPHQL, GRPC, LAB, SYSTEM_API, OBSERVABILITY_API,
-		CLI
+		CLI, TEST_HARNESS
 	);
 
 	/**
 	 * Capability / domain tags — every test must carry at least one of these.
 	 *
-	 * Note: {@link #INDEXING} appears in both this set and {@link #LAYER_TAGS}.
-	 * It is genuinely dual-axis — "indexing" is both *where* in the stack a test
-	 * lives (the in-memory index implementation) and *what* it exercises (the
-	 * indexing capability of the database). Listing it in both sets lets a path
-	 * like {@code io/evitadb/api/functional/indexing/...} satisfy the layer
-	 * requirement via {@link #CONTRACT} and the capability requirement via
-	 * {@link #INDEXING}.
+	 * Note: {@link #INDEXING} and {@link #TEST_HARNESS} appear in both this set and
+	 * {@link #LAYER_TAGS}. {@link #INDEXING} is genuinely dual-axis — "indexing" is both *where* in
+	 * the stack a test lives (the in-memory index implementation) and *what* it exercises (the
+	 * indexing capability of the database). Listing it in both sets lets a path like
+	 * {@code io/evitadb/api/functional/indexing/...} satisfy the layer requirement via
+	 * {@link #CONTRACT} and the capability requirement via {@link #INDEXING}. {@link #TEST_HARNESS}
+	 * is dual-axis for the opposite reason — a test of the harness exercises no database capability
+	 * at all, and forcing one on it would be a lie that survives in tag-filter expressions.
 	 */
 	Set<String> CAPABILITY_TAGS = Set.of(
 		QUERY, FILTER, ORDER, REQUIRE,
@@ -225,7 +233,7 @@ public interface TestTags {
 		SCHEMA, TRANSACTION, WAL, CDC, CACHE, SESSION, PROXY,
 		EXPORT, STREAM, SERIALIZATION, EXPRESSION, COMPARATOR,
 		OBSERVABILITY, TASK, SECURITY, DATA_TYPE, TRAFFIC_ENGINE, MANAGEMENT,
-		INDEXING
+		INDEXING, TEST_HARNESS
 	);
 
 	/**

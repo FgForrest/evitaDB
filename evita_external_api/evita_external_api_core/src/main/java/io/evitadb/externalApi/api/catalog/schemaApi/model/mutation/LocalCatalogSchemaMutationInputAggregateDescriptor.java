@@ -107,6 +107,10 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 		"setAttributeSchemaFilterableMutation",
 		SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaAcceleratedMutation",
+		SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaLocalizedMutation",
 		SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT
@@ -176,6 +180,7 @@ public interface LocalCatalogSchemaMutationInputAggregateDescriptor {
 			MODIFY_ATTRIBUTE_SCHEMA_TYPE_MUTATION,
 			REMOVE_ATTRIBUTE_SCHEMA_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,

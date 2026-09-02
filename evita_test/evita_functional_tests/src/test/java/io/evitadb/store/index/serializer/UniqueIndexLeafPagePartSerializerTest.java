@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
@@ -188,7 +189,7 @@ class UniqueIndexLeafPagePartSerializerTest {
 				42, "url", 5, new Serializable[]{"/x"}, new int[]{1}
 			);
 			final int resolvedStreamId = page.getStreamId();
-			final long expected = UniqueIndexLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
+			final long expected = AbstractLeafPagePart.computeUniquePartId(resolvedStreamId, 5);
 			assertEquals(Long.valueOf(expected), page.getStoragePartPK(), "Computed key must join (streamId, pageSequence).");
 			assertEquals(
 				expected,

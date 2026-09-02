@@ -226,7 +226,7 @@ requireConstraint
     | 'hierarchyOfReference'                args = basicHierarchyOfReferenceWithBehaviourArgs               # basicHierarchyOfReferenceWithBehaviourConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceArgs                             # fullHierarchyOfReferenceConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceWithBehaviourArgs                # fullHierarchyOfReferenceWithBehaviourConstraint
-    | 'queryTelemetry'                      emptyArgs                                                       # queryTelemetryConstraint
+    | 'queryTelemetry'                      (emptyArgs | args = valueArgs)                                  # queryTelemetryConstraint
     | 'inScope'                             args = inScopeRequireArgs                                       # requireInScopeConstraint
     ;
 

@@ -1,12 +1,12 @@
 ---
 title: Souhrn referencí
 date: '11.5.2026'
-perex: 'Souhrny referencí — historicky nazývané *filtrování podle faset* — jsou základní datovou strukturou, která pohání parametrizované filtrační uživatelské rozhraní. Dotaz požaduje, aby evitaDB vrátila spolu s nalezenými entitami také strom všech souvisejících referencí (značka, parametr, skupina, …) s počty výskytů, volitelnými predikcemi dopadu a volitelnými číselnými histogramy. Přepínání těchto referencí v uživatelském rozhraní umožňuje uživatelům v reálném čase a s ohledem na počty výskytů zpřesňovat výslednou množinu. Výhody jsou dvojí: zlepšuje uživatelský zážitek díky mnohem cílenějšímu vyhledávání a prokazatelně zvyšuje konverzi na e-commerce stránkách tím, že pomáhá zákazníkům rychleji najít produkty, které odpovídají jejich kritériím.'
+perex: 'Souhrny referencí — historicky nazývané *filtrování podle faset* — jsou základní datovou strukturou, která pohání parametrizované filtrační uživatelské rozhraní. Dotaz požaduje, aby evitaDB vrátila spolu s nalezenými entitami také strom všech souvisejících referencí (značka, parametr, skupina, …) s počty výskytů, volitelnými predikcemi dopadu a volitelnými číselnými histogramy. Přepínání těchto referencí v uživatelském rozhraní umožňuje uživatelům v reálném čase a s ohledem na počty záznamů upřesnit výslednou množinu. Výhody jsou dvojí: zlepšuje uživatelský zážitek díky mnohem cílenějšímu vyhledávání a prokazatelně zvyšuje konverzi na e-commerce stránkách tím, že pomáhá zákazníkům rychleji najít produkty, které odpovídají jejich kritériím.'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '939634b9ad902a7fb058d9e91ef6e2b6c637964d'
 ---
 ![Příklad filtrování pomocí faset](../../../en/query/requirements/assets/facet-filtering.png "Příklad filtrování pomocí faset")
 

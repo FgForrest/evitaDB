@@ -54,7 +54,6 @@ import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceW
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

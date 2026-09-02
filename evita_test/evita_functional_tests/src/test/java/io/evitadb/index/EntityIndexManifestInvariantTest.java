@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -114,6 +115,7 @@ class EntityIndexManifestInvariantTest {
 			name,
 			null,
 			new Scope[]{Scope.LIVE},
+			null,
 			new Scope[]{Scope.LIVE},
 			false, false, false,
 			type, null,

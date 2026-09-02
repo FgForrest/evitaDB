@@ -39,9 +39,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * API-independent descriptor of union in schema-based external APIs. It joins multiple types into one union as

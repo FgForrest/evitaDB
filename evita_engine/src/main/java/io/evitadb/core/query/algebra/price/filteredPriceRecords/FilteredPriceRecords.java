@@ -49,6 +49,7 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -65,6 +66,23 @@ import static java.util.Optional.of;
  * Second contains direct array of prices and lacks access to the indexes - only prices in array are examined when
  * getting price for particular entity id.
  *
+ * ## Hazard: this interface's static initialiser must never construct an implementation
+ *
+ * A field initialiser here runs inside this interface's static initialiser (`clinit`). Because it declares
+ * a default method ({@link #prepareForFlattening()}), initialising **any** implementation also initialises
+ * this interface first (JLS 12.4.1). An initialiser that constructs an implementation therefore closes
+ * a two-edge class-initialisation cycle: interface → implementation and implementation → interface.
+ * Single-threaded that is benign — a thread may re-enter a class it is already initialising — but two
+ * threads entering from opposite ends while both classes are still uninitialised deadlock permanently on
+ * the JVM's class-initialisation monitors. Neither `jstack` nor `jcmd` reports it (they detect monitor and
+ * `AbstractQueuedSynchronizer` cycles only) and both threads show as `RUNNABLE`, so it presents as a silent
+ * hang at zero CPU.
+ *
+ * The shared empty instance consequently lives on {@link ResolvedFilteredPriceRecords#EMPTY} and nothing
+ * in this file may construct an implementation. Moving the construction into a nested holder class does
+ * **not** help — the holder's own initialiser still runs from this interface's, so the cycle survives with
+ * one extra hop.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface FilteredPriceRecords extends Serializable {
@@ -72,33 +90,62 @@ public interface FilteredPriceRecords extends Serializable {
 	 * Comparator that sorts {@link PriceRecord} in ascending order by entity id.
 	 */
 	Comparator<PriceRecordContract> ENTITY_PK_COMPARATOR = Comparator.comparingInt(PriceRecordContract::entityPrimaryKey);
-	/**
-	 * Empty instance with no price records at all.
-	 */
-	FilteredPriceRecords EMPTY = new ResolvedFilteredPriceRecords();
 
 	/**
-	 * Returns `true` when every accessor in the supplied collection exposes the per-inner-record
+	 * Returns `true` when **at least one** accessor in the supplied collection exposes the per-inner-record
 	 * histogram side-output (see {@link FilteredPriceRecordAccessor#exposesPerInnerRecordHistogramRecords()}).
-	 * An empty collection returns `false` because there is no histogram-aware contributor — the
-	 * caller must fall back to its non-histogram path.
+	 * An empty collection returns `false` because there is no histogram-aware contributor at all.
+	 *
+	 * The probe is deliberately *any*, not *all*. A single `filterBy` produces one price branch per
+	 * {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling} present in the catalog, and only
+	 * the `LOWEST_PRICE` branch has per-inner-record data points to contribute — `NONE` and `SUM` correctly
+	 * contribute one price for sale per entity. An all-or-nothing rule therefore discarded the whole
+	 * per-inner-record contribution as soon as the candidate pool mixed handling modes (issue #1433);
+	 * callers now merge the exposing accessors' side-output and route the remaining entities through the
+	 * per-entity collector.
 	 *
 	 * Centralises the capability probe so the histogram producer and wrapper formulas like
-	 * `SelectionFormula` cannot drift on the "all-or-nothing" rule.
+	 * `SelectionFormula` cannot drift apart on the rule.
 	 *
 	 * @param accessors accessors to probe
-	 * @return `true` iff the collection is non-empty and every accessor exposes the side-output
+	 * @return `true` iff at least one accessor exposes the side-output
 	 */
-	static boolean allAccessorsExposePerInnerRecordHistogram(@Nonnull Collection<FilteredPriceRecordAccessor> accessors) {
-		if (accessors.isEmpty()) {
-			return false;
-		}
+	static boolean anyAccessorExposesPerInnerRecordHistogram(
+		@Nonnull Collection<FilteredPriceRecordAccessor> accessors
+	) {
 		for (final FilteredPriceRecordAccessor accessor : accessors) {
-			if (!accessor.exposesPerInnerRecordHistogramRecords()) {
-				return false;
+			if (accessor.exposesPerInnerRecordHistogramRecords()) {
+				return true;
 			}
 		}
-		return true;
+		return false;
+	}
+
+	/**
+	 * Returns the subset of `accessors` that expose the per-inner-record histogram side-output, preserving
+	 * the input order. Only these accessors may be passed to
+	 * {@link #mergePerInnerRecordHistogramRecords(Collection, QueryExecutionContext)} — calling the merge on
+	 * a non-exposing accessor would either trip its histogram-collection guard or silently contribute
+	 * per-entity records a second time.
+	 *
+	 * @param accessors accessors to partition
+	 * @return the exposing accessors; an empty list when none of them expose the side-output
+	 */
+	@Nonnull
+	static List<FilteredPriceRecordAccessor> collectPerInnerRecordHistogramAccessors(
+		@Nonnull Collection<FilteredPriceRecordAccessor> accessors
+	) {
+		List<FilteredPriceRecordAccessor> exposing = null;
+		for (final FilteredPriceRecordAccessor accessor : accessors) {
+			if (accessor.exposesPerInnerRecordHistogramRecords()) {
+				// lazily allocated — the common non-histogram query never reaches this branch at all
+				if (exposing == null) {
+					exposing = new ArrayList<>(accessors.size());
+				}
+				exposing.add(accessor);
+			}
+		}
+		return exposing == null ? List.of() : exposing;
 	}
 
 	/**
@@ -457,6 +504,11 @@ public interface FilteredPriceRecords extends Serializable {
 
 	/**
 	 * Method is called when this instance is about to get into the cache.
+	 *
+	 * Keeping this method `default` is what makes this interface a *superinterface that declares a default
+	 * method*, which is the precondition of the class-initialisation hazard described on this interface's class
+	 * documentation. Do not add a field initialiser to this interface that constructs an implementation, directly
+	 * or through a holder class; the shared empty instance belongs on {@link ResolvedFilteredPriceRecords#EMPTY}.
 	 */
 	default void prepareForFlattening() {}
 

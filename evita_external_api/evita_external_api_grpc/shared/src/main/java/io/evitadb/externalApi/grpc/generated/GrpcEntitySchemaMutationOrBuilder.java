@@ -747,6 +747,36 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 126;</code>
+   * @return Whether the setAttributeSchemaAcceleratedMutation field is set.
+   */
+  boolean hasSetAttributeSchemaAcceleratedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 126;</code>
+   * @return The setAttributeSchemaAcceleratedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation getSetAttributeSchemaAcceleratedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting the filter accelerators of an `AttributeSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutation setAttributeSchemaAcceleratedMutation = 126;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaAcceleratedMutationOrBuilder getSetAttributeSchemaAcceleratedMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
    * </pre>
    *

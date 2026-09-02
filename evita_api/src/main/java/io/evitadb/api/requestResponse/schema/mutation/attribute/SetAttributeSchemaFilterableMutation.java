@@ -72,6 +72,16 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
  * {@link GlobalAttributeSchemaContract} alone.
+ *
+ * It touches the filterability axis and nothing else - in particular it carries the attribute's
+ * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator accelerators} straight through, because
+ * they are declared on their own axis by {@link SetAttributeSchemaAcceleratedMutation} and rebuilding the schema here
+ * must not silently withdraw them. It neither prunes an accelerator nor refuses one: an accelerator left standing in
+ * a scope this mutation strips filterability from - and which is not unique there either - is caught by
+ * {@link AttributeSchemaContract#validate()} once the whole batch of mutations has been applied, so the client is
+ * told rather than silently having the accelerator vanish. Deferring the check to the assembled schema is what lets
+ * a batch withdraw filterability and the accelerators it licensed in either order.
+ *
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
@@ -158,6 +168,7 @@ public class SetAttributeSchemaFilterableMutation
 					globalAttributeSchema.getUniquenessTypeInScopes(),
 					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
 					filterable,
+					globalAttributeSchema.getAcceleratorsInScopes(),
 					globalAttributeSchema.getSortableInScopes(),
 					globalAttributeSchema.isLocalized(),
 					globalAttributeSchema.isNullable(),
@@ -180,6 +191,7 @@ public class SetAttributeSchemaFilterableMutation
 					entityAttributeSchema.getDeprecationNotice(),
 					entityAttributeSchema.getUniquenessTypeInScopes(),
 					filterable,
+					entityAttributeSchema.getAcceleratorsInScopes(),
 					entityAttributeSchema.getSortableInScopes(),
 					entityAttributeSchema.isLocalized(),
 					entityAttributeSchema.isNullable(),
@@ -202,6 +214,7 @@ public class SetAttributeSchemaFilterableMutation
 					attributeSchema.getDeprecationNotice(),
 					attributeSchema.getUniquenessTypeInScopes(),
 					filterable,
+					attributeSchema.getAcceleratorsInScopes(),
 					attributeSchema.getSortableInScopes(),
 					attributeSchema.isLocalized(),
 					attributeSchema.isNullable(),

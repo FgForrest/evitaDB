@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @Tag(ENGINE)
 @Tag(STORAGE)
+@Tag(INDEXING)
 @DisplayName("Warm-up data-store buffer poisoning after a failed flush")
 class WarmUpDataStoreMemoryBufferPoisonTest {
 

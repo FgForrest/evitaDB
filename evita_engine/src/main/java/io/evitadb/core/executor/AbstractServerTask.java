@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -50,7 +51,12 @@ import java.util.function.Predicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
+abstract class AbstractServerTask<S, T> implements ServerTask<S, T>, InterruptibleServerTask {
+	/**
+	 * Upper bound on how far {@link #isCancellationDriven(Throwable)} walks a cause chain, so a self-referential or
+	 * looping chain cannot spin the worker thread forever.
+	 */
+	private static final int MAX_CAUSE_CHAIN_DEPTH = 32;
 	/**
 	 * The exception handler that is called when an exception is thrown during the task execution.
 	 * When the exception handler doesn't throw exception and instead returns a compatible value it's considered as a
@@ -69,6 +75,13 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 * The type of the task.
 	 */
 	protected final String taskType;
+	/**
+	 * The executor's handle for this task, attached by {@link Scheduler#submitTaskInQueue} after submission. It is the
+	 * only handle capable of interrupting the worker thread — see {@link InterruptibleServerTask} for why
+	 * {@link #future} cannot do it. Remains `null` for tasks that were never submitted through the scheduler (e.g.
+	 * `@InternallyScheduledTask`, executed inline on the submitter's thread).
+	 */
+	@Nullable private volatile Future<?> executionHandle;
 
 	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull TaskTrait... traits) {
 		this.taskType = taskType;
@@ -179,11 +192,30 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	@Override
+	public void attachExecutionHandle(@Nonnull Future<?> handle) {
+		// publish the handle first, then re-read the result future - the mirror image of cancel(), which cancels the
+		// result future first and only then reads the handle. Both sides touch the same two volatile locations in
+		// opposite order, so at least one of them observes the other and a cancel racing the attachment cannot be lost
+		this.executionHandle = handle;
+		if (this.future.isCancelled()) {
+			handle.cancel(true);
+		}
+	}
+
+	@Override
 	public boolean cancel() {
 		if (this.future.isDone() || this.future.isCancelled()) {
 			return false;
 		} else {
-			return this.future.cancel(true);
+			// cancel the result future first, so the status carries the CancellationException before the interrupt
+			// unwinds executeInternal() - otherwise execute() would report the cancellation as an ordinary failure
+			final boolean cancelled = this.future.cancel(true);
+			// ... and only then interrupt the worker, which the result future alone cannot do
+			final Future<?> handle = this.executionHandle;
+			if (handle != null) {
+				handle.cancel(true);
+			}
+			return cancelled;
 		}
 	}
 
@@ -205,6 +237,27 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 			try {
 				return executeAndCompleteFuture();
 			} catch (Throwable e) {
+				if (this.future.isCancelled()) {
+					if (isCancellationDriven(e)) {
+						// the task was cancelled and the interrupt unwound it - that is the requested outcome, not a
+						// failure. The status already carries the CancellationException from
+						// ServerTaskCompletableFuture#cancel, and overwriting it here would report a cancelled task
+						// as failed and log a stack trace for work the caller deliberately stopped.
+						log.debug("Task cancelled: {}", theStatus.taskName());
+						return null;
+					}
+					// cancelled, but this exception is not the cancellation unwinding: the body failed for its own
+					// reason while a cancel happened to win the race. Trusting isCancelled() alone here would discard a
+					// genuine production failure at debug level and leave the status carrying a CancellationException,
+					// making a real bug read as a routine cancellation. Record the real exception - but do not run the
+					// exception handler, whose only purpose is to supply a default result the cancelled future can no
+					// longer accept, and return the cancelled outcome the caller asked for.
+					log.error("Task failed while being cancelled: {}", theStatus.taskName(), e);
+					this.status.updateAndGet(
+						currentStatus -> currentStatus.transitionToFailed(e)
+					);
+					return null;
+				}
 				log.error("Task failed: {}", theStatus.taskName(), e);
 				this.status.updateAndGet(
 					currentStatus -> currentStatus.transitionToFailed(e)
@@ -229,6 +282,35 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Tells whether the given throwable is the cancellation unwinding this task, rather than an independent failure
+	 * that merely coincided with one.
+	 *
+	 * `Future#isCancelled` answers "was a cancel requested", never "is this why the body threw" — so it cannot
+	 * distinguish an interrupt tearing the task down from a genuine `IOException` raised microseconds before some
+	 * other thread called `cancel()`. Both cancellation routes are recognised here: `CancellationException`, raised
+	 * when the already-cancelled result future is read, and `InterruptedException`, raised by the `@Interruptible`
+	 * checkpoints woven into the task body — the latter typically arrives wrapped, hence the walk down the cause
+	 * chain.
+	 *
+	 * The chain walk is depth-bounded because a cause chain is not guaranteed acyclic: a throwable may be its own
+	 * cause, and hand-assembled chains can loop.
+	 *
+	 * @param throwable the throwable the task body unwound with
+	 * @return true when the throwable is (or wraps) the cancellation itself
+	 */
+	private static boolean isCancellationDriven(@Nonnull Throwable throwable) {
+		Throwable current = throwable;
+		for (int depth = 0; current != null && depth < MAX_CAUSE_CHAIN_DEPTH; depth++) {
+			if (current instanceof CancellationException || current instanceof InterruptedException) {
+				return true;
+			}
+			final Throwable cause = current.getCause();
+			current = cause == current ? null : cause;
+		}
+		return false;
 	}
 
 	@Override

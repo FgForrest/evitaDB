@@ -296,7 +296,8 @@ public interface HistogramContract extends Serializable {
 		boolean requested,
 		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = (MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_SIZE << 1);
+		public static final int BUCKET_MEMORY_SIZE =
+			(MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE << 1);
 		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull

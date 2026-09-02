@@ -23,11 +23,13 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.roaringbitmap.HeapLayout;
 import io.evitadb.roaringbitmap.ImmutableBitmapDataProvider;
 import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -56,6 +58,28 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 * Distinct from every `int`, so a real {@link Integer#MIN_VALUE} record id remains representable.
 	 */
 	long NO_PREVIOUS_VALUE = Long.MIN_VALUE;
+	/**
+	 * The running VM's object layout, in the form {@link PersistentRoaringBitmap#getHeapSizeInBytes} accepts.
+	 *
+	 * The bitmap module deliberately depends on nothing but `jsr305`, so it cannot detect the layout for
+	 * itself — evitaDB detects it once, here, and hands it in. Detection therefore lives in exactly one
+	 * place ({@link VMLayout}) while the capacity arithmetic lives in the only place capacities are visible.
+	 */
+	HeapLayout ROARING_HEAP_LAYOUT = currentHeapLayout();
+
+	/**
+	 * Builds {@link #ROARING_HEAP_LAYOUT} from evitaDB's own layout detection. An interface cannot have a
+	 * static initializer block, so the constant is initialized from a method call instead.
+	 *
+	 * @return the running VM's layout in the bitmap module's own form
+	 */
+	@Nonnull
+	private static HeapLayout currentHeapLayout() {
+		final VMLayout layout = VMLayout.current();
+		return new HeapLayout(
+			layout.referenceSize(), layout.objectHeaderSize(), layout.arrayHeaderSize(), layout.objectAlignment()
+		);
+	}
 
 	/**
 	 * Creates {@link PersistentRoaringBitmap} from the array of integers, adaptively picking the

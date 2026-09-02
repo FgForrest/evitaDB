@@ -31,11 +31,11 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * FacetIdIndex contains information about all entity ids that use certain facet as their
@@ -95,6 +95,22 @@ public class FacetIdIndex implements VoidTransactionMemoryProducer<FacetIdIndex>
 	 */
 	public int size() {
 		return this.records.size();
+	}
+
+	/**
+	 * Returns the heap this facet's entity set occupies, in bytes — this object and the bitmap of entity ids, which
+	 * is built fresh at every construction site and belongs to nobody else.
+	 *
+	 * The boxed facet id the enclosing {@link FacetGroupIndex} files this index under is charged **there**: the id
+	 * lives here as a bare `int` and the box is the map's.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id, the facetId int and the records slot
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + layout.referenceSize())
+			+ this.records.getHeapSizeInBytes();
 	}
 
 	@Override

@@ -29,16 +29,20 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -46,17 +50,23 @@ import java.util.function.Consumer;
  * Removes a catalog and all its associated data based on the provided mutation.
  * This operation also closes any active sessions associated with the catalog and cleans up its resources.
  *
- * Forward-replay is intentionally **not** implemented here. Catalog removal has destructive side effects (session
- * closure, folder deletion) that cannot be safely re-applied during recovery — depending on where the original crash
- * occurred, the catalog folder may or may not still exist on disk, and interacting with `terminateAndDelete` a second
- * time is not safe. The default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to
- * wedge loudly.
+ * The removal commits a **tombstone** for the catalog's folder rather than making the wipe part of the operation.
+ * The wipe is then attempted, and is allowed to fail: the operation the user asked for has already
+ * succeeded, and a folder the operating system refuses to remove is drained on the next boot instead. That is what
+ * makes drop-then-recreate on a locked folder stop being a failure.
+ *
+ * It is also what makes the removal **replayable**. Recovery no longer has to reason about how far a wipe got: the
+ * completion state is a tombstone plus a name removal, both idempotent, and the folder is reclaimed by the boot
+ * drain whether or not the crashed attempt managed anything. Before the tombstone the operator had to wedge the
+ * engine, because the removal wiped the folder in place, and re-running that against a folder that may or may not
+ * still exist was not safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperator<Void, RemoveCatalogSchemaMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -74,6 +84,9 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 	) {
 		final String catalogName = mutation.getCatalogName();
 		final CatalogContract catalogToRemove = evita.getCatalogInstanceOrThrowException(catalogName);
+		// Resolved here, while the catalog is still bound: the commit below drops the binding, so afterwards
+		// there is nothing left to ask which folder the removal has to reclaim.
+		final CatalogFolderId folderToReclaim = this.folderContext.folderIdFor(catalogName);
 
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -83,13 +96,11 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withCatalog(
-							new UnusableCatalog(
+							RemoveCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								CatalogState.BEING_DELETED,
-								RemoveCatalogSchemaMutationOperator.this.storageDirectory.resolve(
-									catalogName),
-								(cn, path) -> new CatalogTransitioningException(
-									cn, path, CatalogState.BEING_DELETED)
+								(cn, folderId, root) -> new CatalogTransitioningException(
+									cn, folderId, root, CatalogState.BEING_DELETED)
 							)
 						).build();
 				}
@@ -99,7 +110,13 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 		return new ProgressingFuture<>(
 			1,
 			theFuture -> {
-				evita.closeAllSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
+				// Belt and braces rather than the primary guard. What actually keeps a session from being
+				// opened against a catalog being wiped is the `BEING_DELETED` placeholder staged through the
+				// transition updater above: `Evita#createSessionInternal` throws an `UnusableCatalog`'s
+				// representative exception, so the refusal happens whether or not a registry exists. This
+				// call still closes the sessions that were already open, and installs a registry when there
+				// is none so the two mechanisms cannot disagree if the placeholder ever moves.
+				evita.suspendCatalogSessions(catalogName, SuspendOperation.REJECT);
 
 				theFuture.updateProgress(1);
 
@@ -111,18 +128,40 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 								.builder(expandedEngineState)
 								.withVersion(version)
 								.withoutCatalog(catalogToRemove)
+								// The tombstone is what makes the wipe optional. Dropping the binding leaves a
+								// folder nothing references, and an unreferenced folder is deliberately never
+								// destroyed - that rule is what protects an operator's hand-placed directory - so
+								// without this entry a wipe the operating system refuses would leave the data
+								// behind permanently, with nothing recording that it was meant to go.
+								.withRetiredFolder(catalogName, folderToReclaim)
 								.build();
 						}
 					}
 				);
 
 				// Wrap the destructive side-effects in try-finally so the host event fires even
-				// if `terminateAndDelete` throws (e.g. transient I/O failure on disk wipe). The
-				// engine state has already advanced through the live view at this point — fire the
-				// host event regardless so HOST subscribers do not miss the removal.
+				// if the wipe throws (e.g. transient I/O failure). The engine state has already advanced
+				// through the live view at this point — fire the host event regardless so HOST subscribers
+				// do not miss the removal.
 				try {
 					evita.removeCatalogSessionRegistryIfPresent(catalogName);
-					catalogToRemove.terminateAndDelete();
+					// Close first, wipe second, and let the wipe fail: the removal is already committed, so
+					// propagating a filesystem error here would report a failure for an operation that
+					// succeeded, and would do it precisely on the platform where a reader holding the
+					// directory open makes the wipe fail - the second Windows failure this design removes.
+					// `terminate()` gets the same treatment for the same reason: the `finally` below only
+					// guarantees the host event, so an exception escaping here would still surface a failure
+					// for a drop that has already committed - and would additionally skip the wipe.
+					try {
+						catalogToRemove.terminate();
+					} catch (RuntimeException ex) {
+						log.warn(
+							"Failed to terminate removed catalog `{}` - its handles stay open until the process " +
+								"ends, which may cause the folder wipe below to be refused and retried at boot.",
+							catalogName, ex
+						);
+					}
+					RemoveCatalogSchemaMutationOperator.this.folderContext.deleteRetiredFolder(folderToReclaim);
 				} finally {
 					// Emit the host event AFTER the catalog has been fully removed from the live
 					// view so HOST-area subscribers can deregister endpoints / clean up
@@ -131,6 +170,43 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 				}
 				return null;
 			}
+		);
+	}
+
+	/**
+	 * Rebuilds the completion state of a removal that committed to the WAL but never reached the bootstrap file.
+	 *
+	 * Nothing destructive is re-attempted: the state at replay time is exactly the tombstone and the name removal
+	 * the original completion updater would have produced, and the folder is left for the boot drain that runs
+	 * against that tombstone. The side effects the work phase performed — closing sessions, terminating the
+	 * catalog, wiping the folder — are all either already done or unnecessary, because replay runs during boot
+	 * with no sessions open and every catalog still a placeholder.
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull RemoveCatalogSchemaMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		final String catalogName = mutation.getCatalogName();
+		// read from the state being replayed onto rather than through the folder context, whose resolver reads
+		// whichever state is live - the two agree here, but only by an ordering this method must not depend on
+		final CatalogFolderId folderToReclaim = currentState.boundFolderIdFor(catalogName);
+		Assert.isPremiseValid(
+			folderToReclaim != null,
+			() -> new GenericEvitaInternalError(
+				"Cannot replay removal of catalog `" + catalogName + "` - it is not bound to any storage folder!"
+			)
+		);
+		return Optional.of(
+			ExpandedEngineState
+				.builder(currentState)
+				.withVersion(targetVersion)
+				.withoutCatalog(catalogName)
+				.withRetiredFolder(catalogName, folderToReclaim)
+				.build()
 		);
 	}
 

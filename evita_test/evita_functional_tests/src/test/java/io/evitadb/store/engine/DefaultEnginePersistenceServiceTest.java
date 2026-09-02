@@ -35,8 +35,12 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
@@ -321,8 +325,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should not mutate bootstrap when WAL is ahead by more than one on startup")
 		void shouldNotMutateBootstrapWhenWalAheadByMoreThanOne() throws IOException {
-			// Regression guard for the `syncEngineStateByFolderContents` ordering bug. If folder-sync
-			// reconciliation ran BEFORE the startup invariant check, a drifted state on disk would be "silently"
+			// Regression guard for the boot-time reconciliation ordering bug. If folder reconciliation ran
+			// BEFORE the startup invariant check, a drifted state on disk would be "silently"
 			// mended — the bootstrap file
 			// would be rewritten with the reconciled catalog arrays even though startup was about to
 			// throw. Any such rewrite is forbidden: on a drifted state we must surface the problem
@@ -502,6 +506,57 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should leave a discovered folder alone when its name cannot be adopted")
+		void shouldRefuseToAdoptFoldersWhoseNameIsUnusable() throws IOException {
+			// Adoption renames the folder into the shape the engine allocates and only then dispatches the
+			// mutation that validates the name. A folder that cannot be registered under its own name must
+			// therefore be rejected here, before anything is moved - otherwise boot reconciliation fails after
+			// the operator's import has already been renamed out from under them.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			// a name a catalog may not have - the classifier format allows no spaces
+			final Path unusableName = Files.createDirectory(storageDirectory.resolve("not a catalog"));
+			Files.createFile(unusableName.resolve("not a catalog.boot"));
+			// a name that is free on disk but already belongs to a registered catalog living elsewhere
+			final Path takenName = Files.createDirectory(storageDirectory.resolve("present"));
+			Files.createFile(takenName.resolve("present.boot"));
+
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				2L,
+				UUID.randomUUID(),
+				createTestEngineMutation(),
+				txRef -> EngineState.<LogFileRecordReference>builder()
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.version(2L)
+					.introducedAt(OffsetDateTime.now())
+					.walFileReference((LogFileRecordReference) txRef.walReference())
+					.inactiveCatalogs(new String[]{"present"})
+					.catalogFolders(
+						new CatalogFolderBinding[]{
+							new CatalogFolderBinding("present", new CatalogFolderId("present_1"))
+						}
+					)
+					.build()
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				() -> "Neither folder may be offered for adoption, but got: " + divergence.autoDiscovered()
+			);
+			// and both are exactly where the operator left them
+			assertTrue(Files.isDirectory(unusableName), "An unadoptable folder must not be touched!");
+			assertTrue(Files.isDirectory(takenName), "A folder whose name is taken must not be touched!");
+		}
+
+		@Test
 		@DisplayName("should expose reappeared and autoDiscovered divergence categories")
 		void shouldExposeReappearedAndAutoDiscoveredDivergence() throws IOException {
 			// Build a baseline state where one catalog already sits in the missing bucket and one
@@ -509,8 +564,12 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			// state knows nothing about so we exercise auto-discovery too.
 			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
 			Files.createDirectory(storageDirectory.resolve("flapping"));
-			Files.createDirectory(storageDirectory.resolve("discovered"));
 			Files.createDirectory(storageDirectory.resolve("present"));
+			// A folder is only offered for adoption when it actually holds a catalog, so the discovered one
+			// needs a bootstrap file - a bare directory is classified as junk and deliberately left alone.
+			// `flapping` and `present` need none: both are reached through their binding, not by discovery.
+			Files.createDirectory(storageDirectory.resolve("discovered"));
+			Files.createFile(storageDirectory.resolve("discovered").resolve("discovered.boot"));
 
 			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
 				2L,
@@ -538,7 +597,12 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			final CatalogInventoryDivergence divergence = DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
 			assertTrue(divergence.becomeMissing().isEmpty());
 			assertEquals(List.of("flapping"), divergence.reappeared());
-			assertEquals(List.of("discovered"), divergence.autoDiscovered());
+			// the folder token travels beside the name: the two coincide for an adoptable folder, which is
+			// suffix-free by definition, but the drain must not have to re-derive one from the other
+			assertEquals(
+				List.of(new AdoptableCatalogFolder("discovered", new CatalogFolderId("discovered"))),
+				divergence.autoDiscovered()
+			);
 
 			// Engine state must remain untouched — the persistence service does not rewrite the
 			// bootstrap; `Evita` will drain the divergence through WAL-backed mutations.
@@ -546,6 +610,107 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			assertEquals(2L, reloaded.version());
 			assertEquals(List.of("flapping"), Arrays.asList(reloaded.missingCatalogs()));
 			assertEquals(List.of("present"), Arrays.asList(reloaded.inactiveCatalogs()));
+		}
+
+		@Test
+		@DisplayName("should neither adopt nor remove an unreferenced folder holding no bootstrap file")
+		void shouldLeaveFolderWithoutBootstrapFileAlone() throws IOException {
+			// Registering every unknown directory is the hole this closes: it turned an operator's stray
+			// folder into a catalog the engine claimed to own. The folder must survive untouched all the
+			// same - we have no evidence it is ours, and removing it would be unrecoverable.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path stray = Files.createDirectory(storageDirectory.resolve("stray"));
+			Files.createFile(stray.resolve("notes.txt"));
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				"A folder without a bootstrap file must not be offered for adoption!"
+			);
+			assertTrue(Files.isDirectory(stray), "The folder must be left exactly where it is!");
+			assertTrue(Files.exists(stray.resolve("notes.txt")), "Its contents must be left alone too!");
+		}
+
+		@Test
+		@DisplayName("should neither adopt nor remove an unreferenced folder carrying a generation suffix")
+		void shouldLeaveSuffixedUnreferencedFolderAlone() throws IOException {
+			// Discovery is restricted to suffix-free names, so a folder shaped like one evitaDB allocated is
+			// reported rather than reclaimed - it is most likely copied in from another instance.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path unclaimed = Files.createDirectory(storageDirectory.resolve("products_7"));
+			Files.createFile(unclaimed.resolve("products.boot"));
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				"A suffixed folder must not be offered for adoption!"
+			);
+			assertTrue(Files.exists(unclaimed.resolve("products.boot")), "The folder must be left untouched!");
+		}
+
+		@Test
+		@DisplayName("should delete a tombstoned folder at boot and report it so its tombstone can be discharged")
+		void shouldDrainAPersistedTombstoneAtBoot() throws IOException {
+			// Classification, deletion, the Kryo round-trip and the in-run discharge each have a test of their
+			// own; nothing proved that a tombstone which *survived a restart* is acted on at all. No bootstrap
+			// file is needed - classification matches the tombstone before it ever looks for one.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path retired = Files.createDirectory(storageDirectory.resolve("products_4"));
+			Files.createFile(retired.resolve("leftover.dat"));
+
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				2L,
+				UUID.randomUUID(),
+				createTestEngineMutation(),
+				txRef -> EngineState.<LogFileRecordReference>builder()
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.version(2L)
+					.introducedAt(OffsetDateTime.now())
+					.walFileReference((LogFileRecordReference) txRef.walReference())
+					.retiredFolders(
+						new RetiredFolder[]{
+							new RetiredFolder("products", new CatalogFolderId("products_4"))
+						}
+					)
+					.build()
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+
+			// The two assertions catch different reverts, which is why both are here. Dropping RETIRED from the
+			// cleaner's drained states leaves the folder sitting on disk; dropping the removed-folder disjunct
+			// deletes it but reports nothing, so the engine goes on owing a deletion it has already performed
+			// and no later classification ever refills the entry.
+			assertTrue(Files.notExists(retired), "A tombstoned folder must be removed at boot!");
+			assertTrue(
+				divergence.drainedFolders().contains(new CatalogFolderId("products_4")),
+				() -> "The removal must be reported so the tombstone can be discharged, but got: " +
+					divergence.drainedFolders()
+			);
 		}
 
 	}

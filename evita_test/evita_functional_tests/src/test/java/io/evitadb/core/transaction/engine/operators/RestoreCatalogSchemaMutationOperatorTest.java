@@ -25,6 +25,8 @@ package io.evitadb.core.transaction.engine.operators;
 
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.engine.TestCatalogFolderContexts;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
@@ -85,7 +87,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
  * 1. **Restore from backup** — folder is on disk, catalog name is unknown to the engine,
  * 2. **Auto-discovery** — same as (1) but driven by Evita's boot reconciliation, indistinguishable here,
  * 3. **Flapping recovery** — folder reappeared and the name is currently parked in `missingCatalogs`; the operator
- *    must clear the missing-bucket entry through `Builder#withRestoredFromMissing(...)`.
+ *    must clear the missing-bucket entry through `Builder#withCatalogNoLongerMissing(...)`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -151,7 +153,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 		when(evita.getEngineState()).thenReturn(startingState);
 
 		final RestoreCatalogSchemaMutationOperator operator =
-			new RestoreCatalogSchemaMutationOperator(storageDirectory);
+			new RestoreCatalogSchemaMutationOperator(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation(CATALOG_NAME);
 
 		final ProgressingFuture<Void> future = operator.applyMutation(
@@ -190,10 +192,10 @@ class RestoreCatalogSchemaMutationOperatorTest {
 		assertEquals(CatalogState.INACTIVE, restored.get().getCatalogState());
 		assertEquals(CATALOG_NAME, restored.get().getName());
 
-		// Storage path on the placeholder must be the resolved catalog folder — operators read this back
-		// through `getCatalogStoragePath()` to surface a concrete location in error messages.
+		// Folder binding on the placeholder must be the token the catalog is bound to — operators read this
+		// back through `getCatalogFolderId()` to name a concrete location in error messages.
 		final UnusableCatalog placeholder = (UnusableCatalog) restored.get();
-		assertEquals(expectedCatalogFolder, placeholder.getCatalogStoragePath());
+		assertEquals(new CatalogFolderId(CATALOG_NAME), placeholder.getCatalogFolderId());
 
 		// Data-serving access must raise CatalogInactiveException — the placeholder's cause function
 		// is `CatalogInactiveException::new`, so any data path enforces "load it first" semantics.
@@ -213,7 +215,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 		// The operation name is surfaced in progress reports and CDC notifications. Asserting the
 		// exact format guards against accidental wording drift downstream operators may grep for.
 		final RestoreCatalogSchemaMutationOperator operator =
-			new RestoreCatalogSchemaMutationOperator(storageDirectory);
+			new RestoreCatalogSchemaMutationOperator(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation(CATALOG_NAME);
 
 		assertEquals(
@@ -231,7 +233,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 		// rather than silently registering a catalog with no data.
 		final Evita evita = mock(Evita.class);
 		final RestoreCatalogSchemaMutationOperator operator =
-			new RestoreCatalogSchemaMutationOperator(storageDirectory);
+			new RestoreCatalogSchemaMutationOperator(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation(CATALOG_NAME);
 
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater =
@@ -285,7 +287,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 			assertRestoredAsInactive(afterRestore, catalogFolder);
 			assertEquals(2L, afterRestore.version());
 			// missingCatalogs stays empty for the auto-discovery / restore-from-backup branches —
-			// the call to `withRestoredFromMissing` is unconditional but a no-op when the bucket
+			// the call to `withCatalogNoLongerMissing` is unconditional but a no-op when the bucket
 			// did not contain the catalog name.
 			assertEquals(0, afterRestore.engineState().missingCatalogs().length);
 
@@ -304,12 +306,13 @@ class RestoreCatalogSchemaMutationOperatorTest {
 			final Path catalogFolder = Files.createDirectory(storageDirectory.resolve(CATALOG_NAME));
 
 			// Starting state: catalog registered as missing, served by an UnusableCatalog(MISSING) stub.
-			final UnusableCatalog missingPlaceholder = new UnusableCatalog(
-				CATALOG_NAME,
-				CatalogState.MISSING,
-				catalogFolder,
-				(cn, path) -> new IllegalStateException("unused in test")
-			);
+			final UnusableCatalog missingPlaceholder = TestCatalogFolderContexts
+				.onDirectory(storageDirectory)
+				.createUnusableCatalog(
+					CATALOG_NAME,
+					CatalogState.MISSING,
+					(cn, folderId, root) -> new IllegalStateException("unused in test")
+				);
 			final Map<String, CatalogContract> catalogs = new HashMap<>();
 			catalogs.put(CATALOG_NAME, missingPlaceholder);
 			final ExpandedEngineState startingState = buildStartingState(
@@ -365,7 +368,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 			mock(Consumer.class);
 
 		final RestoreCatalogSchemaMutationOperator operator =
-			new RestoreCatalogSchemaMutationOperator(storageDirectory);
+			new RestoreCatalogSchemaMutationOperator(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		final ProgressingFuture<Void> future = operator.applyMutation(
 			UUID.randomUUID(),
 			new RestoreCatalogSchemaMutation(CATALOG_NAME),
@@ -387,7 +390,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 		// `Optional.empty()` from `EngineMutationOperator` makes the engine wedge loudly rather than
 		// silently re-registering an inactive catalog whose folder may never have existed.
 		final RestoreCatalogSchemaMutationOperator operator =
-			new RestoreCatalogSchemaMutationOperator(storageDirectory);
+			new RestoreCatalogSchemaMutationOperator(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation(CATALOG_NAME);
 		final ExpandedEngineState startingState = buildStartingState(
 			ArrayUtils.EMPTY_STRING_ARRAY,

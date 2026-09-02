@@ -41,14 +41,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the `exportedQueryLabels` contract of {@link ObservabilityOptions}: the names are arbitrary and
- * operator-chosen (evitaDB reserves none), an unset configuration means nothing is exported (unlike
- * {@link ObservabilityOptions#getAllowedEvents()}), and two guards fail fast at startup - reserved high-cardinality
- * names, and two names that collapse onto the same Prometheus dimension.
+ * Verifies the contracts of {@link ObservabilityOptions}.
+ *
+ * `exportedQueryLabels`: the names are arbitrary and operator-chosen (evitaDB reserves none), an unset configuration
+ * means nothing is exported (unlike {@link ObservabilityOptions#getAllowedEvents()}), and two guards fail fast at
+ * startup - reserved high-cardinality names, and two names that collapse onto the same Prometheus dimension.
+ *
+ * `errorOriginLogging`: defaults to {@link ErrorOriginLogging#INTERNAL} when unset, which matters because the
+ * consumers it drives are registered from a static initializer while the configuration only arrives with the
+ * observability manager's constructor - the default is what covers that window.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("ObservabilityOptions exportedQueryLabels contract")
+@DisplayName("ObservabilityOptions contract")
 @Tag(OBSERVABILITY_API)
 @Tag(OBSERVABILITY)
 class ObservabilityOptionsTest {
@@ -57,7 +62,15 @@ class ObservabilityOptionsTest {
 	private static ObservabilityOptions withExportedQueryLabels(@Nullable List<String> exportedQueryLabels) {
 		return new ObservabilityOptions(
 			null, "localhost:5555", null, null, null, null, null,
-			null, exportedQueryLabels, null
+			null, exportedQueryLabels, null, null
+		);
+	}
+
+	@Nonnull
+	private static ObservabilityOptions withErrorOriginLogging(@Nullable ErrorOriginLogging errorOriginLogging) {
+		return new ObservabilityOptions(
+			null, "localhost:5555", null, null, null, null, null,
+			null, null, errorOriginLogging, null
 		);
 	}
 
@@ -108,6 +121,21 @@ class ObservabilityOptionsTest {
 			() -> withExportedQueryLabels(withNullItem)
 		);
 		assertTrue(exception.getMessage().toLowerCase().contains("null"), "message should mention the null item");
+	}
+
+	@Test
+	@DisplayName("Should default errorOriginLogging to INTERNAL when not configured")
+	void shouldDefaultErrorOriginLoggingToInternal() {
+		assertEquals(ErrorOriginLogging.INTERNAL, new ObservabilityOptions().getErrorOriginLogging());
+		assertEquals(ErrorOriginLogging.INTERNAL, new ObservabilityOptions("localhost:5555").getErrorOriginLogging());
+		assertEquals(ErrorOriginLogging.INTERNAL, withErrorOriginLogging(null).getErrorOriginLogging());
+	}
+
+	@Test
+	@DisplayName("Should honour an explicitly configured errorOriginLogging mode")
+	void shouldHonourConfiguredErrorOriginLogging() {
+		assertEquals(ErrorOriginLogging.NONE, withErrorOriginLogging(ErrorOriginLogging.NONE).getErrorOriginLogging());
+		assertEquals(ErrorOriginLogging.ALL, withErrorOriginLogging(ErrorOriginLogging.ALL).getErrorOriginLogging());
 	}
 
 }

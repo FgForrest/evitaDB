@@ -87,6 +87,7 @@ import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -1557,6 +1558,97 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				}
 			)
 		);
+	}
+
+	/**
+	 * A chunked unary upload that stops half way must not leave its archive on the server.
+	 *
+	 * Nothing else would ever collect it: the temporary file is not reserved by
+	 * `FileManagementService`, no sweeper walks the work directory, and the restore step that deletes
+	 * it only runs for an upload that completed. There is also no half-close for the server to notice
+	 * the client's absence by - every chunk is its own request - so the cleanup hangs off the
+	 * restoration task's future instead, and the driver cancels that task on its way out.
+	 *
+	 * The assertion is deliberately "the work directory is exactly as it was", rather than a check on
+	 * one file name: it catches an archive left behind under any name, including one this test does not
+	 * know how to predict.
+	 */
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldDiscardTheArchiveOfAnAbandonedChunkedRestoreUpload(
+		EvitaClient evitaClient,
+		Evita evita
+	) throws ExecutionException, InterruptedException, TimeoutException {
+		final EvitaManagementContract management = evitaClient.management();
+		final FileForFetch fileForFetch = management
+			.backupCatalog(TEST_CATALOG, null, null, true)
+			.get(3, TimeUnit.MINUTES);
+
+		final Path workDirectory = evita.getConfiguration().storage().workDirectory();
+		final Set<String> filesBefore = listWorkDirectory(workDirectory);
+
+		// announce far more than will ever be sent, so the server keeps the task waiting for the rest of
+		// an upload that is about to die - which is the state the archive would otherwise be stranded in
+		final long announcedSize = fileForFetch.totalSizeInBytes() * 2;
+		assertThrows(
+			UnexpectedIOException.class,
+			() -> management.restoreCatalog(
+				TEST_CATALOG + "_abandoned",
+				announcedSize,
+				new FailAfterFirstChunkInputStream(management.fetchFile(fileForFetch.fileId()))
+			),
+			"An upload whose source dies part way through must surface as a failure, not a silent stall."
+		);
+
+		assertEquals(
+			filesBefore, listWorkDirectory(workDirectory),
+			"The abandoned upload's archive must be gone - the restoration task's completion hook owns " +
+				"it, and nothing else in the server would ever delete it."
+		);
+	}
+
+	/**
+	 * Lists the work directory by name, so a test can assert that an upload left nothing behind.
+	 *
+	 * @param workDirectory the engine's work directory
+	 * @return names of the files currently in it, never null
+	 */
+	@Nonnull
+	private static Set<String> listWorkDirectory(@Nonnull Path workDirectory) {
+		final String[] names = workDirectory.toFile().list();
+		return names == null ? Set.of() : Set.of(names);
+	}
+
+	/**
+	 * Input stream that yields one chunk and then fails, standing in for a source that dies mid-upload -
+	 * a disconnected volume, a truncated pipe, a killed producer.
+	 */
+	private static final class FailAfterFirstChunkInputStream extends InputStream {
+		private final InputStream delegate;
+		private boolean firstChunkDelivered;
+
+		FailAfterFirstChunkInputStream(@Nonnull InputStream delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public int read() throws IOException {
+			throw new IOException("Single-byte reads are not used by the chunked upload loop.");
+		}
+
+		@Override
+		public int read(@Nonnull byte[] buffer, int off, int len) throws IOException {
+			if (this.firstChunkDelivered) {
+				throw new IOException("Backup source went away mid-upload.");
+			}
+			this.firstChunkDelivered = true;
+			return this.delegate.read(buffer, off, len);
+		}
+
+		@Override
+		public void close() throws IOException {
+			this.delegate.close();
+		}
 	}
 
 	@Test

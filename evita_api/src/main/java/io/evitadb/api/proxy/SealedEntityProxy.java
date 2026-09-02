@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Optional;
 import java.util.function.Consumer;
 

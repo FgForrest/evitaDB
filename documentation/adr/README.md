@@ -33,8 +33,34 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
+| 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
+| 2026-08-31 | [Drop the netty version override instead of pinning tcnative to take netty 4.2.17](2026-08-31-netty-override-removal.md) | infrastructure | accepted | PR #1474 |
+| 2026-08-31 | [Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone](2026-08-31-trigram-query-path-optimization.md) | optimization | accepted | #1454 |
+| 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459, PR #1460 |
+| 2026-08-28 | [Count each evitaDB error once, at the hierarchy root, and record where it was created](2026-08-28-attributable-internal-error-metrics.md) | fix | accepted | #1461, PR #1462, PR #1463 |
+| 2026-08-24 | [Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene](2026-08-24-fulltext-search-lucene-vs-inhouse/) | feature | partially-implemented | #258, #1454 |
+| 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
+| 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
+| 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |
+| 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-16 | [An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself](2026-08-16-per-index-usage-statistics.md) | feature | accepted | PR #1423 |
+| 2026-08-14 | [Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future](2026-08-14-interruption-weaving-and-task-cancellation.md) | fix | accepted | #1416, PR #1419 |
+| 2026-08-14 | [Make the scheduler's waiting interval an idle timeout renewed by lookup, linearized on the buffer lock](2026-08-14-waiting-task-idle-timeout.md) | fix | accepted | #1415, PR #1420 |
+| 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339, PR #1418 |
+| 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
+| 2026-08-06 | [Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count](2026-08-06-time-travel-disk-budget.md) | feature | accepted | #761, PR #1402 |
+| 2026-08-06 | [Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap](2026-08-06-catalog-folder-decoupling.md) | refactor | partially-implemented | #649 |
+| 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390, PR #1395 |
+| 2026-08-05 | [Never decorate a streaming gRPC channel with RetryingClient](2026-08-05-streaming-calls-must-not-be-retry-decorated.md) | fix | accepted | #1388, PR #1389 |
+| 2026-08-04 | [Turn query telemetry into an actionable profile, and render the formula plan without ever computing it](2026-08-04-query-telemetry-actionable-profile.md) | feature | accepted | #1341, PR #1385 |
+| 2026-08-04 | [Report HTTP/2 RST_STREAM floods instead of enforcing against them, and turn the Rapid-Reset defence off by default](2026-08-04-http2-connection-teardown-observability.md) | fix | accepted | #1369, PR #1383 |
+| 2026-08-04 | [Fail fast on client pool saturation and never run consumer callbacks on the submitting thread](2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation.md) | fix | accepted | #1387, PR #1389 |
 | 2026-08-03 | [hierarchyContent keeps unmaterializable ancestors as bodyless pointers, with an opt-in cut](2026-08-03-hierarchy-content-parents-behaviour.md) | fix | proposed | #1365, #1343 |
 | 2026-08-03 | [Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR](2026-08-03-readiness-discovery-log-level.md) | fix | proposed | #1364, PR #1366 |
+| 2026-08-03 | [Enforce the test-tag policy from a JUnit PostDiscoveryFilter, because listener exceptions are swallowed](2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md) | fix | accepted | #1374, PR #1382 |
+| 2026-08-03 | [Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls](2026-08-03-driver-connection-resilience.md) | fix | accepted | #1367, #1368, PR #1371 |
 | 2026-08-02 | [Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master](2026-08-02-ci-release-pipeline-patch-versioning-fix.md) | infrastructure | accepted | #1359, #1362 |
 | 2026-08-02 | [Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless](2026-08-02-editorconfig-formatting-parity.md) | infrastructure | accepted | #1119 |
 | 2026-08-01 | [Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path](2026-08-01-bplustree-cursor-free-insert-path.md) | optimization | accepted | #1333, PR #1356 |

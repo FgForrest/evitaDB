@@ -24,6 +24,7 @@
 package io.evitadb.index.bitmap;
 
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.utils.VMLayout;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -115,6 +116,18 @@ public class ArrayBitmap implements Bitmap {
 	@Override
 	public int[] getArray() {
 		return this.intArray.toArray();
+	}
+
+	/**
+	 * This object plus the {@link CompositeIntArray} it exclusively owns. That backing structure allocates
+	 * fixed-size chunks and never resizes one, so unlike a roaring bitmap it carries no per-chunk slack —
+	 * but it also never compresses, which makes it markedly more expensive than {@link BaseBitmap} for the
+	 * same records once the record count grows.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return VMLayout.current().sizeOfObject(VMLayout.current().referenceSize())
+			+ this.intArray.getSizeInBytes();
 	}
 
 	@Nonnull

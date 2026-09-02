@@ -162,7 +162,11 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			null,
 			null,
 			null,
-			this.classifierResolver
+			this.classifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+
+			true
 		);
 	}
 

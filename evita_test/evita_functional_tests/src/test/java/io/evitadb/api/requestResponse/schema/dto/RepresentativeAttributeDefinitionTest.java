@@ -65,17 +65,17 @@ class RepresentativeAttributeDefinitionTest {
 	private static Map<String, AttributeSchema> prepareAttributes() {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("gamma", AttributeSchema._internalBuild(
-			"gamma", null, null, null,
+			"gamma", null, null, null, null,
 			false, false, false, String.class, "G",
 			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("beta", AttributeSchema._internalBuild(
-			"beta", null, null, null,
+			"beta", null, null, null, null,
 			false, false, true, String.class, "B",
 			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
-			"alpha", null, null, null,
+			"alpha", null, null, null, null,
 			false, false, true, String.class, "A",
 			ConflictResolutionOverride.INHERITED
 		));
@@ -89,7 +89,7 @@ class RepresentativeAttributeDefinitionTest {
 	private static Map<String, AttributeSchema> prepareSingleRepresentativeAttribute() {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("only", AttributeSchema._internalBuild(
-			"only", null, null, null,
+			"only", null, null, null, null,
 			false, false, true, String.class, "X",
 			ConflictResolutionOverride.INHERITED
 		));
@@ -103,12 +103,12 @@ class RepresentativeAttributeDefinitionTest {
 	private static Map<String, AttributeSchema> prepareAllRepresentativeAttributes() {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("beta", AttributeSchema._internalBuild(
-			"beta", null, null, null,
+			"beta", null, null, null, null,
 			false, false, true, String.class, "B",
 			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("alpha", AttributeSchema._internalBuild(
-			"alpha", null, null, null,
+			"alpha", null, null, null, null,
 			false, false, true, String.class, "A",
 			ConflictResolutionOverride.INHERITED
 		));
@@ -122,12 +122,12 @@ class RepresentativeAttributeDefinitionTest {
 	private static Map<String, AttributeSchema> prepareNoRepresentativeAttributes() {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("gamma", AttributeSchema._internalBuild(
-			"gamma", null, null, null,
+			"gamma", null, null, null, null,
 			false, false, false, String.class, "G",
 			ConflictResolutionOverride.INHERITED
 		));
 		attributes.put("delta", AttributeSchema._internalBuild(
-			"delta", null, null, null,
+			"delta", null, null, null, null,
 			false, false, false, String.class, "D",
 			ConflictResolutionOverride.INHERITED
 		));
@@ -141,7 +141,7 @@ class RepresentativeAttributeDefinitionTest {
 	private static Map<String, AttributeSchema> prepareAttributesWithNullDefault() {
 		final Map<String, AttributeSchema> attributes = new LinkedHashMap<>();
 		attributes.put("name", AttributeSchema._internalBuild(
-			"name", null, null, null,
+			"name", null, null, null, null,
 			false, false, true, String.class, null,
 			ConflictResolutionOverride.INHERITED
 		));
@@ -313,7 +313,7 @@ class RepresentativeAttributeDefinitionTest {
 		void shouldNotBeEqualWhenDefaultValuesDiffer() {
 			final Map<String, AttributeSchema> different = new LinkedHashMap<>(prepareAttributes());
 			different.put("beta", AttributeSchema._internalBuild(
-				"beta", null, null, null, false, false, true, String.class, "B2",
+				"beta", null, null, null, null, false, false, true, String.class, "B2",
 				ConflictResolutionOverride.INHERITED
 			));
 
@@ -348,11 +348,11 @@ class RepresentativeAttributeDefinitionTest {
 		void shouldNotBeEqualWhenAttributeNamesDiffer() {
 			final Map<String, AttributeSchema> other = new LinkedHashMap<>();
 			other.put("x", AttributeSchema._internalBuild(
-				"x", null, null, null, false, false, true, String.class, "A",
+				"x", null, null, null, null, false, false, true, String.class, "A",
 				ConflictResolutionOverride.INHERITED
 			));
 			other.put("y", AttributeSchema._internalBuild(
-				"y", null, null, null, false, false, true, String.class, "B",
+				"y", null, null, null, null, false, false, true, String.class, "B",
 				ConflictResolutionOverride.INHERITED
 			));
 

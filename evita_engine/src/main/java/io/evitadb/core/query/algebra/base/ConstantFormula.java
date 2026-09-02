@@ -81,9 +81,11 @@ public class ConstantFormula extends AbstractFormula {
 		if (this.delegate instanceof TransactionalLayerProducer) {
 			return ((TransactionalLayerProducer<?, ?>) this.delegate).getId();
 		} else {
-			// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-			// bitmaps located in indexes and represented by "transactional id"
-			return hashFunction.hashInts(this.delegate.getArray());
+			// a bitmap that is not part of a transactional layer carries no id to key on, so its contents are what
+			// identify it - and since this formula gathers no transactional ids for such a delegate, that hash is
+			// the sole cache discriminator. The walk is `O(size)`, which is why index memos hand out the same bitmap
+			// instance every time: `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
+			return this.delegate.getContentHash(hashFunction);
 		}
 	}
 

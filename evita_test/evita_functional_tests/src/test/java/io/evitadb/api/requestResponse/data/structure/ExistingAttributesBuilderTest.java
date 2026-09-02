@@ -265,7 +265,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"int", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					Integer.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -276,7 +276,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"short", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					Short.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -287,7 +287,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"range", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					IntegerNumberRange.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -298,7 +298,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"bigDecimal", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					false, false, false,
 					BigDecimal.class, null,
 					ConflictResolutionOverride.INHERITED
@@ -310,7 +310,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
 					"greetings", null,
-					Scope.NO_SCOPE, Scope.NO_SCOPE,
+					Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 					true, false, false,
 					String.class, null,
 					ConflictResolutionOverride.INHERITED

@@ -25,6 +25,7 @@ package io.evitadb.index.hierarchy;
 
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -1233,13 +1234,19 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("getAllHierarchyNodesFormula memoization: same reference on second call")
-		void shouldMemoizeAllNodesFormula() {
+		@DisplayName("getAllHierarchyNodesFormula memoizes the bitmap but never the formula")
+		void shouldMemoizeAllNodesBitmapButHandOutFreshFormula() {
 			final Formula first = HierarchyIndexTest.this.hierarchyIndex
 				.getAllHierarchyNodesFormula();
 			final Formula second = HierarchyIndexTest.this.hierarchyIndex
 				.getAllHierarchyNodesFormula();
-			assertSame(first, second);
+			// a formula node carries per-query state once a plan initializes it, so an index-lifetime structure
+			// must never hand out the same instance twice - see HierarchyIndex#memoizedAllNodes
+			assertNotSame(first, second);
+			// the expensive part - the O(nodes) walk producing the bitmap - is still memoized
+			final Bitmap memoizedNodes = HierarchyIndexTest.this.hierarchyIndex.getAllHierarchyNodes();
+			assertSame(memoizedNodes, HierarchyIndexTest.this.hierarchyIndex.getAllHierarchyNodes());
+			assertSame(memoizedNodes, ((ConstantFormula) first).getDelegate());
 		}
 
 		@Test
@@ -1285,38 +1292,38 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	class NonTransactionalModeTest {
 
 		@Test
-		@DisplayName("memoized formula reset after non-transactional addNode")
-		void shouldResetMemoizedFormulaOnAdd() {
+		@DisplayName("memoized bitmap reset after non-transactional addNode")
+		void shouldResetMemoizedBitmapOnAdd() {
 			final HierarchyIndex index = new HierarchyIndex();
 			index.addNode(1, null);
 
-			final Formula first = index.getAllHierarchyNodesFormula();
-			assertArrayEquals(new int[]{1}, first.compute().getArray());
+			final Bitmap first = index.getAllHierarchyNodes();
+			assertArrayEquals(new int[]{1}, first.getArray());
 
 			// add another node outside transaction
 			index.addNode(2, null);
 
-			final Formula second = index.getAllHierarchyNodesFormula();
-			assertArrayEquals(new int[]{1, 2}, second.compute().getArray());
-			// formula should have been refreshed
+			final Bitmap second = index.getAllHierarchyNodes();
+			assertArrayEquals(new int[]{1, 2}, second.getArray());
+			// the memoized bitmap should have been refreshed
 			assertNotSame(first, second);
 		}
 
 		@Test
-		@DisplayName("memoized formula reset after non-transactional removeNode")
-		void shouldResetMemoizedFormulaOnRemove() {
+		@DisplayName("memoized bitmap reset after non-transactional removeNode")
+		void shouldResetMemoizedBitmapOnRemove() {
 			final HierarchyIndex index = new HierarchyIndex();
 			index.addNode(1, null);
 			index.addNode(2, 1);
 
-			final Formula first = index.getAllHierarchyNodesFormula();
-			assertArrayEquals(new int[]{1, 2}, first.compute().getArray());
+			final Bitmap first = index.getAllHierarchyNodes();
+			assertArrayEquals(new int[]{1, 2}, first.getArray());
 
 			// remove node outside transaction
 			index.removeNode(2);
 
-			final Formula second = index.getAllHierarchyNodesFormula();
-			assertArrayEquals(new int[]{1}, second.compute().getArray());
+			final Bitmap second = index.getAllHierarchyNodes();
+			assertArrayEquals(new int[]{1}, second.getArray());
 			assertNotSame(first, second);
 		}
 	}

@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -44,6 +45,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.empty;
@@ -193,8 +195,411 @@ class AttributeSchemaBuilderTest {
 		}
 
 		@Nested
-		@DisplayName("uniqueness scope operations")
-		class UniquenessScope {
+		@DisplayName("filter index capabilities")
+		class FilterCapabilities {
+
+			@Test
+			@DisplayName(
+				"should leave capabilities empty for a plain filterable() call"
+			)
+			void shouldLeaveCapabilitiesEmptyForPlainFilterable() {
+				// the bare call form users write. That it still resolves to the
+				// no-argument overload rather than to the varargs capability one is
+				// proved by this file compiling, not by the assertions below - the two
+				// overloads build an identical schema and differ only in the mutation
+				// they emit, which the builder does not expose.
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							AttributeSchemaEditor::filterable
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("code").orElseThrow();
+
+				assertTrue(attr.isFilterable());
+				assertTrue(attr.getAccelerators().isEmpty());
+				assertTrue(
+					attr.getAcceleratorsInScopes().isEmpty(),
+					"a plain filterable() must cost nothing beyond the filter index"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should resolve a bare filterableInScope() to the scope overload"
+			)
+			void shouldResolveBareFilterableInScopeToTheScopeOverload() {
+				// this test is a compile-time guard first and a runtime assertion
+				// second: the capability overload takes its first carrier as a separate
+				// parameter precisely so that it is not applicable here, leaving
+				// `filterableInScope()` to resolve unambiguously against the
+				// `Scope...` overload. Should that head parameter ever be folded back
+				// into the varargs, this file stops compiling rather than shipping an
+				// ambiguity to every downstream caller.
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							AttributeSchemaEditor::filterableInScope
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("code").orElseThrow();
+
+				assertFalse(attr.isFilterable());
+				assertFalse(attr.isFilterableInScope(Scope.LIVE));
+				assertFalse(attr.isFilterableInScope(Scope.ARCHIVED));
+			}
+
+			@Test
+			@DisplayName(
+				"should declare SUBSTRING in the default scope"
+			)
+			void shouldDeclareSubstringInDefaultScope() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.filterable().acceleratedFor(
+								AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.DEFAULT_SCOPE));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAccelerators()
+				);
+				assertEquals(
+					Set.of(),
+					attr.getAcceleratorsInScope(Scope.ARCHIVED)
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should declare a different capability set per scope"
+			)
+			void shouldDeclareDifferentCapabilitySetPerScope() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+								.acceleratedForInScope(
+									Scope.LIVE,
+									AttributeFilterAccelerator.SUBSTRING_SEARCH
+								)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertTrue(attr.isFilterableInScope(Scope.ARCHIVED));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(),
+					attr.getAcceleratorsInScope(Scope.ARCHIVED),
+					"the archived scope is filterable but declares no acceleration"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should keep LIVE capabilities when ARCHIVED filterability is removed"
+			)
+			void shouldKeepLiveCapabilitiesWhenArchivedFilterabilityRemoved() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+								.acceleratedForInScope(
+									Scope.LIVE,
+									AttributeFilterAccelerator.SUBSTRING_SEARCH
+								)
+								.nonFilterableInScope(Scope.ARCHIVED)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr =
+					schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertFalse(attr.isFilterableInScope(Scope.ARCHIVED));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.LIVE),
+					"dropping one scope must not strip an acceleration from another"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse SUBSTRING on an attribute that is not a String"
+			)
+			void shouldRefuseSubstringOnNonStringAttribute() {
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute(
+							"quantity", Integer.class,
+							whichIs -> whichIs.filterable().acceleratedFor(
+								AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
+						)
+						.toInstance()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should accept SUBSTRING on a String array attribute"
+			)
+			void shouldAcceptSubstringOnStringArrayAttribute() {
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"tags", String[].class,
+							whichIs -> whichIs.filterable().acceleratedFor(
+								AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
+						)
+						.toInstance();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					schema.getAttribute("tags").orElseThrow()
+						.getAccelerators()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should keep the accelerators when the filterable scopes are restated"
+			)
+			void shouldKeepAcceleratorsWhenFilterableScopesAreRestated() {
+				// the accelerator is its OWN axis now, so `filterableInScope(...)` is a full statement of
+				// filterability and of nothing else. This is the behaviour change the axis move exists to produce:
+				// before it, the accelerators were folded into the `filterable(...)` call and restating filterability
+				// silently cleared them, which meant an unrelated edit elsewhere in a builder chain could delete an
+				// index the author never mentioned
+				final EntitySchemaContract restatedByScope =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.filterableInScope(Scope.LIVE)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract byScope =
+					restatedByScope.getAttribute("name").orElseThrow();
+
+				assertTrue(byScope.isFilterableInScope(Scope.LIVE));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					byScope.getAcceleratorsInScope(Scope.LIVE),
+					"restating the filterable scopes dropped an acceleration the author never withdrew"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should drop the accelerator only when it is explicitly withdrawn"
+			)
+			void shouldDropAcceleratorOnlyWhenExplicitlyWithdrawn() {
+				// the counterpart of the test above - withdrawal has its own call, and it leaves filterability alone
+				final EntitySchemaContract schema =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.nonAcceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+						)
+						.toInstance();
+
+				final EntityAttributeSchemaContract attr = schema.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE), "withdrawing the accelerator removed filterability");
+				assertTrue(attr.getAcceleratorsInScopes().isEmpty());
+			}
+
+			@Test
+			@DisplayName(
+				"should not care in which order filterability and the accelerator are declared"
+			)
+			void shouldNotCareAboutDeclarationOrder() {
+				// the regression this pins: the rule used to be checked by each mutation as it was applied, so it saw
+				// intermediate builder state and made declaration order significant. Worse, mutation *combination*
+				// reorders same-name mutations, so even `filterable()` before `acceleratedFor(...)` could end up
+				// applied the other way round. The rule now runs once on the assembled schema instead
+				final EntityAttributeSchemaContract acceleratorLast =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				final EntityAttributeSchemaContract acceleratorFirst =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH).filterable()
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				assertEquals(
+					acceleratorLast.getAcceleratorsInScopes(),
+					acceleratorFirst.getAcceleratorsInScopes()
+				);
+				assertEquals(
+					acceleratorLast.getFilterableInScopes(),
+					acceleratorFirst.getFilterableInScopes()
+				);
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					acceleratorFirst.getAcceleratorsInScope(Scope.LIVE)
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should accumulate accelerators declared in two scopes before filterability"
+			)
+			void shouldAccumulateAcceleratorsDeclaredInTwoScopesBeforeFilterability() {
+				// the accumulation the accelerator methods promise, exercised in the order that used to break it:
+				// both scopes are declared before either of them has the filter index that licenses it, so the
+				// delta of the second call has to be resolved without assembling - and therefore validating - the
+				// half-written attribute. Resolving it from the recorded mutations is what makes that possible
+				final EntityAttributeSchemaContract attr =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.acceleratedForInScope(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.acceleratedForInScope(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.LIVE),
+					"the second scope's declaration erased the first one's"
+				);
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.ARCHIVED)
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should accept an accelerator when a state-reading call splits it from its filterability"
+			)
+			void shouldAcceptAcceleratorWhenStateReadingCallSplitsItFromFilterability() {
+				// `withDefaultValue(...)` and the `non*(...)` withdrawals have to read the attribute as it stands in
+				// order to compute their own mutation. They read the assembled-but-unvalidated schema, so an
+				// accelerator waiting for the `filterable()` that licenses it does not make them throw - the chain is
+				// merely unfinished at that point, and only the finished attribute is judged
+				final EntityAttributeSchemaContract viaDefaultValue =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.withDefaultValue("N/A")
+								.filterable()
+						)
+						.toInstance()
+						.getAttribute("name").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					viaDefaultValue.getAcceleratorsInScope(Scope.LIVE)
+				);
+				assertEquals("N/A", viaDefaultValue.getDefaultValue());
+
+				final EntityAttributeSchemaContract viaWithdrawal =
+					createEntitySchemaBuilder()
+						.withAttribute(
+							"code", String.class,
+							whichIs -> whichIs
+								.acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.nonSortable()
+								.filterable()
+						)
+						.toInstance()
+						.getAttribute("code").orElseThrow();
+
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					viaWithdrawal.getAcceleratorsInScope(Scope.LIVE)
+				);
+				assertFalse(viaWithdrawal.isSortableInScope(Scope.LIVE));
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse an accelerator left in a scope with no filter index"
+			)
+			void shouldRefuseAcceleratorLeftInScopeWithoutFilterIndex() {
+				// the rule survives the move to final-state validation: an accelerator whose index is gone by the time
+				// the schema is assembled is still refused, it is just no longer refused mid-chain
+				final InvalidSchemaMutationException exception = assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.nonFilterable()
+						)
+						.toInstance()
+				);
+				assertTrue(exception.getMessage().contains(Scope.LIVE.name()));
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse an accelerator in a scope that is unique only in the other scope"
+			)
+			void shouldRefuseAcceleratorInScopeUniqueOnlyElsewhere() {
+				// the per-scope half of the rule: uniqueness in LIVE must not license an accelerator in ARCHIVED
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs
+								.uniqueInScope(Scope.LIVE)
+								.acceleratedForInScope(Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+						)
+						.toInstance()
+				);
+			}
 
 			@Test
 			@DisplayName(
@@ -773,6 +1178,87 @@ class AttributeSchemaBuilderTest {
 	@Nested
 	@DisplayName("GlobalAttributeSchemaBuilder")
 	class GlobalAttributeTests {
+
+		@Nested
+		@DisplayName("filter index capabilities")
+		class GlobalFilterCapabilities {
+
+			// a global attribute is not merely an entity attribute declared elsewhere:
+			// GlobalAttributeSchema has its own `_internalBuild` arm and its own
+			// serializer, and it is the kind that cascades into every collection using
+			// it - so the two cases below are asserted here rather than assumed from
+			// their entity-attribute twins.
+
+			@Test
+			@DisplayName(
+				"should declare SUBSTRING on a global attribute"
+			)
+			void shouldDeclareSubstringOnGlobalAttribute() {
+				final CatalogSchemaContract schema =
+					createCatalogSchemaBuilder()
+						.withAttribute(
+							"url", String.class,
+							whichIs -> whichIs.filterable().acceleratedFor(
+								AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
+						)
+						.toInstance();
+
+				final GlobalAttributeSchemaContract attr =
+					schema.getAttribute("url").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.DEFAULT_SCOPE));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAccelerators()
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should keep the accelerators when the filterable scopes are restated"
+			)
+			void shouldKeepAcceleratorsWhenFilterableScopesAreRestated() {
+				// the catalog-level mirror of the entity test - the accelerator axis is orthogonal here too
+				final CatalogSchemaContract schema =
+					createCatalogSchemaBuilder()
+						.withAttribute(
+							"url", String.class,
+							whichIs -> whichIs
+								.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+								.filterableInScope(Scope.LIVE)
+						)
+						.toInstance();
+
+				final GlobalAttributeSchemaContract attr =
+					schema.getAttribute("url").orElseThrow();
+
+				assertTrue(attr.isFilterableInScope(Scope.LIVE));
+				assertEquals(
+					Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+					attr.getAcceleratorsInScope(Scope.LIVE),
+					"restating the filterable scopes dropped an acceleration the author never withdrew"
+				);
+			}
+
+			@Test
+			@DisplayName(
+				"should refuse SUBSTRING on a global attribute that is not a String"
+			)
+			void shouldRefuseSubstringOnNonStringGlobalAttribute() {
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createCatalogSchemaBuilder()
+						.withAttribute(
+							"quantity", Integer.class,
+							whichIs -> whichIs.filterable().acceleratedFor(
+								AttributeFilterAccelerator.SUBSTRING_SEARCH
+							)
+						)
+						.toInstance()
+				);
+			}
+		}
 
 		@Nested
 		@DisplayName("global uniqueness scope operations")

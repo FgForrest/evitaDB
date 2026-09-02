@@ -26,8 +26,10 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.openjdk.jol.vm.VM;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -42,6 +44,17 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 /**
  * Test verifies contract of {@link MemoryMeasuringConstants} interface.
  *
+ * **Expectations are measured with JOL on every run, not remembered.** See {@link JolHeapSize} for why: deriving
+ * the expectation from the same constants the implementation uses - `assertEquals(OBJECT_HEADER_SIZE + INT_SIZE,
+ * estimateSize(1))` - is what this test used to do, and it is why an `int[]` estimate that was **6x** too large
+ * survived here unnoticed. A test that restates the implementation passes for every formula, including a wrong one.
+ *
+ * **Do not replace a JOL assertion with a literal.** A literal detects change but says nothing about correctness,
+ * and the usual response to its failure is to overwrite it. The one deliberate exception is
+ * {@link MemoryMeasuringConstants#computeStringSize(String)}, which assumes UTF-16 rather than scanning for a
+ * Latin-1 encoding, and therefore cannot equal JOL for an ASCII string - that divergence is a decision, so its
+ * tests assert the properties that survive it rather than a measured size.
+ *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("MemoryMeasuringConstants contract tests")
@@ -54,21 +67,36 @@ class MemoryMeasuringConstantsTest {
 	class ConstantsTests {
 
 		@Test
+		@DisplayName("Should run under the compressed layout every other expectation assumes")
+		void shouldRunUnderCompressedLayout() {
+			// stated first and on its own so a run on an unusual VM reports THIS instead of a dozen numeric
+			// mismatches that give the reader no clue why they all moved at once
+			assertEquals(
+				VMLayout.COMPRESSED, VMLayout.current(),
+				"The absolute sizes asserted here were measured under compressed references and compressed class " +
+					"pointers, which the VM applies below ~32 GB of heap. This VM reports " + VMLayout.current() +
+					" - re-measure with JOL before trusting any failure below."
+			);
+		}
+
+		@Test
 		@DisplayName("Should have correct object header size")
 		void shouldHaveCorrectObjectHeaderSize() {
-			assertEquals(16, MemoryMeasuringConstants.OBJECT_HEADER_SIZE);
+			assertEquals(VM.current().objectHeaderSize(), MemoryMeasuringConstants.OBJECT_HEADER_SIZE);
 		}
 
 		@Test
 		@DisplayName("Should have correct reference size")
 		void shouldHaveCorrectReferenceSize() {
-			assertEquals(8, MemoryMeasuringConstants.REFERENCE_SIZE);
+			// measured as what one extra reference slot costs in an array - NOT `VM.addressSize()`, which reports
+			// the 64-bit native word and stays 8 even while compressed oops make a reference 4
+			assertEquals(JolHeapSize.referenceSize(), MemoryMeasuringConstants.REFERENCE_SIZE);
 		}
 
 		@Test
 		@DisplayName("Should have correct array base size")
 		void shouldHaveCorrectArrayBaseSize() {
-			assertEquals(24, MemoryMeasuringConstants.ARRAY_BASE_SIZE);
+			assertEquals(VM.current().arrayHeaderSize(), MemoryMeasuringConstants.ARRAY_BASE_SIZE);
 		}
 
 		@Test
@@ -102,9 +130,34 @@ class MemoryMeasuringConstantsTest {
 		}
 
 		@Test
-		@DisplayName("Should have positive BigDecimal size")
-		void shouldHavePositiveBigDecimalSize() {
+		@DisplayName("Should measure a whole BigDecimal object, header and padding included")
+		void shouldMeasureAWholeBigDecimalObject() {
+			// a compact decimal - the magnitude fits `intCompact`, so no `BigInteger` is allocated and the shallow
+			// size IS the whole object. That is the case `BIG_DECIMAL_WHOLE_SIZE` describes
+			final BigDecimal compact = BigDecimal.valueOf(12345L, 2);
+			assertEquals(
+				JolHeapSize.shallowSize(compact),
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep the payload constant strictly smaller than the whole-object one")
+		void shouldKeepThePayloadConstantSmallerThanTheWholeOne() {
+			// the two are separate constants precisely because they were once one, and every structure that OWNS a
+			// `BigDecimal` charged the payload alone - under-reporting itself by a header plus its padding. This
+			// pins the gap so the two can never be silently collapsed back together
 			assertTrue(MemoryMeasuringConstants.BIG_DECIMAL_SIZE > 0);
+			assertTrue(
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE > MemoryMeasuringConstants.BIG_DECIMAL_SIZE,
+				"the whole size must exceed the payload by at least the object header"
+			);
+			assertEquals(
+				MemoryMeasuringConstants.align(
+					MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE
+				),
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+			);
 		}
 
 		@Test
@@ -172,12 +225,10 @@ class MemoryMeasuringConstantsTest {
 		@Test
 		@DisplayName("Should compute int array size")
 		void shouldComputeIntArraySize() {
+			// a primitive array stores its values inline and holds NO references - the previous expectation charged
+			// a reference AND an int per element, which is where the 3x over-estimate came from
 			final int[] array = new int[]{1, 2, 3, 4, 5};
-			final int size = MemoryMeasuringConstants.computeArraySize(array);
-			final int expectedMinimum = MemoryMeasuringConstants.ARRAY_BASE_SIZE +
-				5 * MemoryMeasuringConstants.REFERENCE_SIZE +
-				5 * MemoryMeasuringConstants.INT_SIZE;
-			assertEquals(expectedMinimum, size);
+			assertEquals(JolHeapSize.shallowSize(array), MemoryMeasuringConstants.computeArraySize(array));
 		}
 
 		@Test
@@ -198,10 +249,13 @@ class MemoryMeasuringConstantsTest {
 		@Test
 		@DisplayName("Should compute HashMap size for empty map")
 		void shouldComputeHashMapSizeForEmptyMap() {
+			// the bucket table is allocated lazily on the FIRST PUT, so an empty map genuinely has none - the
+			// previous expectation of 128 charged it for a phantom 16-slot table.
+			// Ground truth is taken BEFORE the estimate, because `computeHashMapSize` walks `entrySet()` and that
+			// materializes and caches the map's EntrySet view, adding ~16 bytes to a map that never had one
 			final Map<Serializable, Serializable> map = new HashMap<>();
-			final int size = MemoryMeasuringConstants.computeHashMapSize(map);
-			// Base size for empty HashMap is 128
-			assertEquals(128, size);
+			final long expected = JolHeapSize.ownedSize(map);
+			assertEquals(expected, MemoryMeasuringConstants.computeHashMapSize(map));
 		}
 
 		@Test
@@ -238,10 +292,10 @@ class MemoryMeasuringConstantsTest {
 		@Test
 		@DisplayName("Should compute LinkedList size for empty list")
 		void shouldComputeLinkedListSizeForEmptyList() {
+			// `modCount` comes from AbstractList and is easy to miss - leaving it out yields 24 instead of 32
 			final List<Serializable> list = new LinkedList<>();
-			final int size = MemoryMeasuringConstants.computeLinkedListSize(list);
-			// Base size for empty LinkedList is 48
-			assertEquals(48, size);
+			final long expected = JolHeapSize.ownedSize(list);
+			assertEquals(expected, MemoryMeasuringConstants.computeLinkedListSize(list));
 		}
 
 		@Test

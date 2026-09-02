@@ -1,12 +1,12 @@
 ---
-title: Řešení problémů
-perex: Věci se stávají. A když se něco pokazí, je dobré být připraven. Tato kapitola vám má poskytnout znalosti a techniky pro diagnostiku problémů, když nastanou. Očekávejte, že tento článek bude rozšiřován, jakmile získáme více zkušeností s tím, co se již stalo.
+title: Odstraňování problémů
+perex: Problémy se stávají. A když nastanou, je dobré být připraven. Tato kapitola vám má poskytnout znalosti a techniky pro diagnostiku problémů, když nastanou. Očekávejte, že tento článek bude rozšiřován, jakmile získáme více zkušeností s tím, co se již stalo.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ccb0d5d50900bc53b89db18c46df73ddf40e95db
 ---
 **Práce na dokumentu probíhají**
 

@@ -69,7 +69,7 @@ one `configuration`).
 - Same job cluster-wide mutual exclusion via darwin `Locker`: `locker.leaseProcess(sharedProcessName, computeLeaseTime(), 10_000)` (`EvitaFullReindexJob.java:295`), key `getName()` (485-487); 2nd run ⇒ `ProcessIsLockedException` → `log.warn("... already running on another node, skipping ...")` return (310-313).
 - Even without the lock, two doJob invocations open **separate** sessions ⇒ can never share ONE session.
 
-## Q3 — Other writer on temp catalog `senesi_<epochMillis>` — VERDICT: NO
+## Q3 — Other writer on temp catalog `<catalog>_<epochMillis>` — VERDICT: NO
 
 - Full reindex writes to `intermediateCatalog = catalog + "_" + ++TMP_FOLDER_COUNTER` (`EvitaFullReindexJob.java:503`).
 - `EvitaIncrementalIndexJob` writes to the LIVE `catalog` (`:482`, `:563` `evita.updateCatalog(catalog, ...)`), never the temp name ⇒ different `createSession` ⇒ different session. Catalog-name isolation.

@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.dataType.data.ComplexDataObjectToJsonConverterTest.createArrayComplexObject;
 import static io.evitadb.dataType.data.ComplexDataObjectToJsonConverterTest.createVeryComplexObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -92,7 +93,7 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemArray arrayItem) {
-			assertTrue(this.deserializedForm instanceof DataItemArray);
+			assertInstanceOf(DataItemArray.class, this.deserializedForm);
 			final DataItemArray deserializedItemArray = (DataItemArray) this.deserializedForm;
 			final DataItem[] serializedChildren = arrayItem.children();
 			final DataItem[] deserializedChildren = deserializedItemArray.children();
@@ -107,7 +108,7 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemMap mapItem) {
-			assertTrue(this.deserializedForm instanceof DataItemMap);
+			assertInstanceOf(DataItemMap.class, this.deserializedForm);
 			final DataItemMap deserializedItemMap = (DataItemMap) this.deserializedForm;
 			final Set<String> serializedPropertyNames = mapItem.getPropertyNames();
 			final Set<String> deserializedPropertyNames = deserializedItemMap.getPropertyNames();
@@ -129,7 +130,7 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemValue valueItem) {
-			assertTrue(this.deserializedForm instanceof DataItemValue);
+			assertInstanceOf(DataItemValue.class, this.deserializedForm);
 			final DataItemValue deserializedItem = (DataItemValue) this.deserializedForm;
 			final Serializable serializedValue = valueItem.value();
 			final Serializable deserializedValue = deserializedItem.value();

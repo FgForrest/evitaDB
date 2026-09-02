@@ -39,13 +39,6 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface UnusableCatalogDescriptor extends CatalogContractDescriptor {
 
-    PropertyDescriptor CATALOG_STORAGE_PATH = PropertyDescriptor.builder()
-        .name("catalogStoragePath")
-        .description("""
-            Path to original catalog.
-            """)
-        .type(nonNull(String.class))
-        .build();
     PropertyDescriptor CAUSE = PropertyDescriptor.builder()
         .name("cause")
         .description("""
@@ -58,8 +51,8 @@ public interface UnusableCatalogDescriptor extends CatalogContractDescriptor {
         .name("UnusableCatalog")
         .description("""
             Catalog instance that cannot be loaded into a memory due an error.
-            The original exception and catalog path are accessible via. `catalogStoragePath` and `cause` properties.
+            The original exception is accessible via. the `cause` property.
             """)
-        .staticProperties(List.of(NAME, CATALOG_STATE, CATALOG_STORAGE_PATH, CAUSE, UNUSABLE))
+        .staticProperties(List.of(NAME, CATALOG_STATE, CAUSE, UNUSABLE))
         .build();
 }

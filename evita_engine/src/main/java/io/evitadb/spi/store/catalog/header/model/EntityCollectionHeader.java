@@ -175,4 +175,20 @@ public interface EntityCollectionHeader extends StoragePart, Serializable {
 	 */
 	int lastKeyId();
 
+	/**
+	 * Wall-clock time this header was written, in epoch milliseconds, or `0` when it carries no timestamp at all.
+	 *
+	 * The header is rewritten by every flush that changed the collection and by every compaction of it, so this
+	 * answers *when was this collection's storage last written* - the question the monotonic {@link #version()}
+	 * cannot, since a version number says how many times, never when.
+	 *
+	 * **`0` means unknown, not the epoch.** The field was added to the persisted format in 2026.3; a header written
+	 * by an earlier release has no timestamp, and the backward-compatible reader reconstructs it with `0`. Every
+	 * consumer must map that to an explicit "not available" rather than rendering it as a date - a catalog upgraded
+	 * from an earlier release reports it for every collection until each is next flushed.
+	 *
+	 * @return epoch milliseconds of the last header write, or `0` when the header predates the timestamp
+	 */
+	long lastModifiedMillis();
+
 }

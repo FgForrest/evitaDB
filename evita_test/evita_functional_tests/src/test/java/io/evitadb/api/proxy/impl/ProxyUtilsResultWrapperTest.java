@@ -39,14 +39,9 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PROXY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ProxyUtils#createOptionalWrapper(Method, Class)} and the various
@@ -115,10 +110,8 @@ class ProxyUtilsResultWrapperTest {
 			final ResultWrapper wrapper = ProxyUtils.createOptionalWrapper(
 				getMethod("noException"), null
 			);
-			assertTrue(
-				!(wrapper instanceof OptionalProducingOperator),
-				"Unary wrapper should not be OptionalProducingOperator"
-			);
+			assertFalse(
+				wrapper instanceof OptionalProducingOperator, "Unary wrapper should not be OptionalProducingOperator");
 		}
 	}
 

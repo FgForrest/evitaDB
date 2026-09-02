@@ -23,7 +23,6 @@
 
 package io.evitadb.api.functional.fetch;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;

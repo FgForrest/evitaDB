@@ -31,6 +31,8 @@ import lombok.Getter;
 import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
+import io.evitadb.utils.VMLayout;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -383,6 +385,23 @@ public class TransactionalBitmap
 	@Override
 	public int[] getArray() {
 		return RoaringBitmapBackedBitmap.toSignedArray(getTheCurrentBitmap());
+	}
+
+	/**
+	 * This wrapper's own object — the `roaringBitmap` reference, the `id` and the memoized cardinality —
+	 * plus the **committed** roaring bitmap.
+	 *
+	 * Reads the field directly rather than going through {@link #getRoaringBitmap()}, and that is the whole
+	 * substance of this method. Inside a transaction the accessor returns a merged bitmap computed from this
+	 * bitmap and the open {@link BitmapChanges} layer; that merge is owned by the transaction, lives as long
+	 * as the transaction does, and is charged to nobody here. Reporting it would make an index's footprint
+	 * jump for the duration of a write and then fall back, which describes the writer rather than the index.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(layout.referenceSize() + Long.BYTES + Integer.BYTES)
+			+ this.roaringBitmap.getHeapSizeInBytes(ROARING_HEAP_LAYOUT);
 	}
 
 	@Nonnull

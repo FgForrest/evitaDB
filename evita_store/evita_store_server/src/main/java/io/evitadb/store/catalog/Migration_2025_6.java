@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -159,7 +159,10 @@ public interface Migration_2025_6 {
 						entityCollectionHeader.globalEntityIndexPrimaryKey(),
 						entityCollectionHeader.usedEntityIndexPrimaryKeys(),
 						entityCollectionHeader.lastKeyId(),
-						entityCollectionHeader.activeRecordShare()
+						entityCollectionHeader.activeRecordShare(),
+						// the migration only rewrites the compressed-key strings; it is not itself a write of the
+						// collection's data, so it carries the stamp across rather than re-stamping it as "now"
+						entityCollectionHeader.lastModifiedMillis()
 					)
 				)
 			);
@@ -181,7 +184,9 @@ public interface Migration_2025_6 {
 						catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
 					)
 				);
-				if (storagePart.getEntityIndexKey().type() == EntityIndexType.REFERENCED_ENTITY || storagePart.getEntityIndexKey().type() == EntityIndexType.REFERENCED_HIERARCHY_NODE) {
+				// a part written under the retired `REFERENCED_HIERARCHY_NODE` type arrives already folded into
+				// `REFERENCED_ENTITY` by `EntityIndexTypeSerializer`, so this one test covers both vintages
+				if (storagePart.getEntityIndexKey().type() == EntityIndexType.REFERENCED_ENTITY) {
 					final RepresentativeReferenceKey referenceKey = (RepresentativeReferenceKey) Objects.requireNonNull(
 						storagePart.getEntityIndexKey().discriminator()
 					);

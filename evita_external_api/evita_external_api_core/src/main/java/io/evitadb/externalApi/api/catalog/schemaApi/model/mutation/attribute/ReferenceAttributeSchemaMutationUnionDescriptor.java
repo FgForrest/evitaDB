@@ -45,6 +45,7 @@ public interface ReferenceAttributeSchemaMutationUnionDescriptor {
 		.type(ModifyAttributeSchemaTypeMutationDescriptor.THIS)
 		.type(RemoveAttributeSchemaMutationDescriptor.THIS)
 		.type(SetAttributeSchemaFilterableMutationDescriptor.THIS)
+		.type(SetAttributeSchemaAcceleratedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaLocalizedMutationDescriptor.THIS)
 		.type(SetAttributeSchemaNullableMutationDescriptor.THIS)
 		.type(SetAttributeSchemaRepresentativeMutationDescriptor.THIS)

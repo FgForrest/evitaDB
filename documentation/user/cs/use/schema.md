@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '939634b9ad902a7fb058d9e91ef6e2b6c637964d'
 ---
 evitaDB interně udržuje schéma pro každou [entitní kolekci](data-model.md#kolekce) / [katalog](data-model.md#katalog), ačkoliv podporuje [uvolněný přístup](#evoluce), kdy je schéma automaticky vytvářeno na základě dat vložených do databáze.
 

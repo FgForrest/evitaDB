@@ -216,7 +216,14 @@ collect_added_lines() {
 	fi
 }
 
-if ! VIOLATIONS="$(collect_added_lines | awk \
+# LC_ALL=C is load-bearing, not cargo cult: it pins awk to byte semantics, which is what
+# display_width below assumes when it subtracts UTF-8 continuation bytes. Here `awk` is mawk, which
+# is byte-based unconditionally -- but on a box where /etc/alternatives/awk points at gawk under a
+# UTF-8 locale, length() would already count characters *and* [\200-\277] would become a class of
+# real characters (degree sign, plus-minus, guillemets), so the same code would subtract twice and
+# under-report. Forcing byte semantics makes one implementation of display_width correct in both.
+# The other three checks match ASCII only, so this costs them nothing.
+if ! VIOLATIONS="$(collect_added_lines | LC_ALL=C awk \
 	-v file="${REL_PATH}" \
 	-v indent_style="${INDENT_STYLE}" \
 	-v max_line_length="${MAX_LINE_LENGTH}" \
@@ -226,14 +233,32 @@ if ! VIOLATIONS="$(collect_added_lines | awk \
 	-v check_indent="${IS_INDENT_CHECKED:-0}" '
 	# Columns occupied on screen: a tab advances to the next tab stop rather than counting as one
 	# character, which is how IDEA measures a line against the hard wrap.
-	function display_width(text,   i, len, column) {
+	#
+	# Width is counted in CHARACTERS, not bytes -- that is how EditorConfig defines
+	# max_line_length, and what editorconfig-checker (recommended above for repo-wide audits)
+	# counts. awk runs under LC_ALL=C and therefore sees bytes, which would let a single Czech
+	# letter or an em dash eat two or three columns; a line of Czech prose then measures about a
+	# third over its real width. Every byte in \200-\277 is a UTF-8 continuation byte -- the tail
+	# of a character whose leading byte was already counted -- so subtracting them yields the
+	# codepoint count.
+	#
+	# The subtraction is done per tab-separated segment rather than once at the end, because a tab
+	# stop has to be computed from the character column, not the byte column. The naive "count all
+	# bytes, subtract continuations at the end" form measures "pris<TAB>X" (with all four letters
+	# accented) as 6 columns instead of 9.
+	#
+	# No apostrophe may appear anywhere in this awk program, comments included: it is single-quoted
+	# in the shell, and one apostrophe would end the quote.
+	function display_width(text,   segments, count, i, segment, stripped, continuations, column) {
+		count = split(text, segments, /\t/)
 		column = 0
-		len = length(text)
-		for (i = 1; i <= len; i++) {
-			if (substr(text, i, 1) == "\t") {
+		for (i = 1; i <= count; i++) {
+			segment = segments[i]
+			stripped = segment
+			continuations = gsub(/[\200-\277]/, "", stripped)
+			column += length(segment) - continuations
+			if (i < count) {
 				column += tab_width - (column % tab_width)
-			} else {
-				column++
 			}
 		}
 		return column

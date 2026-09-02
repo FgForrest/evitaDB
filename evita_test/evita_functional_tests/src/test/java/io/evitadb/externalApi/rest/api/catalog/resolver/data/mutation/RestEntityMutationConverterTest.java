@@ -84,7 +84,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.test.builder.JsonArrayBuilder.jsonArray;
 import static io.evitadb.test.builder.JsonObjectBuilder.jsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -235,21 +235,21 @@ class RestEntityMutationConverterTest {
 
 		assertEquals(15, localMutations.size());
 		final Iterator<? extends LocalMutation<?, ?>> localMutationsIterator = localMutations.iterator();
-		assertTrue(localMutationsIterator.next() instanceof RemoveAssociatedDataMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertAssociatedDataMutation);
-		assertTrue(localMutationsIterator.next() instanceof ApplyDeltaAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveParentMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetParentMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetPriceInnerRecordHandlingMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemovePriceMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertPriceMutation);
-		assertTrue(localMutationsIterator.next() instanceof InsertReferenceMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveReferenceMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetReferenceGroupMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveReferenceGroupMutation);
-		assertTrue(localMutationsIterator.next() instanceof ReferenceAttributeMutation);
+		assertInstanceOf(RemoveAssociatedDataMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertAssociatedDataMutation.class, localMutationsIterator.next());
+		assertInstanceOf(ApplyDeltaAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveParentMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetParentMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetPriceInnerRecordHandlingMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemovePriceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertPriceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(InsertReferenceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveReferenceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetReferenceGroupMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveReferenceGroupMutation.class, localMutationsIterator.next());
+		assertInstanceOf(ReferenceAttributeMutation.class, localMutationsIterator.next());
 	}
 
 	@Test
@@ -334,21 +334,21 @@ class RestEntityMutationConverterTest {
 		assertEquals(15, localMutations.size());
 
 		final Iterator<? extends LocalMutation<?, ?>> localMutationsIterator = localMutations.iterator();
-		assertTrue(localMutationsIterator.next() instanceof RemoveAssociatedDataMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertAssociatedDataMutation);
-		assertTrue(localMutationsIterator.next() instanceof ApplyDeltaAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveParentMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetParentMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetPriceInnerRecordHandlingMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemovePriceMutation);
-		assertTrue(localMutationsIterator.next() instanceof UpsertPriceMutation);
-		assertTrue(localMutationsIterator.next() instanceof InsertReferenceMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveReferenceMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetReferenceGroupMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveReferenceGroupMutation);
-		assertTrue(localMutationsIterator.next() instanceof ReferenceAttributeMutation);
+		assertInstanceOf(RemoveAssociatedDataMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertAssociatedDataMutation.class, localMutationsIterator.next());
+		assertInstanceOf(ApplyDeltaAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertAttributeMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveParentMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetParentMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetPriceInnerRecordHandlingMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemovePriceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(UpsertPriceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(InsertReferenceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveReferenceMutation.class, localMutationsIterator.next());
+		assertInstanceOf(SetReferenceGroupMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveReferenceGroupMutation.class, localMutationsIterator.next());
+		assertInstanceOf(ReferenceAttributeMutation.class, localMutationsIterator.next());
 	}
 
 	@Test
@@ -372,8 +372,8 @@ class RestEntityMutationConverterTest {
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
 		assertEquals(2, localMutations.size());
 		final Iterator<? extends LocalMutation<?, ?>> localMutationsIterator = localMutations.iterator();
-		assertTrue(localMutationsIterator.next() instanceof RemoveAssociatedDataMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveAssociatedDataMutation);
+		assertInstanceOf(RemoveAssociatedDataMutation.class, localMutationsIterator.next());
+		assertInstanceOf(RemoveAssociatedDataMutation.class, localMutationsIterator.next());
 	}
 
 	@Data

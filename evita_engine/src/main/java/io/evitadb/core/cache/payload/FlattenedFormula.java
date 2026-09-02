@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -108,6 +109,14 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 		return 0;
 	}
 
+	@Nullable
+	@Override
+	public Long getMemoizedCost() {
+		// a cached result cost nothing to obtain and computes nothing when asked, so the free-of-charge answer and
+		// the on-demand one are the same constant zero that getCost() above returns
+		return 0L;
+	}
+
 	@Override
 	public int getEstimatedCardinality() {
 		return this.memoizedResult.size();
@@ -138,6 +147,15 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	@Nonnull
 	@Override
 	public Bitmap compute() {
+		return this.memoizedResult;
+	}
+
+	@Nullable
+	@Override
+	public Bitmap getMemoizedResult() {
+		// a cached formula carries its result from the moment it is deserialized, so the result is available for
+		// free and this is never null - which is the accessor's actual contract ("no computation needed"), not a
+		// claim that anything ran during this query. Nothing did; that is the entire point of the cache.
 		return this.memoizedResult;
 	}
 

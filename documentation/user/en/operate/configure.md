@@ -34,6 +34,7 @@ server:                                           # [see Server configuration](#
   dropCollationKeysAfterSecondsOfInactivity: 300
   readOnly: false
   quiet: false
+  usageStatisticsTracking: true
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -49,13 +50,14 @@ storage:                                          # [see Storage configuration](
   lockTimeoutSeconds: 60
   waitOnCloseSeconds: 60
   outputBufferSize: 4MB
-  maxOpenedReadHandles: 12
+  maxOpenedReadHandles: 80
   syncWrites: true
   computeCRC32C: true
   compress: false
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  timeTravelSizeLimitBytes: 1GB
   minCompactionIntervalMilliseconds: 1m
   maxWasteActiveShare: 0.1
 
@@ -77,7 +79,7 @@ export:                                           # [see Export configuration](#
     requestTimeoutInMillis: 30s
 
 transaction:                                      # [see Transaction configuration](#transaction-configuration)
-  transactionWorkDirectory: /tmp/evitaDB/transaction
+  transactionWorkDirectory: /tmp/evita/transaction
   transactionMemoryBufferLimitSizeBytes: 16MB
   transactionMemoryRegionCount: 256
   walFileSizeBytes: 16MB
@@ -98,7 +100,7 @@ cache:                                            # [see Cache configuration](#c
 
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
-  idleTimeoutInMillis: 2K
+  idleTimeoutInMillis: 60K
   requestTimeoutInMillis: 2K  
   maxEntitySizeInBytes: 2MB
   accessLog: false
@@ -160,6 +162,7 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       exposeDocsService: false
+      streamingRequestTimeoutInMillis: 300K
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -187,6 +190,7 @@ api:                                              # [see API configuration](#api
         protocol: grpc
       allowedEvents: null
       exportedQueryLabels: null
+      errorOriginLogging: INTERNAL
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -337,9 +341,9 @@ file on the classpath.
 
 Any configuration property can be overridden by setting an environment variable with a specially crafted name. The name
 of the variable can be calculated from the variable used in the default config file, which is always constructed from 
-the path to the property in the configuration file. The calculation consists of capitalizing the variable name and 
-replacing all dots with underscores. For example, the `server.coreThreadCount` property can be overridden by setting
-the `SERVER_CORETHREADCOUNT` environment variable.
+the path to the property in the configuration file. The calculation consists of capitalizing the variable name, 
+replacing all dots with underscores, and prepending `EVITADB_`. For example, the `server.requestThreadPool.minThreadCount`
+property can be overridden by setting the `EVITADB_SERVER_REQUESTTHREADPOOL_MINTHREADCOUNT` environment variable.
 
 ### Command Line Arguments
 
@@ -486,12 +490,28 @@ This section contains general settings for the evitaDB server. It allows configu
             not thread-safe.            
         </Note>
     </dd>
+    <dt>usageStatisticsTracking</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Controls whether the engine counts how often each index and each schema capability flag is *queried* against
+           how often it is *maintained*. These are the readings behind the `BrowseIndexes` and `ListSchemaCapabilityUsage`
+           management calls, and they are what tells you that a `filterable()` flag is being paid for on every write and
+           never used by a single query.</p>
+        <p>Switching it off gives up that diagnosis and reclaims its cost, which is mostly a footprint rather than a
+           throughput one: no activity holder is allocated per index (five longs each, and a large catalog runs to
+           hundreds of thousands of indexes), the query path stops resolving a capability holder per candidate plan, and
+           the write path stops resolving one per touched element.</p>
+        <p>Both management calls keep working with it off, and still list every index and every declared capability -
+           what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
+           distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
+           this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
+    </dd>
 </dl>
 
 ### Thread pool configuration
 
 <dl>
-    <dt>coreThreadCount</dt>
+    <dt>minThreadCount</dt>
     <dd>
         <p>**Default:** `4`</p>
         <p>It defines the minimum number of threads in the evitaDB main thread pool, threads are used for query processing, 
@@ -502,7 +522,7 @@ This section contains general settings for the evitaDB server. It allows configu
     <dd>
         <p>**Default:** `16`</p>
         <p>It defines the maximum number of threads in the evitaDB main thread pool. The value should be a multiple of the 
-        `coreThreadCount` value.</p>
+        `minThreadCount` value.</p>
     </dd>
     <dt>threadPriority</dt>
     <dd>
@@ -613,7 +633,7 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>maxOpenedReadHandles</dt>
     <dd>
-        <p>**Default:** `12`</p>
+        <p>**Default:** `number of CPUs * 20`</p>
         <p>It defines the maximum number of simultaneously opened file read handles.</p>
         <Note type="warning">
             This setting should be set in sync with file handle settings in operating system. 
@@ -681,6 +701,34 @@ This section contains configuration options for the storage layer of the databas
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in
         time with all the data available at that time.</p>
+        <p>How much disk that history may consume is bounded by `timeTravelSizeLimitBytes`.</p>
+    </dd>
+    <dt>timeTravelSizeLimitBytes</dt>
+    <dd>
+        <p>**Default:** `1GB`</p>
+        <p>Upper bound on the disk space the retained history may occupy **on top of the active data set**, per
+            catalog. The setting is inert unless `timeTravelEnabled` is `true`, because otherwise no historical data
+            file is kept at all.</p>
+        <p>The cost of time travel is not per transaction - it is one full data file copy per compaction, because
+            with time travel enabled the compacted-away file is kept instead of deleted. Compaction fires on a single
+            file's waste and size, while write-ahead log rotation fires on appended bytes, so the write-ahead log
+            retention settings (`walFileSizeBytes` × `walFileCountKept`) bound WAL bytes but say nothing about disk
+            bytes. This limit is what actually bounds them: whenever retained history exceeds it, the oldest
+            generations are given up until it fits again.</p>
+        <p>Two properties follow from how compaction works and cannot be configured away:</p>
+        <p>- The limit **cannot bound peak usage below one generation**. A compaction writes the full new copy before
+            the old file may be dropped, so the transient peak is roughly *active + old file* regardless of the value
+            set here.</p>
+        <p>- If the limit **cannot hold even a single generation**, the retained history is effectively zero and time
+            travel stops working. That is the correct reading of the instruction rather than an error, so it is
+            reported through a warning in the log instead of being overridden - a minimum-retention floor able to
+            exceed the byte limit would break the contract this setting states.</p>
+        <p>A negative value means *no limit* and restores the pre-2026.2 behavior, where retention was bounded only by
+            the write-ahead log - which is the unbounded-growth characteristic this limit exists to remove. A value of
+            `0` keeps no history at all.</p>
+        <p>Switching the limit off does **not** switch off housekeeping: data files that no retained point in time can
+            reach any more are reclaimed regardless of the value set here. Those files are not history - nothing can
+            travel to them - so no budget, however generous, is a reason to keep them.</p>
     </dd>
     <dt>minCompactionIntervalMilliseconds</dt>
     <dd>
@@ -811,7 +859,7 @@ This section contains configuration options for the storage layer of the databas
 <dl>
     <dt>transactionWorkDirectory</dt>
     <dd>
-        <p>**Default:** `/tmp/evitaDB/transaction`</p>
+        <p>**Default:** `/tmp/evita/transaction`</p>
         <p>Directory on local disk where Evita creates temporary folders and files for transactional transaction. 
             By default, temporary directory is used - but it is a good idea to set your own directory to avoid problems 
             with disk space.</p>
@@ -1093,15 +1141,21 @@ This section of the configuration allows you to selectively enable, disable, and
     </dd>
     <dt>idleTimeoutInMillis</dt>
     <dd>
-        <p>**Default:** `2K`</p>
+        <p>**Default:** `60K`</p>
         <p>The amount of time a connection can be idle for before it is timed out. An idle connection is a connection 
             that has had no data transfer in the idle timeout period. Note that this is a fairly coarse grained approach,
-            and small values will cause problems for requests with a long processing time.</p>
+            and small values will cause problems for requests with a long processing time. The default sits comfortably
+            above the Java driver's default keep-alive ping interval (30 s, see
+            [Connection options](../use/connectors/java.md#connection-options)) so an actively-pinging client
+            connection is never reaped.</p>
     </dd>
     <dt>requestTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `2K`</p>
-        <p>The amount of time a connection can sit idle without processing a request, before it is closed by the server.</p>
+        <p>The budget for handling a **whole request**, measured from its start until the response has been fully sent.
+            This is the right shape for a unary call, where the work is one bounded round trip. It is the wrong shape
+            for a long-lived streaming response, which is why the gRPC API has a separate
+            [streamingRequestTimeoutInMillis](#grpc-api-configuration).</p>
     </dd> 
     <dt>maxEntitySizeInBytes</dt>
     <dd>
@@ -1249,7 +1303,7 @@ This allows you to set common settings for all endpoints in one place.
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system.</p> 
-        <p>The `exposedHost` property allows you to override not only the external hostname, scheme, but also to specify 
+        <p>The `exposeOn` property allows you to override not only the external hostname, scheme, but also to specify 
         an external port, but the minimum configuration is the hostname. If you don't specify scheme / port, exposed 
         host will assume that the default scheme / port configured for a web API should be used.</p>
     </dd>
@@ -1293,7 +1347,7 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1333,7 +1387,7 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1368,7 +1422,7 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1383,6 +1437,22 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `false`</p>
         <p>It enables / disables the gRPC service, which provides documentation for the gRPC API and allows to
         experimentally call any of the services from the web UI and examine its output.</p>
+    </dd>
+    <dt>streamingRequestTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `300K`</p>
+        <p>How long a **streaming** RPC may make no progress before the server abandons it. Unlike the shared
+            [requestTimeoutInMillis](#api-configuration) this bounds *silence* rather than total duration: it is
+            re-armed every time a message is handed to the transport, so a slow but steadily progressing transfer never
+            reaches it however long it runs.</p>
+        <p>A whole-request budget cannot serve a stream, because a download's duration is a function of the file's size
+            and the link's speed - neither of which the server knows. Size this against the slowest client you intend to
+            serve: it must comfortably exceed the time a **single message** takes to reach that client. Lowering it
+            towards `requestTimeoutInMillis` reintroduces a minimum viable link speed for large downloads - the file
+            download RPC streams 1 MB chunks, so a 2 s budget would demand roughly 4 Mbit/s sustained.</p>
+        <p>The same value bounds how long a server worker stays parked waiting for a client that has stopped reading, so
+            it is also the point at which such a stream is abandoned with `DEADLINE_EXCEEDED`. A non-positive value
+            falls back to the default.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
@@ -1417,7 +1487,7 @@ more information.
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1457,7 +1527,7 @@ of other APIs.
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1505,7 +1575,7 @@ This configuration controls how the actual evitaLab web client will be served th
 ### Observability configuration
 
 The configuration controls all observability facilities exposed to the external systems. Currently, it's the endpoint
-pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder events recording facilities.
+for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder events recording facilities.
 
 <dl>
     <dt>enabled</dt>
@@ -1518,7 +1588,7 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
         <p>**Default:** `localhost:5555`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
@@ -1555,6 +1625,24 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         *nothing* is exported, not everything - see the [label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)
         for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
         `uri`) are reserved and rejected at startup.</p>
+    </dd>
+    <dt>errorOriginLogging</dt>
+    <dd>
+        <p>**Default:** `INTERNAL`</p>
+        <p>Selects which error hierarchies have the place they were created written to the log the first time that
+        place is seen. The error metrics themselves are unaffected - `io_evitadb_errors_total` and
+        `io_evitadb_client_errors_total` are always collected, under exactly the same names and labels, whichever
+        mode is in force.</p>
+        <p>Those metrics count an exception being *constructed* and carry nothing but the class name, so an error
+        that is swallowed - or thrown at a caller that has already disconnected - moves the counter while leaving no
+        failed response, no error span and no log line. This setting is what turns such a counter movement into a
+        location you can open.</p>
+        <p>Possible values are `NONE` (never resolve or log an origin), `INTERNAL` (internal errors only - these are
+        faults by definition and rare) and `ALL` (also client errors, which are raised on ordinary rejection paths
+        and are therefore far more frequent). The first sighting of each place is logged at `WARN` with a full stack
+        trace; after that it is only counted, and re-logged when the count reaches a power of ten. Java errors are
+        never included: the JVM throws pre-allocated `OutOfMemoryError` instances without running a constructor, and
+        allocating a log message inside one is a good way to turn a survivable failure into a fatal one.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

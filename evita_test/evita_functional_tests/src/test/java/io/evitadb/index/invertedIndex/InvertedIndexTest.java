@@ -1665,7 +1665,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
-				Comparable.class, orderedPageSequences, perPageBuckets, highWater,
+				Comparable.class, orderedPageSequences, perPageBuckets, null, highWater,
 				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);
 			assertTrue(reloaded.isPaged(), "Reloaded index must still be paged.");

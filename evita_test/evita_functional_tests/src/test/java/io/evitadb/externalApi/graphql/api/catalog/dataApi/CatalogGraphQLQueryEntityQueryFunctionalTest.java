@@ -39,12 +39,10 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PriceRangeForSale;
-import io.evitadb.api.requestResponse.data.PriceRangeForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -53,6 +51,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -66,9 +65,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.Referen
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
@@ -83,6 +85,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.GraphQLExtraResultsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.InScopeDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FormulaPlanNodeDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -10341,6 +10345,218 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRIMARY_KEY.name()),
 				equalTo(expectedEntities.getRecordData().stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList())
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return query telemetry with typed metrics")
+	void shouldReturnQueryTelemetry(GraphQLTester tester) {
+		// GraphQL publishes the telemetry tree flattened into a pre-order list of typed nodes carrying `level`,
+		// because the client - not the server - decides how deep it selects and a recursive `steps` field would
+		// silently truncate anything deeper than the selection set happens to reach. The list therefore starts at
+		// the root and its every subsequent entry is a descendant of the closest preceding entry with a lower level.
+		//
+		// Note the durations arrive as JSON *strings*: `Long` is a custom GraphQL scalar here (`LongCoercing`) that
+		// serializes to a string so that values beyond 2^53 survive a JavaScript client intact.
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry {
+								level
+								operation
+								start
+								arguments
+								spentTime
+								formattedSpentTime
+								selfTime
+								formattedSelfTime
+								stepsCount
+								startedAt
+								metrics {
+									recordsReturned
+									actualCardinality
+									estimatedCardinality
+									prefetched
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			// a profile always has at least its root, and this query is decomposed well beyond that
+			.body(telemetryPath(), hasSize(greaterThan(1)))
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.LEVEL), equalTo(1))
+			.body(telemetryPath(0, QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
+			// the root is the zero point every other node is expressed against, so it reports exactly 0
+			.body(telemetryPath(0, QueryTelemetryDescriptor.START), equalTo("0"))
+			.body(telemetryPath(0, QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.SELF_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
+			// only the root is stamped with the wall-clock instant that anchors the tree in time
+			.body(telemetryPath(0, QueryTelemetryDescriptor.STARTED_AT), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.STEPS_COUNT), greaterThan(0))
+			// the page size is the one metric this query pins exactly; the rest depend on the data and the plan
+			.body(
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
+				equalTo("5")
+			)
+			.body(
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(
+					0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY
+				),
+				notNullValue()
+			)
+			// the flag must arrive as a JSON boolean - the engine packs it as 1/0 internally, and shipping that
+			// packing would push the decoding onto every client
+			.body(
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
+				instanceOf(Boolean.class)
+			)
+			// the node right after the root is its first child, which is what makes the pre-order claim testable
+			.body(telemetryPath(1, QueryTelemetryNodeDescriptor.LEVEL), equalTo(2))
+			// metrics describe the query as a whole and belong to the root alone
+			.body(telemetryPath(1, QueryTelemetryDescriptor.METRICS), nullValue());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return formula plan in query telemetry")
+	void shouldReturnQueryTelemetryWithFormulaPlan(GraphQLTester tester) {
+		// this API has no field argument for the level - selecting `plan` *is* the opt-in, resolved from the
+		// selection set by `QueryTelemetryResolver`. The plan is flattened exactly as the steps are, and for the
+		// same reason, so it too carries `level` and `childrenCount` in place of a recursive `children` field
+		tester.test(TEST_CATALOG)
+			// two constraints so the formula is a conjunction rather than a single node - an unfiltered query
+			// produces a one-node plan, which cannot show that the flattening carries structure at all
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [1, 2, 3, 4, 5, 6]
+							entityPrimaryKeyGreaterThan: 2
+						}
+					) {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry {
+								level
+								operation
+								plan {
+									level
+									id
+									refTo
+									hash
+									description
+									estimatedCost
+									actualCost
+									resultCount
+									childrenCount
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.PLAN), hasSize(greaterThan(1)))
+			// the plan list is pre-order like the steps, so its first entry is the root of the executed formula
+			.body(planPath(0, 0, FormulaPlanNodeDescriptor.LEVEL), equalTo(1))
+			.body(planPath(0, 0, FormulaPlanDescriptor.DESCRIPTION), notNullValue())
+			.body(planPath(0, 0, FormulaPlanDescriptor.ESTIMATED_COST), notNullValue())
+			// the executed plan really ran, so unlike a rejected alternative it reports outcome numbers
+			.body(planPath(0, 0, FormulaPlanDescriptor.ACTUAL_COST), notNullValue())
+			.body(planPath(0, 0, FormulaPlanDescriptor.RESULT_COUNT), notNullValue())
+			// nothing precedes the plan root, so it can never be a back-reference into an earlier node
+			.body(planPath(0, 0, FormulaPlanDescriptor.REF_TO), nullValue())
+			// the entry after the root is its first child - the same pre-order claim the step list makes
+			.body(planPath(0, 1, FormulaPlanNodeDescriptor.LEVEL), equalTo(2));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should omit formula plan from query telemetry when not selected")
+	void shouldOmitFormulaPlanWhenNotSelected(GraphQLTester tester) {
+		// the zero-cost guarantee stated on the wire: not selecting `plan` must resolve to the timings level, so
+		// the engine never builds a plan at all. The GraphQL half of what `QueryTelemetryResolverTest` unit-pins
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry {
+								level
+								operation
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(telemetryPath(), hasSize(greaterThan(0)))
+			// the field was not selected, so it cannot appear in the response either way - what this pins is that
+			// the query still succeeds and the profile still arrives, i.e. the plan is genuinely optional
+			.body(telemetryPath(0, QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()));
+	}
+
+	/**
+	 * Builds the response body path of a property of a single formula plan node.
+	 *
+	 * @param stepIndex position of the owning step in the flattened telemetry list - `0` being the root
+	 * @param planIndex position of the node in that step's flattened, pre-order plan list - `0` being its root
+	 * @param properties path of the property below that plan node
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String planPath(int stepIndex, int planIndex, @Nonnull Object... properties) {
+		final String node = telemetryPath(stepIndex, QueryTelemetryNodeDescriptor.PLAN) + "[" + planIndex + "]";
+		return properties.length == 0 ? node : node + "." + resultPath(properties);
+	}
+
+	/**
+	 * Builds the response body path of the whole query telemetry list.
+	 *
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath() {
+		return resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.QUERY_TELEMETRY
+		);
+	}
+
+	/**
+	 * Builds the response body path of a property of a single query telemetry node.
+	 *
+	 * @param index      position of the node in the flattened, pre-order telemetry list - `0` being the root
+	 * @param properties path of the property below that node
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath(int index, @Nonnull Object... properties) {
+		final String node = telemetryPath() + "[" + index + "]";
+		return properties.length == 0 ? node : node + "." + resultPath(properties);
 	}
 
 	/**

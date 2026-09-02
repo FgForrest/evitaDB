@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -45,6 +46,7 @@ import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.PrimitiveIterator.OfLong;
 import java.util.function.LongUnaryOperator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.*;
 
@@ -169,6 +171,35 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		// the int→long tree's nodes are Snapshotable and the tree is never bulk-rebuilt by re-inserting outside an
 		// active transaction, so split offspring always join the diff layer for per-entity savepoint rollback
 		return true;
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes.
+	 *
+	 * Both its keys and its values are primitives, so there is no element-ownership question here at all and no
+	 * sizer overload: everything this tree reaches, it owns. Like every tree walk it is `O(nodes)` rather than
+	 * `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)}.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + four block-size ints + root/size slots
+		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 2L * layout.referenceSize());
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		return ownSize + getNodeGraphHeapSizeInBytes();
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts except the
+	 * tree object itself, which the tests assert separately.
+	 *
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes() {
+		return getRoot().getHeapSizeInBytes(element -> 0L);
 	}
 
 	/**
@@ -795,6 +826,16 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 					}
 				}
 			}
+		}
+
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + keys/values slots + peek
+			// both arrays hold primitives, so this leaf owns no element and ignores the sizer entirely
+			return layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES)
+				+ layout.sizeOfArray(this.keys.length, Integer.BYTES)
+				+ layout.sizeOfArray(this.values.length, Long.BYTES);
 		}
 
 		@Override

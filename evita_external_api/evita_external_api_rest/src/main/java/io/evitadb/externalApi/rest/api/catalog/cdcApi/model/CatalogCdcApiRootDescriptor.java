@@ -25,8 +25,6 @@ package io.evitadb.externalApi.rest.api.catalog.cdcApi.model;
 
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-
 /**
  * Root descriptor for CDC API.
  *

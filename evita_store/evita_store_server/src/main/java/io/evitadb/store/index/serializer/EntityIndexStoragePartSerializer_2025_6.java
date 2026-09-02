@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
@@ -53,7 +53,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.index.EntityIndexType.REFERENCED_ENTITY;
+import static io.evitadb.api.index.EntityIndexType.REFERENCED_ENTITY;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 

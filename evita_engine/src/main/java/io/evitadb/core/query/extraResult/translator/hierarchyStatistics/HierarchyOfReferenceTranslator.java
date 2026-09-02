@@ -44,7 +44,7 @@ import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
@@ -122,7 +122,7 @@ public class HierarchyOfReferenceTranslator
 					hierarchyWithin,
 					globalIndex,
 					null,
-					// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
+					// we need to access EntityIndexType.REFERENCED_ENTITY of the queried type to access
 					// entity primary keys that are referencing the hierarchy entity
 					(nodeId, statisticsBase) -> {
 						// reuse the already-planned primary filter formula (memoised) instead of re-translating

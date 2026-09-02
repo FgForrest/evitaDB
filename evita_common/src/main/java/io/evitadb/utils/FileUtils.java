@@ -28,15 +28,20 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
@@ -83,35 +88,58 @@ public class FileUtils {
 
 	/**
 	 * Method deletes directory along with its contents.
+	 *
+	 * A symbolic link encountered anywhere in the tree is **removed as a link and never traversed**. The walk
+	 * runs without {@link java.nio.file.FileVisitOption#FOLLOW_LINKS}, so a link is handed to `visitFile` and
+	 * deleting it unlinks it rather than emptying whatever it points at.
+	 *
+	 * evitaDB does not expect symbolic links inside its data folder at all — which is precisely why one turning
+	 * up must not be followed. An unexpected link is an anomaly, and letting an anomaly steer a recursive delete
+	 * outside the directory being removed is the worst available response to one: the damage lands on data this
+	 * method was never pointed at, and none of it is recoverable.
 	 */
 	public static void deleteDirectory(@Nonnull Path directory) {
-		if (directory.toFile().exists()) {
-			try (final Stream<Path> stream = Files.list(directory)) {
-				stream.forEach(it -> {
-					if (it.toFile().isDirectory()) {
-						deleteDirectory(it);
-					} else {
-						if (!it.toFile().delete()) {
-							throw new UnexpectedIOException(
-								"Failed to delete file: " + it,
-								"Failed to delete file!"
-							);
-						}
-					}
-				});
+		// The walk is attempted rather than guarded by an existence check, because `Files.exists` answers FALSE
+		// both for "not there" and for "cannot tell" - it swallows the IOException. A directory whose attributes
+		// are unreadable (a Windows ACL, a POSIX parent without execute) would therefore have been reported as
+		// already gone, and callers treat a normal return as proof the data is drained: the boot cleaner counts
+		// it as reclaimed and a retired-folder tombstone is discharged, leaving the contents on disk with
+		// nothing left referring to them. Letting the walk raise the real error keeps that distinction.
+		try {
+			Files.walkFileTree(directory, new SimpleFileVisitor<>() {
 
-				if (!directory.toFile().delete()) {
-					throw new UnexpectedIOException(
-						"Failed to delete directory: " + directory,
-						"Failed to delete directory!"
-					);
+				@Nonnull
+				@Override
+				public FileVisitResult visitFile(
+					@Nonnull Path file, @Nonnull BasicFileAttributes attributes
+				) throws IOException {
+					// symbolic links arrive here rather than in preVisitDirectory, so this unlinks them
+					Files.delete(file);
+					return FileVisitResult.CONTINUE;
 				}
-			} catch (IOException ex) {
-				throw new UnexpectedIOException(
-					"Failed to delete directory: " + directory,
-					"Failed to delete directory!", ex
-				);
-			}
+
+				@Nonnull
+				@Override
+				public FileVisitResult postVisitDirectory(
+					@Nonnull Path visited, @Nullable IOException failure
+				) throws IOException {
+					if (failure != null) {
+						throw failure;
+					}
+					Files.delete(visited);
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		} catch (NoSuchFileException ex) {
+			// Deleting what is not there is the one success this method may report without having done
+			// anything - and it is the *only* IOException that means that. `walkFileTree` hands a failure on the
+			// start path to `SimpleFileVisitor#visitFileFailed`, which rethrows, so an unreadable directory
+			// arrives here as `AccessDeniedException` and is reported below rather than mistaken for a delete.
+		} catch (IOException ex) {
+			throw new UnexpectedIOException(
+				"Failed to delete directory: " + directory,
+				"Failed to delete directory!", ex
+			);
 		}
 	}
 
@@ -196,23 +224,6 @@ public class FileUtils {
 		deleteDirectory(source);
 	}
 
-
-	/**
-	 * Checks whether the directory is empty or contains any file.
-	 *
-	 * @param path Path to directory
-	 * @return True if directory is empty, false otherwise
-	 */
-	public static boolean isDirectoryEmpty(@Nonnull Path path) {
-		try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(path, entry -> entry.toFile().isFile())) {
-			return !dirStream.iterator().hasNext();
-		} catch (IOException ex) {
-			throw new UnexpectedIOException(
-				"Failed to read directory: " + path,
-				"Failed to read directory!", ex
-			);
-		}
-	}
 
 	/**
 	 * Moves a source file to a target file, replacing the target file if it already exists.

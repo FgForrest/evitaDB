@@ -34,6 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -52,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.PrimitiveIterator.OfLong;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -69,6 +71,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	Serializable,
 	ConsistencySensitiveDataStructure {
 	@Serial private static final long serialVersionUID = 124088192205606247L;
+	private static final String ERROR_UPDATER_RETURNED_NULL = "The updater returned null - a B+ tree value must " +
+		"never be null, because a stored null is indistinguishable from an absent key on the read path!";
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -560,7 +564,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newLastKey the leaf's new last key after the mutation
 	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
 	 */
-	private void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
+	private static void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
 		if (hasFence && newLastKey >= fence) {
 			throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
 		}
@@ -592,7 +596,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param newFirstKey the leaf's new first key after the mutation
 	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
 	 */
-	private void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
+	private static <V> void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
 		if (predecessor == null) {
 			// leftmost leaf — no predecessor to violate
 			return;
@@ -659,7 +663,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @return the corruption error to throw
 	 */
 	@Nonnull
-	private BPlusTreeCorruptedException boundaryMutationError(
+	private static BPlusTreeCorruptedException boundaryMutationError(
 		@Nonnull String side, long boundaryKey, @Nonnull String relation, long neighborKey) {
 		return new BPlusTreeCorruptedException(
 			"Corrupted in-memory B+ tree: a leaf's " + side + " boundary key " + boundaryKey + " does not sort " +
@@ -824,6 +828,54 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 		return new BPlusInternalTreeNode(keys, childArray, childCount - 1, true);
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes, **excluding the values its leaves point at**.
+	 *
+	 * Like every heap-footprint reading over a tree this is `O(entries / blockSize)` rather than `O(1)`, so it
+	 * belongs to the index detail call and never to a query path — see
+	 * {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)} for the measured cost and where it goes.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		return getHeapSizeInBytes(element -> 0L);
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes, **including the values its leaves point at**, each priced by
+	 * `elementSizer`.
+	 *
+	 * The caller owns the policy: return `0` for a value this tree merely borrows, and its real footprint for one
+	 * it owns. A {@link io.evitadb.index.range.RangeIndex} owns its range points and prices them; an index holding
+	 * values another structure maintains would not.
+	 *
+	 * @param elementSizer prices a single stored value; must return `0` for values this tree does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final VMLayout layout = VMLayout.current();
+		// id + four block-size ints + valueType/wrapper/root/size slots, then the two TransactionalReference
+		// holders with their AtomicReferences and the boxed size counter
+		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 4L * layout.referenceSize());
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts except the
+	 * tree object itself. Split out for the same reason as in {@link TransactionalBucketBPlusTree}: the tree holds a
+	 * lambda field, and a lambda is a hidden class whose field offsets JOL cannot read, so only the node graph can
+	 * be asserted against a real measurement.
+	 *
+	 * @param elementSizer prices a single stored value
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		return getRoot().getHeapSizeInBytes(elementSizer);
 	}
 
 	/**
@@ -1015,8 +1067,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
 	 * If the leaf node exceeds its block size after insertion, the node is split.
 	 *
+	 * The updater's result is the only door through which a `null` could enter the tree's value array
+	 * ({@link #insert(long, Object)} takes a `@Nonnull V`), and a stored `null` would not surface as a failure - see
+	 * {@link BPlusLeafTreeNode#getValue(long)}, which would answer it as "this tree does not hold that key" while the
+	 * key demonstrably sits in a leaf. Both branches therefore refuse it outright.
+	 *
 	 * @param key     the key to update or insert, must not be null
-	 * @param updater a function to compute a new value, must not be null
+	 * @param updater a function to compute a new value, must not be null and must not return null
 	 */
 	public void upsert(long key, @Nonnull UnaryOperator<V> updater) {
 		// see insert(long, V) — the update branch below replaces a value in place and can never overflow the leaf, so
@@ -1036,6 +1093,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			final V[] values = leaf.getValues();
 			final V previousValue = values[existingIndex];
 			final V newValue = updater.apply(previousValue);
+			Assert.isPremiseValid(newValue != null, ERROR_UPDATER_RETURNED_NULL);
 			// when the updater returns a different instance the previous one is discarded from the tree;
 			// release its transactional diff layer (if any) so it is not left ALIVE and detected as stale
 			// during commit; when the updater mutates and returns the same instance, nothing is discarded
@@ -1045,8 +1103,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			values[existingIndex] = newValue;
 		} else {
 			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
+			final V insertedValue = updater.apply(null);
+			Assert.isPremiseValid(insertedValue != null, ERROR_UPDATER_RETURNED_NULL);
 			// insert the new value
-			if (leaf.insert(key, updater.apply(null))) {
+			if (leaf.insert(key, insertedValue)) {
 				this.size.set(size() + 1);
 				// op-time boundary-mutation asserts — see insert(long, V)
 				assertInsertBoundaries(context, key);
@@ -1104,6 +1164,20 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	public Optional<V> search(long key) {
 		return findLeafNode(key).getValue(key);
+	}
+
+	/**
+	 * The same search as {@link #search(long)}, answering with `null` instead of an empty {@link Optional}.
+	 *
+	 * For callers that unwrap the result immediately and repeat the lookup often enough for the wrapper to show - a
+	 * substring pattern probes one key per trigram, on every query.
+	 *
+	 * @param key the key to search for within the B+ tree
+	 * @return the value associated with the key, or `null` when the tree does not hold it
+	 */
+	@Nullable
+	public V searchOrNull(long key) {
+		return findLeafNode(key).valueOrNull(key);
 	}
 
 	/**
@@ -1770,6 +1844,36 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					}
 				}
 			}
+		}
+
+		/**
+		 * Returns the heap this node and the whole subtree beneath it occupy, in bytes.
+		 *
+		 * Both backing arrays are charged at their **allocated** length. The separator `keys` are `long` values
+		 * rather than boxed objects here, so — unlike the bucket tree — there is nothing in an internal node for
+		 * the element sizer to price. Children carried over unchanged from a superseded version are charged in
+		 * full: the predecessor is garbage-in-waiting and this version becomes their sole owner.
+		 *
+		 * @param elementSizer prices one stored value; passed through to the leaves
+		 * @return the owned heap footprint of this subtree in bytes
+		 */
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + keys/children slots + peek
+			long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning a separate `children` array
+			// `peek` is the last occupied index, so the counts below are peek and peek+1 - and NOT clamped at zero:
+			// a node emptied by a merge carries peek == -1 with `children[0]` already nulled, and clamping would
+			// walk that slot
+			final int childCount = this.peek + 1;
+			for (int i = 0; i < childCount; i++) {
+				size += this.children[i].getHeapSizeInBytes(elementSizer);
+			}
+			return size;
 		}
 
 		@Override
@@ -2605,6 +2709,37 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
+		/**
+		 * Returns the heap this leaf occupies, in bytes.
+		 *
+		 * Charges its own object and both backing arrays at their allocated length, then prices the live values
+		 * through `elementSizer`. The values are genuine objects — for a {@link io.evitadb.index.range.RangeIndex}
+		 * they are its range points — so unlike the primitive columns this leaf really can own a payload, and
+		 * whether it does is the caller's policy rather than this leaf's. `transactionalLayerWrapper` is a lambda
+		 * every node of the tree receives, so only its slot is charged.
+		 *
+		 * @param elementSizer prices one stored value; must return `0` for values this tree does not own
+		 * @return the owned heap footprint of this leaf in bytes
+		 */
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + dirty + wrapper/keys/values slots + peek + pageSequence
+			long size = layout.sizeOfObject(Long.BYTES + 2L + 3L * layout.referenceSize() + 2L * Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning a separate `values` array
+			final int liveCount = this.peek + 1;
+			for (int i = 0; i < liveCount; i++) {
+				final V value = this.values[i];
+				if (value != null) {
+					size += elementSizer.applyAsLong(value);
+				}
+			}
+			return size;
+		}
+
 		@Override
 		public int keyCount() {
 			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
@@ -3013,6 +3148,24 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		@Nonnull
 		public Optional<V> getValue(long key) {
+			// `ofNullable` rather than `of`, and equivalent to it ONLY because no null can reach a value slot: `insert`
+			// takes a `@Nonnull V` and `upsert` refuses an updater that returns one. Both doors have to stay shut - the
+			// moment one stored null gets in, this line reports a key the tree DOES hold as absent, silently.
+			return Optional.ofNullable(valueOrNull(key));
+		}
+
+		/**
+		 * The same lookup as {@link #getValue(long)}, answering with `null` instead of an empty {@link Optional}.
+		 *
+		 * For hot lookups that immediately unwrap the result. The Optional is a per-call allocation that escape
+		 * analysis is not guaranteed to remove across the polymorphic descent that reaches this node, and a lookup
+		 * repeated once per trigram of a search pattern pays for it every time.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return the value stored under the key, or `null` when the leaf does not hold it
+		 */
+		@Nullable
+		public V valueOrNull(long key) {
 			final long[] theKeys;
 			final V[] theValues;
 			final int thePeek;
@@ -3032,8 +3185,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 			final InsertionPosition insertionPosition = computeInsertPositionOfLongInOrderedArray(
 				key, theKeys, 0, thePeek + 1);
-			return insertionPosition.alreadyPresent() ?
-				Optional.of(theValues[insertionPosition.position()]) : Optional.empty();
+			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
 		/**

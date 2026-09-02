@@ -1,7 +1,7 @@
 ---
 title: Export operator-named query labels as Prometheus dimensions via a runtime-configured bag, not fixed compile-time fields
 date: 2026-07-23
-updated: 2026-07-31 19:28
+updated: 2026-08-04 11:45
 status: accepted
 kind: feature
 issues: []
@@ -9,7 +9,7 @@ prs: [1312]
 areas: [evita_api, evita_engine, evita_external_api/evita_external_api_observability]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-08-04-query-telemetry-actionable-profile]
 ---
 
 # Export operator-named query labels as Prometheus dimensions
@@ -194,6 +194,13 @@ Not re-run as part of this conversion. Verified by presence and by the merged PR
 - No comma/`=` escaping for exported label values (kept deliberately, see Key technical details): an
   exported value containing either character will mis-parse. Documented as an operator expectation,
   not enforced in code — a conscious trade-off, not an oversight.
+
+## Related work
+
+- [`2026-08-04-query-telemetry-actionable-profile`](2026-08-04-query-telemetry-actionable-profile.md)
+  — the other half of query observability, reading from the same `FinishedEvent` numbers. It makes
+  the opposite call on cost: labels are cheap enough to export from every query, a formula plan is
+  not, so telemetry is opt-in twice over.
 
 ## Timeline
 

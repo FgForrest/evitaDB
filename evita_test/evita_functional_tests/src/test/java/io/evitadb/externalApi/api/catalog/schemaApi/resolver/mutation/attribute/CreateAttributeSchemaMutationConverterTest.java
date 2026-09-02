@@ -25,13 +25,16 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -48,6 +51,7 @@ import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -222,6 +226,7 @@ class CreateAttributeSchemaMutationConverterTest {
 							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
+					.e(CreateAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
 					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), false)
@@ -236,6 +241,100 @@ class CreateAttributeSchemaMutationConverterTest {
 	}
 
 	@Test
+	void shouldResolveInputWithFilterCapabilities() {
+		final CreateAttributeSchemaMutation expectedMutation = new CreateAttributeSchemaMutation(
+			"code",
+			null,
+			null,
+			null,
+			new Scope[] { Scope.LIVE },
+			new ScopedAttributeFilterAccelerators[] {
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			},
+			null,
+			false,
+			false,
+			false,
+			String.class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		final CreateAttributeSchemaMutation convertedFromEnums = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
+				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.e(CreateAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(), list()
+							.i(AttributeFilterAccelerator.SUBSTRING_SEARCH))))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedFromEnums);
+
+		final CreateAttributeSchemaMutation convertedFromStrings = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), "String")
+				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
+				.e(CreateAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedAttributeFilterAcceleratorsDescriptor.ACCELERATORS.name(), list()
+							.i(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()))))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedFromStrings);
+	}
+
+	@Test
+	void shouldResolveInputWithoutFilterCapabilities() {
+		// an old client never sends the property at all - the mutation must come out with no capability anywhere
+		// rather than refusing the input
+		final CreateAttributeSchemaMutation converted = this.converter.convertFromInput(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
+				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.build()
+		);
+		assertNotNull(converted.getAcceleratorsInScopes());
+		assertEquals(0, converted.getAcceleratorsInScopes().length);
+	}
+
+	@Test
+	void shouldRoundTripFilterCapabilities() {
+		final CreateAttributeSchemaMutation inputMutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			null,
+			new Scope[] { Scope.LIVE },
+			new ScopedAttributeFilterAccelerators[] {
+				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+			},
+			null,
+			false,
+			false,
+			false,
+			String.class,
+			null,
+			0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		final CreateAttributeSchemaMutation roundTripped =
+			this.converter.convertFromInput(this.converter.convertToOutput(inputMutation));
+		assertEquals(inputMutation, roundTripped);
+	}
+
+	@Test
 	void shouldRoundTripNonDefaultConflictResolutionOverride() {
 		final CreateAttributeSchemaMutation inputMutation = new CreateAttributeSchemaMutation(
 			"code",
@@ -245,6 +344,7 @@ class CreateAttributeSchemaMutationConverterTest {
 				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 			},
 			new Scope[] { Scope.LIVE },
+			null,
 			new Scope[] { Scope.LIVE },
 			false,
 			true,

@@ -51,7 +51,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
@@ -730,6 +730,9 @@ public interface ReferenceIndexMutator {
 	) {
 		addFacetToIndex(
 			globalIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
+		// reported here rather than per component because this runs exactly once per reference, which is the
+		// granularity the capability counts use - the fan-out over components is the per-index metric, not this one
+		executor.reportReferenceTouched(referenceSchema, globalIndex.getIndexKey().scope());
 	}
 
 	/**
@@ -897,6 +900,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		removeFacetInIndex(globalIndex, referenceSchema, referenceKey, entityPrimaryKey, executor);
+		// see referenceInsertGlobal - the removal is the same one-per-reference event, and costs the same maintenance
+		executor.reportReferenceTouched(referenceSchema, globalIndex.getIndexKey().scope());
 	}
 
 	/**

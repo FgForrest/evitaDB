@@ -214,7 +214,7 @@ class CatalogIndexTest {
 		void shouldPreserveVersionAndKeyFromPersistedData() {
 			final CatalogIndexKey key = new CatalogIndexKey(Scope.LIVE);
 			final CatalogIndex index = new CatalogIndex(
-				5, key, new HashMap<>()
+				5, key, new HashMap<>(), new IndexActivity()
 			);
 
 			assertEquals(5, index.getVersion());

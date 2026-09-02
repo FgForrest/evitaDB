@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -109,8 +110,8 @@ public record EntityIndexKey(
 	 *
 	 * - `GLOBAL` → `null` (the index holds entity-level attributes),
 	 * - `REFERENCED_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY_TYPE` → the `String` discriminator IS the reference name,
-	 * - `REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY` / `REFERENCED_HIERARCHY_NODE` → the
-	 *   {@link RepresentativeReferenceKey} discriminator's {@link RepresentativeReferenceKey#referenceName()}.
+	 * - `REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY` → the {@link RepresentativeReferenceKey} discriminator's
+	 *   {@link RepresentativeReferenceKey#referenceName()}.
 	 *
 	 * This is the single source of truth for the reference scope of indexed attributes: a persisted per-attribute
 	 * `AttributeIndexKey` may carry a `null` reference name (legacy `AttributeKey` rehydration drops it), so the scope
@@ -123,7 +124,7 @@ public record EntityIndexKey(
 		return switch (this.type) {
 			case GLOBAL -> null;
 			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> (String) Objects.requireNonNull(this.discriminator);
-			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY, REFERENCED_HIERARCHY_NODE ->
+			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY ->
 				((RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator)).referenceName();
 		};
 	}
@@ -143,7 +144,7 @@ public record EntityIndexKey(
 					final String thatDis = (String) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);
 				}
-				case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE, REFERENCED_GROUP_ENTITY -> {
+				case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> {
 					final RepresentativeReferenceKey thisDis = (RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator);
 					final RepresentativeReferenceKey thatDis = (RepresentativeReferenceKey) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);

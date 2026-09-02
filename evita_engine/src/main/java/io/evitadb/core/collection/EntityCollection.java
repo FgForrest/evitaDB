@@ -24,12 +24,27 @@
 package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.DataStoreFragmentation;
+import io.evitadb.api.statistics.CollectionHeaderInfo;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
+import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionStorageComposition;
+import io.evitadb.api.statistics.CollectionStorageSize;
+import io.evitadb.api.statistics.DataStoreVolatileState;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -74,6 +89,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -96,6 +114,9 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.catalog.FragmentationProjection;
+import io.evitadb.core.catalog.StoragePartProjection;
+import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
@@ -135,21 +156,26 @@ import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
 import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
+import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.BinaryEntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -168,8 +194,11 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -271,6 +300,12 @@ public final class EntityCollection implements
 	 */
 	private final PersistentTransactionalProducerMap<Integer, EntityIndex> indexesByPrimaryKey;
 	/**
+	 * How many indexes {@link #indexes} holds, split by type and scope, maintained incrementally so that reporting the
+	 * split does not walk a map whose size is a function of the catalog's data volume. See {@link IndexPopulation} for
+	 * why the counts move at commit rather than at the call sites that create and drop indexes.
+	 */
+	private final IndexPopulation indexPopulation;
+	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
 	private final AtomicBoolean terminated = new AtomicBoolean(false);
@@ -293,6 +328,27 @@ public final class EntityCollection implements
 	 * memoized result.
 	 */
 	private final CacheSupervisor cacheSupervisor;
+	/**
+	 * Counts, per capability this collection's schema declares, how many queries **requested** it against how many
+	 * entity mutations **touched** it - the reading that says whether a `filterable()`, `sortable()` or `unique()` flag
+	 * earns the indexes it costs. Unlike {@link io.evitadb.index.IndexActivity}, which reports one physical index, an
+	 * entry here aggregates every index maintaining one schema element, because the remedial action - dropping the
+	 * flag - removes all of them at once.
+	 *
+	 * Three properties of the holder, all deliberate:
+	 *
+	 * - **Non-transactional.** It is shared mutable telemetry, never part of the transactional diff layer, and a reader
+	 *   may see a count advanced by a transaction that later rolls back - the maintenance work was performed anyway.
+	 * - **Shared across collection versions by reference.** Every commit that dirties this collection rebuilds it, so
+	 *   a registry allocated per instance would reset exactly on the collections worth measuring, and would do so
+	 *   silently. It therefore rides the copy constructors like {@link #pkSequence} and {@link #cacheSupervisor} do,
+	 *   and only a fresh collection or one loaded from disk mints a new one - which is what makes the counts "since
+	 *   catalog load".
+	 * - **Pruned when this collection adopts a new schema version** (see
+	 *   {@link #exchangeSchema(EntitySchema, EntitySchema)}), so a capability dropped from the schema and added back
+	 *   does not inherit the numbers accumulated before it was dropped.
+	 */
+	private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
@@ -377,6 +433,10 @@ public final class EntityCollection implements
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = entityCollectionPersistenceService;
 		this.cacheSupervisor = cacheSupervisor;
+		// a collection created here is either brand new or restored from disk, and neither carries usage numbers - this
+		// is the allocation that makes the counts "since catalog load". It is seeded further down, once the schema
+		// naming the capabilities to seed has been read
+		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 
 		try {
 			final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
@@ -416,6 +476,9 @@ public final class EntityCollection implements
 						throw new SchemaNotFoundException(catalogName, entityHeader.entityType());
 					}
 				});
+			// the schema is only now known, and this is the call that opens the observation window of every capability
+			// it declares at catalog load rather than at whenever a query first happens to name one
+			this.usageRegistry.alignWith(this.initialSchema);
 			// init entity indexes
 			if (entityHeader.globalEntityIndexPrimaryKey() == null) {
 				Assert.isPremiseValid(
@@ -441,6 +504,9 @@ public final class EntityCollection implements
 					EntityIndex.class::cast
 				);
 			}
+			// the maps are empty at this point either way - the load path fills them through `addIndex`, which is what
+			// grows this population, so seeding it with a walk here would count nothing
+			this.indexPopulation = new IndexPopulation();
 
 			// sanity check whether we deserialized the file offset index we expect to
 			Assert.isTrue(
@@ -514,7 +580,11 @@ public final class EntityCollection implements
 			indexTuple.indexesByPk(),
 			EntityIndex.class::cast
 		);
+		this.indexPopulation = indexTuple.indexPopulation();
 		this.cacheSupervisor = previousCollection.cacheSupervisor;
+		// a catalog rename carries the same logical collection forward, so its usage numbers travel with it - the data
+		// and the indexes did not change, and neither did the question of which capabilities the workload uses
+		this.usageRegistry = previousCollection.usageRegistry;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
 			Query.query(collection(entityType)),
@@ -539,7 +609,9 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull Map<Integer, EntityIndex> indexesByPk,
+		@Nonnull IndexPopulation indexPopulation,
 		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
 		this.trafficRecorder = trafficRecorder;
@@ -563,7 +635,12 @@ public final class EntityCollection implements
 		// map (bulk load, compaction re-attach) is copied into the mutable warm-up buffer exactly as before
 		this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexes, EntityIndex.class::cast);
 		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexesByPk, EntityIndex.class::cast);
+		this.indexPopulation = indexPopulation;
 		this.cacheSupervisor = cacheSupervisor;
+		// every caller of this constructor rebuilds an EXISTING collection - a commit, a compaction, a collection
+		// rename - and hands over the registry it already had. Minting one here instead would reset the counters of
+		// precisely the collections being written to, and nothing downstream would look wrong
+		this.usageRegistry = usageRegistry;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
 			Query.query(collection(entitySchema.getName())),
@@ -589,6 +666,19 @@ public final class EntityCollection implements
 	@Nonnull
 	public StoragePartPersistenceService<StorageDescriptor> getStoragePartPersistenceService() {
 		return this.persistenceService.getStoragePartPersistenceService();
+	}
+
+	/**
+	 * The per-capability usage counters of this collection - see {@link #usageRegistry} for what they mean and how long
+	 * they live. The registry is the same instance for every catalog version of one logical collection, so a caller may
+	 * hold on to it across a commit; what it must not do is assume the numbers relate to a particular catalog version,
+	 * because they do not.
+	 *
+	 * @return the registry counting this collection's schema capabilities
+	 */
+	@Nonnull
+	public SchemaCapabilityUsageRegistry getUsageRegistry() {
+		return this.usageRegistry;
 	}
 
 	@Override
@@ -992,6 +1082,8 @@ public final class EntityCollection implements
 
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
+			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
 				// assertAllReferencedEntitiesExist(newSchema);
@@ -1019,13 +1111,305 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public EntityCollectionStatistics getStatistics() {
-		return new EntityCollectionStatistics(
-			getEntityType(),
-			size(),
-			this.indexes.size(),
-			this.persistenceService.getSizeOnDiskInBytes()
+	public EntityCollectionStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		CatalogStatisticsComponent.assertCollectionLevel(components);
+		// this.catalog is single-assign (see attachCatalogShell), so it is the catalog generation this collection
+		// instance belongs to - the identity and the indexes walked below therefore describe the same version
+		final EntityCollectionStatistics.Builder builder = EntityCollectionStatistics.builder(
+			this.catalog.getIdentity(), getEntityType()
 		);
+		// STORAGE_SIZE and FRAGMENTATION are two readings of one listing of this collection's data store files: the
+		// first attributes its bytes, the second turns the same live/waste split into a share. Measuring once is not
+		// only cheaper - it is the only way the two components cannot describe different moments
+		final CollectionStorageFootprint storageFootprint =
+			components.contains(CatalogStatisticsComponent.STORAGE_SIZE) ||
+				components.contains(CatalogStatisticsComponent.FRAGMENTATION) ?
+				this.persistenceService.measureStorageFootprint() : null;
+		for (final CatalogStatisticsComponent component : components) {
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				case INDEX_SUMMARY -> builder.withIndexSummary(summarizeIndexes());
+				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
+				case STORAGE_SIZE -> builder.withStorageSize(
+					measureStorageSize(Objects.requireNonNull(storageFootprint))
+				);
+				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
+				case COLLECTIONS -> builder.withHeader(describeHeader());
+				case VOLATILE_STATE -> builder.withVolatileState(describeVolatileState());
+				case FRAGMENTATION -> builder.withFragmentation(
+					describeFragmentation(Objects.requireNonNull(storageFootprint))
+				);
+				// `snapshot()` for the same reason `browseIndexes` takes one: the targeted lookups and the total they
+				// are subtracted from have to come from ONE state of the map. Read against the live map, a warm-up
+				// writer removing an index between the lookups and the count yields a NEGATIVE `omittedIndexCount`.
+				// The cost is not uniform and is accepted deliberately: free once the map is sealed (transactional
+				// mode hands back the existing trie), an `O(N)` throw-away build while warm-up still holds a
+				// `HashMap`. A statistic that cannot be internally invalid is worth more than an `O(1)` that can
+				// report a negative count, and this is a management call, not a query path
+				case INDEX_CARDINALITY -> builder.withIndexCardinality(
+					IndexCardinalityProjection.describe(
+						this.indexes.snapshot(), getInternalSchema().getReferences().keySet()
+					)
+				);
+				// unreachable - all of these are catalog-level only and the assertion above already rejected them
+				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
+					"Catalog-level component `" + component + "` passed the collection-level check!"
+				);
+				// the arms above enumerate every constant the enum has today, but a switch *statement* is not checked
+				// for exhaustiveness - a component added later would fall through and record nothing, which a client
+				// reads as "not requested" rather than as the omission it is
+				default -> throw new GenericEvitaInternalError(
+					"Catalog statistics component `" + component + "` is not handled!"
+				);
+			}
+		}
+		return builder.build();
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		final Set<String> declaredReferences = getInternalSchema().getReferences().keySet();
+		for (final String referenceName : criteria.referenceNames()) {
+			// rejected rather than answered with an empty page: a typo would otherwise read as "this reference has no
+			// indexes", which is the one answer an operator investigating index growth must not be given wrongly
+			Assert.isTrue(
+				declaredReferences.contains(referenceName),
+				"Entity collection `" + getEntityType() + "` declares no reference named `" + referenceName + "`!"
+			);
+		}
+		// an immutable snapshot, so the match count and the page contents cannot be taken from two different states -
+		// in WARMING_UP the map is otherwise held mutably, where a concurrent bulk load could move the paging offset
+		// out from under the walk.
+		//
+		// `snapshot()` rather than `sealed()`: the latter publishes the frozen map back into the collection's index
+		// map, which is correct on the commit path but not from a read. It would make the next warm-up write thaw the
+		// map again - an `O(N)` copy per browse - and, worse, publishing a view built by iterating a map another
+		// thread is still writing would drop whatever landed during the iteration. A statistics call must not be able
+		// to lose an index
+		return IndexBrowseProjection.browse(
+			getEntityType(), this.indexes.snapshot(), criteria, this.catalog.getIdentity().catalogVersion()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException {
+		// resolved through the primary-key map the engine already maintains for its own reference-index lookups, so
+		// naming an index costs a hash lookup rather than the map walk a browse pays. No snapshot is taken: exactly
+		// one index is read, so there is no second reading for it to be inconsistent with
+		final EntityIndex index = getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+		if (index == null) {
+			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
+		}
+		return IndexDetailProjection.describe(getEntityType(), index);
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage() {
+		// no snapshot and no seal, unlike the index browse above: the registry is a map bounded by the schema rather
+		// than by the data, and it is read while the counters it holds keep moving - a reading that is current is what
+		// the operator asked for, and there is no second reading here for it to be inconsistent with
+		return SchemaCapabilityUsageProjection.project(
+			getEntityType(), this.usageRegistry, this.catalog.isUsageStatisticsTracked()
+		);
+	}
+
+	/**
+	 * Returns the number of indexes this collection holds. Read from the size of the index map, so the cost does not
+	 * depend on how large those indexes are - which is what lets the catalog sum it across all collections on every
+	 * statistics request.
+	 *
+	 * @return number of indexes of this collection
+	 */
+	public int getIndexCount() {
+		return this.indexPopulation.total();
+	}
+
+	/**
+	 * Counts the records of this collection. `totalRecords` keeps the meaning it has always had - the number of entity
+	 * body storage parts, which is what {@link #size()} reports - while the live/archived split is the cardinality of
+	 * the global index of each scope.
+	 *
+	 * Archiving an entity moves it between global indexes but leaves its body storage part in place, so `totalRecords`
+	 * has never distinguished the two; the split is the number a client actually wants. The three are read from
+	 * separate sources and are deliberately not reconciled - a body part in neither global index counts towards
+	 * `totalRecords` alone, and that difference is worth seeing rather than hiding.
+	 *
+	 * Both reads are counters (a storage-part count and a bitmap cardinality), never a walk, which is what allows the
+	 * catalog to sum this across every collection on every statistics request.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#RECORD_COUNTS} component of this collection
+	 */
+	@Nonnull
+	public CollectionRecordCounts countRecords() {
+		int liveRecords = 0;
+		int archivedRecords = 0;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+			if (globalIndex != null) {
+				final int scopeRecords = globalIndex.getAllPrimaryKeys().size();
+				switch (scope) {
+					case LIVE -> liveRecords = scopeRecords;
+					case ARCHIVED -> archivedRecords = scopeRecords;
+					// a scope added without a counter here would silently vanish from the split while still counting
+					// towards `totalRecords`, manufacturing the very reconciliation gap this record reports as signal
+					default -> throw new GenericEvitaInternalError(
+						"Scope `" + scope + "` has no record counter in the statistics component!"
+					);
+				}
+			}
+		}
+		return new CollectionRecordCounts(size(), liveRecords, archivedRecords);
+	}
+
+	/**
+	 * Breaks this collection's data store down by storage-part type - where its bytes actually go. Measured in bytes
+	 * rather than record counts, because counts invert the answer whenever many small records share a data store with
+	 * a few large ones; the counts travel alongside so the average per type stays exact.
+	 *
+	 * The breakdown describes the data store as it was last flushed. Records written but not yet flushed are absent
+	 * from it, which is why the entity-body count here can trail
+	 * {@link CatalogStatisticsComponent#RECORD_COUNTS} while writes are pending - bytes that have not reached the
+	 * disk have no place in a breakdown of the disk.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_COMPOSITION} component of this collection
+	 */
+	@Nonnull
+	private CollectionStorageComposition composeStorageParts() {
+		return new CollectionStorageComposition(
+			StoragePartProjection.toStoragePartUsage(this.persistenceService.measureStoragePartComposition())
+		);
+	}
+
+	/**
+	 * Reads the counters this collection's storage header carries, plus the high-water mark of the largest record its
+	 * data store has ever held.
+	 *
+	 * **`maxRecordSizeBytes` is *largest ever seen*, not *largest currently stored*.** It is only ever widened, so
+	 * removing the biggest record never lowers it - see
+	 * {@link io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService#getMaxRecordSizeBytes()}.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COLLECTIONS} component of this collection
+	 */
+	@Nonnull
+	private CollectionHeaderInfo describeHeader() {
+		final EntityCollectionHeader header = this.persistenceService.getEntityCollectionHeader();
+		return new CollectionHeaderInfo(
+			header.entityTypePrimaryKey(),
+			header.version(),
+			header.lastPrimaryKey(),
+			header.lastEntityIndexPrimaryKey(),
+			header.lastInternalPriceId(),
+			header.lastKeyId(),
+			this.persistenceService.getMaxRecordSizeBytes(),
+			// `0` is the storage layer's "this header carries no timestamp" - a header written before 2026.3 - and it
+			// becomes an explicit absence here rather than an epoch-zero instant a client would render as a date
+			header.lastModifiedMillis() == 0L ?
+				null :
+				OffsetDateTime.ofInstant(Instant.ofEpochMilli(header.lastModifiedMillis()), ZoneId.systemDefault())
+		);
+	}
+
+	/**
+	 * Reports what this collection's data store holds in memory rather than on disk.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component of this collection
+	 */
+	@Nonnull
+	private DataStoreVolatileState describeVolatileState() {
+		return VolatileStateProjection.toDataStoreVolatileState(measureVolatileData());
+	}
+
+	/**
+	 * Reports what this collection's data store holds in memory rather than on disk, in the storage layer's own shape.
+	 *
+	 * Public rather than private because the catalog folds every collection's footprint into its own to answer
+	 * {@link CatalogStatisticsComponent#VOLATILE_STATE} at catalog level and lives in another package. Folding the
+	 * already-projected API records instead would put the `min` rule for the retained-history timestamp in a second
+	 * place.
+	 *
+	 * @return what this collection's data store holds that is not on disk
+	 */
+	@Nonnull
+	public VolatileDataFootprint measureVolatileData() {
+		return this.persistenceService.measureVolatileData();
+	}
+
+	/**
+	 * Projects the measured footprint of this collection's data store files onto the component that reports it.
+	 *
+	 * @param footprint the listing the caller measured for this request
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
+	 */
+	@Nonnull
+	private static CollectionStorageSize measureStorageSize(@Nonnull CollectionStorageFootprint footprint) {
+		return new CollectionStorageSize(
+			footprint.totalBytes(),
+			footprint.liveBytes(),
+			footprint.wasteBytes(),
+			footprint.awaitingDeletionBytes(),
+			footprint.unaccountedBytes()
+		);
+	}
+
+	/**
+	 * Describes how much of this collection's data store is dead weight and when the engine will reclaim it.
+	 *
+	 * The live and waste bytes come from the footprint the caller already measured - see the comment at that call
+	 * site - while the eligibility flag and the projected time come from the persistence layer, which owns the
+	 * compaction predicate and must remain the only thing that evaluates it.
+	 *
+	 * @param footprint the listing the caller measured for this request
+	 * @return the {@link CatalogStatisticsComponent#FRAGMENTATION} component of this collection
+	 */
+	@Nonnull
+	private DataStoreFragmentation describeFragmentation(@Nonnull CollectionStorageFootprint footprint) {
+		return FragmentationProjection.toDataStoreFragmentation(
+			footprint, this.persistenceService.measureCompactionForecast()
+		);
+	}
+
+	/**
+	 * Counts this collection's indexes per (type, scope) pair. Pairs with no index are omitted rather than reported as
+	 * zero.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#INDEX_SUMMARY} component of this collection
+	 */
+	@Nonnull
+	private CollectionIndexSummary summarizeIndexes() {
+		// read out of the maintained per-(type, scope) counters rather than walked: a production collection holds
+		// hundreds of thousands of per-referenced-entity indexes and this component is polled, so the reading is over
+		// a dozen cells rather than over the index map
+		final EntityIndexType[] types = EntityIndexType.values();
+		final Scope[] scopes = Scope.values();
+		final int[][] countsByTypeAndScope = new int[types.length][scopes.length];
+		int totalIndexCount = 0;
+		int occupiedPairCount = 0;
+		for (int type = 0; type < types.length; type++) {
+			for (int scope = 0; scope < scopes.length; scope++) {
+				final int count = this.indexPopulation.countOf(types[type], scopes[scope]);
+				countsByTypeAndScope[type][scope] = count;
+				totalIndexCount += count;
+				if (count > 0) {
+					occupiedPairCount++;
+				}
+			}
+		}
+		final IndexTypeCount[] byTypeAndScope = new IndexTypeCount[occupiedPairCount];
+		int index = 0;
+		for (int type = 0; type < types.length; type++) {
+			for (int scope = 0; scope < scopes.length; scope++) {
+				if (countsByTypeAndScope[type][scope] > 0) {
+					byTypeAndScope[index++] = new IndexTypeCount(
+						types[type], scopes[scope], countsByTypeAndScope[type][scope]
+					);
+				}
+			}
+		}
+		return new CollectionIndexSummary(totalIndexCount, byTypeAndScope);
 	}
 
 	/**
@@ -1544,6 +1928,38 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Read-only counterpart of {@link #applyIndexMutations} used by `LocalMutationExecutorCollector`'s pre-pass:
+	 * evaluates every histogram trigger's condition for the mutation's affected owners **without writing
+	 * anything**, so the caller can capture the pre-mutation answer before the batch is applied. The result is
+	 * handed back on the dispatched mutation as
+	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}; see
+	 * {@link ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the executor cannot derive it
+	 * itself.
+	 *
+	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
+	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
+	 *
+	 * @param mutation the cross-entity re-evaluation signal about to be applied
+	 * @param session  active session for query evaluation, may be null during WAL replay
+	 * @return owner PKs whose condition currently holds, keyed by histogram name, or `null` when the reference
+	 *         declares no histogram trigger and there is therefore nothing to guard
+	 */
+	@Nullable
+	public Map<String, Bitmap> evaluateHistogramConditionState(
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			return IndexMutationExecutorRegistry.INSTANCE.evaluateHistogramConditionState(
+				mutation, this.entityIndexCreator
+			);
+		} finally {
+			this.entityIndexCreator.setSession(null);
+		}
+	}
+
+	/**
 	 * Method creates {@link QueryPlanningContext} that is used for read operations.
 	 */
 	@Nonnull
@@ -1779,7 +2195,9 @@ public final class EntityCollection implements
 				newPersistenceService,
 				indexTuple.indexes(),
 				indexTuple.indexesByPk(),
+				indexTuple.indexPopulation(),
 				this.cacheSupervisor,
+				this.usageRegistry,
 				this.trafficRecorder
 			);
 		} else {
@@ -1815,7 +2233,9 @@ public final class EntityCollection implements
 					newPersistenceService,
 					indexTuple.indexes(),
 					indexTuple.indexesByPk(),
+					indexTuple.indexPopulation(),
 					this.cacheSupervisor,
+					this.usageRegistry,
 					this.trafficRecorder
 				);
 			} else {
@@ -1858,7 +2278,11 @@ public final class EntityCollection implements
 			newPersistenceService,
 			forwardedIndexes,
 			forwardedIndexesByPk,
+			// carried by value even when the maps themselves are forwarded by reference: a WARMING_UP collection hands
+			// over its still-mutable buffer, and the counts must follow the collection that will be written through
+			this.indexPopulation.copy(),
 			this.cacheSupervisor,
+			this.usageRegistry,
 			this.trafficRecorder
 		);
 		// the catalog remains the same here; attach only the collection shell. The fresh copy shares this.indexes by
@@ -1890,7 +2314,9 @@ public final class EntityCollection implements
 			this.persistenceService,
 			indexTuple.indexes(),
 			indexTuple.indexesByPk(),
+			indexTuple.indexPopulation(),
 			this.cacheSupervisor,
+			this.usageRegistry,
 			this.trafficRecorder
 		);
 	}
@@ -1913,6 +2339,9 @@ public final class EntityCollection implements
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
+		// disk load and WAL replay attach indexes through here, outside any transaction, so the count moves inline -
+		// there is no commit to derive it from and no layer a rollback could discard
+		this.indexPopulation.recordCreated(entityIndex.getIndexKey());
 	}
 
 	/**
@@ -2074,6 +2503,205 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Dry-runs the given mutations against this collection's current schema and raises the
+	 * accelerator-on-populated-collection refusal **without exchanging anything**.
+	 *
+	 * This exists because a catalog-level change to a global attribute fans out into one
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
+	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
+	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
+	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
+	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
+	 *
+	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
+	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
+	 *
+	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
+	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
+	 *   Surfacing those here would turn a working schema change into a spurious rejection.
+	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
+	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
+	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
+	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
+	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
+	 *
+	 * @param catalogSchema  the catalog schema the mutations are applied against
+	 * @param schemaMutation the mutations that are about to be applied
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
+	 */
+	public void verifySchemaMutationsApplicable(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final EntitySchema updatedSchema;
+		try {
+			EntitySchema schemaSoFar = originalSchema;
+			for (final EntitySchemaMutation theMutation : schemaMutation) {
+				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
+				if (!(mutated instanceof EntitySchema theSchema)) {
+					// the mutation drops the collection or produces something this preflight cannot reason about -
+					// leave the verdict entirely to the real pass
+					return;
+				}
+				schemaSoFar = theSchema;
+			}
+			updatedSchema = schemaSoFar;
+		} catch (RuntimeException ex) {
+			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
+			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
+			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
+			// surrounding state and reports every genuine failure itself.
+			return;
+		}
+		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+	}
+
+	/**
+	 * Refuses a schema change that would newly declare a
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator} on a collection that already holds
+	 * entities.
+	 *
+	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
+	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
+	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
+	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
+	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
+	 * declare the accelerator before the data goes in.
+	 *
+	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
+	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
+	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
+	 * pipeline collapses those into.
+	 *
+	 * **Attributes are matched by name, and that is correct even across a rename.**
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
+	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
+	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
+	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
+	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
+	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
+	 * the schema and this per-name comparison would need to follow the attribute through it - see
+	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
+	 *
+	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
+	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
+	 * transaction's own writes: {@link #isEmpty()} goes through the collection's {@link DataStoreReader}, which is
+	 * backed by {@link io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer} once the catalog is live, and
+	 * {@link io.evitadb.core.buffer.DataStoreChanges#countStorageParts} layers the transaction's trapped inserts and
+	 * removals over the persisted count. An entity upserted earlier in the same transaction therefore makes the
+	 * collection non-empty here, and the accelerator is refused - proven by the `AfterGoingLive` group of
+	 * `AttributeFilterAcceleratorRefusalTest`, whose same-transaction upsert case is refused while its otherwise
+	 * identical empty-collection counterfactual is accepted.
+	 *
+	 * @param originalSchema the schema as it stood before the mutations were applied
+	 * @param updatedSchema  the schema the mutations produced
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
+	 */
+	private void verifyNoAcceleratorAddedToNonEmptyCollection(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema
+	) {
+		for (final EntityAttributeSchemaContract updatedAttribute : updatedSchema.getAttributes().values()) {
+			final AttributeSchemaContract originalAttribute = originalSchema.getAttributes()
+				.get(updatedAttribute.getName());
+			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
+		}
+		// this reference loop is defence in depth today - nothing it walks can currently fail it, because
+		// `AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute` refuses a filter accelerator on ANY
+		// reference attribute before it can reach a schema at all. That restriction is documented as liftable once the
+		// index learns to host reference attribute values, and on the day it is lifted this loop becomes the live
+		// guard - so it has to be correct for reflected references already. They are the awkward shape here: a
+		// reflected reference is resolved by `notifyAboutExternalReferenceUpdate` -> `exchangeSchema`, a path that
+		// never passes through `updateSchema` and so never reaches this check. Whatever it declares therefore has to
+		// be vetted here, while its target is still missing, rather than deferred to the resolution that follows
+		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
+			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
+				.get(updatedReference.getName());
+			final Map<String, AttributeSchemaContract> originalAttributes = originalReference == null ?
+				Collections.emptyMap() : getAttributesVisibleWithoutTarget(originalReference);
+			final Map<String, AttributeSchemaContract> updatedAttributes =
+				getAttributesVisibleWithoutTarget(updatedReference);
+			for (final AttributeSchemaContract updatedAttribute : updatedAttributes.values()) {
+				assertNoCapabilityAdded(
+					originalAttributes.get(updatedAttribute.getName()), updatedAttribute,
+					updatedSchema.getName(), updatedReference.getName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns the attributes of the given reference that can be read without knowing what the reference inherits from
+	 * - all of them for an ordinary reference, and the half it declares itself for an **unresolved reflected**
+	 * reference.
+	 *
+	 * A reflected reference does declare attributes of its own -
+	 * {@link io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder#withAttribute} puts them
+	 * there - and presents them merged with the ones it inherits from the reference it reflects. While the target is
+	 * missing that inherited half is unknowable, so {@link ReflectedReferenceSchema#getAttributes()} declines to
+	 * answer at all and throws; {@link ReflectedReferenceSchema#getDeclaredAttributes()} answers the declared half
+	 * without throwing.
+	 *
+	 * Reading only the declared half costs the caller nothing, because the inherited half is a copy of the target
+	 * reference's own attributes and is vetted against the collection that declares *it*.
+	 *
+	 * @param referenceSchema the reference whose attributes are to be read
+	 * @return the attributes readable in the reference's current resolution state
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> getAttributesVisibleWithoutTarget(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		// ReferenceSchema is sealed and permits only ReflectedReferenceSchema, so this narrowing covers every
+		// reference an EntitySchema can hold
+		return referenceSchema instanceof final ReflectedReferenceSchema reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable() ?
+			reflectedReference.getDeclaredAttributes() : referenceSchema.getAttributes();
+	}
+
+	/**
+	 * The per-attribute half of {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
+	 * - compares one attribute's accelerators before and after, scope by scope, and refuses any addition while the
+	 * collection holds entities. An accelerator being *removed* is always allowed: dropping an index needs no data.
+	 *
+	 * @param originalAttribute the attribute as it stood before, or null when the mutation creates it
+	 * @param updatedAttribute  the attribute the mutations produced
+	 * @param entityType        the entity type, for the error message
+	 * @param referenceName     the reference the attribute belongs to, or null for an entity-level attribute
+	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
+	 */
+	private void assertNoCapabilityAdded(
+		@Nullable AttributeSchemaContract originalAttribute,
+		@Nonnull AttributeSchemaContract updatedAttribute,
+		@Nonnull String entityType,
+		@Nullable String referenceName
+	) {
+		final Map<Scope, Set<AttributeFilterAccelerator>> updatedCapabilities =
+			updatedAttribute.getAcceleratorsInScopes();
+		if (updatedCapabilities.isEmpty()) {
+			return;
+		}
+		for (final Entry<Scope, Set<AttributeFilterAccelerator>> entry : updatedCapabilities.entrySet()) {
+			final Set<AttributeFilterAccelerator> alreadyDeclared = originalAttribute == null ?
+				Set.of() : originalAttribute.getAcceleratorsInScope(entry.getKey());
+			for (final AttributeFilterAccelerator accelerator : entry.getValue()) {
+				if (!alreadyDeclared.contains(accelerator) && !isEmpty()) {
+					throw new InvalidSchemaMutationException(
+						"Cannot declare filter accelerator `" + accelerator + "` on attribute `" +
+							updatedAttribute.getName() + "`" +
+							(referenceName == null ? "" : " of reference `" + referenceName + "`") +
+							" in entity `" + entityType + "` scope `" + entry.getKey() + "`, because the collection " +
+							"already contains entities! The index backing this accelerator is built as entities are " +
+							"indexed and there is no way to build it for entities that are already stored - " +
+							"declare the accelerator before inserting data, or remove the existing entities first."
+					);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Refreshes the given schemas based on the references provided.
 	 *
 	 * @param originalSchema          the original schema to be refreshed
@@ -2157,7 +2785,50 @@ public final class EntityCollection implements
 
 	/**
 	 * Exchanges the schema from the original to the updated schema.
-	 * Method is public only because we need to use it in tests.
+	 *
+	 * This is the **only** place this collection adopts a new schema version - every schema mutation, whether applied
+	 * directly in warm-up or into a transaction's layer, and every reflected-reference refresh arrives here - which is
+	 * what makes it the single hook for realigning {@link #usageRegistry}. Routing a new adoption path around it would
+	 * leave the registry holding counters for capabilities the schema no longer declares, and leave a newly declared
+	 * capability without the row whose observation window is supposed to open at this very mutation.
+	 *
+	 * # What a rollback leaves behind, in both directions
+	 *
+	 * The alignment runs against the schema the exchange has just published, so it precedes the commit of a
+	 * transactional change rather than following it. A rollback therefore leaves the registry describing a schema
+	 * version that never became real, and since the alignment both drops and mints, it does so in both directions:
+	 *
+	 * - a schema update that **dropped** a capability leaves the registry having discarded that capability's counters
+	 *   even though the flag survived - the window reopens at the next adoption, and
+	 *   {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says honestly when it did;
+	 * - a schema update that **added** one leaves a row for a capability the schema does not declare. It commonly reads
+	 *   `0 / 0`, but that is not guaranteed: the counters measure work *performed* rather than work committed, so a
+	 *   transaction that declared the flag and then wrote entities touching it before rolling back leaves that
+	 *   maintenance recorded on the phantom row.
+	 *
+	 * The second is the newer and the more misleading of the two, because this surface teaches an operator that a
+	 * zero-count row is a flag worth dropping - and here there is no flag to drop, so acting on it is a no-op rather
+	 * than a mistake whichever counts it carries. Both are self-healing: the next adoption of any schema version
+	 * realigns the registry against it, and a phantom row disappears at that point.
+	 *
+	 * Neither is corrected on rollback, for the same reason the ordering is what it is: this is the single hook every
+	 * adoption path already passes through, whereas the commit boundary is not one place but several, and threading
+	 * telemetry through a transaction's own lifecycle would buy an exactly-correct row on a surface whose counters are
+	 * explicitly approximate, non-transactional and never persisted.
+	 *
+	 * # The re-insertion window, which is accepted rather than closed
+	 *
+	 * The alignment's removal pass is weakly consistent and {@link SchemaCapabilityUsageRegistry#resolve} is lock-free,
+	 * so a query still planning against the **pre-exchange** schema version can resolve - and thereby re-insert - a key
+	 * the alignment has just dropped. Such an entry then survives until the next adoption, and if the capability is
+	 * re-declared in the meantime that adoption keeps it: the *"a dropped and re-added capability starts over"*
+	 * guarantee has a window in which it does not hold.
+	 *
+	 * It is left open on purpose. The surface is non-transactional, never persisted and explicitly approximate, and the
+	 * only ways to close the window - a lock around resolve, or a generation stamp checked on every resolve - would put
+	 * coordination on the one path the design keeps allocation-free and lock-free, which the JMH gate exists to
+	 * protect. The cost of leaving it is one stale row, for one schema version, on a capability that was being queried
+	 * at the exact moment it was dropped.
 	 *
 	 * @param originalSchema the original schema to be exchanged
 	 * @param updatedSchema  the updated schema to replace the original
@@ -2172,6 +2843,8 @@ public final class EntityCollection implements
 			Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
 			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
 		);
+		// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
+		this.usageRegistry.alignWith(updatedSchema);
 		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 
@@ -2601,7 +3274,12 @@ public final class EntityCollection implements
 					"No entity collection found for entity type `" + otherEntityType + "` " +
 						"while resolving schema for cross-entity expression evaluation."
 				)),
-			this.catalog
+			this.catalog,
+			this.usageRegistry,
+			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
+			// their counters belong to the catalog rather than to whichever collection happened to write one
+			this.catalog.getUsageRegistry(),
+			this.catalog.isUsageStatisticsTracked()
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -2803,7 +3481,58 @@ public final class EntityCollection implements
 		// surfaces loudly in TransactionalLayerMaintainer#verifyLayerWasFullySwept.
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexes);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
-		return new IndexTuple(mergedIndexes, mergedIndexesByPk);
+		return new IndexTuple(
+			mergedIndexes, mergedIndexesByPk,
+			mergePopulation(indexChanges, rebuiltKeys, previousIndexes, mergedIndexes)
+		);
+	}
+
+	/**
+	 * Derives the next catalog version's index population from this one plus the transaction's key delta.
+	 *
+	 * **This is the only place the transactional path moves those counts, and it is what makes them
+	 * rollback-correct.** A rolled-back transaction never reaches this method - its diff layer is discarded with the
+	 * counts untouched - whereas a counter bumped at {@link EntityIndexMaintainer#getOrCreateIndex(EntityIndexKey)}
+	 * would already have moved and would stay wrong for the life of the process.
+	 *
+	 * The delta is read off the same two sources the map merge itself uses, so the counts cannot describe a different
+	 * key set than the map they accompany: a removed key that the previous version actually held is a drop, and a
+	 * touched key the previous version did not hold is a create. A key that is both created and dropped within one
+	 * transaction appears in neither, which is correct - the collection never published it.
+	 *
+	 * Membership is decided against the two *maps* - the one this version published and the one the next version
+	 * will - rather than against the diff layer, which by this point has already been disposed of a few lines above.
+	 *
+	 * @param indexChanges    the transaction's diff layer over the index map, null when it changed no keys
+	 * @param rebuiltKeys     keys this transaction touched
+	 * @param previousIndexes the index map as it stood before this transaction
+	 * @param mergedIndexes   the index map the next catalog version will hold
+	 * @return the population the next catalog version starts from
+	 */
+	@Nonnull
+	private IndexPopulation mergePopulation(
+		@Nullable MapChanges<EntityIndexKey, EntityIndex> indexChanges,
+		@Nonnull Set<EntityIndexKey> rebuiltKeys,
+		@Nonnull ChampMap<EntityIndexKey, EntityIndex> previousIndexes,
+		@Nonnull ChampMap<EntityIndexKey, EntityIndex> mergedIndexes
+	) {
+		final IndexPopulation population = this.indexPopulation.copy();
+		if (indexChanges != null) {
+			for (final EntityIndexKey removedKey : indexChanges.getRemovedKeys()) {
+				if (previousIndexes.containsKey(removedKey) && !mergedIndexes.containsKey(removedKey)) {
+					population.recordRemoved(removedKey);
+				}
+			}
+		}
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			// present now and absent before is a create; a key touched but held by both versions is a mutation of an
+			// index that already existed, and one held by neither was created and dropped inside this transaction -
+			// neither moves a count
+			if (mergedIndexes.containsKey(rebuiltKey) && !previousIndexes.containsKey(rebuiltKey)) {
+				population.recordCreated(rebuiltKey);
+			}
+		}
+		return population;
 	}
 
 	/**
@@ -2893,7 +3622,9 @@ public final class EntityCollection implements
 		// entry by entry would cost a full N-entry map here AND leave the next version holding a mutable buffer, which the
 		// first transactional touch would then have to seal into a fresh trie: three O(N) passes for a version bump that
 		// changed nothing
-		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed());
+		// the population is carried by value: the assertion above proves no uncommitted change to the index set
+		// exists, so the counts this version holds are exactly the counts the next version starts from
+		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed(), this.indexPopulation.copy());
 	}
 
 	/**
@@ -3097,12 +3828,15 @@ public final class EntityCollection implements
 						eik,
 						eikAgain -> {
 							final EntityIndex entityIndex;
+							// an index born now observes only if the whole server does - see `Catalog#isUsageStatisticsTracked`
+							final boolean tracked = EntityCollection.this.catalog.isUsageStatisticsTracked();
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else if (
 								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
@@ -3112,7 +3846,10 @@ public final class EntityCollection implements
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.getEntityType(), eikAgain
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getEntityType(),
+									eikAgain,
+									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
 								assertReferenceIndexPrerequisites(
@@ -3122,7 +3859,8 @@ public final class EntityCollection implements
 								entityIndex = new ReducedEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
 								assertReferenceIndexPrerequisites(
@@ -3132,7 +3870,8 @@ public final class EntityCollection implements
 								entityIndex = new ReducedGroupEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
@@ -3140,6 +3879,20 @@ public final class EntityCollection implements
 
 							// register index also in the map by primary key for fast access
 							EntityCollection.this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
+
+							// only the non-transactional (warm-up / bulk-load) path moves the count here. In a
+							// transaction the map write lands in a diff layer a rollback would discard, so the count
+							// is derived at commit instead - see `mergePopulation`. Counting in both places would
+							// double-count every committed index.
+							//
+							// The test is "is a transaction bound to this thread", NOT "does the index map already
+							// have a diff layer": `computeIfAbsent` is the inherited Map default, so this lambda runs
+							// BEFORE the `put` that creates the layer. Asking the map would answer "no layer" for the
+							// first index created in each transaction and leak exactly one count per rolled-back
+							// transaction - which is what it did until this was corrected
+							if (!Transaction.isTransactionAvailable()) {
+								EntityCollection.this.indexPopulation.recordCreated(eikAgain);
+							}
 
 							return entityIndex;
 						}
@@ -3195,6 +3948,10 @@ public final class EntityCollection implements
 				entityIndexKey,
 				eik -> {
 					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
+					// the mirror of the create above: inline outside a transaction, derived at commit within one
+					if (!Transaction.isTransactionAvailable()) {
+						EntityCollection.this.indexPopulation.recordRemoved(eik);
+					}
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(
 						index == indexByPk,
@@ -3421,7 +4178,8 @@ public final class EntityCollection implements
 	 */
 	private record IndexTuple(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull Map<Integer, EntityIndex> indexesByPk
+		@Nonnull Map<Integer, EntityIndex> indexesByPk,
+		@Nonnull IndexPopulation indexPopulation
 	) {
 	}
 }

@@ -27,7 +27,6 @@ import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContex
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.model.CatalogCdcApiRootDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.resolver.endpoint.ChangeCatalogCaptureStreamHandler;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiVoid;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +34,6 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint.newCatalogEndpoint;
-import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 
 /**
  * Creates OpenAPI {@link io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint} for each CDC API endpoint.

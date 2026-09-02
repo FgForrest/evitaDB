@@ -85,8 +85,15 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 	 * - The operator may perform long‑running work asynchronously and must return a
 	 *   {@link io.evitadb.api.requestResponse.progress.ProgressingFuture} that completes with the
 	 *   mutation result.
-	 * - The {@code transitionEngineStateUpdater} must be invoked exactly once before the heavy work
-	 *   starts to update in‑memory state (pre‑mutation phase).
+	 * - The {@code transitionEngineStateUpdater} is invoked at most once, and normally exactly once
+	 *   before the heavy work starts, to update in‑memory state (pre‑mutation phase). It is the only
+	 *   route by which an operator may write engine state, because it is the only one that runs under
+	 *   {@link io.evitadb.core.transaction.engine.EngineTransactionManager}'s engine state lock — a
+	 *   bare read‑derive‑write loses to a concurrent commit across the fsync that commit performs.
+	 *   An operator whose failure cannot be compensated for may therefore invoke it instead from its
+	 *   failure path, to declare a terminal state for what it damaged; see
+	 *   {@link ModifyCatalogSchemaNameMutationOperator}, which does exactly that and consequently
+	 *   invokes this updater zero times on the path that succeeds.
 	 * - The {@code completionEngineStateUpdater} must be invoked exactly once after the mutation
 	 *   finishes successfully so the transaction manager can append persistent log, persist the new state and
 	 *   publish the new version (post‑mutation phase).

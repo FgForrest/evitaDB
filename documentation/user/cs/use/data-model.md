@@ -1,12 +1,12 @@
 ---
 title: Datový model
-perex: Tento článek popisuje strukturu databázové entity (alternativa k záznamu v relační databázi nebo dokumentu v některých NoSQL databázích). Porozumění struktuře entity je klíčové pro práci s evitaDB.
+perex: Tento článek popisuje strukturu databázové entity (alternativu k záznamu v relační databázi nebo dokumentu v některých NoSQL databázích). Porozumění struktuře entity je klíčové pro práci s evitaDB.
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '4f4bf94120e5667bded014a2e6e81839c94d4a17'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>

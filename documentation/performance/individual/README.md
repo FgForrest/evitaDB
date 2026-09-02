@@ -35,6 +35,10 @@ the test and its results stay discoverable from either side.
 - [`SortIndexArrayVsBPlusTreeBenchmark/`](SortIndexArrayVsBPlusTreeBenchmark/README.md) — `SortIndex` distinct-values
   backing: contiguous array vs. consolidated `TransactionalObjectBPlusTree`. Drove `SortIndex.VALUE_BLOCK_SIZE = 256`
   plus the leaf-array-caching and software-prefetch optimizations in `TransactionalObjectBPlusTree`.
+- [`Http2ConnectionMonitorBenchmark/`](Http2ConnectionMonitorBenchmark/README.md) — cost of the HTTP/2 connection
+  monitor that sits in every child channel pipeline. Proved the inbound frame walk is O(frames) rather than O(bytes)
+  (48.7× more bytes → +2.2 % time) at ~7 ns/frame, the outbound `GOAWAY` recognition ~1–3 ns/write, and neither
+  direction allocating.
 - [`BucketBPlusTreePayloadBenchmark/`](BucketBPlusTreePayloadBenchmark/README.md) — neutrality A/B for generalizing the
   `TransactionalBucketBPlusTree` single-record column from raw `int[]` to the pluggable `RecordColumn` SPI
   (`IntRecordColumn` / `LongRecordColumn`). Proved allocation- and time-neutral (deterministic `gc.alloc.rate.norm`

@@ -163,7 +163,7 @@ public enum GrpcConflictPolicy
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(40);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(41);
   }
 
   private static final GrpcConflictPolicy[] VALUES = values();

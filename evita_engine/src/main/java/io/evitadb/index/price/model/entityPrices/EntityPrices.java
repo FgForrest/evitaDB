@@ -188,4 +188,18 @@ public abstract class EntityPrices {
 	@Nonnull
 	protected abstract PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract priceRecord);
 
+	/**
+	 * Returns the heap this wrapper occupies, in bytes — its own object and the arrays it allocates, but **not** the
+	 * price records those arrays point at.
+	 *
+	 * The records belong to the `priceRecords` tree of the
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} that holds this wrapper: an entity-prices map
+	 * is that same information re-indexed by entity id, so charging the bodies here would bill each of them twice.
+	 * The lowest-price array is a second alias again — it points at entries of the all-prices array — so it too
+	 * contributes its slots alone.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
 }

@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.utils.VMLayout;
+
 import javax.annotation.Nonnull;
 
 import java.util.Arrays;
@@ -115,6 +117,13 @@ final class IntRecordColumn implements RecordColumn {
 	@Override
 	public void fillEmpty(int fromInclusive, int toExclusive) {
 		Arrays.fill(this.records, fromInclusive, toExclusive, 0);
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(layout.referenceSize())
+			+ layout.sizeOfArray(this.records.length, Integer.BYTES);
 	}
 
 	/**

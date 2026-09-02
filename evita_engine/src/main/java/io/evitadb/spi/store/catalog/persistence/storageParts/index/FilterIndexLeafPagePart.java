@@ -27,9 +27,11 @@ import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -59,12 +61,22 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
-	@Serial private static final long serialVersionUID = 8923174650293847561L;
+	@Serial private static final long serialVersionUID = 8923174650293847562L;
 
 	/**
 	 * The leaf's buckets in ascending value order — (value, record-set) pairs.
 	 */
 	@Nonnull @Getter private final ValueToRecord[] buckets;
+
+	/**
+	 * The stable **value id** of each bucket, positionally aligned with {@link #buckets}, or `null` when the owning
+	 * shared value tree carries no value ids — which is the case for every tree no subsystem has registered as a
+	 * consumer of, and therefore for almost every persisted page.
+	 *
+	 * Persisting the ids is what makes them stable across a restart: without them a reload would renumber every value
+	 * and invalidate every id-keyed structure built on top of the tree.
+	 */
+	@Nullable @Getter private final int[] valueIds;
 
 	/**
 	 * Creates a WRITE-PATH leaf page carrying the sub-index identity; its `streamId` and primary key are resolved
@@ -74,15 +86,18 @@ public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	 * @param attributeKey          the attribute + index-type identity of the sub-index
 	 * @param pageSequence               the page sequence within the stream
 	 * @param buckets               the leaf's buckets in ascending value order
+	 * @param valueIds              the buckets' stable value ids, or `null` when the tree carries no value ids
 	 */
 	public FilterIndexLeafPagePart(
 		int entityIndexPrimaryKey,
 		@Nonnull AttributeKeyWithIndexType attributeKey,
 		int pageSequence,
-		@Nonnull ValueToRecord[] buckets
+		@Nonnull ValueToRecord[] buckets,
+		@Nullable int[] valueIds
 	) {
 		super(entityIndexPrimaryKey, attributeKey, pageSequence);
 		this.buckets = buckets;
+		this.valueIds = verifyAlignment(buckets, valueIds);
 	}
 
 	/**
@@ -92,13 +107,35 @@ public class FilterIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 	 * @param streamId      the resolved stream id
 	 * @param pageSequence       the page sequence within the stream
 	 * @param buckets       the leaf's buckets in ascending value order
+	 * @param valueIds      the buckets' stable value ids, or `null` when the tree carries no value ids
 	 * @param storagePartPK the precomputed primary key
 	 */
 	public FilterIndexLeafPagePart(
-		int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets, @Nonnull Long storagePartPK
+		int streamId, int pageSequence, @Nonnull ValueToRecord[] buckets, @Nullable int[] valueIds,
+		@Nonnull Long storagePartPK
 	) {
 		super(streamId, pageSequence, storagePartPK);
 		this.buckets = buckets;
+		this.valueIds = verifyAlignment(buckets, valueIds);
+	}
+
+	/**
+	 * Checks that an id column, when present, has exactly one id per bucket. A misaligned column would silently
+	 * misattribute every value past the first divergence, so it is rejected at construction rather than left to
+	 * surface as a wrong query answer.
+	 *
+	 * @param buckets  the page's buckets
+	 * @param valueIds the id column, or `null`
+	 * @return the id column, unchanged
+	 */
+	@Nullable
+	private static int[] verifyAlignment(@Nonnull ValueToRecord[] buckets, @Nullable int[] valueIds) {
+		Assert.isPremiseValid(
+			valueIds == null || valueIds.length == buckets.length,
+			() -> "The value id column of a filter index leaf page must have exactly one id per bucket, but has " +
+				(valueIds == null ? 0 : valueIds.length) + " ids for " + buckets.length + " buckets!"
+		);
+		return valueIds;
 	}
 
 	@Override

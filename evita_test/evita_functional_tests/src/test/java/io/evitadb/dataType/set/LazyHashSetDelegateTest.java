@@ -563,7 +563,7 @@ class LazyHashSetDelegateTest {
 				new LazyHashSet<>(4);
 			set.add("a");
 
-			assertTrue(set.equals(set));
+			assertEquals(set, set);
 		}
 
 		@Test
@@ -596,7 +596,7 @@ class LazyHashSetDelegateTest {
 				new LazyHashSet<>(4);
 
 			// reflexivity: every object must equal itself
-			assertTrue(set.equals(set));
+			assertEquals(set, set);
 		}
 
 		@Test
@@ -608,7 +608,7 @@ class LazyHashSetDelegateTest {
 				new LazyHashSet<>(4);
 
 			// no object should ever equal null
-			assertFalse(set.equals(null));
+			assertNotEquals(null, set);
 		}
 
 		@Test
@@ -623,7 +623,7 @@ class LazyHashSetDelegateTest {
 
 			// uninitialized LazyHashSet is logically empty
 			// and should equal an empty HashSet
-			assertTrue(set.equals(emptyHashSet));
+			assertEquals(set, emptyHashSet);
 		}
 
 		@Test
@@ -639,7 +639,7 @@ class LazyHashSetDelegateTest {
 
 			// two uninitialized (logically empty)
 			// sets should be equal
-			assertTrue(set1.equals(set2));
+			assertEquals(set1, set2);
 		}
 	}
 

@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWith
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -45,7 +43,7 @@ public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor extend
 		.description("""
 			Whether primary keys of entities of this type will not be provided by the external systems and Evita
 			is responsible for generating unique primary keys for the entity on insertion.
-			
+
 			Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
 			will be always greater than zero.
 			""")

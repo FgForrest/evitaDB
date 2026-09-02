@@ -34,6 +34,9 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
@@ -134,6 +137,33 @@ public class ReferenceSummaryTranslator
 		final Set<Scope> scopes = processingScope.getScopes();
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchema()
 			.orElseGet(extraResultPlanner::getSchema);
+
+		// The all-references summary forms - `facetSummary` and `referenceSummary` - both route through this method,
+		// which is why the dependency on `faceted()` is recorded here rather than in each translator. The
+		// *OfReference variants route through the sibling translator's own `createProducerInternal` and record the
+		// dependency there instead. Summarising is by far the commoner use of the flag; recorded per scope rather
+		// than for the whole set, because a reference faceted in one scope only is depended upon in that scope only.
+		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
+			// Asking a reflected reference for an *inherited* `faceted()` before its target is attached throws
+			// instead of answering, and that is a legal schema state rather than an error - so it is stepped over
+			// rather than allowed to fail the query. Narrowed to the inherited case on purpose: a reflected
+			// reference stating its own `faceted()` answers fine while detached, and skipping it would leave a live
+			// capability unrecorded.
+			if (referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
+				&& reflectedReference.isFacetedInherited()
+				&& !reflectedReference.isReflectedReferenceAvailable()
+			) {
+				continue;
+			}
+			for (final Scope scope : scopes) {
+				if (referenceSchema.isFacetedInScope(scope)) {
+					extraResultPlanner.getQueryContext().recordRequestedCapability(
+						entitySchema, null, ElementKind.REFERENCE, referenceSchema.getName(),
+						Capability.FACETED, scope
+					);
+				}
+			}
+		}
 
 		// collect all facet statistics
 		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();

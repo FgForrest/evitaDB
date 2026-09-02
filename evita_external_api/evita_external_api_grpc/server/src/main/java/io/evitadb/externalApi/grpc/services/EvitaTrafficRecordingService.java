@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.grpc.services;
 
 
-import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -36,7 +35,7 @@ import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.services.converter.TrafficCaptureConverter;
-import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
+import io.evitadb.externalApi.grpc.utils.GrpcOutboundGate;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
@@ -47,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.BaseStream;
 import java.util.stream.Stream;
@@ -73,7 +73,19 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 */
 	@Nonnull private final ExternalApiTracingContext<Metadata> tracingContext;
 
-	public EvitaTrafficRecordingService(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions) {
+	/**
+	 * How long a streamed response may make no progress before it is abandoned -
+	 * `api.endpoints.gRPC.streamingRequestTimeoutInMillis`.
+	 * Handed to every {@link GrpcOutboundGate} this service attaches.
+	 */
+	private final long streamingRequestTimeoutInMillis;
+
+	public EvitaTrafficRecordingService(
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headerOptions,
+		long streamingRequestTimeoutInMillis
+	) {
+		this.streamingRequestTimeoutInMillis = streamingRequestTimeoutInMillis;
 		this.evita = evita;
 		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headerOptions);
 	}
@@ -146,40 +158,56 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 */
 	@Override
 	public void getTrafficRecordingHistory(GetTrafficHistoryRequest request, StreamObserver<GetTrafficHistoryResponse> responseObserver) {
-		ServerCallStreamObserver<GetTrafficHistoryResponse> serverCallStreamObserver =
+		final ServerCallStreamObserver<GetTrafficHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetTrafficHistoryResponse>) responseObserver;
 
 		final AtomicReference<Stream<TrafficRecording>> trafficHistoryStreamRef = new AtomicReference<>();
 
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(
+		// the gate paces the loop below to the client's consumption rate; it owns the call's cancel
+		// handler (gRPC keeps only the last one registered), so the stream cleanup that used to be
+		// registered here is handed to it. Both must happen synchronously, before this method returns.
+		final GrpcOutboundGate outboundGate = GrpcOutboundGate.attach(
+			serverCallStreamObserver,
+			"getTrafficRecordingHistory",
+			// avoid returning error when client cancels the stream
 			() -> {
 				log.info("Client cancelled the traffic history request.");
 				ofNullable(trafficHistoryStreamRef.get())
 					.ifPresent(BaseStream::close);
-			}
+			},
+			this.streamingRequestTimeoutInMillis
 		);
 
-		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
-				final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest);
-				trafficHistoryStreamRef.set(trafficHistoryStream);
+				try (final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest)) {
+					trafficHistoryStreamRef.set(trafficHistoryStream);
 
-				trafficHistoryStream.forEach(
-					trafficRecording -> {
+					// pulled through an iterator rather than `forEach` so the loop can stop early when
+					// the client disappears - the records are read lazily, so abandoning it here also
+					// stops the underlying traffic-log reads
+					final Iterator<TrafficRecording> recordingIterator = trafficHistoryStream.iterator();
+					while (recordingIterator.hasNext()) {
+						if (!outboundGate.awaitWritable()) {
+							log.debug("Client of `getTrafficRecordingHistory` disconnected, abandoning stream.");
+							return;
+						}
 						final GetTrafficHistoryResponse.Builder builder = GetTrafficHistoryResponse.newBuilder();
-						final GrpcTrafficRecord event = TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content());
+						final GrpcTrafficRecord event = TrafficCaptureConverter.toGrpcGrpcTrafficRecord(
+							recordingIterator.next(), captureRequest.content()
+						);
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addTrafficRecord(event);
+						// the Armeria deadline is re-armed by `awaitWritable` above, per granted message -
+						// see `GrpcOutboundGate#grantNextMessageWindow`
 						responseObserver.onNext(builder.build());
-
-						GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
 					}
-				);
+				}
+				// the final record's window is the only one still standing - give the half-close a full
+				// budget of its own
+				outboundGate.grantCompletionWindow();
 				responseObserver.onCompleted();
-				trafficHistoryStream.close();
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,

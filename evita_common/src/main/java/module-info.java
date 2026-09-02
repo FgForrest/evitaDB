@@ -26,5 +26,11 @@ module evita.common {
 	requires zero.allocation.hashing;
 	requires static lombok;
 	requires static okhttp3;
+	// `VMLayout` reads the effective UseCompressedOops / UseCompressedClassPointers / ObjectAlignmentInBytes flags
+	// through HotSpotDiagnosticMXBean - they are set by VM ergonomics rather than the command line, so
+	// RuntimeMXBean.getInputArguments() cannot see them. Required non-optionally so `jlink` resolves both into any
+	// image; the runtime fallback in `VMLayout` covers a non-HotSpot VM that lacks the bean, not a missing module.
+	requires java.management;
+	requires jdk.management;
 
 }

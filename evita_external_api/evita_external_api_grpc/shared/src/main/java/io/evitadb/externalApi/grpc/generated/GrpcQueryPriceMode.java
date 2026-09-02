@@ -129,7 +129,7 @@ public enum GrpcQueryPriceMode
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(3);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(4);
   }
 
   private static final GrpcQueryPriceMode[] VALUES = values();

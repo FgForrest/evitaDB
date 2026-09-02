@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -223,6 +224,7 @@ class EntityIndexRoundTripTest {
 			name,
 			null,
 			new Scope[]{Scope.LIVE},
+			null,
 			null,
 			false, false, false,
 			type, null,
@@ -775,7 +777,8 @@ class EntityIndexRoundTripTest {
 				(EntityAttributeIndex) attributeIndex,
 				new PriceSuperIndex(priceIndexes),
 				reloadHierarchyIndex(storage),
-				reloadFacetIndex(storage)
+				reloadFacetIndex(storage),
+				new IndexActivity()
 			);
 		}
 
@@ -940,7 +943,8 @@ class EntityIndexRoundTripTest {
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
-				reloadFacetIndex(storage)
+				reloadFacetIndex(storage),
+				new IndexActivity()
 			);
 		}
 
@@ -1100,7 +1104,8 @@ class EntityIndexRoundTripTest {
 				groupPart.getPkCardinalities(),
 				groupPart.getReferencedPrimaryKeysIndex(),
 				reloadCardinalityIndexes(storage),
-				histogramIndexes
+				histogramIndexes,
+				new IndexActivity()
 			);
 		}
 
@@ -1239,7 +1244,8 @@ class EntityIndexRoundTripTest {
 				reloadFacetIndex(storage),
 				freshRefType,
 				reloadCardinalityIndexes(storage),
-				histogramIndexes
+				histogramIndexes,
+				new IndexActivity()
 			);
 		}
 

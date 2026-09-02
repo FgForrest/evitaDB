@@ -129,7 +129,7 @@ public enum GrpcEntityScope
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(32);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(33);
   }
 
   private static final GrpcEntityScope[] VALUES = values();

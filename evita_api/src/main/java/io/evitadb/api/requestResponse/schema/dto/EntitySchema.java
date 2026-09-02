@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolution;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
@@ -475,6 +474,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -511,6 +511,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
+				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
@@ -822,6 +823,20 @@ public final class EntitySchema implements EntitySchemaContract {
 		return ofNullable(this.attributes.get(attributeName));
 	}
 
+	/**
+	 * Variant of {@link #getAttribute(String)} that returns the schema directly instead of wrapping it into
+	 * an {@link Optional}. It exists for the write path, which resolves an attribute schema for every attribute
+	 * mutation it applies and would otherwise allocate an `Optional` per resolution. The `Optional` returning variant
+	 * remains the contract for everyone else, per the project rule that `Optional` belongs at the read boundary.
+	 *
+	 * @param attributeName name of the attribute to look up
+	 * @return the attribute schema, or `null` when the entity schema does not know an attribute of such name
+	 */
+	@Nullable
+	public EntityAttributeSchemaContract getAttributeOrNull(@Nonnull String attributeName) {
+		return this.attributes.get(attributeName);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<EntityAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
@@ -882,8 +897,14 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public AssociatedDataSchemaContract getAssociatedDataOrThrowException(@Nonnull String dataName) {
-		return ofNullable(this.associatedData.get(dataName))
-			.orElseThrow(() -> new EvitaInvalidUsageException("Associated data `" + dataName + "` is not known in entity `" + getName() + "` schema!"));
+		// this method is on the hot write path - avoid the Optional wrapper and the capturing lambda of orElseThrow
+		final AssociatedDataSchema associatedDataSchema = this.associatedData.get(dataName);
+		if (associatedDataSchema == null) {
+			throw new EvitaInvalidUsageException(
+				"Associated data `" + dataName + "` is not known in entity `" + getName() + "` schema!"
+			);
+		}
+		return associatedDataSchema;
 	}
 
 	@Nonnull
@@ -931,27 +952,37 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
-		return getReference(referenceName)
-			.map(ReferenceSchema.class::cast)
-			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
+		// this method is one of the hottest on the write path - avoid both Optional wrappers and the capturing lambda
+		final ReferenceSchema referenceSchema = this.references.get(referenceName);
+		if (referenceSchema == null) {
+			throw new ReferenceNotFoundException(referenceName, this);
+		}
+		return referenceSchema;
 	}
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		Stream<String> attributeErrors = Stream.empty();
 		for (EntityAttributeSchemaContract attribute : this.attributes.values()) {
 			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
+			// accumulated rather than thrown, so that a schema with several broken attributes reports all of them
+			// in one exception alongside the reference errors gathered below
+			attributeErrors = Stream.concat(attributeErrors, attribute.validate());
 		}
-		final List<String> errors = getReferences()
-			.values()
-			.stream()
-			.flatMap(ref -> {
-				try {
-					ref.validate(catalogSchema, this);
-					return Stream.empty();
-				} catch (SchemaAlteringException e) {
-					return Stream.of(e.getMessage());
-				}
-			})
+		final List<String> errors = Stream.concat(
+				attributeErrors,
+				getReferences()
+					.values()
+					.stream()
+					.flatMap(ref -> {
+						try {
+							ref.validate(catalogSchema, this);
+							return Stream.empty();
+						} catch (SchemaAlteringException e) {
+							return Stream.of(e.getMessage());
+						}
+					})
+			)
 			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {

@@ -302,6 +302,23 @@ public record TransactionOptions(
 		}
 
 		/**
+		 * Sets how long the system waits for a writing transaction to be accepted, i.e. conflict-resolved and appended
+		 * to the shared WAL, before rolling it back.
+		 *
+		 * This value is also the base for the pipeline's stall-detection deadline
+		 * (`TransactionManager#safetyDeadlineMs`, `max(60_000, this * 5)`), which is what makes it worth raising on
+		 * deliberately oversubscribed hosts: the deadline is wall-clock, so heavy CPU contention can push a healthy
+		 * commit past it. See `SharedRgeiSoakTest` for a worked example.
+		 *
+		 * @param waitForTransactionAcceptance acceptance timeout in milliseconds
+		 */
+		@Nonnull
+		public TransactionOptions.Builder waitForTransactionAcceptanceInMillis(long waitForTransactionAcceptance) {
+			this.waitForTransactionAcceptance = waitForTransactionAcceptance;
+			return this;
+		}
+
+		/**
 		 * Sets how often the data files are forced to the device and a bootstrap record is written to point at them.
 		 *
 		 * @param checkpointInterval interval in milliseconds, `0` to checkpoint at the end of every trunk round

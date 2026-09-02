@@ -29,8 +29,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartially
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
@@ -48,11 +46,11 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`referenceSummary` for this reference or use filtering query.
-			
+
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
-			
+
 			This array defines in which scopes the reference will be faceted. It will not be faceted in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))

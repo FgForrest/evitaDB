@@ -43,6 +43,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyW
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -203,7 +204,9 @@ public final class OwnerSortIndex extends SortIndex {
 			: createCombinedComparatorFor(attributeIndexKey.locale(), comparatorBase);
 		final Class<?> plainType = comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class;
 		final InvertedIndex ownedTree = InvertedIndex.fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, highWaterPageSequence,
+			// a sort-only owner tree is private to this index and no subsystem can register as a consumer of its
+			// ids, so it never carries a value id column
+			plainType, orderedPageSequences, perPageBuckets, null, highWaterPageSequence,
 			Serializable.class::cast, comparator, indexedDecimalPlaces
 		);
 		// the positional sortedRecords façade is not persisted for a PAGED owner; reconstruct it from the reloaded tree
@@ -390,6 +393,20 @@ public final class OwnerSortIndex extends SortIndex {
 	@Override
 	protected InvertedIndex valueTreeOrNull() {
 		return this.ownedTree;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The owned value tree is charged **in full**, values and record bitmaps included: this index built it and is the
+	 * only structure that reaches it. That is the whole difference from {@link SortIndexView}, which points at a tree
+	 * the enclosing {@code AttributeIndex} owns and charges nothing for it.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		// the ownedTree slot, on top of the base's own fields
+		return getSharedHeapSizeInBytes(VMLayout.current().referenceSize())
+			+ this.ownedTree.getHeapSizeInBytes();
 	}
 
 	@Nonnull

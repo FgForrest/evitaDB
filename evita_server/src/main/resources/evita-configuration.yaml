@@ -19,9 +19,10 @@ server:
   queryTimeoutInMilliseconds: ${server.queryTimeoutInMilliseconds:5000}
   transactionTimeoutInMilliseconds: ${server.transactionTimeoutInMilliseconds:300000}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
-  dropCollationKeysAfterSecondsOfInactivity: ${server.dropCollationKeysAfterSecondsOfInactivity:0}
+  dropCollationKeysAfterSecondsOfInactivity: ${server.dropCollationKeysAfterSecondsOfInactivity:300}
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
+  usageStatisticsTracking: ${server.usageStatisticsTracking:true}
   trafficRecording:
     enabled: ${server.trafficRecording.enabled:false}
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}
@@ -44,6 +45,7 @@ storage:
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
   timeTravelEnabled: ${storage.timeTravelEnabled:false}
+  timeTravelSizeLimitBytes: ${storage.timeTravelSizeLimitBytes:1G}
   minCompactionIntervalMilliseconds: ${storage.minCompactionIntervalMilliseconds:1m}
   maxWasteActiveShare: ${storage.maxWasteActiveShare:0.1}
 
@@ -85,7 +87,7 @@ cache:
 
 api:
   workerGroupThreads: ${api.workerGroupThreads:null}
-  idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
+  idleTimeoutInMillis: ${api.idleTimeoutInMillis:60K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
   maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}
@@ -147,6 +149,7 @@ api:
       tlsMode: ${api.endpoints.gRPC.tlsMode:null}
       keepAlive: ${api.endpoints.gRPC.keepAlive:null}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
+      streamingRequestTimeoutInMillis: ${api.endpoints.gRPC.streamingRequestTimeoutInMillis:300K}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:null}
@@ -174,6 +177,7 @@ api:
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
       exportedQueryLabels: !include ${api.endpoints.observability.exportedQueryLabels:null}
+      errorOriginLogging: ${api.endpoints.observability.errorOriginLogging:INTERNAL}
       mTLS:
         enabled: ${api.endpoints.observability.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.observability.mTLS.allowedClientCertificatesPaths:null}

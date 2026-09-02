@@ -234,7 +234,7 @@ class ReferenceBlock<T> {
 					// set-up a stream of reference attribute mutations for each locale
 					return locales.stream()
 						.map(locale -> {
-							final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+							final AttributeKey attributeKey = attributeSchema.getAttributeKey(locale);
 							return new ReferenceAttributeMutation(
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 								new UpsertAttributeMutation(
@@ -245,7 +245,7 @@ class ReferenceBlock<T> {
 						});
 				} else {
 					// set-up a stream with single reference attribute mutation
-					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+					final AttributeKey attributeKey = attributeSchema.getAttributeKey();
 					return Stream.of(
 						new ReferenceAttributeMutation(
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
@@ -270,7 +270,7 @@ class ReferenceBlock<T> {
 					return locales
 						.stream()
 						.map(locale -> {
-							final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+							final AttributeKey attributeKey = attributeSchema.getAttributeKey(locale);
 							final Serializable value = valueLookup.apply(attributeKey);
 							if (value == null && !attributeSchema.isNullable()) {
 								// if the value is missing and the attribute is not nullable, add it to the missing set
@@ -289,7 +289,7 @@ class ReferenceBlock<T> {
 						.filter(Objects::nonNull);
 				} else {
 					// set-up a stream with single reference attribute mutation
-					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+					final AttributeKey attributeKey = attributeSchema.getAttributeKey();
 					final Serializable value = valueLookup.apply(attributeKey);
 					if (value == null && !attributeSchema.isNullable()) {
 						// if the value is missing and the attribute is not nullable, add it to the missing set

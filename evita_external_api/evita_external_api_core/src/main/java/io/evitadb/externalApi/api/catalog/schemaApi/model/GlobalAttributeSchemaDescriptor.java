@@ -83,6 +83,7 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			UNIQUENESS_TYPE,
 			GLOBAL_UNIQUENESS_TYPE,
 			FILTERABLE,
+			ACCELERATORS_IN_SCOPES,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,

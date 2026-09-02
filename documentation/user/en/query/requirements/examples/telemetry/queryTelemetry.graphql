@@ -15,7 +15,28 @@
       }
     }
     extraResults {
-      queryTelemetry
+      queryTelemetry {
+        level
+        operation
+        start
+        arguments
+        spentTime
+        formattedSpentTime
+        selfTime
+        formattedSelfTime
+        stepsCount
+        startedAt
+        metrics {
+          estimatedCardinality
+          actualCardinality
+          estimatedCost
+          actualCost
+          recordsReturned
+          ioFetchCount
+          ioFetchedSizeBytes
+          prefetched
+        }
+      }
     }
   }
 }

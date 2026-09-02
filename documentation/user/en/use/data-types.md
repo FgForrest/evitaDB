@@ -248,13 +248,18 @@ parsing the number will use the correct data type that preserves the precision.
 ### Dates and times
 
 <LS to="j,e,g,r">
-Although evitaDB supports *local* variants of the date time like
-[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always
-converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
-using the evitaDB server system default timezone. You can control the default Java timezone in
-[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
-directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
-on the client side and be explicit about the offset from the first day.
+The *local* variants of the date time — such as
+[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html) — are
+first-class attribute data types. An attribute declared as `LocalDateTime` stores and returns exactly the wall-clock
+value you wrote, and the entity schema records `LocalDateTime` as its data type — whether you declared the attribute
+up front or let the schema evolve from the first value written.
+
+A local date time carries no offset, so it does not identify a moment in time on its own — two clients in different
+time zones reading the same value read the same wall clock, not the same instant. That is exactly what you want for
+wall-clock data such as opening hours or a recurring schedule. If your data *is* time zone specific, work directly
+with the
+[OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) on the
+client side and be explicit about the offset from the first day.
 </LS>
 <LS to="c">
 Although evitaDB supports *local* variants of the date time like

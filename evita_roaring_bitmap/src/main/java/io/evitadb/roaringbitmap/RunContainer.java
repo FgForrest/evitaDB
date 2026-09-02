@@ -1313,6 +1313,17 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
+	 * Heap footprint: this object (an `int` run count and one reference) plus the `valueslength` array
+	 * measured at its allocated length. Two chars per run, so the array holds `2 * nbrruns` used entries and
+	 * however many more it grew to.
+	 */
+	@Override
+	public long getHeapSizeInBytes(@Nonnull HeapLayout layout) {
+		return layout.sizeOfObject(Integer.BYTES + layout.referenceSize())
+			+ layout.sizeOfArray(this.valueslength.length, Character.BYTES);
+	}
+
+	/**
 	 * Gets the value of the first element of the run at the index.
 	 *
 	 * @param index the index of the run.

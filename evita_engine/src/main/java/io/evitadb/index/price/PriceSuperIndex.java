@@ -40,6 +40,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -205,6 +206,28 @@ public class PriceSuperIndex
 	@Override
 	public Collection<PriceListAndCurrencyPriceSuperIndex> getPriceListAndCurrencyIndexes() {
 		return this.priceIndexes.values();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its map of per-combination super indexes and everything those
+	 * own, including the price record bodies.
+	 *
+	 * The {@link PriceIndexKey} of each entry is charged **here**: the map is keyed by the very instance handed to the
+	 * sub-index constructor, so the container owns it and the sub-index pays only for its reference slot.
+	 *
+	 * Walking every sub-index makes this `O(price records)` rather than `O(1)`, so it belongs to the index detail call
+	 * and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the inherited id, then the priceIndexes slot
+		return layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ this.priceIndexes.getHeapSizeInBytes(
+				PRICE_INDEX_KEY_SIZER,
+				PriceListAndCurrencyPriceSuperIndex::getHeapSizeInBytes
+			);
 	}
 
 	/**

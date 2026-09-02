@@ -39,7 +39,7 @@ import java.util.List;
 
 /**
  * Deterministic, noise-free measurement of the OWNER-mode {@link OwnerSortIndex} granular persistence story on the
- * current #760 branch. For each scenario (the real `decodoma` ean anchor plus three synthetic distributions that
+ * current #760 branch. For each scenario (the real production-catalog ean anchor plus three synthetic distributions that
  * replicate the anchor's cardinality SHAPE at 10k / 100k / 1m distinct values) it reports:
  *
  * 1. N (distinct values), R (total records), and whether the owned value tree is `PAGED`.
@@ -54,7 +54,7 @@ import java.util.List;
  * 5. A note confirming the PAGED load path ({@link OwnerSortIndex#fromPersistedPages} + `reconstructSortedRecords`).
  *
  * The numbers are fully deterministic so a sibling `dev`-branch mirror can be lined up cell-for-cell. The table is
- * printed to stdout and also written to `/var/tmp/decodoma-bench/report-760.txt`.
+ * printed to stdout and also written to `/var/tmp/catalog-bench/report-760.txt`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -63,7 +63,7 @@ public class SortIndexChurnReport {
 	/**
 	 * Destination of the rendered report (mirrored to stdout).
 	 */
-	private static final Path REPORT_FILE = Path.of("/var/tmp/decodoma-bench/report-760.txt");
+	private static final Path REPORT_FILE = Path.of("/var/tmp/catalog-bench/report-760.txt");
 	/**
 	 * The scenarios measured, in order.
 	 */

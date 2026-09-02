@@ -317,8 +317,8 @@ class UniqueIndexTest {
 	class FormulaAndMemoizationTest {
 
 		@Test
-		@DisplayName("getRecordIdsFormula() caches across calls and invalidates on mutation (T8)")
-		void shouldCacheFormulaAndInvalidateOnMutation() {
+		@DisplayName("getRecordIdsFormula() hands out a fresh formula that tracks mutations (T8)")
+		void shouldReturnFreshFormulaTrackingMutations() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
@@ -326,20 +326,23 @@ class UniqueIndexTest {
 			);
 			index.registerUniqueKey("A", 1);
 
-			// two consecutive calls return the same cached instance
+			// a formula node carries per-query state once a plan initializes it, so an index-lifetime structure
+			// must never hand out the same instance twice - see OwnerUniqueIndex#getRecordIdsFormula
 			final Formula first = index.getRecordIdsFormula();
 			final Formula second = index.getRecordIdsFormula();
-			assertSame(first, second);
+			assertNotSame(first, second);
+			assertArrayEquals(new int[]{1}, second.compute().getArray());
 
-			// mutation invalidates cache — a new formula is returned
+			// a mutation is picked up by the next formula handed out
 			index.registerUniqueKey("B", 2);
 			final Formula afterMutation = index.getRecordIdsFormula();
 			assertNotSame(first, afterMutation);
+			assertArrayEquals(new int[]{1, 2}, afterMutation.compute().getArray());
 		}
 
 		@Test
-		@DisplayName("getRecordIdsFormula() cache invalidation on unregister")
-		void shouldInvalidateCacheOnUnregister() {
+		@DisplayName("getRecordIdsFormula() reflects an unregister in the next formula handed out")
+		void shouldReflectUnregisterInNextFormula() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
@@ -349,9 +352,12 @@ class UniqueIndexTest {
 			index.registerUniqueKey("B", 2);
 
 			final Formula before = index.getRecordIdsFormula();
+			assertArrayEquals(new int[]{1, 2}, before.compute().getArray());
+
 			index.unregisterUniqueKey("A", 1);
 			final Formula after = index.getRecordIdsFormula();
 			assertNotSame(before, after);
+			assertArrayEquals(new int[]{2}, after.compute().getArray());
 		}
 
 		@Test

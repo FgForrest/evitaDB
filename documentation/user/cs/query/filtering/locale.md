@@ -1,12 +1,12 @@
 ---
 title: Filtrování podle lokalizace
-perex: Mnoho e-commerce aplikací funguje v různých regionech a spoléhá na lokalizovaná data. Zatímco produktové štítky a popisy jsou jasnými příklady, existuje také několik číselných hodnot, které musí být specifické pro každou lokalitu kvůli rozdílu mezi metrickým systémem a imperiálními jednotkami. Proto evitaDB nabízí prvotřídní podporu lokalizace ve svých datových strukturách a dotazovacím jazyce.
+perex: Mnoho e-commerce aplikací funguje v různých regionech a spoléhá na lokalizovaná data. Zatímco produktové štítky a popisy jsou jasnými příklady, existuje také několik číselných hodnot, které musí být specifické pro každou lokalitu kvůli rozdílům mezi metrickým systémem a imperiálními jednotkami. Proto evitaDB nabízí prvotřídní podporu lokalizace ve svých datových strukturách a dotazovacím jazyce.
 date: '27.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Entity locale equals
 

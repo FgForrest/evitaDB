@@ -56,6 +56,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -136,8 +137,25 @@ public class HierarchyIndex
 	private final TransactionalIntArray orphans;
 	/**
 	 * Contains cached result of {@link #getAllHierarchyNodesFormula()} call.
+	 *
+	 * # Only the bitmap is memoized, never the formula wrapping it
+	 *
+	 * A {@link Formula} node carries **per-query** state:
+	 * {@link io.evitadb.core.query.algebra.AbstractFormula#initialize(io.evitadb.core.query.QueryExecutionContext)}
+	 * writes the executing query's context onto every node of the plan it is part of, and that context transitively
+	 * reaches the session and the entire catalog generation the query ran against. A formula held for the lifetime
+	 * of this index would therefore pin the first session that ever used it until the hierarchy is next written to.
+	 *
+	 * Memoizing the bitmap keeps the expensive part — the `O(nodes)` walk in
+	 * {@link #createAllHierarchyNodesBitmap()} — and the {@link ConstantFormula} built around it per call is a
+	 * handful of bytes over the shared bitmap. It is cheap in CPU too, but only because the same instance is handed
+	 * out every time: the memo is a `BaseBitmap` with no transactional id, so the formula's cache key comes from
+	 * hashing its contents, and {@link io.evitadb.index.bitmap.Bitmap#getContentHash} memoizes that `O(nodes)` walk
+	 * on the bitmap. See `FilterIndex#memoizedAllRecords` for the measured figures.
+	 *
+	 * Do not turn this back into a `Formula` field.
 	 */
-	@Nullable private volatile Formula memoizedAllNodeFormula;
+	@Nullable private volatile Bitmap memoizedAllNodes;
 
 	/**
 	 * Creates a new empty hierarchy index.
@@ -148,7 +166,7 @@ public class HierarchyIndex
 		this.levelIndex = new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new);
 		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
 		this.orphans = new TransactionalIntArray();
-		this.memoizedAllNodeFormula = EmptyFormula.INSTANCE;
+		this.memoizedAllNodes = EmptyBitmap.INSTANCE;
 	}
 
 	/**
@@ -165,7 +183,7 @@ public class HierarchyIndex
 		this.levelIndex = new TransactionalMap<>(levelIndex, TransactionalIntArray.class, TransactionalIntArray::new);
 		this.itemIndex = new TransactionalMap<>(itemIndex);
 		this.orphans = new TransactionalIntArray(orphans);
-		this.memoizedAllNodeFormula = createAllHierarchyNodesFormula();
+		this.memoizedAllNodes = createAllHierarchyNodesBitmap();
 	}
 
 	/**
@@ -758,18 +776,75 @@ public class HierarchyIndex
 	}
 
 	/**
+	 * Returns the heap this hierarchy occupies, in bytes — the node index, the per-parent children index, both id
+	 * arrays and the memoized all-nodes formula.
+	 *
+	 * Every boxed id is charged to the structure holding it, including a node's parent key even where an equal box is
+	 * a key of {@link #itemIndex}: the two are boxed at different sites and are two objects, and rule 1 charges a box
+	 * per holder rather than letting `-XX:AutoBoxCacheMax` decide what the reading says.
+	 *
+	 * {@link #memoizedAllNodes} is the one memo in the index layer that is charged **unconditionally**. It is built
+	 * by writing every node id and removing the orphans, so nothing else in the catalog holds it — unlike a filter
+	 * index's all-records memo, which resolves to the value tree's own bitmap whenever the tree has a single bucket
+	 * and is therefore charged only above that. No formula scaffolding is priced here because none is retained: the
+	 * {@link ConstantFormula} wrapping this bitmap is built fresh per call and dies with the query. An empty
+	 * hierarchy memoizes {@link EmptyBitmap#INSTANCE} and charges nothing at all.
+	 *
+	 * This walks every node, so it is `O(nodes)` — it belongs to the index detail call and must never be called from a
+	 * query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// a HierarchyNode is a record of the node's own primary key and a boxed parent key, which is this node's
+		// alone - a root node has none and pays only for the slot
+		final long hierarchyNode = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
+		// id, then the dirty / itemIndex / roots / levelIndex / orphans / memoizedAllNodes slots
+		long size = layout.sizeOfObject(Long.BYTES + 6L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.roots.getHeapSizeInBytes()
+			+ this.orphans.getHeapSizeInBytes()
+			+ this.itemIndex.getHeapSizeInBytes(
+				key -> boxedInteger,
+				node -> node.parentEntityPrimaryKey() == null ? hierarchyNode : hierarchyNode + boxedInteger
+			)
+			+ this.levelIndex.getHeapSizeInBytes(key -> boxedInteger, TransactionalIntArray::getHeapSizeInBytes);
+		final Bitmap memoizedNodes = this.memoizedAllNodes;
+		if (memoizedNodes != null) {
+			// the node-id bitmap this index materialized for the cache - nothing else in the catalog holds it
+			size += memoizedNodes.getHeapSizeInBytes();
+		}
+		return size;
+	}
+
+	/**
 	 * Method returns formula that contains all nodes attached to the tree (i.e. except {@link #orphans}.
+	 *
+	 * A **fresh** formula is returned on every call. What is memoized is the bitmap behind it — see
+	 * {@link #memoizedAllNodes} for why an index must never hand out the same formula instance twice.
 	 */
 	@Nonnull
 	public Formula getAllHierarchyNodesFormula() {
+		final Bitmap allNodes = getAllHierarchyNodes();
+		return allNodes.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allNodes);
+	}
+
+	/**
+	 * Method returns bitmap of all nodes attached to the tree (i.e. except {@link #orphans}. The result is memoized
+	 * outside transactions and recomputed while a transaction holds uncommitted hierarchy changes.
+	 */
+	@Nonnull
+	public Bitmap getAllHierarchyNodes() {
 		// if there is transaction open, and there are changes in the hierarchy data, we can't use the cache
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return createAllHierarchyNodesFormula();
+			return createAllHierarchyNodesBitmap();
 		} else {
-			Formula result = this.memoizedAllNodeFormula;
+			Bitmap result = this.memoizedAllNodes;
 			if (result == null) {
-				result = createAllHierarchyNodesFormula();
-				this.memoizedAllNodeFormula = result;
+				result = createAllHierarchyNodesBitmap();
+				this.memoizedAllNodes = result;
 			}
 			return result;
 		}
@@ -1307,10 +1382,10 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Creates a formula that contains all hierarchy nodes except orphans.
+	 * Creates a bitmap that contains all hierarchy nodes except orphans.
 	 */
 	@Nonnull
-	private Formula createAllHierarchyNodesFormula() {
+	private Bitmap createAllHierarchyNodesBitmap() {
 		final Set<Integer> nodeIds = this.itemIndex.keySet();
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer nodeId : nodeIds) {
@@ -1323,14 +1398,14 @@ public class HierarchyIndex
 			roaringBitmap.remove(it.next());
 		}
 		return roaringBitmap.isEmpty() ?
-			EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(roaringBitmap));
+			EmptyBitmap.INSTANCE : new BaseBitmap(roaringBitmap);
 	}
 
 	/**
 	 * Method resets all memoized values.
 	 */
 	private void resetMemoizedValues() {
-		this.memoizedAllNodeFormula = null;
+		this.memoizedAllNodes = null;
 	}
 
 	/**

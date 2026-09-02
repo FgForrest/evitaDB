@@ -1,12 +1,12 @@
 ---
 title: Filtrování referencí
 date: '11.5.2026'
-perex: Filtrování referencí slouží k filtrování entit na základě jejich odkazů na jiné entity v katalogu nebo atributů určených v těchto vztazích.
+perex: Filtrování referencí slouží k filtrování entit na základě jejich odkazů na jiné entity v katalogu nebo atributů uvedených v těchto vztazích.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '17e98c17ff3beef974d92adad23a69a71019f293'
 ---
 ## Reference having
 

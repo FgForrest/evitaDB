@@ -30,12 +30,17 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -410,8 +415,233 @@ class OrFormulaTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Folding single-record operands")
+	class SingleRecordFold {
+
+		@Test
+		@DisplayName("many single-record operands union to exactly what one bitmap per record would")
+		void shouldUnionSingleRecordOperandsIntoTheSameAnswer() {
+			// An inverted index over near-unique values folds almost entirely single-record buckets, so the compute
+			// path merges them into ONE bitmap rather than converting each into its own. This asserts the merge is
+			// invisible in the answer: the same ids, in ascending order, as the one-bitmap-per-record shape produces.
+			final int[] ids = {97, 3, 51, 12, 88, 1, 64};
+			final Bitmap[] singles = new Bitmap[ids.length];
+			final Bitmap[] equivalent = new Bitmap[ids.length];
+			for (int i = 0; i < ids.length; i++) {
+				singles[i] = new SingleRecordBitmap(ids[i]);
+				equivalent[i] = new BaseBitmap(ids[i]);
+			}
+			final int[] expected = ids.clone();
+			Arrays.sort(expected);
+
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("single-record and multi-record operands mixed together union correctly")
+		void shouldUnionAMixOfSingleAndMultiRecordOperands() {
+			final Bitmap[] operands = {
+				new SingleRecordBitmap(5),
+				new BaseBitmap(2, 7, 40),
+				new SingleRecordBitmap(31),
+				new SingleRecordBitmap(1),
+				new BaseBitmap(7, 99)
+			};
+			assertArrayEquals(
+				new int[]{1, 2, 5, 7, 31, 40, 99},
+				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("a record id repeated across buckets appears once, as a union demands")
+		void shouldDeduplicateARecordHeldBySeveralBuckets() {
+			// An array-valued attribute puts one record into several buckets, so the same id genuinely arrives more
+			// than once. The fold sorts and hands the ids over in bulk, which must not turn a duplicate into two
+			// entries or disturb the ordering around it.
+			final Bitmap[] operands = {
+				new SingleRecordBitmap(8),
+				new SingleRecordBitmap(3),
+				new SingleRecordBitmap(8),
+				new BaseBitmap(3, 11),
+				new SingleRecordBitmap(11)
+			};
+			assertArrayEquals(
+				new int[]{3, 8, 11},
+				new OrFormula(INDEX_TRANSACTION_ID, operands).compute().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("operands straddling the sign boundary fold in Roaring's unsigned order")
+		void shouldFoldOperandsThatStraddleTheSignBoundary() {
+			// Nothing on the way into a bucket rules out a negative record id, and Roaring orders ids UNSIGNED - so a
+			// negative id belongs in the highest container, not the lowest. The fold sorts before handing the ids over
+			// in bulk, and a signed sort would present them highest-container-first and make every later container an
+			// insertion at the front of the container array.
+			//
+			// This pins the ANSWER across the boundary, which no existing case covered; it cannot pin the ordering
+			// itself, because a signed sort reaches the same set by a slower route. The counterfactual for that is the
+			// shape of the input, not the assertion: ids here occupy four distinct containers on both sides of the
+			// boundary, so the two orders are structurally different even where they agree.
+			final int[] ids = {-3, 70000, -140000, 5, -70000, 140000, -1, Integer.MIN_VALUE, Integer.MAX_VALUE};
+			final Bitmap[] singles = new Bitmap[ids.length];
+			final Bitmap[] equivalent = new Bitmap[ids.length];
+			for (int i = 0; i < ids.length; i++) {
+				singles[i] = new SingleRecordBitmap(ids[i]);
+				equivalent[i] = new BaseBitmap(ids[i]);
+			}
+			// signed order, because that is what a `Bitmap` hands back regardless of how Roaring stored it
+			// (`RoaringBitmapBackedBitmap#toSignedArray`) - the unsigned ordering is internal to the fill
+			final int[] expected = ids.clone();
+			Arrays.sort(expected);
+
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, singles).compute().getArray());
+			assertArrayEquals(expected, new OrFormula(INDEX_TRANSACTION_ID, equivalent).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("a lone single-record operand is still answered correctly")
+		void shouldAnswerWithASingleSingleRecordOperand() {
+			// below the fold's threshold, so this takes the untouched conversion path - asserted so the branch that
+			// decides NOT to fold is covered too
+			assertArrayEquals(
+				new int[]{4, 6, 9},
+				new OrFormula(INDEX_TRANSACTION_ID, new SingleRecordBitmap(6), new BaseBitmap(4, 9))
+					.compute().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("the union is handed ONE operand for all the folded singles, not one for each")
+		void shouldHandTheUnionOneOperandForEveryFoldedSingle() {
+			// Every other test in this class asserts the ANSWER, which is bit-identical whether the fold runs or not,
+			// so all of them stay green with the fold deleted. This one observes the fold's SHAPE, which is the only
+			// thing it changes: the operand array the union receives loses one entry per single-record operand and
+			// gains the one bitmap they were merged into.
+			//
+			// CALIBRATION: reverting `getRoaringBitmaps` to the plain per-operand loop reddens this test and nothing
+			// else in this class.
+			final Bitmap[] folded = {
+				new SingleRecordBitmap(5),
+				new BaseBitmap(2, 7, 40),
+				new SingleRecordBitmap(31),
+				new SingleRecordBitmap(1),
+				new BaseBitmap(7, 99)
+			};
+			assertEquals(
+				3, roaringOperandsOf(new OrFormula(INDEX_TRANSACTION_ID, folded)).length,
+				"three single-record operands must arrive as ONE bitmap, alongside the two multi-record operands"
+			);
+
+			// fewer than two singles is the branch that deliberately does NOT fold, and no assertion on the answer can
+			// tell it apart from the folding one
+			final Bitmap[] untouched = {
+				new SingleRecordBitmap(6),
+				new BaseBitmap(4, 9),
+				new BaseBitmap(11)
+			};
+			assertEquals(
+				untouched.length, roaringOperandsOf(new OrFormula(INDEX_TRANSACTION_ID, untouched)).length,
+				"one single-record operand costs the same either way, so the operands must pass through as they are"
+			);
+		}
+
+		@Test
+		@DisplayName("the fold leaves the formula's own operands, hash and cardinality estimate exactly as they were")
+		void shouldLeaveTheFormulaOwnStateUntouchedByTheFold() {
+			// The fold builds a fresh array on the way into the union. The formula's OWN operand array is what its
+			// hash, its cached identity and its transactional ids are derived from, so a fold that wrote into it would
+			// silently move the cache key of every query holding this formula.
+			final Bitmap[] operands = {
+				new SingleRecordBitmap(5),
+				new BaseBitmap(2, 7, 40),
+				new SingleRecordBitmap(31),
+				new SingleRecordBitmap(1)
+			};
+			final Bitmap[] operandsBefore = operands.clone();
+			final int[][] contentBefore = new int[operands.length][];
+			for (int i = 0; i < operands.length; i++) {
+				contentBefore[i] = operands[i].getArray();
+			}
+			final OrFormula formula = new OrFormula(INDEX_TRANSACTION_ID, operands);
+			final long hashBefore = formula.getHash();
+			final int cardinalityBefore = formula.getEstimatedCardinality();
+
+			formula.compute();
+
+			for (int i = 0; i < operands.length; i++) {
+				assertSame(operandsBefore[i], operands[i], "operand " + i + " must be the very instance handed in");
+				assertArrayEquals(
+					contentBefore[i], operands[i].getArray(),
+					"operand " + i + " must hold exactly the ids it was built with"
+				);
+			}
+			assertEquals(hashBefore, formula.getHash(), "computing must not move the formula's cache key");
+			assertEquals(cardinalityBefore, formula.getEstimatedCardinality());
+		}
+
+		@Test
+		@DisplayName("two single-record operands naming the same record fold to one bitmap and no union at all")
+		void shouldFoldTwoOperandsHoldingTheSameRecordIntoOneBitmap() {
+			// The fold can shrink the operand array to a SINGLE entry, which sends the computation down its
+			// one-bitmap branch - a branch the bitmap-backed constructor could not reach before the fold existed,
+			// because it refuses fewer than two operands outright.
+			final OrFormula formula = new OrFormula(
+				INDEX_TRANSACTION_ID, new SingleRecordBitmap(42), new SingleRecordBitmap(42)
+			);
+			assertEquals(
+				1, roaringOperandsOf(formula).length,
+				"both operands name the same record, so the fold must leave exactly one bitmap behind"
+			);
+			assertArrayEquals(new int[]{42}, formula.compute().getArray());
+		}
+
+		@Test
+		@DisplayName("an operand holding nothing at all is converted alongside the folded singles")
+		void shouldFoldAlongsideAnEmptyOperand() {
+			// the fold's non-single arm converts whatever it meets, and `EmptyBitmap` is the one operand that is
+			// neither single-record nor Roaring-backed
+			final OrFormula formula = new OrFormula(
+				INDEX_TRANSACTION_ID,
+				new SingleRecordBitmap(3),
+				EmptyBitmap.INSTANCE,
+				new SingleRecordBitmap(9),
+				new BaseBitmap(5)
+			);
+			assertEquals(3, roaringOperandsOf(formula).length);
+			assertArrayEquals(new int[]{3, 5, 9}, formula.compute().getArray());
+		}
+
+		/**
+		 * Reaches the private conversion the union is actually handed, so a test can observe the fold's SHAPE rather
+		 * than only its answer - which is identical whether the fold runs or not.
+		 *
+		 * @param formula the formula whose operands to convert
+		 * @return the Roaring operands the union would receive
+		 */
+		@Nonnull
+		private static Object[] roaringOperandsOf(@Nonnull OrFormula formula) {
+			try {
+				final Method conversion = OrFormula.class.getDeclaredMethod("getRoaringBitmaps");
+				conversion.setAccessible(true);
+				return (Object[]) conversion.invoke(formula);
+			} catch (ReflectiveOperationException ex) {
+				throw new GenericEvitaInternalError(
+					"`OrFormula#getRoaringBitmaps` no longer exists - this test would otherwise silently stop "
+						+ "observing the fold it is written to guard.", ex
+				);
+			}
+		}
+	}
+
 	/**
 	 * Creates an {@link OrFormula} wrapping two constant formulas for hash testing.
+	 *
+	 * @param values the ids of the first constant formula
+	 * @return the assembled formula
 	 */
 	@Nonnull
 	private static OrFormula createOrFormula(int... values) {

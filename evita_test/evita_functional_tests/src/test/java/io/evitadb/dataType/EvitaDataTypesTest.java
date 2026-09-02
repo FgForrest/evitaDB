@@ -26,11 +26,13 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.JolHeapSize;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -2415,6 +2417,185 @@ class EvitaDataTypesTest {
 	}
 
 	@Nested
+	@DisplayName("Conversion to supported stored type")
+	class ConversionToSupportedStoredType {
+
+		@Test
+		@DisplayName(
+			"should keep LocalDateTime as"
+			+ " LocalDateTime"
+		)
+		void shouldKeepLocalDateTime() {
+			// the query-path variant rewrites this
+			// value to an OffsetDateTime at UTC; a
+			// value on its way into storage must
+			// keep the type its schema declares
+			final LocalDateTime input =
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				);
+
+			assertSame(
+				input,
+				EvitaDataTypes.toSupportedStoredType(
+					input
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep a LocalDateTime array"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateTimeArray() {
+			final LocalDateTime[] input = {
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				),
+				LocalDateTime.of(
+					2021, 6, 16, 11, 45
+				)
+			};
+
+			assertSame(
+				input,
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still normalize Float to"
+			+ " BigDecimal"
+		)
+		void shouldStillNormalizeFloat() {
+			assertEquals(
+				new BigDecimal("3.14"),
+				EvitaDataTypes.toSupportedStoredType(
+					3.14f
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still convert non-@SupportedEnum"
+			+ " to String"
+		)
+		void shouldStillConvertNonSupportedEnum() {
+			assertEquals(
+				"CATALOG",
+				EvitaDataTypes.toSupportedStoredType(
+					ClassifierType.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still reject an unsupported type"
+		)
+		void shouldStillRejectUnsupportedType() {
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredType(
+						new HashMap<String, String>()
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt array from the"
+			+ " first non-null element"
+		)
+		void shouldTypeRebuiltArrayFromFirstNonNullElement() {
+			// a leading `null` says nothing about what the
+			// remaining elements normalize to - deriving the
+			// component type from element zero alone rebuilt
+			// a Float[] and then threw on Array.set
+			final Float[] input = {null, 1.5f};
+
+			final Serializable result =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					);
+
+			assertInstanceOf(
+				BigDecimal[].class, result
+			);
+			final BigDecimal[] normalized =
+				(BigDecimal[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				new BigDecimal("1.5"), normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt query-path array from"
+			+ " the first non-null element"
+		)
+		void shouldTypeRebuiltQueryArrayFromFirstNonNull() {
+			// same hazard on the query path, where a
+			// LocalDateTime element still normalizes away
+			final LocalDateTime[] input = {
+				null,
+				LocalDateTime.of(2026, 5, 20, 12, 19, 26)
+			};
+
+			final Serializable result =
+				EvitaDataTypes.toSupportedTypeOrItsArray(
+					input
+				);
+
+			assertInstanceOf(
+				OffsetDateTime[].class, result
+			);
+			final OffsetDateTime[] normalized =
+				(OffsetDateTime[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				input[1].atOffset(ZoneOffset.UTC),
+				normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep LocalDate and LocalTime"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateAndLocalTime() {
+			final LocalDate date =
+				LocalDate.of(2021, 6, 15);
+			final LocalTime time =
+				LocalTime.of(10, 30);
+
+			assertSame(
+				date,
+				EvitaDataTypes.toSupportedStoredType(
+					date
+				)
+			);
+			assertSame(
+				time,
+				EvitaDataTypes.toSupportedStoredType(
+					time
+				)
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Size estimation")
 	class EstimateSizeTest {
 
@@ -2450,13 +2631,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Byte"
 		)
 		void shouldEstimateSizeOfByte() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.BYTE_SIZE,
-				EvitaDataTypes.estimateSize((byte) 1)
-			);
+			final Byte value = (byte) 1;
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2464,15 +2640,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Short"
 		)
 		void shouldEstimateSizeOfShort() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.SMALL_SIZE,
-				EvitaDataTypes.estimateSize(
-					(short) 1
-				)
-			);
+			final Short value = (short) 1;
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2480,13 +2649,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Integer"
 		)
 		void shouldEstimateSizeOfInteger() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.INT_SIZE,
-				EvitaDataTypes.estimateSize(1)
-			);
+			final Integer value = 1;
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2494,13 +2658,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Long"
 		)
 		void shouldEstimateSizeOfLong() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.LONG_SIZE,
-				EvitaDataTypes.estimateSize(1L)
-			);
+			final Long value = 1L;
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2508,13 +2667,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Boolean"
 		)
 		void shouldEstimateSizeOfBoolean() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.BYTE_SIZE,
-				EvitaDataTypes.estimateSize(true)
-			);
+			final Boolean value = true;
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2522,13 +2676,8 @@ class EvitaDataTypesTest {
 			"should estimate size of Character"
 		)
 		void shouldEstimateSizeOfCharacter() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.CHAR_SIZE,
-				EvitaDataTypes.estimateSize('A')
-			);
+			final Character value = 'A';
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2536,15 +2685,10 @@ class EvitaDataTypesTest {
 			"should estimate size of BigDecimal"
 		)
 		void shouldEstimateSizeOfBigDecimal() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.BIG_DECIMAL_SIZE,
-				EvitaDataTypes.estimateSize(
-					new BigDecimal("1.23")
-				)
-			);
+			// `1.23` fits the inline `intCompact` long, so no BigInteger is allocated and the value owns
+			// its whole graph - which is what passing no shared roots asserts
+			final BigDecimal value = new BigDecimal("1.23");
+			assertEquals(JolHeapSize.ownedSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2552,19 +2696,13 @@ class EvitaDataTypesTest {
 			"should estimate size of OffsetDateTime"
 		)
 		void shouldEstimateSizeOfOffsetDateTime() {
-			final int expected =
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.LOCAL_DATE_TIME_SIZE
-					+ MemoryMeasuringConstants
-					.REFERENCE_SIZE;
-
+			// the ZoneOffset is interned by `ZoneOffset.ofTotalSeconds` and pulls the shared timezone-rules
+			// database in with it, so it belongs to the JVM rather than to this value - naming it here is what
+			// separates the ~96 bytes the value owns from the ~280 a naive deep walk reports
+			final OffsetDateTime value = OffsetDateTime.now();
 			assertEquals(
-				expected,
-				EvitaDataTypes.estimateSize(
-					OffsetDateTime.now()
-				)
+				JolHeapSize.ownedSize(value, value.getOffset()),
+				EvitaDataTypes.estimateSize(value)
 			);
 		}
 
@@ -2573,15 +2711,9 @@ class EvitaDataTypesTest {
 			"should estimate size of LocalDateTime"
 		)
 		void shouldEstimateSizeOfLocalDateTime() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.LOCAL_DATE_TIME_SIZE,
-				EvitaDataTypes.estimateSize(
-					LocalDateTime.now()
-				)
-			);
+			// owns its LocalDate and LocalTime outright - nothing here is borrowed
+			final LocalDateTime value = LocalDateTime.now();
+			assertEquals(JolHeapSize.ownedSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2589,15 +2721,8 @@ class EvitaDataTypesTest {
 			"should estimate size of LocalDate"
 		)
 		void shouldEstimateSizeOfLocalDate() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.LOCAL_DATE_SIZE,
-				EvitaDataTypes.estimateSize(
-					LocalDate.now()
-				)
-			);
+			final LocalDate value = LocalDate.now();
+			assertEquals(JolHeapSize.ownedSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2605,15 +2730,8 @@ class EvitaDataTypesTest {
 			"should estimate size of LocalTime"
 		)
 		void shouldEstimateSizeOfLocalTime() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ MemoryMeasuringConstants
-					.LOCAL_TIME_SIZE,
-				EvitaDataTypes.estimateSize(
-					LocalTime.now()
-				)
-			);
+			final LocalTime value = LocalTime.now();
+			assertEquals(JolHeapSize.ownedSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test
@@ -2621,27 +2739,17 @@ class EvitaDataTypesTest {
 			"should estimate size of DateTimeRange"
 		)
 		void shouldEstimateSizeOfDateTimeRange() {
-			final OffsetDateTime now =
-				OffsetDateTime.now();
-			final DateTimeRange range =
-				DateTimeRange.between(now, now);
+			// the two endpoints must share NOTHING but the offset: the estimate describes a range holding two
+			// independent OffsetDateTime values, so any aliasing leaves JOL measuring less than the arithmetic
+			// counts. `between(now, now)` shares everything; even `from.plusDays(1)` still shares the LocalTime,
+			// since changing only the date reuses the time instance - which is a 24-byte discrepancy
+			final OffsetDateTime from = OffsetDateTime.of(2026, 8, 6, 7, 30, 15, 0, ZoneOffset.UTC);
+			final OffsetDateTime to = OffsetDateTime.of(2026, 8, 7, 9, 45, 30, 0, ZoneOffset.UTC);
+			final DateTimeRange range = DateTimeRange.between(from, to);
 
-			final int expected =
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ 2 * (
-					MemoryMeasuringConstants
-						.OBJECT_HEADER_SIZE
-						+ MemoryMeasuringConstants
-						.LOCAL_DATE_TIME_SIZE
-						+ MemoryMeasuringConstants
-						.REFERENCE_SIZE
-				)
-					+ 2 * MemoryMeasuringConstants
-					.LONG_SIZE;
-
+			// both endpoints share the same interned ZoneOffset, which belongs to the JVM
 			assertEquals(
-				expected,
+				JolHeapSize.ownedSize(range, from.getOffset()),
 				EvitaDataTypes.estimateSize(range)
 			);
 		}
@@ -2731,15 +2839,8 @@ class EvitaDataTypesTest {
 			"should estimate size of UUID"
 		)
 		void shouldEstimateSizeOfUUID() {
-			assertEquals(
-				MemoryMeasuringConstants
-					.OBJECT_HEADER_SIZE
-					+ 2 * MemoryMeasuringConstants
-					.LONG_SIZE,
-				EvitaDataTypes.estimateSize(
-					UUID.randomUUID()
-				)
-			);
+			final UUID value = UUID.randomUUID();
+			assertEquals(JolHeapSize.shallowSize(value), EvitaDataTypes.estimateSize(value));
 		}
 
 		@Test

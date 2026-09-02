@@ -25,14 +25,17 @@ package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.function.BiFunction;
+import java.util.function.ToLongFunction;
 
 /**
  * Represents the immutable, query-time result of slicing an {@link InvertedIndex}: a contiguous run of
@@ -98,6 +101,43 @@ public class InvertedIndexSubSet {
 	@Nonnull
 	public ValueToRecord[] getBuckets() {
 		return this.histogramBuckets;
+	}
+
+	/**
+	 * Returns the heap this subset occupies, in bytes — its own object, the two arrays it carries and whatever
+	 * `bucketSizer` decides its buckets are worth.
+	 *
+	 * The buckets are the caller's to price, because a subset is used two ways and only its holder can tell them
+	 * apart. A slice taken off an {@link InvertedIndex} carries that index's **own** bucket flyweights, and pricing
+	 * them here would charge the same buckets twice for an index that has answered one query; the range histogram of
+	 * {@link io.evitadb.index.attribute.FilterIndex}, on the other hand, materializes a fresh
+	 * {@link ValueToRecordBitmap} with a cloned active-set bitmap per range point, and nothing else in the catalog
+	 * holds those. Return `0` for buckets this subset merely slices.
+	 *
+	 * The memoized {@link Formula} is charged as scaffolding through
+	 * {@link io.evitadb.index.IndexHeapSize#memoizedFormulaSizeInBytes} plus the bitmap array the aggregation hands
+	 * it, which is one reference per bucket. The bitmaps in that array are the buckets' own and are already priced by
+	 * `bucketSizer` — or belong to the index this subset was sliced from.
+	 *
+	 * @param bucketSizer prices one bucket, or returns `0` when this subset does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<ValueToRecord> bucketSizer) {
+		final VMLayout layout = VMLayout.current();
+		// the indexTransactionIds / histogramBuckets / aggregationLambda / memoizedResult slots; the lambda is a
+		// constant of the class that supplied it and contributes its slot alone
+		long size = layout.sizeOfObject(4L * layout.referenceSize())
+			+ layout.sizeOfArray(this.indexTransactionIds.length, Long.BYTES)
+			+ layout.sizeOfArray(this.histogramBuckets.length, layout.referenceSize());
+		for (final ValueToRecord bucket : this.histogramBuckets) {
+			size += bucketSizer.applyAsLong(bucket);
+		}
+		if (this.memoizedResult != null) {
+			size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedResult)
+				// the aggregation folds one bitmap reference per bucket into the formula it builds
+				+ layout.sizeOfArray(this.histogramBuckets.length, layout.referenceSize());
+		}
+		return size;
 	}
 
 	/**

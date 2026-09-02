@@ -51,16 +51,20 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
@@ -73,6 +77,7 @@ import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -87,7 +92,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -98,6 +102,10 @@ import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_H
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static io.evitadb.utils.MapBuilder.map;
@@ -105,10 +113,6 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.REST;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for REST catalog entity list query.
@@ -5314,6 +5318,157 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.body(DATA_PATH, hasSize(greaterThan(0)));
 	}
 
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return query telemetry in the shape the OpenAPI schema declares")
+	void shouldReturnQueryTelemetry(RestTester tester) {
+		// asserted over the wire rather than on the DTO, because the schema, the serializer and the DTO are three
+		// separate things and only this exercises all three - a property the OpenAPI document declares but the
+		// serializer never emits would pass every unit test and still break every generated client
+		//
+		// note the require shape: `queryTelemetry` used to be `true`, the form a constraint with no arguments
+		// takes. It now carries a `QueryTelemetryContent` level, and a single-argument constraint is published
+		// unwrapped - as the bare value, not an object around it. `"TIMINGS"` is the default this asserts;
+		// `"PLAN"` additionally asks for the formula plan. The break is deliberate and was taken while nothing
+		// consumed the old shape yet, rather than layering a compatible workaround over a shape that was going
+		// to have to change anyway
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				             {
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": "TIMINGS"
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
+			// the root is the zero point every other node is expressed against, so it reports exactly 0
+			.body(telemetryPath(QueryTelemetryDescriptor.START), equalTo(0))
+			.body(telemetryPath(QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.SELF_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
+			// only the root is stamped with the wall-clock instant that anchors the tree in time
+			.body(telemetryPath(QueryTelemetryDescriptor.STARTED_AT), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.STEPS), hasSize(greaterThan(0)))
+			// the page size is the one metric this query pins exactly; the rest depend on the data and the plan
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
+				equalTo(5)
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.IO_FETCH_COUNT),
+				notNullValue()
+			)
+			// the flag must arrive as a JSON boolean - the engine packs it as 1/0 internally, and shipping that
+			// packing would push the decoding onto every client and contradict the declared schema type
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
+				instanceOf(Boolean.class)
+			)
+			// metrics describe the query as a whole and belong to the root alone
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.STEPS) + "[0]." + QueryTelemetryDescriptor.METRICS.name(),
+				nullValue()
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return the formula plan when the query telemetry asks for it")
+	void shouldReturnQueryTelemetryWithFormulaPlan(RestTester tester) {
+		// the other half of the require shape: `"PLAN"` in place of `"TIMINGS"` is the whole opt-in. REST keeps
+		// the plan nested, unlike GraphQL which flattens it, so this asserts the nested `children` shape as well
+		// as the fields - a plan whose children never serialize would satisfy every field assertion on the root
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			// two constraints so the formula is a conjunction rather than a single node - the point of asserting
+			// the nested shape is that children serialize at all, which an unfiltered query cannot show
+			.requestBody("""
+				             {
+				             	"filterBy": {
+				             		"entityPrimaryKeyInSet": [1, 2, 3, 4, 5, 6],
+				             		"entityPrimaryKeyGreaterThan": 2
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": "PLAN"
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.DESCRIPTION), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.ESTIMATED_COST), notNullValue())
+			// the root of the executed plan really ran, so unlike a rejected alternative it carries outcome numbers
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.ACTUAL_COST), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.RESULT_COUNT), notNullValue())
+			// nothing precedes the plan root, so it can never be a back-reference into an earlier node
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.REF_TO), nullValue())
+			// REST nests the plan rather than flattening it - the property GraphQL deliberately does not have
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.CHILDREN),
+				hasSize(greaterThan(0))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should omit the formula plan when the query telemetry does not ask for it")
+	void shouldOmitFormulaPlanWhenNotRequested(RestTester tester) {
+		// the zero-cost guarantee stated on the wire: asking for timings must not deliver a plan, because building
+		// one is what the level exists to gate
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				             {
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": "TIMINGS"
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN), nullValue());
+	}
+
+	/**
+	 * Builds the response body path of a property of the query telemetry root.
+	 *
+	 * @param properties path of the property below the telemetry root
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath(@Nonnull Object... properties) {
+		final String root = resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.QUERY_TELEMETRY);
+		return properties.length == 0 ? root : root + "." + resultPath(properties);
+	}
+
 	private void compareRestResultPksToEvitaDBResultPks(
 		@Nonnull String message,
 		@Nonnull EvitaSessionContract session,
@@ -5359,10 +5514,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		if (value.length() >= reference.length()) {
 			return value;
 		}
-		final StringBuilder padded = new StringBuilder(reference.length());
-		padded.append("0".repeat(reference.length() - value.length()));
-		padded.append(value);
-		return padded.toString();
+		return "0".repeat(reference.length() - value.length()) + value;
 	}
 
 	@Nonnull

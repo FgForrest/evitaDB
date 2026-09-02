@@ -31,10 +31,7 @@ import io.evitadb.exception.ExpressionEvaluationException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.function.BinaryOperator;
-import java.util.function.UnaryOperator;
 
 /**
  * Atomic data structure for {@link Expression} evaluation. It represents a single node (operator or operand) in

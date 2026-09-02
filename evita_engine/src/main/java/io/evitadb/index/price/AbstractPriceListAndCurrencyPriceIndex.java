@@ -33,14 +33,18 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -53,6 +57,7 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
@@ -82,6 +87,28 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 * element-keyed {@link #priceRecords} tree.
 	 */
 	private static final ToIntFunction<PriceRecordContract> PRICE_RECORD_KEY = PriceRecordContract::internalPriceId;
+	/**
+	 * Prices one stored price record body, for the index that owns it.
+	 *
+	 * Both shapes a {@link #priceRecords} tree can hold are flat records of `int` components, so each costs its header
+	 * and its own fields and reaches nothing further. A
+	 * {@link io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord} is deliberately **not** handled: it
+	 * is cumulated during query evaluation and never stored in an index, so meeting one here means a query-scoped
+	 * object has been retained by an index and the figure would be wrong in a way worth failing over.
+	 */
+	protected static final ToLongFunction<Object> PRICE_RECORD_SIZER = priceRecord -> {
+		final VMLayout layout = VMLayout.current();
+		if (priceRecord instanceof PriceRecord) {
+			return layout.sizeOfObject(5L * Integer.BYTES);
+		} else if (priceRecord instanceof PriceRecordInnerRecordSpecific) {
+			return layout.sizeOfObject(6L * Integer.BYTES);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Price record of type `" + priceRecord.getClass().getName() + "` is not one an index stores - its " +
+					"heap footprint cannot be priced."
+			);
+		}
+	};
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -423,6 +450,51 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	public void resetDirty() {
 		assertNotTerminated();
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this base occupies, in bytes — everything an implementation inherits from it, so a subclass
+	 * adds only what it declares itself.
+	 *
+	 * # What the caller decides, and why it cannot be decided here
+	 *
+	 * `priceRecordSizer` prices one {@link PriceRecordContract} body. A super index owns the bodies its tree stores
+	 * and passes a real sizer; a {@link PriceListAndCurrencyPriceRefIndex} stores **the very same instances** the super
+	 * index holds — a reference tree is built by copying references out of the super index, never by allocating new
+	 * records — so it passes a zero sizer and pays for the tree spine alone. Charging them in both places would bill
+	 * the same bodies once per price list and currency combination a reference index exists for.
+	 *
+	 * {@link #priceIndexKey} is **not** charged: the enclosing {@link AbstractPriceIndex}'s map is keyed by the very
+	 * instance handed to the constructor, so the container owns it and this index pays only for its reference slot.
+	 *
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
+	 * be called from a query path.
+	 *
+	 * @param priceRecordSizer prices one stored price record; returns `0` for records this index does not own
+	 * @param ownFieldBytes    the field bytes the concrete subclass adds to the base's own
+	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding
+	 */
+	protected long getBaseHeapSizeInBytes(@Nonnull ToLongFunction<Object> priceRecordSizer, long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords
+		// /terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the instance
+		// carries ONE header, so the whole hierarchy's fields are sized in a single call
+		long size = layout.sizeOfObject(Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
+		size += this.dirty.getHeapSizeInBytes();
+		size += this.terminated.getHeapSizeInBytes();
+		size += this.indexedPriceIds.getHeapSizeInBytes();
+		size += this.validityIndex.getHeapSizeInBytes();
+		// both are initialised late in subclasses - a reference index has neither until it attaches to a catalog
+		if (this.indexedPriceEntityIds != null) {
+			size += this.indexedPriceEntityIds.getHeapSizeInBytes();
+		}
+		if (this.priceRecords != null) {
+			size += this.priceRecords.getHeapSizeInBytes(priceRecordSizer);
+		}
+		if (this.memoizedIndexedPriceIds != null) {
+			size += layout.sizeOfArray(this.memoizedIndexedPriceIds.length, Integer.BYTES);
+		}
+		return size;
 	}
 
 	@Override

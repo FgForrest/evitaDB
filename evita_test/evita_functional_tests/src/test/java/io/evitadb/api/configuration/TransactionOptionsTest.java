@@ -181,6 +181,21 @@ class TransactionOptionsTest {
 
 		@Test
 		@DisplayName(
+			"should override wait for transaction acceptance via millis method"
+		)
+		void shouldOverrideWaitForTransactionAcceptanceInMillis() {
+			final TransactionOptions options =
+				TransactionOptions.builder()
+					.waitForTransactionAcceptanceInMillis(120_000L)
+					.build();
+
+			assertEquals(
+				120_000L, options.waitForTransactionAcceptanceInMillis()
+			);
+		}
+
+		@Test
+		@DisplayName(
 			"should override flush frequency via millis method"
 		)
 		void shouldOverrideFlushFrequencyInMillis() {
@@ -285,6 +300,7 @@ class TransactionOptionsTest {
 					.transactionMemoryRegionCount(64)
 					.walFileSizeBytes(4_194_304L)
 					.walFileCountKept(2)
+					.waitForTransactionAcceptanceInMillis(90_000L)
 					.flushFrequencyInMillis(250L)
 					.conflictRingBufferSize(512)
 					.build();
@@ -307,6 +323,10 @@ class TransactionOptionsTest {
 				4_194_304L, copy.walFileSizeBytes()
 			);
 			assertEquals(2, copy.walFileCountKept());
+			assertEquals(
+				90_000L,
+				copy.waitForTransactionAcceptanceInMillis()
+			);
 			assertEquals(
 				250L, copy.flushFrequencyInMillis()
 			);

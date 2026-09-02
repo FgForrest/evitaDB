@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -88,6 +89,18 @@ public final class EntitySchemaAttributeAndCompoundSchemaProvider implements Att
 		return this.entitySchema.getSortableAttributeCompoundsForAttribute(attributeName)
 			.stream()
 			.map(SortableAttributeCompoundSchema.class::cast);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Always `null` — this provider serves the entity's own attributes and compounds, whichever index they are being
+	 * written into.
+	 */
+	@Nullable
+	@Override
+	public String getContainerName() {
+		return null;
 	}
 
 }

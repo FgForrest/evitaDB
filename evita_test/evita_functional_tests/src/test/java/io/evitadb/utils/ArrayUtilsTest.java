@@ -279,6 +279,32 @@ class ArrayUtilsTest {
 	class RemovalTests {
 
 		@Test
+		@DisplayName("Should remove int from array on index")
+		void shouldRemoveIntFromArrayOnIndex() {
+			final int[] records = new int[]{1, 2, 5, 6, 8, 9};
+
+			assertArrayEquals(new int[]{2, 5, 6, 8, 9}, removeIntFromArrayOnIndex(records, 0));
+			assertArrayEquals(new int[]{1, 2, 6, 8, 9}, removeIntFromArrayOnIndex(records, 2));
+			assertArrayEquals(new int[]{1, 2, 5, 6, 8}, removeIntFromArrayOnIndex(records, records.length - 1));
+			assertArrayEquals(new int[0], removeIntFromArrayOnIndex(new int[]{42}, 0));
+			// the source is never modified - every caller shares the array it hands in with someone else
+			assertArrayEquals(new int[]{1, 2, 5, 6, 8, 9}, records);
+		}
+
+		@Test
+		@DisplayName("Should refuse to remove int from array on index outside it")
+		void shouldRefuseToRemoveIntFromArrayOnIndexOutsideIt() {
+			assertThrows(
+				IndexOutOfBoundsException.class,
+				() -> removeIntFromArrayOnIndex(new int[]{1, 2, 3}, 3)
+			);
+			assertThrows(
+				IndexOutOfBoundsException.class,
+				() -> removeIntFromArrayOnIndex(new int[]{1, 2, 3}, -1)
+			);
+		}
+
+		@Test
 		@DisplayName("Should remove ints from array and keep order")
 		void shouldRemoveIntsFromArrayAndKeepOrder() {
 			int[] records = new int[]{1, 2, 5, 6, 8, 9};

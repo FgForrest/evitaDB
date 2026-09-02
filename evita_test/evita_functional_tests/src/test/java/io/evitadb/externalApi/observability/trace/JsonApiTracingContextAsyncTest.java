@@ -46,15 +46,10 @@ import org.mockito.MockedStatic;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
+
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mockStatic;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -132,7 +127,7 @@ class JsonApiTracingContextAsyncTest {
 				assertEquals("done", value);
 
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
-				assertTrue(!spans.isEmpty(), "At least one span should be exported");
+				assertFalse(spans.isEmpty(), "At least one span should be exported");
 
 				final SpanData spanData = spans.get(spans.size() - 1);
 				final long durationNanos = spanData.getEndEpochNanos() - spanData.getStartEpochNanos();
@@ -168,7 +163,7 @@ class JsonApiTracingContextAsyncTest {
 				assertTrue(result.isCompletedExceptionally());
 
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
-				assertTrue(!spans.isEmpty());
+				assertFalse(spans.isEmpty());
 
 				final SpanData spanData = spans.get(spans.size() - 1);
 				assertEquals(StatusCode.ERROR, spanData.getStatus().getStatusCode());
@@ -208,7 +203,7 @@ class JsonApiTracingContextAsyncTest {
 
 				// span should be ended with ERROR status
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
-				assertTrue(!spans.isEmpty());
+				assertFalse(spans.isEmpty());
 
 				final SpanData spanData = spans.get(spans.size() - 1);
 				assertEquals(StatusCode.ERROR, spanData.getStatus().getStatusCode());
@@ -247,7 +242,7 @@ class JsonApiTracingContextAsyncTest {
 
 				// span should still be ended properly
 				final List<SpanData> spans = spanExporter.getFinishedSpanItems();
-				assertTrue(!spans.isEmpty(), "Span should be ended even when lambda returns null");
+				assertFalse(spans.isEmpty(), "Span should be ended even when lambda returns null");
 			}
 		}
 	}

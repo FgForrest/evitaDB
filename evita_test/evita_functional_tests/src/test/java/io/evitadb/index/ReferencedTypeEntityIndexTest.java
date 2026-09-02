@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -114,6 +115,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			name,
 			null,
 			new Scope[]{Scope.LIVE},
+			null,
 			null,
 			false, false, false,
 			type, null,
@@ -921,6 +923,19 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndex.createThrowingStub(schema, expectedKey);
 
 			assertEquals(expectedKey, stub.getIndexKey());
+		}
+
+		@Test
+		@DisplayName("should answer getActivity with a holder instead of throwing")
+		void shouldReturnActivityHolder() {
+			// this is the stub `FilterByVisitor` plants where a reference index does not exist, so it is the one that
+			// can genuinely reach a winning target index set - and the plan builder records a query on every member of
+			// that set. `EntityIndex#getActivity()` is final so ByteBuddy cannot override it with the throwing
+			// classification; drop that modifier and such a query fails from the planner instead of running
+			final ReferencedTypeEntityIndex stub = createStub();
+
+			assertNotNull(stub.getActivity(), "A stub must answer with the holder its super instance allocated");
+			assertDoesNotThrow(() -> stub.getActivity().recordQuery(System.currentTimeMillis()));
 		}
 
 		@Test

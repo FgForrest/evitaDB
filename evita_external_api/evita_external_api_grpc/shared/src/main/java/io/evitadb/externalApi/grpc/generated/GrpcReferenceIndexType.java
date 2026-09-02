@@ -146,7 +146,7 @@ public enum GrpcReferenceIndexType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(36);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(37);
   }
 
   private static final GrpcReferenceIndexType[] VALUES = values();

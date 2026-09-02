@@ -102,7 +102,7 @@ class ConflictResolutionMutationConverterTest {
 	@Test
 	void shouldRoundTripCreateMutationsCarryingOverrideThroughEntityConverter() {
 		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null,
+			"code", null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -123,7 +123,7 @@ class ConflictResolutionMutationConverterTest {
 		final ModifyCatalogSchemaConflictResolutionMutation catalogMutation =
 			new ModifyCatalogSchemaConflictResolutionMutation(entityConflictResolution());
 		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);

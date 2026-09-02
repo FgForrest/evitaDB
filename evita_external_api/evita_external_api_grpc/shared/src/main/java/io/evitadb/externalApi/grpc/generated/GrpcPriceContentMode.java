@@ -146,7 +146,7 @@ public enum GrpcPriceContentMode
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(4);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(5);
   }
 
   private static final GrpcPriceContentMode[] VALUES = values();

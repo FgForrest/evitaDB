@@ -180,4 +180,4 @@ the universe; the relaxation surface is `userFilter` and nothing else.
 For the full UX story behind these rules — including the rich facet group algebra
 (`facetGroupsConjunction`, `…Disjunction`, `…Negation`, `…Exclusivity`) and why a dedicated `histogramHaving`
 exists rather than reusing `attributeBetween` — see the blog post
-[*The hidden choreography of a faceted filter panel*](/documentation/blog/en/25-faceted-filter-choreography.md).
+[*The hidden choreography of a faceted filter panel*](/documentation/blog/en/26-faceted-filter-choreography.md).

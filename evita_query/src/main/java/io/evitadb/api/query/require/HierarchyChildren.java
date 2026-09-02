@@ -30,11 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.filter.HierarchyAnyHaving;
-import io.evitadb.api.query.filter.HierarchyExcluding;
-import io.evitadb.api.query.filter.HierarchyHaving;
-import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 

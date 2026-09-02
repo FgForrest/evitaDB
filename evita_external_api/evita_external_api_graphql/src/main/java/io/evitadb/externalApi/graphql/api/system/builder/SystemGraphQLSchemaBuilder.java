@@ -65,6 +65,7 @@ import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeFilterAcceleratorsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
@@ -168,7 +169,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
 	private static final PropertyDataFetcher<Boolean> CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
 
-	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getCatalogStoragePath().toString());
 	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getRepresentativeException().toString());
 	private static final PropertyDataFetcher<Boolean> UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
 
@@ -195,6 +195,9 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			ScopedAttributeFilterAcceleratorsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedFacetedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -313,6 +316,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			ModifyAttributeSchemaTypeMutationDescriptor.THIS,
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
+			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
@@ -418,11 +422,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	@Nonnull
 	private GraphQLObjectType buildUnusableCatalogObject() {
-		this.buildingContext.registerDataFetcher(
-			UnusableCatalogDescriptor.THIS,
-			UnusableCatalogDescriptor.CATALOG_STORAGE_PATH,
-			UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER
-		);
 		this.buildingContext.registerDataFetcher(
 			UnusableCatalogDescriptor.THIS,
 			UnusableCatalogDescriptor.CAUSE,
