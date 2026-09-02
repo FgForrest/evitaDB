@@ -871,6 +871,13 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 *
 		 * This is the failure the buffer-level predecessor of this barrier actually caused: it threw from inside the
 		 * collect, which aborted the terminate loop at its first collection and left the rest un-terminated.
+		 *
+		 * The `terminate()` below is NOT the only terminator in play: raising the barrier schedules an asynchronous
+		 * deactivation which terminates the very same instance. That is exactly why `Catalog#terminate` has to honour
+		 * the idempotence {@link io.evitadb.api.CatalogContract#terminate()} promises - whichever call arrives second
+		 * returns once the first has finished, so this assertion observes a COMPLETED termination either way. Before
+		 * that was true this test failed intermittently with `Catalog is already terminated!`, on scheduler latency
+		 * alone.
 		 */
 		@Test
 		@DisplayName("Termination still releases every collection")
@@ -894,6 +901,22 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 						"could not publish its state."
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("Terminating twice is a no-op, not a failure")
+		void shouldTolerateASecondTermination() {
+			// two legitimate owners terminate a catalog and they are not ordered: the deactivation the barrier
+			// schedules, and engine shutdown. `Evita#closeCatalogs` calls terminate() unguarded, so a premise failure
+			// here would have propagated out of shutdown rather than being the programming error it claimed to catch
+			final Catalog catalog = unpublishableCatalog();
+			catalog.terminate();
+			assertTrue(catalog.isTerminated(), "self-check: the first call must actually terminate the catalog");
+
+			assertDoesNotThrow(
+				catalog::terminate,
+				"CatalogContract#terminate is documented idempotent - a repeat call is ignored, never refused."
+			);
 		}
 
 		/**

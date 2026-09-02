@@ -421,6 +421,18 @@ public final class Catalog
 	 * or flush entry point.
 	 */
 	@Nonnull private final AtomicReference<Throwable> unpublishableCause = new AtomicReference<>();
+	/**
+	 * Serializes {@link #terminate()} so the idempotence {@link CatalogContract#terminate()} promises holds
+	 * under the concurrency that actually produces a second call.
+	 *
+	 * A catalog has TWO legitimate terminators and they are not ordered with respect to one another: the
+	 * deactivation {@link #markUnpublishable(Throwable)} schedules, which terminates the instance it swapped out
+	 * of the engine state, and engine shutdown, whose `Evita#closeCatalogs` terminates every catalog the state
+	 * still names. A plain check-and-return would satisfy the letter of idempotence and still let the second
+	 * caller return while the first is halfway through releasing collections - so the lock is what gives that
+	 * caller a completed termination to observe rather than merely a silent no-op.
+	 */
+	@Nonnull private final Object terminationLock = new Object();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -1996,13 +2008,27 @@ public final class Catalog
 		return catalogIndexes;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Idempotent, as {@link CatalogContract#terminate()} requires: a second call returns once the first has
+	 * finished, having done nothing itself. This used to be an `isPremiseValid(!isTerminated())` — a guard that
+	 * treated an ordinary concurrent shutdown as a programming error, because a catalog has two legitimate
+	 * terminators that race (see {@link #terminationLock}). The premise is why
+	 * `SetCatalogStateMutationOperator` wraps its own call in a `try`/`catch` that merely logs, while
+	 * `Evita#closeCatalogs` calls it unguarded and would have propagated the failure out of shutdown.
+	 */
 	@Override
 	public void terminate() {
-		Assert.isPremiseValid(!isTerminated(), "Catalog is already terminated!");
-		try {
-			terminateInternally();
-		} finally {
-			this.persistenceService.close();
+		synchronized (this.terminationLock) {
+			if (isTerminated()) {
+				return;
+			}
+			try {
+				terminateInternally();
+			} finally {
+				this.persistenceService.close();
+			}
 		}
 	}
 
