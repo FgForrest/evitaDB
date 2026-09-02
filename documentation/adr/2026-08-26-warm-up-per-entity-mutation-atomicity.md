@@ -624,7 +624,8 @@ runner *with* the cap CI applies, and unlimited threads there stand up far more 
 than that heap was tuned for. Even capped, the fork stays marginal. Every remaining failure across both sweeps is
 the environmental profile described above — testcontainers with no Docker, Armeria connect timeouts on the
 subscription suites, a 300 s timeout in `StaleLeafPageTwinWriterReproductionTest` (9 s alone), heap exhaustion in
-the whole-reactor JVM — plus the terminate race recorded under open follow-ups.
+the whole-reactor JVM — and one test of our own that raced the asynchronous deactivation the barrier
+schedules, rather than any behaviour of the mechanism.
 
 ## Consequences & open follow-ups
 
@@ -641,15 +642,6 @@ the whole-reactor JVM — plus the terminate race recorded under open follow-ups
   and does not newly defend against concurrent warm-up writers.
 
 **Open follow-ups:**
-
-- `EntityAtomicMutationRollbackWarmUpFunctionalTest.shouldStillTerminateEveryCollection` **races the
-  deactivation the barrier itself schedules** and fails intermittently with `Catalog is already
-  terminated!`. `markUnpublishable` hands the catalog to `SetCatalogStateMutation(name, false)`
-  asynchronously, which terminates the instance; the test's own `catalog.terminate()` then loses. Only
-  the test is wrong — production never calls `terminate()` on a reference the deactivation owns, the
-  scheduled task returns early once the engine is closing, and the swap keeps `Evita#close` from
-  double-terminating. The fix is to assert the end state (every collection terminated, whoever did it)
-  rather than that the test's call wins the race; a sleep-poll is not an option here (`testing.md`).
 
 - Measuring the mechanism against its absence is now a **cross-revision** exercise; the protocol lives
   in `WarmUpAtomicityIngestBenchmark`'s JavaDoc.
