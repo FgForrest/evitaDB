@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-02 20:50
+updated: 2026-09-02 23:48
 status: proposed
 kind: fix
 issues: [1365]
@@ -163,8 +163,8 @@ fully-localized entities would have to be abandoned, which would reopen #1343 as
 
 ## Behaviour matrix
 
-Rebuilt from the fixtures measured on 2026-09-02; the `today` column is an observation, so the
-backward-compatibility claim above is checkable row by row.
+Rebuilt from the fixtures measured on 2026-09-02; the `before #1365` column is an observation, so
+the backward-compatibility claim above is checkable row by row.
 
 `standard` = `hierarchyContent(<mode>, entityFetch(attributeContentAll()))` inside
 `entityFetch(attributeContentAll())`, filtered by `entityPrimaryKeyInSet(leaf) +
@@ -173,7 +173,7 @@ unmaterializable case — and every other node holds English. Chains read **leaf
 columns list the **parent chain only**, the queried leaf omitted. `B(pk)` = present with body,
 `P(pk)` = present as a bodyless pointer, `—` = the chain ends.
 
-| # | fixture (leaf → root) | requirement | today (measured) | `COMPLETE` | `MATCHING` (default) |
+| # | fixture (leaf → root) | requirement | before #1365 (measured) | `COMPLETE` | `MATCHING` (default) |
 |---|---|---|---|---|---|
 | P1 | 12 → **11(cs)** | standard | `P(11)` | `P(11)` | `—` |
 | P2 | 23 → 22 → **21(cs)** | standard | `B(22)` | `B(22) → P(21)` | `B(22)` |
@@ -193,24 +193,35 @@ columns list the **parent chain only**, the queried leaf omitted. `B(pk)` = pres
 | K5 | 125 → 124 → 123 → **122 deleted** (mid-chain) | standard | `P(124)` | `B(124) → B(123) → P(122)` | `B(124) → B(123)` |
 | K6 | 111 → **999**, never created | standard | `P(999)` | `P(999)` | `—` |
 
-Every `today` cell is an observation. P6 was inferred from the measured P4 when this record was
-drafted rather than observed on its own; it has since been measured directly by the P6 row of
-`HierarchyContentParentsBehaviourFunctionalTest`, which returned the inferred `P(62)`.
+Every cell of the `before #1365` column is an observation. P6 was inferred from the measured P4 when
+this record was drafted rather than observed on its own; it has since been measured directly by the
+P6 row of `HierarchyContentParentsBehaviourFunctionalTest`, which returned the inferred `P(62)`.
 
-Reading the table: **P2 / P3 / N3 / K2 confirm the default preserves today**, and they are the #1365
-shapes. **P1 / P4 / P5 / P6 / N2 / N5 / K1 / K3 / K6 are where the immediate-parent pointer
-disappears** — the one silent change. **K4 and K5 cannot preserve today under any mode**: K4 throws
-today and an exception is not a shape a mode can reproduce, and K5 today demotes the materializable
-124 to a pointer and truncates, which neither mode does. Both become correct chains. **P3 is the
+**The traversal fix has already moved the broken-chain rows off that column, before
+`HierarchyParentsBehaviour` exists at all.** The upward walk now reports every ancestor the index
+still holds and stops at the first one it cannot resolve, which lands those rows directly on their
+`MATCHING` values: K4 and each of its variants return `B(123)` — the Czech-only variant `B(133)`,
+its own fixture — K5 returns `B(124) → B(123)`, and the K6 companion `112 → 111 → 999` returns
+`B(111)`. K1, K2 and the K2 variant keep the cells they were measured with, even though the chain
+below a removed root is now structurally broken rather than merely unreadable: what those rows
+report does not depend on which of the two it is. The column is kept as the pre-fix baseline, not
+as a description of the current engine.
+
+Reading the table: **P2 / P3 / N3 / K2 confirm the default preserves the previous shapes**, and they
+are the #1365 shapes. **P1 / P4 / P5 / P6 / N2 / N5 / K1 / K3 / K6 are where the immediate-parent
+pointer disappears** — the one silent change. **K4 and K5 were the rows no mode could have
+preserved**: K4 threw, and an exception is not a shape a mode can reproduce, while K5 demoted the
+materializable 124 to a pointer and truncated, which neither mode does. The traversal fix settled
+both ahead of the modes by making them report the ancestors the index can still reach. **P3 is the
 load-bearing acceptance test for `COMPLETE`**: it is the only row proving the walk no longer stops
 at the first missing body. **P5 is where `MATCHING` visibly discards an ancestor it could have
 returned**, which is what makes it a truncation rather than a per-node filter.
 
-Two rows are deliberately absent. A **non-localized schema under a query-level locale** returns no
+One row is deliberately absent. A **non-localized schema under a query-level locale** returns no
 queried entity at all, so that path is only reachable through a localized enveloping entity and
-cannot be written as a top-level row. `stopAt(level(N))` **on a broken chain** is not characterised,
-because with the phantom-root defect fixed the meaning of "broken" changes; it is covered by the
-broken-chain rule instead.
+cannot be written as a top-level row. `stopAt(level(N))` **on a broken chain** has no row either,
+because the answer does not depend on `N`: it is the level rule below, pinned by the two K5 variants
+against the intact control on chain `1 → 2 → 3`.
 
 ## Subsidiary decisions
 
@@ -219,9 +230,12 @@ broken-chain rule instead.
 | A second enum, `HierarchyParentsBehaviour`, not a reuse of `ManagedReferencesBehaviour` | the two name different axes: a reference is judged per element, an ancestor chain is judged by prefix | one shared enum, which would signal symmetry exactly where the semantics diverge |
 | Constants `COMPLETE` / `MATCHING`, named on the parents axis | `ANY` is already spent by `ManagedReferencesBehaviour` and `ALL` by `PriceContentMode` in the same package; the project naming rule forbids a second constant of the same name there, and `EXISTING` names a condition that behaves identically in **both** modes | `ANY` / `EXISTING` for surface symmetry with `referenceContent` |
 | No marker for a `MATCHING` cut | the caller opted into it, exactly as they opt into `stopAt(distance(N))`, whose cut is likewise indistinguishable from a real root | a reportable cut — the precedent is honestly weaker here than for `stopAt`, because a `stopAt` cut is caller-computable and a `MATCHING` cut is data-dependent |
-| Broken chains report up to the break in both modes; the assert is replaced | today the same situation throws two levels up, is silent three levels up, and loses a fetchable ancestor in the process; one rule covers a deleted ancestor and a never-created parent primary key alike, the latter being a legitimate orphan state per `documentation/user/en/use/schema.md` | leaving the assert in place and documenting the depth-dependent throw |
-| Fold in the phantom-root fix | `EntityRemoveMutation` emits `RemoveParentMutation` only when a parent exists, so a deleted root is never un-indexed and still matches `hierarchyWithinRootSelf()`; it changes what "deleted ancestor" means to the fetcher, so it cannot be deferred past this work | filing it separately and implementing against the phantom behaviour |
-| Fold in the Kryo fix for `ManagedReferencesBehaviour` | `ReferenceContentSerializer` never writes it and the configurer never registers it, so a stored `referenceContent(EXISTING, …)` replays as `ANY`; the new enum needs the same wiring and would otherwise copy the defect | shipping `HierarchyParentsBehaviour` serialization while leaving the neighbouring gap |
+| Broken chains report up to the break in both modes; the assert is replaced | before this work the same situation threw two levels up, was silent three levels up, and lost a fetchable ancestor in the process; one rule covers a deleted ancestor and a never-created parent primary key alike, the latter being a legitimate orphan state per `documentation/user/en/use/schema.md`. A parent the walk has already visited counts as the same break, which is what bounds a ring | leaving the assert in place and documenting the depth-dependent throw |
+| Fold in the phantom-root fix | `EntityRemoveMutation` emits `RemoveParentMutation` only when a parent exists, so before this work a deleted root was never un-indexed and kept matching `hierarchyWithinRootSelf()`; it changes what "deleted ancestor" means to the fetcher, so it could not be deferred past this work. The removal path now tears the placement down itself, and a deleted root leaves the index with its descendants left as orphans | filing it separately and implementing against the phantom behaviour |
+| Clearing a parent **re-roots** the entity rather than un-indexing it | a `RemoveParentMutation` means two different things: inside an entity removal it is one step of the tear-down, outside one it is a user promoting the entity to a root. The entity survives and reports no parent, so the index has to say the same; the two readings are told apart by whether the entity is marked as removed entirely | keeping the un-index for both, which is the exact mirror of the phantom root — a live entity would vanish from `hierarchyWithinRoot` and its whole subtree would be orphaned behind it |
+| A tolerant tear-down on the removal and scope-change paths, while the mutation path keeps its assert | an entity of a hierarchical collection may legitimately hold no placement: making a collection hierarchical, or widening the scopes it indexes hierarchy in, re-places only the entities of the live global index, so anything sitting in another scope at that moment never receives one and would otherwise be undeletable. `removeNodeIfPresent` / `removeParentIfPresent` accept that absence; `removeNode` still refuses it where it really is a bug | one tolerant removal everywhere, which would also swallow a `removeParent` against an entity the index is supposed to hold — the class of defect this whole record is about |
+| A node on a chain that does not reach a root has **no level** (`UNKNOWN_LEVEL`, the same `-1` `computeLevel` gives), and a level bound never cuts it in either direction | `HierarchyLevel` is defined as an absolute depth measured from the top of the tree, and a break makes the offset between the reachable fragment and the tree above it unknowable. Answering an absolute question with a relative number is the failure; refusing to answer it is not. `distance` is the bound that still holds on a broken chain, and the two traversal directions now share one predicate expression rather than agreeing by coincidence | **fragment-relative levels** (the top of the reachable fragment counted as level 1) — *rejected because* the bottom-up predicate `level >= N` would then drop reachable ancestors by an offset nobody can measure; K5 with `stopAt(level(2))` lost 123 under that rule. **Refusing `level(N)` on a broken chain** — *rejected because* the caller has no way to know the chain is broken, so the refusal would surface as an error on ordinary data |
+| Fold in the Kryo fix for `ManagedReferencesBehaviour`, and accept the format break it causes | `ReferenceContentSerializer` never writes it and the configurer never registers it, so a stored `referenceContent(EXISTING, …)` replays as `ANY`; the new enum needs the same wiring and would otherwise copy the defect. There is no compatible middle ground for a query-constraint serializer — the reasoning is written down once in `documentation/adr/2026-08-04-query-telemetry-actionable-profile.md`. What the break reaches is wider than that record states: besides the traffic recorder and its replaying reader, the locally generated benchmark query corpora that `ClientSyntheticTestState` and `SanityChecker` load are consumers too. No corpus is tracked in git, so the cost is a local regeneration | shipping `HierarchyParentsBehaviour` serialization while leaving the neighbouring gap |
 | GraphQL: `parents` keeps `MATCHING`, new `parentsComplete(stopAt:)` returns a list of a union | additive on the schema; the union follows the `...Union` convention already established for mutation DTOs | typing the list as the existing `THIS_CLASSIFIER` interface, which mints no new type and reuses `EntityDtoTypeResolver` at the same fragment cost — a real alternative, decided on convention rather than capability |
 | REST: `parentEntity` keeps `MATCHING`, new `parentEntityComplete` typed `oneOf` | `OpenApiUnion` already supports `ONE_OF`; and `parentEntity` becomes *honest*, since a `MATCHING` chain never contains a pointer | discriminating the `oneOf` on `type`, which cannot work — an entity and its own pointer carry the same type value |
 | The resolver emits exactly one `hierarchyContent` | both fields selected means `COMPLETE` with the union of the two selection sets and equal `stopAt` required; `parents` is then derived by stopping the leaf→root walk at the first non-`SealedEntity`, which equals `MATCHING` and stays equal under `stopAt`, since a prefix of a truncated chain is a truncation of a prefix | two constraints and a merge, which the throw-on-conflict rule forbids |
@@ -244,10 +258,24 @@ broken-chain rule instead.
 - The derived parent request inherits the query locale through the two-argument
   `EvitaRequest#deriveCopyWith`, and `EntityCollection#fetchEntityDecorator` applies it as an
   existence gate. That pair is the mechanism the whole issue reduces to.
-- `HierarchyIndex#traverseHierarchyToRoot` returns **without visiting anything** when the pre-walk
-  finds an absent ancestor, and its orphan guard tests whether the parent is a registered orphan, not
-  whether it exists. Its only two callers are reporting paths; hierarchy *filtering* excludes orphans
-  structurally via `levelIndex`, so changing it cannot affect the documented orphan invariant.
+- `HierarchyIndex#traverseHierarchyToRoot` used to return **without visiting anything** when its
+  pre-walk found an absent ancestor. It now collects the reachable fragment first and replays it to
+  the visitor second, so the two phases cannot disagree about where the fragment ends; a parent it
+  cannot resolve, and a parent it has already visited, both end the collection. Its only two callers
+  are reporting paths — the `hierarchyContent` parents fetch and `ParentStatisticsComputer` —
+  and hierarchy *filtering* excludes orphans structurally via `levelIndex`, so the change cannot
+  affect the documented orphan invariant.
+- `HierarchyIndexContract#UNKNOWN_LEVEL` is where the level rule lives. The upward walk hands it to
+  the visitor for **every** node of a fragment whose top is not a real root, and
+  `AbstractHierarchyTranslator#stopAtConstraintToPredicate` admits it outright in one expression
+  shared by both traversal directions. Top-down already tolerated `-1` by accident; making it
+  explicit is what stops the two halves from drifting. `distance` is untouched by any of this.
+  Downward propagation is *not* covered — see the follow-ups below.
+- `removeNodeIfPresent` is the tolerant sibling of `removeNode`, not a replacement for it. Reading a
+  call site tells you which invariant it claims: `removeNode` asserts a placement exists and is
+  reached from the `RemoveParentMutation` path, `removeNodeIfPresent` accepts its absence and is
+  reached from entity removal and scope transitions. Both funnel into one private
+  `finishNodeRemoval`, so a removal cannot come to cost different things on the two paths.
 - `GrpcEntityReferenceWithParent` is pointer-only recursively, so a body-above-pointer chain is not
   transmissible today. The new field must be populated **alongside** the legacy one, so an old client
   receives a complete chain degraded to pointers rather than a truncated one.
@@ -264,27 +292,43 @@ broken-chain rule instead.
 
 ## Verification
 
-**Nothing is implemented yet.** What *is* verified is the starting point: a throwaway
-characterisation run on 2026-09-02 against `dev` executed every row of the behaviour matrix except
-P6, which the landed P6 test measured afterwards, and classified today's behaviour as the
-position-dependent hybrid described above. The test was deleted after the run; the matrix is its
-record.
+**`HierarchyParentsBehaviour` itself is not implemented yet** — no query carries the argument, which
+is why this record is still `proposed`. What has landed is the groundwork the two modes will sit on:
+the upward traversal, the level rule, the phantom-root and re-rooting fixes, the tolerant tear-down
+and the three serializer fixes. The starting point is verified too: a throwaway characterisation run
+on 2026-09-02 against `dev` executed every row of the behaviour matrix except P6, which the landed
+P6 test measured afterwards, and classified the pre-#1365 behaviour as the position-dependent hybrid
+described above. That test was deleted after the run; the matrix is its record.
 
 The implementation proves itself with:
 
 - `HierarchyContentParentsBehaviourFunctionalTest` — the behaviour matrix, both modes plus the
-  `today` column as the backward-compatibility guard. The `today` column has already landed: 32 test
-  methods across four nested classes (locale gate, requirement variations, broken chains, defect
-  pins), all green;
-- `HierarchyIndexTest` — root removal and broken-chain traversal at two, three and more levels; four
-  methods have already landed, one for root removal and three for the traversal depths. Before this
-  line of work no test removed a hierarchical root at either layer, which is why the phantom root
-  survived: the landed `MutationTest#shouldRemoveRootNodeAndOrphanItsSubtree` pins removal at the
-  index level, and the functional suite's defect pin
-  `DefectPinTest#shouldStillListDeletedRootInHierarchyToday_phantomRoot` pins it at the entity level;
+  pre-#1365 column as the backward-compatibility guard. That column has already landed and grown
+  with the fixes: **38 tests across five nested classes** (locale gate, requirement variations,
+  broken chains, `ParentStatisticsOverBrokenChainTest`, index invariants), all green.
+  `ParentStatisticsOverBrokenChainTest` is the only coverage of the *second* production caller of
+  the upward walk, and `IndexInvariantTest` carries the two invariants that replaced the defect pins
+  — a deleted root leaves the index and orphans its descendants, and clearing a parent re-roots the
+  entity instead of dropping it;
+- `HierarchyIndexTest` — root removal, broken-chain traversal at two and three levels, the two ring
+  shapes, the `-1` level pins and the two `listNodesIncludingParents` walks: **100 tests**, green.
+  Before this line of work no test removed a hierarchical root at either layer, which is why the
+  phantom root survived; `MutationTest#shouldRemoveRootNodeAndOrphanItsSubtree` pins removal at the
+  index level and `IndexInvariantTest#shouldRemoveDeletedRootAndOrphanItsDescendants` pins it at the
+  entity level;
+- `EntityIndexLocalMutationExecutorHierarchyPlacementTest` — **5 tests** driving the placement state
+  machine one local mutation at a time. Three of its states have no session-level route at all,
+  which is why they are pinned at the mutator layer rather than through a query;
+- `EvitaArchivingTest.HierarchicalScopeTransitionTest` — hierarchy placement across scope
+  transitions: a root archived and restored, a root deleted while archived, a root whose archived
+  scope does not index hierarchy, and an archived entity that never received a placement because
+  hierarchy was declared on the collection after it was archived;
 - `QuerySerializationTest` — round-trip of both `HierarchyParentsBehaviour` values *and* both
   `ManagedReferencesBehaviour` values, the latter being the regression guard for the Kryo defect that
-  only `ANY` round-tripping hid;
+  only `ANY` round-tripping hid; plus the rows the folded serializer fixes added — page spacing at
+  top level, nested in `referenceContent` and with several gaps, the aliased zero-name and
+  multi-name `referenceContent` shapes, and a multi-name `referenceContent` keeping its filter and
+  order;
 - GraphQL and REST functional tests for `parentsComplete` / `parentEntityComplete`, plus the existing
   `parents` tests unchanged as the additive-schema guard;
 - `ManagedReferenceLocaleFunctionalTest` untouched and green, proving the #1343 reference behaviour
@@ -307,6 +351,29 @@ The implementation proves itself with:
 - **Unverified adjacent risk:** `QueryPlanningContext#fabricateFetchRequest` shares the same
   two-argument `deriveCopyWith`, so other derived nested fetches may inherit the locale as an
   existence predicate too. Only the parent fetch was traced and is in scope.
+- **Follow-up: `EntityCollection#updateSchema` repairs only the LIVE global index.** When a
+  collection becomes hierarchical, or widens the scopes it indexes hierarchy in, the existing
+  entities of the live index are re-placed and nothing else is. An entity sitting in another scope
+  at that moment therefore carries no hierarchy placement at all: it can be deleted and moved,
+  because the tear-down was made tolerant here, but it is **not queryable through that scope's
+  hierarchy** until it is upserted again. Repairing every indexed scope is the real fix and was
+  deliberately not folded in — it is a re-indexing decision of its own, with a cost proportional to
+  the collection rather than to the schema change.
+- **Follow-up: the level rule stops at the pivot of a downward walk.**
+  `HierarchyIndex#traverseHierarchyInternal` gives the pivot `computeLevel(...)` and then hands each
+  descendant `level + 1`, so a walk whose pivot sits inside a detached fragment reports `-1` for the
+  pivot and `0`, `1`, `2` … below it. A deep enough downward `stopAt(level(N))` inside such a
+  fragment can therefore still cut, which the upward rule promises it will not. Propagating the
+  unknown level downwards is a behaviour decision with a matrix row of its own and was not taken
+  here.
+- **The Kryo query-constraint format changed three times in this line of work, none of them with a
+  compatibility reader** — the managed-references behaviour, the reference-content instance name,
+  and the page spacing. That is deliberate and unavoidable for this serializer family (see the
+  subsidiary decision above), but it means every payload written by an earlier build is unreadable
+  and fails by desynchronizing rather than by reporting. The consumers are the traffic recorder with
+  its replaying reader, and the locally generated benchmark query corpora read by
+  `ClientSyntheticTestState` and `SanityChecker`; no corpus is tracked in git, so what a break costs
+  is a local regeneration.
 - The in-flight plan, the measured review reports and the external-API option analysis live in
   `specifications/1365-hierarchy-content-parents-behaviour/`, which is git-ignored. This record flips
   to `accepted` and that folder is deleted when the work lands.
