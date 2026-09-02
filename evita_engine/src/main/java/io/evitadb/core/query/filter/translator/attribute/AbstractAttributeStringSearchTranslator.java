@@ -251,11 +251,11 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * ## The crossing that must NOT be attempted
 	 *
 	 * What crosses from the global index to a reduced one here is a formula over ENTITY PRIMARY KEYS. Handing the
-	 * reduced index's own tree the global candidate VALUE IDS instead is available-looking, compiles, and is silently
-	 * wrong: a reduced index's inverted index mints no value ids at all, so
-	 * {@link InvertedIndex#getRecordsOfValueIdsMatching} answers with an empty {@link MatchedBuckets} and
-	 * {@link InvertedIndex#getValueById} answers `null`. That shape returns an empty result rather than refusing, and
-	 * passes any test whose fixture is small enough for the empty answer to look plausible.
+	 * reduced index's own tree the global candidate VALUE IDS instead is available-looking and compiles: a reduced
+	 * index's inverted index mints no value ids at all. {@link InvertedIndex#getRecordsOfValueIdsMatching} now REFUSES
+	 * that pairing rather than answering an empty {@link MatchedBuckets} — an empty result would have passed any test
+	 * whose fixture is small enough for it to look plausible — but {@link InvertedIndex#getValueById} still answers
+	 * `null` for every id, so the crossing remains a mistake to be avoided rather than one that is fully caught.
 	 *
 	 * @param entityIndex                    the entity index being resolved
 	 * @param hoistedGlobalSubstringFormulas the per-scope global substring answers, empty when the trigram path was

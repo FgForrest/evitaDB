@@ -957,10 +957,12 @@ class TrigramSubstringSearchTest {
 		@Test
 		@DisplayName("a pattern under three code points declines")
 		void shouldDeclineAPatternShorterThanATrigram() {
-			// CALIBRATION: without this guard the pattern yields NO trigrams, `pricePattern` answers null, and
-			// the empty-posting short circuit below it would return EmptyFormula - i.e. `contains("it")` would match
-			// nothing at all instead of the 700 filler values the scan finds. The assertion on the scan's own answer
-			// is what makes that counterfactual visible here.
+			// CALIBRATION: this guard is what keeps the pattern away from the index at all. `pricePattern` now
+			// REFUSES a trigram-less pattern rather than answering null - answering null would say "no value contains
+			// this", which is the opposite of the truth for a pattern the index simply cannot describe - so removing
+			// the guard turns `contains("it")` into an internal error rather than into the empty answer it used to
+			// produce. Either way it must not reach the index: the assertion on the scan's own answer is what makes
+			// the 700 filler values this would lose visible here.
 			final GlobalEntityIndex index = populatedIndex(ATTRIBUTE_TITLE, null);
 			assertNull(
 				TrigramSubstringSearch.match(

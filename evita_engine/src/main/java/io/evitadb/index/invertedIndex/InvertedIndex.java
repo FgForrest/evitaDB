@@ -1535,10 +1535,20 @@ public class InvertedIndex implements
 				"last published version of the tree while the leaves it reads are the transaction's own, so the " +
 				"verification would silently under-report. Take the scan fallback instead."
 		);
+		// a tree that mints no ids can verify nothing, and answering EMPTY would be the silently wrong shape
+		// `AbstractAttributeStringSearchTranslator#resolveFromIndex` warns about: handing a reduced index's own tree
+		// the global candidate ids compiles, returns an empty result, and passes any test whose fixture is small
+		// enough for that to look plausible. Candidates were resolved against a trigram index, and a trigram index
+		// exists only where the global tree mints ids, so arriving here without an allocator is a wiring error
+		Assert.isPremiseValid(
+			this.valueIdAllocator != null || candidateCount == 0,
+			"Value ids cannot be verified against a tree that mints none - the candidates were resolved against a " +
+				"trigram index, so they belong to the global index's shared value tree and must be verified there. " +
+				"Answering EMPTY here would silently narrow the result instead of reporting the mis-wiring."
+		);
 		final LeafVersionAccumulator leafVersions = new LeafVersionAccumulator();
 		if (this.valueIdAllocator == null) {
-			// nothing can be verified against a tree that mints no ids; the empty answer is still an answer rather
-			// than a refusal, because the caller gates on the trigram index rather than on this tree
+			// no candidates and no ids: nothing to verify and nothing to mis-answer, so the empty answer is honest
 			return new MatchedBuckets(MatchedBuckets.NO_RECORD_SETS, leafVersions.toTokenSet());
 		}
 		// catch up the warm-up path's writes, exactly as `getValueById` does and for the same reason - the premise

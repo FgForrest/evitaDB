@@ -26,6 +26,7 @@ package io.evitadb.index.trigram;
 import com.carrotsearch.hppc.LongIntHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
@@ -256,6 +257,16 @@ final class TrigramPostingAccumulator {
 	 * fill IS diagnosed, in {@link #materialize()}
 	 */
 	private void collect(@Nonnull Serializable normalizedValue, int valueId) {
+		// the same premise `InvertedIndex#notifyValueCreated` states for the incremental path, which this bulk one
+		// must agree with: `0` is the unassigned sentinel, so posting it would file a phantom candidate under every
+		// trigram of this value that nothing can ever remove - the removal path refuses the very same id first. It
+		// costs one comparison per value, once per rebuild, and it is checked HERE rather than in `count` so the
+		// message can name the walk that would have stored it
+		Assert.isPremiseValid(
+			valueId != ValueIdAllocator.UNASSIGNED_VALUE_ID,
+			() -> "Value `" + normalizedValue + "` of the shared value tree carries no value id - a trigram index " +
+				"can only be built over a tree that stamps every bucket it creates."
+		);
 		final long[] trigrams = TrigramCodec.extractUniqueTrigramsOfValue(normalizedValue);
 		for (final long trigram : trigrams) {
 			final int index = this.slots.indexOf(trigram);

@@ -327,16 +327,26 @@ public class TrigramIndex implements
 	 * at the first such trigram, so the remaining ones are never looked up - the cheapest outcome this index can
 	 * produce stays the cheapest.
 	 *
-	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
-	 * @return the pattern's postings ordered by cardinality, or `null` when some trigram posts against nothing - and
-	 * likewise when there are no trigrams at all, which a caller must have refused before reaching here
+	 * A pattern with NO trigrams is refused rather than answered. `null` means *"provably no value contains this"*, and
+	 * a pattern under three code points is the opposite case - the index simply holds nothing that could bound the
+	 * search, and every value remains a possible match. Answering `null` for it would turn a question this index
+	 * cannot answer into a confident "no match", which
+	 * {@link #resolveCandidateValueIds(long[])} would then hand back as an empty candidate array.
+	 * {@link TrigramSubstringSearch#match} takes the scan for such a pattern and never reaches here.
+	 *
+	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them; must be
+	 *                 non-empty
+	 * @return the pattern's postings ordered by cardinality, or `null` when some trigram posts against nothing
 	 */
 	@Nullable
 	PatternPostings pricePattern(@Nonnull long[] trigrams) {
 		final int trigramCount = trigrams.length;
-		if (trigramCount == 0) {
-			return null;
-		}
+		Assert.isPremiseValid(
+			trigramCount > 0,
+			"A pattern with no trigrams cannot be priced against this index - it holds nothing that could bound the " +
+				"search, so every value stays a possible match and the caller must take the scan. Refuse the pattern " +
+				"before reaching here, as `TrigramSubstringSearch#match` does."
+		);
 		final Object[] postings = new Object[trigramCount];
 		final int[] cardinalities = new int[trigramCount];
 		int candidateUpperBound = Integer.MAX_VALUE;
@@ -410,7 +420,11 @@ public class TrigramIndex implements
 	 * {@link PatternPostings#candidateUpperBound} whether the intersection is worth running at all. This one-step form
 	 * is for callers that have already committed to the intersection and hold nothing but the trigrams.
 	 *
-	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them
+	 * The trigrams must be non-empty, for the reason {@link #pricePattern} states: an empty candidate array here means
+	 * *"no value contains the pattern"*, and a pattern under three code points is not that case at all.
+	 *
+	 * @param trigrams the pattern's trigrams, as {@link TrigramCodec#extractUniqueTrigrams} produces them; must be
+	 *                 non-empty
 	 * @return the candidate value ids in ascending order, owned by the caller, empty when the pattern cannot occur in
 	 * any value
 	 */
