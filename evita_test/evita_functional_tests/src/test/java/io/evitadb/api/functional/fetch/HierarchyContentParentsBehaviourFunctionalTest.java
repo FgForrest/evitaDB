@@ -104,8 +104,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * `MATCHING` column of that same matrix; every row a change does not touch must keep passing
  * unchanged, which is what makes this class the backward-compatibility guard for the whole line of
  * work. Every method that pins a matrix row carries that row's identifier in its name and in its
- * display name; the remaining methods pin a control, a variant of a row, or a defect the matrix has
- * no row for.
+ * display name; the remaining methods pin a control, a variant of a row, or an index invariant the
+ * matrix has no row for.
  *
  * Assertions run against the raw {@link SealedEntity} API rather than through typed proxy interfaces,
  * because {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks a swallowing
@@ -237,7 +237,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				createEnglishCategory(session, 82, 81);
 				createEnglishCategory(session, 83, 82);
 
-				// a deleted root three levels up, plus the phantom-root assertion
+				// a deleted root three levels up, plus the index-invariant assertion
 				createEnglishCategory(session, 91, null);
 				createEnglishCategory(session, 92, 91);
 				createEnglishCategory(session, 93, 92);
@@ -270,7 +270,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				// three roots - their descendants keep pointing at a primary key that no longer resolves
+				// three roots - their subtrees are orphaned and keep pointing at a key that no longer resolves
 				deleteFixtureNode(session, 71);
 				deleteFixtureNode(session, 81);
 				deleteFixtureNode(session, 91);
@@ -1079,8 +1079,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	class BrokenChainTest {
 
 		/**
-		 * Matrix row K1 - `72 -> 71`, where 71 was a root that has been deleted. The chain points at a
-		 * primary key that resolves to no entity.
+		 * Matrix row K1 - `72 -> 71`, where 71 was a root that has been deleted. Deleting the root orphaned
+		 * 72 in the hierarchy index, but the immediate parent is reported from the queried entity's own
+		 * body, so the chain still points at a primary key that resolves to no entity.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
@@ -1093,9 +1094,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Matrix row K2 - `83 -> 82 -> 81`, where 81 was a deleted root. A removed root is never un-indexed
-		 * and its children are never orphaned, so the chain is not structurally broken here at all - the walk
-		 * reaches 81 and it is the missing body of 81 that ends the reported chain below it.
+		 * Matrix row K2 - `83 -> 82 -> 81`, where 81 was a deleted root. The chain is structurally broken at
+		 * 81: removing the root un-indexed it and orphaned the subtree below it, so the walk reaches 82 and
+		 * stops silently there, exactly as it stops at a break left by a deleted mid-chain ancestor (K4).
 		 *
 		 * The terminal `B(82)` reports `parentAvailable() == true`, which a genuine root does as well (see
 		 * the control row), so neither observable separates this cut from the end of a hierarchy.
@@ -1116,8 +1117,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * Variant of matrix row K2 - `94 -> 93 -> 92 -> 91`, where the deleted root 91 sits three levels
-		 * up. The phantom root keeps the chain intact at that depth too, so this row separates a chain the
-		 * index can still walk from the genuinely broken ones the K4 and K5 rows measure.
+		 * up. Both reachable ancestors below the break are reported with their bodies and the walk stops at
+		 * the break, so a deletion at the root of a chain reads exactly like the mid-chain break of K5.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
@@ -1267,26 +1268,26 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Pins defects the behaviour matrix has no row for, because they are not shapes of a returned
+	 * Pins invariants the behaviour matrix has no row for, because they are not shapes of a returned
 	 * chain but states of the index behind it.
 	 */
 	@Nested
-	@DisplayName("Defect pins")
-	class DefectPinTest {
+	@DisplayName("Index invariants")
+	class IndexInvariantTest {
 
 		/**
-		 * A deleted root leaves a phantom node behind in the hierarchy index, so it still matches
-		 * `hierarchyWithinRootSelf()` while resolving to no entity, and its descendants stay attached
-		 * through it instead of becoming orphans. Folding the fix in is part of #1365 because it changes
-		 * what a broken chain means to the parent fetcher; a mid-chain deletion, asserted here as the
-		 * contrast, already orphans its subtree correctly.
+		 * Removing a hierarchical entity un-indexes it whether or not it had a parent, so a deleted root
+		 * stops matching `hierarchyWithinRootSelf()` and its descendants become orphans instead of staying
+		 * attached through a node that resolves to no entity. This is part of #1365 because it decides what
+		 * a broken chain means to the parent fetcher: a deletion at the root of a chain now breaks it in
+		 * exactly the way a mid-chain deletion does, which is asserted here alongside it.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("Defect pin: a deleted root still matches hierarchyWithinRootSelf today")
+		@DisplayName("A deleted root and its descendants leave the hierarchy index")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldStillListDeletedRootInHierarchyToday_phantomRoot(Evita evita) {
+		void shouldRemoveDeletedRootAndOrphanItsDescendants(Evita evita) {
 			final List<EntityReferenceContract> hierarchyMemberReferences = evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -1304,24 +1305,22 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				hierarchyMembers.add(reference.getPrimaryKey());
 			}
 
-			final int[] phantomRoots = {71, 81, 91};
-			// 71, 81 and 91 were deleted, yet they are still listed - EntityRemoveMutation emits
-			// RemoveParentMutation only for an entity that has a parent, so a removed root is never
-			// un-indexed and its descendants are never orphaned
-			for (int phantomRoot : phantomRoots) {
-				assertTrue(
-					hierarchyMembers.contains(phantomRoot),
-					"The deleted root " + phantomRoot + " is still attached to the hierarchy root today."
+			final int[] deletedRoots = {71, 81, 91};
+			// 71, 81 and 91 were deleted, so the hierarchy index must no longer hold them
+			for (int deletedRoot : deletedRoots) {
+				assertFalse(
+					hierarchyMembers.contains(deletedRoot),
+					"The deleted root " + deletedRoot + " must leave the hierarchy index."
 				);
 			}
 			for (int descendant : new int[]{72, 82, 83, 92, 93, 94}) {
-				assertTrue(
+				assertFalse(
 					hierarchyMembers.contains(descendant),
-					"Descendant " + descendant + " stays attached through the phantom root above it."
+					"Node " + descendant + " must be orphaned by the deletion of the root above it."
 				);
 			}
 
-			// a mid-chain deletion behaves correctly - the deleted node leaves and its subtree is orphaned
+			// a mid-chain deletion behaves the same way - the deleted node leaves and its subtree is orphaned
 			for (int deletedMidChainNode : new int[]{122, 132}) {
 				assertFalse(
 					hierarchyMembers.contains(deletedMidChainNode),
@@ -1335,23 +1334,29 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				);
 			}
 
-			// every one of the three phantom roots resolves to no entity at all
-			for (int phantomRoot : phantomRoots) {
-				final Optional<SealedEntity> deletedRoot = evita.queryCatalog(
+			// the fixture still has a hierarchy to report, so the assertions above cannot pass vacuously
+			assertTrue(
+				hierarchyMembers.contains(121) && hierarchyMembers.contains(131),
+				"The roots that were never deleted must stay in the hierarchy index."
+			);
+
+			// every one of the three deleted roots resolves to no entity at all
+			for (int deletedRoot : deletedRoots) {
+				final Optional<SealedEntity> removedRoot = evita.queryCatalog(
 					TEST_CATALOG,
 					session -> {
 						return session.queryOneSealedEntity(
 							query(
 								collection(Entities.CATEGORY),
-								filterBy(entityPrimaryKeyInSet(phantomRoot)),
+								filterBy(entityPrimaryKeyInSet(deletedRoot)),
 								require(entityFetch(attributeContentAll()))
 							)
 						);
 					}
 				);
 				assertTrue(
-					deletedRoot.isEmpty(),
-					"The deleted root " + phantomRoot + " must not be fetchable, but was: " + deletedRoot
+					removedRoot.isEmpty(),
+					"The deleted root " + deletedRoot + " must not be fetchable, but was: " + removedRoot
 				);
 			}
 		}

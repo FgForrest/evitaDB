@@ -323,6 +323,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Memoized scope of the current entity.
 	 */
 	private Scope memoizedScope;
+	/**
+	 * Set to TRUE once a {@link RemoveParentMutation} has already torn this entity's hierarchy placement out of the
+	 * global index, and back to FALSE when a {@link SetParentMutation} puts a placement back. It exists solely so
+	 * that {@link #removeEntity(int)} can un-index the placement of an entity that is being removed entirely without
+	 * un-indexing it twice.
+	 *
+	 * The asymmetry it compensates for: {@link #prepare(List)} places *every* hierarchical entity into the hierarchy
+	 * index — a root included, as a root node — while the decomposition of an entity removal into local mutations
+	 * (`EntityRemoveMutation#computeLocalMutationsForEntityRemoval`) only emits a {@link RemoveParentMutation} for an
+	 * entity that actually has a parent. Without the un-index in {@link #removeEntity(int)}, a removed root would
+	 * stay in the hierarchy index forever, keep matching `hierarchyWithinRoot` while resolving to no entity, and keep
+	 * its children attached instead of orphaning them (see #1365).
+	 * {@link io.evitadb.index.hierarchy.HierarchyIndex#removeNode(int)} refuses to remove a node that is not there,
+	 * so the second removal has to be suppressed rather than tolerated.
+	 *
+	 * The executor is constructed once per entity mutation in `EntityCollection#applyMutations`, so this flag never
+	 * carries over between entities.
+	 */
+	private boolean hierarchyPlacementUnindexed;
 
 	/**
 	 * Converts a map of mutations-per-target-type into an {@link IndexImplicitMutations} result.
@@ -2364,7 +2383,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Removes entity itself from indexes.
+	 * Removes entity itself from indexes. Mirror image of {@link #prepare(List)}: whatever that method sets up for
+	 * an entity newly inserted into the global index, this method tears down when the entity leaves it — the suite of
+	 * sortable attribute compounds, and the entity's placement in the hierarchy index.
+	 *
+	 * The hierarchy placement is only torn down here when no {@link RemoveParentMutation} has already done it in this
+	 * batch; see {@link #hierarchyPlacementUnindexed} for why the two paths cannot both fire.
+	 *
+	 * @param primaryKey primary key of the entity that is being removed from the indexes
 	 */
 	private void removeEntity(int primaryKey) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
@@ -2381,6 +2407,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				entitySchema,
 				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier()
 			);
+			// un-index the hierarchy placement `prepare` created - a root has no RemoveParentMutation to do it
+			if (entitySchema.isWithHierarchy() && !this.hierarchyPlacementUnindexed) {
+				removeParent(this, globalIndex, primaryKey);
+				this.hierarchyPlacementUnindexed = true;
+			}
 		}
 	}
 
@@ -2765,6 +2796,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Indexes the hierarchy placement of an entity within a global entity index.
 	 *
+	 * A root entity is placed as well, with a `null` parent - exactly as {@link #prepare(List)} places a newly
+	 * created hierarchical entity. Placing only entities that declare a parent would leave the target scope's
+	 * hierarchy index without the root, and the unconditional {@link #unindexHierarchyPlacement(int,
+	 * EntitySchemaContract, GlobalEntityIndex)} of the opposite scope transition would then fail on a node that
+	 * was never added.
+	 *
 	 * @param entity       the entity whose hierarchy placement needs to be indexed
 	 * @param entitySchema the schema contract of the entity
 	 * @param globalIndex  the global entity index where the hierarchy placement will be indexed
@@ -2774,12 +2811,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		if (entitySchema.isWithHierarchy() && entity.getParent().isPresent()) {
+		if (entitySchema.isWithHierarchy()) {
+			final OptionalInt parent = entity.getParent();
 			setParent(
 				this,
 				globalIndex,
 				entity.getPrimaryKeyOrThrowException(),
-				entity.getParent().getAsInt()
+				parent.isPresent() ? parent.getAsInt() : null
 			);
 		}
 	}
@@ -3785,6 +3823,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method processes all mutations that targets hierarchy placement - e.g. {@link SetParentMutation}
 	 * and {@link RemoveParentMutation}.
+	 *
+	 * Both branches record whether a hierarchy placement is currently indexed for this entity, so that
+	 * {@link #removeEntity(int)} knows whether it still has one to tear down - see
+	 * {@link #hierarchyPlacementUnindexed}.
 	 */
 	public void updateHierarchyPlacement(@Nonnull ParentMutation parentMutation, @Nonnull EntityIndex index) {
 		if (parentMutation instanceof final SetParentMutation setMutation) {
@@ -3793,11 +3835,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.NEW),
 				setMutation.getParentPrimaryKey()
 			);
+			this.hierarchyPlacementUnindexed = false;
 		} else if (parentMutation instanceof RemoveParentMutation) {
 			removeParent(
 				this, index,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX, Target.EXISTING)
 			);
+			this.hierarchyPlacementUnindexed = true;
 		} else {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + parentMutation.getClass());

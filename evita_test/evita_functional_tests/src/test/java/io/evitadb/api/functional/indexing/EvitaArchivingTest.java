@@ -1020,6 +1020,81 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	}
 
 	@Nested
+	@DisplayName("Hierarchical entity scope transitions")
+	class HierarchicalScopeTransitionTest {
+
+		/**
+		 * A scope change re-indexes the entity in the target scope, and the hierarchy placement of a root has to be
+		 * re-indexed along with everything else - a root is a node with a `null` parent, not a node without a
+		 * placement. Skipping it would leave the archived hierarchy without its root and would make the opposite
+		 * transition fail on a node that was never added.
+		 */
+		@Test
+		@DisplayName("Hierarchy root should survive an archive and restore cycle")
+		void shouldArchiveAndRestoreHierarchyRoot() {
+			// category 1 is a root, category 2 is its child; hierarchy is indexed in both scopes
+			createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+			createBrandAndCategoryEntities();
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(), listCategoryHierarchy(Scope.ARCHIVED));
+
+			// archive the root itself - it leaves the live hierarchy and orphans the child left behind
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(1), listCategoryHierarchy(Scope.ARCHIVED));
+
+			// restoring the root puts it back at the top of the live hierarchy and re-adopts the orphan
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.CATEGORY, 1);
+				}
+			);
+
+			assertEquals(List.of(1, 2), listCategoryHierarchy(Scope.LIVE));
+			assertEquals(List.of(), listCategoryHierarchy(Scope.ARCHIVED));
+		}
+
+		/**
+		 * Lists every category the hierarchy index of the given scope can reach from its roots, ordered by primary
+		 * key so that the expectation does not depend on traversal order.
+		 *
+		 * @param scope the scope whose hierarchy index should be listed
+		 * @return primary keys of all categories reachable from the roots of that scope's hierarchy
+		 */
+		@Nonnull
+		private List<Integer> listCategoryHierarchy(@Nonnull Scope scope) {
+			final List<EntityReference> references = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								scope(scope),
+								hierarchyWithinRootSelf()
+							)
+						),
+						EntityReference.class
+					);
+				}
+			);
+			return references.stream()
+				.map(EntityReference::getPrimaryKey)
+				.sorted()
+				.toList();
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Multi-scope querying")
 	class MultiScopeQueryingTest {
 
