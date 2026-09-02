@@ -33,11 +33,16 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ChunkingRequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import lombok.RequiredArgsConstructor;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceContent} from/to binary format.
+ *
+ * The {@link ManagedReferencesBehaviour} is written as the trailing field of the payload, after the chunking
+ * constraint. New fields are appended to the tail so that the leading part of the layout stays stable for readers
+ * that were written against an older shape.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -60,6 +65,8 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
 
 		kryo.writeClassAndObject(output, object.getChunking().orElse(null));
+
+		kryo.writeObject(output, object.getManagedReferencesBehaviour());
 	}
 
 	@Override
@@ -79,16 +86,24 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 
 		final ChunkingRequireConstraint chunk = (ChunkingRequireConstraint) kryo.readClassAndObject(input);
 
+		final ManagedReferencesBehaviour managedReferences = kryo.readObject(input, ManagedReferencesBehaviour.class);
+
 		if (referencedEntityTypeCount == 0) {
 			return attributeContent == null ?
-				new ReferenceContent(entityFetch, groupEntityFetch, chunk) :
-				new ReferenceContent(attributeContent, entityFetch, groupEntityFetch, chunk);
+				new ReferenceContent(managedReferences, entityFetch, groupEntityFetch, chunk) :
+				new ReferenceContent(managedReferences, attributeContent, entityFetch, groupEntityFetch, chunk);
 		} else if (referencedEntityTypeCount == 1) {
 			return attributeContent == null ?
-				new ReferenceContent(referencedEntityName[0], filter, orderBy, entityFetch, groupEntityFetch, chunk) :
-				new ReferenceContent(referencedEntityName[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch, chunk);
+				new ReferenceContent(
+					managedReferences, referencedEntityName[0], filter, orderBy,
+					entityFetch, groupEntityFetch, chunk
+				) :
+				new ReferenceContent(
+					managedReferences, referencedEntityName[0], filter, orderBy,
+					attributeContent, entityFetch, groupEntityFetch, chunk
+				);
 		} else {
-			return new ReferenceContent(referencedEntityName, entityFetch, groupEntityFetch, chunk);
+			return new ReferenceContent(managedReferences, referencedEntityName, entityFetch, groupEntityFetch, chunk);
 		}
 	}
 

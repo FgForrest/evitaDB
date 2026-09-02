@@ -205,6 +205,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(ReferenceSummary.class, new ReferenceSummarySerializer(), index++);
 		kryo.register(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceSerializer(), index++);
 
+		kryo.register(ManagedReferencesBehaviour.class, new EnumSerializer(ManagedReferencesBehaviour.class), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 
