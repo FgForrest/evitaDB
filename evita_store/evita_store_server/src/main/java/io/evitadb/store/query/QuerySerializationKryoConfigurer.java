@@ -205,7 +205,15 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(ReferenceSummary.class, new ReferenceSummarySerializer(), index++);
 		kryo.register(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceSerializer(), index++);
 
+		// appended rather than inserted, for the same reason as QueryTelemetryContent above: ids are assigned
+		// positionally, so a registration added anywhere higher renumbers every one below it
 		kryo.register(ManagedReferencesBehaviour.class, new EnumSerializer(ManagedReferencesBehaviour.class), index++);
+
+		// likewise appended at the very tail, so that nothing registered above shifts. The gap is listed before
+		// the container that holds it only because the payload nests that way - Kryo resolves both through the
+		// explicit ids given here, never through the order they were declared in
+		kryo.register(SpacingGap.class, new SpacingGapSerializer(), index++);
+		kryo.register(Spacing.class, new SpacingSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
