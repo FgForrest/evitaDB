@@ -61,6 +61,31 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 	void addRecord(@Nonnull K value, @Nonnull int... pks);
 
 	/**
+	 * Value-id-reporting variant of {@link #addRecord(Comparable, int)} for a caller that has to learn WHICH distinct
+	 * value the insert brought into existence. The id is the one the insert minted inside its own descent, so
+	 * reporting a birth costs no descent beyond the one the insert performs anyway — the mirror image of
+	 * {@link #removeRecordReportingValueDeath}, and an insert that joins an existing value costs nothing extra at all.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pk    the record id to add (may be any int, including negative ids)
+	 * @return the new value's stable id — or `0`, the "unassigned" sentinel, when the tree carries no value ids — and
+	 * {@link TransactionalBucketBPlusTree#NO_CREATED_BUCKET} when no bucket was created, i.e. no value was born
+	 */
+	int addRecordReportingValueBirth(@Nonnull K value, int pk);
+
+	/**
+	 * Value-id-reporting variant of {@link #addRecord(Comparable, int...)} — see
+	 * {@link #addRecordReportingValueBirth(Comparable, int)}. However many record ids are added they all land in ONE
+	 * bucket, so at most one value can be born.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
+	 * @return the new value's stable id — or `0`, the "unassigned" sentinel, when the tree carries no value ids — and
+	 * {@link TransactionalBucketBPlusTree#NO_CREATED_BUCKET} when no bucket was created, i.e. no value was born
+	 */
+	int addRecordReportingValueBirth(@Nonnull K value, @Nonnull int... pks);
+
+	/**
 	 * Removes one or multiple record ids from the bucket with the specified value, deleting the bucket when it drops to
 	 * zero records.
 	 *

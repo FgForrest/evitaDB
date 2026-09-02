@@ -143,6 +143,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private static final int NO_NEW_BUCKET = -1;
 	/**
+	 * Sentinel returned by {@link #addRecordReportingValueBirth(Comparable, int)} and its varargs twin when the insert
+	 * created NO bucket, i.e. the record joined a value the tree already held. The mirror image of
+	 * {@link #NO_DELETED_BUCKET}, and distinct from `0` for the same reason: `0` is the unassigned-value-id sentinel a
+	 * CREATED bucket reports on a tree that carries no id column, which is a programming error rather than a
+	 * no-birth report.
+	 */
+	public static final int NO_CREATED_BUCKET = -1;
+	/**
 	 * Sentinel returned by {@link #removeRecordReportingValueDeath(Comparable, int...)} and by the leaf remove methods
 	 * when the removal deleted NO bucket, i.e. the value survived it. It is deliberately distinct from `0`, the
 	 * unassigned-value-id sentinel a DELETED bucket reports on a tree that carries no id column — the two states are
@@ -995,13 +1003,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * Stamping happens BEFORE the leaf can split, so the slot index the leaf just reported is still valid.
 	 *
+	 * The minted id is RETURNED rather than merely written, because the only consumer of a value's birth needs it and
+	 * reading it back afterwards costs a second root-to-leaf descent plus a leaf binary search over front-coded keys —
+	 * per distinct value, i.e. once per value of a bulk import. The removal side never had that cost (the dying id
+	 * rides out of the removal's own descent); this is what makes the two symmetric.
+	 *
 	 * @param leaf      the leaf the bucket was inserted into
 	 * @param insertedAt the slot the new bucket occupies
+	 * @return the id minted for the new bucket, or `0` (the "unassigned" sentinel) when this tree carries no value ids
 	 */
-	private void stampValueId(@Nonnull BPlusLeafTreeNode<K> leaf, int insertedAt) {
-		if (this.valueIdMinter != null) {
-			leaf.setValueIdAt(insertedAt, this.valueIdMinter.getAsInt());
+	private int stampValueId(@Nonnull BPlusLeafTreeNode<K> leaf, int insertedAt) {
+		if (this.valueIdMinter == null) {
+			return 0;
 		}
+		final int valueId = this.valueIdMinter.getAsInt();
+		leaf.setValueIdAt(insertedAt, valueId);
+		return valueId;
 	}
 
 	/**
@@ -1419,36 +1436,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return null;
 		}
 		final int slot = (int) (location & SLOT_MASK);
-		// the entry may predate a rebuild of this leaf, so it is believed only when the slot still carries that id
-		if (slot >= leaf.size() || leaf.valueIdAt(slot) != valueId) {
-			return null;
-		}
-		// EVERY slot-dependent read happens HERE, before either piece of caller-supplied code runs. The slot was
-		// validated a moment ago and nothing between that validation and these three reads can invalidate it; once
-		// they are done the slot is never touched again, so the window in which `valuePredicate` or `leafVersionSink`
-		// could shift it out from under this method does not exist. That is not a hypothetical tidiness: reading the
-		// records after the predicate would let a predicate that inserts a lower key into this very leaf slide the
-		// parallel columns along and hand back a NEIGHBOURING bucket's records, and a predicate that binds a
-		// transaction to this thread would make the read resolve the transaction's own columns against a slot the
-		// PUBLISHED directory addressed. The chain this method replaces was immune to both for a different reason -
-		// it re-found the bucket by key afterwards - so the immunity has to be re-established rather than inherited.
-		final ValueColumn<K> keyColumn = leaf.getKeyColumn();
-		final boolean matchBytes = containsPatternUtf8 != null && keyColumn.supportsUtf8Matching();
-		final K value = matchBytes || valuePredicate == null ? null : leaf.keyAt(slot);
-		final long leafVersion = leaf.getId();
-		final Bitmap records = leaf.getRecordsAt(slot);
-		if (matchBytes) {
-			// safe to run AFTER the reads above, unlike `valuePredicate`: this is the column's own code and cannot
-			// mutate the tree, so it cannot shift the slot the reads have already resolved
-			if (!keyColumn.containsUtf8At(slot, containsPatternUtf8)) {
-				return null;
-			}
-		} else if (valuePredicate != null && !valuePredicate.test(value)) {
+		// slot validation, key test and record read all live in the leaf, because EVERY slot-dependent read must
+		// happen before either piece of caller-supplied code runs and each accessor would otherwise resolve the
+		// transactional layer again - three lookups per candidate, inside the loop this probe exists to make cheap.
+		// See `BPlusLeafTreeNode#recordsOfValidatedValueIdSlot` for why the order within it is a contract rather than
+		// tidiness
+		final Bitmap records = leaf.recordsOfValidatedValueIdSlot(valueId, slot, valuePredicate, containsPatternUtf8);
+		if (records == null) {
 			return null;
 		}
 		// reported for MATCHES only: a candidate that fails the predicate contributes no record set, so its leaf is
 		// not a page the answer depends on and must not widen the staleness token set
-		leafVersionSink.accept(leafVersion);
+		leafVersionSink.accept(leaf.getId());
 		return records;
 	}
 
@@ -1545,6 +1544,25 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, int pk) {
+		addRecordReportingValueBirth(value, pk);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(Comparable, int)}: identical in every effect, and it
+	 * additionally returns the id minted for the value this insert brought into existence.
+	 *
+	 * The twin of {@link #removeRecordReportingValueDeath(Comparable, int...)}, and it exists for the same reason:
+	 * the id is available inside the insert's own descent, so a consumer that needs it does not have to resolve it
+	 * with a second descent afterwards. An insert that joins an existing value reports
+	 * {@link #NO_CREATED_BUCKET} and costs nothing extra at all.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pk    the record id to add (may be any int, including negative ids)
+	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
+	 *         value ids, or {@link #NO_CREATED_BUCKET} when the record joined an existing bucket
+	 */
+	@Override
+	public int addRecordReportingValueBirth(@Nonnull K value, int pk) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		// the cursor path exists ONLY to cascade a split upward, yet it used to be allocated on every insert. The
 		// descent below reaches the same leaf and resolves the boundary asserts' operands without capturing anything,
@@ -1555,8 +1573,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// the pre-mutation tree
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addRecord(value, pk);
+		int bornValueId = NO_CREATED_BUCKET;
 		if (insertedAt != NO_NEW_BUCKET) {
-			stampValueId(leaf, insertedAt);
+			bornValueId = stampValueId(leaf, insertedAt);
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts run on the new-bucket branch before the (possible) split, while the
 			// descent context still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order
@@ -1571,6 +1590,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			splitLeafNode(leaf, cursor);
 		}
+		return bornValueId;
 	}
 
 	/**
@@ -1584,6 +1604,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, @Nonnull int... pks) {
+		addRecordReportingValueBirth(value, pks);
+	}
+
+	/**
+	 * Value-lifecycle-reporting variant of {@link #addRecord(Comparable, int...)} — see
+	 * {@link #addRecordReportingValueBirth(Comparable, int)} for why the id rides out of the insert. However many
+	 * record ids are added they all land in ONE bucket, so at most one value can be born here.
+	 *
+	 * @param value the value identifying the bucket
+	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
+	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
+	 *         value ids, or {@link #NO_CREATED_BUCKET} when the records joined an existing bucket
+	 */
+	@Override
+	public int addRecordReportingValueBirth(@Nonnull K value, @Nonnull int... pks) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
 		// see addRecord(K, int) — allocation-free descent, cursor path captured only when the leaf can overflow
@@ -1591,8 +1626,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final BPlusLeafTreeNode<K> leaf = context.leaf();
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addRecords(value, pks);
+		int bornValueId = NO_CREATED_BUCKET;
 		if (insertedAt != NO_NEW_BUCKET) {
-			stampValueId(leaf, insertedAt);
+			bornValueId = stampValueId(leaf, insertedAt);
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts — see addRecord(K, int); the new-bucket branch validates cross-leaf
 			// order before the (possible) split
@@ -1606,6 +1642,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			splitLeafNode(leaf, cursor);
 		}
+		return bornValueId;
 	}
 
 	/**
@@ -5647,6 +5684,82 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return theOverflow[slot];
 			}
 			return new SingleRecordBitmap(theRecords.intAt(slot));
+		}
+
+		/**
+		 * Validates the directory-addressed `slot`, tests the value it carries and returns that bucket's record set —
+		 * the whole per-candidate body of {@link TransactionalBucketBPlusTree#recordsOfMatchingValueId}, folded into
+		 * the leaf so that ONE transactional-layer resolution serves every column it reads.
+		 *
+		 * Assembled from the accessors rather than calling them because each of them resolves the layer for itself:
+		 * `valueIdAt` + `getKeyColumn` + `getRecordsAt` cost three lookups per candidate, and a lookup is a
+		 * thread-local read plus a map probe. A candidate set of tens of thousands pays that inside the loop this
+		 * probe exists to make cheap, for an answer that cannot change between the three calls — the resolution is
+		 * per thread and per instance, and neither moves mid-probe.
+		 *
+		 * ## Read order is part of the contract
+		 *
+		 * Every slot-dependent read happens BEFORE either piece of caller-supplied code runs, exactly as the tree
+		 * method it was lifted from documents: reading the records after the predicate would let a predicate that
+		 * inserts a lower key into this very leaf slide the parallel columns along and hand back a NEIGHBOURING
+		 * bucket's records.
+		 *
+		 * @param valueId             the candidate id the directory resolved to this slot
+		 * @param slot                the slot the directory addressed, not yet believed
+		 * @param valuePredicate      the exact test applied to the value the id names, or `null` when the caller
+		 *                            already knows every id it passes matches - in which case the key is never
+		 *                            decoded
+		 * @param containsPatternUtf8 the containment pattern's UTF-8 bytes, or `null` to always take the predicate;
+		 *                            used only where the key column reports {@link ValueColumn#supportsUtf8Matching()}
+		 * @return the matched bucket's record set, or `null` when the slot no longer carries that id or the value was
+		 *         rejected
+		 */
+		@Nullable
+		Bitmap recordsOfValidatedValueIdSlot(
+			int valueId,
+			int slot,
+			@Nullable Predicate<M> valuePredicate,
+			@Nullable byte[] containsPatternUtf8
+		) {
+			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final TransactionalBitmap[] theOverflow;
+			final RecordColumn theValueIds;
+			final int thePeek;
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
+				thePeek = layer.peek;
+			}
+			// the entry may predate a rebuild of this leaf, so it is believed only when the slot still carries that id
+			if (slot > thePeek || theValueIds == null || theValueIds.intAt(slot) != valueId) {
+				return null;
+			}
+			final boolean matchBytes = containsPatternUtf8 != null && theKeys.supportsUtf8Matching();
+			final M value = matchBytes || valuePredicate == null ? null : theKeys.keyAt(slot);
+			final Bitmap records = theOverflow != null && theOverflow[slot] != null
+				? theOverflow[slot] : new SingleRecordBitmap(theRecords.intAt(slot));
+			if (matchBytes) {
+				// safe to run AFTER the reads above, unlike `valuePredicate`: this is the column's own code and cannot
+				// mutate the tree, so it cannot shift the slot the reads have already resolved
+				if (!theKeys.containsUtf8At(slot, containsPatternUtf8)) {
+					return null;
+				}
+			} else if (valuePredicate != null && !valuePredicate.test(value)) {
+				return null;
+			}
+			return records;
 		}
 
 		/**

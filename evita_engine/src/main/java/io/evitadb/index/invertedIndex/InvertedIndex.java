@@ -1079,12 +1079,15 @@ public class InvertedIndex implements
 	 */
 	public void addRecord(@Nonnull Serializable value, int recordId, @Nullable ValueLifecycleSink sink) {
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
-		// the bucket count is the birth detector: the tree increments it exactly on the new-bucket branch, and it is
-		// transaction-aware, so a writer sees its own earlier writes and no one else's
-		final int bucketsBefore = sink == null ? 0 : this.buckets.size();
-		this.buckets.addRecord(normalizedValue, recordId);
-		if (sink != null && this.buckets.size() > bucketsBefore) {
-			notifyValueCreated(sink, normalizedValue);
+		if (sink == null) {
+			this.buckets.addRecord(normalizedValue, recordId);
+		} else {
+			// the id rides back out of the insert's own descent, exactly as the dying one does out of the removal's -
+			// see `notifyValueCreated` for what the alternative costs
+			final int bornValueId = this.buckets.addRecordReportingValueBirth(normalizedValue, recordId);
+			if (bornValueId != TransactionalBucketBPlusTree.NO_CREATED_BUCKET) {
+				notifyValueCreated(sink, bornValueId, normalizedValue);
+			}
 		}
 		this.dirty.setToTrue();
 		markValueIdDirectoryStale();
@@ -1111,10 +1114,14 @@ public class InvertedIndex implements
 	public void addRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
-		final int bucketsBefore = sink == null ? 0 : this.buckets.size();
-		this.buckets.addRecord(normalizedValue, recordId);
-		if (sink != null && this.buckets.size() > bucketsBefore) {
-			notifyValueCreated(sink, normalizedValue);
+		if (sink == null) {
+			this.buckets.addRecord(normalizedValue, recordId);
+		} else {
+			// see the single-record twin above: the birth is reported by the insert itself rather than detected
+			final int bornValueId = this.buckets.addRecordReportingValueBirth(normalizedValue, recordId);
+			if (bornValueId != TransactionalBucketBPlusTree.NO_CREATED_BUCKET) {
+				notifyValueCreated(sink, bornValueId, normalizedValue);
+			}
 		}
 		this.dirty.setToTrue();
 		markValueIdDirectoryStale();
@@ -1171,20 +1178,26 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Reports a value that has just come into existence to `sink`, resolving the id the insert minted for it.
+	 * Reports a value that has just come into existence to `sink`.
 	 *
-	 * The resolution is one tree descent, paid ONLY on the birth branch — an insert that joins an existing value costs
-	 * nothing beyond the two bucket-count reads that detect the birth, which is the property the whole value-id design
-	 * rests on. The insert path resolves the id after the fact because the id does not exist until the insert mints
-	 * it; the removal path, whose id instead stops existing when the bucket does, gets it back from the removal
-	 * itself and so pays not even the bucket counts — see
-	 * {@link #removeRecord(Serializable, ValueLifecycleSink, int...)}.
+	 * The id is the one the insert minted, handed back by
+	 * {@link TransactionalBucketBPlusTree#addRecordReportingValueBirth(Comparable, int)} out of the descent that
+	 * created the bucket — the birth branch therefore costs nothing beyond the notification itself, and an insert
+	 * that joins an existing value costs not even a bucket count. That is the property the whole value-id design
+	 * rests on, and it is now symmetric with the removal path, whose dying id likewise rides out of the removal's own
+	 * descent — see {@link #removeRecord(Serializable, ValueLifecycleSink, int...)}. Resolving it afterwards instead
+	 * cost a full root-to-leaf descent plus a leaf binary search over front-coded keys, once per distinct value of a
+	 * bulk import.
 	 *
 	 * @param sink            the sink to notify
+	 * @param valueId         the id the insert minted for the value
 	 * @param normalizedValue the value the insert created a bucket for, already normalized
 	 */
-	private void notifyValueCreated(@Nonnull ValueLifecycleSink sink, @Nonnull Comparable normalizedValue) {
-		final int valueId = this.buckets.valueIdOf(normalizedValue);
+	private void notifyValueCreated(
+		@Nonnull ValueLifecycleSink sink,
+		int valueId,
+		@Nonnull Comparable normalizedValue
+	) {
 		Assert.isPremiseValid(
 			valueId != ValueIdAllocator.UNASSIGNED_VALUE_ID,
 			() -> "The bucket freshly created for value `" + normalizedValue + "` carries no value id — a value " +
