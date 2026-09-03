@@ -46,27 +46,29 @@ different mechanism built on the same journal strategy -- see
 
 ---
 
-## Design rationale -- why snapshot/restore ("Approach D")
+## Design rationale -- why snapshot/restore
 
-Reverting one failed entity mutation mid-transaction was designed against six candidate approaches.
-The chosen one -- **snapshot/restore diff-layer savepoints** -- was picked deliberately over the
-alternatives:
+Reverting one failed entity mutation mid-transaction was designed against six candidates.
+**Snapshot/restore diff-layer savepoints** -- the mechanism this document describes -- was picked
+deliberately over the other five:
 
-| Approach | Idea | Why rejected |
-|----------|------|--------------|
-| A -- nested sub-layer merge | Give each entity its own sub-layer and merge it into the parent on success | Per-structure op is a **binary merge + positional rebase**; needs a two-level read-through on all ~12 transactional structures and maintainer rewiring; worst of all, a merge bug silently corrupts the **committed** snapshot (the 99% success path). |
-| B -- deferred buffer | Buffer all writes and apply only on success | Duplicates the whole write model; every structure needs a buffered mirror. |
-| C -- validate first | Pre-validate the entity so writes never fail | Cannot cover every failure mode (some only surface mid-write); does not generalise. |
-| E -- replay twice | Dry-run, then replay for real | Doubles write cost on the hot path; dry-run and real run can diverge. |
-| F -- reliable inverse | Keep the hand-written inverse `Runnable`s but make them exhaustive | This is the old `undoActions` mechanism (~158 scattered inverses) -- brittle, easy to miss a case, the thing #569 set out to delete. |
-| **D -- snapshot/restore** *(chosen)* | Each diff layer can snapshot and restore itself; a savepoint brackets the entity mutation | Per-structure op is a **unary copy**; changes **zero** read/write paths; needs no maintainer rewiring; a bug can only affect the ~1% rollback path, never the committed snapshot. |
+| Alternative | Idea | Why rejected |
+|-------------|------|--------------|
+| Nested sub-layer merge | Give each entity its own sub-layer and merge it into the parent on success | Per-structure op is a **binary merge + positional rebase**; needs a two-level read-through on all ~12 transactional structures and maintainer rewiring; worst of all, a merge bug silently corrupts the **committed** snapshot (the 99% success path). |
+| Deferred buffer | Buffer all writes and apply only on success | Duplicates the whole write model; every structure needs a buffered mirror. |
+| Validate first | Pre-validate the entity so writes never fail | Cannot cover every failure mode (some only surface mid-write); does not generalise. |
+| Replay twice | Dry-run, then replay for real | Doubles write cost on the hot path; dry-run and real run can diverge. |
+| Reliable inverse | Keep the hand-written inverse `Runnable`s but make them exhaustive | This is the old `undoActions` mechanism (~158 scattered inverses) -- brittle, easy to miss a case, the thing #569 set out to delete. |
 
-The deciding factor is **blast radius**: approaches that touch the merge/read paths (A in particular)
-put the common success path at risk, whereas snapshot/restore isolates all new complexity in the rare
-rollback path. This is why D was chosen even though A was the original instinct.
+Snapshot/restore is the mirror image of the first row: each diff layer snapshots and restores *itself*,
+so the per-structure op is a **unary copy**, it changes **zero** read/write paths, it needs no maintainer
+rewiring, and a bug in it can only affect the ~1% rollback path, never the committed snapshot.
 
-`Snapshotable` also *replaced* the old `undoActions` mechanism (approach F) entirely -- the savepoint
-is now the sole per-entity rollback path (`Ref: #569`).
+The deciding factor is **blast radius**: an approach that touches the merge/read paths -- the nested
+sub-layer in particular -- puts the common success path at risk, whereas snapshot/restore isolates all
+new complexity in the rare rollback path. That is why it won even though the nested sub-layer was the
+original instinct. It is now the sole per-entity rollback path, having replaced `undoActions`
+entirely (`Ref: #569`).
 
 ---
 

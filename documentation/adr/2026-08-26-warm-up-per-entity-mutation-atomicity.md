@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-09-02 20:15
+updated: 2026-09-03 12:05
 status: accepted
 kind: feature
 issues: [1432]
@@ -178,7 +178,7 @@ than a flag flip within one build. The protocol for doing it is documented on
 
 ### Generalizing beyond the measured corpus (2026-08-26, later the same day)
 
-Every profile behind the +2.17 % headline came from one corpus. A structure the CNC dataset barely touches could
+Every profile behind the +2.17 % headline came from one corpus. A structure that corpus barely touches could
 still be paying the unoptimized cost, so `WarmUpSavepointStructureCostBenchmark`
 (`evita_test/evita_performance_tests/.../spike/`) was written to measure each structure directly instead of hoping
 a corpus reaches it: identical write workload with and without an open savepoint, `-prof gc`, with the two
