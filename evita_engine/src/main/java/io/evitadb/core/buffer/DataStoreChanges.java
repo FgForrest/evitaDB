@@ -59,7 +59,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -69,6 +68,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.IntFunction;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -97,7 +97,7 @@ public class DataStoreChanges
 	 * This map contains index of "dirty" entity indexes - i.e. subset of {@link EntityCollection indexes} that were
 	 * modified and not yet persisted.
 	 */
-	private Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = new HashMap<>(64);
+	private Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = createHashMap(64);
 	private IntObjectMap<Index<? extends IndexKey>> dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
 	/**
 	 * Snapshot of the {@link IndexKey}s that were dirty (acquired for modification) at the most recent
@@ -170,6 +170,15 @@ public class DataStoreChanges
 	 * `EntityCollection`'s reader, which establishes the context itself for each fetch (see the
 	 * `EntitySchemaContext.executeWithSchemaContext` calls there); the savepoint's pre-image read is the one read on a
 	 * WRITE path, where no such wrapper exists.
+	 *
+	 * **Why it hangs off the changeset rather than the mutation.** Establishing the context once at the top of a root
+	 * mutation would remove this field, and would be wrong: nested implicit mutations recurse into OTHER collections
+	 * (`LocalMutationExecutorCollector` dispatches `applyMutations` on the entity type an external mutation names),
+	 * so a schema bound once at the top is the wrong schema for every reflected-reference write the same savepoint
+	 * brackets — the schema has to follow the collection, and this changeset is per collection. Folding it into
+	 * the {@link #persistenceService} instead fails for a different reason: that service is swapped on compaction
+	 * (see {@link #setPersistenceService}), so a wrapper captured at construction goes stale, while a supplier that
+	 * is orthogonal to the service survives the swap.
 	 */
 	@Nullable private final Supplier<EntitySchema> entitySchemaSupplier;
 
@@ -440,7 +449,7 @@ public class DataStoreChanges
 		if (this.capturesDirtyIndexKeys) {
 			captureDirtyIndexKeys(theDirtyEntityIndexes.keySet());
 		}
-		this.dirtyEntityIndexes = new HashMap<>(64);
+		this.dirtyEntityIndexes = createHashMap(64);
 		this.dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
 
 		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> theTrappedChanges = this.trappedChanges;
@@ -617,7 +626,7 @@ public class DataStoreChanges
 	public <T extends StoragePart> boolean trapRemoveStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
 		recordWarmUpSavepointTouch();
 		journalTrappedChange(entityClass, primaryKey);
-		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
+		this.trappedChanges = this.trappedChanges == null ? createHashMap(64) : this.trappedChanges;
 		if (this.persistenceService.containsStoragePart(catalogVersion, primaryKey, entityClass)) {
 			this.trappedChanges.computeIfAbsent(entityClass, aClass -> new LongObjectHashMap<>(256))
 				.put(
@@ -688,7 +697,7 @@ public class DataStoreChanges
 		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();
 		journalTrappedChange(containerType, storagePartPK);
-		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
+		this.trappedChanges = this.trappedChanges == null ? createHashMap(64) : this.trappedChanges;
 		this.trappedChanges.computeIfAbsent(containerType, aClass -> new LongObjectHashMap<>(256))
 			.put(storagePartPK, value);
 	}

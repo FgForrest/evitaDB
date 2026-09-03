@@ -141,6 +141,7 @@ import java.util.stream.Stream;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -456,7 +457,7 @@ public class DefaultEntityCollectionPersistenceService
 	) {
 		// if there is single request for associated data
 		if (newAssociatedDataValuePredicate.isRequiresEntityAssociatedData()) {
-			final Set<AssociatedDataKey> missingAssociatedDataSet = new HashSet<>(allAssociatedDataKeys.size());
+			final Set<AssociatedDataKey> missingAssociatedDataSet = createHashSet(allAssociatedDataKeys.size());
 			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getLocales();
 			final Set<String> requestedAssociatedDataSet = newAssociatedDataValuePredicate.getAssociatedDataSet();
 			final Predicate<AssociatedDataKey> wasNotFetched =
@@ -524,7 +525,7 @@ public class DefaultEntityCollectionPersistenceService
 		final File dataFile = entityCollectionFile.toFile();
 		final long length = dataFile.length();
 		final FileLocation fileLocation = entityTypeHeader.fileLocation();
-		if (fileLocation != null && fileLocation.endPosition() > length) {
+		if (fileLocation.endPosition() > length) {
 			throw new UnexpectedIOException(
 				"Header of entity collection `" + entityTypeHeader.entityType() + "` addresses bytes up to position " +
 					fileLocation.endPosition() + " of `" + entityCollectionFile + "`, but that file " +

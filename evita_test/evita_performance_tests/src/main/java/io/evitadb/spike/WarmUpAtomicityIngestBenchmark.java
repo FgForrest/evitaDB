@@ -54,7 +54,6 @@ import java.lang.management.ThreadMXBean;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -70,6 +69,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
  * Measurement of what the bulk-ingest thread costs with per-entity warm-up atomicity in place.
@@ -259,7 +259,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
 		);
 
-		final Map<String, SealedEntitySchema> schemas = new LinkedHashMap<>(8);
+		final Map<String, SealedEntitySchema> schemas = createLinkedHashMap(8);
 		schemas.put(Entities.BRAND, dataGenerator.getSampleBrandSchema(session));
 		schemas.put(Entities.STORE, dataGenerator.getSampleStoreSchema(session));
 		schemas.put(Entities.PARAMETER_GROUP, dataGenerator.getSampleParameterGroupSchema(session));
@@ -552,7 +552,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 			options.parameterCount(), options.parameterGroupCount(), options.seed()
 		);
 		final long start = System.nanoTime();
-		final Map<String, List<EntityMutation>> corpus = new LinkedHashMap<>(8);
+		final Map<String, List<EntityMutation>> corpus = createLinkedHashMap(8);
 
 		evita.deleteCatalogIfExists(CORPUS_CATALOG);
 		evita.defineCatalog(CORPUS_CATALOG);
@@ -563,7 +563,7 @@ public class WarmUpAtomicityIngestBenchmark implements EvitaTestSupport {
 				final Map<String, SealedEntitySchema> schemas = defineSchemas(session, dataGenerator, options.chains());
 				// every collection is registered up front, so the picker can tell "not generated yet" (counter at
 				// zero) from "not part of this corpus at all" (no entry, which is a programming error)
-				final Map<String, int[]> generatedCounts = new LinkedHashMap<>(8);
+				final Map<String, int[]> generatedCounts = createLinkedHashMap(8);
 				for (final String entityType : schemas.keySet()) {
 					generatedCounts.put(entityType, new int[1]);
 				}

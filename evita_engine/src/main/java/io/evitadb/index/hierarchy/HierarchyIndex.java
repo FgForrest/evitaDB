@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -173,8 +174,8 @@ public class HierarchyIndex
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
 		this.roots = new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY);
-		this.levelIndex = new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new);
-		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
+		this.levelIndex = new TransactionalMap<>(createHashMap(32), TransactionalIntArray.class, TransactionalIntArray::new);
+		this.itemIndex = new TransactionalMap<>(createHashMap(32));
 		this.orphans = new TransactionalIntArray();
 		this.memoizedAllNodes = EmptyBitmap.INSTANCE;
 	}
