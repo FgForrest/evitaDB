@@ -196,8 +196,7 @@ public final class WarmUpSavepoint {
 	 * Participants that captured their own pre-image through {@link #claimFirstTouch(WarmUpTouchStamped)} hold no
 	 * memento and are deliberately absent from both lists.
 	 */
-	private final ArrayList<Snapshotable<Object>> mementoOwners =
-		new ArrayList<>(EXPECTED_CAPTURED_PARTICIPANTS);
+	private final ArrayList<Snapshotable<Object>> mementoOwners = new ArrayList<>(EXPECTED_CAPTURED_PARTICIPANTS);
 	/**
 	 * The memento captured for the {@link #mementoOwners} entry at the same index. A `null` element is legal — it is
 	 * whatever that participant's {@link Snapshotable#snapshot()} returned — which is precisely why a capture is
@@ -649,8 +648,8 @@ public final class WarmUpSavepoint {
 	 */
 	private void runPostRestoreInvalidations() {
 		if (this.postRestoreInvalidations != null) {
-			for (int i = 0; i < this.postRestoreInvalidations.size(); i++) {
-				this.postRestoreInvalidations.get(i).run();
+			for (Runnable postRestoreInvalidation : this.postRestoreInvalidations) {
+				postRestoreInvalidation.run();
 			}
 			this.postRestoreInvalidations = null;
 		}
