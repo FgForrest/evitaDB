@@ -346,8 +346,8 @@ public class ChainIndex implements
 	) {
 		// 0. a chain page is positional and carries no ordering invariant, so the stale leaf-page twin corruption
 		// manifests as duplicate record ids across pages; assert none exists before assembly (fails fast otherwise — the
-		// paged layout never shipped in a released version, so a duplicate is never a production catalog and is not
-		// silently repaired)
+		// paged layout shipped in the 2026.2 line, so a production catalog CAN carry a duplicate, and nothing persisted
+		// says which of the two pages is authoritative, so it is not silently repaired)
 		assertNoDuplicateChainRecords(pages, attributeIndexKey);
 		// 1. assemble the element array 1:1 from the pages (boundary-stable, one leaf per page, dirty=false)
 		final List<LeafPageInput> pageInputs = new ArrayList<>(pages.size());
@@ -433,10 +433,12 @@ public class ChainIndex implements
 	 * Asserts that no record id appears in more than one persisted chain-index leaf page. Unlike the key-ordered paged
 	 * indexes a chain page is positional and carries no ordering invariant to violate, so the stale leaf-page twin
 	 * corruption — a writer race persisting a frozen stale snapshot of a leaf page alongside the page that superseded it
-	 * — manifests instead as DUPLICATE record ids across pages. Because the paged persistence layout has never shipped
-	 * in a released version, no production catalog can carry such a twin; a duplicate is index corruption that is not
-	 * silently repaired but fails fast here with a {@link GenericEvitaInternalError} naming the record id, both
-	 * offending page sequences, the attribute identity and an operator remediation hint.
+	 * — manifests instead as DUPLICATE record ids across pages. The paged persistence layout **has** shipped, in the
+	 * 2026.2 release line, so a production catalog really can carry such a twin. A duplicate is nevertheless index
+	 * corruption that is not silently repaired: nothing in the persisted state says which of the two pages superseded
+	 * the other, and dropping the wrong copy would silently reorder the chain. It fails fast here with a
+	 * {@link GenericEvitaInternalError} naming the record id, both offending page sequences, the attribute identity
+	 * and an operator remediation hint.
 	 *
 	 * @param pages             the persisted leaf pages in ascending logical order
 	 * @param attributeIndexKey the attribute identity of this index (diagnostics)

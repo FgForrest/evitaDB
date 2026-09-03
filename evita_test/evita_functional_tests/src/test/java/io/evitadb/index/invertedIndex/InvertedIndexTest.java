@@ -226,7 +226,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> index.addRecord(1, new int[0])
+				() -> index.addRecord(1)
 			);
 		}
 
@@ -1704,7 +1704,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		 * @return the empty index
 		 */
 		@Nonnull
-		private InvertedIndex emptyDateTimeRangeIndex() {
+		private static InvertedIndex emptyDateTimeRangeIndex() {
 			return new InvertedIndex(
 				DateTimeRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
 		}
@@ -1717,7 +1717,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		 * @return the range
 		 */
 		@Nonnull
-		private DateTimeRange range(int ordinal) {
+		private static DateTimeRange range(int ordinal) {
 			final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
 			final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
 			return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
@@ -1742,7 +1742,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			// the values a record reads back are the column's reconstructions, and they must be equal to what went in
 			final Serializable[] valuesOfRecord = index.getValuesForRecord(999, Serializable.class);
 			assertArrayEquals(new Serializable[]{range(3)}, valuesOfRecord);
-			assertEquals(DateTimeRange.class, valuesOfRecord[0].getClass());
+			assertSame(DateTimeRange.class, valuesOfRecord[0].getClass());
 
 			index.removeRecord(range(3), 999);
 			assertArrayEquals(new int[]{103}, index.getRecordsEqualTo(range(3)).getArray());
@@ -1773,7 +1773,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			Arrays.sort(expected);
 			for (int i = 0; i < valueCount; i++) {
 				assertEquals(expected[i], buckets[i].getValue(), "bucket value mismatch at " + i);
-				assertEquals(DateTimeRange.class, buckets[i].getValue().getClass());
+				assertSame(DateTimeRange.class, buckets[i].getValue().getClass());
 			}
 		}
 

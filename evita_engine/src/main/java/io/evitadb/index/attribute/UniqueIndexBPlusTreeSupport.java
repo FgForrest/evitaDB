@@ -129,6 +129,11 @@ final class UniqueIndexBPlusTreeSupport {
 	 * column-factory wiring into the parameterized tree constructor is the one place the erased key forces unchecked
 	 * casts — they are confined to this single helper rather than smeared across every call site.
 	 *
+	 * The leaf column comes from {@link ValueColumnFactory#forKey}, the *raw* key space, because a unique index runs
+	 * no normalizer: it stores the declared value verbatim. `forFilterKey` would be wrong here in two independent
+	 * ways — it remaps the temporal types to `Instant`, which these trees never produce, and it can select the range
+	 * column, which needs an `indexedDecimalPlaces` a unique index has no notion of.
+	 *
 	 * @param plainType   the plain (array-unwrapped) attribute type (selects the leaf column kind)
 	 * @param comparator  the value order
 	 * @param longPayload `true` for a single-`long` payload column ({@link GlobalUniqueIndex}), `false` for single-`int`

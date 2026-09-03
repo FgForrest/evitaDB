@@ -109,7 +109,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("merges two persisted sub-millisecond buckets into one, keeping both records")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldMergeCollidingPersistedBuckets() {
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(LOWER_TWIN, 1),
@@ -118,7 +117,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
@@ -140,7 +139,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("keys the merged bucket by the truncated instant, not by the value that created it")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldKeyTheMergedBucketByTheTruncatedInstant() {
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(LOWER_TWIN, 1),
@@ -148,7 +146,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
@@ -161,7 +159,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("realigns the persisted inline value id column with the buckets the repair left")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldRealignTheInlineValueIdColumn() {
 			// the inline id column is positional over the buckets that were WRITTEN; a repaired tree holds fewer, and
 			// the loader's own alignment premise refuses the pair outright - the catalog does not open at all
@@ -173,7 +170,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			final int[] persistedValueIds = {11, 12, 13};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 			// exactly what AttributeIndexLoader does for a SINGLE (inline) filter index carrying value ids
 			reloaded.restoreValueIds(
@@ -200,7 +197,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("hands a collision-free inline id column straight back, without copying it")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldNotTouchACanonicalInlineValueIdColumn() {
 			final ValueToRecordBitmap[] persisted = {
 				new ValueToRecordBitmap(COLLAPSE_TARGET, 1),
@@ -211,7 +207,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			assertSame(
 				persistedValueIds,
 				InvertedIndex.alignPersistedValueIds(
-					persisted, persistedValueIds, normalizer(), (Comparator) Comparator.naturalOrder()
+					persisted, persistedValueIds, normalizer(), Comparator.naturalOrder()
 				),
 				"an index with nothing to repair must not pay an array copy on every catalog load"
 			);
@@ -219,7 +215,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("leaves an already-canonical index alone and does not ask to be rewritten")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldLeaveACanonicalIndexAlone() {
 			// the control: the very same shape with no collision in it must reload byte-for-byte as before, and in
 			// particular must NOT be flagged dirty - otherwise the repair would rewrite every temporal index in the
@@ -230,7 +225,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount());
@@ -360,7 +355,6 @@ class InvertedIndexSubMillisecondReloadTest {
 
 		@Test
 		@DisplayName("drops a page whose every bucket was absorbed by its predecessor")
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		void shouldDropAPageAbsorbedInItsEntirety() {
 			// unreachable with production leaf occupancy (a persisted page holds at least half a leaf), but it is the
 			// one branch of the repair that changes the ROOT's page list, and an unexercised branch that rewrites a
@@ -375,7 +369,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				OffsetDateTime.class, orderedPageSequences, perPageBuckets, null, 2,
-				normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount());
@@ -418,7 +412,7 @@ class InvertedIndexSubMillisecondReloadTest {
 		 * @return the emitted pages, ready to be mutated and reloaded
 		 */
 		@Nonnull
-		private PersistedPages seedAndEmit() {
+		private static PersistedPages seedAndEmit() {
 			return seedAndEmit(false);
 		}
 
@@ -430,10 +424,9 @@ class InvertedIndexSubMillisecondReloadTest {
 		 * @return the emitted pages, ready to be mutated and reloaded
 		 */
 		@Nonnull
-		private PersistedPages seedAndEmit(boolean withValueIds) {
-			@SuppressWarnings({"unchecked", "rawtypes"})
+		private static PersistedPages seedAndEmit(boolean withValueIds) {
 			final InvertedIndex index = new InvertedIndex(
-				OffsetDateTime.class, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				OffsetDateTime.class, normalizer(), Comparator.naturalOrder(), 0
 			);
 			if (withValueIds) {
 				index.attachValueIdConsumer(VALUE_ID_CONSUMER);
@@ -518,11 +511,10 @@ class InvertedIndexSubMillisecondReloadTest {
 		 * @return the reloaded index
 		 */
 		@Nonnull
-		@SuppressWarnings({"unchecked", "rawtypes"})
 		InvertedIndex reload() {
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				OffsetDateTime.class, this.orderedPageSequences, this.perPageBuckets, this.perPageValueIds,
-				this.highWaterPageSequence, normalizer(), (Comparator) Comparator.naturalOrder(), 0
+				this.highWaterPageSequence, normalizer(), Comparator.naturalOrder(), 0
 			);
 			if (this.perPageValueIds != null) {
 				reloaded.restoreValueIds(this.nextValueId);

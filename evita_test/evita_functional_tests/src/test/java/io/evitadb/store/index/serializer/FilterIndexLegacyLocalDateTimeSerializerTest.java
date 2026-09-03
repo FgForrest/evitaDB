@@ -131,7 +131,6 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 
 	@Test
 	@DisplayName("should rehydrate a migrated legacy part into an InvertedIndex and stay queryable")
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	void shouldRehydrateMigratedLegacyPart() {
 		final FilterIndexStoragePart migrated = roundTrip(LocalDateTime.class, FIRST, SECOND, THIRD);
 
@@ -141,7 +140,7 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 			LocalDateTime.class,
 			migrated.getHistogramPoints(),
 			FilterIndex.getNormalizer(LocalDateTime.class, 0),
-			(Comparator) Comparator.naturalOrder(),
+			Comparator.naturalOrder(),
 			0
 		);
 

@@ -363,7 +363,6 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 */
 	@Nonnull
 	@Override
-	@SuppressWarnings("unchecked")
 	public M keyAt(int index) {
 		// boxing boundary - decoded exactly where the boxed leaf would have materialized the key
 		final long lower = this.from[index];
@@ -555,7 +554,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 
 	@Nonnull
 	@Override
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({"unchecked", "SuspiciousArrayCast"})
 	public M[] asBoxedArray() {
 		// cold path only (consistency verification / toString) — never the query hot path; the live run is the whole
 		// array, which satisfies the interface's "length >= size, tail empty" contract exactly. The component type is

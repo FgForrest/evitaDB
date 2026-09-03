@@ -365,7 +365,7 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("rejects an empty vararg add")
 		void shouldRejectEmptyVarargAdd() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
-			assertThrows(IllegalArgumentException.class, () -> tree.addRecord(5, new int[0]));
+			assertThrows(IllegalArgumentException.class, () -> tree.addRecord(5));
 		}
 
 		@Test
@@ -530,7 +530,7 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRejectEmptyVarargRemove() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
 			tree.addRecord(5, 100);
-			assertThrows(IllegalArgumentException.class, () -> tree.removeRecord(5, new int[0]));
+			assertThrows(IllegalArgumentException.class, () -> tree.removeRecord(5));
 		}
 
 		@Test
@@ -2113,7 +2113,7 @@ class TransactionalBucketBPlusTreeTest {
 			tree.addRecord(5, 50);
 			tree.addRecord(1, 10);
 			assertEquals(1, tree.enumerateLeaves().size(), "Fixture should be a single-leaf tree.");
-			assertRoundTrip(tree, new int[] {1, 5});
+			assertRoundTrip(tree, 1, 5);
 		}
 
 		@Test
@@ -2130,7 +2130,7 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRoundTripEmptyTree() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
 			assertEquals(1, tree.enumerateLeaves().size(), "An empty tree must expose a single empty leaf.");
-			assertRoundTrip(tree, new int[0]);
+			assertRoundTrip(tree);
 		}
 
 		@Test
@@ -2292,7 +2292,7 @@ class TransactionalBucketBPlusTreeTest {
 					// itself never acquires a transactional layer (the case the old leaf-layer predicate missed)
 					final Bitmap records = tree.getRecordsEqualTo(0);
 					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a multi-record bucket.");
-					((TransactionalBitmap) records).add(9_999);
+					records.add(9_999);
 				},
 				(original, committed) -> {
 					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
@@ -3533,7 +3533,7 @@ class TransactionalBucketBPlusTreeTest {
 				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
 			));
 			// the registry keeps probe KEYS, not node objects; each key relocates to the leaf that owns it
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.of(
 				new MutableIntKey(1), new MutableIntKey(5), new MutableIntKey(10)
 			)));
 		}
@@ -3552,7 +3552,7 @@ class TransactionalBucketBPlusTreeTest {
 			// relocate by the leaf's own (unchanged) first key 5 — the descent lands on it and the tail half-invariant fires
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
+				() -> tree.validateDirtyScope(List.of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("successor leaf boundary"),
@@ -3575,7 +3575,7 @@ class TransactionalBucketBPlusTreeTest {
 			// predecessor's corrupted last key
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
+				() -> tree.validateDirtyScope(List.of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("predecessor leaf boundary"),
@@ -3590,7 +3590,7 @@ class TransactionalBucketBPlusTreeTest {
 			// it rather than dereference the peek slot
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
 				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(42))));
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.of(new MutableIntKey(42))));
 		}
 
 		@Test
@@ -3785,7 +3785,7 @@ class TransactionalBucketBPlusTreeTest {
 
 			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
 			assertEquals(1, leaves.size(), "five values must never outgrow a 255-bucket leaf");
-			assertTrue(tree.getRoot() instanceof BPlusLeafTreeNode, "the root must still be the leaf itself");
+			assertInstanceOf(BPlusLeafTreeNode.class, tree.getRoot(), "the root must still be the leaf itself");
 
 			final BPlusLeafTreeNode<Integer> leaf = leaves.get(0);
 			assertEquals(5, leaf.getKeyColumn().size(), "the key column holds exactly the five live values");

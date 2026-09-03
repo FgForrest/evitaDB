@@ -42,8 +42,11 @@ import java.util.Comparator;
  * kind-consistency is guaranteed within one tree.
  *
  * **There are two entry points, and which one a caller may use is a correctness constraint rather than a
- * convenience.** {@link #forFilterKey} is the wider one and the only one that can select the range column, because
- * it is the only one whose caller has an `indexedDecimalPlaces` to give; see its javadoc, and {@link #forKey}'s, for
+ * convenience.** They serve two different **key spaces**: {@link #forFilterKey} serves the *normalized* one a filter
+ * index builds through `FilterIndex#getNormalizer`, and {@link #forKey} the *raw* one, where the tree holds the
+ * values exactly as the caller handed them over. {@link #forFilterKey} is therefore the wider of the two — it is the
+ * only one that applies the temporal key-class remap, and the only one that can select the range column, because it
+ * is the only one whose caller has an `indexedDecimalPlaces` to give. See its javadoc, and {@link #forKey}'s, for
  * what would go silently wrong otherwise.
  *
  * @param <M> the (boxed) key type
@@ -63,15 +66,22 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	ValueColumn<M> create(int capacity);
 
 	/**
-	 * Selects the value-column factory for a **filter index** attribute key — {@link #forKey} widened by the one
-	 * column kind that needs a scale, {@link RangeValueColumn}.
+	 * Selects the value-column factory for a **filter index** attribute key — the entry point for the *normalized*
+	 * key space, widened by the one column kind that needs a scale, {@link RangeValueColumn}.
+	 *
+	 * A filter index does not store its keys as the schema declares them: `FilterIndex#getNormalizer` rewrites every
+	 * value before it becomes a tree key, and this method mirrors the resulting **key class** through
+	 * {@link #normalizedTypeOf} before delegating. That is what lets a declared {@code OffsetDateTime} /
+	 * {@code LocalDateTime} attribute ride in the single-`long` {@link LongValueColumn} as an {@link Instant} — the
+	 * tree really does hold {@link Instant}s there. The remap lives here and **only** here; {@link #forKey}'s callers
+	 * store raw values and must not get a column keyed by a class their values are never converted to.
 	 *
 	 * The range column is chosen for the **six concrete** range subtypes ({@code DateTimeRange} and the five
 	 * {@code NumberRange} implementations) under natural order, matched by exact class equality. A filter index can
 	 * legitimately be built over the abstract {@code NumberRange.class} or {@code Range.class} — neither is a
 	 * supported schema attribute type, but both are constructible — and there is no subtype to rebuild for them, so
 	 * they fall through to {@link #forKey} and keep the universal boxed column exactly as before. Everything the
-	 * range column does not claim is delegated to {@link #forKey} verbatim.
+	 * range column does not claim is delegated to {@link #forKey} verbatim, under the normalized key class.
 	 *
 	 * @param plainType            the attribute's plain (non-array) declared type
 	 * @param comparator           the tree comparator, or {@code null} for natural order
@@ -93,11 +103,14 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 				return (ValueColumnFactory) capacity -> new RangeValueColumn(kind, indexedDecimalPlaces, capacity);
 			}
 		}
-		return forKey(plainType, comparator);
+		// the range kinds are matched on the DECLARED type (no range type is remapped); everything else is selected
+		// on the class the normalizer will actually have produced by the time a key reaches the leaf
+		return forKey(normalizedTypeOf(plainType), comparator);
 	}
 
 	/**
-	 * Selects the value-column factory for an attribute key.
+	 * Selects the value-column factory for an attribute key held **exactly as the caller stores it** — the entry
+	 * point for the *raw* key space, where no normalizer stands between the value and the leaf.
 	 *
 	 * {@link String} keys (localized or not) select the front-coded {@link FrontCodedStringColumn} first, regardless of
 	 * the comparator: front-coding is order-agnostic — the column stores values in whatever physical order the tree
@@ -108,24 +121,31 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * byte-compare fast path" section.
 	 *
 	 * A primitive column is chosen only when the comparator is natural order. Every key type with a supported
-	 * {@link LongKeyCodec} selects {@link LongValueColumn} — the integral types, {@code LocalDate} and
-	 * {@code LocalTime}, and the temporal types too: a normalized-to-{@link Instant} key (declared
-	 * {@code OffsetDateTime} / {@code Instant} / {@code LocalDateTime}) rides in the same single {@code long} as
-	 * epoch-millis, because no sub-millisecond value ever reaches a tree key (see {@link LongKeyCodec#INSTANT}).
-	 * {@code BigDecimal} keys (normalized upstream to a scaled {@code int}) select the 4-byte {@link IntValueColumn}.
-	 * Otherwise the universal boxed {@link BoxedObjectColumn} (keyed by {@code Comparable.class}, the raw key type the
-	 * tree uses today) is returned, which is behavior-identical to the universal boxed leaf.
+	 * {@link LongKeyCodec} selects {@link LongValueColumn} — the integral types, {@code LocalDate}, {@code LocalTime}
+	 * and {@link Instant}, whose keys ride in a single {@code long} as epoch-millis because no sub-millisecond value
+	 * ever reaches a tree key (see {@link LongKeyCodec#INSTANT}). {@code BigDecimal} keys (normalized upstream to a
+	 * scaled {@code int}) select the 4-byte {@link IntValueColumn}. Otherwise the universal boxed
+	 * {@link BoxedObjectColumn} (keyed by {@code Comparable.class}, the raw key type the tree uses today) is
+	 * returned, which is behavior-identical to the universal boxed leaf.
 	 *
-	 * **This entry point can never select the {@link RangeValueColumn}, and that is deliberate.** A range column
-	 * rebuilding a {@code BigDecimalNumberRange} needs the index's `indexedDecimalPlaces` to reproduce the bounds at
-	 * the scale the tree's keys were encoded with, and two of this method's three callers have no such scale to
-	 * offer: `UniqueIndexBPlusTreeSupport.buildTree`, which serves both `OwnerUniqueIndex` and `GlobalUniqueIndex`,
-	 * and `ReferenceTypeCardinalityIndex`. A `Range`-typed attribute declared `unique` would otherwise move its
-	 * unique tree onto a column rebuilding every key at whatever default the parameter carried — at the wrong scale,
-	 * with no error anywhere. Keeping the branch out of this method makes that structurally impossible rather than a
-	 * matter of passing the right value; the filter-index caller uses {@link #forFilterKey} instead.
+	 * **The key type is taken literally, and that is the whole point of the split.** A declared
+	 * {@code OffsetDateTime} / {@code LocalDateTime} attribute lands on the boxed column here, not on the
+	 * {@link Instant}-keyed {@link LongValueColumn}: this method's callers keep values exactly as they were handed
+	 * over — `OwnerUniqueIndex` and `GlobalUniqueIndex` document that they hold RAW values — so a column that
+	 * {@link LongKeyCodec#INSTANT} would `(Instant)`-cast every key into is simply the wrong column, and selecting it
+	 * threw a `ClassCastException` on the first write. The temporal remap belongs to {@link #forFilterKey}, whose
+	 * caller really does convert its values first; keeping {@link #normalizedTypeOf} out of this method makes the
+	 * mismatch structurally impossible rather than a matter of every caller remembering to normalize.
 	 *
-	 * @param plainType  the attribute's plain (non-array) declared type
+	 * **This entry point can never select the {@link RangeValueColumn} either, for the same shape of reason.** A
+	 * range column rebuilding a {@code BigDecimalNumberRange} needs the index's `indexedDecimalPlaces` to reproduce
+	 * the bounds at the scale the tree's keys were encoded with, and neither of this method's callers has such a
+	 * scale to offer: `UniqueIndexBPlusTreeSupport.buildTree`, which serves both `OwnerUniqueIndex` and
+	 * `GlobalUniqueIndex`, and `ReferenceTypeCardinalityIndex`. A `Range`-typed attribute declared `unique` would
+	 * otherwise move its unique tree onto a column rebuilding every key at whatever default the parameter carried —
+	 * at the wrong scale, with no error anywhere. The filter-index caller uses {@link #forFilterKey} instead.
+	 *
+	 * @param plainType  the plain (non-array) type of the keys the tree will actually hold
 	 * @param comparator the tree comparator, or {@code null} for natural order
 	 * @return the factory producing the chosen column kind
 	 */
@@ -135,7 +155,6 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 		@Nonnull Class<?> plainType,
 		@Nullable Comparator<?> comparator
 	) {
-		final Class<?> normalizedType = normalizedTypeOf(plainType);
 		if (String.class.isAssignableFrom(plainType)) {
 			// String keys (localized or not) are prefix-compressed into a front-coded byte block. Front-coding is
 			// orthogonal to the key order — the column stores values in whatever physical order the tree imposes and
@@ -153,7 +172,7 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 				// store them in a 4-byte int[] column. The column never sees a BigDecimal (already converted).
 				return (ValueColumnFactory) capacity -> new IntValueColumn(capacity);
 			}
-			final LongKeyCodec codec = LongKeyCodec.forType(normalizedType);
+			final LongKeyCodec codec = LongKeyCodec.forType(plainType);
 			if (codec != null) {
 				// raw lambda → the wildcard return is closed over the codec's monotonic encoding (natural order only)
 				return (ValueColumnFactory) capacity -> new LongValueColumn(codec, capacity);
@@ -164,11 +183,16 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	}
 
 	/**
-	 * Maps a plain attribute type to the type actually stored as the tree key, mirroring the **temporal** key-class
-	 * remaps performed by {@code FilterIndex.getNormalizer}: {@link OffsetDateTime} is stored as its {@link Instant},
-	 * and so is {@link LocalDateTime} (anchored at UTC — a constant offset, hence a lossless, order-preserving
-	 * mapping). Those two must stay in lockstep with `FilterIndex.getNormalizer`, and this is their single source of
-	 * truth.
+	 * Maps a plain attribute type to the type a **filter index** actually stores as its tree key, mirroring the
+	 * **temporal** key-class remaps performed by {@code FilterIndex.getNormalizer}: {@link OffsetDateTime} is stored
+	 * as its {@link Instant}, and so is {@link LocalDateTime} (anchored at UTC — a constant offset, hence a lossless,
+	 * order-preserving mapping). Those two must stay in lockstep with `FilterIndex.getNormalizer`, and this is their
+	 * single source of truth.
+	 *
+	 * **It is reachable from {@link #forFilterKey} alone, and must stay that way.** The remap is only true of a tree
+	 * whose caller runs the normalizer; applying it to the raw key space of {@link #forKey} names a class those keys
+	 * are never converted to, and the column then casts a declared {@code OffsetDateTime} to {@link Instant} on its
+	 * first write. That is the mismatch this method's placement — rather than any runtime check — rules out.
 	 *
 	 * The normalizer changes the stored class for other types too — {@code BigDecimal} to a scaled {@code Integer},
 	 * {@code Currency} / {@code Locale} to their comparable wrappers — but those are **not** remapped here:
@@ -179,7 +203,7 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * the remapped type lands in {@link LongValueColumn} exactly as {@code LocalDate} and {@code LocalTime} do.
 	 *
 	 * @param plainType the plain (non-array) declared attribute type
-	 * @return the normalized key type used by the tree
+	 * @return the normalized key type used by a filter index tree
 	 */
 	@Nonnull
 	private static Class<?> normalizedTypeOf(@Nonnull Class<?> plainType) {

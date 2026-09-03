@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -84,6 +85,8 @@ class SessionRegistryWarmUpAdmissionTest {
 	 * otherwise have to be simulated too.
 	 */
 	private static final class RegistrationAbandoned extends RuntimeException {
+		@Serial private static final long serialVersionUID = -1858246079382335167L;
+
 		RegistrationAbandoned() {
 			super("registration abandoned on purpose");
 		}
@@ -346,7 +349,6 @@ class SessionRegistryWarmUpAdmissionTest {
 		final EvitaSession session = mockSession();
 
 		assertThrows(CatalogNotFoundException.class, () -> register(registry, false, session));
-		//noinspection resource
 		Mockito.verify(session).closeNow(Mockito.any());
 	}
 

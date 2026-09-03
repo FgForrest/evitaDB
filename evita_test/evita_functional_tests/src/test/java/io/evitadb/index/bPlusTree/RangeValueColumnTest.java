@@ -42,6 +42,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -119,7 +120,7 @@ class RangeValueColumnTest {
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static <M extends Comparable<M>> ValueColumn<M> boxedColumnOf(@Nonnull Class<?> keyType) {
-		return (ValueColumn<M>) new BoxedObjectColumn((Class) keyType, BLOCK_SIZE);
+		return (ValueColumn<M>) new BoxedObjectColumn(keyType, BLOCK_SIZE);
 	}
 
 	/**
@@ -147,8 +148,9 @@ class RangeValueColumnTest {
 			assertEquals(original.getTo(), decoded.getTo(), "upper bound mismatch at slot " + i);
 			// `ReevaluateExpressionExecutor` re-indexes raw bucket values and enforces `plainType.isInstance(value)`,
 			// so a supertype here would fail there rather than at the column
-			assertEquals(
-				original.getClass(), decoded.getClass(), "the declared concrete subtype must be reproduced at slot " + i
+			assertSame(
+				original.getClass(), decoded.getClass(),
+				"the declared concrete subtype must be reproduced at slot " + i
 			);
 			// equality across both hierarchies is generated from the two comparison longs alone
 			assertEquals(original, decoded, "the reconstruction must be equal to the original at slot " + i);
@@ -574,7 +576,7 @@ class RangeValueColumnTest {
 			@Nonnull ValueColumn<M> column, @Nonnull Class<?> subtype, @Nonnull List<? extends Range<?>> expected
 		) {
 			final M[] boxed = column.asBoxedArray();
-			assertEquals(
+			assertSame(
 				subtype, boxed.getClass().getComponentType(),
 				"the array must be typed by the declared subtype, not by the abstract range class"
 			);
@@ -725,7 +727,7 @@ class RangeValueColumnTest {
 		 * @param originals            the ranges to store, in ascending order
 		 */
 		@SuppressWarnings({"unchecked", "rawtypes"})
-		private void assertConsolidationAgrees(
+		private static void assertConsolidationAgrees(
 			@Nonnull RangeKind kind, int indexedDecimalPlaces, @Nonnull Range[] originals
 		) {
 			final ValueColumn column = columnOf(kind, indexedDecimalPlaces);
@@ -1116,7 +1118,7 @@ class RangeValueColumnTest {
 			// would move every String and integral one back to the boxed column - a large, silent memory regression
 			// that only two budget assertions elsewhere would catch, and only indirectly
 			final Class<?>[] unclaimed = {
-				String.class, Long.class, Integer.class, OffsetDateTime.class, UUID.class
+				String.class, Long.class, Integer.class, UUID.class
 			};
 			for (final Class<?> type : unclaimed) {
 				assertDelegatesToForKey(type, Comparator.naturalOrder(), 0);
@@ -1124,6 +1126,29 @@ class RangeValueColumnTest {
 			}
 			// and the scale it would have used is simply ignored on the delegating path
 			assertDelegatesToForKey(BigDecimal.class, Comparator.naturalOrder(), 2);
+		}
+
+		@Test
+		@DisplayName("a declared temporal type is delegated under its NORMALIZED key class, not verbatim")
+		void shouldDelegateTemporalTypesUnderTheirNormalizedKeyClass() {
+			// the one place where the two entry points deliberately diverge: a filter index converts every temporal
+			// value to an `Instant` before it becomes a key, so `forFilterKey` must select the column `forKey` would
+			// pick for `Instant` - while `forKey` itself, whose callers store values verbatim, must NOT.
+			for (final Class<?> declared : new Class<?>[]{OffsetDateTime.class, LocalDateTime.class}) {
+				for (final Comparator<?> comparator : new Comparator<?>[]{Comparator.naturalOrder(), null}) {
+					final Object filterColumn =
+						ValueColumnFactory.forFilterKey(declared, comparator, 0).create(BLOCK_SIZE);
+					assertSame(
+						ValueColumnFactory.forKey(Instant.class, comparator).create(BLOCK_SIZE).getClass(),
+						filterColumn.getClass(), "forFilterKey must select the Instant column for " + declared.getSimpleName()
+					);
+					assertNotEquals(
+						ValueColumnFactory.forKey(declared, comparator).create(BLOCK_SIZE).getClass(),
+						filterColumn.getClass(),
+						"forKey must NOT select the Instant column for " + declared.getSimpleName()
+					);
+				}
+			}
 		}
 
 		/**
@@ -1141,7 +1166,7 @@ class RangeValueColumnTest {
 			final Object delegated =
 				ValueColumnFactory.forFilterKey(type, comparator, indexedDecimalPlaces).create(BLOCK_SIZE);
 			final Object direct = ValueColumnFactory.forKey(type, comparator).create(BLOCK_SIZE);
-			assertEquals(
+			assertSame(
 				direct.getClass(), delegated.getClass(),
 				"forFilterKey must delegate " + type.getSimpleName() + " to forKey verbatim"
 			);
@@ -1162,7 +1187,7 @@ class RangeValueColumnTest {
 		 * @return the domain, ascending
 		 */
 		@Nonnull
-		private List<DateTimeRange> dateTimeDomain() {
+		private static List<DateTimeRange> dateTimeDomain() {
 			final ZoneOffset[] offsets = {
 				ZoneOffset.UTC, ZoneOffset.ofHours(2), ZoneOffset.ofTotalSeconds(-1800),
 				ZoneOffset.ofTotalSeconds(18 * 3600), ZoneOffset.ofTotalSeconds(-18 * 3600)

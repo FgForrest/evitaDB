@@ -112,14 +112,14 @@ class ColumnSizingTest {
 
 		@Test
 		void shouldObeyTheSizingContractWhenBackedByAnIntArray() {
-			assertValueColumnSizing(capacity -> new IntValueColumn<Integer>(capacity), ordinal -> ordinal, true);
+			assertValueColumnSizing(IntValueColumn::new, ordinal -> ordinal, true);
 		}
 
 		@Test
 		void shouldObeyTheSizingContractWhenBackedByALongArray() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
 			assertValueColumnSizing(
-				capacity -> new LongValueColumn<Integer>(codec, capacity), ordinal -> ordinal, true
+				capacity -> new LongValueColumn<>(codec, capacity), ordinal -> ordinal, true
 			);
 		}
 
@@ -127,8 +127,8 @@ class ColumnSizingTest {
 		void shouldObeyTheSizingContractWhenBackedByAnInstantKeyedLongArray() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Instant.class);
 			assertValueColumnSizing(
-				capacity -> new LongValueColumn<Instant>(codec, capacity),
-				ordinal -> Instant.ofEpochMilli(ordinal),
+				capacity -> new LongValueColumn<>(codec, capacity),
+				Instant::ofEpochMilli,
 				true
 			);
 		}
@@ -136,7 +136,7 @@ class ColumnSizingTest {
 		@Test
 		void shouldObeyTheSizingContractWhenBackedByABoxedArray() {
 			assertValueColumnSizing(
-				capacity -> new BoxedObjectColumn<UUID>(UUID.class, capacity), ColumnSizingTest::uuid, true
+				capacity -> new BoxedObjectColumn<>(UUID.class, capacity), ColumnSizingTest::uuid, true
 			);
 		}
 
@@ -146,7 +146,7 @@ class ColumnSizingTest {
 			// materializes the third `meta` array and therefore grows / trims / duplicates three arrays in lockstep,
 			// and a numeric one, whose `meta` stays parked on the shared empty constant for the column's whole life
 			assertValueColumnSizing(
-				capacity -> new RangeValueColumn<DateTimeRange>(RangeKind.DATE_TIME, 0, capacity),
+				capacity -> new RangeValueColumn<>(RangeKind.DATE_TIME, 0, capacity),
 				ColumnSizingTest::dateTimeRange,
 				true
 			);
@@ -154,7 +154,7 @@ class ColumnSizingTest {
 			// `Comparable<NumberRange<T>>` on the abstract class, so only the parameterized supertype satisfies the
 			// column's `M extends Comparable<M>` bound. `DateTimeRange` is `Comparable` of itself and needs no care
 			assertValueColumnSizing(
-				capacity -> new RangeValueColumn<NumberRange<Integer>>(RangeKind.INTEGER_NUMBER, 0, capacity),
+				capacity -> new RangeValueColumn<>(RangeKind.INTEGER_NUMBER, 0, capacity),
 				ordinal -> IntegerNumberRange.between(ordinal, ordinal + 1),
 				true
 			);
@@ -165,7 +165,7 @@ class ColumnSizingTest {
 			// the front-coded column has no per-slot storage, so `trimmed()` has nothing to reclaim - the battery
 			// asserts the identity return instead of a shrink
 			assertValueColumnSizing(
-				capacity -> new FrontCodedStringColumn<String>(capacity, true),
+				capacity -> new FrontCodedStringColumn<>(capacity, true),
 				ordinal -> String.format("key-%04d", ordinal),
 				false
 			);
@@ -412,7 +412,7 @@ class ColumnSizingTest {
 		 * @return the instants, ascending
 		 */
 		@Nonnull
-		private Object[] instants(int count) {
+		private static Object[] instants(int count) {
 			final Object[] result = new Object[count];
 			for (int i = 0; i < count; i++) {
 				result[i] = Instant.ofEpochSecond(i);
@@ -427,7 +427,7 @@ class ColumnSizingTest {
 		 * @return the ranges, ascending
 		 */
 		@Nonnull
-		private Object[] dateTimeRanges(int count) {
+		private static Object[] dateTimeRanges(int count) {
 			final Object[] result = new Object[count];
 			for (int i = 0; i < count; i++) {
 				result[i] = dateTimeRange(i);
@@ -442,7 +442,7 @@ class ColumnSizingTest {
 		 * @return the ranges, ascending
 		 */
 		@Nonnull
-		private Object[] integerRanges(int count) {
+		private static Object[] integerRanges(int count) {
 			final Object[] result = new Object[count];
 			for (int i = 0; i < count; i++) {
 				result[i] = IntegerNumberRange.between(i, i + 1);

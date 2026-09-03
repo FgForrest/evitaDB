@@ -629,12 +629,9 @@ class ValueIdTest {
 					false
 				),
 				() -> {
-					final Transaction transaction = Transaction.getTransaction().orElseThrow();
-					try {
+					try (Transaction transaction = Transaction.getTransaction().orElseThrow()) {
 						// mints a value id, which creates the allocator's diff layer
 						index.addRecord(10, 2);
-					} finally {
-						transaction.close();
 					}
 				}
 			);
@@ -1375,7 +1372,7 @@ class ValueIdTest {
 		 * @return the range
 		 */
 		@Nonnull
-		private DateTimeRange range(int ordinal) {
+		private static DateTimeRange range(int ordinal) {
 			final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
 			final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
 			return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
@@ -1385,7 +1382,7 @@ class ValueIdTest {
 		 * @return an empty, id-carrying inverted index over date-time ranges
 		 */
 		@Nonnull
-		private InvertedIndex emptyRangeIndexWithIds() {
+		private static InvertedIndex emptyRangeIndexWithIds() {
 			final InvertedIndex index = new InvertedIndex(
 				DateTimeRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
 			index.attachValueIdConsumer(TEST_CONSUMER);

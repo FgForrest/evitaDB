@@ -61,10 +61,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link InvertedIndex#fromPersistedPages} now validates strict ascending key order both WITHIN each page and
  * ACROSS page boundaries while re-assembling the bucket tree. Any leaf page whose last key does not sort
  * strictly before the first key of its successor page fails fast at load with a
- * {@link GenericEvitaInternalError} whose message contains `overlaps its successor leaf-page sequence`. Because
- * the paged persistence layout has never shipped in a released version, no production catalog can carry such a
- * twin, and the defensive-design rule forbids silently repairing one — so EVERY twin shape fails fast at load
- * rather than assembling a corrupt bucket tree that would violate the index's fundamental invariant (strictly
+ * {@link GenericEvitaInternalError} whose message contains `overlaps its successor leaf-page sequence`. The paged
+ * persistence layout shipped in the 2026.2 release line, so a production catalog really can carry such a twin —
+ * the anatomy above was read off one. The defensive-design rule still forbids silently repairing it, because
+ * nothing persisted says which of the two overlapping pages is authoritative — so EVERY twin shape fails fast at
+ * load rather than assembling a corrupt bucket tree that would violate the index's fundamental invariant (strictly
  * ascending distinct bucket keys) and later crash with a confusing signature far from the cause.
  *
  * The tests below feed the real loader the exact overlapping leaf-page shapes seen (and adjacent boundary

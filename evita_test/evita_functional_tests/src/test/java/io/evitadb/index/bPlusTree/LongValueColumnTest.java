@@ -360,19 +360,38 @@ class LongValueColumnTest {
 				LongValueColumn.class,
 				ValueColumnFactory.forKey(LocalDate.class, null).create(BLOCK_SIZE)
 			);
-			// the temporal types normalize to `Instant` (see ValueColumnFactory#normalizedTypeOf) and therefore take
-			// the very same single-`long` column - there is no separate temporal column any more
-			assertInstanceOf(
-				LongValueColumn.class,
-				ValueColumnFactory.forKey(OffsetDateTime.class, null).create(BLOCK_SIZE)
-			);
-			assertInstanceOf(
-				LongValueColumn.class,
-				ValueColumnFactory.forKey(LocalDateTime.class, Comparator.naturalOrder()).create(BLOCK_SIZE)
-			);
+			// `Instant` is a key type in its own right, so the RAW key space reaches the single-`long` column too -
+			// there is no separate temporal column any more
 			assertInstanceOf(
 				LongValueColumn.class,
 				ValueColumnFactory.forKey(Instant.class, null).create(BLOCK_SIZE)
+			);
+			// a declared OffsetDateTime / LocalDateTime attribute reaches it only through the FILTER key space, which
+			// is the one whose caller converts the values to `Instant` first (ValueColumnFactory#normalizedTypeOf)
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forFilterKey(OffsetDateTime.class, null, 0).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forFilterKey(LocalDateTime.class, Comparator.naturalOrder(), 0).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("the raw key space keeps a declared temporal attribute on the boxed column")
+		void shouldKeepDeclaredTemporalTypesBoxedInTheRawKeySpace() {
+			// forKey serves callers that store values verbatim (OwnerUniqueIndex / GlobalUniqueIndex keep RAW
+			// values). Handing them the Instant-keyed column made LongKeyCodec#INSTANT cast an OffsetDateTime to
+			// Instant on the very first write, so a unique temporal attribute threw a ClassCastException - see
+			// UniqueIndexTest's "Temporal unique attributes" for the end-to-end proof.
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forKey(OffsetDateTime.class, null).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forKey(LocalDateTime.class, Comparator.naturalOrder()).create(BLOCK_SIZE)
 			);
 		}
 
@@ -384,7 +403,7 @@ class LongValueColumnTest {
 			// through the column: the two twins must reach ONE bucket holding BOTH records, and the bucket must be
 			// keyed by the truncated instant rather than by either input
 			final ValueColumnFactory factory =
-				ValueColumnFactory.forKey(OffsetDateTime.class, Comparator.naturalOrder());
+				ValueColumnFactory.forFilterKey(OffsetDateTime.class, Comparator.naturalOrder(), 0);
 			final TransactionalBucketBPlusTree<Instant> tree = new TransactionalBucketBPlusTree<>(
 				BLOCK_SIZE, 3, 7, 3, Instant.class, null, factory
 			);

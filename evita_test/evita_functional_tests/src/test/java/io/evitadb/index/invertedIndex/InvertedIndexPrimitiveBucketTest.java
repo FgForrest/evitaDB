@@ -127,7 +127,7 @@ class InvertedIndexPrimitiveBucketTest {
 			assertTrue(single.isPrimitiveBucket(5));
 
 			final InvertedIndex multi = emptyIndex();
-			multi.addRecord(5, new int[]{7, 8});
+			multi.addRecord(5, 7, 8);
 			assertFalse(multi.isPrimitiveBucket(5));
 			assertArrayEquals(new int[]{7, 8}, multi.getRecordsEqualTo(5).getArray());
 		}
@@ -172,7 +172,7 @@ class InvertedIndexPrimitiveBucketTest {
 		void shouldThrowWhenRemovingEmptyRecordIds() {
 			final InvertedIndex index = emptyIndex();
 
-			assertThrows(EvitaInvalidUsageException.class, () -> index.removeRecord(5, new int[0]));
+			assertThrows(EvitaInvalidUsageException.class, () -> index.removeRecord(5));
 		}
 
 		@Test
@@ -180,7 +180,7 @@ class InvertedIndexPrimitiveBucketTest {
 		void shouldPromotePrimitiveWhenVarargContainsHeldIdPlusNew() {
 			final InvertedIndex index = emptyIndex();
 			index.addRecord(5, 1);
-			index.addRecord(5, new int[]{1, 20});
+			index.addRecord(5, 1, 20);
 
 			assertFalse(index.isPrimitiveBucket(5));
 			assertArrayEquals(new int[]{1, 20}, index.getRecordsEqualTo(5).getArray());
@@ -191,7 +191,7 @@ class InvertedIndexPrimitiveBucketTest {
 		void shouldDeletePrimitiveWhenRemovingMultipleIdsOneMatching() {
 			final InvertedIndex index = emptyIndex();
 			index.addRecord(5, 1);
-			index.removeRecord(5, new int[]{99, 1});
+			index.removeRecord(5, 99, 1);
 
 			assertFalse(index.contains(5));
 			assertEquals(0, index.getBucketCount());
@@ -770,7 +770,7 @@ class InvertedIndexPrimitiveBucketTest {
 		 * @return the range
 		 */
 		@Nonnull
-		private IntegerNumberRange range(int ordinal) {
+		private static IntegerNumberRange range(int ordinal) {
 			return ordinal % 7 == 0
 				? IntegerNumberRange.from(ordinal * 10)
 				: IntegerNumberRange.between(ordinal * 10, ordinal * 10 + 5);
@@ -780,7 +780,7 @@ class InvertedIndexPrimitiveBucketTest {
 		 * @return an empty inverted index over integer ranges, which selects the two-array range column
 		 */
 		@Nonnull
-		private InvertedIndex emptyRangeIndex() {
+		private static InvertedIndex emptyRangeIndex() {
 			return new InvertedIndex(
 				IntegerNumberRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
 		}
@@ -802,7 +802,7 @@ class InvertedIndexPrimitiveBucketTest {
 			index.removeRecord(range(1), 20);
 			assertArrayEquals(new int[]{10}, index.getRecordsEqualTo(range(1)).getArray());
 			assertEquals(range(1), index.getValueToRecordBitmap()[0].getValue());
-			assertEquals(IntegerNumberRange.class, index.getValueToRecordBitmap()[0].getValue().getClass());
+			assertSame(IntegerNumberRange.class, index.getValueToRecordBitmap()[0].getValue().getClass());
 		}
 
 		@Test

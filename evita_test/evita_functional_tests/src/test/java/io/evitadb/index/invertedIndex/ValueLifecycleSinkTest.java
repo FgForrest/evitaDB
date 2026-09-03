@@ -447,7 +447,7 @@ class ValueLifecycleSinkTest {
 		 * @return a fresh tree of integer-range values that already carries value ids
 		 */
 		@Nonnull
-		private InvertedIndex rangeTreeWithIds() {
+		private static InvertedIndex rangeTreeWithIds() {
 			final InvertedIndex tree = new InvertedIndex(
 				IntegerNumberRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);

@@ -2616,10 +2616,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * the reload path re-assembles one in-memory leaf per persisted page. A writer race on a `@NotThreadSafe` warm-up
 	 * session can leave a frozen stale snapshot of a leaf reachable next to the page that superseded it, and a one-shot
 	 * flush persists BOTH — every subsequent reload then rebuilds a tree whose leaves overlap, silently serving corrupt
-	 * data until it crashes later with a confusing signature far from the cause. Because the paged persistence layout has
-	 * never shipped in a released version, no production catalog can carry such a twin; silently repairing one would
-	 * contradict the defensive-design rule, so any detected overlap fails fast here with full diagnostics and an operator
-	 * remediation hint.
+	 * data until it crashes later with a confusing signature far from the cause. **The paged persistence layout HAS
+	 * shipped** - it went out with the 2026.2 release line (tags `v2026.2.0` .. `v2026.2.6`), and released catalogs are
+	 * on disk in it right now, so a production catalog really can carry such a twin and staying loadable across a
+	 * restart is a live obligation rather than a theoretical one. It is still not repaired silently: nothing in the
+	 * persisted state says which of the two overlapping leaves is authoritative, so adopting the stale one would
+	 * resurrect records that were deliberately removed. Per the defensive-design rule any detected overlap therefore
+	 * fails fast here with full diagnostics and an operator remediation hint.
 	 *
 	 * @param leaves               the reassembled leaves in persisted list order
 	 * @param pageSequences        the root's ordered leaf-page sequence list, reported as overlap context on failure
