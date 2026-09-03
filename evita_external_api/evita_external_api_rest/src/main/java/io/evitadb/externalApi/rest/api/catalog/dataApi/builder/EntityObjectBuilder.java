@@ -100,19 +100,21 @@ public class EntityObjectBuilder {
 	}
 
 	/**
-	 * Builds entity object.<br/>
-	 * Parameter <strong>localized</strong> is used to control inner structure of some fields which
-	 * may contains localized data (e.g. Attributes or Associated data).<br/>
-	 * When <strong>localized</strong> is equal <code>false</code> then inner structure of these fields
+	 * Builds entity object.
+	 *
+	 * Parameter **localized** is used to control inner structure of some fields which may contains localized data
+	 * (e.g. Attributes or Associated data). When **localized** is equal `false` then inner structure of these fields
 	 * will be separated into two groups:
-	 * <ul>
-	 *     <li>global - which will contain non-localized data</li>
-	 *     <li>localized - which will contain localized data further split into groups by locale</li>
-	 * </ul>
-	 * However, when set to <code>true</code> all data will be in same group (global and data of specific locale).
+	 *
+	 * - global - which will contain non-localized data
+	 * - localized - which will contain localized data further split into groups by locale
+	 *
+	 * However, when set to `true` all data will be in same group (global and data of specific locale).
 	 * This variant may be used only when one and only one locale will always be present in query and dataInLocales
 	 * cannot be specified.
 	 *
+	 * @param entitySchema the schema of the collection the object is built for
+	 * @param localized    whether the localized variant of the object is being built
 	 * @return schema for entity object
 	 */
 	@Nonnull
@@ -178,7 +180,10 @@ public class EntityObjectBuilder {
 	 *
 	 * The `oneOf` deliberately carries no discriminator: an ancestor and the pointer that stands in for it report the
 	 * same entity type, so the `type` property cannot tell the two apart. What tells them apart is the shape - only
-	 * the entity branch carries a `version` and a `scope`.
+	 * the entity branch carries a `version` and a `scope`. That is a one-directional test on its own, since an open
+	 * pointer object would validate a materialized ancestor just as well and the value would match *both* branches;
+	 * the pointer object is therefore closed with `additionalProperties: false`, which is what makes the two branches
+	 * mutually exclusive and the document honest about its own responses.
 	 *
 	 * The pointer object holds the recursive link, so that the axis can continue above the pointer; it therefore has
 	 * to be built per collection, and per localized variant of the entity object it points into.
@@ -200,6 +205,7 @@ public class EntityObjectBuilder {
 			.property(RestEntityDescriptor.PARENT_ENTITY_COMPLETE
 				.to(this.propertyBuilderTransformer)
 				.type(typeRefTo(parentUnionName)))
+			.forbidAdditionalProperties()
 			.build();
 		final OpenApiTypeReference parentPointerObjectRef = this.buildingContext.registerType(parentPointerObject);
 

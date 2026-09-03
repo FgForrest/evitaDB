@@ -54,12 +54,23 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 	PropertyDescriptor PARENTS = PropertyDescriptor.builder()
 		.name("parents")
 		.description("""
-            Returns list of parent hierarchical entities, possibly entire parent axis of the entity to the root if requested.
-            
-            Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
-            may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
-            Each entity must be part of at most single hierarchy (tree).
-            """)
+			Returns list of parent hierarchical entities, possibly entire parent axis of the entity to the root
+			if requested.
+
+			The field reports the `MATCHING` parents behaviour of the `hierarchyContent` requirement: every element it
+			returns carries the body that was asked for, and the axis ends below the first ancestor that could not
+			supply one - it holds no data in the queried locale, it was deleted, or the parent primary key never
+			belonged to an entity. A requirement asking for no ancestor body at all can have nothing fail, so it
+			returns the whole primary-key chain.
+
+			The sibling `parentsComplete` field reports the same axis without that cut, keeping the ancestors that
+			could not be materialized in it as bodyless pointers. Selecting both at once is allowed and costs
+			a single fetch.
+
+			Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity
+			and may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
+			Each entity must be part of at most single hierarchy (tree).
+			""")
 		// type is expected to be a list of non-hierarchical version of this entity
 		.build();
 	PropertyDescriptor PARENTS_COMPLETE = PropertyDescriptor.builder()

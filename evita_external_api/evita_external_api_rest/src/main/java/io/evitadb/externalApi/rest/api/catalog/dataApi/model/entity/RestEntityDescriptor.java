@@ -39,6 +39,16 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 			Returns parent entity body. The entity fetch needs to be triggered using `hierarchyContent` requirement.
 			The property allows to fetch entire parent axis of the entity to the root if requested.
 
+			The property reports the `MATCHING` parents behaviour of that requirement: every ancestor it returns
+			carries the body that was asked for, and the axis ends below the first ancestor that could not supply
+			one - it holds no data in the queried locale, it was deleted, or the parent primary key never belonged
+			to an entity. When it is the immediate parent that could not supply a body, the cut yields nothing and
+			the property is absent altogether. A `hierarchyContent` asking for no ancestor body at all can have
+			nothing fail, so it reports the whole primary-key chain here.
+
+			The sibling `parentEntityComplete` property reports the same axis without that cut, keeping the
+			ancestors that could not be materialized in it as bodyless pointers.
+
 	        Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
 	        may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	        Each entity must be part of at most single hierarchy (tree).
@@ -56,8 +66,8 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 			carrying a full body may therefore sit above a pointer.
 
 			The property is present only when the fetched chain actually contains such a pointer; otherwise the chain
-			is fully materialized and `parentEntity` already reports all of it. `parentEntity` never contains
-			a pointer - it is cut below the first one.
+			is fully materialized, the cut `parentEntity` reports is the very same axis, and repeating it here would
+			tell the caller nothing.
 			""")
 		// type is expected to be a union of the same hierarchical entity as parent and its bodyless pointer
 		.build();

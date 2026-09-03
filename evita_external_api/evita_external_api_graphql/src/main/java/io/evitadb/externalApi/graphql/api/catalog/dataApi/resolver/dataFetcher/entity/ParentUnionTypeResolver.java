@@ -54,9 +54,18 @@ public class ParentUnionTypeResolver implements TypeResolver {
 	 */
 	@Nonnull private final String parentPointerObjectName;
 
+	/**
+	 * Maps one element of a fetched parent chain onto the union member reporting it: the entity object for
+	 * a {@link SealedEntity}, the parent pointer object for anything else.
+	 *
+	 * @param env the resolution environment carrying the chain element to be typed
+	 * @return the object type the element is reported through
+	 * @throws GraphQLQueryResolvingInternalError when the schema does not hold the object type the chain element maps
+	 *                                            to
+	 */
 	@Nonnull
 	@Override
-	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
+	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
 		final String targetObjectName = env.getObject() instanceof SealedEntity
 			? this.entityObjectName
 			: this.parentPointerObjectName;

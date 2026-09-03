@@ -95,6 +95,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 					}
 				});
 				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), finalQuery);
+				executionContext.provideEntityRequirement(finalQuery);
 
 				final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().deleteSealedEntitiesAndReturnBodies(finalQuery));
@@ -121,7 +122,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")
 		);
 		return this.entityJsonSerializer.serialize(
-			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()),
 			(SealedEntity[]) deletedEntities
 		);
 	}

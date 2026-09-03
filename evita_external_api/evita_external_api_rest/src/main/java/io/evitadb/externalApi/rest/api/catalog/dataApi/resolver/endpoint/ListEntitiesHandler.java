@@ -60,6 +60,7 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 		return resolveQuery(executionContext)
 			.thenCompose(query -> executionContext.executeAsyncInRequestThreadPool(() -> {
 				log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), query);
+				executionContext.provideEntityRequirement(query);
 
 				final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().queryList(query, EntityClassifier.class));
@@ -81,7 +82,7 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 		);
 		//noinspection unchecked
 		return this.entityJsonSerializer.serialize(
-			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()),
 			(List<EntityClassifier>) entities
 		);
 	}

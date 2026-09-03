@@ -87,6 +87,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 				RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 			));
 			log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
+			executionContext.provideEntityRequirement(query);
 
 			final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 				executionContext.session().queryList(query, EntityClassifier.class));
@@ -131,7 +132,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 		);
 		//noinspection unchecked
 		return this.entityJsonSerializer.serialize(
-			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()),
 			(List<EntityClassifier>) entities
 		);
 	}

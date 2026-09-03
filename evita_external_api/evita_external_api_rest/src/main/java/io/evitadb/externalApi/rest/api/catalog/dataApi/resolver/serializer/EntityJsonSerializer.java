@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
@@ -137,7 +138,7 @@ public class EntityJsonSerializer {
 	 * Serializes everything an entity carries except the chain of its ancestors, which is written separately because
 	 * the same ancestor may have to be reported through two different properties.
 	 *
-	 * @param ctx             context of the serialization
+	 * @param ctx              context of the serialization
 	 * @param entityClassifier the entity or the mere pointer at one
 	 * @return the serialized entity, with no parent property of any kind
 	 */
@@ -166,11 +167,12 @@ public class EntityJsonSerializer {
 	 * is written only when the chain actually holds one, since otherwise the two would be identical.
 	 *
 	 * Whether a chain element that is not an {@link EntityDecorator} is a bodyless pointer or a plain primary key of
-	 * a `hierarchyContent()` that asked for no ancestor body at all is decided by the rest of the chain: only
-	 * a requirement that asked for bodies can have materialized any of them. A chain in which nothing materialized is
-	 * therefore reported whole under {@link RestEntityDescriptor#PARENT_ENTITY} - correct for the far more common
-	 * bodyless request, and for a `COMPLETE` request whose every ancestor failed it hands back genuine primary keys
-	 * rather than fabricating anything.
+	 * a `hierarchyContent()` that asked for no ancestor body at all is read off the requirement the entity was
+	 * fetched with - see {@link #ancestorBodiesRequested(EntitySerializationContext, EntityClassifierWithParent)}.
+	 * When bodies were asked for and the immediate parent is a pointer, the cut yields nothing and
+	 * {@link RestEntityDescriptor#PARENT_ENTITY} is omitted altogether rather than being handed a chain it cannot
+	 * type; nothing is lost by that, since the caller reads such a chain through
+	 * {@link RestEntityDescriptor#PARENT_ENTITY_COMPLETE}.
 	 *
 	 * @param ctx      context of the serialization
 	 * @param rootNode the node of the entity whose ancestors are written
@@ -183,7 +185,7 @@ public class EntityJsonSerializer {
 		if (parent == null) {
 			return;
 		}
-		if (!holdsBodylessAncestorAmongMaterializedOnes(parent)) {
+		if (!ancestorBodiesRequested(ctx, parent)) {
 			rootNode.putIfAbsent(
 				RestEntityDescriptor.PARENT_ENTITY.name(),
 				serializeParentChain(ctx, parent, RestEntityDescriptor.PARENT_ENTITY.name(), false)
@@ -196,10 +198,14 @@ public class EntityJsonSerializer {
 		if (matchingChain != null) {
 			rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), matchingChain);
 		}
-		rootNode.putIfAbsent(
-			RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(),
-			serializeParentChain(ctx, parent, RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(), false)
-		);
+		// the two chains coincide unless the walk actually passed a bodyless ancestor, and a property repeating its
+		// sibling verbatim tells the caller nothing
+		if (holdsBodylessAncestor(parent)) {
+			rootNode.putIfAbsent(
+				RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(),
+				serializeParentChain(ctx, parent, RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(), false)
+			);
+		}
 	}
 
 	/**
@@ -217,6 +223,10 @@ public class EntityJsonSerializer {
 	                                        @Nonnull EntityClassifierWithParent ancestor,
 	                                        @Nonnull String parentPropertyName,
 	                                        boolean cutBelowBodyless) {
+		// `EntityDecorator` rather than `SealedEntity`, because it is what `serializeEntityWithoutParentAxis` can
+		// write a body from - a plain `Entity` would serialize as a bare classifier here. It must nevertheless keep
+		// agreeing with `ParentsDataFetcher`'s `SealedEntity` predicate, which classifies the same ancestors for
+		// GraphQL; widening one without widening the other makes the two channels disagree about the same data.
 		if (cutBelowBodyless && !(ancestor instanceof EntityDecorator)) {
 			return null;
 		}
@@ -232,26 +242,69 @@ public class EntityJsonSerializer {
 	}
 
 	/**
-	 * Returns TRUE when the chain starting at `chainHead` mixes ancestors that carry the requested body with ancestors
-	 * that do not. Only a requirement asking for ancestor bodies can produce such a chain, and only the `COMPLETE`
-	 * parents behaviour keeps walking past the ancestor that failed to yield one.
+	 * Returns TRUE when the `hierarchyContent` the chain was fetched with asked for ancestor bodies, and therefore
+	 * when a chain element that is not an {@link EntityDecorator} is a bodyless pointer rather than a plain primary
+	 * key of a requirement that never asked for a body at all.
+	 *
+	 * The requirement itself answers the question wherever it could be supplied, and every path that reports an
+	 * ancestor axis supplies one: the entity-fetch endpoints read it off the query they executed, and an axis
+	 * reported inside an extra result is served by the requirement of the constraint that produced it - the
+	 * `entityFetch` of the hierarchy constraint, of the reference / facet summary, or of the histogram whose anchor
+	 * entities are being written. Where none could be resolved after all, the answer is inferred from the chain:
+	 * only a requirement asking for bodies can have materialized any of them, so a chain mixing materialized
+	 * ancestors with bodyless ones proves the request. A chain mixing nothing proves nothing and is read as the far
+	 * more common bodyless request, which reports it whole and hands back genuine primary keys rather than typing
+	 * them as pointers on a guess.
+	 *
+	 * @param ctx       context of the serialization
+	 * @param chainHead the immediate parent of the entity whose axis is being reported
+	 * @return TRUE when a chain element that is not an {@link EntityDecorator} is to be read as a bodyless pointer
+	 */
+	private static boolean ancestorBodiesRequested(@Nonnull EntitySerializationContext ctx,
+	                                               @Nonnull EntityClassifierWithParent chainHead) {
+		final HierarchyContent hierarchyContent = ctx.resolveHierarchyContent();
+		if (hierarchyContent != null) {
+			return hierarchyContent.getEntityFetch().isPresent();
+		}
+		return holdsMaterializedAncestor(chainHead) && holdsBodylessAncestor(chainHead);
+	}
+
+	/**
+	 * Returns TRUE when the chain starting at `chainHead` holds an ancestor that carries no body - either a pointer
+	 * standing in for a body that could not be materialized, or a plain primary key of a requirement that asked for
+	 * no body at all.
 	 *
 	 * @param chainHead the immediate parent of the entity whose axis is being reported
-	 * @return TRUE when the chain holds both a materialized ancestor and a bodyless one
+	 * @return TRUE when the chain holds a bodyless ancestor
 	 */
-	private static boolean holdsBodylessAncestorAmongMaterializedOnes(@Nonnull EntityClassifierWithParent chainHead) {
-		boolean materializedFound = false;
-		boolean bodylessFound = false;
+	private static boolean holdsBodylessAncestor(@Nonnull EntityClassifierWithParent chainHead) {
 		EntityClassifierWithParent ancestor = chainHead;
 		while (ancestor != null) {
-			if (ancestor instanceof EntityDecorator) {
-				materializedFound = true;
-			} else {
-				bodylessFound = true;
+			// `EntityDecorator` for the same reason as in `serializeParentChain`: it is the type the body writer can
+			// handle, and it must track `ParentsDataFetcher`'s predicate
+			if (!(ancestor instanceof EntityDecorator)) {
+				return true;
 			}
 			ancestor = resolveParent(ancestor);
 		}
-		return materializedFound && bodylessFound;
+		return false;
+	}
+
+	/**
+	 * Returns TRUE when the chain starting at `chainHead` holds an ancestor that carries the body that was asked for.
+	 *
+	 * @param chainHead the immediate parent of the entity whose axis is being reported
+	 * @return TRUE when the chain holds a materialized ancestor
+	 */
+	private static boolean holdsMaterializedAncestor(@Nonnull EntityClassifierWithParent chainHead) {
+		EntityClassifierWithParent ancestor = chainHead;
+		while (ancestor != null) {
+			if (ancestor instanceof EntityDecorator) {
+				return true;
+			}
+			ancestor = resolveParent(ancestor);
+		}
+		return false;
 	}
 
 	/**
@@ -449,13 +502,21 @@ public class EntityJsonSerializer {
 
 		referenceNode.putIfAbsent(EntityReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
+		// a referenced entity is fetched with the requirement written inside this `referenceContent`, not with the
+		// one the referencing entity was fetched with - the two describe different collections
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
-			referenceNode.putIfAbsent(EntityReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
+			referenceNode.putIfAbsent(
+				EntityReferenceDescriptor.REFERENCED_ENTITY.name(),
+				serializeSingleEntity(ctx.forReferencedEntity(reference.getReferenceName()), sealedEntity)
+			));
 
 		reference.getGroupEntity()
 			.map(EntityClassifier.class::cast)
 			.or(reference::getGroup)
-			.ifPresent(groupEntity -> referenceNode.putIfAbsent(EntityReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx, groupEntity)));
+			.ifPresent(groupEntity -> referenceNode.putIfAbsent(
+				EntityReferenceDescriptor.GROUP_ENTITY.name(),
+				serializeSingleEntity(ctx.forGroupEntity(reference.getReferenceName()), groupEntity)
+			));
 
 		final ReferenceSchemaContract referenceSchema = reference.getReferenceSchema()
 			.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + reference.getReferenceName() + "` in entity schema `" + entitySchema.getName() + "`."));

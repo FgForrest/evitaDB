@@ -81,6 +81,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 				));
 
 				log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
+				executionContext.provideEntityRequirement(query);
 
 				final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().queryOne(query, EntityClassifier.class));

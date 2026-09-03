@@ -49,10 +49,14 @@ import java.util.Optional;
 
 /**
  * The `facetSummaryOfReference` requirement triggers the calculation of the facet summary for a **single named
- * reference**, overriding all corresponding constraints that would otherwise come from a generic {@link FacetSummary}
- * present in the same `require()` container. When both constraints appear together, the generic `facetSummary` defines
- * the baseline for every faceted reference, while each `facetSummaryOfReference` **completely replaces** that baseline
- * for the reference it targets — the constraints are never merged.
+ * reference**, overriding the corresponding constraints that would otherwise come from a generic
+ * {@link FacetSummary} present in the same `require()` container. When both constraints appear together, the generic
+ * `facetSummary` defines the baseline for every faceted reference, and each `facetSummaryOfReference` is **overlaid
+ * onto** that baseline for the reference it targets rather than wiping it: a `filterBy` / `filterGroupBy` / `orderBy`
+ * / `orderGroupBy` written here replaces the generic one, while one omitted here falls back to the generic one rather
+ * than to nothing. The `entityFetch` / `entityGroupFetch` requirements are **combined**, so the referenced entities
+ * carry the union of what the two constraints ask for. The statistics depth is the one argument taken from this
+ * constraint outright - omitting it means `COUNTS`, not the generic constraint's depth.
  *
  * This constraint can also stand alone (without a generic `facetSummary`) when you only want statistics for a single
  * specific reference.

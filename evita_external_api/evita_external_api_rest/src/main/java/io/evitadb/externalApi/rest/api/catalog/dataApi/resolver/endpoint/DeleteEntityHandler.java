@@ -43,6 +43,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+
 /**
  * Handles single entity delete request.
  *
@@ -76,6 +78,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 				final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 					RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
+				executionContext.provideEntityRequirement(entityFetch(entityContentRequires));
 
 				final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().deleteEntity(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1227,7 +1227,7 @@ class EvitaSessionServiceFunctionalTest {
 	 * data at all in the query locale, which is exactly what makes its body unmaterializable. The behaviour travels
 	 * as an inline literal through the unsafe query endpoint, which keeps the whole shape readable in one string; the
 	 * safe path, where the same enum crosses as a `GrpcQueryParam` arm, is pinned by
-	 * `EvitaClientReadWriteTest#shouldQueryCompleteParentChainThroughParametrisedQuery` instead.
+	 * `EvitaClientReadWriteTest#shouldQueryEitherParentChainThroughParametrisedQuery` instead.
 	 *
 	 * @param evita         the embedded evitaDB instance the fixture is written through
 	 * @param clientBuilder builder of the gRPC client the query is issued with

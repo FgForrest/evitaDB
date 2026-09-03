@@ -264,12 +264,25 @@ public class EntityFetchRequireResolver {
 	 *
 	 * There is exactly one requirement even when both parent fields are selected, because two `hierarchyContent`
 	 * requirements carrying different parents behaviours are refused by
-	 * {@link HierarchyContent#combineWith(EntityContentRequire)}. The combined requirement therefore asks for
-	 * {@link HierarchyParentsBehaviour#COMPLETE} - the superset of the two - over the union of the two selection sets,
-	 * and {@link GraphQLEntityDescriptor#PARENTS} is derived back from the resolved chain by cutting it below the first
-	 * ancestor whose body could not be materialized. Since only one requirement is emitted, only one bound can be
-	 * carried, so the two `stopAt` arguments have to agree; a disagreement is a usage error rather than something to be
-	 * silently reconciled.
+	 * {@link HierarchyContent#combineWith(EntityContentRequire)}. The behaviour it carries follows the selection:
+	 * {@link HierarchyParentsBehaviour#COMPLETE} - the superset of the two - whenever
+	 * {@link GraphQLEntityDescriptor#PARENTS_COMPLETE} is selected, and
+	 * {@link HierarchyContent#DEFAULT_PARENTS_BEHAVIOUR} otherwise; the selection sets of both fields are united into
+	 * it either way, and
+	 * {@link GraphQLEntityDescriptor#PARENTS} is derived back from the resolved chain by cutting it below the first
+	 * ancestor whose body could not be materialized. `parentsComplete` additionally always carries an inner
+	 * `entityFetch` - an empty one when its own selection derives none - so that an ancestor arriving as a mere
+	 * reference really does mean "the requested body could not be materialized" rather than "no body was requested".
+	 * Since only one requirement is emitted, only one bound can be
+	 * carried, so the two `stopAt` arguments have to agree - either both omitted or both carrying the same bound.
+	 * A bound written on one field alone is refused rather than merged: {@link HierarchyContent#combineWith} would
+	 * let the absent bound win as the superset, which would silently hand the bounded field more ancestors than it
+	 * asked for.
+	 *
+	 * A third outcome serves no parent chain at all: when neither parent field is selected but `parentPrimaryKey` or
+	 * `parent` is, the emitted requirement is the minimal `hierarchyContent(stopAt(distance(1)))` that resolves the
+	 * immediate parent alone. The empty result is therefore reachable only when no parent data whatsoever was asked
+	 * for.
 	 *
 	 * @param selectionSetAggregator the selection set of the entity object being resolved
 	 * @param desiredLocale          the locale the entity is fetched in, may be NULL
@@ -312,7 +325,8 @@ public class EntityFetchRequireResolver {
 			() -> new GraphQLInvalidResponseUsageException(
 				"Fields `" + GraphQLEntityDescriptor.PARENTS.name() + "` and `" +
 					GraphQLEntityDescriptor.PARENTS_COMPLETE.name() + "` are served by a single parent chain fetch, " +
-					"so their `" + ParentsFieldHeaderDescriptor.STOP_AT.name() + "` arguments must be equal."
+					"so their `" + ParentsFieldHeaderDescriptor.STOP_AT.name() + "` arguments must either both be " +
+					"omitted or both carry the same bound."
 			)
 		);
 
@@ -320,11 +334,17 @@ public class EntityFetchRequireResolver {
 		final List<SelectedField> parentFields = new ArrayList<>(parentsFields.size() + parentsCompleteFields.size());
 		parentFields.addAll(parentsFields);
 		parentFields.addAll(parentsCompleteFields);
+		// `parentsComplete` reports an ancestor that arrived as a mere reference as a bodyless pointer, so the
+		// requirement has to have asked for a body in the first place - otherwise "the body could not be
+		// materialized" would degenerate into "no body was requested" and every ancestor would be labelled a pointer.
+		// A selection limited to the classifier fields derives no fetch of its own, and an empty `entityFetch()` is
+		// what makes the distinction real: the locale existence gate is applied by the derived request rather than
+		// by the content requirements, so an ancestor holding no data in the queried locale still stays a pointer.
 		final EntityFetch entityFetch = resolveEntityFetch(
 			SelectionSetAggregator.fromFields(parentFields),
 			desiredLocale,
 			currentEntitySchema
-		).orElse(null);
+		).orElseGet(() -> parentsCompleteFields.isEmpty() ? null : entityFetch());
 
 		return Optional.of(
 			hierarchyContent(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
@@ -51,6 +53,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -156,6 +159,34 @@ class QueryConverterTest {
 			);
 			assertEquals(behaviour, QueryConverter.convertQueryParam(queryParam));
 		}
+	}
+
+	/**
+	 * The whole backward-compatibility argument of the new `GrpcQueryParam` arm rests on `MATCHING` being the zero
+	 * value of its gRPC enum: a client built before the arm existed simply omits the field, and protobuf then reads
+	 * it back as the numbered-zero constant. Reordering the constants would silently flip every such client to
+	 * `COMPLETE` without breaking the round trip, which is all
+	 * {@link #shouldConvertHierarchyParentsBehaviourInBothDirections()} checks.
+	 */
+	@Test
+	void shouldKeepMatchingAsTheZeroValueOnTheWire() {
+		assertEquals(
+			0, GrpcHierarchyParentsBehaviour.MATCHING.getNumber(),
+			"An absent field must read back as `MATCHING`, which requires it to carry number zero."
+		);
+		assertEquals(1, GrpcHierarchyParentsBehaviour.COMPLETE.getNumber());
+	}
+
+	/**
+	 * The companion half of the same guarantee: a `GrpcQueryParam` with no arm set must be refused outright rather
+	 * than silently read as the zero-valued arm of whichever branch happens to be tested first.
+	 */
+	@Test
+	void shouldRefuseAQueryParamWithNoArmSet() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> QueryConverter.convertQueryParam(GrpcQueryParam.getDefaultInstance())
+		);
 	}
 
 	@Test

@@ -66,7 +66,8 @@ public class ParentsCompleteDataFetcher implements DataFetcher<Deque<EntityClass
 	public Deque<EntityClassifierWithParent> get(DataFetchingEnvironment environment) throws Exception {
 		final List<EntityClassifierWithParent> ancestors = ParentsDataFetcher.collectAncestors(environment.getSource());
 
-		// the chain is collected from the immediate parent upwards and prepended, so that the result reads from the root
+		// the chain is collected from the immediate parent upwards and prepended,
+		// so that the result reads from the root
 		final Deque<EntityClassifierWithParent> parents = new LinkedList<>();
 		for (EntityClassifierWithParent ancestor : ancestors) {
 			parents.addFirst(ancestor);

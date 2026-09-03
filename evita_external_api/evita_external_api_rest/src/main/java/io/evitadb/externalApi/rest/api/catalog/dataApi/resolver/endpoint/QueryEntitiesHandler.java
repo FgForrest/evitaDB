@@ -76,6 +76,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 		return resolveQuery(executionContext)
 			.thenCompose(query -> executionContext.executeAsyncInRequestThreadPool(() -> {
 				log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), query);
+				executionContext.provideEntityRequirement(query);
 
 				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					try {
@@ -105,7 +106,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 		//noinspection unchecked
 		final EvitaResponse<EntityClassifier> evitaResponse = (EvitaResponse<EntityClassifier>) response;
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(evitaResponse));
+			.recordPage(serializeRecordPage(exchange, evitaResponse));
 		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
 				.extraResults(serializeExtraResults(evitaResponse));
@@ -115,8 +116,11 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 	}
 
 	@Nonnull
-	private JsonNode serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
-		final EntitySerializationContext serializationContext = new EntitySerializationContext(this.restHandlingContext.getCatalogSchema());
+	private JsonNode serializeRecordPage(@Nonnull RestEndpointExecutionContext exchange,
+	                                     @Nonnull EvitaResponse<EntityClassifier> response) {
+		final EntitySerializationContext serializationContext = new EntitySerializationContext(
+			this.restHandlingContext.getCatalogSchema(), exchange.entityRequirement()
+		);
 		return this.dataChunkJsonSerializer.serialize(
 			response.getRecordPage(),
 			item -> this.entityJsonSerializer.serialize(serializationContext, item)

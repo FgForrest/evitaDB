@@ -33,9 +33,14 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  * the pointer for the missing body and keeps walking above it, so an ancestor carrying a full body may well sit above
  * a pointer.
  *
- * The object carries nothing but the classifier of the ancestor. It is deliberately *not*
+ * The object carries the classifier of the ancestor and nothing of its body. It is deliberately *not*
  * {@link EntityDescriptor#THIS_REFERENCE}, which additionally promises a version and a scope - neither of which
  * a bodyless ancestor can supply.
+ *
+ * The two static properties below are all the descriptor itself declares; each API then adds whatever link its own
+ * chain shape needs. REST nests the axis, so its pointer object additionally carries the recursive
+ * `parentEntityComplete` property that lets the chain continue above the pointer; GraphQL reports the axis as a flat
+ * list and therefore adds nothing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
