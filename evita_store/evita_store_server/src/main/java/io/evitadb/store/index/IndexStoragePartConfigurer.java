@@ -139,13 +139,29 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			PriceListAndCurrencySuperIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-7553613939380658772L, new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-7553613939380658772L,
+					new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				// the 2026.2 shape: the same bytes, but its validity thresholds are epoch SECONDS
+				.addBackwardCompatibleSerializer(
+					2938472615049182736L,
+					new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(
 			PriceListAndCurrencyRefIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-1687563151524978160L, new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-1687563151524978160L,
+					new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				// the 2026.2 shape: the same bytes, but its validity thresholds are epoch SECONDS
+				.addBackwardCompatibleSerializer(
+					8461029375182640917L,
+					new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(

@@ -118,9 +118,9 @@ class ColumnHeapSizeTest {
 
 	/**
 	 * Builds a deterministic ascending {@link DateTimeRange} for the given ordinal, whose two bounds carry a varying
-	 * zone offset so the column's `meta` array is populated rather than uniform. This class measures **size**, never
-	 * content: an offset lost or misaligned by a lockstep failure weighs the same and is invisible here, and is
-	 * pinned by the offset-level assertions in {@code RangeValueColumnTest} instead.
+	 * zone offset so no two slots hold a derivable pair of longs. This class measures **size**, never content: a
+	 * bound lost or misaligned by a lockstep failure weighs the same and is invisible here, and is pinned by the
+	 * reconstruction assertions in {@code RangeValueColumnTest} instead.
 	 *
 	 * @param ordinal the ordinal to derive the range from
 	 * @return an ascending, deterministic date-time range
@@ -172,8 +172,8 @@ class ColumnHeapSizeTest {
 
 		@Test
 		void shouldMatchMeasuredHeapForDateTimeRangeValueColumn() {
-			// the three-array shape: `from`, `to` and the `meta` word carrying both bounds' zone offsets. The `kind`
-			// enum constant is excluded because it is a shared JVM-wide constant, not this column's storage
+			// the two-array shape, same as every other range kind: `from` and `to`. The `kind` enum constant is
+			// excluded because it is a shared JVM-wide constant, not this column's storage
 			final ValueColumn<DateTimeRange> column =
 				new RangeValueColumn<>(RangeKind.DATE_TIME, 0, BLOCK_SIZE);
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
@@ -184,27 +184,26 @@ class ColumnHeapSizeTest {
 
 		@Test
 		void shouldMatchMeasuredHeapForNumericRangeValueColumn() {
-			// the two-array shape: a numeric range needs no `meta`, so that field stays on the shared empty array
-			// and must not be charged - which is what makes this column 16 B per key against the date-time kind's 24
+			// a numeric range weighs exactly what a date-time one does: both are two `long` arrays and 16 B per key.
+			// The date-time kind used to carry a third array for its bounds' zone offsets and cost 24 B per key -
+			// this is what pins that it no longer does
 			final ValueColumn<NumberRange<Integer>> column =
 				new RangeValueColumn<>(RangeKind.INTEGER_NUMBER, 0, BLOCK_SIZE);
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
 				column.insertKeyAt(i, IntegerNumberRange.between(i, i + 1));
 			}
 			assertEquals(
-				JolHeapSize.ownedSize(column, RangeKind.INTEGER_NUMBER, EMPTY_LONG_ARRAY),
+				JolHeapSize.ownedSize(column, RangeKind.INTEGER_NUMBER),
 				column.getHeapSizeInBytes()
 			);
-			// and the missing third array is worth exactly what it costs: the same key count in the date-time shape
-			// carries one more `long` per slot
 			final ValueColumn<DateTimeRange> dateTimeShape =
 				new RangeValueColumn<>(RangeKind.DATE_TIME, 0, BLOCK_SIZE);
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
 				dateTimeShape.insertKeyAt(i, dateTimeRange(i));
 			}
-			assertTrue(
-				column.getHeapSizeInBytes() < dateTimeShape.getHeapSizeInBytes(),
-				"a numeric range column must be cheaper than a date-time one of the same length"
+			assertEquals(
+				dateTimeShape.getHeapSizeInBytes(), column.getHeapSizeInBytes(),
+				"the two range kinds must weigh the same for the same key count"
 			);
 		}
 

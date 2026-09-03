@@ -90,12 +90,16 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 		}
 
 		final boolean hasRangeIndex = input.readBoolean();
-		if (hasRangeIndex) {
-			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId);
-		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
-		}
+		final RangeIndex intRangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
+		final FilterIndexStoragePart part = new FilterIndexStoragePart(
+			entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId
+		);
+		// every FilterIndexStoragePart format older than the millisecond change persisted its range thresholds as
+		// epoch SECONDS; mark the provenance so AttributeIndexLoader can rescale the ones that belong to a
+		// `DateTimeRange` attribute (a threshold is an untyped long shared with every NumberRange subtype, so the
+		// declared attribute type - not this flag alone - decides)
+		part.setSecondGranularityRangeThresholds(true);
+		return part;
 	}
 
 	/**

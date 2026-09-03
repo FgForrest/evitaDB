@@ -35,9 +35,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * The concrete {@link Range} subtype a {@link RangeValueColumn} stores, and the two facts the column needs about it:
- * which class {@code keyAt} has to rebuild, and whether that rebuild needs the column's third
- * ({@code meta}) array.
+ * The concrete {@link Range} subtype a {@link RangeValueColumn} stores — the class {@code keyAt} has to rebuild, and
+ * the class every write and search path narrows its key to before reading a bound.
  *
  * ## Why the six subtypes are enumerated rather than tested with {@code isAssignableFrom}
  *
@@ -60,17 +59,17 @@ enum RangeKind {
 	 * {@link ByteNumberRange} — both bounds fit a {@code long} directly; an open bound is the constructor's own
 	 * {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} sentinel, so nothing beyond the two longs is stored.
 	 */
-	BYTE_NUMBER(ByteNumberRange.class, false),
+	BYTE_NUMBER(ByteNumberRange.class),
 
 	/**
 	 * {@link ShortNumberRange} — as {@link #BYTE_NUMBER}.
 	 */
-	SHORT_NUMBER(ShortNumberRange.class, false),
+	SHORT_NUMBER(ShortNumberRange.class),
 
 	/**
 	 * {@link IntegerNumberRange} — as {@link #BYTE_NUMBER}.
 	 */
-	INTEGER_NUMBER(IntegerNumberRange.class, false),
+	INTEGER_NUMBER(IntegerNumberRange.class),
 
 	/**
 	 * {@link LongNumberRange} — as {@link #BYTE_NUMBER}, with the one documented ambiguity of the family: an
@@ -85,7 +84,7 @@ enum RangeKind {
 	 * That pair is therefore decoded with both bounds materialized — {@code RangeValueColumn#decodeLongRange} is
 	 * what upholds it, and re-encoding the result lands on the same two longs.
 	 */
-	LONG_NUMBER(LongNumberRange.class, false),
+	LONG_NUMBER(LongNumberRange.class),
 
 	/**
 	 * {@link BigDecimalNumberRange} — the two longs are the bounds' unscaled values at the index's
@@ -93,15 +92,17 @@ enum RangeKind {
 	 * rebuilt from them at that same scale. The fully-open {@code (Long.MIN_VALUE, Long.MAX_VALUE)} pair is the
 	 * shared {@link BigDecimalNumberRange#INFINITE} constant and is returned by reference.
 	 */
-	BIG_DECIMAL_NUMBER(BigDecimalNumberRange.class, false),
+	BIG_DECIMAL_NUMBER(BigDecimalNumberRange.class),
 
 	/**
-	 * {@link DateTimeRange} — the only kind that needs the {@code meta} array. Its open-bound sentinel is not a
-	 * constant but {@code LocalDateTime.MIN/MAX.atOffset(otherBound.getOffset()).toEpochSecond()}, so reproducing
-	 * either comparison long requires the zone offsets of both bounds; see {@link RangeValueColumn} for the layout
-	 * and for why the offset of a **closed** bound is load-bearing too.
+	 * {@link DateTimeRange} — its two comparison longs are the bounds' whole epoch milliseconds, and an open bound is
+	 * {@link DateTimeRange#OPEN_FROM_THRESHOLD} / {@link DateTimeRange#OPEN_TO_THRESHOLD}, the same
+	 * {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} pair the numeric kinds spend. A closed bound saturates one step
+	 * short of them, so the sentinels alone say which side is open and the bounds are rebuilt at UTC. This kind used
+	 * to need a third backing array for the two bounds' zone offsets; see {@link RangeValueColumn} for what made
+	 * that necessary and what removed it.
 	 */
-	DATE_TIME(DateTimeRange.class, true);
+	DATE_TIME(DateTimeRange.class);
 
 	/**
 	 * The concrete subtype this kind stores — the class {@code keyAt} rebuilds and the component type
@@ -109,15 +110,8 @@ enum RangeKind {
 	 */
 	@Nonnull private final Class<? extends Range<?>> type;
 
-	/**
-	 * Whether this kind needs the column's third ({@code meta}) array. Only {@link #DATE_TIME} does; for the five
-	 * numeric kinds the array stays parked on the shared empty constant for the column's whole life.
-	 */
-	private final boolean metaCarrying;
-
-	RangeKind(@Nonnull Class<? extends Range<?>> type, boolean metaCarrying) {
+	RangeKind(@Nonnull Class<? extends Range<?>> type) {
 		this.type = type;
-		this.metaCarrying = metaCarrying;
 	}
 
 	/**
@@ -128,15 +122,6 @@ enum RangeKind {
 	@Nonnull
 	Class<? extends Range<?>> type() {
 		return this.type;
-	}
-
-	/**
-	 * Returns whether this kind needs the column's {@code meta} array.
-	 *
-	 * @return whether a third array is materialized for this kind
-	 */
-	boolean isMetaCarrying() {
-		return this.metaCarrying;
 	}
 
 	/**

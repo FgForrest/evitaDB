@@ -51,7 +51,13 @@ import java.util.Objects;
  */
 @ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
 public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 3847290165472938105L;
+	// bumped from 3847290165472938105L when DateTimeRange moved to millisecond comparison granularity: the byte layout
+	// is unchanged, but a range index over DateTimeRange now persists epoch-MILLISECOND thresholds where the previous
+	// shape persisted epoch-seconds, and nothing in an untyped `long` says which. The released 2026.2 shape
+	// (…104L) is read - and rescaled - by FilterIndexStoragePartSerializer_2026_2; the intermediate …105L dev shape is
+	// deliberately left unregistered so a stale unreleased-dev catalog fails loud (and is regenerated) rather than
+	// having its second thresholds read as milliseconds, exactly as the HistogramIndexStoragePart bump does.
+	@Serial private static final long serialVersionUID = 3847290165472938106L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -158,6 +164,19 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
+	/**
+	 * Read-path provenance, never persisted: `true` when this part was decoded by a backward-compatible serializer of
+	 * a format written before {@link io.evitadb.dataType.DateTimeRange} moved from second to millisecond comparison
+	 * granularity. The {@link #rangeIndex} of such a part — and, when {@link #rangePaged}, the range leaf pages listed
+	 * on it — hold epoch-**second** thresholds and must be rescaled before the index goes live.
+	 *
+	 * It is a marker rather than a constructor argument because it describes **which reader produced this instance**,
+	 * not anything the record carries: the current serializer never sets it, every backward-compatible one does, and
+	 * a part built by the write path is millisecond-scaled by construction. Only a range index over `DateTimeRange`
+	 * is affected — a threshold is an untyped `long` shared with every `NumberRange` subtype — so the flag is a
+	 * necessary, never a sufficient, condition; the declared {@link #attributeType} decides the rest.
+	 */
+	@Getter @Setter private boolean secondGranularityRangeThresholds;
 
 	/**
 	 * Creates a fresh filter index part whose storage part PK is not yet assigned (computed before persistence) with a

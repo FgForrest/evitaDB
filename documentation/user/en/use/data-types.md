@@ -309,17 +309,21 @@ same precision, a value written as `2026-05-20T12:19:26.123456789Z` is stored as
 still found by a query written with the original, nano-precise value. Two values that differ only below the
 millisecond become indistinguishable — they compare equal, sort as ties and share one index entry.
 
-Two data types are deliberately left out:
+[DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
+precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
+sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
+but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
+strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
 
-- `LocalDate` carries no sub-day component, so there is nothing to truncate.
-- `DateTimeRange` keeps the sub-millisecond digits of its boundaries, because it compares, sorts and matches at
-  **second** granularity anyway — truncating to milliseconds would change nothing about how a range behaves.
+`LocalDate` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
 The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
 64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
 comfortably; only the JDK's own extreme sentinels — `LocalDateTime.MIN` / `LocalDateTime.MAX` and their
 `OffsetDateTime` counterparts — fall outside it and are rejected with an error naming the value and the supported
-range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a sentinel.
+range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a sentinel. A
+`DateTimeRange` boundary beyond that span is not rejected but clamped to it, which makes it behave exactly like an
+open-ended boundary.
 </LS>
 <LS to="c">
 evitaDB stores and matches temporal values at **millisecond** precision. A `DateTimeOffset`, `DateTime` or `TimeOnly`
@@ -333,17 +337,20 @@ same precision, a value written as `2026-05-20T12:19:26.1234567Z` is stored as `
 found by a query written with the original, more precise value. Two values that differ only below the millisecond
 become indistinguishable — they compare equal, sort as ties and share one index entry.
 
-Two data types are deliberately left out:
+[DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
+precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
+sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
+but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
+strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
 
-- `DateOnly` carries no sub-day component, so there is nothing to truncate.
-- `DateTimeRange` keeps the sub-millisecond digits of its boundaries, because it compares, sorts and matches at
-  **second** granularity anyway — truncating to milliseconds would change nothing about how a range behaves.
+`DateOnly` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
 The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
 64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
 comfortably; only extreme sentinel values fall outside it and are rejected with an error naming the value and the
 supported range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a
-sentinel.
+sentinel. A `DateTimeRange` boundary beyond that span is not rejected but clamped to it, which makes it behave
+exactly like an open-ended boundary.
 </LS>
 
 ### DateTimeRange
@@ -352,13 +359,15 @@ sentinel.
 The DateTimeRange represents a specific implementation of the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass> defining from and to boundaries
 by the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) data
-types. The offset date times are written in the ISO format.
+types. The offset date times are written in the ISO format. Both boundaries are compared at
+[millisecond precision](#millisecond-precision).
 </LS>
 <LS to="c">
 The DateTimeRange represents a specific implementation of the
 <SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass> defining from and to boundaries
 by the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset) data
-types. The offset date times are written in the ISO format.
+types. The offset date times are written in the ISO format. Both boundaries are compared at
+[millisecond precision](#millisecond-precision).
 </LS>
 
 **Range is written as:**

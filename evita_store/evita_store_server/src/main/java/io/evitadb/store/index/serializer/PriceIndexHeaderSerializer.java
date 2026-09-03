@@ -99,6 +99,39 @@ public final class PriceIndexHeaderSerializer {
 	}
 
 	/**
+	 * Reads the header exactly as {@link #read} does and then rescales the validity index from the epoch-**second**
+	 * thresholds every format written before release 2026.3 persisted onto the epoch-**millisecond** ones
+	 * {@link io.evitadb.dataType.DateTimeRange} compares at now.
+	 *
+	 * A price validity index needs no type routing: its thresholds are always
+	 * {@code DateTimeRange#getFrom()} / {@code getTo()} of a {@code PriceContract}'s validity (or the
+	 * `Long.MIN_VALUE`..`Long.MAX_VALUE` span an always-valid price is registered under, which the rescale maps onto
+	 * itself). That is what makes this the one range structure that can be rescaled unconditionally.
+	 *
+	 * The repair is passive: nothing is written back here, so every load of an untouched legacy catalog repeats it,
+	 * and the first flush of the price index persists the millisecond form under the current serial-version-uid —
+	 * after which this reader is no longer consulted for it. The validity index rides the price-index root record
+	 * inline (it is never paged), so root and content can never disagree about which scale they are in.
+	 *
+	 * @param kryo          the kryo instance
+	 * @param input         the source input
+	 * @param keyCompressor the key compressor used to resolve the price index key
+	 * @return the decoded header, its validity index rescaled to millisecond thresholds
+	 */
+	@Nonnull
+	public static PriceIndexHeader readWithSecondGranularityValidity(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input,
+		@Nonnull KeyCompressor keyCompressor
+	) {
+		final PriceIndexHeader header = read(kryo, input, keyCompressor);
+		return new PriceIndexHeader(
+			header.entityIndexPrimaryKey(), header.uniquePartId(), header.priceIndexKey(),
+			RangeIndex.rescaledFromSecondGranularity(header.validityIndex())
+		);
+	}
+
+	/**
 	 * The decoded header shared by both price-index parts.
 	 *
 	 * @param entityIndexPrimaryKey primary key of the owning entity index

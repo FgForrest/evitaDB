@@ -162,9 +162,9 @@ class RangeValueColumnTest {
 	 * Builds a deterministic ascending {@link DateTimeRange} whose two bounds carry **different** zone offsets, both
 	 * varying with the ordinal.
 	 *
-	 * Both halves of the `meta` word therefore differ from slot to slot and from each other, so a lockstep failure
-	 * that dropped the word, carried the wrong slot's word or swapped its two halves all read back as a wrong offset
-	 * — none of which the range's own equality can see.
+	 * The two offsets differ from slot to slot and from each other, so the two comparison longs a slot holds are not
+	 * derivable from one another and a lockstep failure that carried one array's slot without the other's reads back
+	 * as a different range.
 	 *
 	 * @param ordinal the ordinal to derive the range from
 	 * @return an ascending, deterministic date-time range
@@ -178,27 +178,58 @@ class RangeValueColumnTest {
 	}
 
 	/**
-	 * Asserts a slot decodes to a date-time range carrying exactly the expected range's two zone offsets — the one
-	 * property {@link DateTimeRange} equality cannot see, and therefore the only one that fails when a `meta` word is
-	 * lost, misaligned or half-swapped.
+	 * Re-renders a range with every closed bound moved to UTC, naming the very same instants. This is the form the
+	 * column rebuilds a key in — its two comparison longs identify instants and carry no offset — so it is the
+	 * oracle a reconstruction's rendering is checked against.
+	 *
+	 * @param range the range to re-render
+	 * @return the same range with each closed bound expressed at UTC
+	 */
+	@Nonnull
+	private static DateTimeRange atUtc(@Nonnull DateTimeRange range) {
+		final OffsetDateTime preciseFrom = range.getPreciseFrom();
+		final OffsetDateTime preciseTo = range.getPreciseTo();
+		if (preciseFrom == null) {
+			return DateTimeRange.until(preciseTo.withOffsetSameInstant(ZoneOffset.UTC));
+		} else if (preciseTo == null) {
+			return DateTimeRange.since(preciseFrom.withOffsetSameInstant(ZoneOffset.UTC));
+		} else {
+			return DateTimeRange.between(
+				preciseFrom.withOffsetSameInstant(ZoneOffset.UTC),
+				preciseTo.withOffsetSameInstant(ZoneOffset.UTC)
+			);
+		}
+	}
+
+	/**
+	 * Asserts a slot decodes to the expected range: the same two instants — read off the rebuilt bound objects,
+	 * which equality never looks at — both rendered at UTC, which is the reconstruction contract.
 	 *
 	 * @param column   the column to read
 	 * @param index    the slot to read
 	 * @param expected the range the slot must hold
 	 * @param where    what had just been done to the column, for the failure message
 	 */
-	private static void assertBoundOffsetsAt(
+	private static void assertRebuiltBoundsAt(
 		@Nonnull ValueColumn<DateTimeRange> column, int index, @Nonnull DateTimeRange expected, @Nonnull String where
 	) {
 		final DateTimeRange decoded = column.keyAt(index);
 		assertEquals(expected, decoded, "slot " + index + " must hold the expected range (" + where + ")");
 		assertEquals(
-			expected.getPreciseFrom().getOffset(), decoded.getPreciseFrom().getOffset(),
-			"from-bound offset lost at slot " + index + " (" + where + ")"
+			expected.getPreciseFrom().toInstant(), decoded.getPreciseFrom().toInstant(),
+			"from-bound instant moved at slot " + index + " (" + where + ")"
 		);
 		assertEquals(
-			expected.getPreciseTo().getOffset(), decoded.getPreciseTo().getOffset(),
-			"to-bound offset lost at slot " + index + " (" + where + ")"
+			expected.getPreciseTo().toInstant(), decoded.getPreciseTo().toInstant(),
+			"to-bound instant moved at slot " + index + " (" + where + ")"
+		);
+		assertEquals(
+			ZoneOffset.UTC, decoded.getPreciseFrom().getOffset(),
+			"a rebuilt from-bound is always at UTC at slot " + index + " (" + where + ")"
+		);
+		assertEquals(
+			ZoneOffset.UTC, decoded.getPreciseTo().getOffset(),
+			"a rebuilt to-bound is always at UTC at slot " + index + " (" + where + ")"
 		);
 	}
 
@@ -422,7 +453,8 @@ class RangeValueColumnTest {
 		@Test
 		@DisplayName("date-time ranges round-trip across the whole zone-offset span, both bounds and both open shapes")
 		void shouldRoundTripDateTimeRangesAcrossEveryOffset() {
-			// ZoneOffset runs to +-18:00, not +14:00 / -12:00 - the extremes are what a naive int-packing would clip
+			// ZoneOffset runs to +-18:00, not +14:00 / -12:00 - the extremes are what a bound reconstruction that
+			// went through a fixed offset instead of the stored instant would land in the wrong place
 			final ZoneOffset maxOffset = ZoneOffset.ofTotalSeconds(18 * 3600);
 			final ZoneOffset minOffset = ZoneOffset.ofTotalSeconds(-18 * 3600);
 			final ZoneOffset negativeHalfHour = ZoneOffset.ofTotalSeconds(-1800);
@@ -443,7 +475,8 @@ class RangeValueColumnTest {
 
 			final ValueColumn<DateTimeRange> column = assertRoundTrip(RangeKind.DATE_TIME, 0, ranges);
 
-			// the offsets themselves survive, not only the comparison longs — that is what the `meta` word buys
+			// which bound is open survives, and every closed bound names the very instant it was written with — the
+			// offsets it was written AT are not stored, so a rebuilt bound is always at UTC
 			for (int i = 0; i < ranges.size(); i++) {
 				final DateTimeRange original = ranges.get(i);
 				final DateTimeRange decoded = column.keyAt(i);
@@ -457,27 +490,34 @@ class RangeValueColumnTest {
 				);
 				if (original.getPreciseFrom() != null) {
 					assertEquals(
-						original.getPreciseFrom().getOffset(), decoded.getPreciseFrom().getOffset(),
-						"from-bound offset mismatch at slot " + i
+						original.getPreciseFrom().toInstant(), decoded.getPreciseFrom().toInstant(),
+						"from-bound instant mismatch at slot " + i
+					);
+					assertEquals(
+						ZoneOffset.UTC, decoded.getPreciseFrom().getOffset(), "rebuilt at UTC at slot " + i
 					);
 				}
 				if (original.getPreciseTo() != null) {
 					assertEquals(
-						original.getPreciseTo().getOffset(), decoded.getPreciseTo().getOffset(),
-						"to-bound offset mismatch at slot " + i
+						original.getPreciseTo().toInstant(), decoded.getPreciseTo().toInstant(),
+						"to-bound instant mismatch at slot " + i
+					);
+					assertEquals(
+						ZoneOffset.UTC, decoded.getPreciseTo().getOffset(), "rebuilt at UTC at slot " + i
 					);
 				}
 			}
 		}
 
 		@Test
-		@DisplayName("a nanosecond-bearing bound is truncated to the second, and nothing that compares it can see it")
+		@DisplayName("a sub-millisecond bound is truncated and re-anchored at UTC, invisibly to every comparison")
 		void shouldTruncateSubSecondBoundsInvisibly() {
-			// `DateTimeRange` keeps its bounds as OffsetDateTime but derives both comparison longs with
-			// toEpochSecond(), and evitaDB does not truncate range bounds on input - so a rebuilt range carries zero
-			// nanos where the original may have carried some. Every comparison in the engine is decided by the long
-			// pair (equals / hashCode are generated from it, compareTo is it, the range index stores it), so this is
-			// a change the write path cannot observe. Pinned here so it stays that way
+			// `DateTimeRange` keeps its bounds as OffsetDateTime but derives both comparison longs as whole epoch
+			// MILLISECONDS, and evitaDB does not truncate range bounds on input - so a rebuilt range carries a
+			// truncated nanosecond field, and a UTC offset, where the original may have carried others. Every
+			// comparison in the engine is decided by the long pair (equals / hashCode are generated from it,
+			// compareTo is it, the range index stores it), so this is a change the write path cannot observe.
+			// Pinned here so it stays that way
 			final ZoneOffset offset = ZoneOffset.ofHours(3);
 			final OffsetDateTime nanoBearingFrom =
 				LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_456_789).atOffset(offset);
@@ -489,11 +529,20 @@ class RangeValueColumnTest {
 			column.insertKeyAt(0, original);
 			final DateTimeRange decoded = column.keyAt(0);
 
-			// the nanos really are gone from the precise bounds ...
+			// the sub-millisecond digits really are gone from the precise bounds, and the offset with them ...
 			assertEquals(123_456_789, original.getPreciseFrom().getNano());
-			assertEquals(0, decoded.getPreciseFrom().getNano(), "the rebuilt bound carries whole seconds");
-			assertEquals(0, decoded.getPreciseTo().getNano(), "the rebuilt bound carries whole seconds");
-			assertEquals(offset, decoded.getPreciseFrom().getOffset());
+			assertEquals(
+				123_000_000, decoded.getPreciseFrom().getNano(), "the rebuilt bound carries whole milliseconds"
+			);
+			assertEquals(
+				987_000_000, decoded.getPreciseTo().getNano(), "the rebuilt bound carries whole milliseconds"
+			);
+			assertNotEquals(offset, ZoneOffset.UTC, "the fixture must not write at UTC or the next line is vacuous");
+			assertEquals(ZoneOffset.UTC, decoded.getPreciseFrom().getOffset(), "and is re-anchored at UTC");
+			assertEquals(
+				original.getPreciseFrom().toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS),
+				decoded.getPreciseFrom().toInstant(), "naming the same instant, to the millisecond"
+			);
 
 			// ... and invisible to everything that compares ranges
 			assertEquals(original.getFrom(), decoded.getFrom());
@@ -515,17 +564,21 @@ class RangeValueColumnTest {
 		@DisplayName("a sub-second range whose two bounds carry DIFFERENT offsets rebuilds rather than throwing")
 		void shouldRebuildASubSecondRangeWhoseBoundsCarryDifferentOffsets() {
 			// the sibling above uses ONE offset on both bounds and therefore cannot reach this case. Here the two
-			// bounds name the same epoch second at two different offsets, so truncation collapses them to one long -
-			// a zero-width range expressed at two offsets. `DateTimeRange` used to refuse exactly that on the way
-			// back in (`assertFromLesserThanTo` compared the local date-time and the offset, and nanos were what made
-			// the ORIGINAL legal), so `keyAt` threw for a value the write path had happily indexed - and `keyAt` is
-			// reached by every dirtied leaf inside a transaction, by the array-delta read and by the reload check.
-			// The assertion now compares instants, which is the order this type sorts and compares by
+			// bounds name the same epoch MILLISECOND at two different offsets, so truncation collapses them to one
+			// long - a zero-width range whose two bounds were written at two offsets. `DateTimeRange` used to refuse
+			// exactly that on the way back in (`assertFromLesserThanTo` compared the local date-time and the offset,
+			// and the sub-millisecond tail was what made the ORIGINAL legal), so `keyAt` threw for a value the write
+			// path had happily indexed - and `keyAt` is reached by every dirtied leaf inside a transaction, by the
+			// array-delta read and by the reload check. The assertion now compares instants, which is the order this
+			// type sorts and compares by
 			final OffsetDateTime from = LocalDateTime.of(2024, 1, 1, 12, 0, 0).atOffset(ZoneOffset.ofHours(2));
 			final OffsetDateTime to =
-				LocalDateTime.of(2024, 1, 1, 11, 0, 0, 500_000_000).atOffset(ZoneOffset.ofHours(1));
+				LocalDateTime.of(2024, 1, 1, 11, 0, 0, 999_999).atOffset(ZoneOffset.ofHours(1));
 			final DateTimeRange original = DateTimeRange.between(from, to);
-			assertEquals(original.getFrom(), original.getTo(), "the two bounds must land on one epoch second");
+			assertNotEquals(
+				from.toInstant(), to.toInstant(), "the two bounds must be distinct instants below the millisecond"
+			);
+			assertEquals(original.getFrom(), original.getTo(), "the two bounds must land on one epoch millisecond");
 
 			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
 			column.insertKeyAt(0, original);
@@ -535,10 +588,14 @@ class RangeValueColumnTest {
 			assertEquals(original.getFrom(), decoded.getFrom());
 			assertEquals(original.getTo(), decoded.getTo());
 			assertEquals(
-				ZoneOffset.ofHours(2), decoded.getPreciseFrom().getOffset(), "the from-bound offset must survive"
+				ZoneOffset.UTC, decoded.getPreciseFrom().getOffset(), "a rebuilt from-bound is always at UTC"
 			);
 			assertEquals(
-				ZoneOffset.ofHours(1), decoded.getPreciseTo().getOffset(), "the to-bound offset must survive"
+				ZoneOffset.UTC, decoded.getPreciseTo().getOffset(), "a rebuilt to-bound is always at UTC"
+			);
+			assertEquals(
+				decoded.getPreciseFrom(), decoded.getPreciseTo(),
+				"a zero-width range rebuilds as one moment written twice, which its own bound assertion admits"
 			);
 			// and the rebuilt range is still a usable key - the tree finds the stored slot with it
 			assertTrue(
@@ -593,25 +650,24 @@ class RangeValueColumnTest {
 	}
 
 	/**
-	 * The `meta` word has to travel with its key through **every** array operation, and nothing that compares ranges
-	 * can tell whether it did.
+	 * The two bound arrays have to travel **in lockstep** through every array operation, and each of these tests
+	 * drives one of the mutators the round-trip nest above does not reach.
 	 *
-	 * {@link DateTimeRange}'s `equals` / `hashCode` / `compareTo` are generated from the two comparison longs alone,
-	 * and a **closed** bound's `toEpochSecond()` is offset-independent — so a range rebuilt at the wrong offset is
-	 * `equals` to the original and sorts identically to it. Every equality-based assertion in the suite (the shared
-	 * sizing battery, the tree oracle, the round-trip nest above) is therefore blind to a `meta` word dropped or
-	 * carried out of step on every path but {@code insertKeyAt}, which is the one the round-trip nest covers. These
-	 * tests read the offsets back instead, so deleting a `meta` line from any of the remaining mutators fails here.
+	 * A slot's lower and upper bound are independent values here — the fixture gives every range its own pair — so a
+	 * mutator that shifted, copied or trimmed one array without the other assembles a key out of two different
+	 * slots, which {@link DateTimeRange} equality does see: it is generated from exactly that pair. Each assertion
+	 * also reads the rebuilt bound objects back, which equality never looks at, and pins the UTC reconstruction
+	 * contract.
 	 */
 	@Nested
-	@DisplayName("the packed offsets travel with their key")
+	@DisplayName("the two bound arrays travel in lockstep")
 	class MetaLockstepTest {
 
 		@Test
 		@DisplayName("bulkLoad carries every key's packed offsets into the arrays it allocates")
 		void shouldPreserveBoundOffsetsWhenBulkLoaded() {
 			// the reload path: `InvertedIndex.fromPersistedPages` fills every leaf of a persisted index this way, so
-			// a `meta` word missed here is a whole catalog reloaded at the wrong offsets
+			// a bound array missed here is a whole catalog reloaded under the wrong keys
 			final DateTimeRange[] loaded = new DateTimeRange[6];
 			for (int i = 0; i < loaded.length; i++) {
 				loaded[i] = offsetBearingRange(i);
@@ -621,7 +677,7 @@ class RangeValueColumnTest {
 
 			assertEquals(loaded.length, column.size());
 			for (int i = 0; i < loaded.length; i++) {
-				assertBoundOffsetsAt(column, i, loaded[i], "bulkLoad");
+				assertRebuiltBoundsAt(column, i, loaded[i], "bulkLoad");
 			}
 		}
 
@@ -629,7 +685,7 @@ class RangeValueColumnTest {
 		@DisplayName("an empty bulk load leaves a date-time column on the shared empty arrays and still round-trips")
 		void shouldBulkLoadAnEmptyDateTimeColumn() {
 			// `bulkLoad` is the one site in the column that infers the kind rather than reading it - it branches on
-			// the length of the `meta` array it has just allocated, and a zero-length allocation parks that array on
+			// the length of the second array it has just allocated, and a zero-length allocation parks that array on
 			// the shared empty constant, so an empty date-time load takes the NUMERIC arm. Harmless only because
 			// that arm's loop body never runs; this pins the observable shape a kind-based branch must preserve
 			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
@@ -637,13 +693,13 @@ class RangeValueColumnTest {
 			assertEquals(0, column.size());
 			assertEquals(
 				columnOf(RangeKind.DATE_TIME, 0).getHeapSizeInBytes(), column.getHeapSizeInBytes(),
-				"an empty load must leave all three arrays on the shared empty constant"
+				"an empty load must leave both arrays on the shared empty constant"
 			);
 
 			// and the column is still a date-time column afterwards, offsets included
 			final DateTimeRange range = offsetBearingRange(3);
 			column.insertKeyAt(0, range);
-			assertBoundOffsetsAt(column, 0, range, "insert after an empty bulkLoad");
+			assertRebuiltBoundsAt(column, 0, range, "insert after an empty bulkLoad");
 		}
 
 		@Test
@@ -659,16 +715,16 @@ class RangeValueColumnTest {
 			source.copyRangeTo(1, target, 0, 3);
 			assertEquals(3, target.size());
 			for (int i = 0; i < 3; i++) {
-				assertBoundOffsetsAt(target, i, offsetBearingRange(i + 1), "cross-column copyRangeTo");
+				assertRebuiltBoundsAt(target, i, offsetBearingRange(i + 1), "cross-column copyRangeTo");
 			}
 
 			// and in place and overlapping - the leaf's own right shift ahead of an insert
 			source.copyRangeTo(0, source, 2, 4);
 			assertEquals(6, source.size());
-			assertBoundOffsetsAt(source, 0, offsetBearingRange(0), "in-place right shift");
-			assertBoundOffsetsAt(source, 1, offsetBearingRange(1), "in-place right shift");
+			assertRebuiltBoundsAt(source, 0, offsetBearingRange(0), "in-place right shift");
+			assertRebuiltBoundsAt(source, 1, offsetBearingRange(1), "in-place right shift");
 			for (int i = 0; i < 4; i++) {
-				assertBoundOffsetsAt(source, i + 2, offsetBearingRange(i), "in-place right shift");
+				assertRebuiltBoundsAt(source, i + 2, offsetBearingRange(i), "in-place right shift");
 			}
 		}
 
@@ -680,22 +736,22 @@ class RangeValueColumnTest {
 				column.insertKeyAt(i, offsetBearingRange(i));
 			}
 
-			// `removeKeyAt` left-shifts the whole tail, so every surviving key changes slot and its `meta` word has
+			// `removeKeyAt` left-shifts the whole tail, so every surviving key changes slot and its upper bound has
 			// to change slot with it - a shift applied to two arrays out of three leaves the offsets one slot out of
 			// step, which every equality assertion in the suite reads as correct
 			column.removeKeyAt(1);
 			assertEquals(7, column.size());
-			assertBoundOffsetsAt(column, 0, offsetBearingRange(0), "removeKeyAt");
+			assertRebuiltBoundsAt(column, 0, offsetBearingRange(0), "removeKeyAt");
 			for (int i = 1; i < 7; i++) {
-				assertBoundOffsetsAt(column, i, offsetBearingRange(i + 1), "removeKeyAt");
+				assertRebuiltBoundsAt(column, i, offsetBearingRange(i + 1), "removeKeyAt");
 			}
 
 			// the MVCC decouple copies the backing arrays; the copy has to carry the third one too
 			final ValueColumn<DateTimeRange> copy = column.duplicate();
 			assertEquals(7, copy.size());
-			assertBoundOffsetsAt(copy, 0, offsetBearingRange(0), "duplicate");
+			assertRebuiltBoundsAt(copy, 0, offsetBearingRange(0), "duplicate");
 			for (int i = 1; i < 7; i++) {
-				assertBoundOffsetsAt(copy, i, offsetBearingRange(i + 1), "duplicate");
+				assertRebuiltBoundsAt(copy, i, offsetBearingRange(i + 1), "duplicate");
 			}
 
 			// `clearAt` truncates the live run, after which `trimmed` reallocates the survivors into a shorter backing
@@ -704,8 +760,8 @@ class RangeValueColumnTest {
 			final ValueColumn<DateTimeRange> trimmed = copy.trimmed();
 			assertNotSame(copy, trimmed, "two live keys in eight slots must be worth a trim");
 			assertEquals(2, trimmed.size());
-			assertBoundOffsetsAt(trimmed, 0, offsetBearingRange(0), "clearAt + trimmed");
-			assertBoundOffsetsAt(trimmed, 1, offsetBearingRange(2), "clearAt + trimmed");
+			assertRebuiltBoundsAt(trimmed, 0, offsetBearingRange(0), "clearAt + trimmed");
+			assertRebuiltBoundsAt(trimmed, 1, offsetBearingRange(2), "clearAt + trimmed");
 		}
 	}
 
@@ -762,13 +818,15 @@ class RangeValueColumnTest {
 		}
 
 		@Test
-		@DisplayName("an open range meeting closed ranges at other offsets — the case a single stored offset fails")
+		@DisplayName("an open range meeting a closed one at another offset — the case that used to need the offsets")
 		void shouldConsolidateAnOpenRangeAgainstClosedRangesAtOtherOffsets() {
-			// THE counterexample. `consolidateRange` calls cloneWithDifferentBounds(null, B.getPreciseTo()) when the
-			// open range A wins the lower bound and the closed range B wins the upper one, and `DateTimeRange` then
-			// recomputes the open side's sentinel from **B's** offset. Store B with no offset (or with A's) and
-			// rebuild it at UTC, and the consolidated lower threshold moves by B's offset in seconds — after which
-			// `FilterIndex.removeRecordDelta` asks the range index to drop a threshold no `addRange` ever inserted
+			// This was THE counterexample for a column that stored no offsets. `consolidateRange` calls
+			// cloneWithDifferentBounds(null, B.getPreciseTo()) when the open range A wins the lower bound and the
+			// closed range B wins the upper one, and `DateTimeRange` used to recompute the open side's sentinel from
+			// **B's** offset — so a B rebuilt at the wrong offset moved the consolidated lower threshold, after
+			// which `FilterIndex.removeRecordDelta` asked the range index to drop a threshold no `addRange` ever
+			// inserted. It is settled by construction now: the open-bound sentinel is a CONSTANT, so no offset can
+			// reach it. This test is what keeps that true
 			final ZoneOffset twoHours = ZoneOffset.ofHours(2);
 			final ZoneOffset fiveHours = ZoneOffset.ofHours(5);
 			final DateTimeRange openFrom =
@@ -783,18 +841,26 @@ class RangeValueColumnTest {
 				RangeKind.DATE_TIME, 0, new DateTimeRange[]{openFrom, closed}
 			);
 
-			// and the threshold the invariant protects really does depend on the CLOSED range's offset: rebuilding
-			// that range at UTC instead would shift the consolidated lower bound by five hours
-			final long atFiveHours = LocalDateTime.MIN.atOffset(fiveHours).toEpochSecond();
-			final long atUtc = LocalDateTime.MIN.atOffset(ZoneOffset.UTC).toEpochSecond();
-			assertNotEquals(
-				atFiveHours, atUtc,
-				"if these agreed the counterexample would be vacuous — the open-bound sentinel is offset-dependent"
+			// the merged survivor really is one-sided (so the branch above is the one that ran), and its lower
+			// threshold is the offset-independent constant rather than anything derived from either range's offset
+			final DateTimeRange[] consolidated = Range.consolidateRange(new DateTimeRange[]{openFrom, closed});
+			assertEquals(1, consolidated.length, "the two ranges must merge into one");
+			assertNull(consolidated[0].getPreciseFrom(), "the survivor keeps the open lower bound");
+			assertEquals(
+				DateTimeRange.OPEN_FROM_THRESHOLD, consolidated[0].getFrom(),
+				"the open lower threshold is a constant, not a function of the surviving bound's offset"
 			);
-			final DateTimeRange[] consolidated =
-				Range.consolidateRange(new DateTimeRange[]{openFrom, closed});
-			assertEquals(1, consolidated.length);
-			assertEquals(atFiveHours, consolidated[0].getFrom());
+			// the same merge with the CLOSED range moved to UTC lands on the same two thresholds — which is exactly
+			// what makes storing its offset unnecessary, and what the assertion above would miss on its own
+			final DateTimeRange closedAtUtc = DateTimeRange.between(
+				closed.getPreciseFrom().withOffsetSameInstant(ZoneOffset.UTC),
+				closed.getPreciseTo().withOffsetSameInstant(ZoneOffset.UTC)
+			);
+			final DateTimeRange[] consolidatedAtUtc =
+				Range.consolidateRange(new DateTimeRange[]{openFrom, closedAtUtc});
+			assertEquals(1, consolidatedAtUtc.length);
+			assertEquals(consolidated[0].getFrom(), consolidatedAtUtc[0].getFrom());
+			assertEquals(consolidated[0].getTo(), consolidatedAtUtc[0].getTo());
 		}
 
 		@Test
@@ -1008,7 +1074,7 @@ class RangeValueColumnTest {
 			}
 
 			// the key type is a compile-time argument only, so a numeric column can be named at this type - and it
-			// is exactly the column that has no `meta` array to receive the offsets these three keys carry
+			// is exactly the column whose `keyAt` would rebuild these three keys as the wrong subtype
 			final ValueColumn<DateTimeRange> otherKind = columnOf(RangeKind.INTEGER_NUMBER, 0);
 			assertThrows(IllegalArgumentException.class, () -> source.copyRangeTo(0, otherKind, 0, 3));
 			assertEquals(0, otherKind.size(), "a refused copy must leave the destination untouched");
@@ -1174,7 +1240,7 @@ class RangeValueColumnTest {
 	}
 
 	/**
-	 * Drives a real {@link TransactionalBucketBPlusTree} whose leaves use the range column, so the three-array
+	 * Drives a real {@link TransactionalBucketBPlusTree} whose leaves use the range column, so the two-array
 	 * lockstep runs through split, merge, steal and an MVCC commit rather than only through direct column calls.
 	 */
 	@Nested
@@ -1247,14 +1313,15 @@ class RangeValueColumnTest {
 			verifyConsistent(tree);
 
 			// the oracle compares keys with `equals`, which `DateTimeRange` generates from its two comparison longs
-			// alone - blind to a `meta` word that a split, a merge or a steal left behind. `toString` renders both
-			// bounds as ISO_OFFSET_DATE_TIME, so comparing it reads the offsets back over the whole tree at once
+			// alone - blind to WHICH bound objects a split, a merge or a steal rebuilt. `toString` renders both
+			// bounds as ISO_OFFSET_DATE_TIME, so comparing it reads the reconstruction back over the whole tree at
+			// once, against the oracle key re-rendered at UTC
 			final BucketCursor<DateTimeRange> cursor = tree.cursor();
 			for (final DateTimeRange expected : oracle.keySet()) {
 				assertTrue(cursor.next(), "the tree ran out of buckets before the oracle did");
 				assertEquals(
-					expected.toString(), cursor.value().toString(),
-					"a bucket value must render identically to the oracle key, zone offsets included"
+					atUtc(expected).toString(), cursor.value().toString(),
+					"a bucket value must render as the same two instants the oracle key names"
 				);
 			}
 			assertFalse(cursor.next(), "the tree holds more buckets than the oracle");

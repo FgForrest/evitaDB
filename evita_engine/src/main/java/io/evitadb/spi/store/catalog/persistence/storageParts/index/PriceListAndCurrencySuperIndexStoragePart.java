@@ -51,7 +51,11 @@ import java.io.Serial;
  */
 @NotThreadSafe
 public class PriceListAndCurrencySuperIndexStoragePart extends PriceListAndCurrencyIndexStoragePart {
-	@Serial private static final long serialVersionUID = 2938472615049182736L;
+	// bumped from 2938472615049182736L when DateTimeRange moved to millisecond comparison granularity: the byte layout
+	// is unchanged, but the validity RangeIndex now persists epoch-MILLISECOND thresholds where the previous shape
+	// persisted epoch-seconds. The previous uid is the one release 2026.2 shipped and is read - and rescaled - by
+	// PriceListAndCurrencySuperIndexStoragePartSerializer_2026_2.
+	@Serial private static final long serialVersionUID = 2938472615049182737L;
 	/**
 	 * Empty leaf-page list shared by every `SINGLE`-shaped part (no paged leaves).
 	 */

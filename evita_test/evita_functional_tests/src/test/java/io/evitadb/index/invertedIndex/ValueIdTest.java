@@ -1416,7 +1416,7 @@ class ValueIdTest {
 			assertTrue(index.isPaged(), "The fixture must be large enough to be persisted as leaf pages.");
 
 			// ids are minted in insertion order, and the value each one names must survive every split the tree
-			// performed after it was stamped — including the three-array lockstep of the range column
+			// performed after it was stamped — including the two-array lockstep of the range column
 			for (int i = 0; i < valueCount; i++) {
 				final int valueId = index.getValueId(range(i));
 				assertNotEquals(-1, valueId, "value " + i + " lost its id across the splits");

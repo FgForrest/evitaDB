@@ -90,8 +90,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = between(getOffsetDateTime(1), getOffsetDateTime(2));
 			assertEquals(getOffsetDateTime(1), range.getPreciseFrom());
 			assertEquals(getOffsetDateTime(2), range.getPreciseTo());
-			assertEquals(1609514565L, range.getFrom());
-			assertEquals(1609600965L, range.getTo());
+			assertEquals(1609514565000L, range.getFrom());
+			assertEquals(1609600965000L, range.getTo());
 			assertEquals("[2021-01-01T12:22:45-03:00,2021-01-02T12:22:45-03:00]", range.toString());
 			assertEquals(range, between(getOffsetDateTime(1), getOffsetDateTime(2)));
 			assertNotSame(range, between(getOffsetDateTime(1), getOffsetDateTime(2)));
@@ -107,8 +107,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = since(getOffsetDateTime(1));
 			assertEquals(getOffsetDateTime(1), range.getPreciseFrom());
 			assertNull(range.getPreciseTo());
-			assertEquals(1609514565L, range.getFrom());
-			assertEquals(31556889832791599L, range.getTo());
+			assertEquals(1609514565000L, range.getFrom());
+			assertEquals(Long.MAX_VALUE, range.getTo(), "an absent upper bound is the offset-independent open sentinel");
 			assertEquals("[2021-01-01T12:22:45-03:00,]", range.toString());
 			assertEquals(range, since(getOffsetDateTime(1)));
 			assertNotSame(range, since(getOffsetDateTime(1)));
@@ -123,8 +123,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = until(getOffsetDateTime(1));
 			assertEquals(getOffsetDateTime(1), range.getPreciseTo());
 			assertNull(range.getPreciseFrom());
-			assertEquals(1609514565L, range.getTo());
-			assertEquals(-31557014135586000L, range.getFrom());
+			assertEquals(1609514565000L, range.getTo());
+			assertEquals(Long.MIN_VALUE, range.getFrom(), "an absent lower bound is the offset-independent open sentinel");
 			assertEquals("[,2021-01-01T12:22:45-03:00]", range.toString());
 			assertEquals(range, until(getOffsetDateTime(1)));
 			assertNotSame(range, until(getOffsetDateTime(1)));
@@ -144,8 +144,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = between(getLocalDateTime(1), getLocalDateTime(2), getZoneOffset());
 			assertEquals(getLocalDateTime(1).atOffset(getZoneOffset()), range.getPreciseFrom());
 			assertEquals(getLocalDateTime(2).atOffset(getZoneOffset()), range.getPreciseTo());
-			assertEquals(1609514565L, range.getFrom());
-			assertEquals(1609600965L, range.getTo());
+			assertEquals(1609514565000L, range.getFrom());
+			assertEquals(1609600965000L, range.getTo());
 			assertEquals("[2021-01-01T12:22:45-03:00,2021-01-02T12:22:45-03:00]", range.toString());
 			assertEquals(range, between(getLocalDateTime(1), getLocalDateTime(2), getZoneOffset()));
 			assertNotSame(range, between(getLocalDateTime(1), getLocalDateTime(2), getZoneOffset()));
@@ -161,8 +161,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = since(getLocalDateTime(1), getZoneOffset());
 			assertEquals(getLocalDateTime(1).atOffset(getZoneOffset()), range.getPreciseFrom());
 			assertNull(range.getPreciseTo());
-			assertEquals(1609514565L, range.getFrom());
-			assertEquals(31556889832791599L, range.getTo());
+			assertEquals(1609514565000L, range.getFrom());
+			assertEquals(Long.MAX_VALUE, range.getTo(), "an absent upper bound is the offset-independent open sentinel");
 			assertEquals("[2021-01-01T12:22:45-03:00,]", range.toString());
 			assertEquals(range, since(getLocalDateTime(1), getZoneOffset()));
 			assertNotSame(range, since(getLocalDateTime(1), getZoneOffset()));
@@ -177,8 +177,8 @@ class DateTimeRangeTest {
 			final DateTimeRange range = until(getLocalDateTime(1), getZoneOffset());
 			assertEquals(getLocalDateTime(1).atOffset(getZoneOffset()), range.getPreciseTo());
 			assertNull(range.getPreciseFrom());
-			assertEquals(1609514565L, range.getTo());
-			assertEquals(-31557014135586000L, range.getFrom());
+			assertEquals(1609514565000L, range.getTo());
+			assertEquals(Long.MIN_VALUE, range.getFrom(), "an absent lower bound is the offset-independent open sentinel");
 			assertEquals("[,2021-01-01T12:22:45-03:00]", range.toString());
 			assertEquals(range, until(getLocalDateTime(1), getZoneOffset()));
 			assertNotSame(range, until(getLocalDateTime(1), getZoneOffset()));
@@ -436,6 +436,109 @@ class DateTimeRangeTest {
 		void shouldRejectCloneWithBothBoundsNull() {
 			final DateTimeRange original = between(getOffsetDateTime(1), getOffsetDateTime(5));
 			assertThrows(IllegalArgumentException.class, () -> original.cloneWithDifferentBounds(null, null));
+		}
+	}
+
+	/**
+	 * The comparison scale itself: whole epoch milliseconds, with two offset-independent constants standing in for
+	 * an absent bound. Ranges used to compare at whole seconds and to derive an open bound's value from the OTHER
+	 * bound's zone offset, so these are the properties that changed.
+	 */
+	@Nested
+	@DisplayName("Millisecond comparison scale")
+	class MillisecondComparisonTest {
+
+		@Test
+		@DisplayName("Should compare at millisecond granularity")
+		void shouldCompareAtMillisecondGranularity() {
+			final OffsetDateTime base = OffsetDateTime.parse("2026-05-20T12:19:26.123Z");
+			final DateTimeRange first = between(base, base.plusDays(1));
+			// half a second apart: one range under the old whole-second scale, two under this one
+			final DateTimeRange halfASecondLater = between(base.plusNanos(500_000_000L), base.plusDays(1));
+
+			assertNotEquals(first, halfASecondLater, "ranges half a second apart are no longer the same range");
+			assertNotEquals(first.hashCode(), halfASecondLater.hashCode());
+			assertEquals(-1, Integer.signum(first.compareTo(halfASecondLater)), "and they order by the lower bound");
+			assertEquals(
+				first.getFrom() + 500L, halfASecondLater.getFrom(),
+				"the two lower thresholds differ by exactly 500 milliseconds"
+			);
+
+			// ... but below the millisecond they still collapse, which is the guarantee every other temporal type
+			// carries and the reason the index can key a range on two longs
+			final DateTimeRange aNanosecondLater = between(base.plusNanos(1L), base.plusDays(1));
+			assertEquals(first, aNanosecondLater, "ranges a nanosecond apart are one range");
+			assertEquals(first.getFrom(), aNanosecondLater.getFrom());
+		}
+
+		@Test
+		@DisplayName("Should give an absent bound an offset-independent constant")
+		void shouldGiveAnAbsentBoundAnOffsetIndependentConstant() {
+			final OffsetDateTime moment = OffsetDateTime.parse("2026-05-20T12:19:26.123Z");
+			// the SAME instant expressed at three different offsets: an absent bound used to take a different
+			// numeric value in each of these, so the three ranges were not equal to one another
+			final DateTimeRange atUtc = until(moment);
+			final DateTimeRange atPlusTwo = until(moment.withOffsetSameInstant(ZoneOffset.ofHours(2)));
+			final DateTimeRange atMinusFive = until(moment.withOffsetSameInstant(ZoneOffset.ofHours(-5)));
+
+			assertEquals(DateTimeRange.OPEN_FROM_THRESHOLD, atUtc.getFrom());
+			assertEquals(DateTimeRange.OPEN_FROM_THRESHOLD, atPlusTwo.getFrom());
+			assertEquals(DateTimeRange.OPEN_FROM_THRESHOLD, atMinusFive.getFrom());
+			assertEquals(atUtc, atPlusTwo, "one instant written at two offsets is one open-ended range");
+			assertEquals(atUtc, atMinusFive);
+			assertEquals(atUtc.hashCode(), atPlusTwo.hashCode());
+
+			final DateTimeRange sinceAtUtc = since(moment);
+			final DateTimeRange sinceAtPlusTwo = since(moment.withOffsetSameInstant(ZoneOffset.ofHours(2)));
+			assertEquals(DateTimeRange.OPEN_TO_THRESHOLD, sinceAtUtc.getTo());
+			assertEquals(DateTimeRange.OPEN_TO_THRESHOLD, sinceAtPlusTwo.getTo());
+			assertEquals(sinceAtUtc, sinceAtPlusTwo);
+
+			// the sentinels are exactly the two the NumberRange family already spends on its own open bounds
+			assertEquals(Long.MIN_VALUE, DateTimeRange.OPEN_FROM_THRESHOLD);
+			assertEquals(Long.MAX_VALUE, DateTimeRange.OPEN_TO_THRESHOLD);
+			assertEquals(Long.MIN_VALUE, IntegerNumberRange.to(10).getFrom());
+			assertEquals(Long.MAX_VALUE, IntegerNumberRange.from(10).getTo());
+		}
+
+		@Test
+		@DisplayName("Should keep an open-ended range answering isWithin on both sides")
+		void shouldKeepAnOpenEndedRangeAnsweringIsWithin() {
+			final OffsetDateTime moment = OffsetDateTime.parse("2026-05-20T12:19:26.123Z");
+			final DateTimeRange openTo = since(moment);
+			final DateTimeRange openFrom = until(moment);
+
+			assertTrue(openTo.isWithin(moment), "the closed bound is inclusive");
+			assertTrue(openTo.isWithin(moment.plusYears(1_000)));
+			assertFalse(openTo.isWithin(moment.minusNanos(1_000_000L)));
+			assertTrue(openFrom.isWithin(moment));
+			assertTrue(openFrom.isWithin(moment.minusYears(1_000)));
+			assertFalse(openFrom.isWithin(moment.plusNanos(1_000_000L)));
+		}
+
+		@Test
+		@DisplayName("Should saturate a bound beyond the representable millisecond window instead of overflowing")
+		void shouldSaturateABoundBeyondTheRepresentableWindow() {
+			// `OffsetDateTime` reaches year +-999999999, whose epoch second is ~3.16e16 - a thousand times that does
+			// not fit a `long`. The extremes must therefore build rather than overflow, and must stay one step
+			// inside the open-bound sentinels so a closed bound is never read back as an open one
+			final DateTimeRange whole = between(OffsetDateTime.MIN, OffsetDateTime.MAX);
+			assertEquals(Long.MIN_VALUE + 1, whole.getFrom(), "a bound below the window saturates one step inside");
+			assertEquals(Long.MAX_VALUE - 1, whole.getTo(), "a bound above the window saturates one step inside");
+			assertNotEquals(DateTimeRange.OPEN_FROM_THRESHOLD, whole.getFrom(), "and is still a CLOSED bound");
+			assertNotEquals(DateTimeRange.OPEN_TO_THRESHOLD, whole.getTo());
+			assertNotNull(whole.getPreciseFrom(), "the precise bounds are kept as given");
+			assertNotNull(whole.getPreciseTo());
+
+			// the saturated range still behaves as the everything-range it names
+			assertTrue(whole.isWithin(OffsetDateTime.parse("2026-05-20T12:19:26.123Z")));
+
+			final DateTimeRange upToTheEndOfTime = between(OffsetDateTime.parse("2026-01-01T00:00:00Z"), OffsetDateTime.MAX);
+			assertEquals(Long.MAX_VALUE - 1, upToTheEndOfTime.getTo());
+			assertEquals(
+				DateTimeRange.toComparableLong(OffsetDateTime.parse("2026-01-01T00:00:00Z")),
+				upToTheEndOfTime.getFrom(), "the ordinary bound beside it is unaffected"
+			);
 		}
 	}
 

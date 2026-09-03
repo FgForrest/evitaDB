@@ -23,6 +23,7 @@
 
 package io.evitadb.index.component.loader;
 
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -316,7 +317,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		);
 		sharedValueIndexes.put(attributeIndexKey, shared);
 		final RangeIndex rangeIndex = loadRangeIndex(
-			catalogVersion, entityIndexId, service, part, attributeIndexKey, key
+			catalogVersion, entityIndexId, service, part, attributeIndexKey, key, plainType
 		);
 		if (rangeIndex != null) {
 			sharedRangeIndexes.put(attributeIndexKey, rangeIndex);
@@ -457,12 +458,27 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
 	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
 	 *
+	 * ## The one place a legacy threshold scale is repaired
+	 *
+	 * A range threshold is an untyped `long`: the same {@link RangeIndex} serves `DateTimeRange` and all five
+	 * `NumberRange` subtypes, and only for `DateTimeRange` did the scale ever change (epoch seconds → epoch
+	 * milliseconds). Rescaling the wrong type would inflate a numeric range's bounds by a thousand and answer every
+	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and
+	 * this method is the only place both are known: **which reader produced the part**
+	 * ({@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, set by every backward-compatible
+	 * serializer and by none other) and **the declared attribute type** the part persists.
+	 *
+	 * Both shapes are repaired here rather than inside the serializers, because a range-`PAGED` axis keeps its
+	 * thresholds in leaf-page records the root's serializer never reads.
+	 *
 	 * @param catalogVersion    the catalog version to read pages at
 	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)
 	 * @param service           the storage-part persistence service to read from
 	 * @param part              the already-fetched FILTER root part
 	 * @param attributeIndexKey the sub-index identity (part of the page-stream key)
 	 * @param key               the manifest key, used only for failure messages
+	 * @param plainType         the declared (non-array) attribute type, which decides whether a legacy threshold
+	 *                          scale applies to this index at all
 	 * @return the reloaded range companion, or `null` when the attribute has none
 	 */
 	@Nullable
@@ -472,10 +488,19 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		@Nonnull StoragePartPersistenceService<?> service,
 		@Nonnull FilterIndexStoragePart part,
 		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull AttributeIndexStorageKey key
+		@Nonnull AttributeIndexStorageKey key,
+		@Nonnull Class<?> plainType
 	) {
+		// a part read by a backward-compatible serializer carries second-granularity thresholds, but only a
+		// `DateTimeRange` index ever measured its thresholds in seconds - every NumberRange threshold is the bound's
+		// own numeric value and must be left exactly as persisted
+		final boolean rescaleThresholds =
+			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
 		if (!part.isRangePaged()) {
-			return part.getRangeIndex();
+			final RangeIndex inlineRange = part.getRangeIndex();
+			return rescaleThresholds && inlineRange != null
+				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
+				: inlineRange;
 		}
 		final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 			new LeafStreamKey(
@@ -499,9 +524,16 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			);
 			perPagePoints[i] = leafPage.getPoints();
 		}
-		return RangeIndex.fromPersistedPages(
-			"attribute " + attributeIndexKey, rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
-		);
+		// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc for why root and pages
+		// have to move to the millisecond form in one commit
+		return rescaleThresholds
+			? RangeIndex.rescaledFromSecondGranularityPages(
+				rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
+			)
+			: RangeIndex.fromPersistedPages(
+				"attribute " + attributeIndexKey, rangePageSequences, perPagePoints,
+				part.getRangeHighWaterPageSequence()
+			);
 	}
 
 	/**

@@ -58,7 +58,13 @@ import java.util.Locale;
 @ToString(callSuper = true)
 public class HistogramIndexStoragePart extends AbstractHistogramStoragePart {
 
-	@Serial private static final long serialVersionUID = 5083172946028471653L;
+	// bumped from 5083172946028471653L when DateTimeRange moved to millisecond comparison granularity: the byte layout
+	// is unchanged, but a histogram over a DateTimeRange attribute now persists epoch-MILLISECOND range thresholds
+	// where the previous shape persisted epoch-seconds. This record has never shipped in a release, so there is
+	// nothing to be backward-compatible WITH and no reader is registered for the old uid - a stale unreleased-dev
+	// catalog therefore fails loud (and is regenerated) rather than having its thresholds read at the wrong scale,
+	// which is the same reason the previous bump on this record exists.
+	@Serial private static final long serialVersionUID = 5083172946028471654L;
 
 	/**
 	 * Empty leaf-page list shared by every `SINGLE`-shaped axis (no paged leaves).

@@ -1699,7 +1699,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	class RangeKeyedIndexTest {
 
 		/**
-		 * Builds an empty date-time-range index, which selects the three-array range column.
+		 * Builds an empty date-time-range index, which selects the two-array range column.
 		 *
 		 * @return the empty index
 		 */

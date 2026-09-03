@@ -103,6 +103,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -340,11 +341,12 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("a date-time-range PAGED histogram reloads its bounds AND their zone offsets through the loader")
+		@DisplayName("a date-time-range PAGED histogram reloads its bounds through the loader without instant drift")
 		void shouldReloadPagedDateTimeRangeTypedHistogramThroughTheRealLoader() {
-			// the sibling above pages an `IntegerNumberRange`, whose leaf column needs only the two comparison
-			// bounds. A `DateTimeRange` column carries a THIRD array holding both bounds' zone offsets, filled on
-			// this very path - the reload's bulk load - and by nothing else in this suite
+			// the sibling above pages an `IntegerNumberRange`, whose bounds are the caller's own numbers. A
+			// `DateTimeRange`'s comparison longs are DERIVED - whole epoch milliseconds - and every bucket in this
+			// fixture is built at a different zone offset, so a reload that mishandled the derivation would move the
+			// instants without moving anything the `equals`-based parity assertions can see
 			final SimpleHistogramIndex source = new SimpleHistogramIndex(
 				HISTOGRAM_NAME, REFERENCE_NAME, DateTimeRange.class, 0
 			);
@@ -379,10 +381,6 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 					}
 				);
 
-				// `assertReloadIdentical` compares bucket values with `equals`, which `DateTimeRange` generates from
-				// its two comparison longs alone - so a range reloaded at the wrong zone offset passes it. `toString`
-				// renders both bounds as ISO_OFFSET_DATE_TIME and does not, and the buckets ascend by (from, to),
-				// which for this domain is ordinal order - so the source ranges are an independent offset oracle
 				final FilterIndex restoredFilter = restored.getFilterIndex(null);
 				assertNotNull(restoredFilter, "the reloaded histogram must expose a filter index");
 				final ValueToRecordBitmap[] restoredBuckets =
@@ -390,10 +388,16 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 				assertEquals(
 					VALUE_COUNT, restoredBuckets.length, "every distinct range must reload as its own bucket"
 				);
+				// `assertReloadIdentical` compares bucket values with `equals`, which `DateTimeRange` generates from
+				// its two comparison longs alone - so it cannot see WHICH instants a bucket came back as, only that
+				// the two indexes agree. `toString` renders both bounds as ISO_OFFSET_DATE_TIME and does, and the
+				// buckets ascend by (from, to), which for this domain is ordinal order - so the source ranges,
+				// re-rendered at UTC, are an independent oracle for the instants themselves. The offsets they were
+				// WRITTEN at differ per ordinal and are deliberately not preserved; what must survive is the moment
 				for (int i = 0; i < restoredBuckets.length; i++) {
 					assertEquals(
-						dateTimeRange(i + 1).toString(), restoredBuckets[i].getValue().toString(),
-						"bucket " + i + " must reload with both its zone offsets intact"
+						atUtc(dateTimeRange(i + 1)).toString(), restoredBuckets[i].getValue().toString(),
+						"bucket " + i + " must reload naming the same two instants it was written with"
 					);
 				}
 
@@ -1185,8 +1189,9 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 
 	/**
 	 * Builds the ordinal's distinct `DateTimeRange`, an hour wide, at a zone offset varying with the ordinal. The
-	 * offsets are what the reloaded leaf column has to carry in a third backing array beside the two comparison
-	 * bounds — the shape no other reload test exercises, since an `IntegerNumberRange` needs only the two.
+	 * offsets vary per ordinal on purpose: the reloaded leaf column stores only the two comparison longs, so a
+	 * reload that mishandled the derivation would move the instants without moving anything an `equals`-based
+	 * parity assertion can see.
 	 *
 	 * Ordinals map to strictly ascending `getFrom()` instants: the moment advances a full hour (3600 s) per ordinal,
 	 * and the offset trails that within each five-ordinal cycle (steps of 1800 s) and overshoots it at the cycle's
@@ -1201,6 +1206,22 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
 		final LocalDateTime moment = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
 		return DateTimeRange.between(moment.atOffset(offset), moment.plusHours(1).atOffset(offset));
+	}
+
+	/**
+	 * Re-renders a range with both of its bounds moved to UTC, naming the very same two instants. This is the form
+	 * the reloaded leaf column rebuilds a `DateTimeRange` key in — its two comparison longs identify instants and
+	 * carry no offset — so it is the oracle a reload's instants are checked against.
+	 *
+	 * @param range the range to re-render
+	 * @return the same two instants, both expressed at UTC
+	 */
+	@Nonnull
+	private static DateTimeRange atUtc(@Nonnull DateTimeRange range) {
+		return DateTimeRange.between(
+			Objects.requireNonNull(range.getPreciseFrom()).withOffsetSameInstant(ZoneOffset.UTC),
+			Objects.requireNonNull(range.getPreciseTo()).withOffsetSameInstant(ZoneOffset.UTC)
+		);
 	}
 
 	/**

@@ -486,15 +486,15 @@ class LeafIndexHeapSizeTest {
 			//
 			//   64  the index object                     64  the leaf node
 			//   80  the bucket tree object               40  the key column object
-			//   40  the tree's `root` transactional      144  its THREE four-slot long[] arrays, 48 each
-			//       reference holder and its              24  the record column object + 32 its four-slot int[]
-			//       AtomicReference                       24  the tree's transactional dirty flag
+			//   40  the tree's `root` transactional      96  its TWO four-slot long[] arrays, 48 each
+			//       reference holder and its             24  the record column object + 32 its four-slot int[]
+			//       AtomicReference                      24  the tree's transactional dirty flag
 			//
-			// That sums to 512 - the integral gate's 408 plus 104 for the wider key column (a 40-byte object holding
-			// three arrays rather than a 32-byte one holding a single array). A `DateTimeRange` is the expensive
-			// shape: the five numeric kinds park `meta` on the shared empty array and pay 48 bytes less, landing on
-			// 464. The 528-byte budget leaves room for one more small object without leaving room for a column that
-			// has gone back to allocating its whole block - or for a fourth array
+			// That sums to 464 - the integral gate's 408 plus 56: 48 for the second bound array and 8 for the wider
+			// column object holding it. Every range kind is this shape now; the date-time one used to carry a third
+			// array for its bounds' zone offsets and cost 48 bytes more. The 472-byte budget leaves room for one
+			// more small object without leaving room for a column that has gone back to allocating its whole block
+			// - or for a third array
 			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
@@ -510,8 +510,8 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 528,
-				"a one-key range index must stay within its 528 B budget - was " + measured
+				measured <= 472,
+				"a one-key range index must stay within its 472 B budget - was " + measured
 			);
 		}
 
@@ -526,11 +526,13 @@ class LeafIndexHeapSizeTest {
 			// A range separator is a freshly minted object - `keyAt` rebuilds it and cannot alias a leaf key the
 			// way a boxed column's promoted-by-reference separator does - so it is really retained and really
 			// walked, and the two sides agree byte for byte once the one thing neither owns is taken off the walk:
-			// the zone offset behind every bound. `ZoneOffset.ofHours` interns it JVM-wide and `estimateSize`
-			// deliberately charges only the reference slot pointing at it, so it is named here as the shared root
-			// it is. Measured, it is a fixed 72 bytes at any index size - which is what makes exactness attainable
-			// here rather than the bounded divergence the front-coded String case has to settle for.
-			final Object[] internedOffset = {SHARED_OFFSET};
+			// the zone offset behind every bound. That is `ZoneOffset.UTC` and NOT the offset the fixture wrote at -
+			// the column stores no offsets, so every bound it rebuilds is anchored at UTC - and `estimateSize`
+			// deliberately charges only the reference slot pointing at the JVM-wide interned constant, so it is
+			// named here as the shared root it is. Measured, it is a fixed 72 bytes at any index size - which is
+			// what makes exactness attainable here rather than the bounded divergence the front-coded String case
+			// has to settle for.
+			final Object[] internedOffset = {ZoneOffset.UTC};
 			final InvertedIndex index = dateTimeRangeKeyed(1_000);
 			assertTrue(index.isPaged(), "the seeded index must span several leaves");
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, internedOffset, INVERTED_EXCLUSIONS);

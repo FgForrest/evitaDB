@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -33,17 +34,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
-
-import static java.time.LocalDateTime.ofEpochSecond;
 
 /**
  * DTO that is connected to {@link PriceTerminationFormula} allowing to optimize formula tree in the such way,
  * that terminating formula with same price evaluation context will be replaced by single instance - taking advantage
  * of result memoization.
  *
+ * @param validIn            the moment prices must be valid at, reduced through
+ *                           {@link DateTimeRange#toComparableLong(OffsetDateTime)} so it discriminates at exactly the
+ *                           granularity the validity range index answers at — a coarser key would let two probes that
+ *                           select different prices share one memoized result. {@code Long.MIN_VALUE} means "no
+ *                           validity constraint", which no real moment can reach (a moment saturates one step short
+ *                           of it).
  * @param targetPriceIndexes Set of price list identifications that control which price indexes will the formula target. Retrieved from
  *                           the local scope of the input query.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -59,7 +65,7 @@ public record PriceEvaluationContext(
 		@Nonnull PriceIndexKey... targetPriceIndexes
 	) {
 		this(
-			validIn == null ? Long.MIN_VALUE : validIn.toEpochSecond(),
+			validIn == null ? Long.MIN_VALUE : DateTimeRange.toComparableLong(validIn),
 			targetPriceIndexes
 		);
 		Assert.isPremiseValid(
@@ -83,7 +89,11 @@ public record PriceEvaluationContext(
 	@Override
 	public String toString() {
 		return Arrays.toString(this.targetPriceIndexes) + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +
-			ofEpochSecond(this.validIn, 0, ZoneOffset.UTC));
+			LocalDateTime.ofEpochSecond(
+				Math.floorDiv(this.validIn, 1000L),
+				(int) Math.floorMod(this.validIn, 1000L) * 1_000_000,
+				ZoneOffset.UTC
+			));
 	}
 
 	/**

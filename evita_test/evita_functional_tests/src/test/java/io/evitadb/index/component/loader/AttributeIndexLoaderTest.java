@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
@@ -54,6 +56,8 @@ import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -73,6 +77,8 @@ import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -435,6 +441,71 @@ class AttributeIndexLoaderTest {
 				AttributeIndexType.FILTER, key,
 				new FilterIndexStoragePart(INDEX_PK, key, type, points, null, indexedDecimalPlaces, null)
 			);
+		}
+
+		/**
+		 * Seeds a FILTER part carrying an inline range companion whose thresholds are epoch **seconds**, exactly as
+		 * every format written before {@code DateTimeRange} moved to millisecond comparison granularity persisted
+		 * them, and marks it with the read-path provenance flag a backward-compatible serializer sets.
+		 *
+		 * @param key         the attribute key
+		 * @param type        the declared attribute type (what decides whether the rescale applies at all)
+		 * @param points      the inline bucket points
+		 * @param rangePoints the range points, in ascending threshold order and at second granularity
+		 */
+		void seedLegacySecondGranularityFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
+			@Nonnull ValueToRecordBitmap[] points, @Nonnull TransactionalRangePoint[] rangePoints
+		) {
+			final FilterIndexStoragePart part = new FilterIndexStoragePart(
+				INDEX_PK, key, type, points, new RangeIndex(rangePoints)
+			);
+			part.setSecondGranularityRangeThresholds(true);
+			seed(AttributeIndexType.FILTER, key, part);
+		}
+
+		/**
+		 * Seeds a range-`PAGED` FILTER part whose range leaf pages hold epoch-**second** thresholds: the pages are
+		 * emitted from a live index built at second granularity, stored under the RANGE stream, and the root is
+		 * marked with the read-path provenance flag.
+		 *
+		 * @param key         the attribute key
+		 * @param type        the declared attribute type
+		 * @param points      the inline bucket points
+		 * @param rangePoints the range points, in ascending threshold order and at second granularity
+		 * @param pageSize    how many range points to place on each persisted leaf page
+		 */
+		void seedLegacySecondGranularityPagedFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
+			@Nonnull ValueToRecordBitmap[] points, @Nonnull TransactionalRangePoint[] rangePoints, int pageSize
+		) {
+			final int rangeStreamId = this.keyCompressor.getId(
+				new LeafStreamKey(
+					INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER), LeafStreamKey.StreamKind.RANGE
+				)
+			);
+			final int pageCount = (rangePoints.length + pageSize - 1) / pageSize;
+			final int[] pageSequences = new int[pageCount];
+			for (int page = 0; page < pageCount; page++) {
+				final int from = page * pageSize;
+				final int to = Math.min(from + pageSize, rangePoints.length);
+				final TransactionalRangePoint[] pagePoints = new TransactionalRangePoint[to - from];
+				System.arraycopy(rangePoints, from, pagePoints, 0, to - from);
+				pageSequences[page] = page;
+				this.partsById.put(
+					AbstractLeafPagePart.computeUniquePartId(rangeStreamId, page),
+					new RangeIndexLeafPagePart(rangeStreamId, page, pagePoints,
+						AbstractLeafPagePart.computeUniquePartId(rangeStreamId, page))
+				);
+			}
+			final FilterIndexStoragePart part = new FilterIndexStoragePart(
+				INDEX_PK, key, type, points, null, 0,
+				false, -1, new int[0],
+				true, pageCount - 1, pageSequences,
+				null
+			);
+			part.setSecondGranularityRangeThresholds(true);
+			seed(AttributeIndexType.FILTER, key, part);
 		}
 
 		/**
@@ -1198,6 +1269,208 @@ class AttributeIndexLoaderTest {
 				source.addRecord(String.format("value-%05d", i), i);
 			}
 			assertTrue(source.isPaged(), "the seeded index must be multi-leaf (PAGED)");
+		}
+	}
+
+	/**
+	 * The legacy threshold-scale repair, driven through the production loader.
+	 *
+	 * Every catalog format written before {@code DateTimeRange} moved from second to millisecond comparison
+	 * granularity persisted its range-index thresholds as epoch **seconds**. A threshold is an untyped `long` shared
+	 * with all five `NumberRange` subtypes, whose thresholds are the bounds' own numeric values and were never
+	 * rescaled — so the repair has to be routed on the declared attribute type, and applying it to the wrong one
+	 * inflates a numeric range's bounds by a thousand and answers every query over it with the wrong records,
+	 * silently.
+	 *
+	 * These tests seed thresholds a pre-change writer would have produced and assert on **what a query returns**,
+	 * which is the only assertion that fails when the rescale is dropped, doubled, or aimed at the wrong type.
+	 */
+	@Nested
+	@DisplayName("legacy second-granularity range thresholds")
+	class LegacyRangeThresholdScale {
+
+		/** The moment the seeded ranges are built around; the fixture is a full day wide on each side of it. */
+		private static final OffsetDateTime VALID_FROM = OffsetDateTime.parse("2026-05-20T12:19:26Z");
+		/** A moment inside the seeded range, used as the query probe. */
+		private static final OffsetDateTime INSIDE = OffsetDateTime.parse("2026-05-21T00:00:00Z");
+		/** A moment after the seeded range, used as the negative query probe. */
+		private static final OffsetDateTime OUTSIDE = OffsetDateTime.parse("2026-06-01T00:00:00Z");
+
+		@Test
+		@DisplayName("an inline second-granularity range is rescaled and answers queries at the right moments")
+		void shouldRescaleAnInlineSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
+			// what a pre-change writer left on disk: the very thresholds `getFrom()` / `getTo()` returned then,
+			// which were whole epoch SECONDS
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				secondGranularityPoints(
+					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
+				)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+
+			// THE assertion: a probe reduced by the CURRENT converter must find the record. Without the rescale the
+			// stored thresholds sit a thousand times below the probe and this returns nothing
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the reloaded validity must select the record"
+			);
+			// ... and a moment outside must still select nothing, so the test cannot pass by matching everything
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment after the reloaded validity must select nothing"
+			);
+			// a probe left in the OLD scale must now miss, which is what says the thresholds really moved
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
+				"a second-granularity probe must no longer land inside the rescaled range"
+			);
+		}
+
+		@Test
+		@DisplayName("an open-ended second-granularity range is rescaled onto the constant sentinels")
+		void shouldRescaleAnOpenEndedSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange openEnded = DateTimeRange.since(VALID_FROM);
+			// a pre-change open-ended range ended on `LocalDateTime.MAX.atOffset(from.getOffset()).toEpochSecond()`,
+			// which collides with the index's own `Long.MAX_VALUE` border point once rescaled - the collision the
+			// repair has to MERGE rather than trip over
+			final long legacyOpenTo = java.time.LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond();
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(openEnded, 1)},
+				secondGranularityPoints(VALID_FROM.toEpochSecond(), legacyOpenTo, 1)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the open-ended validity must select the record"
+			);
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment far after the lower bound must still select an open-ended record"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(
+					DateTimeRange.toComparableLong(VALID_FROM.minusDays(1))
+				).compute().getArray(),
+				"a moment before the lower bound must select nothing"
+			);
+			// the open bound really did land on the constant sentinel, merged into the index's own border point
+			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
+			assertNotNull(reloadedRange, "the range companion must reload");
+			assertEquals(
+				DateTimeRange.OPEN_TO_THRESHOLD, reloadedRange.getRanges()[reloadedRange.getRanges().length - 1]
+					.getThreshold(),
+				"the legacy open sentinel and the border point must have merged onto one threshold"
+			);
+		}
+
+		@Test
+		@DisplayName("a range-PAGED second-granularity range is rescaled across its leaf pages")
+		void shouldRescaleAPagedSecondGranularityDateTimeRange() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_FROM.plusDays(5));
+			final SeededStorage storage = new SeededStorage();
+			// two points per page, so the repair has to walk pages and reassemble - and the border sentinels sit on
+			// different pages from the payload thresholds
+			storage.seedLegacySecondGranularityPagedFilter(
+				key, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				secondGranularityPoints(
+					VALID_FROM.toEpochSecond(), VALID_FROM.plusDays(5).toEpochSecond(), 1
+				),
+				2
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1},
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(INSIDE)).compute().getArray(),
+				"a moment inside the reloaded paged validity must select the record"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(DateTimeRange.toComparableLong(OUTSIDE)).compute().getArray(),
+				"a moment after the reloaded paged validity must select nothing"
+			);
+			assertArrayEquals(
+				new int[0],
+				loaded.getRecordsValidInFormula(INSIDE.toEpochSecond()).compute().getArray(),
+				"a second-granularity probe must no longer land inside the rescaled paged range"
+			);
+		}
+
+		@Test
+		@DisplayName("a numeric range index read from the same legacy format keeps its thresholds untouched")
+		void shouldLeaveANumericRangeIndexUntouched() {
+			// the control, and the one that matters most: the provenance flag is set on this part exactly as it is
+			// on the three above, so ONLY the declared attribute type keeps the rescale away from it. An
+			// `IntegerNumberRange` threshold is the caller's own number and was never in seconds
+			final AttributeIndexKey key = new AttributeIndexKey(null, "quantity", null);
+			final IntegerNumberRange range = IntegerNumberRange.between(10, 20);
+			final SeededStorage storage = new SeededStorage();
+			storage.seedLegacySecondGranularityFilter(
+				key, IntegerNumberRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(range, 1)},
+				secondGranularityPoints(10L, 20L, 1)
+			);
+
+			final FilterIndex loaded = load(storage, key).filterIndexes().get(key);
+			assertNotNull(loaded, "the FILTER part must reload");
+			assertArrayEquals(
+				new int[]{1}, loaded.getRecordsValidInFormula(15L).compute().getArray(),
+				"the numeric thresholds must be read back verbatim - 15 lies inside [10, 20]"
+			);
+			assertArrayEquals(
+				new int[0], loaded.getRecordsValidInFormula(15_000L).compute().getArray(),
+				"a rescaled numeric index would have moved [10, 20] to [10000, 20000] and matched here instead"
+			);
+			final RangeIndex reloadedRange = load(storage, key).sharedRangeIndexes().get(key);
+			assertNotNull(reloadedRange, "the range companion must reload");
+			final long[] thresholds = new long[reloadedRange.getRanges().length];
+			for (int i = 0; i < thresholds.length; i++) {
+				thresholds[i] = reloadedRange.getRanges()[i].getThreshold();
+			}
+			assertArrayEquals(
+				new long[]{Long.MIN_VALUE, 10L, 20L, Long.MAX_VALUE}, thresholds,
+				"every numeric threshold must survive byte for byte"
+			);
+		}
+
+		/**
+		 * Builds the range points a pre-change writer would have persisted for one record whose range spans
+		 * `[from, to]`, including the two border sentinels the index always carries.
+		 *
+		 * @param from     the lower threshold, in the scale the writer used
+		 * @param to       the upper threshold, in the scale the writer used
+		 * @param recordId the record the range belongs to
+		 * @return the four range points, in ascending threshold order
+		 */
+		@Nonnull
+		private static TransactionalRangePoint[] secondGranularityPoints(long from, long to, int recordId) {
+			return new TransactionalRangePoint[]{
+				new TransactionalRangePoint(Long.MIN_VALUE),
+				new TransactionalRangePoint(from, new int[]{recordId}, new int[0]),
+				new TransactionalRangePoint(to, new int[0], new int[]{recordId}),
+				new TransactionalRangePoint(Long.MAX_VALUE)
+			};
 		}
 	}
 }

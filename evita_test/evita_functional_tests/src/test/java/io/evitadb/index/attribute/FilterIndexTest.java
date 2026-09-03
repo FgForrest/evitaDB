@@ -101,7 +101,9 @@ class FilterIndexTest {
 			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-07-31T23:59:59Z")
 		));
-		final long now = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+		// the probe must be reduced by the very converter the write path derives its thresholds with - a raw
+		// `toEpochSecond()` would land a thousand times below every stored threshold and match nothing
+		final long now = DateTimeRange.toComparableLong(OffsetDateTime.parse("2026-07-01T00:00:00Z"));
 
 		final var firstBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
 		final var secondBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
@@ -123,7 +125,8 @@ class FilterIndexTest {
 			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-07-31T23:59:59Z")
 		));
-		final long moment = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+		// see the sibling test: the probe is reduced by the production converter, not by `toEpochSecond()`
+		final long moment = DateTimeRange.toComparableLong(OffsetDateTime.parse("2026-07-01T00:00:00Z"));
 
 		final var firstBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
 		final var secondBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
@@ -1868,9 +1871,10 @@ class FilterIndexTest {
 		void shouldServeAConcreteRangeAttributeFromTheReconstructingColumn() {
 			// every parity assertion above would pass unchanged with the boxed column, which is what this seam used
 			// to select - so nothing here fails if a future change routes a range attribute back to it. The range
-			// column cannot be named from this package, so the pin is its two observable fingerprints: it MINTS the
-			// value it hands back (the boxed column returns the very instance stored, a `DateTimeRange` attribute
-			// being normalized by identity), and it rebuilds the bounds from whole epoch seconds
+			// column cannot be named from this package, so the pin is its three observable fingerprints: it MINTS
+			// the value it hands back (the boxed column returns the very instance stored, a `DateTimeRange`
+			// attribute being normalized by identity), and it rebuilds the bounds from whole epoch MILLISECONDS at
+			// UTC - both of which the boxed column, handing back the original object, cannot show
 			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
 			final ZoneOffset offset = ZoneOffset.ofHours(3);
@@ -1884,11 +1888,20 @@ class FilterIndexTest {
 			assertEquals(1, readBack.length, "the record must be found under exactly one value");
 			assertEquals(stored, readBack[0], "the reconstruction must be equal to the value that went in");
 			assertNotSame(stored, readBack[0], "the boxed column would hand the stored instance straight back");
-			assertEquals(0, readBack[0].getPreciseFrom().getNano(), "the bounds are rebuilt from whole epoch seconds");
-			assertEquals(0, readBack[0].getPreciseTo().getNano(), "the bounds are rebuilt from whole epoch seconds");
-			// and the `meta` word came back with them, which is what makes the reconstruction usable
-			assertEquals(offset, readBack[0].getPreciseFrom().getOffset(), "at the stored zone offset");
-			assertEquals(offset, readBack[0].getPreciseTo().getOffset(), "at the stored zone offset");
+			assertEquals(
+				123_000_000, readBack[0].getPreciseFrom().getNano(),
+				"the bound is rebuilt from a whole epoch millisecond - the nanosecond tail below it is gone"
+			);
+			assertEquals(
+				987_000_000, readBack[0].getPreciseTo().getNano(),
+				"the bound is rebuilt from a whole epoch millisecond - the nanosecond tail below it is gone"
+			);
+			// the zone offset is NOT carried by the column any more, and does not need to be: the two comparison
+			// longs identify instants, so a UTC rebuild re-encodes to exactly what was stored
+			assertEquals(ZoneOffset.UTC, readBack[0].getPreciseFrom().getOffset(), "rebuilt at UTC");
+			assertEquals(ZoneOffset.UTC, readBack[0].getPreciseTo().getOffset(), "rebuilt at UTC");
+			assertEquals(stored.getFrom(), readBack[0].getFrom(), "the lower comparison long is reproduced exactly");
+			assertEquals(stored.getTo(), readBack[0].getTo(), "the upper comparison long is reproduced exactly");
 		}
 
 		@Test

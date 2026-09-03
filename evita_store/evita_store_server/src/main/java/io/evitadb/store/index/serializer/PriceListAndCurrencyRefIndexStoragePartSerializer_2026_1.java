@@ -61,7 +61,11 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1 extends Se
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
 		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
-		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
+		// every format older than 2026.3 persisted the validity thresholds as epoch SECONDS - see
+		// PriceIndexHeaderSerializer#readWithSecondGranularityValidity for why the rescale needs no type routing here
+		final RangeIndex validityIndex = RangeIndex.rescaledFromSecondGranularity(
+			kryo.readObject(input, RangeIndex.class)
+		);
 
 		final int tripleCount = input.readInt(true);
 		final int[] priceIds = input.readInts(tripleCount);

@@ -29,6 +29,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -430,6 +431,16 @@ public interface Migration_2025_6 {
 				)
 			);
 		}
+		//noinspection rawtypes,unchecked
+		final Class attributeType = ofNullable(filterIndexCnt.getAttributeType())
+			.orElseGet(
+				() -> (Class) entitySchema
+					.getReferenceOrThrowException(referenceName)
+					.getAttribute(attributeIndexKey.attribute().attributeName())
+					.orElseThrow()
+					.getType()
+			);
+		final Class<?> plainAttributeType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 		final RangeIndex rangeIndex = filterIndexCnt.getRangeIndex();
 		final RangeIndex migratedRangeIndex;
 		if (rangeIndex == null) {
@@ -445,22 +456,20 @@ public interface Migration_2025_6 {
 					migrateReferencedEntityIdsBitmap(range.getEnds(), referencedEntityToIndexIdMap)
 				);
 			}
-			migratedRangeIndex = new RangeIndex(migratedRanges);
+			// this part is about to be REWRITTEN through the current serializer, which stamps the current
+			// serial-version-uid on it - the marker that says "these thresholds are epoch milliseconds". A pre-2025.6
+			// catalog holds them as epoch SECONDS, so a `DateTimeRange` index has to be rescaled here or the rewrite
+			// would silently relabel second thresholds as millisecond ones and no later reader could tell
+			migratedRangeIndex = DateTimeRange.class.equals(plainAttributeType)
+				? RangeIndex.rescaledFromSecondGranularity(new RangeIndex(migratedRanges))
+				: new RangeIndex(migratedRanges);
 		}
-		//noinspection rawtypes,unchecked
 		collectionStoragePartService.putStoragePart(
 			catalogVersion,
 			new FilterIndexStoragePart(
 				indexPrimaryKey,
 				filterIndexCnt.getAttributeIndexKey(),
-				ofNullable(filterIndexCnt.getAttributeType())
-					.orElseGet(
-						() -> (Class) entitySchema
-							.getReferenceOrThrowException(referenceName)
-							.getAttribute(attributeIndexKey.attribute().attributeName())
-							.orElseThrow()
-							.getType()
-					),
+				attributeType,
 				migratedHistogramPoints,
 				migratedRangeIndex,
 				filterIndexCnt.getStoragePartPK()
