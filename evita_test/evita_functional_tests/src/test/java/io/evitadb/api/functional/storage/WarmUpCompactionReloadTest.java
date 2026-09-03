@@ -24,6 +24,7 @@
 
 package io.evitadb.api.functional.storage;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
@@ -169,6 +170,12 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 			"The round whose header write is injected to fail must surface the failure."
 		);
 
+		// the failed round raised the unpublishable barrier, which SCHEDULES a deactivation on the engine mutation
+		// pipeline rather than running it inline. Waiting for it to land is what makes the restart below observe one
+		// deterministic state: without this the close races the deactivation, and the catalog comes back either
+		// WARMING_UP or INACTIVE depending on which won - which is how this test came to fail on a loaded CI runner
+		awaitCatalogDeactivation();
+
 		// restart on the same storage - the reload follows the last PUBLISHED bootstrap record, and every file that
 		// record names must still be there
 		this.evita.close();
@@ -176,6 +183,16 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 		// the catalog is loaded on the service pool, so `new Evita` returns while it is still BEING_ACTIVATED -
 		// querying before that settles fails with CatalogTransitioningException and says nothing about the reload
 		this.evita.waitUntilFullyInitialized();
+
+		// a catalog that could not publish is deactivated on purpose - the engine stops serving state it cannot
+		// trust - and that lifecycle state is persisted, so the restart lands on INACTIVE and an operator brings it
+		// back explicitly. This is NOT damage: the data files the last published record names are all still there,
+		// which is exactly what the activation and the count below prove
+		assertEquals(
+			CatalogState.INACTIVE, this.evita.getCatalogState(TEST_CATALOG).orElseThrow(),
+			"A catalog whose round failed to publish must come back deactivated rather than serving untrusted state."
+		);
+		this.evita.activateCatalog(TEST_CATALOG);
 
 		final int entityCount = assertDoesNotThrow(
 			() -> this.evita.queryCatalog(
@@ -375,6 +392,28 @@ class WarmUpCompactionReloadTest implements EvitaTestSupport {
 			indexes.stream().anyMatch(index -> index > 0),
 			"The corpus must have compacted at least once, otherwise this test asserts nothing. " +
 				"Collection file indexes present: " + indexes
+		);
+	}
+
+	/**
+	 * Blocks until the deactivation the unpublishable barrier scheduled has actually landed.
+	 *
+	 * `Catalog#markUnpublishable` hands the deactivation to the engine mutation pipeline and returns without waiting -
+	 * it cannot run inline, because it closes the very sessions the failing writer thread is still unwinding on. Every
+	 * assertion about what a restart finds on disk therefore has to wait for it, or it is asserting against whichever
+	 * of the two orderings the machine happened to produce.
+	 */
+	private void awaitCatalogDeactivation() {
+		final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+		while (System.nanoTime() < deadline) {
+			if (this.evita.getCatalogState(TEST_CATALOG).orElse(null) == CatalogState.INACTIVE) {
+				return;
+			}
+			Thread.onSpinWait();
+		}
+		throw new AssertionError(
+			"The deactivation scheduled by the unpublishable barrier never landed - the catalog is still `" +
+				this.evita.getCatalogState(TEST_CATALOG).map(Enum::name).orElse("<absent>") + "`."
 		);
 	}
 

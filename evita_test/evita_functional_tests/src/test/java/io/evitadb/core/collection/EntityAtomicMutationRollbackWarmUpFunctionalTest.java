@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.CatalogUnpublishableException;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
@@ -78,6 +79,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -803,6 +805,14 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		 * The session is opened BEFORE the barrier goes up, because that is the sequence a real loader is in: it is
 		 * already inside a session when its entity fails, and it holds its `Catalog` by final reference. Opening a
 		 * session afterwards is refused a step earlier, by the deactivation this barrier schedules.
+		 *
+		 * **Why this tolerates two outcomes.** Raising the barrier does two things that are NOT ordered with respect
+		 * to one another: it refuses the next root mutation synchronously, and it schedules a deactivation that
+		 * closes this very session (see {@link Catalog#scheduleDeactivation()}, which hands the work to the engine
+		 * mutation pipeline and does not wait for it). Whichever lands first, the loader is stopped - and that is the
+		 * property this test exists to pin. Demanding the barrier's own exception made the assertion a race against
+		 * the engine's thread pools, which is how it came to fail on a loaded CI runner while passing everywhere
+		 * else. The barrier is asserted in BOTH branches, so neither outcome lets a silent success through.
 		 */
 		@Test
 		@DisplayName("The next root mutation on an already open session is refused")
@@ -810,25 +820,41 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 			final EvitaSessionContract session = EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita
 				.createReadWriteSession(TEST_CATALOG);
 			try {
-				unpublishableCatalog();
-				final CatalogUnpublishableException refusal = assertThrows(
-					CatalogUnpublishableException.class,
+				final Catalog catalog = unpublishableCatalog();
+				final RuntimeException refusal = assertThrows(
+					RuntimeException.class,
 					() -> session.upsertEntity(
 						session.createNewEntity(Entities.PRODUCT, 999).setAttribute(ATTRIBUTE_CODE, "Z")
 					),
 					"A catalog that can no longer publish must refuse the next root mutation."
 				);
-				assertEquals(
-					SIMULATED_FAILURE, refusal.getCause().getMessage(),
-					"The refusal must carry the failure that caused it, so the log names the real problem."
-				);
+				if (refusal instanceof CatalogUnpublishableException unpublishable) {
+					assertEquals(
+						SIMULATED_FAILURE, unpublishable.getCause().getMessage(),
+						"The refusal must carry the failure that caused it, so the log names the real problem."
+					);
+				} else {
+					// the scheduled deactivation closed the session before the mutation reached the barrier; the
+					// loader is stopped either way, and the barrier that stopped it must still be standing
+					assertInstanceOf(
+						InstanceTerminatedException.class, refusal,
+						"The only other way a doomed load may be stopped is the deactivation the barrier schedules."
+					);
+					assertFalse(
+						catalog.isPublishable(),
+						"Whichever refusal arrived, the barrier that caused it must still be raised."
+					);
+				}
 			} finally {
 				// closing surfaces the refusal too - the close-time flush is one of the guarded publication routes -
-				// so this both cleans the session up and pins that the failure is never swallowed
-				assertThrows(
-					RuntimeException.class, session::close,
-					"Closing a session on a catalog that can no longer publish must surface the failure."
-				);
+				// so this both cleans the session up and pins that the failure is never swallowed. A session the
+				// deactivation already closed is closed idempotently, so only assert on the live-session case
+				if (session.isActive()) {
+					assertThrows(
+						RuntimeException.class, session::close,
+						"Closing a session on a catalog that can no longer publish must surface the failure."
+					);
+				}
 			}
 		}
 
