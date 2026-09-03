@@ -3446,8 +3446,20 @@ class TransactionalBucketBPlusTreeTest {
 		 * @return the bytes its two mandatory columns occupy
 		 */
 		private static long columnBytesOf(@Nonnull BPlusLeafTreeNode<Integer> leaf) {
-			return leaf.getKeyColumn().getHeapSizeInBytes(element -> 0L)
-				+ leaf.getRecords().getHeapSizeInBytes();
+			// both getters are transaction-aware: inside a transaction they answer for the leaf's LAYER, so this
+			// measures the base leaf only outside one. Use the two-column overload to measure captured references
+			return columnBytesOf(leaf.getKeyColumn(), leaf.getRecords());
+		}
+
+		/**
+		 * Sums the heap of one key column and one record column, for a caller holding the two references directly.
+		 *
+		 * @param keys    the key column to measure
+		 * @param records the single-record column to measure
+		 * @return the bytes the two occupy
+		 */
+		private static long columnBytesOf(@Nonnull ValueColumn<Integer> keys, @Nonnull RecordColumn records) {
+			return keys.getHeapSizeInBytes(element -> 0L) + records.getHeapSizeInBytes();
 		}
 
 		@Test
@@ -3831,6 +3843,234 @@ class TransactionalBucketBPlusTreeTest {
 					for (int i = 0; i < 5; i++) {
 						t.addRecord(20 + i, 200 + i);
 					}
+				}
+			);
+		}
+
+		/**
+		 * Builds a throw-away tree whose single leaf holds exactly `count` buckets, and returns the bytes its two
+		 * mandatory columns occupy. Growth doubles from a floor of four, so a run of `count` inserts lands on a
+		 * backing array of exactly `count` slots whenever `count` is a power of two at or above the floor — which
+		 * makes this the footprint a leaf with `count`-slot columns has, and the expectation the physical-length
+		 * assertions below compare against.
+		 *
+		 * @param count how many buckets the reference leaf holds; a power of two at or above four
+		 * @return the bytes a leaf with `count`-slot columns occupies
+		 */
+		private static long columnBytesOfLeafSizedTo(int count) {
+			final TransactionalBucketBPlusTree<Integer> reference =
+				new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < count; i++) {
+				reference.addRecord(i, i);
+			}
+			return columnBytesOf(reference.enumerateLeaves().get(0));
+		}
+
+		/**
+		 * Builds a tree holding the eight buckets `0, 10, 20 .. 70`, which leaves its single leaf's columns EXACTLY
+		 * full: growth runs 4 -> 8 and the eighth insert still fits, so both backing arrays end at eight slots for
+		 * eight live buckets. That is the shape both halves of every split are born in, and the shape every page
+		 * replayed from disk arrives in.
+		 *
+		 * @return the populated tree
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> exactlyFullLeafTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 8; i++) {
+				tree.addRecord(i * 10, i);
+			}
+			return tree;
+		}
+
+		@Test
+		@DisplayName("an exactly-full committed leaf is decoupled with room for the insert that follows")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafWithRoomForTheInsert() {
+			// copying an exactly-full column at its short length and growing it on the very next insert is two
+			// allocations where one would do. The decouple's insert path therefore copies straight to
+			// grownLength(8, 9, 255) == 16, which is what the layer's footprint below has to show
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+			assertEquals(8, committedKeys.size(), "the fixture must leave the columns exactly full");
+			assertEquals(columnBytesOfLeafSizedTo(8), committedBytes, "eight buckets must occupy eight slots");
+			// measured OUTSIDE the transaction on purpose: the reference tree is never committed, so building it in
+			// here would leave its leaf's layer behind and the commit would refuse the whole transaction as stale
+			final long sixteenSlotBytes = columnBytesOfLeafSizedTo(16);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.addRecord(1, 101);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the insert must have created a layer over the committed leaf");
+
+					// the committed leaf is untouched. Its columns are read through the references captured before
+					// the transaction, because the leaf's own getters are transaction-aware and answer for the layer
+					assertNotSame(committedKeys, layer.getKeyColumn(), "the layer must decouple its key column");
+					assertNotSame(committedRecords, layer.getRecords(), "the layer must decouple its record column");
+					assertEquals(8, committedKeys.size(), "the committed leaf must not observe the layer's insert");
+					assertEquals(
+						committedBytes, columnBytesOf(committedKeys, committedRecords),
+						"the committed columns must never be grown"
+					);
+
+					// the layer landed at sixteen slots, and stays there for the seven inserts that fill them
+					final long layerBytes = columnBytesOf(layer);
+					assertEquals(
+						sixteenSlotBytes, layerBytes,
+						"the decoupled columns must be grownLength(8, 9, 255) == 16 slots long"
+					);
+					assertTrue(layerBytes > committedBytes, "the layer must be physically longer than the base");
+					for (int key = 2; key <= 8; key++) {
+						t.addRecord(key, 100 + key);
+						assertEquals(
+							layerBytes, columnBytesOf(layer),
+							"no insert up to the sixteenth bucket may reallocate, failed at key " + key
+						);
+					}
+					assertEquals(16, layer.size(), "the layer must now hold sixteen buckets");
+				},
+				(t, committedTree) -> {
+					// back outside the transaction the leaf's getters answer for the BASE again, and the base is the
+					// pre-transaction tree — so this is where the committed columns' identity can actually be read
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+
+					// the merged leaf holds every bucket the fixture and the transaction contributed between them
+					verifyTreeConsistency(committedTree, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{0}, recordsOf(committedTree, 0));
+					assertArrayEquals(new int[]{101}, recordsOf(committedTree, 1));
+					assertArrayEquals(new int[]{108}, recordsOf(committedTree, 8));
+					assertArrayEquals(new int[]{7}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an add that joins an existing bucket decouples an exactly-full leaf verbatim")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafVerbatimWhenAnAddJoinsAnExistingBucket() {
+			// the headroom is for a bucket that is actually being added. An add landing on a key the leaf already
+			// holds gains no slot, and taking the headroom for it would grow an exactly-full leaf's columns for
+			// good — the commit merge's 4:1 trim gap never reclaims a single doubling. On the reduced trees this
+			// work exists for, where a four-key leaf sits on four-slot arrays, that is the whole prize given back
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// a second record on a key the fixture already holds. The bucket is promoted to a multi one,
+					// which legitimately materializes the overflow column — but the key and record columns, which
+					// are the two `columnBytesOf` measures, must not move a slot
+					t.addRecord(70, 999);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the add must have created a layer over the committed leaf");
+					assertNotSame(committedKeys, layer.getKeyColumn(), "a join must still decouple");
+					assertEquals(
+						committedBytes, columnBytesOf(layer),
+						"a join adds no key, so its decouple must copy the columns verbatim"
+					);
+					assertEquals(8, layer.size(), "the layer must still hold exactly eight buckets");
+				},
+				(t, committedTree) -> {
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+					assertEquals(
+						committedBytes, columnBytesOf(committedTree.enumerateLeaves().get(0)),
+						"the merged leaf must carry the committed physical length rather than a doubling"
+					);
+					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{7, 999}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a join followed by a new key still ends at the grown length with every value present")
+		@Tag(TRANSACTION)
+		void shouldGrowOnceWhenAJoinIsFollowedByANewKey() {
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final long committedBytes = columnBytesOf(committed);
+			// measured outside the transaction: a reference tree built in here would leave its leaf's layer unswept
+			final long sixteenSlotBytes = columnBytesOfLeafSizedTo(16);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.addRecord(70, 999);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the add must have created a layer over the committed leaf");
+					assertEquals(committedBytes, columnBytesOf(layer), "the join must leave the columns at eight");
+
+					// the new key has to grow them itself. The columns are already decoupled by the join, so the
+					// headroom copy is no longer on offer and the ordinary geometric growth takes over — one
+					// reallocation, landing on the same sixteen slots a bare insert would have reached
+					t.addRecord(1, 101);
+					assertEquals(sixteenSlotBytes, columnBytesOf(layer), "the new key must grow the columns to 16");
+					assertEquals(9, layer.size(), "the layer must hold nine buckets");
+				},
+				(t, committedTree) -> {
+					verifyTreeConsistency(committedTree, 0, 1, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{101}, recordsOf(committedTree, 1));
+					assertArrayEquals(new int[]{7, 999}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a removal decouples an exactly-full leaf verbatim, with no headroom")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafVerbatimForARemoval() {
+			// the headroom is for an insert and nothing else: a decouple whose mutation is about to SHRINK the
+			// columns would be over-allocating for slots that mutation is giving back
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.removeRecord(70, 7);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the removal must have created a layer over the committed leaf");
+					assertNotSame(committedKeys, layer.getKeyColumn(), "a removal must still decouple");
+					assertEquals(
+						committedBytes, columnBytesOf(layer),
+						"a decouple for a removal must copy the columns verbatim"
+					);
+					assertEquals(7, layer.size(), "the layer must have dropped the bucket");
+					assertEquals(8, committedKeys.size(), "the committed leaf must not observe the removal");
+					assertEquals(
+						committedBytes, columnBytesOf(committedKeys, committedRecords),
+						"the committed columns must never be touched"
+					);
+				},
+				(t, committedTree) -> {
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60);
 				}
 			);
 		}

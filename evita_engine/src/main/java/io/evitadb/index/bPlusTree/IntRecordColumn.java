@@ -129,6 +129,17 @@ final class IntRecordColumn implements RecordColumn {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public RecordColumn duplicateForInsert() {
+		// an empty column keeps the shared empty array, exactly as `duplicate()` does — `headroomLength` answers the
+		// source's own length for it, and `Arrays.copyOf` of a zero-length array would allocate a private one
+		final int target = ColumnSizing.headroomLength(this.size, this.records.length, this.capacity);
+		return new IntRecordColumn(
+			this.capacity, this.size, this.records.length == 0 ? this.records : Arrays.copyOf(this.records, target)
+		);
+	}
+
 	@Override
 	public int intAt(int index) {
 		return index < this.size ? this.records[index] : emptySlotAt(index);

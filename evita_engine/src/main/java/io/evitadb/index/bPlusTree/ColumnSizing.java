@@ -90,6 +90,32 @@ final class ColumnSizing {
 	}
 
 	/**
+	 * Computes the physical length a copy taken by the MVCC decouple should allocate when the layer's very first act
+	 * will be an insert: the source's own length, except for an exactly-full column, which is copied straight to the
+	 * length {@link #grownLength} would give its next insert.
+	 *
+	 * A committed leaf whose columns are exactly full is common rather than exotic — both halves of every split are
+	 * born that way, and after a restart every bulk-loaded page is too. Copying such a column at its short length and
+	 * growing it one statement later costs two allocations where one would do, which the cursor-allocation benchmark
+	 * measured as +489 B per transactional insert. Anticipating the grow here folds the pair back into one copy.
+	 *
+	 * Two shapes are deliberately left at the source's length: an **empty** column, which stays parked on its shared
+	 * empty array rather than allocating for an insert that may never come, and one whose backing has already reached
+	 * the logical capacity, which has no room to grow into.
+	 *
+	 * @param size          the column's live entry count
+	 * @param currentLength the array's present physical length
+	 * @param capacity      the column's logical capacity (the leaf block size)
+	 * @return the physical length the copy should allocate, never below {@code currentLength}
+	 */
+	static int headroomLength(int size, int currentLength, int capacity) {
+		if (size == 0 || size < currentLength || currentLength >= capacity) {
+			return currentLength;
+		}
+		return grownLength(currentLength, Math.min(size + 1, capacity), capacity);
+	}
+
+	/**
 	 * Refuses a bulk load whose entry count runs past the column's logical capacity.
 	 *
 	 * The incremental path carries this premise inside {@link #grownLength}, which every {@code ensurePhysicalLength}

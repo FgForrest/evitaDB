@@ -437,6 +437,70 @@ class OverflowColumnTest {
 		}
 
 		@Test
+		@DisplayName("duplicating for an insert grows an exactly-full column and still shares the bitmaps")
+		void shouldGrowAnExactlyFullColumnWhenDuplicatedForAnInsert() {
+			// eight slots in eight is the shape a split half and a bulk-loaded page have. Copying it at that length
+			// and growing it on the very next insert is two allocations where one would do, so the decouple's insert
+			// path copies straight to grownLength(8, 9, 256) == 16. The heap figure is the proxy for the physical
+			// length: this column prices its backing array's LENGTH and nothing else
+			final OverflowColumn column = new OverflowColumn(BLOCK);
+			column.bulkLoad(new TransactionalBitmap[]{
+				bitmap(0), null, bitmap(2), null, bitmap(4), null, bitmap(6), null
+			}, 8);
+			assertEquals(8, column.size());
+
+			final OverflowColumn headroom = column.duplicateForInsert();
+			assertNotSame(column, headroom);
+			assertEquals(8, headroom.size(), "the copy carries the source's live run");
+			assertEquals(BLOCK, headroom.capacity(), "a duplication must never move the logical capacity");
+			assertSame(
+				column.bitmapAt(0), headroom.bitmapAt(0),
+				"the clone stays SHALLOW - each bitmap owns its own transactional layer and memento"
+			);
+			assertSame(column.bitmapAt(6), headroom.bitmapAt(6));
+			assertNull(headroom.bitmapAt(1), "a single bucket's slot must still read as null");
+
+			final OverflowColumn reference = new OverflowColumn(BLOCK);
+			for (int i = 0; i < 9; i++) {
+				reference.insertAt(i, null);
+			}
+			assertEquals(
+				reference.getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+				"an exactly-full column must be duplicated straight to grownLength(8, 9, 256) == 16 slots"
+			);
+			assertTrue(
+				headroom.getHeapSizeInBytes() > column.duplicate().getHeapSizeInBytes(),
+				"the headroom copy must be physically longer than the verbatim one"
+			);
+
+			// the point of the whole exercise: the first insert reallocates nothing, and it stays independent
+			final long beforeInsert = headroom.getHeapSizeInBytes();
+			headroom.insertAt(8, bitmap(8));
+			assertEquals(9, headroom.size());
+			assertEquals(beforeInsert, headroom.getHeapSizeInBytes(), "the layer's first insert must land in place");
+			assertEquals(8, column.size(), "the source must not observe the copy's insert");
+			assertSame(column.bitmapAt(0), headroom.bitmapAt(0), "the copy must still share the bitmaps it carried");
+
+			// a column that still has slack is copied verbatim - its next insert has nothing to grow
+			final OverflowColumn withSlack = OverflowColumn.withLiveRun(BLOCK, 0);
+			for (int i = 0; i < 5; i++) {
+				withSlack.insertAt(i, bitmap(i));
+			}
+			assertEquals(
+				withSlack.duplicate().getHeapSizeInBytes(), withSlack.duplicateForInsert().getHeapSizeInBytes(),
+				"a column that is not exactly full must be duplicated verbatim"
+			);
+
+			// an empty column allocates nothing extra either - it has no live slot the next insert would push past
+			final OverflowColumn stillEmpty = new OverflowColumn(BLOCK);
+			assertEquals(0, stillEmpty.duplicateForInsert().size());
+			assertEquals(
+				stillEmpty.duplicate().getHeapSizeInBytes(), stillEmpty.duplicateForInsert().getHeapSizeInBytes(),
+				"an empty column must be duplicated verbatim"
+			);
+		}
+
+		@Test
 		@DisplayName("trimming waits for enough slack and then lands on a power of two")
 		void shouldTrimOnlyWhenSlackIsLarge() {
 			final OverflowColumn column = OverflowColumn.withLiveRun(BLOCK, 0);

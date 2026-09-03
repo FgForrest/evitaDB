@@ -318,6 +318,83 @@ final class ValueColumnTestSupport {
 			full.fillEmpty(1, SIZING_CAPACITY);
 			assertSame(full, full.trimmed(), "a front-coded column stays exact after a truncation");
 		}
+
+		// `duplicateForInsert` is the decouple's copy for a layer whose first act is an insert. An EXACTLY FULL
+		// column - the shape both halves of every split and every bulk-loaded page have - is copied straight to the
+		// length its next insert needs, so that insert lands in place instead of paying a second allocation one
+		// statement later. The heap figure is the proxy for the physical length throughout: every implementation
+		// prices its backing array's LENGTH and nothing else, so two columns of equal footprint are equally long
+		final Object[] eight = new Object[8];
+		for (int i = 0; i < eight.length; i++) {
+			eight[i] = keyFactory.apply(i);
+		}
+		final ValueColumn<M> exactlyFull = emptyColumnFactory.apply(SIZING_CAPACITY);
+		exactlyFull.bulkLoad(eight, eight.length);
+		final ValueColumn<M> headroom = exactlyFull.duplicateForInsert();
+		assertEquals(eight.length, headroom.size(), "the copy carries the source's live run");
+		assertEquals(SIZING_CAPACITY, headroom.capacity(), "a duplication must never move the logical capacity");
+		assertObservesItsWholeLiveRun(headroom, "duplicated for an insert");
+		for (int i = 0; i < eight.length; i++) {
+			assertEquals(keyFactory.apply(i), headroom.keyAt(i), "duplicated key mismatch at slot " + i);
+		}
+
+		if (fixedSlotStorage) {
+			// the target is grownLength(8, 9, 64) == 16, and a column grown to nine keys by the incremental path
+			// (0 -> 4 -> 8 -> 16) is exactly that long - so its footprint is the expectation
+			final ValueColumn<M> reference = emptyColumnFactory.apply(SIZING_CAPACITY);
+			for (int i = 0; i < 9; i++) {
+				reference.insertKeyAt(i, keyFactory.apply(i));
+			}
+			assertEquals(
+				reference.getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+				"an exactly-full column must be duplicated straight to grownLength(8, 9, 64) == 16 slots"
+			);
+			assertTrue(
+				headroom.getHeapSizeInBytes() > exactlyFull.duplicate().getHeapSizeInBytes(),
+				"the headroom copy must be physically longer than the verbatim one"
+			);
+		} else {
+			// a front-coded blob is re-encoded to exactly its content by every write, so it has no per-slot length
+			// to over-allocate and the two duplication methods have to agree
+			assertEquals(
+				exactlyFull.duplicate().getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+				"a front-coded column has no slots to give headroom to"
+			);
+		}
+
+		// the point of the whole exercise: on a fixed-slot column the first insert reallocates nothing
+		final long beforeInsert = headroom.getHeapSizeInBytes();
+		headroom.insertKeyAt(eight.length, keyFactory.apply(eight.length));
+		assertEquals(eight.length + 1, headroom.size());
+		if (fixedSlotStorage) {
+			assertEquals(beforeInsert, headroom.getHeapSizeInBytes(), "the layer's first insert must land in place");
+		}
+
+		// ...and the copy is independent of its source in both directions, exactly as `duplicate()` is
+		assertEquals(eight.length, exactlyFull.size(), "the source must not observe the copy's insert");
+		for (int i = 0; i < eight.length; i++) {
+			assertEquals(keyFactory.apply(i), exactlyFull.keyAt(i), "the source must not alias the copy at slot " + i);
+		}
+
+		// a column that still has slack is copied verbatim - its next insert has nothing to grow
+		final ValueColumn<M> withSlack = emptyColumnFactory.apply(SIZING_CAPACITY);
+		for (int i = 0; i < 5; i++) {
+			withSlack.insertKeyAt(i, keyFactory.apply(i));
+		}
+		assertEquals(
+			withSlack.duplicate().getHeapSizeInBytes(), withSlack.duplicateForInsert().getHeapSizeInBytes(),
+			"a column that is not exactly full must be duplicated verbatim"
+		);
+
+		// an empty column stays parked on its shared empty backing rather than allocating for an insert that may
+		// never come - the primitive columns exclude that array from their own figure, so a private zero-length
+		// replacement would show up here as a larger footprint
+		final ValueColumn<M> stillEmpty = emptyColumnFactory.apply(SIZING_CAPACITY);
+		assertEquals(0, stillEmpty.duplicateForInsert().size());
+		assertEquals(
+			stillEmpty.duplicate().getHeapSizeInBytes(), stillEmpty.duplicateForInsert().getHeapSizeInBytes(),
+			"an empty column must keep the shared empty array"
+		);
 	}
 
 	/**
@@ -470,6 +547,67 @@ final class ValueColumnTestSupport {
 			"the trimmed column must actually be cheaper"
 		);
 		assertSame(trimmed, trimmed.trimmed(), "trimming is idempotent");
+
+		// `duplicateForInsert` — the decouple's copy for a layer whose first act is an insert. See the key battery
+		// above for the shape it exists for, and for why the heap figure is the proxy for the physical length
+		final long[] eight = new long[8];
+		for (int i = 0; i < eight.length; i++) {
+			eight[i] = 4_000L + i;
+		}
+		final RecordColumn exactlyFull = emptyColumnFactory.apply(SIZING_CAPACITY);
+		exactlyFull.bulkLoad(eight, eight.length);
+		final RecordColumn headroom = exactlyFull.duplicateForInsert();
+		assertEquals(eight.length, headroom.size(), "the copy carries the source's live run");
+		assertEquals(SIZING_CAPACITY, headroom.capacity(), "a duplication must never move the logical capacity");
+		assertObservesItsWholeLiveRun(headroom, "duplicated for an insert");
+		for (int i = 0; i < eight.length; i++) {
+			assertEquals(eight[i], headroom.longAt(i), "duplicated record mismatch at slot " + i);
+		}
+
+		// the target is grownLength(8, 9, 64) == 16, and a column grown to nine records by the incremental path
+		// (0 -> 4 -> 8 -> 16) is exactly that long - so its footprint is the expectation
+		final RecordColumn reference = emptyColumnFactory.apply(SIZING_CAPACITY);
+		for (int i = 0; i < 9; i++) {
+			reference.insertAt(i, 4_000L + i);
+		}
+		assertEquals(
+			reference.getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+			"an exactly-full column must be duplicated straight to grownLength(8, 9, 64) == 16 slots"
+		);
+		assertTrue(
+			headroom.getHeapSizeInBytes() > exactlyFull.duplicate().getHeapSizeInBytes(),
+			"the headroom copy must be physically longer than the verbatim one"
+		);
+
+		// the point of the whole exercise: the first insert reallocates nothing
+		final long beforeInsert = headroom.getHeapSizeInBytes();
+		headroom.insertAt(eight.length, 9_999L);
+		assertEquals(eight.length + 1, headroom.size());
+		assertEquals(beforeInsert, headroom.getHeapSizeInBytes(), "the layer's first insert must land in place");
+
+		// ...and the copy is independent of its source in both directions, exactly as `duplicate()` is
+		assertEquals(eight.length, exactlyFull.size(), "the source must not observe the copy's insert");
+		for (int i = 0; i < eight.length; i++) {
+			assertEquals(eight[i], exactlyFull.longAt(i), "the source must not alias the copy at slot " + i);
+		}
+
+		// a column that still has slack is copied verbatim, and an empty one stays parked on its shared empty
+		// backing - the record columns exclude that array from their own figure, so a private zero-length
+		// replacement would show up here as a larger footprint
+		final RecordColumn withSlack = emptyColumnFactory.apply(SIZING_CAPACITY);
+		for (int i = 0; i < 5; i++) {
+			withSlack.insertAt(i, 5_000L + i);
+		}
+		assertEquals(
+			withSlack.duplicate().getHeapSizeInBytes(), withSlack.duplicateForInsert().getHeapSizeInBytes(),
+			"a column that is not exactly full must be duplicated verbatim"
+		);
+		final RecordColumn stillEmpty = emptyColumnFactory.apply(SIZING_CAPACITY);
+		assertEquals(0, stillEmpty.duplicateForInsert().size());
+		assertEquals(
+			stillEmpty.duplicate().getHeapSizeInBytes(), stillEmpty.duplicateForInsert().getHeapSizeInBytes(),
+			"an empty column must keep the shared empty array"
+		);
 	}
 
 	/**

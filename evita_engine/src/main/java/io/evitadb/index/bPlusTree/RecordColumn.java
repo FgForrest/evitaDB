@@ -136,6 +136,18 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	RecordColumn duplicate();
 
 	/**
+	 * The MVCC decouple's variant of {@link #duplicate()}, for the case where the layer's very first act on the copy
+	 * will be an **insert**: identical in content and depth, but a column whose live run exactly fills its backing
+	 * array is copied straight to the length its next insert would grow it to, so that insert lands in place. See
+	 * {@link ValueColumn#duplicateForInsert()} for the measurement behind it and for the invariant that the savepoint
+	 * memento must keep using {@link #duplicate()}.
+	 *
+	 * @return an independent deep copy of this column, sized to absorb one more entry without reallocating
+	 */
+	@Nonnull
+	RecordColumn duplicateForInsert();
+
+	/**
 	 * Returns the record at the given index narrowed to {@code int}. Valid for an {@link IntRecordColumn} (identity) and
 	 * for a {@link LongRecordColumn} (the caller asserts the payload fits 32 bits) — used by the int-record tree API.
 	 *

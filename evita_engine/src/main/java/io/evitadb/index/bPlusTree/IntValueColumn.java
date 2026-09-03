@@ -148,6 +148,17 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 
 	@Nonnull
 	@Override
+	public ValueColumn<M> duplicateForInsert() {
+		// an empty column keeps the shared empty array, exactly as `duplicate()` does — `headroomLength` answers the
+		// source's own length for it, and `Arrays.copyOf` of a zero-length array would allocate a private one
+		final int target = ColumnSizing.headroomLength(this.size, this.keys.length, this.capacity);
+		return new IntValueColumn<>(
+			this.capacity, this.size, this.keys.length == 0 ? this.keys : Arrays.copyOf(this.keys, target)
+		);
+	}
+
+	@Nonnull
+	@Override
 	@SuppressWarnings("unchecked")
 	public M keyAt(int index) {
 		// boxing boundary — boxed exactly where the boxed leaf would have materialized the key

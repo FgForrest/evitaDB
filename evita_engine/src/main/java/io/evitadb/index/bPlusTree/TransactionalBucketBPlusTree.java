@@ -5459,8 +5459,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				assertColumnsAlignedWithPeek();
 				previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
 			} else {
-				decoupleTransactionalArrays();
-				previousNode.decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
+				previousNode.decoupleTransactionalArrays(false);
 
 				ensureOverflowForSteal(layer, previousNode.getOverflow());
 				layer.keys.copyRangeTo(0, layer.keys, numberOfTailValues, layer.peek + 1);
@@ -5526,8 +5526,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.peek += numberOfHeadValues;
 				assertColumnsAlignedWithPeek();
 			} else {
-				decoupleTransactionalArrays();
-				nextNode.decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
+				nextNode.decoupleTransactionalArrays(false);
 
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
 				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
@@ -5584,8 +5584,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				assertColumnsAlignedWithPeek();
 				previousNode.setPeek(-1);
 			} else {
-				decoupleTransactionalArrays();
-				previousNode.decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
+				previousNode.decoupleTransactionalArrays(false);
 
 				ensureOverflowForSteal(layer, previousNode.getOverflow());
 				layer.keys.copyRangeTo(0, layer.keys, mergePeek + 1, layer.peek + 1);
@@ -5628,8 +5628,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				assertColumnsAlignedWithPeek();
 				nextNode.setPeek(-1);
 			} else {
-				decoupleTransactionalArrays();
-				nextNode.decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
+				nextNode.decoupleTransactionalArrays(false);
 
 				ensureOverflowForSteal(layer, nextNode.getOverflow());
 				nextNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, layer.peek + 1, mergePeek + 1);
@@ -6419,19 +6419,28 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				insertNewSingleBucket(insertionPosition.position(), value, pk);
 				return insertionPosition.position();
 			} else {
-				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
 					layer.peek < layer.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
+				// the search runs BEFORE the decouple so the decouple can tell whether a bucket is actually being
+				// added — an add that joins an EXISTING bucket must not take the insert headroom, or an exactly-full
+				// leaf grows its columns for a key it never gained and the commit merge's 4:1 trim never gives the
+				// slots back. Reading the layer's key column here is safe in both states it can be in: until the
+				// first decouple it ALIASES the committed column, afterwards it is the layer's own mutated copy, and
+				// either way it holds exactly the keys the mutation below works on. Only the two primitives cross
+				// the call, so the position record still dies here rather than widening its lifetime past it
 				final InsertionPosition insertionPosition =
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
-				if (insertionPosition.alreadyPresent()) {
-					layer.addToExistingBucket(insertionPosition.position(), pk);
+				final int position = insertionPosition.position();
+				final boolean alreadyPresent = insertionPosition.alreadyPresent();
+				decoupleTransactionalArrays(!alreadyPresent);
+				if (alreadyPresent) {
+					layer.addToExistingBucket(position, pk);
 					return NO_NEW_BUCKET;
 				}
-				layer.insertNewSingleBucket(insertionPosition.position(), value, pk);
-				return insertionPosition.position();
+				layer.insertNewSingleBucket(position, value, pk);
+				return position;
 			}
 		}
 
@@ -6469,7 +6478,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				insertNewSingleBucket(insertionPosition.position(), value, payload);
 				return insertionPosition.position();
 			} else {
-				decoupleTransactionalArrays();
+				// unconditionally an insert, unlike its two siblings: this tree's buckets are unique, so a present
+				// key is a programming error rather than a join and every call that returns has added one
+				decoupleTransactionalArrays(true);
 				Assert.isPremiseValid(
 					layer.peek < layer.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
@@ -6522,7 +6533,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				deleteBucketAt(insertionPosition.position());
 				return true;
 			} else {
-				decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
 				final InsertionPosition insertionPosition =
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
 				if (!insertionPosition.alreadyPresent()) {
@@ -6566,19 +6577,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				insertNewBucket(insertionPosition.position(), value, pks);
 				return insertionPosition.position();
 			} else {
-				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
 					layer.peek < layer.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
+				// searched before the decouple for the reason {@link #addRecord(Comparable, int)} states: records
+				// joining an existing bucket add no key, so that decouple must not take the insert headroom
 				final InsertionPosition insertionPosition =
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
-				if (insertionPosition.alreadyPresent()) {
-					layer.addRecordsToExistingBucket(insertionPosition.position(), pks);
+				final int position = insertionPosition.position();
+				final boolean alreadyPresent = insertionPosition.alreadyPresent();
+				decoupleTransactionalArrays(!alreadyPresent);
+				if (alreadyPresent) {
+					layer.addRecordsToExistingBucket(position, pks);
 					return NO_NEW_BUCKET;
 				}
-				layer.insertNewBucket(insertionPosition.position(), value, pks);
-				return insertionPosition.position();
+				layer.insertNewBucket(position, value, pks);
+				return position;
 			}
 		}
 
@@ -6609,7 +6624,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				}
 				return removeFromBucket(insertionPosition.position(), pks);
 			} else {
-				decoupleTransactionalArrays();
+				decoupleTransactionalArrays(false);
 				final InsertionPosition insertionPosition =
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
 				if (!insertionPosition.alreadyPresent()) {
@@ -6969,24 +6984,45 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Decouples the node's three columns into transaction-local copies before mutation.
+		 * Decouples the node's four columns into transaction-local copies before mutation. A layer starts out
+		 * aliasing the committed columns ({@link #createLayer()} passes them twice), so the copy is taken by
+		 * reference identity and every later call on the same layer is a no-op.
+		 *
+		 * `forInsert` picks which duplication primitive the copies are taken with, and it is not a hint — it decides
+		 * whether the very next statement allocates a second time. A committed leaf whose columns are exactly full
+		 * is the common case rather than a corner one (both halves of every split are born that way, and after a
+		 * restart so is every bulk-loaded page); copying one at its short length and growing it one statement later
+		 * costs two allocations where one would do. So a mutation that **adds a bucket** passes `true` and gets
+		 * {@link ValueColumn#duplicateForInsert()}, which copies straight to the grown length; one that removes,
+		 * rewrites or rebalances passes `false` and gets the verbatim {@link ValueColumn#duplicate()}, which must
+		 * not over-allocate for a shrink.
+		 *
+		 * **The add paths decide per call, not per entry point.** `addRecord` and `addRecords` may equally well
+		 * join an existing bucket, which adds no key at all, so they search first and pass the answer here — see
+		 * {@link #addRecord(Comparable, int)}. Taking the headroom for a join would grow an exactly-full leaf's
+		 * columns permanently, because the commit merge's 4:1 trim gap never reclaims a single doubling.
+		 *
+		 * {@link #snapshot()} and {@link #restore} take no part in this — a memento has to be a faithful pre-image
+		 * and stays on {@link ValueColumn#duplicate()} unconditionally.
+		 *
+		 * @param forInsert whether the mutation about to run on the layer adds a bucket
 		 */
-		private void decoupleTransactionalArrays() {
+		private void decoupleTransactionalArrays(boolean forInsert) {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
 			if (layer != null) {
 				if (layer.keys == this.keys) {
-					layer.keys = this.keys.duplicate();
+					layer.keys = forInsert ? this.keys.duplicateForInsert() : this.keys.duplicate();
 				}
 				if (layer.records == this.records) {
-					layer.records = this.records.duplicate();
+					layer.records = forInsert ? this.records.duplicateForInsert() : this.records.duplicate();
 				}
 				if (this.valueIds != null && layer.valueIds == this.valueIds) {
-					layer.valueIds = this.valueIds.duplicate();
+					layer.valueIds = forInsert ? this.valueIds.duplicateForInsert() : this.valueIds.duplicate();
 				}
 				if (this.overflow != null && layer.overflow == this.overflow) {
-					layer.overflow = this.overflow.duplicate();
+					layer.overflow = forInsert ? this.overflow.duplicateForInsert() : this.overflow.duplicate();
 				}
 			}
 		}

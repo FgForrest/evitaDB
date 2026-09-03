@@ -171,6 +171,19 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 
 	@Nonnull
 	@Override
+	public ValueColumn<M> duplicateForInsert() {
+		// both arrays take the SAME target length: the internal constructor demands they stay equal, and every reader
+		// bounds itself by the shorter of the two, so growing only one of them would hide half the headroom
+		final int target = ColumnSizing.headroomLength(this.size, this.seconds.length, this.capacity);
+		return new InstantValueColumn<>(
+			this.capacity, this.size,
+			this.seconds.length == 0 ? this.seconds : Arrays.copyOf(this.seconds, target),
+			this.nanos.length == 0 ? this.nanos : Arrays.copyOf(this.nanos, target)
+		);
+	}
+
+	@Nonnull
+	@Override
 	@SuppressWarnings("unchecked")
 	public M keyAt(int index) {
 		// boxing boundary — decoded exactly where the boxed leaf would have materialized the key

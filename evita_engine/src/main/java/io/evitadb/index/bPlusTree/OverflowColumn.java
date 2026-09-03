@@ -207,6 +207,26 @@ final class OverflowColumn {
 	}
 
 	/**
+	 * The MVCC decouple's variant of {@link #duplicate()}, for the case where the layer's very first act on the copy
+	 * will be an **insert**: the same shallow copy, but a column whose live run exactly fills its backing array is
+	 * copied straight to the length its next insert would grow it to, so that insert lands in place. See
+	 * {@link ValueColumn#duplicateForInsert()} for the measurement behind it and for the invariant that the savepoint
+	 * memento must keep using {@link #duplicate()}.
+	 *
+	 * The bitmaps are shared with this column, for the reason {@link #duplicate()} states; the slots the extra length
+	 * opens are `null`, which is what an unwritten overflow slot has always read as.
+	 *
+	 * @return a shallow copy of this column, sized to absorb one more slot without reallocating
+	 */
+	@Nonnull
+	OverflowColumn duplicateForInsert() {
+		return new OverflowColumn(
+			this.capacity, this.size,
+			Arrays.copyOf(this.bitmaps, ColumnSizing.headroomLength(this.size, this.bitmaps.length, this.capacity))
+		);
+	}
+
+	/**
 	 * Returns the multi-record bitmap held at the given slot, or `null` when that bucket is still single.
 	 *
 	 * A slot at or beyond {@link #size()} but below {@link #capacity()} reads `null`, the value an unwritten slot has

@@ -198,6 +198,28 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	ValueColumn<M> duplicate();
 
 	/**
+	 * The MVCC decouple's variant of {@link #duplicate()}, for the case where the layer's very first act on the copy
+	 * will be an **insert**. Identical to {@link #duplicate()} in every respect — same live run, same content, same
+	 * depth of copy — except that a column whose live run exactly fills its backing array is copied straight to the
+	 * length its next insert would grow it to ({@code ColumnSizing.headroomLength}), so that insert lands in place.
+	 *
+	 * **Why the family carries two duplication methods.** A committed leaf whose columns are exactly full is the
+	 * common case rather than a corner one: both halves of every split are born that way, and after a restart so is
+	 * every bulk-loaded page. Copying such a column at its short length and growing it one statement later costs two
+	 * allocations where the block-sized columns this family replaced paid one; the cursor-allocation benchmark
+	 * measured that as +489 B per insert (+44 %) on its `insertBucketInTransaction` arm at block size 256.
+	 *
+	 * **The savepoint memento must never use this method.** A memento has to be a faithful pre-image, and a rollback
+	 * that changed the leaf's physical shape would be a side effect of restoring it. `snapshot()` and `restore()`
+	 * therefore stay on {@link #duplicate()}, as does every decouple whose pending mutation removes or rewrites
+	 * rather than inserts.
+	 *
+	 * @return an independent copy of this column, sized to absorb one more entry without reallocating
+	 */
+	@Nonnull
+	ValueColumn<M> duplicateForInsert();
+
+	/**
 	 * Returns the (boxed) key at the given index. Boxing boundary — call only where the boxed leaf already materialized
 	 * a key (per-visited-bucket / per-leaf-separator / cold paths).
 	 *
@@ -549,6 +571,15 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 		// (`asBoxedArray` has to hand out the erased component type), so `getHeapSizeInBytes` charges the array
 		// unconditionally and a shared one would be billed twice, once by each holder
 		return new BoxedObjectColumn<>(this.keyType, this.capacity, this.size, this.keys.clone());
+	}
+
+	@Nonnull
+	@Override
+	public ValueColumn<M> duplicateForInsert() {
+		return new BoxedObjectColumn<>(
+			this.keyType, this.capacity, this.size,
+			Arrays.copyOf(this.keys, ColumnSizing.headroomLength(this.size, this.keys.length, this.capacity))
+		);
 	}
 
 	@Nonnull

@@ -387,6 +387,20 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Always the plain {@link #duplicate()}. The headroom the fixed-slot columns take is slack in a per-slot array,
+	 * and this column has no such array: its keys live in one variable-length blob that every {@code encode()} pass
+	 * republishes at exactly the bytes they occupy. There is no length to over-allocate, and the next insert
+	 * re-encodes the blob whatever this copy did.
+	 */
+	@Nonnull
+	@Override
+	public ValueColumn<M> duplicateForInsert() {
+		return duplicate();
+	}
+
 	@Nonnull
 	@Override
 	@SuppressWarnings("unchecked")
