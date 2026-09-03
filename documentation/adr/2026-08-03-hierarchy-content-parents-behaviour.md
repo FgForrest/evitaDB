@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-03 06:24
+updated: 2026-09-03 11:07
 status: proposed
 kind: fix
 issues: [1365]
@@ -238,7 +238,7 @@ against the intact control on chain `1 → 2 → 3`.
 | Fold in the Kryo fix for `ManagedReferencesBehaviour`, and accept the format break it causes | `ReferenceContentSerializer` never writes it and the configurer never registers it, so a stored `referenceContent(EXISTING, …)` replays as `ANY`; the new enum needs the same wiring and would otherwise copy the defect. There is no compatible middle ground for a query-constraint serializer — the reasoning is written down once in `documentation/adr/2026-08-04-query-telemetry-actionable-profile.md`. What the break reaches is wider than that record states: besides the traffic recorder and its replaying reader, the locally generated benchmark query corpora that `ClientSyntheticTestState` and `SanityChecker` load are consumers too. No corpus is tracked in git, so the cost is a local regeneration | shipping `HierarchyParentsBehaviour` serialization while leaving the neighbouring gap |
 | GraphQL: `parents` keeps `MATCHING`, new `parentsComplete(stopAt:)` returns a list of a union | additive on the schema; the union follows the `...Union` convention already established for mutation DTOs | typing the list as the existing `THIS_CLASSIFIER` interface, which mints no new type and reuses `EntityDtoTypeResolver` at the same fragment cost — a real alternative, decided on convention rather than capability |
 | REST: `parentEntity` keeps `MATCHING`, new `parentEntityComplete` typed `oneOf` | `OpenApiUnion` already supports `ONE_OF`; and `parentEntity` becomes *honest*, since a `MATCHING` chain never contains a pointer | discriminating the `oneOf` on `type`, which cannot work — an entity and its own pointer carry the same type value |
-| The resolver emits exactly one `hierarchyContent` | both fields selected means `COMPLETE` with the union of the two selection sets and equal `stopAt` required; `parents` is then derived by stopping the leaf→root walk at the first non-`SealedEntity`, which equals `MATCHING` and stays equal under `stopAt`, since a prefix of a truncated chain is a truncation of a prefix | two constraints and a merge, which the throw-on-conflict rule forbids |
+| The resolver emits exactly one `hierarchyContent`; `parents` is derived from the resolved chain, but the derivation is **conditional on bodies having been requested** | both fields selected means `COMPLETE` with the union of the two selection sets and equal `stopAt` required. `parentsComplete` always carries an inner `entityFetch` — an empty one when its own selection derives none — so a chain element that arrives as a mere reference genuinely means *the requested body could not be materialized*. `parents` is then derived by stopping the leaf→root walk at the first non-`SealedEntity`, which equals `MATCHING` and stays equal under `stopAt`, since a prefix of a truncated chain is a truncation of a prefix. `ParentsDataFetcher` decides whether to apply that cut at all by reading the **enclosing execution step**: a data fetcher sees only its own field's selection set, so the sibling `parentsComplete` selection is read off the field that produced the entity. The cut is applied when that sibling is selected, or when `parents`' own selection reaches past the classifier fields | two constraints and a merge, which the throw-on-conflict rule forbids. **The bare rule — cut at the first non-`SealedEntity`, unconditionally** — *rejected because* an ordinary bodyless `parents { primaryKey }` chain consists of nothing but non-`SealedEntity` elements and would be truncated to nothing. **Recovering the condition from the returned chain instead** (a chain mixing materialized with bodyless ancestors proves bodies were asked for) — *rejected because* it fails precisely where `COMPLETE` matters: when no ancestor materialized at all, the chain carries no evidence and the whole pointer chain is reported where `MATCHING` returns an empty one |
 | Conflict check ignores a side that requests no bodies | a bare `hierarchyContent()` has an inert mode by definition, so `entityFetchAll()` combined with an explicit `hierarchyContent(COMPLETE, entityFetch(...))` keeps working | a strict check, which would make `entityFetchAll()` unusable next to any explicit `COMPLETE` fetch |
 | `CONCEALED_ENTITY` deprecated, not deleted | it is public `evita_api`, and it throws from `getType()` / `getPrimaryKey()`, which the exception policy forbids | deleting it; the `since` value is re-derived from the reactor pom at commit time rather than hardcoded now |
 | A parent primary key the index cannot resolve is reported as a bodyless pointer on top of the chain — in the bare form as much as in either mode | it is a key the entity genuinely carries, and only the body it can never yield distinguishes it from any other ancestor. It is offered to the stop predicate at its own distance with `UNKNOWN_LEVEL` as its level, so a `distance` bound cuts it like any ancestor and a `stopAt(node(...))` suppresses it; it is never registered for body fetching, which is what makes `MATCHING` cut below it for free. A key the chain already holds is dropped rather than reported twice, which is what bounds a ring | ending the chain at the last ancestor the index resolved — *rejected because* the key is real data on the entity, so hiding it makes a structural break indistinguishable from a genuine root. Measurable: K4's bare form reports `P(123) → P(122)`, where dropping the key would report `P(123)` and lose a primary key the entity carries |
@@ -302,15 +302,44 @@ against the intact control on chain `1 → 2 → 3`.
   hardcodes `ANY`, REST never references it, it is not a `@Creator` parameter, and Kryo never
   serializes it. The constraint-schema layers therefore have no template to copy — although an enum
   `@Creator` parameter does yield the GraphQL argument and the REST JSON constraint value generically.
+- **What makes the REST `oneOf` exclusive is an opt-in `additionalProperties: false` on the pointer
+  object.** `OpenApiObject.toSchema()` never emitted `additionalProperties` at all, so the pointer
+  branch accepted every property it did not declare and a materialized ancestor validated against
+  *both* subschemas — the published document was wrong about its own responses, and a generated typed
+  client rejects such a value with "matched more than one schema". `OpenApiObject.Builder`
+  `#forbidAdditionalProperties()` closes an object, and `EntityObjectBuilder#buildParentUnion` is its
+  **only** call site. The flag is opt-in rather than the default on purpose: closing an open response
+  object turns adding a property to it into a breaking change for a client validating against an older
+  document, so only an object whose exclusivity somebody depends on may be closed.
+- **The REST serializers are *told* the requirement rather than inferring it.**
+  `EntitySerializationContext` carries the `EntityFetchRequire` the entities it serves were fetched
+  with; `EntityJsonSerializer#ancestorBodiesRequested` reduces the `hierarchyContent` siblings out of
+  it and reads `getEntityFetch().isPresent()`, which is the ground truth an all-pointer chain cannot
+  supply. Four sites feed it: the endpoint's own query on the main path
+  (`RestEndpointExecutionContext#provideEntityRequirement`), the `entityFetch` **inside the hierarchy
+  constraint** for statistics trees, the `entityFetch` of the reference / facet summary for facet and
+  group entities, and the `entityFetch` of `referenceHistogramStatistics` for reference-histogram
+  anchor entities — never the top-level `entityFetch`, which describes a different collection.
+  Requirements one level down are descended into by `#forReferencedEntity` / `#forGroupEntity`, keyed
+  by reference name, since an ancestor pulled in under a `referenceContent` was fetched with that
+  requirement and not with this level's.
+  **The old inference survives as the fallback**, in `ancestorBodiesRequested`: a chain mixing
+  materialized ancestors with bodyless ones proves bodies were requested. It is reached where the
+  constraint asked for no bodies at all — its nodes are then thin `EntityReference`s and reporting the
+  chain whole is the right answer — and where a requirement could not be located, such as a histogram
+  whose `referenceHistogramStatistics` is not findable in the query; the attribute and price histograms
+  carry no boundary entities and never consult the context at all. It is a fallback and not a safety
+  net: reached with a `COMPLETE` chain in which nothing materialized, it reports the chain whole.
 
 ## Verification
 
 **The argument, both constants and every layer that carries them are implemented and green.** The
 query model, the EvitaQL grammar and its visitor, the Kryo serializer, the engine's upward traversal
 and parent-slot handling, the gRPC wire shape and the entity proxy all carry the behaviour. The
-record stays `proposed` only because Phases 7-9 remain — the Java client cannot yet *send* the enum,
-GraphQL's `parentsComplete` and REST's `parentEntityComplete` are not built, and the user
-documentation and release note are unwritten. The starting point is verified too: a throwaway
+Phases 7 and 8 have landed on top of that: the Java client sends the enum as a query parameter, and
+GraphQL's `parentsComplete` and REST's `parentEntityComplete` expose the complete chain. The record
+stays `proposed` only because Phase 9 remains — the user documentation and the release note are
+unwritten. The starting point is verified too: a throwaway
 characterisation run on 2026-09-02 against `dev` executed every row of the behaviour matrix except
 P6, which the landed P6 test measured afterwards, and classified the pre-#1365 behaviour as the
 position-dependent hybrid described above. That test was deleted after the run; the matrix is its
@@ -375,11 +404,33 @@ SUCCESS`; the single skip in the GraphQL/REST batch is a pre-existing `@Disabled
   (`EntityRecordProxying`, `EntityInterfaceProxying`, `EntityEditorProxying`,
   `IsolatedEntityEditorProxying`) — **213 tests**, which is where the parent-entity method classifier
   is exercised outside the eight rows of the matrix's own proxy class;
-- the GraphQL and REST catalog-query suites — **742 tests**, green and unchanged. `parentsComplete` /
-  `parentEntityComplete` are Phase 8; until they land this batch is the additive-schema guard,
-  proving the existing `parents` / `parentEntity` fields are untouched;
+- the GraphQL and REST catalog-query suites — **846 tests**, of which
+  `CatalogGraphQLHierarchyContentParentsFunctionalTest` contributes **13** and
+  `CatalogRestHierarchyContentParentsFunctionalTest` **12**; the remaining 821 are the additive-schema
+  guard, proving the existing `parents` / `parentEntity` fields are untouched by the two new sibling
+  fields. Between them the two new classes pin every shape the gate turned over: the all-pointer
+  chain that used to be written whole into `parentEntity`
+  (`shouldReportTheCompleteChainWhenNothingMaterialized`) and its GraphQL twin
+  (`shouldCutTheMatchingChainToNothingWhenNothingMaterialized`), the fully materialized `COMPLETE`
+  chain that must **not** emit `parentEntityComplete`
+  (`shouldNotEmitTheCompleteChainForAFullyMaterializedChain`), the classifier-only `parentsComplete`
+  selection that used to come back as `[{},{},{}]`
+  (`shouldReportAMaterializableAncestorAsAnEntityEvenWhenOnlyItsKeyIsSelected`), the bodyless
+  `hierarchyContent()` whose whole key chain is reported (`shouldReportWholeKeyChainWithoutBodies`,
+  both APIs), the axis of a hierarchy-statistics node and of a facet entity
+  (`shouldTypeTheParentAxisOfAHierarchyStatisticsNode`, `shouldTypeTheParentAxisOfAFacetEntity`), the
+  axis of an entity reached through a `referenceContent` and the reduction of two sibling
+  `referenceContent`s covering it (`shouldSerializeTheParentAxisOfAReferencedEntity`,
+  `shouldCombineSiblingReferenceContentRequirementsCoveringOneReference`), and the published union
+  itself (`shouldDeclareTheParentUnionInTheOpenApiSchema`, `shouldDeclareTheParentUnionInTheSchema`);
 - `ManagedReferenceLocaleFunctionalTest` untouched and green (**9 tests**), proving the #1343
   reference behaviour is not disturbed.
+
+The Phase 7+8 quality gate re-ran the affected surface as one batch — every
+`CatalogGraphQL*FunctionalTest`, every `CatalogRest*FunctionalTest`, `QueryConverterTest` (**5**),
+`EvitaClientReadWriteTest` (**66**), `EvitaSessionServiceFunctionalTest` (**56**) and
+`HierarchyContentParentsBehaviourFunctionalTest` (**97**) — for **1070 tests, 0 failures, 4 skipped**,
+all four skips pre-existing `@Disabled` cases.
 
 ## Consequences & open follow-ups
 
@@ -467,16 +518,59 @@ SUCCESS`; the single skip in the GraphQL/REST batch is a pre-existing `@Disabled
   still used for `attributeContent`, `associatedDataContent` and `priceContent`, which carry the
   identical latent defect; fixing them was out of scope and each needs its own combining semantics
   reviewed first.
-- **Interim contract violation on REST until Phase 8.** `parentEntity` is documented to contain only
-  materialized ancestors, which a `MATCHING` chain guarantees. A query asking for `COMPLETE` through
-  a channel that has no `parentEntityComplete` field yet therefore serializes bodyless pointers into
-  `parentEntity`. That is knowingly accepted for the window between this work and Phase 8, which adds
-  the `oneOf`-typed sibling field.
-- **What Phases 7-9 still owe.** Phase 7: the Java client cannot *send* the enum — a
-  `GrpcHierarchyParentsBehaviour`, a `GrpcQueryParam` oneof field, and `EvitaEnumConverter` /
-  `QueryConverter` in both directions, with a client test. Phase 8: GraphQL `parentsComplete` and
-  REST `parentEntityComplete`, per the two subsidiary decisions above. Phase 9: user documentation
-  and the release note, which must carry the default's silent change and the overload ambiguity.
+- **The materialized prefix of a mixed REST chain is serialized twice** — once under `parentEntity`,
+  cut below the first bodyless ancestor, and once under `parentEntityComplete`, whole. That is
+  a known cost, not a defect: memoizing would alias one node under two properties, and dropping the
+  duplicated prefix is an API-shape decision rather than a fix. The cost is bounded by the length of
+  the chain and only paid where the chain actually holds a pointer, since `parentEntityComplete` is
+  omitted when the two would be identical.
+- **An explicit `COMPLETE` sent to a pre-#1365 server fails rather than degrading.** The old
+  `GrpcQueryParam.QueryParamCase` has no constant for field 28, so the value lands in the unknown-field
+  set, `getQueryParamCase()` reads `QUERYPARAM_NOT_SET`, and `QueryConverter#convertQueryParam` throws
+  `EvitaInvalidUsageException`. This is the posture every prior arm of that `oneof` set — the dispatcher
+  has never had a default branch — and it is kept deliberately: the caller asked for `COMPLETE`, and
+  silently serving them a cut chain they believe is complete is the worse failure. Implicit `MATCHING`
+  is unaffected in either direction, because `isArgumentImplicit` elides the argument entirely. The
+  release note has to say so; real capability negotiation would be separate infrastructure work.
+- **`parentEntity` still fails its declared REST type for a *bodyless* `hierarchyContent()`.** The
+  chain is key-only while the entity object requires `version` and `scope`
+  (`shouldReportWholeKeyChainWithoutBodies` pins the shape). This is **pre-existing** — a bare
+  `hierarchyContent()` produced key-only ancestors there long before #1365 — and it was left alone on
+  purpose. Routing the bodyless chain through the new pointer type as well is now tempting and is
+  exactly why it needs a decision of its own: it would change the declared type of a property that has
+  shipped for years.
+- **The REST serializer's reduction of sibling `referenceContent` requirements is a superset of the
+  engine's own pick.** The engine resolves a reference name to exactly **one** `referenceContent` — a
+  named one beats an all-references one, and among same-name siblings the last wins — which was
+  measured rather than assumed, with a probe asserting the other sibling's `attributeContent` coming
+  back null. `EntitySerializationContext#combineReferenceRequirement` instead reduces the body
+  requirements of every covering `referenceContent` with `EntityFetchRequire.combineRequirements`, so
+  where two same-name siblings disagree it can report a `hierarchyContent` the engine did not serve.
+  The superset is kept: mirroring the engine would hard-code a coin flip, it is the same defect class
+  this record already rejected when it made `EvitaRequest#isRequiresParent` reduce its matches, and
+  a wrong pick degrades to the old inference rather than to wrong output. **Reported, not fixed:** the
+  engine silently drops one of two same-name `referenceContent` siblings, the same family as the
+  single-match `attributeContent` / `associatedDataContent` / `priceContent` lookups above. Fixing it
+  changes which references are fetched for *every* API, which is far wider than #1365.
+- **Neither API lets a parent field recurse into another one, and that is what keeps the two
+  cut decisions well-defined.** A `hierarchyContent` describes exactly one level, so there is no
+  requirement to answer "were bodies requested" with for the ancestors *of an ancestor*; a nested
+  `parentsComplete { … parents }` would fall through GraphQL's enclosing-step read and report its
+  chain whole. GraphQL forecloses it by reporting ancestors through the **non-hierarchical** variant
+  of the entity object, which carries no parent fields at all
+  (`EntityObjectHierarchyDecorator#decorate` only decorates `EntityObjectVariant.DEFAULT`). REST does
+  nest the full entity object, but `EntityJsonSerializer#serializeParentChain` links a whole chain
+  through a single property name, so an ancestor of the complete chain carries only
+  `parentEntityComplete` and one of the cut chain only `parentEntity` — the two never interleave.
+  Anyone giving the non-hierarchical object parent fields, or writing one chain into the other's
+  property, reopens the question.
+- **Coverage gap: reference-histogram anchor entities are threaded but not parent-axis tested.**
+  `ReferenceSummaryContexts#forHistogramAnchor` serves the anchors of each named histogram under the
+  `entityFetch` of its own `referenceHistogramStatistics`, and that wiring is exercised only
+  indirectly. Pinning the parent axis of an anchor needs a bucketed-histogram fixture whose anchor
+  entity is hierarchical, which the current dataset does not have.
+- **What Phase 9 still owes.** User documentation and the release note, which must carry the default's
+  silent change, the overload ambiguity, and the explicit-`COMPLETE`-to-an-old-server failure above.
 - The in-flight plan, the measured review reports and the external-API option analysis live in
   `specifications/1365-hierarchy-content-parents-behaviour/`, which is git-ignored. This record flips
   to `accepted` and that folder is deleted when the work lands.

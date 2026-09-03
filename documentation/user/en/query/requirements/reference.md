@@ -176,8 +176,10 @@ extra result. The summary is **always computed as a side effect of the main enti
 filtering scope as the main result (excluding the [`userFilter`](../filtering/behavioral.md#user-filter) part). It
 covers every reference whose schema marks it as `faceted`. Per-reference overrides — different fetch / filter /
 ordering settings or different histogram requirements — can be supplied with
-[`referenceSummaryOfReference`](#reference-summary-of-reference); the per-reference constraint **completely
-replaces** the matching configuration from a generic `referenceSummary` rather than merging with it.
+[`referenceSummaryOfReference`](#reference-summary-of-reference); the per-reference constraint is **overlaid onto**
+the generic `referenceSummary` rather than wiping it — a filtering or ordering constraint written there replaces the
+generic one and an omitted one falls back to it, the entity fetch requirements of the two are combined, and only the
+statistics depth is taken from the per-reference constraint outright.
 
 </LS>
 
