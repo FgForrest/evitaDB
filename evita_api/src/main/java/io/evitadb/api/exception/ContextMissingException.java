@@ -84,9 +84,10 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 	 * Creates an exception for missing parent entity data in hierarchy.
 	 *
 	 * Use it where the parent is known to be nothing more than an identification the caller itself supplied, so that
-	 * asking for `entityFetch` really is the resolution. Where the parent comes out of a fetched parent chain, prefer
-	 * {@link #hierarchyEntityBodyMissing(String, int)} - a chain may report an ancestor as a bodyless pointer even
-	 * though the query did ask for its body.
+	 * asking for `entityFetch` really is the resolution, and as the fallback for a parent of an unexpected shape that
+	 * carries no identity worth reporting. Where the parent comes out of a fetched parent chain and identifies itself,
+	 * prefer {@link #hierarchyEntityBodyMissing(String, int)} - a chain may report an ancestor as a bodyless pointer
+	 * even though the query did ask for its body.
 	 *
 	 * @return exception indicating that parent entity body was not fetched
 	 */
@@ -100,12 +101,8 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 	/**
 	 * Creates an exception for a parent entity that is present in the parent chain but carries no body.
 	 *
-	 * The chain reports such an ancestor as a bodyless pointer for two reasons that the fetched entity alone cannot
-	 * tell apart, which is why a single message names both: either the `hierarchyContent` requirement carried no
-	 * `entityFetch` and no ancestor body was ever requested, or the requested body could not be materialized within
-	 * the scope of the query - the ancestor holds no data in the queried locale, or it has been deleted, or it never
-	 * existed - and `hierarchyContent` was asked with the `COMPLETE` parents behaviour, which keeps such an ancestor
-	 * in the chain instead of cutting the chain below it.
+	 * Raise it wherever an ancestor taken from a fetched parent chain carries no body. The message enumerates both
+	 * causes because the fetched entity alone cannot tell them apart.
 	 *
 	 * @param entityType the entity type of the parent whose body is not available
 	 * @param primaryKey the primary key of the parent whose body is not available

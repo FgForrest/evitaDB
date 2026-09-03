@@ -10020,9 +10020,7 @@ public interface QueryConstraints {
 		@Nullable HierarchyParentsBehaviour parentsBehaviour,
 		@Nullable HierarchyStopAt stopAt
 	) {
-		return stopAt == null ?
-			new HierarchyContent(parentsBehaviour) :
-			new HierarchyContent(parentsBehaviour, stopAt);
+		return new HierarchyContent(parentsBehaviour, stopAt);
 	}
 
 	/**
@@ -10051,9 +10049,7 @@ public interface QueryConstraints {
 		@Nullable HierarchyParentsBehaviour parentsBehaviour,
 		@Nullable EntityFetch entityFetch
 	) {
-		return entityFetch == null ?
-			new HierarchyContent(parentsBehaviour) :
-			new HierarchyContent(parentsBehaviour, entityFetch);
+		return new HierarchyContent(parentsBehaviour, entityFetch);
 	}
 
 	/**

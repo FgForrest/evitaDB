@@ -2074,6 +2074,21 @@ class EvitaQLRequireConstraintVisitorTest {
 			),
 			constraint8
 		);
+
+		// every row above bounds the walk with `stopAt(distance(...))`, so the grammar alternative where a
+		// leading value token is followed by a child carrying a nested `filterBy` is exercised only here
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe(
+			"hierarchyContent(COMPLETE, stopAt(node(filterBy(entityPrimaryKeyInSet(1)))), " +
+				"entityFetch(attributeContent('code')))"
+		);
+		assertEquals(
+			hierarchyContent(
+				HierarchyParentsBehaviour.COMPLETE,
+				stopAt(node(filterBy(entityPrimaryKeyInSet(1)))),
+				entityFetch(attributeContent("code"))
+			),
+			constraint9
+		);
 	}
 
 	@Test
@@ -2110,6 +2125,12 @@ class EvitaQLRequireConstraintVisitorTest {
 			() -> parseRequireConstraintUnsafe("hierarchyContent(stopAt(distance(1)), COMPLETE)")
 		);
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(COMPLETE, MATCHING)"));
+		// the token is routed through a value visitor restricted to the behaviour enum, so a literal that names
+		// no constant of it must be refused rather than silently resolving to the default
+		assertThrows(
+			EvitaSyntaxException.class,
+			() -> parseRequireConstraintUnsafe("hierarchyContent(NOT_A_BEHAVIOUR)")
+		);
 	}
 
 	@Test

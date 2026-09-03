@@ -25,14 +25,17 @@ package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
+import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
@@ -45,6 +48,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -55,16 +59,20 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
@@ -73,6 +81,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.api.query.QueryConstraints.distance;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContentAnd;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -87,6 +96,7 @@ import static io.evitadb.api.query.QueryConstraints.level;
 import static io.evitadb.api.query.QueryConstraints.node;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.parents;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.stopAt;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -102,6 +112,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -109,13 +120,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (https://github.com/FgForrest/evitaDB/issues/1365).
  *
  * The class asserts the behaviour matrix of
- * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md` column by column. Everything
- * outside {@link CompleteModeTest} asserts the `MATCHING` column, which is what a query gets when it
- * names no {@link io.evitadb.api.query.require.HierarchyParentsBehaviour} at all - the chain is cut
- * just below the first ancestor whose *requested* body cannot be materialized, so every ancestor the
- * caller receives carries the body that was asked for. {@link CompleteModeTest} asserts the
- * `COMPLETE` column, where such an ancestor stays in the chain as a bodyless pointer and the walk
- * continues above it, so a body may well be reported above a pointer.
+ * `documentation/adr/2026-08-03-hierarchy-content-parents-behaviour.md`, which has two columns.
+ * `MATCHING` is the default - what a query gets when it names no
+ * {@link io.evitadb.api.query.require.HierarchyParentsBehaviour} at all - and it cuts the chain just
+ * below the first ancestor whose *requested* body cannot be materialized, so every ancestor the caller
+ * receives carries the body that was asked for. `COMPLETE` is the opt-in: such an ancestor stays in the
+ * chain as a bodyless pointer and the walk continues above it, so a body may well be reported above a
+ * pointer.
+ *
+ * Each nested class holds one family of matrix rows, and the two cells of one row are adjacent methods
+ * rather than being split by mode - `LocaleGateTest` holds the P rows, `RequirementVariationTest` the N
+ * rows and the requirement controls, `BrokenChainTest` the K rows. `TypedProxyTest` collects every row
+ * that observes the chain through a typed proxy instead of the raw API, the two statistics classes cover
+ * the other production caller of the same upward walk, and `IndexInvariantTest` pins states of the index
+ * behind the chain.
+ *
+ * A row is written as a {@link ParameterizedTest} over both behaviours only when its mode-insensitivity
+ * is a *claim of the design*: no ancestor body was requested, no query locale gates anything, nothing
+ * along the chain is unmaterializable, or the bound admits no ancestor at all. Rows that merely happen
+ * to agree today stay single-mode, which is why
+ * `shouldFilterOutNonLocalizedEntityItselfUnderQueryLocale_nonLocalizedSchema` and
+ * `shouldReturnAncestorBodyWhenLocaleIsRequestedOnlyInsideEntityFetch_N5variant` are not parameterised.
  *
  * The `before #1365 (measured)` column of that matrix is history and is no longer asserted anywhere.
  * It differed from the `MATCHING` column in one respect only: an unmaterializable **immediate**
@@ -125,21 +150,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Every method that pins a matrix row carries that row's identifier in its name and in its display
  * name; the remaining methods pin a control, a variant of a row, or an index invariant the matrix has
- * no row for. Rows the two modes answer identically - anything asked without ancestor bodies, and
- * anything asked without a query locale - are pinned in both classes on purpose, since their equality
- * is the claim that `entityFetchAll()` is insensitive to the mode.
+ * no row for.
  *
  * Assertions run against the raw {@link SealedEntity} API rather than through typed proxy interfaces,
  * because {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks a swallowing
  * wrapper for a getter that neither returns an {@link Optional} nor declares an exception, which
  * would report "never requested" and "cannot be materialized" identically and let a broken
- * implementation pass. The deliberate exceptions are the typed-proxy rows, which are about the proxy
- * surface itself and therefore have to cross to it: the row in {@link LocaleGateTest} pins where an
- * existing caller used to meet a {@link ContextMissingException} under the default and now meets a
- * silent absence instead, and the rows at the end of {@link CompleteModeTest} pin what each proxy form
- * makes of the bodyless pointer that only `COMPLETE` puts in front of it. Every one of them either
- * declares the exception, so that the rethrowing wrapper is chosen, or exists precisely to observe the
- * swallowing wrapper against a declaring twin on the same fetch.
+ * implementation pass. The deliberate exceptions are the rows in {@link TypedProxyTest}, which are about
+ * the proxy surface itself and therefore have to cross to it. Every one of them either declares the
+ * exception, so that the rethrowing wrapper is chosen, returns an {@link Optional}, or exists precisely
+ * to observe the swallowing wrapper against a declaring twin on the same fetch.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -178,9 +198,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 */
 	private static final String CHAIN_END = "(end)";
 	/**
-	 * Upper bound on the length of a collected parent chain. The deepest fixture hierarchy is five nodes
-	 * deep, so a collected chain can never legitimately hold more than four ancestors; anything beyond
-	 * this bound means the walk found a cycle and must fail rather than spin.
+	 * Upper bound on the length of a collected parent chain. It is a loose cycle guard rather than a tight
+	 * expectation: the deepest fixture hierarchy is five nodes deep, so four ancestors is the most any
+	 * legitimate chain here can hold, and sixteen sits far enough above that to leave room for a chain the
+	 * fixture grows without failing on a correct result. Anything beyond it means the walk found a cycle
+	 * and must fail rather than spin.
 	 */
 	private static final int MAX_CHAIN_LENGTH = 16;
 
@@ -196,8 +218,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * Primary keys are grouped by the matrix row they serve: `1-3` the fully materializable control,
 	 * `11-12` row P1, `21-23` row P2, `31-34` row P3, `41-44` row P4, `51-54` row P5, `61-63` row P6,
 	 * `71-72` row K1, `81-83` row K2, `91-94` the deeper deleted-root probe, `101-103` the non-localized
-	 * `BRAND` hierarchy, `111-112` row K6, `121-125` rows K3/K4/K5 and `131-134` the Czech-only
-	 * mid-chain deletion.
+	 * `BRAND` hierarchy, `111-112` row K6, `121-125` rows K3/K4/K5, `131-134` the Czech-only
+	 * mid-chain deletion, `141-144` the ring, `151-156` the shared-ancestor bound probe and `163-166` its
+	 * pointer twin.
 	 *
 	 * @param evita the embedded evitaDB instance provided by the test extension
 	 * @return an empty data carrier - the fixture is addressed by primary key, not by shared objects
@@ -308,6 +331,33 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				createEnglishCategory(session, 133, 132);
 				createEnglishCategory(session, 134, 133);
 
+				// the ring - `141` starts out as a root with `142` below it and is re-pointed at `142` below,
+				// which closes the pair into a ring and detaches the `143 -> 144` tail hanging under `141`
+				createEnglishCategory(session, 141, null);
+				createEnglishCategory(session, 142, 141);
+				createEnglishCategory(session, 143, 141);
+				createEnglishCategory(session, 144, 143);
+
+				// the shared-ancestor bound probe - `151 <- 152 <- 153 <- 154` with `155` hanging under `153`
+				// and `156` under `154`. The primary keys are pinned rather than incidental: the parents of the
+				// two queried entities are sorted ascending before they are walked, so `153` is processed first
+				// and `154` second, and swapping the two keys would hide an ancestor chain overwritten by a
+				// sub-chain that a bound measured from the deeper entity cut short
+				createEnglishCategory(session, 151, null);
+				createEnglishCategory(session, 152, 151);
+				createEnglishCategory(session, 153, 152);
+				createEnglishCategory(session, 154, 153);
+				createEnglishCategory(session, 155, 153);
+				createEnglishCategory(session, 156, 154);
+
+				// the pointer twin of the probe above - `163` points at the never-created `998`, `164` hangs
+				// under it, and the two queried entities `165` and `166` hang under `163` and `164`. The same
+				// ordering argument applies, with a phantom pointer in place of the truncated ancestor
+				createEnglishCategory(session, 163, 998);
+				createEnglishCategory(session, 164, 163);
+				createEnglishCategory(session, 165, 163);
+				createEnglishCategory(session, 166, 164);
+
 				// products reaching the category hierarchy through a reference - `301` sits under the P3 leaf,
 				// `302` under the intact control chain
 				createEnglishProduct(session, 301, 34);
@@ -330,6 +380,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				// two mid-chain nodes - their descendants become orphans
 				deleteFixtureNode(session, 122);
 				deleteFixtureNode(session, 132);
+				// re-pointing a root at its own descendant closes the pair into a ring
+				repointFixtureNode(session, 141, 142);
 			}
 		);
 
@@ -374,9 +426,15 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * The two further `@ParentEntity` getters exist because the entity-typed one is the only proxy form
 	 * that needs the ancestor body: a primary key and a raw classifier are both carried by a bodyless
 	 * pointer, so those two forms must keep answering where the entity-typed one has to give up.
+	 *
+	 * The two {@link Optional}-returning getters are the third wrapper family the same annotation can
+	 * reach. They pick the swallowing and the rethrowing wrapper by the very same rule - the presence of
+	 * a `throws` clause - but they also change the *extractor*, which asks
+	 * {@link io.evitadb.api.requestResponse.data.EntityContract#parentAvailable()} first and answers with
+	 * an empty result rather than an exception when the hierarchy was never fetched.
 	 */
 	@EntityRef(Entities.CATEGORY)
-	public interface ParentDereferencingCategory extends EntityClassifier {
+	public interface ParentRethrowingCategory extends EntityClassifier {
 
 		/**
 		 * Returns the primary key of the proxied category.
@@ -394,7 +452,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@ParentEntity
 		@Nullable
-		ParentDereferencingCategory getParentEntity() throws ContextMissingException;
+		ParentRethrowingCategory getParentEntity() throws ContextMissingException;
 
 		/**
 		 * Returns the primary key of the immediate parent of the proxied category. The boxed form is
@@ -419,12 +477,36 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Nullable
 		EntityClassifierWithParent getParentClassifier();
 
+		/**
+		 * Returns the immediate parent of the proxied category wrapped in an {@link Optional}. The getter
+		 * declares no exception, so the swallowing member of the `Optional` wrapper family is chosen and a
+		 * parent that carries no body is reported as an empty result.
+		 *
+		 * @return the immediate parent proxy, or an empty optional when there is none to build a proxy over
+		 */
+		@ParentEntity
+		@Nonnull
+		Optional<ParentRethrowingCategory> getParentEntityIfPresent();
+
+		/**
+		 * Returns the immediate parent of the proxied category wrapped in an {@link Optional}, declaring the
+		 * exception so that the rethrowing member of the same wrapper family is chosen instead. It is the
+		 * `Optional` twin of {@link #getParentEntity()} and the only way to tell an absent parent apart from
+		 * one that is present without a body.
+		 *
+		 * @return the immediate parent proxy, or an empty optional when the category is a root
+		 * @throws ContextMissingException when the parent is present in the chain but carries no body
+		 */
+		@ParentEntity
+		@Nonnull
+		Optional<ParentRethrowingCategory> getParentEntityOrFail() throws ContextMissingException;
+
 	}
 
 	/**
 	 * Typed proxy over the `CATEGORY` collection whose parent getter declares **no** exception, so that
 	 * {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks the swallowing wrapper.
-	 * It is the counterpart of {@link ParentDereferencingCategory} and pins the other half of the
+	 * It is the counterpart of {@link ParentRethrowingCategory} and pins the other half of the
 	 * contract: the very same fetch that makes the declaring getter throw must make this one report
 	 * `null`, exactly as a reference whose body was not fetched does.
 	 */
@@ -449,6 +531,29 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Nullable
 		ParentSwallowingCategory getParentEntity();
 
+	}
+
+	/**
+	 * Record projection over the `CATEGORY` collection. It reaches the parent axis through a completely
+	 * different code path from the two interfaces above: a constructor parameter is filled by an extractor
+	 * that {@link io.evitadb.api.proxy.impl.entity.GetParentEntityMethodClassifier#getExtractorIfPossible}
+	 * hands out once, with no result wrapper in front of it, so neither the swallowing nor the rethrowing
+	 * behaviour of a getter applies and whatever the extractor raises reaches the caller as it is.
+	 *
+	 * The self-referencing `parentEntity` component is what makes the projection recursive, and it is the
+	 * component that meets a bodyless pointer. The boxed `parentId` beside it is carried by a pointer just
+	 * as it is by a body, so the two components answer differently on the same fetch.
+	 *
+	 * @param id           the primary key of the projected category
+	 * @param parentId     the primary key of its immediate parent, or `null` when it is a root
+	 * @param parentEntity the projection of its immediate parent, or `null` when it is a root
+	 */
+	@EntityRef(Entities.CATEGORY)
+	public record ParentProjectingCategory(
+		@PrimaryKeyRef int id,
+		@ParentEntity Integer parentId,
+		@ParentEntity ParentProjectingCategory parentEntity
+	) implements Serializable {
 	}
 
 	/* ------------------------------------------------------------------------------------------ */
@@ -569,6 +674,27 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
+	 * Re-points an existing fixture category at another node through the ordinary public write path, which
+	 * is the only way a ring can be built: the index refuses a node that is its own parent, so the shortest
+	 * ring is a pair created as parent and child and then closed by pointing the parent back at the child.
+	 *
+	 * @param session             the session to upsert through
+	 * @param primaryKey          the primary key of the fixture node to move
+	 * @param newParentPrimaryKey the primary key of the node it must point at afterwards
+	 */
+	private static void repointFixtureNode(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		int newParentPrimaryKey
+	) {
+		session.getEntity(Entities.CATEGORY, primaryKey, attributeContentAll(), hierarchyContent())
+			.orElseThrow(() -> new AssertionError("Fixture node " + primaryKey + " was not created."))
+			.openForWrite()
+			.setParent(newParentPrimaryKey)
+			.upsertVia(session);
+	}
+
+	/**
 	 * Returns the value of the global `code` attribute a fixture node of the given primary key
 	 * carries. Reading it back is what proves an element of the chain really has a body.
 	 *
@@ -585,18 +711,53 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	/* ------------------------------------------------------------------------------------------ */
 
 	/**
-	 * Returns the requirement every matrix row is measured under - `hierarchyContent` fetching the
-	 * complete attribute content of every ancestor it reaches.
+	 * Returns the requirement every matrix row is measured under, asked under the given behaviour -
+	 * `hierarchyContent` fetching the complete attribute content of every ancestor it reaches.
+	 *
+	 * @param behaviour the parents behaviour the requirement is asked under
+	 * @return the standard `hierarchyContent` requirement
+	 */
+	@Nonnull
+	private static HierarchyContent standardRequirement(@Nonnull HierarchyParentsBehaviour behaviour) {
+		return hierarchyContent(behaviour, entityFetch(attributeContentAll()));
+	}
+
+	/**
+	 * Returns the standard requirement asked under the default behaviour.
 	 *
 	 * @return the standard `hierarchyContent` requirement
 	 */
 	@Nonnull
 	private static HierarchyContent standardRequirement() {
-		return hierarchyContent(entityFetch(attributeContentAll()));
+		return standardRequirement(HierarchyParentsBehaviour.MATCHING);
 	}
 
 	/**
-	 * Returns the filter every characterisation query selects its leaf with - the queried primary key
+	 * Returns the same requirement {@link #standardRequirement()} builds, asked under
+	 * {@link HierarchyParentsBehaviour#COMPLETE} instead of the default.
+	 *
+	 * @return the standard `hierarchyContent` requirement in complete mode
+	 */
+	@Nonnull
+	private static HierarchyContent completeRequirement() {
+		return standardRequirement(HierarchyParentsBehaviour.COMPLETE);
+	}
+
+	/**
+	 * Returns the bare form of the requirement - the parent axis with no ancestor body requested at all -
+	 * asked under the given behaviour. It is the shape `entityFetchAll()` emits, and the one the two
+	 * behaviours are specified to answer identically.
+	 *
+	 * @param behaviour the parents behaviour the requirement is asked under
+	 * @return the bare `hierarchyContent` requirement
+	 */
+	@Nonnull
+	private static HierarchyContent bareRequirement(@Nonnull HierarchyParentsBehaviour behaviour) {
+		return hierarchyContent(behaviour);
+	}
+
+	/**
+	 * Returns the filter every behaviour-matrix query selects its leaf with - the queried primary key
 	 * alone, or the same primary key gated by the English query locale the P rows are measured under.
 	 *
 	 * @param primaryKey      the primary key of the queried entity
@@ -620,18 +781,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 */
 	@Nonnull
 	private static List<EntityClassifierWithParent> standardParentChain(@Nonnull Evita evita, int primaryKey) {
-		return fetchParentChain(evita, primaryKey, standardRequirement(), true);
-	}
-
-	/**
-	 * Returns the same requirement {@link #standardRequirement()} builds, asked under
-	 * {@link HierarchyParentsBehaviour#COMPLETE} instead of the default.
-	 *
-	 * @return the standard `hierarchyContent` requirement in complete mode
-	 */
-	@Nonnull
-	private static HierarchyContent completeRequirement() {
-		return hierarchyContent(HierarchyParentsBehaviour.COMPLETE, entityFetch(attributeContentAll()));
+		return parentChainUnder(evita, primaryKey, HierarchyParentsBehaviour.MATCHING);
 	}
 
 	/**
@@ -644,11 +794,29 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 */
 	@Nonnull
 	private static List<EntityClassifierWithParent> completeParentChain(@Nonnull Evita evita, int primaryKey) {
-		return fetchParentChain(evita, primaryKey, completeRequirement(), true);
+		return parentChainUnder(evita, primaryKey, HierarchyParentsBehaviour.COMPLETE);
 	}
 
 	/**
-	 * Runs the standard characterisation query against the `CATEGORY` collection.
+	 * Returns the parent chain of the given entity under the standard requirement asked in the given mode
+	 * and the English query locale - the single entry point every parameterised matrix row goes through.
+	 *
+	 * @param evita      the embedded evitaDB instance
+	 * @param primaryKey the primary key of the queried leaf
+	 * @param behaviour  the parents behaviour the requirement is asked under
+	 * @return the parent chain, ordered from the immediate parent upwards
+	 */
+	@Nonnull
+	private static List<EntityClassifierWithParent> parentChainUnder(
+		@Nonnull Evita evita,
+		int primaryKey,
+		@Nonnull HierarchyParentsBehaviour behaviour
+	) {
+		return fetchParentChain(evita, primaryKey, standardRequirement(behaviour), true);
+	}
+
+	/**
+	 * Runs the standard behaviour-matrix query against the `CATEGORY` collection.
 	 *
 	 * @param evita                the embedded evitaDB instance
 	 * @param primaryKey           the primary key of the queried leaf
@@ -678,7 +846,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Runs the standard characterisation query and returns the parent chain of the queried entity.
+	 * Runs the standard behaviour-matrix query and returns the parent chain of the queried entity.
 	 *
 	 * @param evita                the embedded evitaDB instance
 	 * @param primaryKey           the primary key of the queried leaf
@@ -700,7 +868,147 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Runs the standard characterisation query against the non-localized `BRAND` collection.
+	 * Runs one query selecting several `CATEGORY` entities at once under the given requirement and the
+	 * English query locale, and returns them in the order the engine reported them.
+	 *
+	 * A query for more than one entity is what makes the per-entity state of the upward walk observable:
+	 * the walk collects the parents of every queried entity in a single pass and reuses one chain cache
+	 * across them, so anything it forgets to reset between two entities shows up here and nowhere else.
+	 *
+	 * @param evita                the embedded evitaDB instance
+	 * @param hierarchyRequirement the `hierarchyContent` requirement under test
+	 * @param primaryKeys          the primary keys of the queried entities
+	 * @return the queried entities
+	 */
+	@Nonnull
+	private static List<SealedEntity> fetchLeaves(
+		@Nonnull Evita evita,
+		@Nonnull HierarchyContent hierarchyRequirement,
+		@Nonnull int... primaryKeys
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityPrimaryKeyInSet(primaryKeys), entityLocaleEquals(Locale.ENGLISH)),
+						require(entityFetch(attributeContentAll(), hierarchyRequirement))
+					)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Returns the parent chain of the entity carrying the given primary key out of a batch fetched by
+	 * {@link #fetchLeaves(Evita, HierarchyContent, int...)}.
+	 *
+	 * @param leaves     the queried entities
+	 * @param primaryKey the primary key whose chain is wanted
+	 * @return the parent chain, ordered from the immediate parent upwards
+	 */
+	@Nonnull
+	private static List<EntityClassifierWithParent> parentChainOf(
+		@Nonnull List<SealedEntity> leaves,
+		int primaryKey
+	) {
+		return parentChainOf(
+			leaves.stream()
+				.filter(it -> it.getPrimaryKeyOrThrowException() == primaryKey)
+				.findFirst()
+				.orElseThrow(
+					() -> new AssertionError("Entity with primary key " + primaryKey + " was not returned.")
+				)
+		);
+	}
+
+	/**
+	 * Returns the parent chain of the `CATEGORY` a `PRODUCT` refers to, fetched through
+	 * `referenceContent` rather than directly. It is the second usage shape the user documentation shows
+	 * for `hierarchyContent`, and the one that carries the behaviour argument into a sub-fetcher rather
+	 * than into the fetcher of the queried entity itself.
+	 *
+	 * @param evita             the embedded evitaDB instance
+	 * @param productPrimaryKey the primary key of the queried product
+	 * @param behaviour         the parents behaviour the requirement is asked under
+	 * @return the parent chain of the referenced category, ordered from its immediate parent upwards
+	 */
+	@Nonnull
+	private static List<EntityClassifierWithParent> referencedCategoryParentChain(
+		@Nonnull Evita evita,
+		int productPrimaryKey,
+		@Nonnull HierarchyParentsBehaviour behaviour
+	) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(productPrimaryKey), entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(attributeContentAll(), standardRequirement(behaviour))
+								)
+							)
+						)
+					)
+				);
+			}
+		).orElseThrow(
+			() -> new AssertionError("Product with primary key " + productPrimaryKey + " was not returned.")
+		);
+
+		final ReferenceContract reference = product.getReferences(Entities.CATEGORY).stream()
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("Product " + productPrimaryKey + " reported no category."));
+		return parentChainOf(
+			reference.getReferencedEntity()
+				.orElseThrow(() -> new AssertionError("The referenced category body was not fetched."))
+		);
+	}
+
+	/**
+	 * Fetches an entity, hands the still-open session and the entity to `reWrap`, and returns the parent
+	 * chain of whatever comes back. Every enrich / limit call re-wraps the decorator over a raw delegate
+	 * and has to carry the already resolved parent slot across, so this is the entry point for the rows
+	 * that pin what a round trip through the session does to a chain the fetcher had already settled.
+	 *
+	 * @param evita                the embedded evitaDB instance
+	 * @param primaryKey           the primary key of the queried leaf
+	 * @param hierarchyRequirement the `hierarchyContent` requirement the entity is first fetched under
+	 * @param reWrap               the session call under test
+	 * @return the parent chain of the re-wrapped entity, ordered from the immediate parent upwards
+	 */
+	@Nonnull
+	private static List<EntityClassifierWithParent> parentChainAfterReWrap(
+		@Nonnull Evita evita,
+		int primaryKey,
+		@Nonnull HierarchyContent hierarchyRequirement,
+		@Nonnull BiFunction<EvitaSessionContract, SealedEntity, SealedEntity> reWrap
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						leafFilter(primaryKey, true),
+						require(entityFetch(attributeContentAll(), hierarchyRequirement))
+					)
+				).orElseThrow(
+					() -> new AssertionError("Entity with primary key " + primaryKey + " was not returned.")
+				);
+				return parentChainOf(reWrap.apply(session, entity));
+			}
+		);
+	}
+
+	/**
+	 * Runs the standard behaviour-matrix query against the non-localized `BRAND` collection.
 	 *
 	 * @param evita           the embedded evitaDB instance
 	 * @param primaryKey      the primary key of the queried brand
@@ -727,7 +1035,6 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		);
 	}
 
-
 	/**
 	 * Fetches a category through the typed proxy interface under the standard requirement and the
 	 * English query locale.
@@ -737,8 +1044,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * @return the proxy over the queried category
 	 */
 	@Nonnull
-	private static ParentDereferencingCategory fetchCategoryProxy(@Nonnull Evita evita, int primaryKey) {
-		return fetchCategoryProxy(evita, primaryKey, standardRequirement(), ParentDereferencingCategory.class);
+	private static ParentRethrowingCategory fetchCategoryProxy(@Nonnull Evita evita, int primaryKey) {
+		return fetchCategoryProxy(evita, primaryKey, standardRequirement(), ParentRethrowingCategory.class);
 	}
 
 	/**
@@ -958,7 +1265,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	) {
 		for (LevelInfo levelInfo : levelInfos) {
 			output.append("   ".repeat(depth))
-				.append(levelInfo.entity() instanceof SealedEntity ? "B(" : "P(")
+				.append(shapeOf(levelInfo.entity()))
+				.append('(')
 				.append(levelInfo.entity().getPrimaryKeyOrThrowException())
 				.append(')')
 				.append(levelInfo.requested() ? " (requested)" : "")
@@ -1006,11 +1314,25 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	private static String describeChain(@Nonnull List<EntityClassifierWithParent> chain) {
 		final StringBuilder result = new StringBuilder(64);
 		for (EntityClassifierWithParent node : chain) {
-			result.append(node instanceof SealedEntity ? "B(" : "P(")
+			result.append(shapeOf(node))
+				.append('(')
 				.append(node.getPrimaryKey())
 				.append(") -> ");
 		}
 		return result.append(CHAIN_END).toString();
+	}
+
+	/**
+	 * Returns the one-letter shape the behaviour-matrix notation gives the passed chain element: `B` for an
+	 * ancestor present with a body, `P` for a bodyless pointer. Defined here once so that the notation the
+	 * assertions parse and the notation the renderers produce cannot drift apart.
+	 *
+	 * @param node the chain element to classify
+	 * @return `B` when the element carries a body, `P` otherwise
+	 */
+	@Nonnull
+	private static String shapeOf(@Nonnull EntityClassifier node) {
+		return node instanceof SealedEntity ? "B" : "P";
 	}
 
 	/**
@@ -1095,9 +1417,12 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Pins the `MATCHING` cells of the rows where a query-level locale makes an ancestor
-	 * unmaterializable - the shapes #1365 reports - together with the fully materializable control and
-	 * the typed-proxy view of the resulting cut.
+	 * Pins both cells of every row where a query-level locale makes an ancestor unmaterializable - the
+	 * shapes #1365 reports - together with the fully materializable control.
+	 *
+	 * The `MATCHING` cell of a row and its `COMPLETE` twin sit next to each other, because the pair is the
+	 * claim: the default cuts the chain below the first ancestor whose requested body cannot be
+	 * materialized, while `COMPLETE` keeps that ancestor as a bodyless pointer and walks on above it.
 	 */
 	@Nested
 	@DisplayName("Locale gate (P rows)")
@@ -1120,6 +1445,19 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row P1 under `COMPLETE` - `12 -> 11(cs)`. The unmaterializable immediate parent is
+		 * reported as a bodyless pointer instead of disappearing with the rest of the chain.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1: a locale-less immediate parent is reported as a bodyless pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportLocaleLessImmediateParentAsPointer_P1(Evita evita) {
+			assertChain(completeParentChain(evita, 12), "P(11)");
+		}
+
+		/**
 		 * Matrix row P2 - `23 -> 22 -> 21(cs)` under the standard requirement. The chain is cut below the
 		 * unmaterializable root and its materializable child is reported with its body.
 		 *
@@ -1130,6 +1468,19 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Test
 		void shouldCutTheChainBelowALocaleLessRootAndKeepMaterializableParent_P2(Evita evita) {
 			assertChain(standardParentChain(evita, 23), "B(22)");
+		}
+
+		/**
+		 * Matrix row P2 under `COMPLETE` - `23 -> 22 -> 21(cs)`. The unmaterializable root is reported as a
+		 * pointer above the materializable ancestor that carries a body.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P2: a locale-less root is reported as a pointer above the materializable parent")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportLocaleLessRootAsPointerAboveMaterializableParent_P2(Evita evita) {
+			assertChain(completeParentChain(evita, 23), "B(22)", "P(21)");
 		}
 
 		/**
@@ -1161,6 +1512,20 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row P3 under `COMPLETE` - `34 -> 33 -> 32(cs) -> 31`. The acceptance test of the whole
+		 * mode: it is the only row proving the walk no longer stops at the first missing body, since the
+		 * materializable root 31 is reported *above* the pointer at 32.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3: the materializable root above a locale-less ancestor is reported with its body")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportMaterializableRootAboveLocaleLessAncestor_P3(Evita evita) {
+			assertChain(completeParentChain(evita, 34), "B(33)", "P(32)", "B(31)");
+		}
+
+		/**
 		 * Matrix row P4 - `44 -> 43(cs) -> 42(cs) -> 41` under the standard requirement. The first
 		 * unmaterializable ancestor is the immediate parent, so nothing of the chain is reported.
 		 *
@@ -1171,6 +1536,20 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Test
 		void shouldReportNoChainForTwoAdjacentLocaleLessAncestors_P4(Evita evita) {
 			assertChain(standardParentChain(evita, 44));
+		}
+
+		/**
+		 * Matrix row P4 under `COMPLETE` - `44 -> 43(cs) -> 42(cs) -> 41`. Two adjacent unmaterializable
+		 * ancestors yield two pointers rather than collapsing into one, and the materializable root above
+		 * them is still reached.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P4: two adjacent locale-less ancestors are reported as two separate pointers")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTwoAdjacentLocaleLessAncestorsAsTwoPointers_P4(Evita evita) {
+			assertChain(completeParentChain(evita, 44), "P(43)", "P(42)", "B(41)");
 		}
 
 		/**
@@ -1189,6 +1568,19 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row P5 under `COMPLETE` - `54 -> 53(cs) -> 52 -> 51(cs)`. Bodies and pointers alternate
+		 * along one chain, which is the shape the default can never produce.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P5: bodies and pointers alternate along the reported chain")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldAlternateBodiesAndPointersAlongTheChain_P5(Evita evita) {
+			assertChain(completeParentChain(evita, 54), "P(53)", "B(52)", "P(51)");
+		}
+
+		/**
 		 * Matrix row P6 - `63 -> 62(cs) -> 61(cs)` under the standard requirement. Every ancestor up to the
 		 * root is unmaterializable, so the chain is cut immediately.
 		 *
@@ -1202,8 +1594,23 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Fixture control - `3 -> 2 -> 1`, every node materializable. Proves the fixture and the standard
-		 * requirement return a full chain with bodies when nothing blocks the walk.
+		 * Matrix row P6 under `COMPLETE` - `63 -> 62(cs) -> 61(cs)`. Every ancestor up to the root is
+		 * unmaterializable, so the whole chain comes back as pointers and none of it is lost.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P6: locale-less ancestors up to the root are all reported as pointers")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportLocaleLessAncestorsUpToRootAsPointers_P6(Evita evita) {
+			assertChain(completeParentChain(evita, 63), "P(62)", "P(61)");
+		}
+
+		/**
+		 * Fixture control - `3 -> 2 -> 1`, every node materializable. Nothing along the chain can fail to
+		 * materialize, so the mode has nothing to substitute and both cells of the row are the same full
+		 * chain of bodies; without this row a mode that turned every ancestor into a pointer would pass
+		 * most of the class.
 		 *
 		 * The terminal `B(1)` is the genuine root, and it reports `parentAvailable() == true` all the
 		 * same. That was measured rather than derived:
@@ -1213,58 +1620,104 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 * unmaterializable ancestor, so nothing on the raw API separates the three - which is the
 		 * ambiguity the P and K rows keep running into.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("Control: a fully materializable chain is returned complete, with bodies")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReturnCompleteChainWithBodiesWhenEveryAncestorMaterializes_control(Evita evita) {
-			final SealedEntity leaf = fetchLeaf(evita, 3, standardRequirement(), true).orElseThrow();
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReturnCompleteChainWithBodiesWhenEveryAncestorMaterializes_control(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
+			final SealedEntity leaf = fetchLeaf(evita, 3, standardRequirement(behaviour), true).orElseThrow();
 			assertEquals(expectedCode(3), leaf.getAttribute(ATTRIBUTE_CODE));
 
 			final List<EntityClassifierWithParent> chain = parentChainOf(leaf);
 			assertChain(chain, "B(2)", "B(1)");
 			assertTrue(
 				assertBody(chain.get(1), 1).parentAvailable(),
-				"The genuine root 1 reports parentAvailable() today, exactly as a cut chain does."
+				"The genuine root 1 reports parentAvailable(), exactly as a cut chain does."
 			);
 		}
 
 		/**
-		 * The typed-proxy view of matrix row P1, and the one place where the `MATCHING` default is visibly
-		 * different from the behaviour that preceded it. A `@ParentEntity` getter that declares an exception
-		 * gets the rethrowing wrapper, so it used to surface the {@link ContextMissingException} raised on
-		 * the bodyless pointer at 11. The chain is now cut below 11 instead, the getter sees no parent, and
-		 * the wrapper returns `null` - a silent root where an exception used to be raised.
+		 * Pins how the IO statistics of a chain of bodies add up. Every ancestor body is a decorator of its own,
+		 * and {@link EntityFetchAwareDecorator#getIoFetchCount()} already folds in whatever the parent slot holds -
+		 * so the whole tail above a decorated immediate parent is reached at read time and must not be added to the
+		 * decorator's own counter as well. It is added there only for the tail that read time cannot reach, above a
+		 * bodyless pointer.
 		 *
-		 * The control on the fully materializable 3 proves the interface really resolves a parent when one
-		 * carries a body, so the `null` cannot come from a proxy that never works at all.
+		 * The bounded arm is what makes this measurable without knowing any absolute cost: the same requirement
+		 * reads 2 identically in both arms, so whatever the unbounded arm reports over the bounded one is exactly
+		 * what the chain above 2 contributed - and that is 1, once.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("P1 proxy: a locale-less immediate parent leaves a typed proxy with no parent at all")
+		@DisplayName("Control: an ancestor contributes its IO statistics to the chain exactly once")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
-		void shouldReportNoParentWhenTypedProxyDereferencesLocaleLessImmediateParent_P1proxy(Evita evita) {
-			final ParentDereferencingCategory localeLessParentHolder = fetchCategoryProxy(evita, 12);
-			assertNull(
-				localeLessParentHolder.getParentEntity(),
-				"The chain is cut below 11, so the typed getter must report no parent rather than throw."
+		void shouldCountTheIoStatisticsOfAnAncestorOnce_control(Evita evita) {
+			final List<EntityClassifierWithParent> wholeChain = fetchParentChain(
+				evita, 3, standardRequirement(), true
+			);
+			assertChain(wholeChain, "B(2)", "B(1)");
+			final List<EntityClassifierWithParent> boundedChain = fetchParentChain(
+				evita, 3, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())), true
+			);
+			assertChain(boundedChain, "B(2)");
+
+			final EntityFetchAwareDecorator root = assertInstanceOf(
+				EntityFetchAwareDecorator.class, wholeChain.get(1)
+			);
+			final EntityFetchAwareDecorator immediate = assertInstanceOf(
+				EntityFetchAwareDecorator.class, wholeChain.get(0)
+			);
+			final EntityFetchAwareDecorator immediateAlone = assertInstanceOf(
+				EntityFetchAwareDecorator.class, boundedChain.get(0)
 			);
 
-			final ParentDereferencingCategory control = fetchCategoryProxy(evita, 3);
-			final ParentDereferencingCategory parent = control.getParentEntity();
-			assertNotNull(parent, "The materializable parent 2 must be returned as a proxy.");
-			assertEquals(2, parent.getId());
+			assertTrue(root.getIoFetchCount() > 0, "Reading the root body has to cost at least one fetch.");
+			assertEquals(
+				root.getIoFetchCount(),
+				immediate.getIoFetchCount() - immediateAlone.getIoFetchCount(),
+				"The root must contribute its fetch count to the chain exactly once."
+			);
+			assertEquals(
+				root.getIoFetchedBytes(),
+				immediate.getIoFetchedBytes() - immediateAlone.getIoFetchedBytes(),
+				"The root must contribute its fetched bytes to the chain exactly once."
+			);
+		}
+
+		/**
+		 * Two queried entities of the P3 fixture whose ancestors overlap - `34 -> 33 -> 32(cs) -> 31` and
+		 * `33 -> 32(cs) -> 31` - asked in one query under `COMPLETE`. The upward walk keeps one chain cache
+		 * for the whole query on the assumption that ancestors are shared between queried entities, and this
+		 * is the only row where a shared ancestor is a bodyless *pointer* rather than a body.
+		 *
+		 * It also pins that the same node is reported identically whether it is the top of one chain or a
+		 * link in the middle of another: 32 is a pointer in both, and 31 carries its body in both.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3: two queried entities sharing a pointer ancestor each get the whole chain")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldShareAPointerAncestorBetweenTwoQueriedEntities_P3(Evita evita) {
+			final List<SealedEntity> leaves = fetchLeaves(evita, completeRequirement(), 33, 34);
+			assertEquals(2, leaves.size(), "Both queried categories must be returned.");
+			assertChain(parentChainOf(leaves, 34), "B(33)", "P(32)", "B(31)");
+			assertChain(parentChainOf(leaves, 33), "P(32)", "B(31)");
 		}
 	}
 
 	/**
 	 * Pins how the shape of the `hierarchyContent` requirement itself changes the returned chain - no
-	 * ancestor bodies at all, a `stopAt` cut, no query locale, `dataInLocales` nested inside the ancestor
-	 * `entityFetch`, and a request narrowed to the single global attribute the gated ancestor really
-	 * holds.
+	 * ancestor bodies at all, the three `stopAt` bounds, no query locale, `dataInLocales` nested inside the
+	 * ancestor `entityFetch`, a request narrowed to the single global attribute the gated ancestor really
+	 * holds, and the requirement carried into a sub-fetcher through `referenceContent`.
 	 *
 	 * The last row in this group varies the schema rather than the requirement: it pins why the
 	 * behaviour matrix has no row for a collection that declares no locale at all.
@@ -1275,16 +1728,24 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * Matrix row N1 - `23 -> 22 -> 21(cs)` with a bare `hierarchyContent()`. No body is requested, so
-		 * the locale gate never fires and the whole primary-key axis is returned.
+		 * the locale gate never fires and the whole primary-key axis is returned. Nothing can fail to
+		 * materialize, so the mode has nothing to act on and both cells of the row are the same chain -
+		 * which is what keeps `entityFetchAll()`, which emits a bare `hierarchyContent()`, insensitive to
+		 * the mode.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("N1: the full primary-key chain survives when no ancestor bodies are requested")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReturnFullPrimaryKeyChainWhenNoBodiesRequested_N1(Evita evita) {
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReturnFullPrimaryKeyChainWhenNoBodiesRequested_N1(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
 			// the ancestor axis itself is complete - the locale gate only fires once bodies are fetched
-			assertChain(fetchParentChain(evita, 23, hierarchyContent(), true), "P(22)", "P(21)");
+			assertChain(fetchParentChain(evita, 23, bareRequirement(behaviour), true), "P(22)", "P(21)");
 		}
 
 		/**
@@ -1302,6 +1763,29 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				fetchParentChain(
 					evita, 12, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())), true
 				)
+			);
+		}
+
+		/**
+		 * Matrix row N2 under `COMPLETE` - `12 -> 11(cs)` with `stopAt(distance(1))`. The bound admits the
+		 * only ancestor there is, and the mode reports it as a pointer.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N2: stopAt(distance(1)) admits the locale-less parent as a pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportLocaleLessParentAsPointerUnderStopAtDistanceOne_N2(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 12,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"P(11)"
 			);
 		}
 
@@ -1325,17 +1809,48 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Matrix row N4 - `12 -> 11(cs)` with no query locale at all. The control that isolates the
-		 * query-level `entityLocaleEquals` as the cause.
+		 * Matrix row N3 under `COMPLETE` - `34 -> 33 -> 32(cs) -> 31` with `stopAt(distance(2))`. The bound
+		 * truncates the P3 chain at distance two, so the materializable root that P3 reports above the
+		 * pointer is cut - a prefix of the complete chain, which is what makes a `stopAt` cut and a mode
+		 * compose rather than interfere.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("N4: without a query locale the chain is complete and carries bodies")
+		@DisplayName("N3: stopAt(distance(2)) truncates the complete chain to its first two ancestors")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldReturnCompleteChainWithBodiesWithoutQueryLocale_N4(Evita evita) {
+		void shouldTruncateTheCompleteChainUnderStopAtDistanceTwo_N3(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 34,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(2)),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"B(33)", "P(32)"
+			);
+		}
+
+		/**
+		 * Matrix row N4 - `12 -> 11(cs)` with no query locale at all. The control that isolates the
+		 * query-level `entityLocaleEquals` as the cause: without it nothing gates the ancestor, nothing
+		 * turns into a pointer, and both cells of the row are the same chain of bodies.
+		 *
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N4: without a query locale the chain is complete and carries bodies")
+		@UseDataSet(DATA_SET)
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReturnCompleteChainWithBodiesWithoutQueryLocale_N4(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
 			// removing the single entityLocaleEquals line repairs the chain - the gate is the query locale
-			assertChain(fetchParentChain(evita, 12, standardRequirement(), false), "B(11)");
+			assertChain(fetchParentChain(evita, 12, standardRequirement(behaviour), false), "B(11)");
 		}
 
 		/**
@@ -1359,8 +1874,36 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row N5 under `COMPLETE` - `12 -> 11(cs)` with `dataInLocales(en)` inside the parent
+		 * `entityFetch`. The inner requirement does not lift the query-level gate in either mode, so the
+		 * ancestor is a pointer here exactly as in P1.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N5: dataInLocales inside the parent entityFetch still leaves a pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldStillReportAPointerWithDataInLocalesInsideEntityFetch_N5(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 12,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE,
+						entityFetch(attributeContentAll(), dataInLocales(Locale.ENGLISH))
+					),
+					true
+				),
+				"P(11)"
+			);
+		}
+
+		/**
 		 * Companion of matrix row N5 - the same `dataInLocales(en)` inside the parent `entityFetch`, but
 		 * with no query-level locale. The ancestor body comes back with its localized attribute absent.
+		 *
+		 * The row is deliberately not parameterised: its agreement across the two modes is incidental
+		 * rather than a claim of the design, since it exercises what a *returned body* contains and not
+		 * whether an ancestor is admitted to the chain at all.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
@@ -1377,23 +1920,6 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			// with the localized attribute simply absent - only the query-level locale acts as a gate
 			assertChain(chain, "B(11)");
 			assertNull(assertBody(chain.get(0), 11).getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
-		}
-
-		/**
-		 * Variant of matrix row P1 requesting only the global `code` attribute. The gate is an existence
-		 * predicate on the entity, not a check of which attributes were asked for, so the chain is cut
-		 * below 11 all the same.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P1 variant: requesting only a global attribute does not save the immediate parent")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldDropImmediateParentEvenWhenOnlyGlobalAttributeRequested_P1variant(Evita evita) {
-			// `code` is a global attribute the ancestor actually holds, and it is still refused
-			assertChain(
-				fetchParentChain(evita, 12, hierarchyContent(entityFetch(attributeContent(ATTRIBUTE_CODE))), true)
-			);
 		}
 
 		/**
@@ -1416,23 +1942,31 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * `stopAt(distance(1))` on the fully materializable control chain. The cut is reported exactly the
-		 * way a genuine root is - an empty `getParentEntity()` - and `parentAvailable()` is `true` on
-		 * both, so the raw API offers nothing that separates a requested cut from the end of a hierarchy.
+		 * `stopAt(distance(1))` on the fully materializable control chain. Nothing along it can fail to
+		 * materialize, so the bound answers the same in both modes: the cut is reported exactly the way a
+		 * genuine root is - an empty `getParentEntity()` - and `parentAvailable()` is `true` on both, so
+		 * the raw API offers nothing that separates a requested cut from the end of a hierarchy.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("Control: stopAt(distance(1)) cuts a complete chain indistinguishably from a root")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldCutFullyMaterializableChainUnderStopAtDistanceOne_control(Evita evita) {
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldCutFullyMaterializableChainUnderStopAtDistanceOne_control(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
 			final List<EntityClassifierWithParent> chain = fetchParentChain(
-				evita, 3, hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())), true
+				evita, 3,
+				hierarchyContent(behaviour, stopAt(distance(1)), entityFetch(attributeContentAll())),
+				true
 			);
 			assertChain(chain, "B(2)");
 			assertTrue(
 				assertBody(chain.get(0), 2).parentAvailable(),
-				"The cut chain still reports parentAvailable() on 2 today."
+				"The cut chain still reports parentAvailable() on 2."
 			);
 		}
 
@@ -1442,19 +1976,26 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 * bound of 2 keeps 2 and drops 1. Without this row the two broken-chain level cases would pass
 		 * just as well if `level` had silently become an alias of `distance`.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("Control: stopAt(level(2)) cuts a complete chain indistinguishably from a root")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldCutACompleteChainByLevelIndistinguishablyFromARoot_control(Evita evita) {
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldCutACompleteChainByLevelIndistinguishablyFromARoot_control(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
 			final List<EntityClassifierWithParent> chain = fetchParentChain(
-				evita, 3, hierarchyContent(stopAt(level(2)), entityFetch(attributeContentAll())), true
+				evita, 3,
+				hierarchyContent(behaviour, stopAt(level(2)), entityFetch(attributeContentAll())),
+				true
 			);
 			assertChain(chain, "B(2)");
 			assertTrue(
 				assertBody(chain.get(0), 2).parentAvailable(),
-				"The cut chain still reports parentAvailable() on 2 today."
+				"The cut chain still reports parentAvailable() on 2."
 			);
 		}
 
@@ -1466,18 +2007,307 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 * it read as "nobody resolved the parent" would hand the caller the raw immediate parent the entity
 		 * carries and defeat every cut this requirement can express.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * A bound that admits nothing leaves the mode nothing to decide, so the row is the same in both.
+		 *
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("Control: a level bound that admits no ancestor leaves no parent behind")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportNoParentWhenTheLevelBoundAdmitsNoAncestor_control(Evita evita) {
-			assertChain(fetchParentChain(evita, 3, hierarchyContent(stopAt(level(3))), true));
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReportNoParentWhenTheLevelBoundAdmitsNoAncestor_control(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
+			assertChain(fetchParentChain(evita, 3, hierarchyContent(behaviour, stopAt(level(3))), true));
 			assertChain(
 				fetchParentChain(
-					evita, 3, hierarchyContent(stopAt(level(3)), entityFetch(attributeContentAll())), true
+					evita, 3,
+					hierarchyContent(behaviour, stopAt(level(3)), entityFetch(attributeContentAll())),
+					true
 				)
 			);
+		}
+
+		/**
+		 * `stopAt(level(2))` on the P3 fixture `34 -> 33 -> 32(cs) -> 31` under the default. The chain is
+		 * fully rooted here, so every level is knowable - 31 is level 1, 32 level 2, 33 level 3 - and a
+		 * bottom-up level bound keeps what is at least as deep as the bound. The bound would admit 33 and
+		 * 32, but the chain is cut below the unmaterializable 32 first.
+		 *
+		 * Every other level row of this class sits on a *broken* chain, where the rule is that a level bound
+		 * never cuts a fragment of unknown depth - and would pass just as well if the bound were ignored
+		 * entirely. This row is the one that makes a level bound observable under a locale gate.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N3 variant: a level bound over a rooted chain still stops below the locale-less ancestor")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutBelowTheLocaleLessAncestorUnderALevelBound_N3variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 34, hierarchyContent(stopAt(level(2)), entityFetch(attributeContentAll())), true
+				),
+				"B(33)"
+			);
+		}
+
+		/**
+		 * The `COMPLETE` twin of the row above - `stopAt(level(2))` on the rooted P3 chain. The bound admits
+		 * 33 and 32 and refuses the root 31 at level 1, so the mode reports the pointer at 32 and the bound
+		 * cuts the body that P3 otherwise returns above it.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N3 variant: a level bound cuts the complete chain above the pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutTheCompleteChainAboveThePointerUnderALevelBound_N3variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 34,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE, stopAt(level(2)),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"B(33)", "P(32)"
+			);
+		}
+
+		/**
+		 * `stopAt(node(...))` selecting 33 on the P3 fixture `34 -> 33 -> 32(cs) -> 31`. The node bound is
+		 * the one stop predicate that carries state across the walk: it admits ancestors up to and
+		 * including the first one matching the filter and refuses everything above it. Ending the walk
+		 * *below* the unmaterializable 32 leaves the mode nothing to decide, which makes this the node
+		 * analogue of the distance rows that agree across both cells.
+		 *
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N3 variant: a node bound ending below the locale-less ancestor makes the mode inert")
+		@UseDataSet(DATA_SET)
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldMakeTheModeInertWithANodeBoundBelowTheLocaleLessAncestor_N3variant(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
+			assertChain(
+				fetchParentChain(
+					evita, 34,
+					hierarchyContent(
+						behaviour,
+						stopAt(node(filterBy(entityPrimaryKeyInSet(33)))),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"B(33)"
+			);
+		}
+
+		/**
+		 * `stopAt(node(...))` selecting exactly the node the mode turns into a pointer - 32 on the P3
+		 * fixture, under `COMPLETE`. The bound and the mode meet on the same ancestor: the node filter
+		 * admits 32 and refuses everything above it, while the mode keeps 32 in the chain without a body.
+		 * The result is the pointer as the top of the chain, with the materializable root 31 that P3
+		 * otherwise reports above it suppressed by the bound.
+		 *
+		 * The node filter is evaluated against the hierarchy index rather than against the query locale, so
+		 * an ancestor holding no data in the query locale is still matchable by primary key - which is what
+		 * makes the bound land on 32 at all.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3 variant: a node bound landing on the pointer itself tops the chain with it")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldTopTheChainWithThePointerTheNodeBoundLandsOn_P3variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 34,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE,
+						stopAt(node(filterBy(entityPrimaryKeyInSet(32)))),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"B(33)", "P(32)"
+			);
+		}
+
+		/**
+		 * The P3 chain reached through `referenceContent` from the `PRODUCT` collection rather than
+		 * directly - the second usage shape the user documentation shows for `hierarchyContent`, and the
+		 * one that carries the behaviour argument into a sub-fetcher instead of into the fetcher of the
+		 * queried entity. Under the default the chain of the referenced category 34 is cut below the
+		 * unmaterializable 32 exactly as row P3 is cut when 34 is queried directly.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3 through referenceContent: the referenced entity's chain is cut the same way")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutTheReferencedEntityChainBelowALocaleLessAncestor_P3(Evita evita) {
+			assertChain(
+				referencedCategoryParentChain(evita, 301, HierarchyParentsBehaviour.MATCHING),
+				"B(33)"
+			);
+		}
+
+		/**
+		 * The `COMPLETE` twin of the row above. The behaviour argument survives being carried into the
+		 * sub-fetcher, so the referenced category reports the pointer at 32 and the materializable root
+		 * above it, exactly as the directly queried 34 does.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3 through referenceContent: the mode reaches the sub-fetcher unchanged")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCarryTheModeIntoTheReferencedEntityChain_P3(Evita evita) {
+			assertChain(
+				referencedCategoryParentChain(evita, 301, HierarchyParentsBehaviour.COMPLETE),
+				"B(33)", "P(32)", "B(31)"
+			);
+		}
+
+		/**
+		 * Two `hierarchyContent` siblings in one `entityFetch` - the shape `entityFetchAllContentAnd` makes
+		 * when a caller adds an explicit behaviour to the full content set, since `entityFetchAllContent()`
+		 * already puts a bare `hierarchyContent()` in the array. The decision record's rule that a body-less
+		 * side expresses no preference exists exactly so this combination resolves to the explicit
+		 * `COMPLETE`, and the chain of 34 should therefore read `B(33) -> P(32) -> B(31)`.
+		 *
+		 * The two siblings are reduced with the very `combineWith` that rule lives in, so the query sees one
+		 * requirement and the explicit behaviour survives.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N1 variant: entityFetchAll combined with an explicit behaviour resolves to the explicit one")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCombineEntityFetchAllWithAnExplicitBehaviour_N1variant(Evita evita) {
+			final SealedEntity leaf = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						query(
+							collection(Entities.CATEGORY),
+							leafFilter(34, true),
+							require(
+								entityFetch(
+									entityFetchAllContentAnd(
+										hierarchyContent(
+											HierarchyParentsBehaviour.COMPLETE,
+											entityFetch(attributeContentAll())
+										)
+									)
+								)
+							)
+						)
+					).orElseThrow(() -> new AssertionError("Category 34 was not returned."));
+				}
+			);
+			assertChain(parentChainOf(leaf), "B(33)", "P(32)", "B(31)");
+		}
+
+		/**
+		 * The other half of the combining rule: two siblings that *both* ask for ancestor bodies and disagree on the
+		 * behaviour cannot be reconciled, because neither mode returns a superset of the other. The disagreement has
+		 * to reach the caller as a usage error rather than being silently resolved to one of the two.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N1 variant: two body-requesting siblings under different behaviours fail the query")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldRefuseTwoBodyRequestingSiblingsWithDifferentBehaviours_N1variant(Evita evita) {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						return session.queryOneSealedEntity(
+							query(
+								collection(Entities.CATEGORY),
+								leafFilter(34, true),
+								require(
+									entityFetch(
+										hierarchyContent(
+											HierarchyParentsBehaviour.COMPLETE, entityFetch(attributeContentAll())
+										),
+										hierarchyContent(
+											HierarchyParentsBehaviour.MATCHING, entityFetch(attributeContentAll())
+										)
+									)
+								)
+							)
+						);
+					}
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("different parents behaviour"),
+				"The refusal must name the disagreement the two siblings could not resolve, but was: " +
+					exception.getMessage()
+			);
+		}
+
+		/**
+		 * Two queried entities whose parents are an ancestor and a descendant of each other, asked in one
+		 * query under a distance bound - `151 <- 152 <- 153 <- 154` with 155 hanging under 153 and 156
+		 * under 154. Each entity is entitled to two ancestors of its own: 155 to `153, 152` and 156 to
+		 * `154, 153`.
+		 *
+		 * The bound is measured from the queried entity, so the sub-chain of 153 that the walk collects
+		 * while serving 156 is one link shorter than the chain 155 is entitled to. The two are cached under
+		 * the same primary key, and the parents are walked in ascending primary-key order, so 153 is served
+		 * first and overwritten second.
+		 *
+		 * A sub-chain collected under a bound measured from somewhere else is therefore not shared: each queried
+		 * entity gets the chain its own bound admits, whichever of the two the walk reaches first.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("N2 variant: two queried entities sharing an ancestor each keep their own bounded chain")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportEachQueriedEntityChainIndependentlyUnderADistanceBound_N2variant(Evita evita) {
+			final List<SealedEntity> leaves = fetchLeaves(
+				evita, hierarchyContent(stopAt(distance(2))), 155, 156
+			);
+			assertEquals(2, leaves.size(), "Both queried categories must be returned.");
+			assertChain(parentChainOf(leaves, 156), "P(154)", "P(153)");
+			assertChain(parentChainOf(leaves, 155), "P(153)", "P(152)");
+		}
+
+		/**
+		 * The pointer twin of the row above - `163` points at the never-created 998, `164` hangs under it,
+		 * and 165 and 166 hang under 163 and 164 respectively. The unresolvable key sits at distance two
+		 * from 165, which the bound admits, and at distance three from 166, which it refuses; so 165 is
+		 * entitled to `163, 998` and 166 only to `164, 163`.
+		 *
+		 * The unresolvable key is admitted or refused per queried entity, exactly like a resolvable ancestor, so
+		 * the walk 166 runs cannot suppress the pointer 165 is entitled to.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K6 variant: a shared ancestor keeps the phantom pointer the bound admits below it")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepThePhantomPointerForTheShallowerQueriedEntity_K6variant(Evita evita) {
+			final List<SealedEntity> leaves = fetchLeaves(
+				evita, hierarchyContent(stopAt(distance(2))), 165, 166
+			);
+			assertEquals(2, leaves.size(), "Both queried categories must be returned.");
+			assertChain(parentChainOf(leaves, 166), "P(164)", "P(163)");
+			assertChain(parentChainOf(leaves, 165), "P(163)", "P(998)");
 		}
 
 		/**
@@ -1486,6 +2316,10 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 * filtered out before its parents are ever considered. The control arm runs the identical query
 		 * without the locale and gets the brand and its complete parent chain, so the empty result above
 		 * cannot be produced by a missing fixture.
+		 *
+		 * The row is deliberately not parameterised: it is about the query filter rejecting the queried
+		 * entity, which happens before any parent behaviour applies, so its mode-insensitivity is
+		 * incidental rather than a claim of the design.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
@@ -1509,10 +2343,10 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	}
 
 	/**
-	 * Pins the `MATCHING` cells of the rows where the chain is broken by a deleted or never-created
-	 * ancestor. Every ancestor the index still holds is reported, and the primary key it cannot resolve
-	 * is a link of the chain like any other - it simply can never yield a body, so `MATCHING` cuts the
-	 * chain just below it and nothing above the break is reported. Where the break sits, and whether the
+	 * Pins both cells of every row where the chain is broken by a deleted or never-created ancestor. Every
+	 * ancestor the index still holds is reported, and the primary key it cannot resolve is a link of the
+	 * chain like any other - it simply can never yield a body, so `MATCHING` cuts the chain just below it
+	 * while `COMPLETE` reports it as the pointer that tops the chain. Where the break sits, and whether the
 	 * vanished node had a parent of its own, makes no difference to the rule.
 	 */
 	@Nested
@@ -1534,6 +2368,19 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row K1 under `COMPLETE` - `72 -> 71`, where the root 71 was deleted. The primary key the
+		 * queried entity still carries is reported as a pointer, and nothing exists above it to walk.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K1: a deleted root at the immediate-parent position is reported as a pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportDeletedRootParentAsPointer_K1(Evita evita) {
+			assertChain(completeParentChain(evita, 72), "P(71)");
+		}
+
+		/**
 		 * Matrix row K2 - `83 -> 82 -> 81`, where 81 was a deleted root. The chain is structurally broken at
 		 * 81: removing the root un-indexed it and orphaned the subtree below it, so 82 is reported with its
 		 * body and the chain is cut just below the unresolvable 81, exactly as it is cut below a break left
@@ -1552,8 +2399,22 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			assertChain(chain, "B(82)");
 			assertTrue(
 				assertBody(chain.get(0), 82).parentAvailable(),
-				"The cut chain still reports parentAvailable() on 82 today."
+				"The cut chain still reports parentAvailable() on 82."
 			);
+		}
+
+		/**
+		 * Matrix row K2 under `COMPLETE` - `83 -> 82 -> 81`, where the root 81 was deleted. The pointer at
+		 * the break is built from the primary key the reachable 82 still points at, which the index can no
+		 * longer resolve.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K2: the deleted root two levels up tops the chain as a pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportDeletedRootTwoLevelsUpAsPointer_K2(Evita evita) {
+			assertChain(completeParentChain(evita, 83), "B(82)", "P(81)");
 		}
 
 		/**
@@ -1585,31 +2446,38 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Variant of matrix row K3 - `133 -> 132 -> 131`, where the deleted mid-chain 132 also held Czech
-		 * data only. The chain is cut below it exactly as K3 is cut.
+		 * Matrix row K3 under `COMPLETE` - `123 -> 122 -> 121`, where the mid-chain 122 was deleted and
+		 * sits at the immediate-parent position. The deleted key is reported as a pointer; the root 121
+		 * above it is unreachable, so the chain ends there in both modes alike.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K3 variant: the chain is cut below a deleted Czech-only mid-chain parent")
+		@DisplayName("K3: a deleted mid-chain immediate parent is reported as a pointer")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldCutTheChainBelowADeletedLocaleLessMidChainParent_K3variant(Evita evita) {
-			assertChain(standardParentChain(evita, 133));
+		void shouldReportDeletedMidChainParentAsPointer_K3(Evita evita) {
+			assertChain(completeParentChain(evita, 123), "P(122)");
 		}
 
 		/**
 		 * Variant of matrix row N1 measured on the broken chain of K3 - `123 -> 122 deleted` with a bare
 		 * `hierarchyContent()`. No body is requested, so nothing can fail to materialize and the whole
 		 * chain of parent primary keys the entity carries is reported - here the single unresolvable key
-		 * 122, which is a link of that chain like any other.
+		 * 122, which is a link of that chain like any other. That is the bare form's own rule rather than a
+		 * mode, so both cells of the row are the same chain.
 		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
 		 */
 		@DisplayName("N1 variant: a bare hierarchyContent reports the unresolvable parent primary key")
 		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportTheUnresolvableParentKeyWhenNoBodiesRequested_N1variant(Evita evita) {
-			assertChain(fetchParentChain(evita, 123, hierarchyContent(), true), "P(122)");
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReportTheUnresolvableParentKeyWhenNoBodiesRequested_N1variant(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
+			assertChain(fetchParentChain(evita, 123, bareRequirement(behaviour), true), "P(122)");
 		}
 
 		/**
@@ -1628,18 +2496,37 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Variant of matrix row K4 with a bare `hierarchyContent()`. No body is requested, so nothing can
-		 * fail to materialize and the chain of parent primary keys the entity carries is reported whole -
-		 * the reachable 123 and, above it, the unresolvable 122 that 123 still points at. That is the bare
-		 * form's own rule rather than a mode: the same requirement returns the same chain under `COMPLETE`.
+		 * Matrix row K4 under `COMPLETE` - `124 -> 123 -> 122 -> 121`, the break two levels up. The
+		 * reachable 123 carries its body and the unresolvable 122 above it is the pointer that tops the
+		 * chain.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("K4 variant: without ancestor bodies the unresolvable key tops the reported chain")
+		@DisplayName("K4: a body is reported below the pointer at a break two levels up")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldReportTheUnresolvableKeyAboveTheReachableAncestorWhenNoBodiesRequested_K4variant(Evita evita) {
-			assertChain(fetchParentChain(evita, 124, hierarchyContent(), true), "P(123)", "P(122)");
+		void shouldReportABodyBelowThePointerAtABreakTwoLevelsUp_K4(Evita evita) {
+			assertChain(completeParentChain(evita, 124), "B(123)", "P(122)");
+		}
+
+		/**
+		 * Variant of matrix row K4 with a bare `hierarchyContent()`. No body is requested, so nothing can
+		 * fail to materialize and the chain of parent primary keys the entity carries is reported whole -
+		 * the reachable 123 and, above it, the unresolvable 122 that 123 still points at. The bare form
+		 * answers the same in both modes, and that equality is the claim being pinned.
+		 *
+		 * @param behaviour the parents behaviour under test
+		 * @param evita     the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K4 variant: without ancestor bodies the unresolvable key tops the reported chain")
+		@UseDataSet(DATA_SET)
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(HierarchyParentsBehaviour.class)
+		void shouldReportTheUnresolvableKeyAboveTheReachableAncestorWhenNoBodiesRequested_K4variant(
+			HierarchyParentsBehaviour behaviour,
+			Evita evita
+		) {
+			assertChain(fetchParentChain(evita, 124, bareRequirement(behaviour), true), "P(123)", "P(122)");
 		}
 
 		/**
@@ -1672,6 +2559,30 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Variant of matrix row K4 bounding the walk by `stopAt(distance(1))`. The unresolvable 122 sits at
+		 * distance two, beyond the bound, so it is cut exactly as a resolvable ancestor at that distance
+		 * would be: the pointer at a break is an element of the chain, not an addition on top of it.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K4 variant: a distance bound cuts the pointer at a break like any other ancestor")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutThePointerAtABreakByADistanceBound_K4variant(Evita evita) {
+			assertChain(
+				fetchParentChain(
+					evita, 124,
+					hierarchyContent(
+						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)),
+						entityFetch(attributeContentAll())
+					),
+					true
+				),
+				"B(123)"
+			);
+		}
+
+		/**
 		 * Matrix row K5 - `125 -> 124 -> 123 -> 122`, where the break sits three levels up. Both ancestors
 		 * below the break carry English data, so both are reported with their bodies and the chain ends at
 		 * the break.
@@ -1683,6 +2594,19 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Test
 		void shouldReportBothReachableAncestorsWhenBreakSitsThreeLevelsUp_K5(Evita evita) {
 			assertChain(standardParentChain(evita, 125), "B(124)", "B(123)");
+		}
+
+		/**
+		 * Matrix row K5 under `COMPLETE` - `125 -> 124 -> 123 -> 122`, the break three levels up. Both
+		 * reachable ancestors carry their bodies and the unresolvable key tops the chain.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K5: two bodies are reported below the pointer at a break three levels up")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTwoBodiesBelowThePointerAtABreakThreeLevelsUp_K5(Evita evita) {
+			assertChain(completeParentChain(evita, 125), "B(124)", "B(123)", "P(122)");
 		}
 
 		/**
@@ -1728,341 +2652,6 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Matrix row K6 - `111 -> 999`, a parent primary key that was never created. The upsert setting it
-		 * was accepted, and the dangling key can never yield a body, so the chain is cut below it.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K6: the chain is cut below a never-created parent primary key")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldCutTheChainBelowANeverCreatedParent_K6(Evita evita) {
-			// the upsert that set parent 999 was accepted even though 999 never existed
-			assertChain(standardParentChain(evita, 111));
-		}
-
-		/**
-		 * Companion of matrix row K6 - `112 -> 111 -> 999`. A parent primary key that was never created
-		 * breaks the chain from the ingest side exactly as a deletion breaks it, with no deletion involved:
-		 * 111 is reported with its body and the dangling 999 above it is not reported at all.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K6 variant: the ancestor below a never-created ancestor two levels up is returned with its body")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportReachableAncestorWhenNeverCreatedAncestorSitsTwoLevelsUp_K6variant(Evita evita) {
-			assertChain(standardParentChain(evita, 112), "B(111)");
-		}
-	}
-
-	/**
-	 * Pins the `COMPLETE` column of the behaviour matrix - every row the mode answers differently from
-	 * the default, plus the rows whose equality across the two modes is itself a claim worth pinning.
-	 *
-	 * The rule is one sentence: every ancestor of the axis appears, one whose requested body cannot be
-	 * materialized appears as a bodyless pointer, and the walk continues above it. A body may therefore
-	 * follow a pointer, which no chain the default returns can ever do. The primary key at a structural
-	 * break is an ancestor like any other here: the index cannot resolve it, so it is the pointer that
-	 * tops the chain, and nothing above it exists to be walked.
-	 */
-	@Nested
-	@DisplayName("Complete mode (COMPLETE column)")
-	class CompleteModeTest {
-
-		/**
-		 * Matrix row P1 under `COMPLETE` - `12 -> 11(cs)`. The unmaterializable immediate parent is
-		 * reported as a bodyless pointer instead of disappearing with the rest of the chain.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P1: a locale-less immediate parent is reported as a bodyless pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportLocaleLessImmediateParentAsPointer_P1(Evita evita) {
-			assertChain(completeParentChain(evita, 12), "P(11)");
-		}
-
-		/**
-		 * Matrix row P2 under `COMPLETE` - `23 -> 22 -> 21(cs)`. The unmaterializable root is reported as a
-		 * pointer above the materializable ancestor that carries a body.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P2: a locale-less root is reported as a pointer above the materializable parent")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportLocaleLessRootAsPointerAboveMaterializableParent_P2(Evita evita) {
-			assertChain(completeParentChain(evita, 23), "B(22)", "P(21)");
-		}
-
-		/**
-		 * Matrix row P3 under `COMPLETE` - `34 -> 33 -> 32(cs) -> 31`. The acceptance test of the whole
-		 * mode: it is the only row proving the walk no longer stops at the first missing body, since the
-		 * materializable root 31 is reported *above* the pointer at 32.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P3: the materializable root above a locale-less ancestor is reported with its body")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportMaterializableRootAboveLocaleLessAncestor_P3(Evita evita) {
-			assertChain(completeParentChain(evita, 34), "B(33)", "P(32)", "B(31)");
-		}
-
-		/**
-		 * Matrix row P4 under `COMPLETE` - `44 -> 43(cs) -> 42(cs) -> 41`. Two adjacent unmaterializable
-		 * ancestors yield two pointers rather than collapsing into one, and the materializable root above
-		 * them is still reached.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P4: two adjacent locale-less ancestors are reported as two separate pointers")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportTwoAdjacentLocaleLessAncestorsAsTwoPointers_P4(Evita evita) {
-			assertChain(completeParentChain(evita, 44), "P(43)", "P(42)", "B(41)");
-		}
-
-		/**
-		 * Matrix row P5 under `COMPLETE` - `54 -> 53(cs) -> 52 -> 51(cs)`. Bodies and pointers alternate
-		 * along one chain, which is the shape the default can never produce.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P5: bodies and pointers alternate along the reported chain")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldAlternateBodiesAndPointersAlongTheChain_P5(Evita evita) {
-			assertChain(completeParentChain(evita, 54), "P(53)", "B(52)", "P(51)");
-		}
-
-		/**
-		 * Matrix row P6 under `COMPLETE` - `63 -> 62(cs) -> 61(cs)`. Every ancestor up to the root is
-		 * unmaterializable, so the whole chain comes back as pointers and none of it is lost.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("P6: locale-less ancestors up to the root are all reported as pointers")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportLocaleLessAncestorsUpToRootAsPointers_P6(Evita evita) {
-			assertChain(completeParentChain(evita, 63), "P(62)", "P(61)");
-		}
-
-		/**
-		 * Matrix row N1 under `COMPLETE` - `23 -> 22 -> 21(cs)` with a bare `hierarchyContent(COMPLETE)`.
-		 * No body is requested, so nothing can fail to materialize and the mode has nothing to act on: the
-		 * chain is identical to the one the default returns. This is what keeps `entityFetchAll()`, which
-		 * emits a bare `hierarchyContent()`, insensitive to the mode.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("N1: without ancestor bodies the mode is inert and the chain matches the default")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReturnTheSameChainAsTheDefaultWhenNoBodiesRequested_N1(Evita evita) {
-			assertChain(
-				fetchParentChain(evita, 23, hierarchyContent(HierarchyParentsBehaviour.COMPLETE), true),
-				"P(22)", "P(21)"
-			);
-		}
-
-		/**
-		 * Matrix row N2 under `COMPLETE` - `12 -> 11(cs)` with `stopAt(distance(1))`. The bound admits the
-		 * only ancestor there is, and the mode reports it as a pointer.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("N2: stopAt(distance(1)) admits the locale-less parent as a pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportLocaleLessParentAsPointerUnderStopAtDistanceOne_N2(Evita evita) {
-			assertChain(
-				fetchParentChain(
-					evita, 12,
-					hierarchyContent(
-						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)),
-						entityFetch(attributeContentAll())
-					),
-					true
-				),
-				"P(11)"
-			);
-		}
-
-		/**
-		 * Matrix row N3 under `COMPLETE` - `34 -> 33 -> 32(cs) -> 31` with `stopAt(distance(2))`. The bound
-		 * truncates the P3 chain at distance two, so the materializable root that P3 reports above the
-		 * pointer is cut - a prefix of the complete chain, which is what makes a `stopAt` cut and a mode
-		 * compose rather than interfere.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("N3: stopAt(distance(2)) truncates the complete chain to its first two ancestors")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldTruncateTheCompleteChainUnderStopAtDistanceTwo_N3(Evita evita) {
-			assertChain(
-				fetchParentChain(
-					evita, 34,
-					hierarchyContent(
-						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(2)),
-						entityFetch(attributeContentAll())
-					),
-					true
-				),
-				"B(33)", "P(32)"
-			);
-		}
-
-		/**
-		 * Matrix row N4 under `COMPLETE` - `12 -> 11(cs)` with no query locale at all. Nothing gates the
-		 * ancestor, so nothing turns into a pointer and the chain matches the default.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("N4: without a query locale the chain carries bodies and matches the default")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReturnTheSameChainAsTheDefaultWithoutQueryLocale_N4(Evita evita) {
-			assertChain(fetchParentChain(evita, 12, completeRequirement(), false), "B(11)");
-		}
-
-		/**
-		 * Matrix row N5 under `COMPLETE` - `12 -> 11(cs)` with `dataInLocales(en)` inside the parent
-		 * `entityFetch`. The inner requirement does not lift the query-level gate in either mode, so the
-		 * ancestor is a pointer here exactly as in P1.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("N5: dataInLocales inside the parent entityFetch still leaves a pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldStillReportAPointerWithDataInLocalesInsideEntityFetch_N5(Evita evita) {
-			assertChain(
-				fetchParentChain(
-					evita, 12,
-					hierarchyContent(
-						HierarchyParentsBehaviour.COMPLETE,
-						entityFetch(attributeContentAll(), dataInLocales(Locale.ENGLISH))
-					),
-					true
-				),
-				"P(11)"
-			);
-		}
-
-		/**
-		 * Matrix row K1 under `COMPLETE` - `72 -> 71`, where the root 71 was deleted. The primary key the
-		 * queried entity still carries is reported as a pointer, and nothing exists above it to walk.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K1: a deleted root at the immediate-parent position is reported as a pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportDeletedRootParentAsPointer_K1(Evita evita) {
-			assertChain(completeParentChain(evita, 72), "P(71)");
-		}
-
-		/**
-		 * Matrix row K2 under `COMPLETE` - `83 -> 82 -> 81`, where the root 81 was deleted. The pointer at
-		 * the break is built from the primary key the reachable 82 still points at, which the index can no
-		 * longer resolve.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K2: the deleted root two levels up tops the chain as a pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportDeletedRootTwoLevelsUpAsPointer_K2(Evita evita) {
-			assertChain(completeParentChain(evita, 83), "B(82)", "P(81)");
-		}
-
-		/**
-		 * Matrix row K3 under `COMPLETE` - `123 -> 122 -> 121`, where the mid-chain 122 was deleted and
-		 * sits at the immediate-parent position. The deleted key is reported as a pointer; the root 121
-		 * above it is unreachable, so the chain ends there in both modes alike.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K3: a deleted mid-chain immediate parent is reported as a pointer")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportDeletedMidChainParentAsPointer_K3(Evita evita) {
-			assertChain(completeParentChain(evita, 123), "P(122)");
-		}
-
-		/**
-		 * Matrix row K4 under `COMPLETE` - `124 -> 123 -> 122 -> 121`, the break two levels up. The
-		 * reachable 123 carries its body and the unresolvable 122 above it is the pointer that tops the
-		 * chain.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K4: a body is reported below the pointer at a break two levels up")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportABodyBelowThePointerAtABreakTwoLevelsUp_K4(Evita evita) {
-			assertChain(completeParentChain(evita, 124), "B(123)", "P(122)");
-		}
-
-		/**
-		 * Variant of matrix row K4 with a bare `hierarchyContent(COMPLETE)`. The bare form reports the whole
-		 * chain of parent primary keys the entity carries in either mode, so this is the same chain the
-		 * default returns - the equality is the claim being pinned.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K4 variant: the bare form reports the same broken chain as the default does")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportTheSameBrokenChainAsTheDefaultWhenNoBodiesRequested_K4variant(Evita evita) {
-			assertChain(
-				fetchParentChain(evita, 124, hierarchyContent(HierarchyParentsBehaviour.COMPLETE), true),
-				"P(123)", "P(122)"
-			);
-		}
-
-		/**
-		 * Matrix row K5 under `COMPLETE` - `125 -> 124 -> 123 -> 122`, the break three levels up. Both
-		 * reachable ancestors carry their bodies and the unresolvable key tops the chain.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K5: two bodies are reported below the pointer at a break three levels up")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldReportTwoBodiesBelowThePointerAtABreakThreeLevelsUp_K5(Evita evita) {
-			assertChain(completeParentChain(evita, 125), "B(124)", "B(123)", "P(122)");
-		}
-
-		/**
-		 * Variant of matrix row K4 bounding the walk by `stopAt(distance(1))`. The unresolvable 122 sits at
-		 * distance two, beyond the bound, so it is cut exactly as a resolvable ancestor at that distance
-		 * would be: the pointer at a break is an element of the chain, not an addition on top of it.
-		 *
-		 * @param evita the embedded evitaDB instance provided by the test extension
-		 */
-		@DisplayName("K4 variant: a distance bound cuts the pointer at a break like any other ancestor")
-		@UseDataSet(DATA_SET)
-		@Test
-		void shouldCutThePointerAtABreakByADistanceBound_K4variant(Evita evita) {
-			assertChain(
-				fetchParentChain(
-					evita, 124,
-					hierarchyContent(
-						HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)),
-						entityFetch(attributeContentAll())
-					),
-					true
-				),
-				"B(123)"
-			);
-		}
-
-		/**
 		 * Variant of matrix row K5 bounding the walk by `stopAt(node(...))`, the one stop predicate that
 		 * carries state across the walk rather than deciding per node: it admits ancestors up to and
 		 * including the first one matching the filter, and refuses everything above it. Selecting 123 must
@@ -2090,6 +2679,20 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * Matrix row K6 - `111 -> 999`, a parent primary key that was never created. The upsert setting it
+		 * was accepted, and the dangling key can never yield a body, so the chain is cut below it.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K6: the chain is cut below a never-created parent primary key")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldCutTheChainBelowANeverCreatedParent_K6(Evita evita) {
+			// the upsert that set parent 999 was accepted even though 999 never existed
+			assertChain(standardParentChain(evita, 111));
+		}
+
+		/**
 		 * Matrix row K6 under `COMPLETE` - `111 -> 999`, a parent primary key that was never created. A
 		 * dangling key reaching the index from the ingest side is reported exactly like one left behind by
 		 * a deletion.
@@ -2104,17 +2707,144 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
-		 * Fixture control - `3 -> 2 -> 1`, every node materializable. Nothing fails to materialize, so the
-		 * mode has nothing to substitute and returns the very chain the default does; without this row a
-		 * mode that turned every ancestor into a pointer would pass most of the class.
+		 * Companion of matrix row K6 - `112 -> 111 -> 999`. A parent primary key that was never created
+		 * breaks the chain from the ingest side exactly as a deletion breaks it, with no deletion involved:
+		 * 111 is reported with its body and the dangling 999 above it is not reported at all.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("Control: a fully materializable chain is unchanged by the mode")
+		@DisplayName("K6 variant: the ancestor below a never-created ancestor two levels up is returned with its body")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldLeaveAFullyMaterializableChainUnchanged_control(Evita evita) {
-			assertChain(completeParentChain(evita, 3), "B(2)", "B(1)");
+		void shouldReportReachableAncestorWhenNeverCreatedAncestorSitsTwoLevelsUp_K6variant(Evita evita) {
+			assertChain(standardParentChain(evita, 112), "B(111)");
+		}
+
+		/**
+		 * Matrix row K6 and its companion asked in one query - `111 -> 999` and `112 -> 111 -> 999`, where
+		 * one queried entity points straight at the break and the other reaches it through a resolvable
+		 * ancestor. Nothing else in this class queries more than one entity at a time, and the two shapes
+		 * are what makes the per-entity state of the walk observable: the parents are walked in ascending
+		 * primary-key order, so the resolvable 111 is served first and the unresolvable 999 second, and the
+		 * accumulator that decides whether a walk offered any node at all has to be cleared between the two.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K6: two queried entities, one pointing straight at the break, each keep their own chain")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepTheChainsOfTwoQueriedEntitiesApartAcrossABreak_K6(Evita evita) {
+			final List<SealedEntity> leaves = fetchLeaves(evita, standardRequirement(), 111, 112);
+			assertEquals(2, leaves.size(), "Both queried categories must be returned.");
+			assertChain(parentChainOf(leaves, 111));
+			assertChain(parentChainOf(leaves, 112), "B(111)");
+		}
+
+		/**
+		 * The `COMPLETE` twin of the row above. The unresolvable 999 tops both chains, once as the only
+		 * element of 111's chain and once above the body of 111 in 112's, so the same primary key is
+		 * reported consistently whether it is reached directly or through an ancestor.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("K6: two queried entities report the same break consistently under the mode")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheSameBreakToBothQueriedEntities_K6(Evita evita) {
+			final List<SealedEntity> leaves = fetchLeaves(evita, completeRequirement(), 111, 112);
+			assertEquals(2, leaves.size(), "Both queried categories must be returned.");
+			assertChain(parentChainOf(leaves, 111), "P(999)");
+			assertChain(parentChainOf(leaves, 112), "B(111)", "P(999)");
+		}
+
+		/**
+		 * A chain that leads into a ring instead of reaching a top - `144 -> 143 -> 141 -> 142 -> 141`,
+		 * where 141 and 142 point at each other after 141 was re-pointed at its own descendant. The index
+		 * treats the return to an already collected node as a break and stops there, so the walk terminates
+		 * and each ring member is offered exactly once; the chain the caller receives should therefore hold
+		 * 143, 141 and 142 and stop.
+		 *
+		 * The top of the fragment still carries a parent primary key, and it is indistinguishable from one the
+		 * index cannot resolve unless the keys already placed in the chain are known - so the fetcher is told
+		 * which they are and refuses to append a member it has already reported.
+		 *
+		 * The timeout is not decoration - a walk that followed the ring would never return at all, and the
+		 * bound is deliberately generous because it costs nothing on a passing run.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Ring: the chain below a ring terminates and reports each member once")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportEachRingMemberOnceBelowARing_ring(Evita evita) {
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(30),
+				() -> assertChain(standardParentChain(evita, 144), "B(143)", "B(141)", "B(142)")
+			);
+		}
+
+		/**
+		 * The `COMPLETE` twin of the row above. Nothing along the chain fails to materialize, so the mode
+		 * has nothing to substitute and the ring is reported exactly as the default reports it.
+		 *
+		 * Each member is reported once here too, so no ancestor contributes its IO statistics to the chain
+		 * twice.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Ring: the mode reports the chain below a ring exactly as the default does")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheRingIdenticallyUnderTheMode_ring(Evita evita) {
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(30),
+				() -> assertChain(completeParentChain(evita, 144), "B(143)", "B(141)", "B(142)")
+			);
+		}
+	}
+
+	/**
+	 * Pins what each typed-proxy form makes of the parent chain - the one place in this class where the
+	 * assertions deliberately leave the raw {@link SealedEntity} API.
+	 *
+	 * The forms differ in what they need from an ancestor and in which result wrapper
+	 * {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks for them, and the two
+	 * together decide what a bodyless pointer looks like from the outside: an entity-typed getter needs the
+	 * body and either throws or reports nothing, while a primary-key or classifier getter reads what the
+	 * pointer itself carries and keeps answering. A record projection reaches the same axis through a
+	 * constructor parameter with no wrapper in front of it at all.
+	 */
+	@Nested
+	@DisplayName("Typed proxy over the parent chain")
+	@Tag(PROXY)
+	class TypedProxyTest {
+
+		/**
+		 * The typed-proxy view of matrix row P1, and the one place where the `MATCHING` default is visibly
+		 * different from the behaviour that preceded it. A `@ParentEntity` getter that declares an exception
+		 * gets the rethrowing wrapper, so it used to surface the {@link ContextMissingException} raised on
+		 * the bodyless pointer at 11. The chain is now cut below 11 instead, the getter sees no parent, and
+		 * the wrapper returns `null` - a silent root where an exception used to be raised.
+		 *
+		 * The control on the fully materializable 3 proves the interface really resolves a parent when one
+		 * carries a body, so the `null` cannot come from a proxy that never works at all.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: a locale-less immediate parent leaves a typed proxy with no parent at all")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportNoParentWhenTypedProxyDereferencesLocaleLessImmediateParent_P1proxy(Evita evita) {
+			final ParentRethrowingCategory localeLessParentHolder = fetchCategoryProxy(evita, 12);
+			assertNull(
+				localeLessParentHolder.getParentEntity(),
+				"The chain is cut below 11, so the typed getter must report no parent rather than throw."
+			);
+
+			final ParentRethrowingCategory control = fetchCategoryProxy(evita, 3);
+			final ParentRethrowingCategory parent = control.getParentEntity();
+			assertNotNull(parent, "The materializable parent 2 must be returned as a proxy.");
+			assertEquals(2, parent.getId());
 		}
 
 		/**
@@ -2131,11 +2861,10 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@DisplayName("P1 proxy: a declaring getter throws on the bodyless pointer at the immediate parent")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
 		void shouldThrowWhenDeclaringProxyGetterMeetsPointer_P1proxy(Evita evita) {
-			final ParentDereferencingCategory pointerParentHolder = fetchCategoryProxy(
-				evita, 12, completeRequirement(), ParentDereferencingCategory.class
+			final ParentRethrowingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentRethrowingCategory.class
 			);
 
 			final ContextMissingException exception = assertThrows(
@@ -2169,7 +2898,6 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@DisplayName("P1 proxy: a non-declaring getter reports no parent on the very same pointer")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
 		void shouldReportNoParentWhenSwallowingProxyGetterMeetsPointer_P1proxy(Evita evita) {
 			final ParentSwallowingCategory pointerParentHolder = fetchCategoryProxy(
@@ -2178,6 +2906,48 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			assertNull(
 				pointerParentHolder.getParentEntity(),
 				"A getter that declares no exception must swallow it and report no parent."
+			);
+		}
+
+		/**
+		 * The third wrapper family on the same pointer: a getter returning an {@link Optional} picks the
+		 * swallowing or the rethrowing member by the very same rule - the presence of a `throws` clause -
+		 * so the two getters on one fetch report an empty optional and an exception respectively.
+		 *
+		 * The `Optional` path also changes the extractor, which consults `parentAvailable()` before it
+		 * reads the slot, so this is the only proxy form where an entity that never had its hierarchy
+		 * fetched is answered without an exception at all. The control on the fully materializable 3 proves
+		 * both getters really resolve a parent that carries a body.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: the two optional getters disagree on the very same pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportAnEmptyOptionalAndThrowOnTheSamePointer_P1proxy(Evita evita) {
+			final ParentRethrowingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentRethrowingCategory.class
+			);
+			assertEquals(
+				Optional.empty(), pointerParentHolder.getParentEntityIfPresent(),
+				"The optional getter declaring no exception must report the pointer as an absent parent."
+			);
+			assertThrows(
+				ContextMissingException.class,
+				pointerParentHolder::getParentEntityOrFail,
+				"The optional getter declaring the exception must receive it on the very same pointer."
+			);
+
+			final ParentRethrowingCategory control = fetchCategoryProxy(
+				evita, 3, completeRequirement(), ParentRethrowingCategory.class
+			);
+			assertEquals(
+				2, control.getParentEntityIfPresent().orElseThrow().getId(),
+				"The swallowing optional getter must resolve a parent that carries a body."
+			);
+			assertEquals(
+				2, control.getParentEntityOrFail().orElseThrow().getId(),
+				"The rethrowing optional getter must resolve a parent that carries a body."
 			);
 		}
 
@@ -2191,11 +2961,10 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@DisplayName("P1 proxy: the primary-key and classifier getters still answer on a bodyless pointer")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
 		void shouldReturnParentPrimaryKeyWhenProxyGetterMeetsPointer_P1proxy(Evita evita) {
-			final ParentDereferencingCategory pointerParentHolder = fetchCategoryProxy(
-				evita, 12, completeRequirement(), ParentDereferencingCategory.class
+			final ParentRethrowingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentRethrowingCategory.class
 			);
 
 			final Integer parentId = pointerParentHolder.getParentId();
@@ -2208,6 +2977,58 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		}
 
 		/**
+		 * The record projection of matrix row P1 in both modes - the second of the two proxy sites the
+		 * parent axis reaches, and the one with no result wrapper in front of it. Under the default the
+		 * chain is cut below 11, so the whole projection succeeds with both parent components empty; under
+		 * `COMPLETE` the pointer at 11 reaches the extractor, which has no way to build a projection over
+		 * a bodyless ancestor and raises instead.
+		 *
+		 * The raised {@link ContextMissingException} does not reach the caller as it is: a constructor
+		 * projection is filled inside the proxy factory, which wraps anything a parameter extractor throws in
+		 * an {@link EntityClassInvalidException} naming the record it could not fill. Both layers are asserted,
+		 * because the wrapper alone would also be raised by a record shape the factory cannot map at all.
+		 *
+		 * The control on the fully materializable `3 -> 2 -> 1` proves the projection really does resolve a
+		 * parent that carries a body, so neither the empty components nor the exception can come from a
+		 * record shape the proxy factory cannot fill at all.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: the record projection is empty under the default and raises under the mode")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldProjectTheParentAxisIntoARecord_P1proxy(Evita evita) {
+			final ParentProjectingCategory cutChain = fetchCategoryProxy(
+				evita, 12, standardRequirement(), ParentProjectingCategory.class
+			);
+			assertEquals(12, cutChain.id());
+			assertNull(cutChain.parentId(), "The chain is cut below 11, so no parent primary key is reported.");
+			assertNull(cutChain.parentEntity(), "The chain is cut below 11, so no parent projection is built.");
+
+			final EntityClassInvalidException wrapped = assertThrows(
+				EntityClassInvalidException.class,
+				() -> fetchCategoryProxy(evita, 12, completeRequirement(), ParentProjectingCategory.class),
+				"The pointer at 11 carries no body, so no projection can be built over it."
+			);
+			final ContextMissingException cause = assertInstanceOf(
+				ContextMissingException.class, wrapped.getCause(),
+				"The wrapper must carry the reason the projection could not be filled."
+			);
+			assertTrue(
+				cause.getMessage().contains("`" + Entities.CATEGORY + "` with primary key `11`"),
+				"The cause must name the pointer it was raised on, but was: " + cause.getMessage()
+			);
+
+			final ParentProjectingCategory control = fetchCategoryProxy(
+				evita, 3, completeRequirement(), ParentProjectingCategory.class
+			);
+			assertEquals(3, control.id());
+			assertEquals(2, control.parentId());
+			assertNotNull(control.parentEntity(), "The materializable parent 2 must be projected.");
+			assertEquals(2, control.parentEntity().id());
+		}
+
+		/**
 		 * The control for the three proxy forms on the fully materializable `3 -> 2 -> 1`, asked in the
 		 * same mode. It proves the `null` and the exception the P1 rows above observe come from the
 		 * bodyless pointer rather than from a proxy contract that never resolves a parent at all.
@@ -2216,13 +3037,12 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@DisplayName("Control: every proxy form resolves the parent when the parent carries a body")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
 		void shouldResolveParentThroughEveryProxyFormWhenBodyIsPresent_control(Evita evita) {
-			final ParentDereferencingCategory declaringHolder = fetchCategoryProxy(
-				evita, 3, completeRequirement(), ParentDereferencingCategory.class
+			final ParentRethrowingCategory declaringHolder = fetchCategoryProxy(
+				evita, 3, completeRequirement(), ParentRethrowingCategory.class
 			);
-			final ParentDereferencingCategory parent = declaringHolder.getParentEntity();
+			final ParentRethrowingCategory parent = declaringHolder.getParentEntity();
 			assertNotNull(parent, "The materializable parent 2 must be returned as a proxy.");
 			assertEquals(2, parent.getId());
 
@@ -2253,13 +3073,12 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		 */
 		@DisplayName("P3 proxy: the typed walk stops at the pointer, and only the classifier form gets past it")
 		@UseDataSet(DATA_SET)
-		@Tag(PROXY)
 		@Test
 		void shouldStopTypedProxyWalkAtPointerAndCrossItAsClassifier_P3proxy(Evita evita) {
-			final ParentDereferencingCategory leaf = fetchCategoryProxy(
-				evita, 34, completeRequirement(), ParentDereferencingCategory.class
+			final ParentRethrowingCategory leaf = fetchCategoryProxy(
+				evita, 34, completeRequirement(), ParentRethrowingCategory.class
 			);
-			final ParentDereferencingCategory bodyParent = leaf.getParentEntity();
+			final ParentRethrowingCategory bodyParent = leaf.getParentEntity();
 			assertNotNull(bodyParent, "33 carries a body, so the typed getter must hand back its proxy.");
 			assertEquals(33, bodyParent.getId());
 
@@ -2283,6 +3102,111 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			final EntityClassifierWithParent aboveThePointer = pointer.getParentEntity()
 				.orElseThrow(() -> new AssertionError("The chain must continue above the pointer at 32."));
 			assertBody(aboveThePointer, 31);
+		}
+	}
+
+	/**
+	 * Pins what a round trip through the session does to a chain the fetcher had already settled. Every
+	 * `enrichEntity` and `enrichOrLimitEntity` call builds a fresh decorator over a raw delegate, and the
+	 * raw delegate still carries the immediate parent primary key the entity was stored with - so a
+	 * resolved chain that is not carried across verbatim silently falls back to that single raw ancestor,
+	 * which is the very thing the default mode exists to hide.
+	 *
+	 * The rows below use the P1 fixture, whose chain the default cuts to nothing, because an empty chain
+	 * and the fallback are the two answers that differ most visibly.
+	 */
+	@Nested
+	@DisplayName("Re-wrapping a resolved chain")
+	class ReWrapTest {
+
+		/**
+		 * Matrix row P1 re-wrapped by `enrichOrLimitEntity` asking for the very same requirement. The chain
+		 * was resolved and found empty, and enriching an entity with a requirement it already satisfies must
+		 * not change what it reports.
+		 *
+		 * An enrichment request carries no filter of its own - it names the entity's locales through
+		 * `dataInLocales` instead - so the parent walk it runs would otherwise materialize the very ancestor the
+		 * query locale hid. The parent body fetch therefore inherits that locale, which is what keeps the cut in
+		 * place across a call that was asked to add nothing.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1: enrichOrLimitEntity keeps the chain the query locale cut")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepTheCutChainAfterEnrichOrLimitEntity_P1(Evita evita) {
+			assertChain(
+				parentChainAfterReWrap(
+					evita, 12, standardRequirement(),
+					(session, entity) -> session.enrichOrLimitEntity(entity, standardRequirement())
+				)
+			);
+		}
+
+		/**
+		 * The `COMPLETE` twin of the row above. The mode keeps the ancestor the locale hides as a bodyless
+		 * pointer, so the round trip has a non-empty chain to preserve and the assertion distinguishes a
+		 * preserved cut from a chain that simply came back empty.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1: enrichOrLimitEntity keeps the pointer the mode substituted for the hidden ancestor")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepTheSubstitutedPointerAfterEnrichOrLimitEntity_P1(Evita evita) {
+			assertChain(
+				parentChainAfterReWrap(
+					evita, 12, completeRequirement(),
+					(session, entity) -> session.enrichOrLimitEntity(entity, completeRequirement())
+				),
+				"P(11)"
+			);
+		}
+
+		/**
+		 * The same row re-wrapped by a bare `enrichEntity` whose requirement names no `hierarchyContent` at
+		 * all. No parent fetcher runs, so nothing recomputes the chain and the slot the first fetch resolved
+		 * is all the new decorator has to go on.
+		 *
+		 * The slot is carried across verbatim, terminator included, so the entity keeps reporting the empty
+		 * chain the query resolved for it.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1: the cut chain survives a bare enrichEntity that asks for no hierarchy")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepTheCutChainAfterBareEnrichEntity_P1(Evita evita) {
+			assertChain(
+				parentChainAfterReWrap(
+					evita, 12, standardRequirement(),
+					(session, entity) -> session.enrichEntity(entity, attributeContent(ATTRIBUTE_CODE))
+				)
+			);
+		}
+
+		/**
+		 * The `COMPLETE` mirror on matrix row P3 - `34 -> 33 -> 32(cs) -> 31`, whose resolved chain is three
+		 * elements long and alternates a body, a pointer and a body. A round trip through the session must
+		 * hand it back unchanged rather than replacing it with the single raw ancestor the delegate carries.
+		 *
+		 * The body above the pointer is the one element a re-derivation cannot reproduce, because the enrichment
+		 * reuses the bodies the first fetch had already read and only the immediate parent is among them - so the
+		 * chain has to be carried across rather than walked again.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3: enrichOrLimitEntity keeps the body sitting above the pointer")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepThePointerChainAfterEnrichOrLimitEntity_P3(Evita evita) {
+			assertChain(
+				parentChainAfterReWrap(
+					evita, 34, completeRequirement(),
+					(session, entity) -> session.enrichOrLimitEntity(entity, completeRequirement())
+				),
+				"B(33)", "P(32)", "B(31)"
+			);
 		}
 	}
 
@@ -2350,7 +3274,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 *
 	 * A `hierarchyContent` chain is the ancestor axis of an entity the caller fetched, so
 	 * {@link HierarchyParentsBehaviour} lets the caller choose between a chain of nothing but
-	 * materializable bodies and a chain that keeps a bodiless pointer where a body is impossible. The
+	 * materializable bodies and a chain that keeps a bodyless pointer where a body is impossible. The
 	 * statistics tree is a different product: it is a picture of the hierarchy's shape, built to be
 	 * rendered as a menu or a breadcrumb, so it is never cut and never holds a hole for want of a body.
 	 * The extra result therefore behaves as {@link HierarchyParentsBehaviour#COMPLETE} at all times and
@@ -2435,11 +3359,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * The P2 fixture again, this time asking for no ancestor bodies at all. Every node comes back as a
-		 * bodiless classifier, and the set of nodes is the one the body-carrying row above reports.
+		 * bodyless classifier, and the set of nodes is the one the body-carrying row above reports.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("Without ancestor bodies the reported nodes are the same ones, bodiless")
+		@DisplayName("Without ancestor bodies the reported nodes are the same ones, bodyless")
 		@UseDataSet(DATA_SET)
 		@Test
 		void shouldReportTheSameNodesWithoutBodies_P2(Evita evita) {

@@ -84,7 +84,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -138,16 +137,11 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	private final PriceContractSerializablePredicate pricePredicate;
 	/**
-	 * Carries the outcome of resolving this entity's parent. The slot distinguishes four situations, and
-	 * {@link ParentChainEnd} documents them in a single table:
+	 * Carries the outcome of resolving this entity's parent. The slot distinguishes four situations, enumerated in
+	 * a single table by {@link ParentChainEnd}.
 	 *
-	 * - NULL - nobody resolved the parent, so {@link #getParentEntity()} falls back to the pointer the
-	 *   {@link #delegate} carries;
-	 * - a {@link SealedEntity} - the parent was resolved and its body is present, which requires the input request
-	 *   (query) to carry an {@link EntityFetch} inside its {@link HierarchyContent} requirement;
-	 * - an {@link EntityReferenceWithParent} - the parent was resolved as a bodyless pointer and the chain may
-	 *   continue above it;
-	 * - {@link ParentChainEnd#INSTANCE} - the parent chain was resolved and ends here.
+	 * The one thing local to this class: the slot can only hold a {@link SealedEntity} when the input request (query)
+	 * carries an {@link EntityFetch} inside its {@link HierarchyContent} requirement.
 	 */
 	private final EntityClassifierWithParent parentEntity;
 	/**
@@ -416,9 +410,10 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull OffsetDateTime alignedNow
 	) {
 		this.delegate = decorator.getDelegate();
-		this.parentEntity = ofNullable(parentEntity)
-			.or(() -> of(this.delegate).filter(Entity::parentAvailable).flatMap(Entity::getParentEntity))
-			.orElse(null);
+		// the slot is inherited from the re-wrapped decorator, never re-derived from the delegate - the delegate is
+		// where a cut ancestor still lives, and reading it back would undo every cut the parent fetch made
+		this.parentEntity = parentEntity == null ?
+			decorator.getParentEntityWithoutCheckingPredicate().orElse(null) : parentEntity;
 		this.entitySchema = decorator.getSchema();
 		this.localePredicate = localePredicate;
 		this.hierarchyPredicate = hierarchyPredicate;
@@ -827,6 +822,9 @@ public class EntityDecorator implements SealedEntity {
 	 * Answers whether parent information is reachable at all - the entity is hierarchical and the query asked for its
 	 * hierarchy. It deliberately does not consult {@link #parentEntity}: a resolved chain that ends at this entity is
 	 * still available parent information, it merely happens to be empty, exactly as it is for a hierarchy root.
+	 *
+	 * @return TRUE when parent information may be read, even for an entity whose chain ends here and therefore
+	 *         reports no ancestor
 	 */
 	@Override
 	public boolean parentAvailable() {
@@ -843,7 +841,10 @@ public class EntityDecorator implements SealedEntity {
 		);
 		if (parentAvailable()) {
 			// a resolved chain that ends here conceals whatever the delegate still knows about - it is the only
-			// signal that separates "there is nothing above" from "nobody looked", which is what the fallback needs
+			// signal that separates "there is nothing above" from "nobody looked", which is what the fallback needs.
+			// The delegate fallback below is unreachable for anything the parent prefetch produced: every chain
+			// ReferencedEntityFetcher#prefetchParents writes is terminated rather than left NULL, so the fallback
+			// serves only decorators built outside that path
 			return ParentChainEnd.isChainEnd(this.parentEntity) ? empty() :
 				ofNullable(this.parentEntity).or(this.delegate::getParentEntity);
 		} else {
@@ -982,6 +983,9 @@ public class EntityDecorator implements SealedEntity {
 	 * result may therefore be {@link ParentChainEnd#INSTANCE}, which is not an entity and must not be dereferenced.
 	 * Callers are expected to narrow the result to the shape they can use, typically a {@link SealedEntity}.
 	 * Part of the PRIVATE API.
+	 *
+	 * @return the slot exactly as it is stored - empty only when the parent was never resolved, and otherwise
+	 *         possibly {@link ParentChainEnd#INSTANCE}, which must be recognized before its contents are read
 	 */
 	@Nonnull
 	public Optional<EntityClassifierWithParent> getParentEntityWithoutCheckingPredicate() {

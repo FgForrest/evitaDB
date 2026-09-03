@@ -2705,7 +2705,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	 *
 	 * Unlike the managed-references behaviour of `referenceContent`, this position is unambiguous - no classifier can
 	 * stand in it - so a single accessor suffices and no `Serializable`-typed sibling is needed to tell the two apart.
-	 * The {@link io.evitadb.api.query.parser.EnumWrapper} an unqualified literal parses into is unwrapped by
+	 * The {@link EnumWrapper} an unqualified literal parses into is unwrapped by
 	 * {@link io.evitadb.api.query.parser.Value#asEnum(Class)}.
 	 *
 	 * @param parentsBehaviour the value token holding the behaviour, may be null when the argument was omitted

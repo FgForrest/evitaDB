@@ -34,7 +34,9 @@ import java.util.function.BiFunction;
 
 /**
  * Symbolic interface for fetching proper instance of {@link EntityClassifier} according to the {@link EntityFetch}
- * requirement.
+ * requirement. The classifier is always produced - an implementation may never answer with `null`, see
+ * {@link #apply(QueryExecutionContext, Integer)} for what it hands over when the requested body cannot be
+ * materialized.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -42,16 +44,16 @@ public interface HierarchyEntityFetcher extends BiFunction<QueryExecutionContext
 
 	/**
 	 * Returns the classifier standing for the hierarchy node of the given primary key. The result is never `null`:
-	 * a node whose requested body cannot be materialized is represented by a bodiless {@link EntityReference}
+	 * a node whose requested body cannot be materialized is represented by a bodyless {@link EntityReference}
 	 * rather than dropped, so the statistics tree keeps the shape the hierarchy index actually has.
 	 *
 	 * @param executionContext the context the entity is fetched in
 	 * @param entityPk         primary key of the hierarchy node to represent
-	 * @return a {@link SealedEntity} when the requested body could be materialized, a bodiless
+	 * @return a {@link SealedEntity} when the requested body could be materialized, a bodyless
 	 *         {@link EntityReference} otherwise
 	 */
 	@Nonnull
 	@Override
-	EntityClassifier apply(QueryExecutionContext executionContext, Integer entityPk);
+	EntityClassifier apply(@Nonnull QueryExecutionContext executionContext, @Nonnull Integer entityPk);
 
 }

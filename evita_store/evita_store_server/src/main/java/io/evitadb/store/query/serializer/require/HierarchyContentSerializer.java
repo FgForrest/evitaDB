@@ -42,8 +42,8 @@ import lombok.RequiredArgsConstructor;
  * that omits it replays as the default and silently rewrites what the recorded query asked for.
  *
  * Adding that field is a format change without a compatibility reader, exactly as it is for the sibling
- * {@link io.evitadb.store.query.serializer.require.ReferenceContentSerializer} - see the wording there for who reads
- * such a payload and why no compatible middle ground exists for a query-constraint serializer.
+ * {@link ReferenceContentSerializer} - see the wording there for who reads such a payload and why no compatible
+ * middle ground exists for a query-constraint serializer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

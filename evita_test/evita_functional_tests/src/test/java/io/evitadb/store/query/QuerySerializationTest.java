@@ -876,6 +876,15 @@ public class QuerySerializationTest {
 					arguments("hierarchyContent(COMPLETE + stopAt distance + entityFetchAll)",
 						entityFetch(hierarchyContent(
 							HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)), entityFetchAll()))),
+					arguments("hierarchyContent(MATCHING + stopAt distance)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING, stopAt(distance(1))))),
+					// the behaviour is written after a child that carries a nested filter of its own, which is where a
+					// mistake in the trailing-field layout of the serializer would surface
+					arguments("hierarchyContent(COMPLETE + stopAt node filterBy + entityFetchAll)",
+						entityFetch(hierarchyContent(
+							HierarchyParentsBehaviour.COMPLETE,
+							stopAt(node(filterBy(attributeEquals("a", "b")))),
+							entityFetchAll()))),
 
 					arguments("dataInLocalesAll",
 						entityFetch(dataInLocalesAll())),

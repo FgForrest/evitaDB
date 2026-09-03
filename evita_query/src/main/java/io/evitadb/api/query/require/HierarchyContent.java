@@ -105,10 +105,32 @@ import static java.util.Optional.of;
  * )
  * ```
  *
- * `MATCHING` - the default - cuts the chain below that ancestor, so every returned element carries the requested
- * body. `COMPLETE` returns that ancestor as a bodyless pointer and keeps walking above it, so a body may follow
- * a pointer. Because the rule is written in terms of the *requested* body, a `hierarchyContent()` with no inner
- * {@link EntityFetch} requests nothing that could fail and both modes return the full primary-key chain.
+ * {@link HierarchyParentsBehaviour#MATCHING} - the default - cuts the chain below that ancestor, so every returned
+ * element carries the requested body. {@link HierarchyParentsBehaviour#COMPLETE} returns that ancestor as a bodyless
+ * pointer and keeps walking above it, so a body may follow a pointer. Because the rule is written in terms of the
+ * *requested* body, a `hierarchyContent()` with no inner {@link EntityFetch} requests nothing that could fail and
+ * both modes return the full primary-key chain.
+ *
+ * ## Two hierarchyContent requirements in one entityFetch
+ *
+ * Several `hierarchyContent` requirements placed in a single `entityFetch` are not an error - they are combined
+ * into the one requirement the query is executed with, following the same "the superset wins" rule the other
+ * content requirements use:
+ *
+ * - **the bound is dropped unless both sides carry it.** An absent {@link HierarchyStopAt} means "the whole chain",
+ *   which is the superset of any bound, so a caller asking for the whole chain is never truncated by a bound the
+ *   other side asked for. Two *different* bounds are refused with {@link EvitaInvalidUsageException}.
+ * - **the behaviour is taken from whichever side asks for ancestor bodies.** A requirement with no inner
+ *   {@link EntityFetch} can have no ancestor body fail to materialize, so it expresses no preference and combines
+ *   with either behaviour. Two sides that *both* ask for bodies under *different* behaviours are refused with
+ *   {@link EvitaInvalidUsageException} - neither {@link HierarchyParentsBehaviour#MATCHING} nor
+ *   {@link HierarchyParentsBehaviour#COMPLETE} is a safe substitute for the other, so the disagreement has to
+ *   surface rather than be silently resolved.
+ *
+ * `entityFetchAllContent()` already emits a bare `hierarchyContent()`, so anything added next to it combines with
+ * that bare form. `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` therefore fetches the **whole**
+ * ancestor chain and not one level of it - exactly as `attributeContentAll()` swallows an `attributeContent("code")`
+ * written beside it. Ask for a bounded chain with a plain `entityFetch` rather than with the fetch-all shorthand.
  *
  * ## Relationship to HierarchyOfSelf / HierarchyParents
  *
@@ -266,17 +288,15 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	 * The behaviour has no effect at all unless {@link #getEntityFetch()} is present - with no body requested there is
 	 * nothing that could fail to materialize, and the full chain of parent primary keys is returned either way.
 	 *
+	 * The single argument slot is guaranteed: every instance is built through the sole private constructor, which
+	 * always writes exactly one behaviour into it, and an enum is a supported data type that
+	 * `BaseConstraint#convertArgumentsIfNeeded` passes through untouched.
+	 *
 	 * @return the parents behaviour, never null
 	 */
 	@Nonnull
 	public HierarchyParentsBehaviour getParentsBehaviour() {
-		final Serializable[] arguments = getArguments();
-		for (Serializable argument : arguments) {
-			if (argument instanceof HierarchyParentsBehaviour parentsBehaviour) {
-				return parentsBehaviour;
-			}
-		}
-		return DEFAULT_PARENTS_BEHAVIOUR;
+		return (HierarchyParentsBehaviour) getArguments()[0];
 	}
 
 	/**
@@ -328,14 +348,19 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 			if (getStopAt().isPresent() || anotherHierarchyContent.getStopAt().isPresent()) {
 				return false;
 			}
-			// the behaviours may only disagree when both sides ask for ancestor bodies
 			if (conflictsInParentsBehaviour(anotherHierarchyContent)) {
 				return false;
 			}
-			return getEntityFetch().isEmpty() ||
-				anotherHierarchyContent.getEntityFetch()
-					.map(anotherEntityFetch -> getEntityFetch().get().isFullyContainedWithin(anotherEntityFetch))
-					.orElse(false);
+			if (getEntityFetch().isEmpty()) {
+				// this side reports every parent primary key and nothing else. A container that requests ancestor
+				// bodies under MATCHING cuts the chain below an ancestor whose body does not materialize, so it
+				// returns fewer keys than this side does; COMPLETE keeps every one of them and only adds bodies.
+				return anotherHierarchyContent.getEntityFetch().isEmpty() ||
+					anotherHierarchyContent.getParentsBehaviour() == HierarchyParentsBehaviour.COMPLETE;
+			}
+			return anotherHierarchyContent.getEntityFetch()
+				.map(anotherEntityFetch -> getEntityFetch().get().isFullyContainedWithin(anotherEntityFetch))
+				.orElse(false);
 		}
 		return false;
 	}
@@ -360,14 +385,25 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 					"Cannot combine multiple hierarchy content requirements with different parents behaviour."
 				);
 			}
-			// the side that asks for no ancestor bodies contributes no behaviour, so the other one's survives intact
-			final HierarchyParentsBehaviour combinedBehaviour = requestsAncestorBodies() ?
-				getParentsBehaviour() : anotherHierarchyContent.getParentsBehaviour();
+			// the side that asks for no ancestor bodies contributes no behaviour, so the other one's survives intact;
+			// when neither asks, neither states a preference and the combination lands on the default rather than on
+			// whichever operand happened to be written second
+			final HierarchyParentsBehaviour combinedBehaviour;
+			if (requestsAncestorBodies()) {
+				combinedBehaviour = getParentsBehaviour();
+			} else if (anotherHierarchyContent.requestsAncestorBodies()) {
+				combinedBehaviour = anotherHierarchyContent.getParentsBehaviour();
+			} else {
+				combinedBehaviour = DEFAULT_PARENTS_BEHAVIOUR;
+			}
 			return (T) new HierarchyContent(
 				combinedBehaviour,
 				Arrays.stream(
 					new RequireConstraint[]{
-						thisStopAt.or(() -> thatStopAt).orElse(null),
+						// an absent bound is the superset: a caller that asked for the whole chain must not be
+						// truncated by a bound the other caller asked for, so a bound survives only when both sides
+						// carry it - and the check above has already established that the two then agree
+						thisStopAt.isPresent() && thatStopAt.isPresent() ? thisStopAt.get() : null,
 						EntityFetchRequire.combineRequirements(
 							getEntityFetch().orElse(null),
 							anotherHierarchyContent.getEntityFetch().orElse(null)
@@ -419,13 +455,19 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	 *
 	 * A side that requests no ancestor bodies is skipped rather than reconciled: its behaviour is inert by
 	 * definition, so it expresses no preference to conflict with. This is a deliberate departure from
-	 * `ReferenceContent#combineWith`, which resolves a disagreement by downgrading to
-	 * the stricter `EXISTING`. There the two values order - `EXISTING` returns a subset of what `ANY` returns, so
-	 * the stricter one satisfies both callers. Here they do not: `COMPLETE` and `MATCHING` each return ancestors the
-	 * other omits, so neither is a safe substitute for the other and a disagreement has to surface as an error
+	 * {@link ReferenceContent#combineWith(EntityContentRequire)}, which resolves a disagreement by downgrading to
+	 * the stricter {@link ManagedReferencesBehaviour#EXISTING}. There the two values order -
+	 * {@link ManagedReferencesBehaviour#EXISTING} returns a subset of what {@link ManagedReferencesBehaviour#ANY}
+	 * returns, so the stricter one satisfies both callers. Here they do not:
+	 * {@link HierarchyParentsBehaviour#COMPLETE} and {@link HierarchyParentsBehaviour#MATCHING} each return ancestors
+	 * the other omits, so neither is a safe substitute for the other and a disagreement has to surface as an error
 	 * instead of being silently resolved. Skipping the body-less side is what keeps `entityFetchAll()`, which emits
 	 * a bare `hierarchyContent()` carrying the default, combinable with an explicit
 	 * `hierarchyContent(COMPLETE, entityFetch(...))`.
+	 *
+	 * Two inert sides therefore never conflict, whatever they carry - and because neither states a preference,
+	 * {@link #combineWith(EntityContentRequire)} resolves them to {@link #DEFAULT_PARENTS_BEHAVIOUR} rather than to
+	 * either operand, so that combining is not sensitive to the order the two were written in.
 	 *
 	 * @param anotherHierarchyContent the constraint to reconcile this one with
 	 * @return TRUE when both sides request ancestor bodies and their behaviours differ
@@ -439,10 +481,11 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	/**
 	 * Extracts the parents behaviour from a freshly supplied argument array. An empty array means the caller stated
 	 * no behaviour and asks for {@link #DEFAULT_PARENTS_BEHAVIOUR}; anything other than a single
-	 * {@link HierarchyParentsBehaviour} is a programming error.
+	 * {@link HierarchyParentsBehaviour} is refused as invalid usage.
 	 *
 	 * @param newArguments the argument array to interpret
 	 * @return the behaviour the arguments express, never null
+	 * @throws EvitaInvalidUsageException when the arguments are not a single behaviour
 	 */
 	@Nonnull
 	private static HierarchyParentsBehaviour parseParentsBehaviour(@Nonnull Serializable[] newArguments) {

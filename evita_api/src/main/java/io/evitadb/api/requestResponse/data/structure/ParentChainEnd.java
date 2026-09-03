@@ -45,27 +45,17 @@ import java.util.Optional;
  * otherwise tell "nobody resolved my parent, so show the one my delegate knows about" from "my parent was resolved
  * and there is none". Together with the two value-carrying states, the slot therefore encodes four outcomes:
  *
- * <table>
- *     <caption>Parent slot of {@link EntityDecorator}</caption>
- *     <tr><th>slot value</th><th>meaning</th></tr>
- *     <tr>
- *         <td>{@code null}</td>
- *         <td>the parent was never resolved; the decorator falls back to the parent pointer its delegate carries</td>
- *     </tr>
- *     <tr>
- *         <td>{@link SealedEntity}</td>
- *         <td>the parent was resolved and its body is present</td>
- *     </tr>
- *     <tr>
- *         <td>{@link EntityReferenceWithParent}</td>
- *         <td>the parent was resolved as a bodyless pointer, because the requested body could not be materialized;
- *         the chain may continue above it</td>
- *     </tr>
- *     <tr>
- *         <td>{@link #INSTANCE}</td>
- *         <td>the parent chain was resolved and ends here</td>
- *     </tr>
- * </table>
+ * **Parent slot of {@link EntityDecorator}**
+ *
+ * | slot value | meaning |
+ * |---|---|
+ * | `null` | the parent was never resolved - the decorator falls back to its delegate's parent pointer |
+ * | {@link SealedEntity} | the parent was resolved and its body is present |
+ * | {@link EntityReferenceWithParent} | the parent was resolved as a bodyless pointer |
+ * | {@link #INSTANCE} | the parent chain was resolved and ends here |
+ *
+ * A bodyless pointer is stored when the requested body could not be materialized. The chain may continue above such
+ * a pointer, so an ancestor carrying a body may well sit above one.
  *
  * The terminator belongs to the decorator slot only. It must never be stored in
  * {@link EntityReferenceWithParent#parentEntity()}, which is null-terminated - a plain reference has no delegate to
@@ -82,12 +72,12 @@ import java.util.Optional;
 @Immutable
 @ThreadSafe
 public final class ParentChainEnd implements EntityClassifierWithParent {
+	@Serial private static final long serialVersionUID = 5980484923845073141L;
 	/**
 	 * The one and only instance of the terminator - compare against it by identity, or better, via
 	 * {@link #isChainEnd(EntityClassifierWithParent)}.
 	 */
 	public static final ParentChainEnd INSTANCE = new ParentChainEnd();
-	@Serial private static final long serialVersionUID = 5980484923845073141L;
 
 	private ParentChainEnd() {
 	}
@@ -105,12 +95,25 @@ public final class ParentChainEnd implements EntityClassifierWithParent {
 		return parentEntity == INSTANCE || parentEntity == EntityClassifierWithParent.CONCEALED_ENTITY;
 	}
 
+	/**
+	 * The terminator closes the chain, so there is never an ancestor above it.
+	 *
+	 * @return always an empty result - this is what turns the decorator slot into an empty
+	 *         {@link EntityDecorator#getParentEntity()} for the client
+	 */
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
 		return Optional.empty();
 	}
 
+	/**
+	 * The terminator is not an entity and therefore carries no entity type. Callers must recognize it with
+	 * {@link #isChainEnd(EntityClassifierWithParent)} before reading anything out of a parent slot.
+	 *
+	 * @return never returns - the call is always a programming error
+	 * @throws GenericEvitaInternalError always, because the terminator has no type to report
+	 */
 	@Nonnull
 	@Override
 	public String getType() {
@@ -120,6 +123,13 @@ public final class ParentChainEnd implements EntityClassifierWithParent {
 		);
 	}
 
+	/**
+	 * The terminator is not an entity and therefore carries no primary key. Callers must recognize it with
+	 * {@link #isChainEnd(EntityClassifierWithParent)} before reading anything out of a parent slot.
+	 *
+	 * @return never returns - the call is always a programming error
+	 * @throws GenericEvitaInternalError always, because the terminator has no primary key to report
+	 */
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
@@ -129,6 +139,12 @@ public final class ParentChainEnd implements EntityClassifierWithParent {
 		);
 	}
 
+	/**
+	 * Renders the terminator in a form safe to print - unlike {@link #getType()} and {@link #getPrimaryKey()} this
+	 * method never throws, so a parent slot can be logged without being classified first.
+	 *
+	 * @return a constant human-readable marker of the chain end
+	 */
 	@Nonnull
 	@Override
 	public String toString() {

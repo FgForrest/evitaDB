@@ -119,12 +119,18 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * the {@link EntityLocaleEquals} and {@link HierarchyWithin} constraints used in the query. It also uses
 	 * `filteringFormula` to limit the reported cardinalities in level info objects.
 	 *
-	 * The query locale gates tree membership on every path through this method, and it gates it identically
-	 * whether or not a {@link HierarchyHaving} / {@link HierarchyExcluding} predicate was given: without one
-	 * the locale predicate *is* the gate, with one it is conjoined with it. When
-	 * `hierarchyFilterPredicateProducer` is present the locale needs no separate conjunction here, because
-	 * the predicate it produces is derived from the query's own filtering formula, which already carries
-	 * the {@link EntityLocaleEquals} constraint.
+	 * When no {@link #hierarchyFilterPredicateProducer} was given, the query locale gates tree membership
+	 * identically whether or not a {@link HierarchyHaving} / {@link HierarchyExcluding} predicate was given:
+	 * without one the locale predicate *is* the gate, with one it is conjoined with it. When
+	 * {@link #hierarchyFilterPredicateProducer} is present and yields a predicate, the locale needs no separate
+	 * conjunction here, because the predicate it produces is derived from the query's own filtering formula, which
+	 * already carries the {@link EntityLocaleEquals} constraint. A producer that yields NULL falls back to
+	 * {@link HierarchyFilteringPredicate#ACCEPT_ALL_NODES_PREDICATE}, and that is the one path where no locale gate
+	 * applies at all.
+	 *
+	 * @param executionContext the context of the query being executed, used to initialize the predicates lazily
+	 * @param language         the locale the query filters by, or NULL when it filters by none
+	 * @return the level info objects of the requested hierarchy tree, in the order the traversal produced them
 	 */
 	@Nonnull
 	public final List<LevelInfo> createStatistics(

@@ -30,6 +30,7 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -77,15 +78,21 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Tries to identify parent from the class field related to the constructor parameter.
 	 *
-	 * The extractor returned for a parameter typed as a custom proxy contract needs the parent body, so it raises
-	 * a {@link ContextMissingException} when the chain reports the parent as a bodyless pointer instead - the very
-	 * same outcome the equally typed getter produces, see
-	 * {@link #singleParentEntityResult(Class, BiFunction, ResultWrapper)}.
+	 * The extractor returned for a parameter typed as a custom proxy contract needs the parent body, so it raises the
+	 * {@link ContextMissingException} chosen by {@link #parentBodyUnavailable(Object)} when the chain reports the
+	 * parent as a bodyless pointer instead - the same exception the equally typed getter raises, see
+	 * {@link #singleParentEntityResult(Class, BiFunction, ResultWrapper)}. Unlike the getter, the extractor is wrapped
+	 * in no {@link ResultWrapper}, so the exception always propagates to the constructor caller.
 	 *
-	 * @param expectedType     class the constructor belongs to
-	 * @param parameter        constructor parameter
-	 * @param reflectionLookup reflection lookup
-	 * @return attribute name derived from the annotation if found
+	 * @param referencedEntitySchemas index of entity schemas the created proxy may need to resolve its references
+	 * @param expectedType            class the constructor belongs to
+	 * @param parameter               constructor parameter
+	 * @param reflectionLookup        reflection lookup
+	 * @param proxyFactory            factory creating the proxy over an ancestor body when the parameter is typed
+	 *                                as a custom contract
+	 * @param <T>                     type of the class the constructor belongs to
+	 * @return the extractor reading the parent out of an entity in the shape the parameter declares, or NULL when
+	 *         the parameter carries no {@link ParentEntity} annotation
 	 */
 	@Nullable
 	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
@@ -110,12 +117,8 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					.map(it -> {
 						if (it instanceof SealedEntity parentBody) {
 							return proxyFactory.createEntityProxy(parameterType, parentBody, referencedEntitySchemas);
-						} else if (it instanceof EntityReferenceWithParent parentPointer) {
-							throw ContextMissingException.hierarchyEntityBodyMissing(
-								parentPointer.getType(), parentPointer.primaryKey()
-							);
 						} else {
-							throw ContextMissingException.hierarchyEntityContextMissing();
+							throw parentBodyUnavailable(it);
 						}
 					})
 					.orElse(null);
@@ -186,11 +189,9 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Implementation that returns a custom proxy class wrapping a {@link SealedEntity} object of parent entity.
 	 *
-	 * A parent chain may hand over an ancestor as a bodyless {@link EntityReferenceWithParent} pointer - either
-	 * because no ancestor body was requested at all, or because the requested body could not be materialized and
-	 * {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#COMPLETE} kept the ancestor in the chain
-	 * regardless. There is no proxy to build over such a parent, so it is reported the same way a reference whose
-	 * body was not fetched is: with a {@link ContextMissingException} the wrapper chosen by
+	 * A parent chain may hand over an ancestor with no body to build a proxy over. It is then reported the same way
+	 * a reference whose body was not fetched is: with the {@link ContextMissingException} chosen by
+	 * {@link #parentBodyUnavailable(Object)}, which the wrapper chosen by
 	 * {@link ProxyUtils#createOptionalWrapper(java.lang.reflect.Method, Class)} either rethrows to a getter that
 	 * declares it, or swallows into an empty result for a getter that does not.
 	 */
@@ -207,16 +208,34 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 						return it;
 					} else if (it instanceof SealedEntity sealedEntity) {
 						return theState.getOrCreateParentEntityProxy(itemType, sealedEntity);
-					} else if (it instanceof EntityReferenceWithParent parentPointer) {
-						throw ContextMissingException.hierarchyEntityBodyMissing(
-							parentPointer.getType(), parentPointer.primaryKey()
-						);
 					} else {
-						throw ContextMissingException.hierarchyEntityContextMissing();
+						throw parentBodyUnavailable(it);
 					}
 				})
 				.orElse(null)
 		);
+	}
+
+	/**
+	 * Chooses the {@link ContextMissingException} that reports an ancestor no proxy can be built over.
+	 *
+	 * A bodyless {@link EntityReferenceWithParent} pointer identifies the ancestor it stands for, so the message can
+	 * name it: the chain does carry the ancestor - either because no ancestor body was requested at all, or because
+	 * the requested body could not be materialized and
+	 * {@link HierarchyParentsBehaviour#COMPLETE} kept the ancestor in the chain regardless. Any other shape carries
+	 * no identity to report, so the generic "parent was not fetched" message is the only thing that can be said.
+	 *
+	 * The parameter is untyped because one of the two call sites reads the ancestor out of an {@code Optional<?>}
+	 * that may equally well hold an already built proxy.
+	 *
+	 * @param parent the ancestor that carries no body
+	 * @return the exception to raise for that ancestor, never null
+	 */
+	@Nonnull
+	private static ContextMissingException parentBodyUnavailable(@Nonnull Object parent) {
+		return parent instanceof EntityReferenceWithParent parentPointer ?
+			ContextMissingException.hierarchyEntityBodyMissing(parentPointer.type(), parentPointer.primaryKey()) :
+			ContextMissingException.hierarchyEntityContextMissing();
 	}
 
 	public GetParentEntityMethodClassifier() {

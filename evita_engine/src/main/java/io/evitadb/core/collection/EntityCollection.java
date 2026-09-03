@@ -71,8 +71,10 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.ParentChainEnd;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -1798,9 +1800,8 @@ public final class EntityCollection implements
 					entityWithFetchCount.entity(),
 					// use original schema
 					getInternalSchema(),
-					// fetch parents if requested
-					partiallyLoadedEntity.parentAvailable() ?
-						partiallyLoadedEntity.getParentEntity().orElse(null) : null,
+					// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+					carryResolvedParentChain(partiallyLoadedEntity),
 					// show / hide locales the entity is fetched in
 					partiallyLoadedEntity.getLocalePredicate(),
 					// show / hide parent the entity is fetched with
@@ -2873,9 +2874,8 @@ public final class EntityCollection implements
 			entity.getDelegate(),
 			// use original schema
 			getInternalSchema(),
-			// show / hide parent entity
-			entity.parentAvailable() && evitaRequest.isRequiresParent() ?
-				entity.getParentEntity().orElse(null) : null,
+			// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+			carryResolvedParentChain(entity),
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
 			// show / hide parent information
@@ -2939,8 +2939,8 @@ public final class EntityCollection implements
 			entityWithFetchCount.entity(),
 			// use original schema
 			internalSchema,
-			// fetch parents if requested
-			null,
+			// carry the already resolved parent chain over verbatim - see #carryResolvedParentChain
+			carryResolvedParentChain(partiallyLoadedEntity),
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
 			// show / hide parent information
@@ -3027,6 +3027,24 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Returns the parent chain the passed decorator already carries, exactly as it stands in its slot.
+	 *
+	 * Every re-wrap builds a fresh decorator over a raw {@link Entity} delegate, and that delegate still carries the
+	 * immediate parent primary key the entity was stored with. A NULL slot therefore does not mean "no parent" - it
+	 * means "nobody resolved the parent", and {@link EntityDecorator#getParentEntity()} then falls back to that raw
+	 * ancestor. Reading the slot through the interpreting getter would collapse a resolved-and-empty chain
+	 * ({@link ParentChainEnd#INSTANCE}) to NULL and resurrect the very ancestor the parent fetch removed, so the raw
+	 * slot travels instead - body, bodyless pointer and terminator alike.
+	 *
+	 * @param entity the decorator being re-wrapped
+	 * @return the raw parent slot of the passed decorator, NULL when its chain was never resolved
+	 */
+	@Nullable
+	private static EntityClassifierWithParent carryResolvedParentChain(@Nonnull EntityDecorator entity) {
+		return entity.getParentEntityWithoutCheckingPredicate().orElse(null);
+	}
+
+	/**
 	 * Injects referenced entity bodies into the main entity.
 	 *
 	 * @param sealedEntity     main entity to be enriched
@@ -3043,14 +3061,18 @@ public final class EntityCollection implements
 		final EntityClassifierWithParent parentEntity;
 		final EntitySchema internalSchema = getInternalSchema();
 		if (internalSchema.isWithHierarchy() && sealedEntity.getHierarchyPredicate().isRequiresHierarchy()) {
-			if (sealedEntity.getParentEntityWithoutCheckingPredicate().map(SealedEntity.class::isInstance).orElse(false)) {
-				parentEntity = sealedEntity.getParentEntityWithoutCheckingPredicate().get();
+			final EntityClassifierWithParent resolvedChain = carryResolvedParentChain(sealedEntity);
+			final Function<Integer, EntityClassifierWithParent> parentFetcher =
+				referenceFetcher.getParentEntityFetcher();
+			if (resolvedChain instanceof SealedEntity || parentFetcher == null) {
+				// a chain topped by a body cannot be walked again - the bodies this fetch reuses are the ones the
+				// previous one read, and only the immediate parent is among them; a fetcher resolving no parents at
+				// all must not overwrite a chain either, or the raw ancestor resurfaces through the empty slot
+				parentEntity = resolvedChain;
 			} else {
 				final OptionalInt theParent = sealedEntity.getDelegate().getParent();
 				parentEntity = theParent.isPresent() ?
-					ofNullable(referenceFetcher.getParentEntityFetcher())
-						.map(it -> it.apply(theParent.getAsInt()))
-						.orElse(null) : null;
+					parentFetcher.apply(theParent.getAsInt()) : resolvedChain;
 			}
 		} else {
 			parentEntity = null;

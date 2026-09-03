@@ -70,6 +70,19 @@ public interface EntityClassifierWithParent extends EntityClassifier {
 		public Integer getPrimaryKey() {
 			throw new UnsupportedOperationException();
 		}
+
+		/**
+		 * Keeps this constant a singleton across a Java de-serialization round trip. Without it a de-serialized copy
+		 * is a different object, and every recognition of the terminator - this one included - is by identity, so the
+		 * copy would be mistaken for a real parent whose every accessor throws.
+		 *
+		 * @return this very constant
+		 */
+		@Serial
+		@Nonnull
+		private Object readResolve() {
+			return CONCEALED_ENTITY;
+		}
 	};
 
 	/**

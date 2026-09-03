@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
@@ -49,12 +50,12 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Optional.ofNullable;
@@ -173,20 +174,19 @@ public abstract class AbstractHierarchyTranslator {
 	 * - {@link SealedEntity} with varying content according to requirements
 	 *
 	 * **A node that made it into the tree is never dropped for want of a body.** Which nodes a hierarchy
-	 * statistics tree contains is settled before this fetcher runs, by the
-	 * {@link io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate} the computer was given - that is
-	 * where the query filter and its {@link io.evitadb.api.query.filter.EntityLocaleEquals} gate apply. This
+	 * statistics tree contains is settled before this fetcher runs, by the {@link HierarchyFilteringPredicate}
+	 * the computer was given - that is where the query filter and its {@link EntityLocaleEquals} gate apply. This
 	 * fetcher only decides what an admitted node *carries*, so when the requested body cannot be materialized
 	 * (the node holds no data in the query locale, say) it falls back to the very thin {@link EntityReference}
 	 * the no-`entityFetch` branch above returns, rather than to `null`. A statistics tree is a picture of a
 	 * shape: cutting a node out of it, or handing the accumulator behind it a `null` to trip over when the
 	 * {@link LevelInfo} is rendered, would misreport the very structure the caller asked for.
 	 *
-	 * Now that `AbstractHierarchyStatisticsComputer#createStatistics` applies the locale gate on every path
-	 * it takes, no known query reaches that fallback: a node admitted into the tree holds data in the query
-	 * locale, so its body materializes. The fallback stays as the guard for any future path that admits
-	 * a node whose body cannot be materialized, so that such a path degrades to a bodiless node instead of
-	 * failing the whole query.
+	 * Now that `AbstractHierarchyStatisticsComputer#createStatistics` applies the locale gate wherever it builds
+	 * the filtering predicate itself, no known query reaches that fallback: a node admitted into the tree holds
+	 * data in the query locale, so its body materializes. The fallback stays as the guard for any future path
+	 * that admits a node whose body cannot be materialized, so that such a path degrades to a bodyless node
+	 * instead of failing the whole query.
 	 *
 	 * @param entityFetch          the requirement describing the body to load, or `null` when the caller wants
 	 *                             nothing but entity type and primary key
@@ -215,18 +215,19 @@ public abstract class AbstractHierarchyTranslator {
 
 				@Nonnull
 				@Override
-				public EntityClassifier apply(QueryExecutionContext executionContext, Integer entityPk) {
+				public EntityClassifier apply(
+					@Nonnull QueryExecutionContext executionContext,
+					@Nonnull Integer entityPk
+				) {
 					EntityFetch enriched = this.enrichedFetch;
 					if (enriched == null) {
 						enriched = executionContext.enrichEntityFetch(entityFetch);
 						this.enrichedFetch = enriched;
 					}
-					final Optional<SealedEntity> fetchedEntity = executionContext.fetchEntity(
-						hierarchicalEntityType, entityPk, enriched
-					);
-					// the body could not be materialized - report the node bodiless instead of not at all
-					return fetchedEntity.isPresent() ?
-						fetchedEntity.get() : new EntityReference(hierarchicalEntityType, entityPk);
+					// the body could not be materialized - report the node bodyless instead of not at all
+					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched)
+						.map(EntityClassifier.class::cast)
+						.orElseGet(() -> new EntityReference(hierarchicalEntityType, entityPk));
 				}
 			};
 		}
