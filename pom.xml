@@ -158,6 +158,12 @@
 		<surefire.useUnlimitedThreads>true</surefire.useUnlimitedThreads>
 		<surefire.threadCount>4</surefire.threadCount>
 		<!--
+			Heap of the single surefire fork. Defaults to 8g, which is what the GitHub-hosted CI
+			runners can carry - see the surefire-plugin comment below for why a bigger heap is
+			actively harmful there. Raise it ONLY through the `largeMachine` profile.
+		-->
+		<surefire.maxHeapSize>8g</surefire.maxHeapSize>
+		<!--
 			Lets CI skip evita_roaring_bitmap's (colocated, vendor-suite) tests on pushes/PRs that
 			don't touch that module, to save CI time. Defaults to false (tests run) for local dev
 			and any invocation that doesn't explicitly override it - see ci-dev.yml / pr-review.yml.
@@ -570,6 +576,21 @@
 			</build>
 		</profile>
 		<!--
+			Raises the surefire fork heap for machines that have the memory to spare. OPT-IN, and
+			deliberately not the default: the whole functional suite fans out to one test class per
+			core in a single fork, so on a many-core workstation the 8g default is marginal and the
+			suite dies with an OutOfMemoryError three minutes in - while on the GitHub-hosted runners
+			a larger heap is the wrong medicine and has already got a build OS-killed (see the
+			surefire-plugin comment). Use as `mvn test -P unitAndFunctional,largeMachine` on a
+			developer box; never in CI.
+		-->
+		<profile>
+			<id>largeMachine</id>
+			<properties>
+				<surefire.maxHeapSize>12g</surefire.maxHeapSize>
+			</properties>
+		</profile>
+		<!--
 			Adds the heavy modules that are excluded from the default reactor.
 			Activate for: CI dev/PR builds (jacoco aggregate report), performance
 			pipeline (benchmarks uber-jar) and — most importantly — the release
@@ -706,7 +727,7 @@
 						the add-opens flags below cannot substitute for it, because this is not a package-access
 						restriction.
 					-->
-					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us
+					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US, -Duser.language=us
 						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
