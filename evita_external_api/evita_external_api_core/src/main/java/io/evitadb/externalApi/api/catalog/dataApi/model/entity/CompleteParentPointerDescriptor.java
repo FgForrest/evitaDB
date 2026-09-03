@@ -42,12 +42,17 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  * `parentEntityComplete` property that lets the chain continue above the pointer; GraphQL reports the axis as a flat
  * list and therefore adds nothing.
  *
+ * Not to be confused with REST's own `ParentPointerDescriptor` (it lives in the REST module, which this one cannot
+ * reference), standing for an ancestor of a chain that carries no body because *none was ever requested*. That one is
+ * a plain primary key rather than a substitute for a body that failed, it is reported by the `parentEntity` property,
+ * and it links its chain through `parentEntity` rather than through `parentEntityComplete`.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public interface ParentPointerDescriptor {
+public interface CompleteParentPointerDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*ParentPointer")
+		.name("*CompleteParentPointer")
 		.description("""
 			Ancestor whose requested body could not be materialized - it holds no data in the queried locale, it was
 			deleted, or the parent primary key never belonged to an entity. Only the `COMPLETE` parents behaviour of

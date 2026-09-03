@@ -59,6 +59,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -108,9 +109,13 @@ public class CatalogRestHierarchyContentParentsFunctionalTest extends CatalogRes
 	 */
 	private static final String REFERENCED_CATEGORY_PATH = "[0].category.referencedEntity";
 	/**
-	 * Path to the bodyless parent pointer object in the published OpenAPI document.
+	 * Path to the bodyless pointer object of the `parentEntity` axis in the published OpenAPI document.
 	 */
 	private static final String POINTER_SCHEMA_PATH = "components.schemas.CategoryParentPointer";
+	/**
+	 * Path to the bodyless pointer object of the `parentEntityComplete` axis in the published OpenAPI document.
+	 */
+	private static final String COMPLETE_POINTER_SCHEMA_PATH = "components.schemas.CategoryCompleteParentPointer";
 	/**
 	 * Path to the single node of the hierarchy statistics tree published under the `subTree` output name.
 	 */
@@ -325,7 +330,20 @@ public class CatalogRestHierarchyContentParentsFunctionalTest extends CatalogRes
 			.body("[0].parentEntity.primaryKey", equalTo(3))
 			.body("[0].parentEntity.parentEntity.primaryKey", equalTo(2))
 			.body("[0].parentEntity.parentEntity.parentEntity.primaryKey", equalTo(1))
-			.body("[0].parentEntityComplete", nullValue());
+			.body("[0].parentEntityComplete", nullValue())
+			// every element of this chain must validate against the bodyless branch of the `parentEntity` union and
+			// against that branch alone: it carries the classifier and the recursive link and nothing else, so it
+			// supplies none of the `version`, `scope` and locale properties the entity branch marks required, and it
+			// declares no property the closed pointer branch would refuse
+			.body("[0].parentEntity", aMapWithSize(3))
+			.body("[0].parentEntity.type", equalTo(Entities.CATEGORY))
+			.body("[0].parentEntity.version", nullValue())
+			.body("[0].parentEntity.scope", nullValue())
+			.body("[0].parentEntity.locales", nullValue())
+			.body("[0].parentEntity.allLocales", nullValue())
+			.body("[0].parentEntity.parentEntity", aMapWithSize(3))
+			// the root of the chain has nothing above it, so it carries the classifier alone
+			.body("[0].parentEntity.parentEntity.parentEntity", aMapWithSize(2));
 	}
 
 	@Test
@@ -656,27 +674,69 @@ public class CatalogRestHierarchyContentParentsFunctionalTest extends CatalogRes
 
 	@Test
 	@UseDataSet(DATA_SET)
-	@DisplayName("Should declare the parent union and the parent pointer object in the OpenAPI schema")
+	@DisplayName("Should declare the complete parent union and its pointer object in the OpenAPI schema")
 	void shouldDeclareTheParentUnionInTheOpenApiSchema(RestTester tester) {
 		final String parentEntityComplete = RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name();
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_GET)
 			.executeAndExpectOkAndThen()
+			.body(COMPLETE_POINTER_SCHEMA_PATH + ".required", hasSize(2))
+			.body(
+				COMPLETE_POINTER_SCHEMA_PATH + ".required",
+				containsInAnyOrder(EntityDescriptor.PRIMARY_KEY.name(), EntityDescriptor.TYPE.name())
+			)
+			// the recursive link is what lets the axis continue above a pointer
+			.body(COMPLETE_POINTER_SCHEMA_PATH + ".properties." + parentEntityComplete, notNullValue())
+			.body(
+				"components.schemas.Category.properties." + parentEntityComplete + ".$ref",
+				equalTo("#/components/schemas/CategoryCompleteParentUnion")
+			)
+			.body("components.schemas.CategoryCompleteParentUnion.oneOf", hasSize(2))
+			.body(
+				"components.schemas.CategoryCompleteParentUnion.oneOf.$ref",
+				containsInAnyOrder(
+					"#/components/schemas/Category",
+					"#/components/schemas/CategoryCompleteParentPointer"
+				)
+			)
+			// what makes the two `oneOf` branches mutually exclusive: the pointer branch declares no property beyond
+			// the classifier and the recursive link, and refuses every other one, so a materialized ancestor fails
+			// it on its `version` and matches the entity branch alone
+			.body(COMPLETE_POINTER_SCHEMA_PATH + ".additionalProperties", equalTo(false));
+	}
+
+	@Test
+	@UseDataSet(DATA_SET)
+	@DisplayName("Should declare the parent union and its pointer object in the OpenAPI schema")
+	void shouldDeclareTheParentEntityUnionInTheOpenApiSchema(RestTester tester) {
+		final String parentEntity = RestEntityDescriptor.PARENT_ENTITY.name();
+		tester.test(TEST_CATALOG)
+			.httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen()
+			// `parentEntity` cannot be typed as the entity object alone: a `hierarchyContent` asking for no ancestor
+			// body reports the whole primary-key chain here, and those elements supply none of the properties that
+			// object marks required
+			.body(
+				"components.schemas.Category.properties." + parentEntity + ".$ref",
+				equalTo("#/components/schemas/CategoryParentUnion")
+			)
+			.body("components.schemas.CategoryParentUnion.oneOf", hasSize(2))
+			.body(
+				"components.schemas.CategoryParentUnion.oneOf.$ref",
+				containsInAnyOrder("#/components/schemas/Category", "#/components/schemas/CategoryParentPointer")
+			)
 			.body(POINTER_SCHEMA_PATH + ".required", hasSize(2))
 			.body(
 				POINTER_SCHEMA_PATH + ".required",
 				containsInAnyOrder(EntityDescriptor.PRIMARY_KEY.name(), EntityDescriptor.TYPE.name())
 			)
-			// the recursive link is what lets the axis continue above a pointer
-			.body(POINTER_SCHEMA_PATH + ".properties." + parentEntityComplete, notNullValue())
+			// this chain nests through `parentEntity`, so its pointer cannot be the one the complete axis uses - that
+			// one is closed around `parentEntityComplete` and would refuse the link this chain actually carries
+			.body(POINTER_SCHEMA_PATH + ".properties." + parentEntity, notNullValue())
 			.body(
-				"components.schemas.Category.properties." + parentEntityComplete + ".$ref",
+				POINTER_SCHEMA_PATH + ".properties." + parentEntity + ".$ref",
 				equalTo("#/components/schemas/CategoryParentUnion")
 			)
-			.body("components.schemas.CategoryParentUnion.oneOf", hasSize(2))
-			// what makes the two `oneOf` branches mutually exclusive: the pointer branch declares no property beyond
-			// the classifier and the recursive link, and refuses every other one, so a materialized ancestor fails
-			// it on its `version` and matches the entity branch alone
 			.body(POINTER_SCHEMA_PATH + ".additionalProperties", equalTo(false));
 	}
 

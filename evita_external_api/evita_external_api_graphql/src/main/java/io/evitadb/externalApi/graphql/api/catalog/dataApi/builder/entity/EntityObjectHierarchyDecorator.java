@@ -33,8 +33,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentPointerDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
@@ -205,30 +205,30 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 		@Nonnull String nonHierarchicalEntityObjectName,
 		@Nonnull GraphQLInputType stopAtConstraint
 	) {
-		final String parentPointerObjectName = ParentPointerDescriptor.THIS.name(entitySchema);
+		final String completeParentPointerObjectName = CompleteParentPointerDescriptor.THIS.name(entitySchema);
 
 		this.buildingContext.registerType(
-			ParentPointerDescriptor.THIS
+			CompleteParentPointerDescriptor.THIS
 				.to(this.objectBuilderTransformer)
-				.name(parentPointerObjectName)
+				.name(completeParentPointerObjectName)
 				.build()
 		);
 
-		final GraphQLUnionType parentUnion = ParentUnionDescriptor.THIS
+		final GraphQLUnionType completeParentUnion = CompleteParentUnionDescriptor.THIS
 			.to(this.unionBuilderTransformer)
-			.name(ParentUnionDescriptor.THIS.name(entitySchema))
+			.name(CompleteParentUnionDescriptor.THIS.name(entitySchema))
 			.possibleType(typeRef(nonHierarchicalEntityObjectName))
-			.possibleType(typeRef(parentPointerObjectName))
+			.possibleType(typeRef(completeParentPointerObjectName))
 			.build();
-		this.buildingContext.registerType(parentUnion);
+		this.buildingContext.registerType(completeParentUnion);
 		this.buildingContext.registerTypeResolver(
-			parentUnion,
-			new ParentUnionTypeResolver(nonHierarchicalEntityObjectName, parentPointerObjectName)
+			completeParentUnion,
+			new ParentUnionTypeResolver(nonHierarchicalEntityObjectName, completeParentPointerObjectName)
 		);
 
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PARENTS_COMPLETE
 			.to(this.fieldBuilderTransformer)
-			.type(list(nonNull(typeRef(parentUnion.getName()))))
+			.type(list(nonNull(typeRef(completeParentUnion.getName()))))
 			.argument(
 				ParentsFieldHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)

@@ -44,7 +44,10 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 			one - it holds no data in the queried locale, it was deleted, or the parent primary key never belonged
 			to an entity. When it is the immediate parent that could not supply a body, the cut yields nothing and
 			the property is absent altogether. A `hierarchyContent` asking for no ancestor body at all can have
-			nothing fail, so it reports the whole primary-key chain here.
+			nothing fail, so it reports the whole primary-key chain here - its elements then carry nothing but
+			their primary key and type, which is why the property is typed as a `oneOf` of the entity object and
+			a bodyless parent pointer. The two shapes never mix within one response: whichever of them the
+			requirement produces, the whole chain is made of it.
 
 			The sibling `parentEntityComplete` property reports the same axis without that cut, keeping the
 			ancestors that could not be materialized in it as bodyless pointers.
@@ -53,7 +56,7 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 	        may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	        Each entity must be part of at most single hierarchy (tree).
 	        """)
-		// type is expected to be a same hierarchical entity as parent
+		// type is expected to be a union of the same hierarchical entity as parent and its bodyless pointer
 		.build();
 
 	PropertyDescriptor PARENT_ENTITY_COMPLETE = PropertyDescriptor.builder()

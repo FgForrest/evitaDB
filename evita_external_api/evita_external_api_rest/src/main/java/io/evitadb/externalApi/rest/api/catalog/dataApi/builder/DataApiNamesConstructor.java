@@ -26,8 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentPointerDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordStripDescriptor;
@@ -43,6 +43,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSum
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.ParentPointerDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.ParentUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
@@ -81,6 +83,16 @@ public class DataApiNamesConstructor {
 	@Nonnull
 	public static String constructParentUnionObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return ParentUnionDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructCompleteParentPointerObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return CompleteParentPointerDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructCompleteParentUnionObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return CompleteParentUnionDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull

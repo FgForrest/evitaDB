@@ -27,7 +27,8 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
  * One element of a parent chain fetched under the `COMPLETE` parents behaviour: either the ancestor itself, with the
- * body that was asked for, or a {@link ParentPointerDescriptor} standing in for a body that could not be materialized.
+ * body that was asked for, or a {@link CompleteParentPointerDescriptor} standing in for a body that could not be
+ * materialized.
  *
  * The union deliberately carries **no discriminator**. An ancestor and the pointer that stands in for it report the
  * same entity type, so the `type` property cannot tell the two apart; a consumer distinguishes them by the shape of
@@ -38,10 +39,10 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public interface ParentUnionDescriptor {
+public interface CompleteParentUnionDescriptor {
 
 	UnionDescriptor THIS = UnionDescriptor.builder()
-		.name("*ParentUnion")
+		.name("*CompleteParentUnion")
 		.description("""
 			One ancestor of a parent chain fetched with the `COMPLETE` parents behaviour - either the ancestor with
 			the requested body, or a bodyless pointer standing in for a body that could not be materialized.

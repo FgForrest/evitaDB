@@ -94,7 +94,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 	/**
 	 * Name of the GraphQL union member reporting an ancestor whose requested body could not be materialized.
 	 */
-	private static final String CATEGORY_PARENT_POINTER_TYPE = "CategoryParentPointer";
+	private static final String CATEGORY_COMPLETE_PARENT_POINTER_TYPE = "CategoryCompleteParentPointer";
 
 	@DataSet(value = DATA_SET, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUpHierarchyContentParents(Evita evita) {
@@ -150,7 +150,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 									name
 								}
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 								type
 							}
@@ -222,7 +222,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 									name
 								}
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 								type
 							}
@@ -270,7 +270,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 									name
 								}
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 								type
 							}
@@ -306,7 +306,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 						}
 						parentsComplete(stopAt: { distance: 2 }) {
 							__typename
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 							}
 						}
@@ -370,7 +370,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 									name
 								}
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 								type
 							}
@@ -415,7 +415,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 						}
 						parentsComplete {
 							__typename
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 								type
 							}
@@ -484,7 +484,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 							... on NonHierarchicalCategory {
 								primaryKey
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 							}
 						}
@@ -525,7 +525,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 						}
 						parentsComplete {
 							__typename
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 							}
 						}
@@ -553,7 +553,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 		tester.test(TEST_CATALOG)
 			.document("""
 				{
-					__type(name: "CategoryParentUnion") {
+					__type(name: "CategoryCompleteParentUnion") {
 						kind
 						possibleTypes {
 							name
@@ -565,13 +565,13 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 			.body("data.__type.kind", equalTo("UNION"))
 			.body(
 				"data.__type.possibleTypes.name",
-				containsInAnyOrder(NON_HIERARCHICAL_CATEGORY_TYPE, CATEGORY_PARENT_POINTER_TYPE)
+				containsInAnyOrder(NON_HIERARCHICAL_CATEGORY_TYPE, CATEGORY_COMPLETE_PARENT_POINTER_TYPE)
 			);
 
 		tester.test(TEST_CATALOG)
 			.document("""
 				{
-					__type(name: "CategoryParentPointer") {
+					__type(name: "CategoryCompleteParentPointer") {
 						kind
 						fields {
 							name
@@ -602,7 +602,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 							... on NonHierarchicalCategory {
 								primaryKey
 							}
-							... on CategoryParentPointer {
+							... on CategoryCompleteParentPointer {
 								primaryKey
 							}
 						}
@@ -675,7 +675,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 	@Nonnull
 	private static Map<String, Object> bodylessAncestorDto(int primaryKey) {
 		return map()
-			.e(TYPENAME_FIELD, CATEGORY_PARENT_POINTER_TYPE)
+			.e(TYPENAME_FIELD, CATEGORY_COMPLETE_PARENT_POINTER_TYPE)
 			.e(EntityDescriptor.PRIMARY_KEY.name(), primaryKey)
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.build();
@@ -691,7 +691,7 @@ public class CatalogGraphQLHierarchyContentParentsFunctionalTest extends Catalog
 	@Nonnull
 	private static Map<String, Object> classifierOnlyPointerDto(int primaryKey) {
 		return map()
-			.e(TYPENAME_FIELD, CATEGORY_PARENT_POINTER_TYPE)
+			.e(TYPENAME_FIELD, CATEGORY_COMPLETE_PARENT_POINTER_TYPE)
 			.e(EntityDescriptor.PRIMARY_KEY.name(), primaryKey)
 			.build();
 	}

@@ -998,8 +998,8 @@ the hierarchical entity object:
   the list ends there, instead of going on with elements carrying nothing but a primary key.
 - **`parentsComplete`** reports the same axis under `COMPLETE`. Because its elements are either an entity or a bodyless
   pointer, the field returns a **union** of the non-hierarchical entity object and a parent-pointer object named after
-  the collection - for a `Category` entity these are `NonHierarchicalCategory` and `CategoryParentPointer` - so you
-  select from it with inline fragments and can tell the two apart by `__typename`.
+  the collection - for a `Category` entity these are `NonHierarchicalCategory` and `CategoryCompleteParentPointer` - so
+  you select from it with inline fragments and can tell the two apart by `__typename`.
 
 Both fields accept the same `stopAt` argument as before. Selecting both at once is allowed and costs a single fetch, but
 the two `stopAt` arguments must then be equal - the server builds one `hierarchyContent` requirement from the union of
@@ -1016,11 +1016,20 @@ property of the returned entity to read:
 - **`parentEntity`** always reports the axis under `MATCHING` - the chain of parent bodies cut below the first parent
   that couldn't be materialized. Its name and meaning are the ones it has always had, and it is now honest about its own
   declared type: whenever parent bodies were requested at all, the chain it carries no longer contains a bodyless
-  pointer, where before it could.
+  pointer, where before it could. A `hierarchyContent` that asks for **no** parent body has nothing that can fail and
+  reports the whole primary-key chain here, so the property is typed as a `oneOf` of the entity object and a bodyless
+  parent pointer named after the collection - `Category` and `CategoryParentPointer` for a `Category` entity. The two
+  shapes never mix within one response: whichever of them your requirement produces, the whole chain is made of it.
 - **`parentEntityComplete`** reports the same axis under `COMPLETE`, and its elements are typed as a `oneOf` of
-  the entity object and a bodyless parent pointer. The property is written only when the fetched chain really contains
-  such a pointer; when every parent could be materialized the two views are identical and only `parentEntity` is
-  returned.
+  the entity object and a bodyless parent pointer - `Category` and `CategoryCompleteParentPointer`. The property is
+  written only when the fetched chain really contains such a pointer; when every parent could be materialized the two
+  views are identical and only `parentEntity` is returned.
+
+  The two axes nest through the property they are read from, so they cannot share one pointer object: a
+  `CategoryParentPointer` carries `parentEntity` and a `CategoryCompleteParentPointer` carries `parentEntityComplete`.
+  Both pointer objects are closed (`additionalProperties: false`), which is what makes each `oneOf` unambiguous -
+  a materialized parent carries a `version` the pointer branch refuses, and a bodyless one lacks the `version`, `scope`
+  and locale properties the entity branch requires.
 
 Watch out for the shape a `MATCHING` cut takes when it is the **direct parent** that can't provide a body: the cut then
 yields nothing at all, and `parentEntity` is **absent from the response entirely** - the same as for a root entity that
