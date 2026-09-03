@@ -9,24 +9,24 @@ commit: '13f79ff798325a9fa2a86988655777b17a3696e1'
 ---
 Typická stránka s výpisem produktů může vypadat takto:
 
-[![Stránka s výpisem kategorií z Alzashop.com](assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z Alzashop.com")](assets/filtering-products-in-category/category-listing.png)
+[![Stránka s výpisem kategorií z Alzashop.com](../../en/solve/assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z Alzashop.com")](../../en/solve/assets/filtering-products-in-category/category-listing.png)
 
 Obvykle se skládá z následujících typických bloků:
 
-1. [popis kategorie](#category-description) s bohatým obsahem
+1. [popis kategorie](#popis-kategorie) s bohatým obsahem
 2. výpis produktů — někdy v různých variantách:
-    - [běžný stránkovaný seznam](#product-listing)
-    - [N nejprodávanějších produktů](#top-selling-products)
+    - [běžný stránkovaný seznam](#výpis-produktů)
+    - [N nejprodávanějších produktů](#nejprodávanější-produkty)
     - naposledy navštívené produkty
 3. menu kategorií - na více místech:
-    - [drobečková navigace](#breadcrumb)
-    - [strom kategorií](render-category-menu.md#hybrid-menu)
-    - [výpis podkategorií](render-category-menu.md#listing-sub-categories)
+    - [drobečková navigace](#drobečková-navigace)
+    - [strom kategorií](render-category-menu.md#hybridní-menu)
+    - [výpis podkategorií](render-category-menu.md#výpis-podkategorií)
 4. možnosti filtrování a řazení:
-    - [cenový filtr](#price-filter)
-    - [filtrování podle facety](#faceted-search)
+    - [cenový filtr](#cenový-filtr)
+    - [filtrování podle facety](#filtrování-podle-facety)
     - [vyhledávací pole](external-fulltext.md)
-    - [možnosti řazení](#sorting-options)
+    - [možnosti řazení](#možnosti-řazení)
 
 V tomto článku si vysvětlíme, jaké dotazy lze použít k získání všech potřebných dat na základě schématu
 našeho demo datasetu. Pouze třetí blok - výpis kategorií - bude pokryt v [samostatném článku](render-category-menu.md),
@@ -104,7 +104,7 @@ Jak vidíte, požadované informace o rodiči jsou součástí samotné entity k
 </LS>
 
 Protože je dotaz filtrován podle lokalizace, drobečková navigace sahá pouze tak vysoko, jak kategorie, které mohou
-poskytnout požadované atributy - viz [chování rodičů v hierarchii](../query/requirements/fetching.md#hierarchy-parents-behaviour),
+poskytnout požadované atributy - viz [chování rodičů v hierarchii](../query/requirements/fetching.md#chování-rodičů-v-hierarchii),
 pokud potřebujete i ty nad nimi.
 
 Nyní se podívejme, jak získat drobečkovou navigaci pro konkrétní produkt. Zde je situace složitější, protože
@@ -297,7 +297,7 @@ Na odpověď aplikujeme stejnou logiku vykreslení a výsledek je následující
 <MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
 Nakonec budete chtít mít oba požadavky v jednom dotazu, ale projdeme si ještě několik dalších požadavků
-pro stránku detailu kategorie [než vše spojíme](#complete-product-listing-queries-including-filtering-and-sorting).
+pro stránku detailu kategorie [než vše spojíme](#kompletní-dotazy-na-výpis-produktů-včetně-filtrování-a-řazení).
 
 ## Cenový filtr
 

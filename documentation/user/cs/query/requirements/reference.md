@@ -8,7 +8,7 @@ preferredLang: evitaql
 translated: 'true'
 commit: '94cf6f10e41b4255c33b28e70f70d3a46359adef'
 ---
-![Příklad filtrování podle faset](assets/facet-filtering.png "Facet filter example")
+![Příklad filtrování podle faset](../../../en/query/requirements/assets/facet-filtering.png "Facet filter example")
 
 Klíčovým faktorem úspěchu referenčně řízeného (fasetového) vyhledávání je pomoci uživatelům vyhnout se kombinacím, které vrací nulové výsledky. Nejlépe funguje, když uživatelské rozhraní postupně omezuje možnosti, které by nedávaly smysl vzhledem k již zvoleným volbám, a poskytuje přesnou, okamžitou, v reálném čase zpětnou vazbu o počtu výsledků, které by výběr další možnosti rozšířil nebo zúžil.
 
@@ -20,28 +20,28 @@ Možnosti s vysokou kardinalitou jsou někdy prezentovány jako vyhledávací po
 
 Pokud si chcete vyzkoušet, jak se referenční souhrn počítá, zkuste záložku vizualizace v [evitaLab](https://demo.evitadb.io):
 
-![Vizualizace referenčního souhrnu v konzoli evitaLab](assets/facet-visualization.png "Reference summary visualization in the evitaLab console")
+![Vizualizace referenčního souhrnu v konzoli evitaLab](../../../en/query/requirements/assets/facet-visualization.png "Reference summary visualization in the evitaLab console")
 
 Vizualizace odráží strukturu samotného souhrnu:
 
 | Ikona                                                                                          | Význam                                                                                                                                                                                                              |
 |-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ![Reference](assets/link-variant-custom.png)                                                  | Na nejvyšší úrovni vidíte reference, označené ikonou řetězu.                                                                                                                                                       |
-| ![Reference group](assets/format-list-group-custom.png)                                       | Pod nimi jsou skupiny nalezené v těchto referencích, označené ikonou skupiny, a pod skupinami jsou jednotlivé možnosti referencí.                                                                                  |
-| ![Results matching the option](assets/counter-custom.png)                                     | Počet vrácených entit, které odpovídají této možnosti reference, když uživatel nemá vybrané žádné jiné možnosti (tj. [`userFilter`](../filtering/behavioral.md#user-filter) je prázdný).                             |
-| ![Current number of results / difference when selected](assets/set-right-custom.png)          | Aktuální počet entit odpovídajících filtračním omezením; lomítko odděluje rozdíl v počtu výsledků, pokud by byla tato možnost přidána do uživatelského filtru.                                                     |
-| ![Total number of results with this option selected](assets/set-all-custom.png)               | Celkový počet entit, které by výsledek obsahoval, pokud by byla tato možnost vybrána (tj. velikost datasetu, který odpovídá této možnosti).                                                                         |
+| ![Reference](../../../en/query/requirements/assets/link-variant-custom.png)                                                  | Na nejvyšší úrovni vidíte reference, označené ikonou řetězu.                                                                                                                                                       |
+| ![Reference group](../../../en/query/requirements/assets/format-list-group-custom.png)                                       | Pod nimi jsou skupiny nalezené v těchto referencích, označené ikonou skupiny, a pod skupinami jsou jednotlivé možnosti referencí.                                                                                  |
+| ![Results matching the option](../../../en/query/requirements/assets/counter-custom.png)                                     | Počet vrácených entit, které odpovídají této možnosti reference, když uživatel nemá vybrané žádné jiné možnosti (tj. [`userFilter`](../filtering/behavioral.md#uživatelský-filtr) je prázdný).                             |
+| ![Current number of results / difference when selected](../../../en/query/requirements/assets/set-right-custom.png)          | Aktuální počet entit odpovídajících filtračním omezením; lomítko odděluje rozdíl v počtu výsledků, pokud by byla tato možnost přidána do uživatelského filtru.                                                     |
+| ![Total number of results with this option selected](../../../en/query/requirements/assets/set-all-custom.png)               | Celkový počet entit, které by výsledek obsahoval, pokud by byla tato možnost vybrána (tj. velikost datasetu, který odpovídá této možnosti).                                                                         |
 
 ### Výchozí pravidla výpočtu referencí
 
-1. Referenční souhrn je počítán pouze pro entity vrácené aktuálním dotazem (s vyloučením efektu části [`userFilter`](../filtering/behavioral.md#user-filter), pokud je přítomna).
-2. Výpočet respektuje všechna filtrační omezení umístěná mimo kontejner [`userFilter`](../filtering/behavioral.md#user-filter).
+1. Referenční souhrn je počítán pouze pro entity vrácené aktuálním dotazem (s vyloučením efektu části [`userFilter`](../filtering/behavioral.md#uživatelský-filtr), pokud je přítomna).
+2. Výpočet respektuje všechna filtrační omezení umístěná mimo kontejner [`userFilter`](../filtering/behavioral.md#uživatelský-filtr).
 3. Výchozí vztah mezi možnostmi ve skupině je logická disjunkce (logické NEBO), pokud není změněno.
 4. Výchozí vztah mezi možnostmi v různých skupinách / referencích je logická konjunkce (logické A), pokud není změněno.
 
 <Note type="info">
 
-Výchozí vztahy výpočtu můžete změnit pomocí [`facetCalculationRules`](#facet-calculation-rules) v části require dotazu. Historické pojmenování `facet*` je zachováno u čtyř omezení měnících chování (`facetGroupsConjunction`, `facetGroupsDisjunction`, `facetGroupsNegation`, `facetGroupsExclusivity`, `facetCalculationRules`) kvůli zpětné kompatibilitě — vztahují se na reference bez ohledu na název omezení.
+Výchozí vztahy výpočtu můžete změnit pomocí [`facetCalculationRules`](#pravidla-výpočtu-facet) v části require dotazu. Historické pojmenování `facet*` je zachováno u čtyř omezení měnících chování (`facetGroupsConjunction`, `facetGroupsDisjunction`, `facetGroupsNegation`, `facetGroupsExclusivity`, `facetCalculationRules`) kvůli zpětné kompatibilitě — vztahují se na reference bez ohledu na název omezení.
 
 </Note>
 
@@ -70,12 +70,12 @@ referenceSummary(
             určující, jak hluboko jdou statistiky pro jednotlivé možnosti:</p>
         <p>
         - **COUNTS** *(výchozí, implicitní)*: každá možnost nese pouze počet vrácených entit, které ji obsahují
-        - **IMPACT**: každá nevybraná možnost navíc nese predikci dopadu (`matchCount`, `difference`, `hasSense`), která ukazuje, co by se stalo, kdyby ji uživatel vybral; ovlivněno [konjunkcí](#facet-groups-conjunction), [disjunkcí](#facet-groups-disjunction), [negací](#facet-groups-negation) a [pravidly výpočtu](#facet-calculation-rules)
+        - **IMPACT**: každá nevybraná možnost navíc nese predikci dopadu (`matchCount`, `difference`, `hasSense`), která ukazuje, co by se stalo, kdyby ji uživatel vybral; ovlivněno [konjunkcí](#konjunkce-skupin-facet), [disjunkcí](#disjunkce-skupin-facet), [negací](#negace-skupin-facet) a [pravidly výpočtu](#pravidla-výpočtu-facet)
         </p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
-        volitelný filtr omezující, které **jednotlivé možnosti referencí** se objeví v souhrnu; může cílit pouze na vlastnosti sdílené **všemi** typy referencovaných entit — pro referenčně specifické filtry použijte místo toho [`referenceSummaryOfReference`](#reference-summary-of-reference)
+        volitelný filtr omezující, které **jednotlivé možnosti referencí** se objeví v souhrnu; může cílit pouze na vlastnosti sdílené **všemi** typy referencovaných entit — pro referenčně specifické filtry použijte místo toho [`referenceSummaryOfReference`](#souhrn-referenčního-souhrnu)
     </dd>
     <dt>filterConstraint:filterGroupBy</dt>
     <dd>
@@ -91,7 +91,7 @@ referenceSummary(
     </dd>
     <dt>requireConstraint:entityFetch</dt>
     <dd>
-        nejvýše jeden požadavek `entityFetch`, který určuje, která pole **entity reference (možnosti)** se načtou; identická sémantika jako [`entityFetch`](fetching.md#entity-fetch) jinde — podporuje vnořený `referenceContent` s dalším `entityFetch` / `entityGroupFetch` pro následování grafu entit
+        nejvýše jeden požadavek `entityFetch`, který určuje, která pole **entity reference (možnosti)** se načtou; identická sémantika jako [`entityFetch`](fetching.md#načtení-entity) jinde — podporuje vnořený `referenceContent` s dalším `entityFetch` / `entityGroupFetch` pro následování grafu entit
     </dd>
     <dt>requireConstraint:entityGroupFetch</dt>
     <dd>
@@ -99,7 +99,7 @@ referenceSummary(
     </dd>
     <dt>requireConstraint:histogramStatistics*</dt>
     <dd>
-        nula nebo více potomků [`histogramStatistics`](#histogram-statistics), jeden pro **pojmenovaný bucketovaný index** deklarovaný ve schématu reference (`bucketed` na referenci). Každý potomek vytváří histogram pro každou skupinu, klíčovaný primárním klíčem entity skupiny, a je zdrojem dat pro widgety posuvníků řízené pomocí [`histogramHaving`](../filtering/references.md#histogram-having). Povolené pouze pokud je cílená reference nakonfigurována s `bucketed` indexy; jinak je odmítnuto při sestavení dotazu.
+        nula nebo více potomků [`histogramStatistics`](#histogramové-statistiky), jeden pro **pojmenovaný bucketovaný index** deklarovaný ve schématu reference (`bucketed` na referenci). Každý potomek vytváří histogram pro každou skupinu, klíčovaný primárním klíčem entity skupiny, a je zdrojem dat pro widgety posuvníků řízené pomocí [`histogramHaving`](../filtering/references.md#histogram-having). Povolené pouze pokud je cílená reference nakonfigurována s `bucketed` indexy; jinak je odmítnuto při sestavení dotazu.
     </dd>
 </dl>
 
@@ -126,7 +126,7 @@ referenceSummary(
     </dd>
     <dt>requireConstraint:histogramStatistics*</dt>
     <dd>
-        nula nebo více potomků [`histogramStatistics`](#histogram-statistics), jeden pro každý pojmenovaný bucketovaný index ve schématu reference; vytváří histogramy pro každou skupinu klíčované primárním klíčem entity skupiny
+        nula nebo více potomků [`histogramStatistics`](#histogramové-statistiky), jeden pro každý pojmenovaný bucketovaný index ve schématu reference; vytváří histogramy pro každou skupinu klíčované primárním klíčem entity skupiny
     </dd>
 </dl>
 
@@ -136,7 +136,7 @@ referenceSummary(
 
 Požadavek <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummary.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummary.cs</SourceClass></LS>
 spouští výpočet <LS to="j,e,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/ReferenceSummary.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/ReferenceSummary.cs</SourceClass></LS>
-extra výsledku. Souhrn je **vždy počítán jako vedlejší efekt hlavního dotazu na entity** a respektuje stejný rozsah filtrování jako hlavní výsledek (s výjimkou části [`userFilter`](../filtering/behavioral.md#user-filter)). Pokrývá každou referenci, jejíž schéma ji označuje jako `faceted`. Přepisování na úrovni jednotlivých referencí — různá nastavení načítání / filtrování / řazení nebo různé požadavky na histogram — lze zadat pomocí [`referenceSummaryOfReference`](#reference-summary-of-reference); omezení pro jednotlivé reference je **překryto** přes obecný `referenceSummary` místo jeho nahrazení — filtrační nebo řadicí omezení zde napsané nahradí obecné, vynechané přebírá z obecného, požadavky na načítání entit se kombinují a pouze hloubka statistik se přebírá přímo z omezení pro jednotlivou referenci.
+extra výsledku. Souhrn je **vždy počítán jako vedlejší efekt hlavního dotazu na entity** a respektuje stejný rozsah filtrování jako hlavní výsledek (s výjimkou části [`userFilter`](../filtering/behavioral.md#uživatelský-filtr)). Pokrývá každou referenci, jejíž schéma ji označuje jako `faceted`. Přepisování na úrovni jednotlivých referencí — různá nastavení načítání / filtrování / řazení nebo různé požadavky na histogram — lze zadat pomocí [`referenceSummaryOfReference`](#souhrn-referenčního-souhrnu); omezení pro jednotlivé reference je **překryto** přes obecný `referenceSummary` místo jeho nahrazení — filtrační nebo řadicí omezení zde napsané nahradí obecné, vynechané přebírá z obecného, požadavky na načítání entit se kombinují a pouze hloubka statistik se přebírá přímo z omezení pro jednotlivou referenci.
 
 </LS>
 
@@ -184,19 +184,19 @@ Pro demonstraci výpočtu si vyžádejme souhrn pro produkty v kategorii *e-read
 
 Souhrn obsahuje pouze entity referencované entitami vrácenými v aktuální odpovědi na dotaz (s vyloučením efektu části `userFilter`) a je organizován do tříúrovňové struktury:
 
-- **[reference](#1st-tier-reference)**: nejvyšší úroveň — názvy referencí označených jako `faceted` ve [schématu entity](../../use/schema.md)
-- **[skupina referencí](#2nd-tier-reference-group)**: druhá úroveň — skupiny specifikované v [referencích entity](../../use/data-model.md#references) vrácené entity
-- **[možnost reference](#3rd-tier-reference-option)**: třetí úroveň — entity referencí vrácené entity v [referencích](../../use/data-model.md#references)
+- **[reference](#1-úroveň-reference)**: nejvyšší úroveň — názvy referencí označených jako `faceted` ve [schématu entity](../../use/schema.md)
+- **[skupina referencí](#2-úroveň-skupina-referencí)**: druhá úroveň — skupiny specifikované v [referencích entity](../../use/data-model.md#reference) vrácené entity
+- **[možnost reference](#3-úroveň-možnost-reference)**: třetí úroveň — entity referencí vrácené entity v [referencích](../../use/data-model.md#reference)
 
 #### 1. úroveň: reference
 
-Pro každou referenci označenou jako `faceted` existuje samostatný kontejner obsahující [skupiny referencí druhé úrovně](#2nd-tier-reference-group). Pokud možnosti této reference nejsou organizovány do skupin (reference neobsahuje informace o skupině), souhrn obsahuje jedinou skupinu pojmenovanou *nezařazené možnosti*.
+Pro každou referenci označenou jako `faceted` existuje samostatný kontejner obsahující [skupiny referencí druhé úrovně](#2-úroveň-skupina-referencí). Pokud možnosti této reference nejsou organizovány do skupin (reference neobsahuje informace o skupině), souhrn obsahuje jedinou skupinu pojmenovanou *nezařazené možnosti*.
 
 #### 2. úroveň: skupina referencí
 
-Skupina referencí uvádí všechny [možnosti referencí](#3rd-tier-reference-option) dostupné pro danou kombinaci skupiny / reference. Nese také `count` všech entit v aktuálním výsledku dotazu, které odpovídají alespoň jedné možnosti ve skupině / referenci.
+Skupina referencí uvádí všechny [možnosti referencí](#3-úroveň-možnost-reference) dostupné pro danou kombinaci skupiny / reference. Nese také `count` všech entit v aktuálním výsledku dotazu, které odpovídají alespoň jedné možnosti ve skupině / referenci.
 <LS to="e,j,c,r">
-Volitelně obsahuje tělo entity skupiny, pokud je zadán požadavek [`entityGroupFetch`](#entity-group-fetch).
+Volitelně obsahuje tělo entity skupiny, pokud je zadán požadavek [`entityGroupFetch`](#načítání-skupiny-entit).
 </LS>
 <LS to="g">
 Volitelně obsahuje tělo entity skupiny, pokud je zadáno pole `groupEntity`.
@@ -221,12 +221,12 @@ Možnost reference obsahuje statistiky pro jednotlivé možnosti:
   </dd>
   <dt>requested</dt>
   <dd>
-    `TRUE`, pokud se tato možnost vyskytuje v kontejneru [`userFilter`](../filtering/behavioral.md#user-filter) tohoto dotazu, jinak `FALSE` (aby UI mohlo vykreslit odpovídající zaškrtávací políčko jako zaškrtnuté).
+    `TRUE`, pokud se tato možnost vyskytuje v kontejneru [`userFilter`](../filtering/behavioral.md#uživatelský-filtr) tohoto dotazu, jinak `FALSE` (aby UI mohlo vykreslit odpovídající zaškrtávací políčko jako zaškrtnuté).
   </dd>
 </dl>
 
 <LS to="e,j,c,r">
-Volitelně tělo entity možnosti, pokud je zadán požadavek [`entityFetch`](#entity-fetch).
+Volitelně tělo entity možnosti, pokud je zadán požadavek [`entityFetch`](#načítání-entity).
 Pokud je v souhrnu požadována hloubka statistik `IMPACT`, statistiky pro jednotlivé možnosti obsahují také analýzu dopadu s následujícími daty:
 </LS>
 <LS to="g">
@@ -237,7 +237,7 @@ Pokud je požadován objekt `impact`, statistiky pro jednotlivé možnosti obsah
 <dl>
   <dt>matchCount</dt>
   <dd>
-    Počet entit, které by odpovídaly novému dotazu odvozenému z aktuálního, pokud by byla tato možnost vybrána (měla referenci na entitu s tímto primárním klíčem). Aktuální dotaz zůstává nezměněn, včetně [`userFilter`](../filtering/behavioral.md#user-filter), ale možnost je do něj virtuálně přidána pro výpočet hypotetického dopadu.
+    Počet entit, které by odpovídaly novému dotazu odvozenému z aktuálního, pokud by byla tato možnost vybrána (měla referenci na entitu s tímto primárním klíčem). Aktuální dotaz zůstává nezměněn, včetně [`userFilter`](../filtering/behavioral.md#uživatelský-filtr), ale možnost je do něj virtuálně přidána pro výpočet hypotetického dopadu.
   </dd>
   <dt>difference</dt>
   <dd>
@@ -253,12 +253,12 @@ Pokud je požadován objekt `impact`, statistiky pro jednotlivé možnosti obsah
 
 <LS to="e,j,c,r">
 
-Samotný souhrn nedává příliš smysl bez těl možností referencí a jejich skupin. Pro jejich načtení přidejte do dotazu [`entityFetch`](#entity-fetch) nebo [`entityGroupFetch`](#entity-group-fetch). Rozšiřme základní příklad tak, abychom získali *kódy* možností a jejich skupin:
+Samotný souhrn nedává příliš smysl bez těl možností referencí a jejich skupin. Pro jejich načtení přidejte do dotazu [`entityFetch`](#načítání-entity) nebo [`entityGroupFetch`](#načítání-skupiny-entit). Rozšiřme základní příklad tak, abychom získali *kódy* možností a jejich skupin:
 
 </LS>
 <LS to="g">
 
-Samotný souhrn nedává příliš smysl bez těl možností referencí a jejich skupin. Pro jejich načtení požadujte pole [`facetEntity`](#entity-fetch) nebo [`groupEntity`](#entity-group-fetch). Rozšiřme základní příklad tak, abychom získali *kódy* možností a jejich skupin:
+Samotný souhrn nedává příliš smysl bez těl možností referencí a jejich skupin. Pro jejich načtení požadujte pole [`facetEntity`](#načítání-entity) nebo [`groupEntity`](#načítání-skupiny-entit). Rozšiřme základní příklad tak, abychom získali *kódy* možností a jejich skupin:
 
 </LS>
 
@@ -332,7 +332,7 @@ Pokud do dotazu přidáte požadovaný jazyk a vyžádáte si lokalizovaná jmé
 
 ### Filtrování referenčního souhrnu
 
-Souhrn může být velmi rozsáhlý; kromě toho, že je zbytečné jej zobrazovat celý, je také nákladné jej vypočítat. Pro jeho zúžení použijte omezení [`filterBy`](../basics.md#filter-by) a `filterGroupBy` (to druhé je stejné jako `filterBy`, ale pracuje s celými skupinami referencí místo jednotlivých možností).
+Souhrn může být velmi rozsáhlý; kromě toho, že je zbytečné jej zobrazovat celý, je také nákladné jej vypočítat. Pro jeho zúžení použijte omezení [`filterBy`](../basics.md#filtrování) a `filterGroupBy` (to druhé je stejné jako `filterBy`, ale pracuje s celými skupinami referencí místo jednotlivých možností).
 
 <LS to="g">
 
@@ -344,7 +344,7 @@ Souhrn může být velmi rozsáhlý; kromě toho, že je zbytečné jej zobrazov
 
 <LS to="e,j,c">
 
-Pokud umístíte filtrování do obecného požadavku `referenceSummary`, omezení mohou cílit pouze na filtrovatelné vlastnosti **sdílené všemi** typy referencovaných entit. Pokud to není možné, rozdělte obecný `referenceSummary` na jeden nebo více požadavků [`referenceSummaryOfReference`](#reference-summary-of-reference), každý s vlastními referenčně specifickými filtry.
+Pokud umístíte filtrování do obecného požadavku `referenceSummary`, omezení mohou cílit pouze na filtrovatelné vlastnosti **sdílené všemi** typy referencovaných entit. Pokud to není možné, rozdělte obecný `referenceSummary` na jeden nebo více požadavků [`referenceSummaryOfReference`](#souhrn-referenčního-souhrnu), každý s vlastními referenčně specifickými filtry.
 
 </LS>
 
@@ -396,7 +396,7 @@ Hledání neomezujeme na konkrétní hierarchii — samotný filtr je dostatečn
 
 ### Řazení referenčního souhrnu
 
-Typicky je souhrn seřazen tak, aby se nejrelevantnější možnosti zobrazily jako první; totéž platí pro řazení skupin referencí. Použijte [`orderBy`](../basics.md#order-by) pro řazení možností a `orderGroupBy` (stejný tvar, aplikovaný na skupiny místo možností) pro úroveň skupin.
+Typicky je souhrn seřazen tak, aby se nejrelevantnější možnosti zobrazily jako první; totéž platí pro řazení skupin referencí. Použijte [`orderBy`](../basics.md#řazení) pro řazení možností a `orderGroupBy` (stejný tvar, aplikovaný na skupiny místo možností) pro úroveň skupin.
 
 <LS to="g">
 
@@ -408,7 +408,7 @@ Typicky je souhrn seřazen tak, aby se nejrelevantnější možnosti zobrazily j
 
 <LS to="e,j,c">
 
-Při řazení uvnitř obecného `referenceSummary` mohou omezení cílit pouze na řaditelné vlastnosti **sdílené všemi** typy referencovaných entit. Pokud to není možné, rozdělte obecný `referenceSummary` na jeden nebo více požadavků [`referenceSummaryOfReference`](#reference-summary-of-reference) s referenčně specifickým řazením.
+Při řazení uvnitř obecného `referenceSummary` mohou omezení cílit pouze na řaditelné vlastnosti **sdílené všemi** typy referencovaných entit. Pokud to není možné, rozdělte obecný `referenceSummary` na jeden nebo více požadavků [`referenceSummaryOfReference`](#souhrn-referenčního-souhrnu) s referenčně specifickým řazením.
 
 </LS>
 
@@ -490,7 +490,7 @@ histogramStatistics(
     </dd>
     <dt>requireConstraint:entityFetch?</dt>
     <dd>
-        volitelné načtení popisující, jak bohatě mají být načteny **referencované (možnosti) entity**, které přispěly do histogramu; odpovídá standardnímu [`entityFetch`](fetching.md#entity-fetch)
+        volitelné načtení popisující, jak bohatě mají být načteny **referencované (možnosti) entity**, které přispěly do histogramu; odpovídá standardnímu [`entityFetch`](fetching.md#načtení-entity)
     </dd>
     <dt>argument:string!+</dt>
     <dd>
@@ -499,7 +499,7 @@ histogramStatistics(
 </dl>
 
 Omezení požadavku <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceHistogramStatistics.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceHistogramStatistics.cs</SourceClass></LS>
-může být použito pouze jako potomek [`referenceSummary`](#reference-summary) nebo [`referenceSummaryOfReference`](#reference-summary-of-reference) a pouze na referencích, které deklarují alespoň jeden `bucketed` index. Každý histogram je počítán **pro každou skupinu** cílené reference: pokud je reference `parameterValues` a bucketovaný index je `intervalParameterValues`, získáte jeden histogram pro každou skupinu parametrů (*výška*, *hmotnost*, *tloušťka*, …) uvnitř odpovídající skupiny referencí v souhrnu.
+může být použito pouze jako potomek [`referenceSummary`](#referenční-souhrn) nebo [`referenceSummaryOfReference`](#souhrn-referenčního-souhrnu) a pouze na referencích, které deklarují alespoň jeden `bucketed` index. Každý histogram je počítán **pro každou skupinu** cílené reference: pokud je reference `parameterValues` a bucketovaný index je `intervalParameterValues`, získáte jeden histogram pro každou skupinu parametrů (*výška*, *hmotnost*, *tloušťka*, …) uvnitř odpovídající skupiny referencí v souhrnu.
 
 Číselná hodnota vykreslená v každém bucketu pochází z `valueExpression` deklarovaného na bucketovaném indexu schématu reference (typicky číselný atribut na referenci nebo její referencované entitě, například `basicUnitValue`). Výstupní histogram poskytuje:
 
@@ -509,13 +509,13 @@ může být použito pouze jako potomek [`referenceSummary`](#reference-summary)
 
 <Note type="info">
 
-Pokud se `valueExpression` vyhodnotí na **číselný rozsah** atributu (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`) místo skaláru, histogram je počítán přes intervaly: každá přispívající instance reference je započítána do **každého bucketu, s nímž se její interval `[from, to]` překrývá** (uzavřený interval). U zdrojů rozsahů tedy `overallCount` i výskyty v jednotlivých bucketech počítají *přiřazení*, nikoli unikátní instance referencí — jedna instance pokrývající N bucketů přidá 1 do každého z těchto N bucketů — a `[min, max]` je převzato z extrémních koncových bodů rozsahů. Viz [Histogramy s typem rozsahu ve schématu](../../use/schema.md#reference-histograms) pro detaily na straně schématu.
+Pokud se `valueExpression` vyhodnotí na **číselný rozsah** atributu (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`) místo skaláru, histogram je počítán přes intervaly: každá přispívající instance reference je započítána do **každého bucketu, s nímž se její interval `[from, to]` překrývá** (uzavřený interval). U zdrojů rozsahů tedy `overallCount` i výskyty v jednotlivých bucketech počítají *přiřazení*, nikoli unikátní instance referencí — jedna instance pokrývající N bucketů přidá 1 do každého z těchto N bucketů — a `[min, max]` je převzato z extrémních koncových bodů rozsahů. Viz [Histogramy s typem rozsahu ve schématu](../../use/schema.md#histogramy-referencí) pro detaily na straně schématu.
 
 Pokud cílený histogram deklaruje selektor oddílu `assignedWhen`, přispívají do něj pouze instance odpovídající tomuto selektoru (a referenčnímu přepínači `bucketedPartially`), takže dva histogramy na stejné referenci mohou prezentovat různé výřezy stejné podkladové hodnoty.
 
 </Note>
 
-Rozsah `[min, max]` je počítán **odloupnutím** každého nositele hodnotového rozsahu pod `userFilter` — jak `histogramHaving`, tak sourozenců `attributeBetween` — takže posunutí posuvníku nezúží jeho vlastní vnější úchyty a sourozenecké posuvníky ve stejné rodině si také zachovají celokatalogový rozsah. Viz [pravidlo peel-by-family v behaviorálním filtrování](../filtering/behavioral.md#how-userfilter-shapes-predictions) pro úplnou matici.
+Rozsah `[min, max]` je počítán **odloupnutím** každého nositele hodnotového rozsahu pod `userFilter` — jak `histogramHaving`, tak sourozenců `attributeBetween` — takže posunutí posuvníku nezúží jeho vlastní vnější úchyty a sourozenecké posuvníky ve stejné rodině si také zachovají celokatalogový rozsah. Viz [pravidlo peel-by-family v behaviorálním filtrování](../filtering/behavioral.md#jak-userfilter-ovlivňuje-predikce) pro úplnou matici.
 
 Pro připojení histogramů k referenčnímu souhrnu použijte dedikované tovární varianty `withHistograms` v Javě / C# (`referenceSummaryWithHistograms` / `referenceSummaryOfReferenceWithHistograms`), které existují kvůli vyhnutí se nejednoznačnosti přetížení varargs s továrnami `EntityFetchRequire...` — omezení generovaná do EvitaQL jsou stále běžné `referenceSummary` / `referenceSummaryOfReference`:
 
