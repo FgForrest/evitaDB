@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
@@ -76,6 +77,11 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Tries to identify parent from the class field related to the constructor parameter.
 	 *
+	 * The extractor returned for a parameter typed as a custom proxy contract needs the parent body, so it raises
+	 * a {@link ContextMissingException} when the chain reports the parent as a bodyless pointer instead - the very
+	 * same outcome the equally typed getter produces, see
+	 * {@link #singleParentEntityResult(Class, BiFunction, ResultWrapper)}.
+	 *
 	 * @param expectedType     class the constructor belongs to
 	 * @param parameter        constructor parameter
 	 * @param reflectionLookup reflection lookup
@@ -101,7 +107,17 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				return sealedEntity -> sealedEntity.getParentEntity().orElse(null);
 			} else {
 				return sealedEntity -> sealedEntity.getParentEntity()
-					.map(it -> proxyFactory.createEntityProxy(parameterType, (SealedEntity) it, referencedEntitySchemas))
+					.map(it -> {
+						if (it instanceof SealedEntity parentBody) {
+							return proxyFactory.createEntityProxy(parameterType, parentBody, referencedEntitySchemas);
+						} else if (it instanceof EntityReferenceWithParent parentPointer) {
+							throw ContextMissingException.hierarchyEntityBodyMissing(
+								parentPointer.getType(), parentPointer.primaryKey()
+							);
+						} else {
+							throw ContextMissingException.hierarchyEntityContextMissing();
+						}
+					})
 					.orElse(null);
 			}
 		}
@@ -169,6 +185,14 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 
 	/**
 	 * Implementation that returns a custom proxy class wrapping a {@link SealedEntity} object of parent entity.
+	 *
+	 * A parent chain may hand over an ancestor as a bodyless {@link EntityReferenceWithParent} pointer - either
+	 * because no ancestor body was requested at all, or because the requested body could not be materialized and
+	 * {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#COMPLETE} kept the ancestor in the chain
+	 * regardless. There is no proxy to build over such a parent, so it is reported the same way a reference whose
+	 * body was not fetched is: with a {@link ContextMissingException} the wrapper chosen by
+	 * {@link ProxyUtils#createOptionalWrapper(java.lang.reflect.Method, Class)} either rethrows to a getter that
+	 * declares it, or swallows into an empty result for a getter that does not.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentEntityResult(
@@ -183,6 +207,10 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 						return it;
 					} else if (it instanceof SealedEntity sealedEntity) {
 						return theState.getOrCreateParentEntityProxy(itemType, sealedEntity);
+					} else if (it instanceof EntityReferenceWithParent parentPointer) {
+						throw ContextMissingException.hierarchyEntityBodyMissing(
+							parentPointer.getType(), parentPointer.primaryKey()
+						);
 					} else {
 						throw ContextMissingException.hierarchyEntityContextMissing();
 					}

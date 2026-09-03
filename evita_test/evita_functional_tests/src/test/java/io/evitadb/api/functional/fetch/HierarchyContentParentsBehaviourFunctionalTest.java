@@ -58,6 +58,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -100,6 +101,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -131,10 +133,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * because {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks a swallowing
  * wrapper for a getter that neither returns an {@link Optional} nor declares an exception, which
  * would report "never requested" and "cannot be materialized" identically and let a broken
- * implementation pass. The single deliberate exception is the typed-proxy row in
- * {@link LocaleGateTest}: it crosses to the proxy surface through a `throws`-declaring getter,
- * because that is where an existing caller used to meet a {@link ContextMissingException} and now
- * meets a silent absence instead.
+ * implementation pass. The deliberate exceptions are the typed-proxy rows, which are about the proxy
+ * surface itself and therefore have to cross to it: the row in {@link LocaleGateTest} pins where an
+ * existing caller used to meet a {@link ContextMissingException} under the default and now meets a
+ * silent absence instead, and the rows at the end of {@link CompleteModeTest} pin what each proxy form
+ * makes of the bodyless pointer that only `COMPLETE` puts in front of it. Every one of them either
+ * declares the exception, so that the rethrowing wrapper is chosen, or exists precisely to observe the
+ * swallowing wrapper against a declaring twin on the same fetch.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -364,7 +369,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks the rethrowing wrapper
 	 * instead of the swallowing one. Without the `throws` clause the wrapper catches the
 	 * {@link ContextMissingException} and hands back `null` instead, and the exception this interface
-	 * exists to observe would be invisible.
+	 * exists to observe would be invisible - which is what {@link ParentSwallowingCategory} is for.
+	 *
+	 * The two further `@ParentEntity` getters exist because the entity-typed one is the only proxy form
+	 * that needs the ancestor body: a primary key and a raw classifier are both carried by a bodyless
+	 * pointer, so those two forms must keep answering where the entity-typed one has to give up.
 	 */
 	@EntityRef(Entities.CATEGORY)
 	public interface ParentDereferencingCategory extends EntityClassifier {
@@ -386,6 +395,59 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@ParentEntity
 		@Nullable
 		ParentDereferencingCategory getParentEntity() throws ContextMissingException;
+
+		/**
+		 * Returns the primary key of the immediate parent of the proxied category. The boxed form is
+		 * deliberate - a root has no parent at all and the getter must be able to say so without an
+		 * unboxing failure.
+		 *
+		 * @return the primary key of the immediate parent, or `null` when the category is a root
+		 */
+		@ParentEntity
+		@Nullable
+		Integer getParentId();
+
+		/**
+		 * Returns the immediate parent of the proxied category as the raw classifier the chain carries,
+		 * without asking for a proxy over it. It is the only proxy form that hands back a bodyless
+		 * pointer as such, and therefore the only one from which the chain above a pointer can be
+		 * walked further.
+		 *
+		 * @return the immediate parent classifier, or `null` when the category is a root
+		 */
+		@ParentEntity
+		@Nullable
+		EntityClassifierWithParent getParentClassifier();
+
+	}
+
+	/**
+	 * Typed proxy over the `CATEGORY` collection whose parent getter declares **no** exception, so that
+	 * {@link io.evitadb.api.proxy.impl.ProxyUtils#createOptionalWrapper} picks the swallowing wrapper.
+	 * It is the counterpart of {@link ParentDereferencingCategory} and pins the other half of the
+	 * contract: the very same fetch that makes the declaring getter throw must make this one report
+	 * `null`, exactly as a reference whose body was not fetched does.
+	 */
+	@EntityRef(Entities.CATEGORY)
+	public interface ParentSwallowingCategory extends EntityClassifier {
+
+		/**
+		 * Returns the primary key of the proxied category.
+		 *
+		 * @return the primary key of the proxied category
+		 */
+		@PrimaryKeyRef
+		int getId();
+
+		/**
+		 * Returns the immediate parent of the proxied category, or `null` both when the category is
+		 * a root and when the parent carries no body.
+		 *
+		 * @return the immediate parent proxy, or `null`
+		 */
+		@ParentEntity
+		@Nullable
+		ParentSwallowingCategory getParentEntity();
 
 	}
 
@@ -676,6 +738,26 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 */
 	@Nonnull
 	private static ParentDereferencingCategory fetchCategoryProxy(@Nonnull Evita evita, int primaryKey) {
+		return fetchCategoryProxy(evita, primaryKey, standardRequirement(), ParentDereferencingCategory.class);
+	}
+
+	/**
+	 * Fetches a category through the given typed proxy interface under the English query locale.
+	 *
+	 * @param evita                the embedded evitaDB instance
+	 * @param primaryKey           the primary key of the queried category
+	 * @param hierarchyRequirement the `hierarchyContent` requirement under test
+	 * @param contract             the proxy contract the entity is requested as
+	 * @param <T>                  the type of the proxy contract
+	 * @return the proxy over the queried category
+	 */
+	@Nonnull
+	private static <T extends Serializable> T fetchCategoryProxy(
+		@Nonnull Evita evita,
+		int primaryKey,
+		@Nonnull HierarchyContent hierarchyRequirement,
+		@Nonnull Class<T> contract
+	) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -683,9 +765,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 					query(
 						collection(Entities.CATEGORY),
 						leafFilter(primaryKey, true),
-						require(entityFetch(attributeContentAll(), standardRequirement()))
+						require(entityFetch(attributeContentAll(), hierarchyRequirement))
 					),
-					ParentDereferencingCategory.class
+					contract
 				);
 			}
 		).orElseThrow(() -> new AssertionError("Entity with primary key " + primaryKey + " was not returned."));
@@ -2033,6 +2115,174 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 		@Test
 		void shouldLeaveAFullyMaterializableChainUnchanged_control(Evita evita) {
 			assertChain(completeParentChain(evita, 3), "B(2)", "B(1)");
+		}
+
+		/**
+		 * The typed-proxy view of matrix row P1 under `COMPLETE` - `12 -> 11(cs)`. This is the mode that
+		 * keeps the unmaterializable ancestor in the chain, so the proxy really does meet a bodyless
+		 * pointer here, and a getter that declares the exception must be told about it rather than shown
+		 * a root that does not exist.
+		 *
+		 * The message is asserted, not only the exception type: the caller of this query did ask for the
+		 * ancestor bodies, so the advice to add `hierarchyContent` with `entityFetch` would send them
+		 * chasing a requirement their query already carries.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: a declaring getter throws on the bodyless pointer at the immediate parent")
+		@UseDataSet(DATA_SET)
+		@Tag(PROXY)
+		@Test
+		void shouldThrowWhenDeclaringProxyGetterMeetsPointer_P1proxy(Evita evita) {
+			final ParentDereferencingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentDereferencingCategory.class
+			);
+
+			final ContextMissingException exception = assertThrows(
+				ContextMissingException.class,
+				pointerParentHolder::getParentEntity,
+				"The pointer at 11 carries no body, so a getter declaring the exception must receive it."
+			);
+			assertTrue(
+				exception.getMessage().contains("`" + Entities.CATEGORY + "` with primary key `11`"),
+				"The message must name the pointer it was raised on, but was: " + exception.getMessage()
+			);
+			assertTrue(
+				exception.getMessage().contains(HierarchyParentsBehaviour.COMPLETE.name()),
+				"The message must name the behaviour that put the pointer there, but was: " + exception.getMessage()
+			);
+			assertFalse(
+				exception.getMessage().contains("was not fetched along with the entity"),
+				"The body was requested by this very query, so the message must not claim it was not asked " +
+					"for, but was: " + exception.getMessage()
+			);
+		}
+
+		/**
+		 * The other half of the wrapper contract on the very same fetch as
+		 * {@link #shouldThrowWhenDeclaringProxyGetterMeetsPointer_P1proxy}: a getter that declares no
+		 * exception gets the swallowing wrapper, which turns the raised
+		 * {@link ContextMissingException} into an absent result. The two together are what makes a
+		 * bodyless ancestor behave exactly like a reference whose body was not fetched.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: a non-declaring getter reports no parent on the very same pointer")
+		@UseDataSet(DATA_SET)
+		@Tag(PROXY)
+		@Test
+		void shouldReportNoParentWhenSwallowingProxyGetterMeetsPointer_P1proxy(Evita evita) {
+			final ParentSwallowingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentSwallowingCategory.class
+			);
+			assertNull(
+				pointerParentHolder.getParentEntity(),
+				"A getter that declares no exception must swallow it and report no parent."
+			);
+		}
+
+		/**
+		 * A pointer is bodyless, not identity-less. The primary-key form of the `@ParentEntity` getter
+		 * therefore keeps answering on matrix row P1 under `COMPLETE` where the entity-typed form gives
+		 * up, and so does the raw-classifier form - both read what the pointer itself carries and neither
+		 * needs the ancestor body.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P1 proxy: the primary-key and classifier getters still answer on a bodyless pointer")
+		@UseDataSet(DATA_SET)
+		@Tag(PROXY)
+		@Test
+		void shouldReturnParentPrimaryKeyWhenProxyGetterMeetsPointer_P1proxy(Evita evita) {
+			final ParentDereferencingCategory pointerParentHolder = fetchCategoryProxy(
+				evita, 12, completeRequirement(), ParentDereferencingCategory.class
+			);
+
+			final Integer parentId = pointerParentHolder.getParentId();
+			assertNotNull(parentId, "The pointer carries the primary key 11, so the getter must report it.");
+			assertEquals(11, parentId.intValue());
+
+			final EntityClassifierWithParent parentClassifier = pointerParentHolder.getParentClassifier();
+			assertNotNull(parentClassifier, "The classifier form must hand back the pointer itself.");
+			assertPointer(parentClassifier, 11);
+		}
+
+		/**
+		 * The control for the three proxy forms on the fully materializable `3 -> 2 -> 1`, asked in the
+		 * same mode. It proves the `null` and the exception the P1 rows above observe come from the
+		 * bodyless pointer rather than from a proxy contract that never resolves a parent at all.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Control: every proxy form resolves the parent when the parent carries a body")
+		@UseDataSet(DATA_SET)
+		@Tag(PROXY)
+		@Test
+		void shouldResolveParentThroughEveryProxyFormWhenBodyIsPresent_control(Evita evita) {
+			final ParentDereferencingCategory declaringHolder = fetchCategoryProxy(
+				evita, 3, completeRequirement(), ParentDereferencingCategory.class
+			);
+			final ParentDereferencingCategory parent = declaringHolder.getParentEntity();
+			assertNotNull(parent, "The materializable parent 2 must be returned as a proxy.");
+			assertEquals(2, parent.getId());
+
+			final Integer parentId = declaringHolder.getParentId();
+			assertNotNull(parentId, "The primary-key form must report the parent 2 as well.");
+			assertEquals(2, parentId.intValue());
+
+			final ParentSwallowingCategory swallowingHolder = fetchCategoryProxy(
+				evita, 3, completeRequirement(), ParentSwallowingCategory.class
+			);
+			final ParentSwallowingCategory swallowingParent = swallowingHolder.getParentEntity();
+			assertNotNull(swallowingParent, "The non-declaring getter must resolve a parent that has a body.");
+			assertEquals(2, swallowingParent.getId());
+		}
+
+		/**
+		 * The typed-proxy view of matrix row P3 under `COMPLETE` - `34 -> 33 -> 32(cs) -> 31`. It walks the
+		 * chain the way an application would: the proxy of 34 hands back the proxy of 33, and asking 33 for
+		 * its parent meets the pointer at 32 and throws.
+		 *
+		 * It also pins the limit of the typed surface. The body of 31 above the pointer is present in the
+		 * chain - the raw-API row of this matrix asserts `B(33) -> P(32) -> B(31)` - but no typed proxy of
+		 * it can be reached, because the only step that would produce one is the entity-typed getter that
+		 * has to give up on 32. The classifier form is the way past the pointer, and what it yields above
+		 * it is the raw {@link SealedEntity}, not a proxy.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("P3 proxy: the typed walk stops at the pointer, and only the classifier form gets past it")
+		@UseDataSet(DATA_SET)
+		@Tag(PROXY)
+		@Test
+		void shouldStopTypedProxyWalkAtPointerAndCrossItAsClassifier_P3proxy(Evita evita) {
+			final ParentDereferencingCategory leaf = fetchCategoryProxy(
+				evita, 34, completeRequirement(), ParentDereferencingCategory.class
+			);
+			final ParentDereferencingCategory bodyParent = leaf.getParentEntity();
+			assertNotNull(bodyParent, "33 carries a body, so the typed getter must hand back its proxy.");
+			assertEquals(33, bodyParent.getId());
+
+			final ContextMissingException exception = assertThrows(
+				ContextMissingException.class,
+				bodyParent::getParentEntity,
+				"The parent of 33 is the bodyless pointer at 32, which no proxy can be built over."
+			);
+			assertTrue(
+				exception.getMessage().contains("`" + Entities.CATEGORY + "` with primary key `32`"),
+				"The message must name the pointer it was raised on, but was: " + exception.getMessage()
+			);
+
+			final Integer pointerId = bodyParent.getParentId();
+			assertNotNull(pointerId, "The pointer at 32 still carries its primary key.");
+			assertEquals(32, pointerId.intValue());
+
+			final EntityClassifierWithParent pointer = bodyParent.getParentClassifier();
+			assertNotNull(pointer, "The classifier form must hand back the pointer at 32.");
+			assertPointer(pointer, 32);
+			final EntityClassifierWithParent aboveThePointer = pointer.getParentEntity()
+				.orElseThrow(() -> new AssertionError("The chain must continue above the pointer at 32."));
+			assertBody(aboveThePointer, 31);
 		}
 	}
 
