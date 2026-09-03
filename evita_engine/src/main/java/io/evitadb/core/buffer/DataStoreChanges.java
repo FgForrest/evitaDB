@@ -92,7 +92,7 @@ public class DataStoreChanges
 	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
 	 * rollback rather than merely slowing it down.
 	 */
-	@Getter @Setter private long warmUpTouchStamp;
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * This map contains index of "dirty" entity indexes - i.e. subset of {@link EntityCollection indexes} that were
 	 * modified and not yet persisted.

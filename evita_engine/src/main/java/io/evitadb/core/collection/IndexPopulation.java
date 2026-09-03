@@ -66,7 +66,7 @@ final class IndexPopulation implements WarmUpTouchStamped {
 	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
 	 * rollback rather than merely slowing it down.
 	 */
-	@Getter @Setter private long warmUpTouchStamp;
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * Number of scopes, which is the stride of {@link #countsByTypeAndScope}.
 	 */
