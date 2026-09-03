@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-09-03 12:05
+updated: 2026-09-03 14:10
 status: accepted
 kind: feature
 issues: [1432]
@@ -233,8 +233,8 @@ Two things a future conversion must know, both found the hard way here:
 
 Removing the switch turned the mechanism on for every warm-up write and immediately failed **88 tests
 across 23 classes** with `Entity schema was not initialized in EntitySchemaContext!`. Bisect placed the
-defect in `4e5a306c1` and its exposure in `d6b5f33a6`. The fix is committed immediately BEFORE that one
-(`52cf50509`), so no commit on this branch ever ships the exposure; the commits between `4e5a306c1` and
+defect in `4e5a306c1` and its exposure in `9492d2211`. The fix is committed immediately BEFORE that one
+(`4e78269f7`), so no commit on this branch ever ships the exposure; the commits between `4e5a306c1` and
 the fix carry the defect latently and pass, because the switch defaulted to off.
 
 `DataStoreChanges#journalPersistedChange` captures the pre-image of a record it is about to overwrite by
@@ -531,7 +531,7 @@ collapsing when the allocations fell) + 210–310 (bracketing) + noise. After D2
 read **1,315 ms**: B+ leaf 551 → 100, dedup 461 → 10, storage slice 1,100 → 354.
 
 **What the sweeps quoted below did and did not prove.** Until the switch was removed
-(`d6b5f33a6`), the mechanism was gated on `Boolean.getBoolean("evitadb.warmUpAtomicity.enabled")`,
+(`9492d2211`), the mechanism was gated on `Boolean.getBoolean("evitadb.warmUpAtomicity.enabled")`,
 which **defaults to false**. The savepoint-specific suites turned it on explicitly and the fuzz suites
 ran both modes, so those numbers mean what they say — but the *broad* functional sweeps quoted here
 ran with the mechanism OFF and are evidence that the campaign broke nothing while dormant, not that
@@ -729,10 +729,10 @@ schedules, rather than any behaviour of the mechanism.
 - **2026-08-25** — first measurement comes back at **+14.4 %**; bookkeeping optimizations
   (`9010915d2`), benchmark harness (`1a1a61553`), the storage-inverse HIGH fix and the `open()`
   ordering invariant from adversarial review (`4e5a306c1`), documentation (`9c34fd0d9`), bitmap
-  per-operation journalling (`59a2e497a`)
-- **2026-08-26** — three defects closed in the bitmap journalling (`cbfcacbeb`); stamp dedup and
-  per-slot B+ leaves (`3b4f9e316`); per-slot count adjustments (`19f09e924`); stamp fail-closed and
-  the full-replay invariant pinned (`cc3bf17c1`); final full-scale measurement at **+2.17 %**; the
+  per-operation journalling (`ad2c6c0ca`)
+- **2026-08-26** — three defects closed in the bitmap journalling (`e852b72b2`); stamp dedup and
+  per-slot B+ leaves (`ab7de116b`); per-slot count adjustments (`d16bd692b`); stamp fail-closed and
+  the full-replay invariant pinned (`486d3c050`); final full-scale measurement at **+2.17 %**; the
   always-on decision, and the switch removed
 - **2026-08-26, later** — the single-corpus assumption tested directly with a per-structure JMH benchmark;
   chain, range and price leaves found unconverted at up to 97× the converted controls; four structures
@@ -746,10 +746,10 @@ schedules, rather than any behaviour of the mechanism.
   proven by stubbing the inverse; `ChainIndexAssertions` extracted so a chain suite can see the head
   bitmask its public read paths cannot. The ingest corpus gained a `--chains` dimension, so the structure
   that costs the most per savepoint is finally on the end-to-end path
-- **2026-08-29** — the compaction half: retirement deferred to the confirm phase (`75bbab549`), the
-  collection-header write deduped on the file index as well as the location at both call sites (`ff95d5242`),
+- **2026-08-29** — the compaction half: retirement deferred to the confirm phase (`05075879c`), the
+  collection-header write deduped on the file index as well as the location at both call sites (`a28d215be`),
   and the load path taught to resolve the file index from the catalog header and reconcile the collection
-  header against it (`4d29aba6e`). `WarmUpCompactionReloadTest` pins all three, one test each. An adversarial
+  header against it (`743c45187`). `WarmUpCompactionReloadTest` pins all three, one test each. An adversarial
   review then found three more readers that reconstruct a collection from a stored header without reaching
   the load path, so the decision moved into `EntityCollectionHeaderReconciler` and both migrations and the
-  historical backup branch now call it (`24a686dd6`)
+  historical backup branch now call it (`236f08244`)
