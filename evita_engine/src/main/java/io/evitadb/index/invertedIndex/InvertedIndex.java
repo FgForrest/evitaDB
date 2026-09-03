@@ -212,8 +212,9 @@ public class InvertedIndex implements
 	@Nonnull @Getter private final Comparator comparator;
 	/**
 	 * The plain (non-array) declared type of the indexed attribute. It drives the leaf key-column selection
-	 * ({@link ValueColumnFactory#forKey}): an integral / temporal type under natural order stores its keys in a
-	 * primitive `long[]` column, otherwise the universal boxed column is used.
+	 * ({@link ValueColumnFactory#forFilterKey}): an integral / temporal type under natural order stores its keys in a
+	 * primitive `long[]` column, one of the six concrete `Range` subtypes stores its two comparison bounds in a pair
+	 * of `long[]` columns, otherwise the universal boxed column is used.
 	 */
 	@Nonnull private final Class<?> plainType;
 	/**
@@ -295,20 +296,29 @@ public class InvertedIndex implements
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
 	 * attribute's plain type and the comparator: a numeric / temporal attribute under natural order uses a primitive
-	 * `long[]` column, otherwise the universal boxed column.
+	 * `long[]` column, one of the six concrete range types uses a pair of `long[]` bound columns, otherwise the
+	 * universal boxed column.
 	 *
-	 * @param plainType  the plain (non-array) declared attribute type
-	 * @param comparator the value order
+	 * The selection goes through {@link ValueColumnFactory#forFilterKey} rather than
+	 * {@link ValueColumnFactory#forKey} because only a filter index carries an `indexedDecimalPlaces`, and the range
+	 * column cannot rebuild a `BigDecimalNumberRange` without one — see the two factory methods' javadoc for the
+	 * silent mis-scaling that gating prevents.
+	 *
+	 * @param plainType            the plain (non-array) declared attribute type
+	 * @param comparator           the value order
+	 * @param indexedDecimalPlaces the frozen decimal-places scale (0 for non-`BigDecimal` types)
 	 * @return the fresh empty bucket tree
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static TransactionalBucketBPlusTree createEmptyTree(
 		@Nonnull Class<?> plainType,
-		@Nonnull Comparator comparator
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
 	) {
 		// the tree is raw-keyed by Comparable.class here; the factory's wildcard return is fed in as a raw type
-		final ValueColumnFactory factory = ValueColumnFactory.forKey(plainType, comparator);
+		final ValueColumnFactory factory =
+			ValueColumnFactory.forFilterKey(plainType, comparator, indexedDecimalPlaces);
 		return new TransactionalBucketBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			Comparable.class,
@@ -459,7 +469,7 @@ public class InvertedIndex implements
 		int indexedDecimalPlaces
 	) {
 		this.plainType = plainType;
-		this.buckets = createEmptyTree(plainType, comparator);
+		this.buckets = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
 		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
@@ -521,7 +531,7 @@ public class InvertedIndex implements
 		int indexedDecimalPlaces
 	) {
 		this.plainType = plainType;
-		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator);
+		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
 		// rebuild the tree from the deserialized snapshot by inserting all buckets (values are unique & monotonic).
 		// a single-record bucket lands as a primitive column entry, a multi-record bucket as an overflow bitmap entry,
 		// so the columnar heap win survives a reload without ever allocating a ValueToRecord wrapper.
@@ -592,7 +602,7 @@ public class InvertedIndex implements
 			// build a single-leaf tree from this page's buckets in one bulk pass — a page never exceeds a leaf's
 			// capacity, so no split — instead of `buckets.length` sequential addRecord calls, which would otherwise
 			// re-decode/re-encode a front-coded String column's whole blob per call; see bulkLoadPage's javadoc
-			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
 			final Object[] keys = new Object[buckets.length];
 			final long[] payloads = new long[buckets.length];
 			TransactionalBitmap[] overflow = null;
@@ -616,7 +626,7 @@ public class InvertedIndex implements
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
+			createEmptyTree(plainType, comparator, indexedDecimalPlaces).assembleFromSingleLeafTrees(
 				pageTrees, orderedPageSequences, "inverted index for type `" + plainType.getName() + "`"
 			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(

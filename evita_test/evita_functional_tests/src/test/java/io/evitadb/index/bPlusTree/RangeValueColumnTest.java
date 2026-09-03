@@ -1,0 +1,1050 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.bPlusTree;
+
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ByteNumberRange;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.NumberRange;
+import io.evitadb.dataType.Range;
+import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.assertTreeMatchesOracle;
+import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.verifyConsistent;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Verifies the range value column: that every one of the six concrete {@link Range} subtypes round-trips through the
+ * two comparison longs (plus, for {@link DateTimeRange}, the packed zone offsets), that the declared subtype is
+ * reproduced exactly, that {@link ValueColumnFactory} selects the column only where it may, and — the binding
+ * requirement — that {@code Range.consolidateRange} lands on the same thresholds over reconstructed ranges as it does
+ * over the originals.
+ *
+ * **The consolidation invariant is the point of the class, not equality.** The write path reads a record's existing
+ * ranges back out of the tree, consolidates them, and asks the range index to drop exactly the thresholds an earlier
+ * consolidation of the ORIGINAL objects inserted. A reconstruction that is merely {@code equals} to the original can
+ * still consolidate to a different threshold — which is silent range-index corruption with no exception anywhere —
+ * so the invariant is pinned here directly, including the concrete counterexample a single-offset encoding fails.
+ *
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@DisplayName("Range value column")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+class RangeValueColumnTest {
+
+	private static final int BLOCK_SIZE = 8;
+
+	/**
+	 * Builds an empty range column of the given kind at {@link #BLOCK_SIZE}.
+	 *
+	 * @param kind                 the range subtype the column stores
+	 * @param indexedDecimalPlaces the scale `BigDecimalNumberRange` bounds are encoded at
+	 * @return the fresh column
+	 */
+	@Nonnull
+	private static <M extends Comparable<M>> ValueColumn<M> columnOf(
+		@Nonnull RangeKind kind, int indexedDecimalPlaces
+	) {
+		return new RangeValueColumn<>(kind, indexedDecimalPlaces, BLOCK_SIZE);
+	}
+
+	/**
+	 * Builds an empty boxed reference column for the given key class at {@link #BLOCK_SIZE}. The cast is unavoidable:
+	 * {@code BoxedObjectColumn} takes a {@code Class<M>}, and the numeric range hierarchy declares
+	 * {@code Comparable<NumberRange<T>>} on its abstract class — so the only type argument satisfying the column's
+	 * {@code M extends Comparable<M>} bound is the parameterized supertype, which has no class literal.
+	 *
+	 * @param keyType the concrete key class the column materializes its boxed array from
+	 * @return the fresh boxed column
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static <M extends Comparable<M>> ValueColumn<M> boxedColumnOf(@Nonnull Class<?> keyType) {
+		return (ValueColumn<M>) new BoxedObjectColumn((Class) keyType, BLOCK_SIZE);
+	}
+
+	/**
+	 * Loads the supplied ranges into a fresh column of the given kind, in the order given, and asserts each one reads
+	 * back with the same comparison bounds and the same concrete class.
+	 *
+	 * @param kind                 the range subtype the column stores
+	 * @param indexedDecimalPlaces the scale `BigDecimalNumberRange` bounds are encoded at
+	 * @param ranges               the ranges to store, in ascending order
+	 * @return the populated column, for further assertions
+	 */
+	@Nonnull
+	private static <M extends Comparable<M>> ValueColumn<M> assertRoundTrip(
+		@Nonnull RangeKind kind, int indexedDecimalPlaces, @Nonnull List<? extends Range<?>> ranges
+	) {
+		final ValueColumn<M> column = columnOf(kind, indexedDecimalPlaces);
+		for (int i = 0; i < ranges.size(); i++) {
+			//noinspection unchecked
+			column.insertKeyAt(i, (M) ranges.get(i));
+		}
+		for (int i = 0; i < ranges.size(); i++) {
+			final Range<?> original = ranges.get(i);
+			final Range<?> decoded = (Range<?>) column.keyAt(i);
+			assertEquals(original.getFrom(), decoded.getFrom(), "lower bound mismatch at slot " + i);
+			assertEquals(original.getTo(), decoded.getTo(), "upper bound mismatch at slot " + i);
+			// `ReevaluateExpressionExecutor` re-indexes raw bucket values and enforces `plainType.isInstance(value)`,
+			// so a supertype here would fail there rather than at the column
+			assertEquals(
+				original.getClass(), decoded.getClass(), "the declared concrete subtype must be reproduced at slot " + i
+			);
+			// equality across both hierarchies is generated from the two comparison longs alone
+			assertEquals(original, decoded, "the reconstruction must be equal to the original at slot " + i);
+		}
+		return column;
+	}
+
+	/**
+	 * Builds a deterministic ascending {@link DateTimeRange} whose two bounds carry **different** zone offsets, both
+	 * varying with the ordinal.
+	 *
+	 * Both halves of the `meta` word therefore differ from slot to slot and from each other, so a lockstep failure
+	 * that dropped the word, carried the wrong slot's word or swapped its two halves all read back as a wrong offset
+	 * — none of which the range's own equality can see.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic date-time range
+	 */
+	@Nonnull
+	private static DateTimeRange offsetBearingRange(int ordinal) {
+		final ZoneOffset fromOffset = ZoneOffset.ofTotalSeconds(ordinal * 1800 - 7200);
+		final ZoneOffset toOffset = ZoneOffset.ofTotalSeconds(ordinal * 1800 - 6300);
+		final LocalDateTime moment = LocalDateTime.of(2024, 1, 1, 0, 0).plusDays(ordinal);
+		return DateTimeRange.between(moment.atOffset(fromOffset), moment.plusDays(1).atOffset(toOffset));
+	}
+
+	/**
+	 * Asserts a slot decodes to a date-time range carrying exactly the expected range's two zone offsets — the one
+	 * property {@link DateTimeRange} equality cannot see, and therefore the only one that fails when a `meta` word is
+	 * lost, misaligned or half-swapped.
+	 *
+	 * @param column   the column to read
+	 * @param index    the slot to read
+	 * @param expected the range the slot must hold
+	 * @param where    what had just been done to the column, for the failure message
+	 */
+	private static void assertBoundOffsetsAt(
+		@Nonnull ValueColumn<DateTimeRange> column, int index, @Nonnull DateTimeRange expected, @Nonnull String where
+	) {
+		final DateTimeRange decoded = column.keyAt(index);
+		assertEquals(expected, decoded, "slot " + index + " must hold the expected range (" + where + ")");
+		assertEquals(
+			expected.getPreciseFrom().getOffset(), decoded.getPreciseFrom().getOffset(),
+			"from-bound offset lost at slot " + index + " (" + where + ")"
+		);
+		assertEquals(
+			expected.getPreciseTo().getOffset(), decoded.getPreciseTo().getOffset(),
+			"to-bound offset lost at slot " + index + " (" + where + ")"
+		);
+	}
+
+	/**
+	 * Round-trips every subtype through every bound shape, and the zone-offset spread the date-time kind needs.
+	 */
+	@Nested
+	@DisplayName("round-trip of all six subtypes")
+	class RoundTripTest {
+
+		@Test
+		@DisplayName("byte ranges round-trip closed, open-from and open-to")
+		void shouldRoundTripByteRanges() {
+			assertRoundTrip(
+				RangeKind.BYTE_NUMBER, 0,
+				List.of(
+					ByteNumberRange.to((byte) -5),
+					ByteNumberRange.to(Byte.MAX_VALUE),
+					ByteNumberRange.from(Byte.MIN_VALUE),
+					ByteNumberRange.between((byte) -3, (byte) 7),
+					ByteNumberRange.between((byte) 0, (byte) 0),
+					ByteNumberRange.from((byte) 4)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("short ranges round-trip closed, open-from and open-to")
+		void shouldRoundTripShortRanges() {
+			assertRoundTrip(
+				RangeKind.SHORT_NUMBER, 0,
+				List.of(
+					ShortNumberRange.to((short) -1_000),
+					ShortNumberRange.between((short) -1, (short) 1),
+					ShortNumberRange.from((short) 12_345),
+					ShortNumberRange.from(Short.MAX_VALUE)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("integer ranges round-trip closed, open-from and open-to")
+		void shouldRoundTripIntegerRanges() {
+			assertRoundTrip(
+				RangeKind.INTEGER_NUMBER, 0,
+				List.of(
+					IntegerNumberRange.to(Integer.MIN_VALUE),
+					IntegerNumberRange.to(-17),
+					IntegerNumberRange.between(-4, 4),
+					IntegerNumberRange.between(0, Integer.MAX_VALUE),
+					IntegerNumberRange.from(11),
+					IntegerNumberRange.from(Integer.MAX_VALUE)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("long ranges round-trip closed, open-from and open-to")
+		void shouldRoundTripLongRanges() {
+			assertRoundTrip(
+				RangeKind.LONG_NUMBER, 0,
+				List.of(
+					LongNumberRange.to(-9_000_000_000L),
+					LongNumberRange.between(-1L, 1L),
+					LongNumberRange.from(9_000_000_000L)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an explicit Long.MIN_VALUE bound is indistinguishable from an open one, and behaves the same")
+		void shouldTreatAnExplicitLongMinimumAsAnOpenBound() {
+			// the one documented ambiguity of the family: both forms encode to the same long. The substitution is
+			// invisible to the engine, which decides everything on getFrom()/getTo() and re-derives them from the
+			// precise bounds through cloneWithDifferentBounds - so the BEHAVIOUR is what has to match, not the object
+			final LongNumberRange explicit = LongNumberRange.between(Long.MIN_VALUE, 42L);
+			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
+			column.insertKeyAt(0, explicit);
+			final NumberRange<Long> decoded = column.keyAt(0);
+
+			assertEquals(explicit, decoded, "the two forms are equal by their comparison longs");
+			assertEquals(Long.MIN_VALUE, decoded.getFrom());
+			assertEquals(42L, decoded.getTo());
+			// the precise bound really did change form - the assertion below is what makes that a documented
+			// substitution rather than an undetected one
+			assertEquals(Long.valueOf(Long.MIN_VALUE), explicit.getPreciseFrom());
+			assertNull(decoded.getPreciseFrom(), "the explicit minimum reads back as an open bound");
+
+			// and re-encoding either form through cloneWithDifferentBounds lands on the same long pair
+			final Range<Long> reclonedOriginal = explicit.cloneWithDifferentBounds(
+				explicit.getPreciseFrom(), explicit.getPreciseTo());
+			final Range<Long> reclonedDecoded = decoded.cloneWithDifferentBounds(
+				decoded.getPreciseFrom(), decoded.getPreciseTo());
+			assertEquals(reclonedOriginal.getFrom(), reclonedDecoded.getFrom());
+			assertEquals(reclonedOriginal.getTo(), reclonedDecoded.getTo());
+		}
+
+		@Test
+		@DisplayName("an explicit Long.MAX_VALUE bound is indistinguishable from an open one, and behaves the same")
+		void shouldTreatAnExplicitLongMaximumAsAnOpenBound() {
+			// the symmetric half of the ambiguity above, on the upper bound and against the other sentinel - the two
+			// bounds read their sentinel from opposite ends of the long range and neither substitution implies the
+			// other
+			final LongNumberRange explicit = LongNumberRange.between(-42L, Long.MAX_VALUE);
+			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
+			column.insertKeyAt(0, explicit);
+			final NumberRange<Long> decoded = column.keyAt(0);
+
+			assertEquals(explicit, decoded, "the two forms are equal by their comparison longs");
+			assertEquals(-42L, decoded.getFrom());
+			assertEquals(Long.MAX_VALUE, decoded.getTo());
+			assertEquals(Long.valueOf(Long.MAX_VALUE), explicit.getPreciseTo());
+			assertNull(decoded.getPreciseTo(), "the explicit maximum reads back as an open bound");
+
+			// and re-encoding either form through cloneWithDifferentBounds lands on the same long pair
+			final Range<Long> reclonedOriginal = explicit.cloneWithDifferentBounds(
+				explicit.getPreciseFrom(), explicit.getPreciseTo());
+			final Range<Long> reclonedDecoded = decoded.cloneWithDifferentBounds(
+				decoded.getPreciseFrom(), decoded.getPreciseTo());
+			assertEquals(reclonedOriginal.getFrom(), reclonedDecoded.getFrom());
+			assertEquals(reclonedOriginal.getTo(), reclonedDecoded.getTo());
+		}
+
+		@Test
+		@DisplayName("big decimal ranges round-trip at the index scale, including a scale-mismatched input")
+		void shouldRoundTripBigDecimalRangesAtTheIndexScale() {
+			// the normalizer rewrites every key to the schema scale before it reaches the tree, so a range built at a
+			// DIFFERENT intrinsic scale still has to round-trip to the same longs once encoded at the index scale
+			final int indexedDecimalPlaces = 2;
+			final BigDecimalNumberRange mismatched = BigDecimalNumberRange.between(
+				new BigDecimal("1.005"), new BigDecimal("9.5"), indexedDecimalPlaces
+			);
+			assertRoundTrip(
+				RangeKind.BIG_DECIMAL_NUMBER, indexedDecimalPlaces,
+				List.of(
+					BigDecimalNumberRange.to(new BigDecimal("-3.25"), indexedDecimalPlaces),
+					mismatched,
+					BigDecimalNumberRange.between(
+						new BigDecimal("10.00"), new BigDecimal("20.00"), indexedDecimalPlaces),
+					BigDecimalNumberRange.from(new BigDecimal("99.99"), indexedDecimalPlaces)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the INFINITE big decimal range comes back as the very same instance")
+		void shouldReturnTheSharedInfiniteInstance() {
+			// `union` / `intersect` compare against INFINITE by reference, and the tree really does hold the constant
+			// itself today - `FilterIndex`'s rescaling passes a fully-open range through unchanged - so rebuilding an
+			// equal-but-distinct object here would be the only thing that broke that identity
+			final ValueColumn<NumberRange<BigDecimal>> column = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 2);
+			column.insertKeyAt(0, BigDecimalNumberRange.INFINITE);
+			assertSame(BigDecimalNumberRange.INFINITE, column.keyAt(0));
+		}
+
+		@Test
+		@DisplayName("date-time ranges round-trip across the whole zone-offset span, both bounds and both open shapes")
+		void shouldRoundTripDateTimeRangesAcrossEveryOffset() {
+			// ZoneOffset runs to +-18:00, not +14:00 / -12:00 - the extremes are what a naive int-packing would clip
+			final ZoneOffset maxOffset = ZoneOffset.ofTotalSeconds(18 * 3600);
+			final ZoneOffset minOffset = ZoneOffset.ofTotalSeconds(-18 * 3600);
+			final ZoneOffset negativeHalfHour = ZoneOffset.ofTotalSeconds(-1800);
+			final LocalDateTime moment = LocalDateTime.of(2024, 1, 10, 12, 30, 45);
+
+			final List<DateTimeRange> ranges = new ArrayList<>(8);
+			ranges.add(DateTimeRange.until(moment.atOffset(maxOffset)));
+			ranges.add(DateTimeRange.until(moment.atOffset(minOffset)));
+			ranges.add(DateTimeRange.since(moment.atOffset(negativeHalfHour)));
+			ranges.add(DateTimeRange.between(moment.atOffset(maxOffset), moment.plusDays(5).atOffset(maxOffset)));
+			ranges.add(DateTimeRange.between(moment.atOffset(minOffset), moment.plusDays(5).atOffset(minOffset)));
+			// the two bounds carry DIFFERENT offsets - a scheme keeping only one of them cannot rebuild this
+			ranges.add(
+				DateTimeRange.between(moment.atOffset(negativeHalfHour), moment.plusDays(5).atOffset(maxOffset)));
+			ranges.add(DateTimeRange.since(moment.atOffset(maxOffset)));
+			ranges.add(DateTimeRange.since(moment.atOffset(minOffset)));
+			ranges.sort(Comparator.naturalOrder());
+
+			final ValueColumn<DateTimeRange> column = assertRoundTrip(RangeKind.DATE_TIME, 0, ranges);
+
+			// the offsets themselves survive, not only the comparison longs — that is what the `meta` word buys
+			for (int i = 0; i < ranges.size(); i++) {
+				final DateTimeRange original = ranges.get(i);
+				final DateTimeRange decoded = column.keyAt(i);
+				assertEquals(
+					original.getPreciseFrom() == null, decoded.getPreciseFrom() == null,
+					"open-from shape mismatch at slot " + i
+				);
+				assertEquals(
+					original.getPreciseTo() == null, decoded.getPreciseTo() == null,
+					"open-to shape mismatch at slot " + i
+				);
+				if (original.getPreciseFrom() != null) {
+					assertEquals(
+						original.getPreciseFrom().getOffset(), decoded.getPreciseFrom().getOffset(),
+						"from-bound offset mismatch at slot " + i
+					);
+				}
+				if (original.getPreciseTo() != null) {
+					assertEquals(
+						original.getPreciseTo().getOffset(), decoded.getPreciseTo().getOffset(),
+						"to-bound offset mismatch at slot " + i
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a nanosecond-bearing bound is truncated to the second, and nothing that compares it can see it")
+		void shouldTruncateSubSecondBoundsInvisibly() {
+			// `DateTimeRange` keeps its bounds as OffsetDateTime but derives both comparison longs with
+			// toEpochSecond(), and evitaDB does not truncate range bounds on input - so a rebuilt range carries zero
+			// nanos where the original may have carried some. Every comparison in the engine is decided by the long
+			// pair (equals / hashCode are generated from it, compareTo is it, the range index stores it), so this is
+			// a change the write path cannot observe. Pinned here so it stays that way
+			final ZoneOffset offset = ZoneOffset.ofHours(3);
+			final OffsetDateTime nanoBearingFrom =
+				LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_456_789).atOffset(offset);
+			final OffsetDateTime nanoBearingTo =
+				LocalDateTime.of(2024, 5, 6, 7, 8, 10, 987_654_321).atOffset(offset);
+			final DateTimeRange original = DateTimeRange.between(nanoBearingFrom, nanoBearingTo);
+
+			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
+			column.insertKeyAt(0, original);
+			final DateTimeRange decoded = column.keyAt(0);
+
+			// the nanos really are gone from the precise bounds ...
+			assertEquals(123_456_789, original.getPreciseFrom().getNano());
+			assertEquals(0, decoded.getPreciseFrom().getNano(), "the rebuilt bound carries whole seconds");
+			assertEquals(0, decoded.getPreciseTo().getNano(), "the rebuilt bound carries whole seconds");
+			assertEquals(offset, decoded.getPreciseFrom().getOffset());
+
+			// ... and invisible to everything that compares ranges
+			assertEquals(original.getFrom(), decoded.getFrom());
+			assertEquals(original.getTo(), decoded.getTo());
+			assertEquals(original, decoded, "equality is generated from the comparison longs alone");
+			assertEquals(original.hashCode(), decoded.hashCode());
+			assertEquals(0, original.compareTo(decoded));
+
+			// and it survives a re-clone, which is what consolidation actually performs
+			final Range<OffsetDateTime> reclonedOriginal =
+				original.cloneWithDifferentBounds(original.getPreciseFrom(), original.getPreciseTo());
+			final Range<OffsetDateTime> reclonedDecoded =
+				decoded.cloneWithDifferentBounds(decoded.getPreciseFrom(), decoded.getPreciseTo());
+			assertEquals(reclonedOriginal.getFrom(), reclonedDecoded.getFrom());
+			assertEquals(reclonedOriginal.getTo(), reclonedDecoded.getTo());
+		}
+
+		@Test
+		@DisplayName("a sub-second range whose two bounds carry DIFFERENT offsets rebuilds rather than throwing")
+		void shouldRebuildASubSecondRangeWhoseBoundsCarryDifferentOffsets() {
+			// the sibling above uses ONE offset on both bounds and therefore cannot reach this case. Here the two
+			// bounds name the same epoch second at two different offsets, so truncation collapses them to one long -
+			// a zero-width range expressed at two offsets. `DateTimeRange` used to refuse exactly that on the way
+			// back in (`assertFromLesserThanTo` compared the local date-time and the offset, and nanos were what made
+			// the ORIGINAL legal), so `keyAt` threw for a value the write path had happily indexed - and `keyAt` is
+			// reached by every dirtied leaf inside a transaction, by the array-delta read and by the reload check.
+			// The assertion now compares instants, which is the order this type sorts and compares by
+			final OffsetDateTime from = LocalDateTime.of(2024, 1, 1, 12, 0, 0).atOffset(ZoneOffset.ofHours(2));
+			final OffsetDateTime to =
+				LocalDateTime.of(2024, 1, 1, 11, 0, 0, 500_000_000).atOffset(ZoneOffset.ofHours(1));
+			final DateTimeRange original = DateTimeRange.between(from, to);
+			assertEquals(original.getFrom(), original.getTo(), "the two bounds must land on one epoch second");
+
+			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
+			column.insertKeyAt(0, original);
+			final DateTimeRange decoded = column.keyAt(0);
+
+			assertEquals(original, decoded, "the rebuilt key must equal the original");
+			assertEquals(original.getFrom(), decoded.getFrom());
+			assertEquals(original.getTo(), decoded.getTo());
+			assertEquals(
+				ZoneOffset.ofHours(2), decoded.getPreciseFrom().getOffset(), "the from-bound offset must survive"
+			);
+			assertEquals(
+				ZoneOffset.ofHours(1), decoded.getPreciseTo().getOffset(), "the to-bound offset must survive"
+			);
+			// and the rebuilt range is still a usable key - the tree finds the stored slot with it
+			assertTrue(
+				column.findKeyPosition(decoded, 0, 1, null).alreadyPresent(),
+				"the reconstruction must search back to its own slot"
+			);
+		}
+	}
+
+	/**
+	 * The `meta` word has to travel with its key through **every** array operation, and nothing that compares ranges
+	 * can tell whether it did.
+	 *
+	 * {@link DateTimeRange}'s `equals` / `hashCode` / `compareTo` are generated from the two comparison longs alone,
+	 * and a **closed** bound's `toEpochSecond()` is offset-independent — so a range rebuilt at the wrong offset is
+	 * `equals` to the original and sorts identically to it. Every equality-based assertion in the suite (the shared
+	 * sizing battery, the tree oracle, the round-trip nest above) is therefore blind to a `meta` word dropped or
+	 * carried out of step on every path but {@code insertKeyAt}, which is the one the round-trip nest covers. These
+	 * tests read the offsets back instead, so deleting a `meta` line from any of the remaining mutators fails here.
+	 */
+	@Nested
+	@DisplayName("the packed offsets travel with their key")
+	class MetaLockstepTest {
+
+		@Test
+		@DisplayName("bulkLoad carries every key's packed offsets into the arrays it allocates")
+		void shouldPreserveBoundOffsetsWhenBulkLoaded() {
+			// the reload path: `InvertedIndex.fromPersistedPages` fills every leaf of a persisted index this way, so
+			// a `meta` word missed here is a whole catalog reloaded at the wrong offsets
+			final DateTimeRange[] loaded = new DateTimeRange[6];
+			for (int i = 0; i < loaded.length; i++) {
+				loaded[i] = offsetBearingRange(i);
+			}
+			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
+			column.bulkLoad(loaded, loaded.length);
+
+			assertEquals(loaded.length, column.size());
+			for (int i = 0; i < loaded.length; i++) {
+				assertBoundOffsetsAt(column, i, loaded[i], "bulkLoad");
+			}
+		}
+
+		@Test
+		@DisplayName("copyRangeTo carries the packed offsets across columns and through an in-place right shift")
+		void shouldPreserveBoundOffsetsWhenCopiedAndShifted() {
+			final ValueColumn<DateTimeRange> source = columnOf(RangeKind.DATE_TIME, 0);
+			for (int i = 0; i < 4; i++) {
+				source.insertKeyAt(i, offsetBearingRange(i));
+			}
+
+			// across two columns - what a split, a merge and a steal each move
+			final ValueColumn<DateTimeRange> target = columnOf(RangeKind.DATE_TIME, 0);
+			source.copyRangeTo(1, target, 0, 3);
+			assertEquals(3, target.size());
+			for (int i = 0; i < 3; i++) {
+				assertBoundOffsetsAt(target, i, offsetBearingRange(i + 1), "cross-column copyRangeTo");
+			}
+
+			// and in place and overlapping - the leaf's own right shift ahead of an insert
+			source.copyRangeTo(0, source, 2, 4);
+			assertEquals(6, source.size());
+			assertBoundOffsetsAt(source, 0, offsetBearingRange(0), "in-place right shift");
+			assertBoundOffsetsAt(source, 1, offsetBearingRange(1), "in-place right shift");
+			for (int i = 0; i < 4; i++) {
+				assertBoundOffsetsAt(source, i + 2, offsetBearingRange(i), "in-place right shift");
+			}
+		}
+
+		@Test
+		@DisplayName("the packed offsets survive a removal, a duplicate, a truncation and a trim")
+		void shouldPreserveBoundOffsetsWhenSlotsAreDroppedDuplicatedAndTrimmed() {
+			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
+			for (int i = 0; i < 8; i++) {
+				column.insertKeyAt(i, offsetBearingRange(i));
+			}
+
+			// `removeKeyAt` left-shifts the whole tail, so every surviving key changes slot and its `meta` word has
+			// to change slot with it - a shift applied to two arrays out of three leaves the offsets one slot out of
+			// step, which every equality assertion in the suite reads as correct
+			column.removeKeyAt(1);
+			assertEquals(7, column.size());
+			assertBoundOffsetsAt(column, 0, offsetBearingRange(0), "removeKeyAt");
+			for (int i = 1; i < 7; i++) {
+				assertBoundOffsetsAt(column, i, offsetBearingRange(i + 1), "removeKeyAt");
+			}
+
+			// the MVCC decouple copies the backing arrays; the copy has to carry the third one too
+			final ValueColumn<DateTimeRange> copy = column.duplicate();
+			assertEquals(7, copy.size());
+			assertBoundOffsetsAt(copy, 0, offsetBearingRange(0), "duplicate");
+			for (int i = 1; i < 7; i++) {
+				assertBoundOffsetsAt(copy, i, offsetBearingRange(i + 1), "duplicate");
+			}
+
+			// `clearAt` truncates the live run, after which `trimmed` reallocates the survivors into a shorter backing
+			copy.clearAt(2);
+			assertEquals(2, copy.size());
+			final ValueColumn<DateTimeRange> trimmed = copy.trimmed();
+			assertNotSame(copy, trimmed, "two live keys in eight slots must be worth a trim");
+			assertEquals(2, trimmed.size());
+			assertBoundOffsetsAt(trimmed, 0, offsetBearingRange(0), "clearAt + trimmed");
+			assertBoundOffsetsAt(trimmed, 1, offsetBearingRange(2), "clearAt + trimmed");
+		}
+	}
+
+	/**
+	 * The binding invariant: {@code Range.consolidateRange} over reconstructed ranges must land on the same
+	 * thresholds as over the originals, because that is what {@code FilterIndex.addRecordDelta} /
+	 * {@code removeRecordDelta} do with the values they read back out of the tree.
+	 */
+	@Nested
+	@DisplayName("the consolidation invariant")
+	class ConsolidationTest {
+
+		/**
+		 * Stores the ranges in a column, reads them all back and asserts that consolidating the reconstructions
+		 * yields exactly the thresholds consolidating the originals does.
+		 *
+		 * @param kind                 the range subtype the column stores
+		 * @param indexedDecimalPlaces the scale `BigDecimalNumberRange` bounds are encoded at
+		 * @param originals            the ranges to store, in ascending order
+		 */
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		private void assertConsolidationAgrees(
+			@Nonnull RangeKind kind, int indexedDecimalPlaces, @Nonnull Range[] originals
+		) {
+			final ValueColumn column = columnOf(kind, indexedDecimalPlaces);
+			for (int i = 0; i < originals.length; i++) {
+				column.insertKeyAt(i, (Comparable) originals[i]);
+			}
+			// the reconstruction array keeps the ORIGINAL component type, because `consolidateRange` allocates its
+			// result from it — a `Range[]` there would make the two sides differ in a way the assertions cannot see
+			final Range[] reconstructed = (Range[]) Array.newInstance(
+				originals.getClass().getComponentType(), originals.length);
+			for (int i = 0; i < originals.length; i++) {
+				reconstructed[i] = (Range) column.keyAt(i);
+			}
+
+			final Range[] fromOriginals = Range.consolidateRange(originals);
+			final Range[] fromReconstructed = Range.consolidateRange(reconstructed);
+
+			assertEquals(
+				fromOriginals.length, fromReconstructed.length,
+				"consolidation collapsed a different number of ranges"
+			);
+			for (int i = 0; i < fromOriginals.length; i++) {
+				assertEquals(
+					fromOriginals[i].getFrom(), fromReconstructed[i].getFrom(),
+					"consolidated lower bound mismatch at slot " + i
+				);
+				assertEquals(
+					fromOriginals[i].getTo(), fromReconstructed[i].getTo(),
+					"consolidated upper bound mismatch at slot " + i
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("an open range meeting closed ranges at other offsets — the case a single stored offset fails")
+		void shouldConsolidateAnOpenRangeAgainstClosedRangesAtOtherOffsets() {
+			// THE counterexample. `consolidateRange` calls cloneWithDifferentBounds(null, B.getPreciseTo()) when the
+			// open range A wins the lower bound and the closed range B wins the upper one, and `DateTimeRange` then
+			// recomputes the open side's sentinel from **B's** offset. Store B with no offset (or with A's) and
+			// rebuild it at UTC, and the consolidated lower threshold moves by B's offset in seconds — after which
+			// `FilterIndex.removeRecordDelta` asks the range index to drop a threshold no `addRange` ever inserted
+			final ZoneOffset twoHours = ZoneOffset.ofHours(2);
+			final ZoneOffset fiveHours = ZoneOffset.ofHours(5);
+			final DateTimeRange openFrom =
+				DateTimeRange.until(LocalDateTime.of(2024, 1, 10, 0, 0).atOffset(twoHours));
+			final DateTimeRange closed = DateTimeRange.between(
+				LocalDateTime.of(2024, 1, 5, 0, 0).atOffset(fiveHours),
+				LocalDateTime.of(2024, 1, 20, 0, 0).atOffset(fiveHours)
+			);
+			assertTrue(openFrom.overlaps(closed), "the counterexample needs the two ranges to overlap");
+
+			assertConsolidationAgrees(
+				RangeKind.DATE_TIME, 0, new DateTimeRange[]{openFrom, closed}
+			);
+
+			// and the threshold the invariant protects really does depend on the CLOSED range's offset: rebuilding
+			// that range at UTC instead would shift the consolidated lower bound by five hours
+			final long atFiveHours = LocalDateTime.MIN.atOffset(fiveHours).toEpochSecond();
+			final long atUtc = LocalDateTime.MIN.atOffset(ZoneOffset.UTC).toEpochSecond();
+			assertNotEquals(
+				atFiveHours, atUtc,
+				"if these agreed the counterexample would be vacuous — the open-bound sentinel is offset-dependent"
+			);
+			final DateTimeRange[] consolidated =
+				Range.consolidateRange(new DateTimeRange[]{openFrom, closed});
+			assertEquals(1, consolidated.length);
+			assertEquals(atFiveHours, consolidated[0].getFrom());
+		}
+
+		@Test
+		@DisplayName("a mixed array of open and closed date-time ranges at several offsets consolidates identically")
+		void shouldConsolidateAMixedDateTimeArray() {
+			final ZoneOffset plusEighteen = ZoneOffset.ofTotalSeconds(18 * 3600);
+			final ZoneOffset minusEighteen = ZoneOffset.ofTotalSeconds(-18 * 3600);
+			final ZoneOffset halfHour = ZoneOffset.ofTotalSeconds(-1800);
+			assertConsolidationAgrees(
+				RangeKind.DATE_TIME, 0,
+				new DateTimeRange[]{
+					DateTimeRange.until(LocalDateTime.of(2024, 3, 1, 0, 0).atOffset(plusEighteen)),
+					DateTimeRange.between(
+						LocalDateTime.of(2024, 2, 1, 0, 0).atOffset(minusEighteen),
+						LocalDateTime.of(2024, 4, 1, 0, 0).atOffset(halfHour)
+					),
+					DateTimeRange.between(
+						LocalDateTime.of(2024, 3, 15, 0, 0).atOffset(halfHour),
+						LocalDateTime.of(2024, 6, 1, 0, 0).atOffset(plusEighteen)
+					),
+					DateTimeRange.since(LocalDateTime.of(2025, 1, 1, 0, 0).atOffset(minusEighteen))
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("mixed open and closed numeric ranges consolidate identically for every numeric subtype")
+		void shouldConsolidateMixedNumericArrays() {
+			assertConsolidationAgrees(
+				RangeKind.INTEGER_NUMBER, 0,
+				new IntegerNumberRange[]{
+					IntegerNumberRange.to(10), IntegerNumberRange.between(5, 40),
+					IntegerNumberRange.between(80, 90), IntegerNumberRange.from(85)
+				}
+			);
+			assertConsolidationAgrees(
+				RangeKind.LONG_NUMBER, 0,
+				new LongNumberRange[]{
+					LongNumberRange.to(-5L), LongNumberRange.between(-10L, 100L), LongNumberRange.from(1_000L)
+				}
+			);
+			assertConsolidationAgrees(
+				RangeKind.SHORT_NUMBER, 0,
+				new ShortNumberRange[]{
+					ShortNumberRange.to((short) 3), ShortNumberRange.between((short) 1, (short) 9)
+				}
+			);
+			// the open-to range deliberately does NOT overlap the consolidation of the first two. An open-from range
+			// merging with an open-to one makes `Range.consolidateRange` call `cloneWithDifferentBounds(null, null)`,
+			// which every `Range` implementation refuses — a pre-existing property of the data type, reproduced
+			// identically by the originals and by the reconstructions, and nothing this column can affect either way
+			assertConsolidationAgrees(
+				RangeKind.BYTE_NUMBER, 0,
+				new ByteNumberRange[]{
+					ByteNumberRange.to((byte) 3), ByteNumberRange.between((byte) 1, (byte) 9),
+					ByteNumberRange.from((byte) 20)
+				}
+			);
+			// the scale is what makes this one work: `cloneWithDifferentBounds` re-derives the longs from the precise
+			// bounds, and it uses the range's own `retainedDecimalPlaces` to do it
+			assertConsolidationAgrees(
+				RangeKind.BIG_DECIMAL_NUMBER, 2,
+				new BigDecimalNumberRange[]{
+					BigDecimalNumberRange.to(new BigDecimal("10.50"), 2),
+					BigDecimalNumberRange.between(new BigDecimal("5.25"), new BigDecimal("40.75"), 2),
+					BigDecimalNumberRange.from(new BigDecimal("100.00"), 2)
+				}
+			);
+		}
+	}
+
+	/**
+	 * Verifies the column's ordered search agrees with the boxed column driven by {@code Comparator.naturalOrder()},
+	 * which is the comparator a range-typed filter index actually gives its tree.
+	 */
+	@Nested
+	@DisplayName("ordered search")
+	class OrderTest {
+
+		@Test
+		@DisplayName("findKeyPosition matches the boxed column under natural order, tiebreak included")
+		void shouldMatchTheBoxedColumnUnderNaturalOrder() {
+			// same-`from` different-`to` neighbours are the tiebreak: natural order for both range hierarchies is
+			// getFrom() then getTo(), and a search that stopped at the lower bound would confuse these two
+			final IntegerNumberRange[] dataset = {
+				IntegerNumberRange.to(-100),
+				IntegerNumberRange.between(-10, -5),
+				IntegerNumberRange.between(0, 5),
+				IntegerNumberRange.between(0, 50),
+				IntegerNumberRange.between(0, Integer.MAX_VALUE),
+				IntegerNumberRange.between(7, 9),
+				IntegerNumberRange.from(20)
+			};
+			Arrays.sort(dataset);
+			final ValueColumn<NumberRange<Integer>> primitive = columnOf(RangeKind.INTEGER_NUMBER, 0);
+			final ValueColumn<NumberRange<Integer>> boxed = boxedColumnOf(IntegerNumberRange.class);
+			for (int i = 0; i < dataset.length; i++) {
+				primitive.insertKeyAt(i, dataset[i]);
+				boxed.insertKeyAt(i, dataset[i]);
+			}
+
+			final IntegerNumberRange[] probes = {
+				IntegerNumberRange.to(-1_000),
+				dataset[0], dataset[2], dataset[3], dataset[dataset.length - 1],
+				IntegerNumberRange.between(0, 6),
+				IntegerNumberRange.between(0, 49),
+				IntegerNumberRange.between(1, 2),
+				IntegerNumberRange.from(1_000)
+			};
+			for (final IntegerNumberRange probe : probes) {
+				final InsertionPosition primitivePosition =
+					primitive.findKeyPosition(probe, 0, dataset.length, Comparator.naturalOrder());
+				final InsertionPosition boxedPosition =
+					boxed.findKeyPosition(probe, 0, dataset.length, Comparator.naturalOrder());
+				assertEquals(
+					boxedPosition.position(), primitivePosition.position(), "position mismatch for probe " + probe);
+				assertEquals(
+					boxedPosition.alreadyPresent(), primitivePosition.alreadyPresent(),
+					"alreadyPresent mismatch for probe " + probe
+				);
+			}
+
+			// the documented empty-range encoding (position 0, not present), same as every sibling column
+			final InsertionPosition empty = primitive.findKeyPosition(dataset[0], 2, 2, null);
+			assertEquals(0, empty.position());
+			assertFalse(empty.alreadyPresent());
+		}
+
+		@Test
+		@DisplayName("date-time search agrees with natural order across mixed offsets and open bounds")
+		void shouldSearchDateTimeRangesUnderNaturalOrder() {
+			final List<DateTimeRange> dataset = new ArrayList<>(6);
+			final LocalDateTime base = LocalDateTime.of(2024, 7, 1, 0, 0);
+			dataset.add(DateTimeRange.until(base.atOffset(ZoneOffset.ofHours(2))));
+			dataset.add(
+				DateTimeRange.between(base.atOffset(ZoneOffset.UTC), base.plusDays(1).atOffset(ZoneOffset.UTC)));
+			dataset.add(
+				DateTimeRange.between(base.atOffset(ZoneOffset.UTC), base.plusDays(9).atOffset(ZoneOffset.UTC)));
+			dataset.add(DateTimeRange.since(base.plusDays(3).atOffset(ZoneOffset.ofHours(-7))));
+			dataset.sort(Comparator.naturalOrder());
+
+			final ValueColumn<DateTimeRange> primitive = columnOf(RangeKind.DATE_TIME, 0);
+			final ValueColumn<DateTimeRange> boxed = new BoxedObjectColumn<>(DateTimeRange.class, BLOCK_SIZE);
+			for (int i = 0; i < dataset.size(); i++) {
+				primitive.insertKeyAt(i, dataset.get(i));
+				boxed.insertKeyAt(i, dataset.get(i));
+			}
+			for (final DateTimeRange probe : dataset) {
+				final InsertionPosition primitivePosition =
+					primitive.findKeyPosition(probe, 0, dataset.size(), Comparator.naturalOrder());
+				assertTrue(primitivePosition.alreadyPresent(), "a stored key must be found: " + probe);
+				assertEquals(
+					boxed.findKeyPosition(probe, 0, dataset.size(), Comparator.naturalOrder()).position(),
+					primitivePosition.position()
+				);
+			}
+			// an absent probe sharing a lower bound with a stored key still lands by the upper bound
+			final DateTimeRange absent =
+				DateTimeRange.between(base.atOffset(ZoneOffset.UTC), base.plusDays(5).atOffset(ZoneOffset.UTC));
+			final InsertionPosition position =
+				primitive.findKeyPosition(absent, 0, dataset.size(), Comparator.naturalOrder());
+			assertFalse(position.alreadyPresent());
+			assertEquals(
+				boxed.findKeyPosition(absent, 0, dataset.size(), Comparator.naturalOrder()).position(),
+				position.position()
+			);
+		}
+	}
+
+	/**
+	 * Verifies which entry point may select the range column, and for which declared types.
+	 */
+	@Nested
+	@DisplayName("ValueColumnFactory selection")
+	class FactorySelectionTest {
+
+		@Test
+		@DisplayName("all six concrete range subtypes select the range column through forFilterKey")
+		void shouldSelectRangeColumnForEveryConcreteSubtype() {
+			final Class<?>[] concreteSubtypes = {
+				DateTimeRange.class, BigDecimalNumberRange.class, LongNumberRange.class,
+				IntegerNumberRange.class, ShortNumberRange.class, ByteNumberRange.class
+			};
+			for (final Class<?> subtype : concreteSubtypes) {
+				assertInstanceOf(
+					RangeValueColumn.class,
+					ValueColumnFactory.forFilterKey(subtype, Comparator.naturalOrder(), 0).create(BLOCK_SIZE),
+					"expected a range column for " + subtype.getSimpleName()
+				);
+				assertInstanceOf(
+					RangeValueColumn.class,
+					ValueColumnFactory.forFilterKey(subtype, null, 0).create(BLOCK_SIZE),
+					"expected a range column for " + subtype.getSimpleName() + " under the null comparator"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("an abstract range type falls through to the boxed column")
+		void shouldFallThroughForAbstractRangeTypes() {
+			// a filter index really is built over `NumberRange.class` in this repository's own tests, and neither it
+			// nor `Range.class` is a supported schema attribute type - there is no subtype to rebuild for either, so
+			// the selection has to be exact class equality rather than `isAssignableFrom`
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forFilterKey(NumberRange.class, Comparator.naturalOrder(), 0).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forFilterKey(Range.class, Comparator.naturalOrder(), 0).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("a non-natural comparator falls through to the boxed column")
+		void shouldFallThroughForANonNaturalComparator() {
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory
+					.forFilterKey(IntegerNumberRange.class, Comparator.<IntegerNumberRange>reverseOrder(), 0)
+					.create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("forKey can never select the range column, whatever the type")
+		void shouldNeverSelectTheRangeColumnThroughForKey() {
+			// `UniqueIndexBPlusTreeSupport.buildTree` and `ReferenceTypeCardinalityIndex` call `forKey` and have no
+			// `indexedDecimalPlaces` to give, so a `Range`-typed unique attribute reaching the range column would
+			// rebuild every `BigDecimalNumberRange` at the wrong scale, silently. The gate is what is callable
+			final Class<?>[] concreteSubtypes = {
+				DateTimeRange.class, BigDecimalNumberRange.class, LongNumberRange.class,
+				IntegerNumberRange.class, ShortNumberRange.class, ByteNumberRange.class
+			};
+			for (final Class<?> subtype : concreteSubtypes) {
+				assertInstanceOf(
+					BoxedObjectColumn.class,
+					ValueColumnFactory.forKey(subtype, Comparator.naturalOrder()).create(BLOCK_SIZE),
+					"forKey must not select the range column for " + subtype.getSimpleName()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Drives a real {@link TransactionalBucketBPlusTree} whose leaves use the range column, so the three-array
+	 * lockstep runs through split, merge, steal and an MVCC commit rather than only through direct column calls.
+	 */
+	@Nested
+	@DisplayName("range-keyed tree workload")
+	class TreeWorkloadTest {
+
+		/**
+		 * Builds an ascending domain of date-time ranges spanning several offsets and both open shapes.
+		 *
+		 * @return the domain, ascending
+		 */
+		@Nonnull
+		private List<DateTimeRange> dateTimeDomain() {
+			final ZoneOffset[] offsets = {
+				ZoneOffset.UTC, ZoneOffset.ofHours(2), ZoneOffset.ofTotalSeconds(-1800),
+				ZoneOffset.ofTotalSeconds(18 * 3600), ZoneOffset.ofTotalSeconds(-18 * 3600)
+			};
+			final LocalDateTime base = LocalDateTime.of(2024, 1, 1, 0, 0);
+			final List<DateTimeRange> domain = new ArrayList<>(40);
+			for (int i = 0; i < offsets.length; i++) {
+				final ZoneOffset offset = offsets[i];
+				domain.add(DateTimeRange.until(base.plusDays(i).atOffset(offset)));
+				domain.add(DateTimeRange.since(base.plusDays(i).atOffset(offset)));
+				for (int span = 1; span <= 4; span++) {
+					domain.add(DateTimeRange.between(
+						base.plusDays(i).atOffset(offset), base.plusDays(i + span).atOffset(offset)
+					));
+				}
+			}
+			domain.sort(Comparator.naturalOrder());
+			return domain;
+		}
+
+		@Test
+		@DisplayName("a randomized add/remove workload on a date-time-range tree matches a TreeMap oracle")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldMatchOracleOnDateTimeRangeKeyedTree() {
+			final ValueColumnFactory factory =
+				ValueColumnFactory.forFilterKey(DateTimeRange.class, Comparator.naturalOrder(), 0);
+			assertInstanceOf(RangeValueColumn.class, factory.create(BLOCK_SIZE));
+			final TransactionalBucketBPlusTree<DateTimeRange> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, DateTimeRange.class, null, factory
+			);
+
+			final List<DateTimeRange> domain = dateTimeDomain();
+			final TreeMap<DateTimeRange, TreeSet<Integer>> oracle = new TreeMap<>();
+			final Random random = new Random(1486L);
+			for (int op = 0; op < 6_000; op++) {
+				final DateTimeRange key = domain.get(random.nextInt(domain.size()));
+				final int recordId = random.nextInt(1_000);
+				if (random.nextInt(100) < 65) {
+					tree.addRecord(key, recordId);
+					oracle.computeIfAbsent(key, k -> new TreeSet<>()).add(recordId);
+				} else {
+					final TreeSet<Integer> set = oracle.get(key);
+					if (set != null && set.contains(recordId)) {
+						tree.removeRecord(key, recordId);
+						set.remove(recordId);
+						if (set.isEmpty()) {
+							oracle.remove(key);
+						}
+					}
+				}
+				if (op % 250 == 0) {
+					assertTreeMatchesOracle(tree, oracle);
+					verifyConsistent(tree);
+				}
+			}
+			assertTreeMatchesOracle(tree, oracle);
+			verifyConsistent(tree);
+
+			// the oracle compares keys with `equals`, which `DateTimeRange` generates from its two comparison longs
+			// alone - blind to a `meta` word that a split, a merge or a steal left behind. `toString` renders both
+			// bounds as ISO_OFFSET_DATE_TIME, so comparing it reads the offsets back over the whole tree at once
+			final BucketCursor<DateTimeRange> cursor = tree.cursor();
+			for (final DateTimeRange expected : oracle.keySet()) {
+				assertTrue(cursor.next(), "the tree ran out of buckets before the oracle did");
+				assertEquals(
+					expected.toString(), cursor.value().toString(),
+					"a bucket value must render identically to the oracle key, zone offsets included"
+				);
+			}
+			assertFalse(cursor.next(), "the tree holds more buckets than the oracle");
+		}
+
+		@Test
+		@DisplayName("a numeric range tree survives an MVCC commit that splits and merges leaves")
+		@Tag(TRANSACTION)
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldPreserveNumericRangeTreeAcrossCommit() {
+			final ValueColumnFactory factory =
+				ValueColumnFactory.forFilterKey(IntegerNumberRange.class, Comparator.naturalOrder(), 0);
+			final TransactionalBucketBPlusTree<NumberRange<Integer>> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, NumberRange.class, null, factory
+			);
+
+			final List<NumberRange<Integer>> domain = new ArrayList<>(40);
+			domain.add(IntegerNumberRange.to(-1));
+			for (int i = 0; i < 18; i++) {
+				domain.add(IntegerNumberRange.between(i, i + 3));
+				domain.add(IntegerNumberRange.between(i, i + 9));
+			}
+			domain.add(IntegerNumberRange.from(100));
+			domain.sort(Comparator.naturalOrder());
+
+			final TreeMap<NumberRange<Integer>, TreeSet<Integer>> baseOracle = new TreeMap<>();
+			final int half = domain.size() / 2;
+			for (int i = 0; i < half; i++) {
+				tree.addRecord(domain.get(i), 1_000 + i);
+				baseOracle.computeIfAbsent(domain.get(i), k -> new TreeSet<>()).add(1_000 + i);
+			}
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int i = half; i < domain.size(); i++) {
+						tested.addRecord(domain.get(i), 1_000 + i);
+						tested.addRecord(domain.get(i), 2_000 + i);
+					}
+					for (int i = 0; i < half / 2; i++) {
+						tested.removeRecord(domain.get(i), 1_000 + i);
+					}
+				},
+				(original, committed) -> {
+					final TreeMap<NumberRange<Integer>, TreeSet<Integer>> oracle = new TreeMap<>(baseOracle);
+					for (int i = half; i < domain.size(); i++) {
+						final TreeSet<Integer> set = new TreeSet<>();
+						set.add(1_000 + i);
+						set.add(2_000 + i);
+						oracle.put(domain.get(i), set);
+					}
+					for (int i = 0; i < half / 2; i++) {
+						oracle.remove(domain.get(i));
+					}
+					assertTreeMatchesOracle(committed, oracle);
+					verifyConsistent(committed);
+					// the pre-commit base tree is unchanged — proves the layer decoupled
+					assertTreeMatchesOracle(original, baseOracle);
+				}
+			);
+		}
+	}
+}

@@ -29,6 +29,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -49,6 +50,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.UUID;
@@ -405,6 +408,43 @@ class LeafIndexHeapSizeTest {
 			assertTrue(
 				measured <= 480,
 				"a one-key integral index must stay within its 480 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldKeepAOneKeyRangeIndexWithinItsSizingBudget() {
+			// The same budget for the shape the range column serves, which is the integral one plus its extra bound
+			// arrays. Every byte, against the 464 of the integral gate above:
+			//
+			//   64  the index object                     64  the leaf node
+			//   80  the bucket tree object               40  the key column object
+			//   80  the tree's two transactional        144  its THREE four-slot long[] arrays, 48 each
+			//       reference holders and their          24  the record column object + 32 its four-slot int[]
+			//       AtomicReferences                     24  the tree's transactional dirty flag
+			//                                            16  the boxed bucket count the tree memoizes
+			//
+			// That sums to 568 - the integral gate's 464 plus 104 for the wider key column (a 40-byte object holding
+			// three arrays rather than a 32-byte one holding a single array). A `DateTimeRange` is the expensive
+			// shape: the five numeric kinds park `meta` on the shared empty array and pay 48 bytes less. The
+			// 584-byte budget leaves room for one more small object without leaving room for a column that has gone
+			// back to allocating its whole block - or for a fourth array
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
+			final InvertedIndex index = new InvertedIndex(DateTimeRange.class, normalizer, comparator, 0);
+			index.addRecord(
+				DateTimeRange.between(
+					LocalDateTime.of(2024, 1, 1, 0, 0).atOffset(ZoneOffset.ofHours(2)),
+					LocalDateTime.of(2024, 2, 1, 0, 0).atOffset(ZoneOffset.ofHours(2))
+				),
+				1
+			);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 584,
+				"a one-key range index must stay within its 584 B budget - was " + measured
 			);
 		}
 	}

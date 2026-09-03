@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -1659,6 +1660,157 @@ class FilterIndexTest {
 			assertSame(time, FilterIndex.getNormalizer(LocalTime.class, 0).apply(time));
 		}
 
+	}
+
+
+	@Nested
+	@DisplayName("array-delta parity over a reconstructed range column")
+	@Tag(DATA_TYPE)
+	class RangeColumnDeltaParity {
+
+		/**
+		 * Renders a range index's thresholds, which is what the parity assertions compare.
+		 *
+		 * @param index the filter index whose range index is rendered
+		 * @return the range index's points, one per line
+		 */
+		@Nonnull
+		private String thresholdsOf(@Nonnull OwnerFilterIndex index) {
+			final RangePoint<?>[] ranges = index.getRangeIndex().getRanges();
+			return Arrays.stream(ranges).map(Object::toString).collect(Collectors.joining("\n"));
+		}
+
+		@Test
+		@DisplayName("a date-time array mixing an open and a closed range at another offset leaves no threshold behind")
+		void shouldLeaveNoThresholdBehindForAMixedDateTimeArray() {
+			// this is the counterexample the `meta` word exists for, driven end to end. `addRecordDelta` consolidates
+			// the ORIGINAL objects and inserts the resulting thresholds; `removeRecordDelta` reads the ranges back out
+			// of the tree - now RECONSTRUCTED by the range column - consolidates those and removes the thresholds it
+			// gets. An encoding that dropped the closed range's zone offset would consolidate to a lower bound five
+			// hours away from the one that went in, and the removal would silently miss
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+			final ZoneOffset twoHours = ZoneOffset.ofHours(2);
+			final ZoneOffset fiveHours = ZoneOffset.ofHours(5);
+			final DateTimeRange[] mixed = {
+				DateTimeRange.until(LocalDateTime.of(2024, 1, 10, 0, 0).atOffset(twoHours)),
+				DateTimeRange.between(
+					LocalDateTime.of(2024, 1, 5, 0, 0).atOffset(fiveHours),
+					LocalDateTime.of(2024, 1, 20, 0, 0).atOffset(fiveHours)
+				)
+			};
+
+			// a second record keeps the index non-empty throughout, so the parity assertion is about the delta rather
+			// than about an index that happens to have been emptied
+			final DateTimeRange resident = DateTimeRange.between(
+				LocalDateTime.of(2030, 1, 1, 0, 0).atOffset(ZoneOffset.UTC),
+				LocalDateTime.of(2030, 2, 1, 0, 0).atOffset(ZoneOffset.UTC)
+			);
+			index.addRecord(9, resident);
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(mixed[0]).getArray());
+			assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(mixed[1]).getArray());
+
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+			assertTrue(index.getRecordsEqualTo(mixed[0]).isEmpty());
+			assertTrue(index.getRecordsEqualTo(mixed[1]).isEmpty());
+			assertArrayEquals(new int[]{9}, index.getRecordsEqualTo(resident).getArray());
+		}
+
+		@Test
+		@DisplayName("a numeric array mixing an open and a closed range leaves no threshold behind")
+		void shouldLeaveNoThresholdBehindForAMixedNumericArray() {
+			// the same parity for the two-array shape, whose open bounds ARE the constructor's own sentinels
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "quantity", null), IntegerNumberRange.class);
+			final IntegerNumberRange[] mixed = {
+				IntegerNumberRange.to(10),
+				IntegerNumberRange.between(5, 40),
+				IntegerNumberRange.between(60, 70)
+			};
+			index.addRecord(9, IntegerNumberRange.between(1_000, 2_000));
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			for (final IntegerNumberRange range : mixed) {
+				assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(range).getArray());
+			}
+
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+			for (final IntegerNumberRange range : mixed) {
+				assertTrue(index.getRecordsEqualTo(range).isEmpty());
+			}
+		}
+
+		@Test
+		@DisplayName("a big decimal array round-trips through the index scale rather than the intrinsic one")
+		void shouldLeaveNoThresholdBehindForAScaledBigDecimalArray() {
+			// the range column rebuilds a `BigDecimalNumberRange` at the index's `indexedDecimalPlaces` and carries
+			// that scale into the object, which is what makes the removal's consolidation re-derive the same longs
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class, 2);
+			final BigDecimalNumberRange[] mixed = {
+				BigDecimalNumberRange.to(new BigDecimal("10.50")),
+				BigDecimalNumberRange.between(new BigDecimal("5.25"), new BigDecimal("40.75"))
+			};
+			index.addRecord(9, BigDecimalNumberRange.between(new BigDecimal("500.00"), new BigDecimal("600.00")));
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+		}
+
+		@Test
+		@DisplayName("a concrete range attribute really is served by the reconstructing column, not the boxed one")
+		void shouldServeAConcreteRangeAttributeFromTheReconstructingColumn() {
+			// every parity assertion above would pass unchanged with the boxed column, which is what this seam used
+			// to select - so nothing here fails if a future change routes a range attribute back to it. The range
+			// column cannot be named from this package, so the pin is its two observable fingerprints: it MINTS the
+			// value it hands back (the boxed column returns the very instance stored, a `DateTimeRange` attribute
+			// being normalized by identity), and it rebuilds the bounds from whole epoch seconds
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+			final ZoneOffset offset = ZoneOffset.ofHours(3);
+			final DateTimeRange stored = DateTimeRange.between(
+				LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_456_789).atOffset(offset),
+				LocalDateTime.of(2024, 6, 7, 8, 9, 10, 987_654_321).atOffset(offset)
+			);
+			index.addRecord(1, stored);
+
+			final DateTimeRange[] readBack = index.getInvertedIndex().getValuesForRecord(1, DateTimeRange.class);
+			assertEquals(1, readBack.length, "the record must be found under exactly one value");
+			assertEquals(stored, readBack[0], "the reconstruction must be equal to the value that went in");
+			assertNotSame(stored, readBack[0], "the boxed column would hand the stored instance straight back");
+			assertEquals(0, readBack[0].getPreciseFrom().getNano(), "the bounds are rebuilt from whole epoch seconds");
+			assertEquals(0, readBack[0].getPreciseTo().getNano(), "the bounds are rebuilt from whole epoch seconds");
+			// and the `meta` word came back with them, which is what makes the reconstruction usable
+			assertEquals(offset, readBack[0].getPreciseFrom().getOffset(), "at the stored zone offset");
+			assertEquals(offset, readBack[0].getPreciseTo().getOffset(), "at the stored zone offset");
+		}
+
+		@Test
+		@DisplayName("an index declared over the abstract NumberRange type still accepts array deltas")
+		void shouldStillServeAnIndexDeclaredOverTheAbstractRangeType() {
+			// `NumberRange.class` is not a supported schema attribute type and has no subtype to rebuild, so the
+			// column selection falls through to the boxed column - the fallback this whole exact-class-equality
+			// selection exists to preserve. The delta path must behave exactly as it always did
+			final IntegerNumberRange[] mixed = {IntegerNumberRange.to(10), IntegerNumberRange.between(5, 40)};
+			FilterIndexTest.this.rangeAttribute.addRecord(9, IntegerNumberRange.between(1_000, 2_000));
+			final String before = thresholdsOf(FilterIndexTest.this.rangeAttribute);
+
+			FilterIndexTest.this.rangeAttribute.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
+			FilterIndexTest.this.rangeAttribute.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
+		}
 	}
 
 }

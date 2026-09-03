@@ -29,6 +29,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
@@ -90,7 +91,9 @@ import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -324,6 +327,75 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 				assertEquals(
 					0, emit(restored).size(),
 					"an untouched reloaded range-typed paged histogram must emit nothing on its first flush"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a date-time-range PAGED histogram reloads its bounds AND their zone offsets through the loader")
+		void shouldReloadPagedDateTimeRangeTypedHistogramThroughTheRealLoader() {
+			// the sibling above pages an `IntegerNumberRange`, whose leaf column needs only the two comparison
+			// bounds. A `DateTimeRange` column carries a THIRD array holding both bounds' zone offsets, filled on
+			// this very path - the reload's bulk load - and by nothing else in this suite
+			final SimpleHistogramIndex source = new SimpleHistogramIndex(
+				HISTOGRAM_NAME, REFERENCE_NAME, DateTimeRange.class, 0
+			);
+			for (int i = 1; i <= VALUE_COUNT; i++) {
+				source.insertValue(null, dateTimeRange(i), i);
+			}
+
+			final List<StoragePart> emitted = emit(source);
+			final HistogramIndexStoragePart root = histogramRoot(emitted);
+			assertTrue(root.isPaged(), "the date-time-range histogram must page its bucket axis out");
+			assertTrue(root.isRangePaged(), "the date-time-range histogram must page its range axis out");
+			assertTrue(leafPages(emitted).size() >= 3, "the bucket axis must emit at least three leaf pages");
+			assertTrue(
+				rangeLeafPages(emitted).size() >= 3, "the range axis must emit at least three range leaf pages"
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(stripRemovals(emitted));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final HistogramIndex restored = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME
+				);
+				assertReloadIdentical(source, restored, null);
+				assertSameRangeQueries(
+					source, restored,
+					new long[][]{
+						{dateTimeRange(1).getFrom(), dateTimeRange(5).getTo()},
+						{dateTimeRange(1600).getFrom(), dateTimeRange(1600).getTo()},
+						{dateTimeRange(VALUE_COUNT).getFrom(), dateTimeRange(VALUE_COUNT).getTo()},
+						{dateTimeRange(1).getFrom() - 3600L, dateTimeRange(VALUE_COUNT).getTo() + 3600L}
+					}
+				);
+
+				// `assertReloadIdentical` compares bucket values with `equals`, which `DateTimeRange` generates from
+				// its two comparison longs alone - so a range reloaded at the wrong zone offset passes it. `toString`
+				// renders both bounds as ISO_OFFSET_DATE_TIME and does not, and the buckets ascend by (from, to),
+				// which for this domain is ordinal order - so the source ranges are an independent offset oracle
+				final FilterIndex restoredFilter = restored.getFilterIndex(null);
+				assertNotNull(restoredFilter, "the reloaded histogram must expose a filter index");
+				final ValueToRecordBitmap[] restoredBuckets =
+					restoredFilter.getInvertedIndex().getValueToRecordBitmap();
+				assertEquals(
+					VALUE_COUNT, restoredBuckets.length, "every distinct range must reload as its own bucket"
+				);
+				for (int i = 0; i < restoredBuckets.length; i++) {
+					assertEquals(
+						dateTimeRange(i + 1).toString(), restoredBuckets[i].getValue().toString(),
+						"bucket " + i + " must reload with both its zone offsets intact"
+					);
+				}
+
+				assertEquals(
+					0, emit(restored).size(),
+					"an untouched reloaded date-time-range paged histogram must emit nothing on its first flush"
 				);
 			} finally {
 				if (reloaded != null) {
@@ -1037,6 +1109,24 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Builds the ordinal's distinct `DateTimeRange`, an hour wide, at a zone offset varying with the ordinal. The
+	 * offsets are what the reloaded leaf column has to carry in a third backing array beside the two comparison
+	 * bounds — the shape no other reload test exercises, since an `IntegerNumberRange` needs only the two.
+	 *
+	 * Ordinals map to strictly ascending `getFrom()` instants: the moment advances an hour per ordinal while the
+	 * offset moves by at most half of one, so bucket order is ordinal order and the ranges double as a reload oracle.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic date-time range
+	 */
+	@Nonnull
+	private static DateTimeRange dateTimeRange(int ordinal) {
+		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+		final LocalDateTime moment = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
+		return DateTimeRange.between(moment.atOffset(offset), moment.plusHours(1).atOffset(offset));
+	}
+
+	/**
 	 * Builds a fresh non-localized histogram under the given name, paged across several bucket leaves — used to place
 	 * two independently-paged histograms in a single owning map.
 	 */
@@ -1081,13 +1171,30 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * range-typed histogram, exercising the reassembled range axis.
 	 */
 	private static void assertSameRangeQueries(@Nonnull HistogramIndex expected, @Nonnull HistogramIndex actual) {
+		assertSameRangeQueries(
+			expected, actual,
+			new long[][]{
+				{1L, 5L}, {100L, 105L}, {1000L, 1000L}, {VALUE_COUNT - 3L, VALUE_COUNT + 1L}, {0L, VALUE_COUNT + 100L}
+			}
+		);
+	}
+
+	/**
+	 * Asserts the supplied range-overlap probes return the identical record ids against the source and the reloaded
+	 * range-typed histogram. The probes are a parameter because a threshold is whatever the indexed range type
+	 * encodes to — small integers for an `IntegerNumberRange` histogram, epoch seconds for a `DateTimeRange` one.
+	 *
+	 * @param expected the source histogram
+	 * @param actual   the reloaded histogram
+	 * @param probes   the `(from, to)` threshold pairs to probe with
+	 */
+	private static void assertSameRangeQueries(
+		@Nonnull HistogramIndex expected, @Nonnull HistogramIndex actual, @Nonnull long[][] probes
+	) {
 		final FilterIndex expectedFilter = expected.getFilterIndex(null);
 		final FilterIndex actualFilter = actual.getFilterIndex(null);
 		assertNotNull(expectedFilter, "the source range histogram must expose a filter index");
 		assertNotNull(actualFilter, "the reloaded range histogram must expose a filter index");
-		final long[][] probes = {
-			{1L, 5L}, {100L, 105L}, {1000L, 1000L}, {VALUE_COUNT - 3L, VALUE_COUNT + 1L}, {0L, VALUE_COUNT + 100L}
-		};
 		for (final long[] probe : probes) {
 			final Bitmap expectedRecords = expectedFilter.getRecordsOverlapping(probe[0], probe[1]);
 			final Bitmap actualRecords = actualFilter.getRecordsOverlapping(probe[0], probe[1]);

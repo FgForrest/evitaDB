@@ -24,6 +24,7 @@
 package io.evitadb.index.invertedIndex;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -431,6 +432,66 @@ class ValueLifecycleSinkTest {
 			this.events.add("removed:" + valueId + ":" + normalizedValue);
 		}
 
+	}
+
+
+	/**
+	 * The sink is handed the value the tree actually stores, which for a range-typed tree is the range column's
+	 * reconstruction rather than the object the caller passed in. A consumer keyed by value id has to be able to rely
+	 * on the two being interchangeable.
+	 */
+	@Nested
+	@DisplayName("Lifecycle reporting over a range-keyed tree")
+	class RangeKeyedLifecycle {
+
+		/**
+		 * @return a fresh tree of integer-range values that already carries value ids
+		 */
+		@Nonnull
+		private InvertedIndex rangeTreeWithIds() {
+			final InvertedIndex tree = new InvertedIndex(
+				IntegerNumberRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			tree.attachValueIdConsumer(TEST_CONSUMER);
+			return tree;
+		}
+
+		@Test
+		@DisplayName("a born range value is reported once, with the value the tree stores")
+		void shouldReportABornRangeValueOnce() {
+			final InvertedIndex tree = rangeTreeWithIds();
+			final RecordingSink sink = new RecordingSink();
+			final IntegerNumberRange value = IntegerNumberRange.between(5, 10);
+
+			tree.addRecord(value, 1, sink);
+			assertEquals(1, sink.events.size(), "a new value must be reported exactly once");
+			assertTrue(sink.events.get(0).startsWith("created:"), sink.events.get(0));
+			assertTrue(sink.events.get(0).endsWith(":" + value), sink.events.get(0));
+
+			// a second record joining an existing value costs the consumer nothing at all
+			tree.addRecord(value, 2, sink);
+			assertEquals(1, sink.events.size(), "joining an existing value must report nothing");
+		}
+
+		@Test
+		@DisplayName("a dying range value is reported once, and an open bound survives the reconstruction")
+		void shouldReportADyingRangeValueOnce() {
+			final InvertedIndex tree = rangeTreeWithIds();
+			// an OPEN bound is the shape whose stored form is a sentinel long rather than a real bound - a
+			// reconstruction that got it wrong would hand the consumer a different value than it was told about
+			final IntegerNumberRange openTo = IntegerNumberRange.from(42);
+			tree.addRecord(openTo, 1);
+			tree.addRecord(openTo, 2);
+
+			final RecordingSink sink = new RecordingSink();
+			tree.removeRecord(openTo, sink, 1);
+			assertEquals(0, sink.events.size(), "a value that still has records must not be reported dead");
+
+			tree.removeRecord(openTo, sink, 2);
+			assertEquals(1, sink.events.size(), "the last record leaving must report the value dead exactly once");
+			assertTrue(sink.events.get(0).startsWith("removed:"), sink.events.get(0));
+			assertTrue(sink.events.get(0).endsWith(":" + openTo), sink.events.get(0));
+		}
 	}
 
 }

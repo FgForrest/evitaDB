@@ -35,10 +35,16 @@ import java.util.Comparator;
  * Creates a fresh empty {@link ValueColumn} of the kind chosen for a particular attribute key type, so a
  * {@link TransactionalBucketBPlusTree} leaf can pick the cheapest representation (a front-coded
  * {@link FrontCodedStringColumn} for {@link String} keys, a primitive {@link LongValueColumn} for integral / temporal
- * keys, otherwise the universal {@link BoxedObjectColumn}).
+ * keys, a {@link RangeValueColumn} for range keys, otherwise the universal {@link BoxedObjectColumn}).
  *
- * The selection is made once per tree (via {@link #forKey}) and threaded into every empty-leaf creation; split / merge
- * reuse the originating column's {@link ValueColumn#allocate}, so kind-consistency is guaranteed within one tree.
+ * The selection is made once per tree (via {@link #forKey} or {@link #forFilterKey}) and threaded into every
+ * empty-leaf creation; split / merge reuse the originating column's {@link ValueColumn#allocate}, so
+ * kind-consistency is guaranteed within one tree.
+ *
+ * **There are two entry points, and which one a caller may use is a correctness constraint rather than a
+ * convenience.** {@link #forFilterKey} is the wider one and the only one that can select the range column, because
+ * it is the only one whose caller has an `indexedDecimalPlaces` to give; see its javadoc, and {@link #forKey}'s, for
+ * what would go silently wrong otherwise.
  *
  * @param <M> the (boxed) key type
  */
@@ -55,6 +61,40 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 */
 	@Nonnull
 	ValueColumn<M> create(int capacity);
+
+	/**
+	 * Selects the value-column factory for a **filter index** attribute key — {@link #forKey} widened by the one
+	 * column kind that needs a scale, {@link RangeValueColumn}.
+	 *
+	 * The range column is chosen for the **six concrete** range subtypes ({@code DateTimeRange} and the five
+	 * {@code NumberRange} implementations) under natural order, matched by exact class equality. A filter index can
+	 * legitimately be built over the abstract {@code NumberRange.class} or {@code Range.class} — neither is a
+	 * supported schema attribute type, but both are constructible — and there is no subtype to rebuild for them, so
+	 * they fall through to {@link #forKey} and keep the universal boxed column exactly as before. Everything the
+	 * range column does not claim is delegated to {@link #forKey} verbatim.
+	 *
+	 * @param plainType            the attribute's plain (non-array) declared type
+	 * @param comparator           the tree comparator, or {@code null} for natural order
+	 * @param indexedDecimalPlaces the scale this index's {@code BigDecimalNumberRange} keys are encoded at (0 for
+	 *                             every other type)
+	 * @return the factory producing the chosen column kind
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	static ValueColumnFactory<? extends Comparable> forFilterKey(
+		@Nonnull Class<?> plainType,
+		@Nullable Comparator<?> comparator,
+		int indexedDecimalPlaces
+	) {
+		if (isNaturalOrder(comparator)) {
+			final RangeKind kind = RangeKind.forType(plainType);
+			if (kind != null) {
+				// raw lambda → the wildcard return is closed over the kind's concrete subtype (natural order only)
+				return (ValueColumnFactory) capacity -> new RangeValueColumn(kind, indexedDecimalPlaces, capacity);
+			}
+		}
+		return forKey(plainType, comparator);
+	}
 
 	/**
 	 * Selects the value-column factory for an attribute key.
@@ -75,6 +115,15 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * {@code BigDecimal} keys (normalized upstream to a scaled {@code int}) select the 4-byte {@link IntValueColumn}.
 	 * Otherwise the universal boxed {@link BoxedObjectColumn} (keyed by {@code Comparable.class}, the raw key type the
 	 * tree uses today) is returned, which is behavior-identical to the universal boxed leaf.
+	 *
+	 * **This entry point can never select the {@link RangeValueColumn}, and that is deliberate.** A range column
+	 * rebuilding a {@code BigDecimalNumberRange} needs the index's `indexedDecimalPlaces` to reproduce the bounds at
+	 * the scale the tree's keys were encoded with, and two of this method's three callers have no such scale to
+	 * offer: `UniqueIndexBPlusTreeSupport.buildTree`, which serves both `OwnerUniqueIndex` and `GlobalUniqueIndex`,
+	 * and `ReferenceTypeCardinalityIndex`. A `Range`-typed attribute declared `unique` would otherwise move its
+	 * unique tree onto a column rebuilding every key at whatever default the parameter carried — at the wrong scale,
+	 * with no error anywhere. Keeping the branch out of this method makes that structurally impossible rather than a
+	 * matter of passing the right value; the filter-index caller uses {@link #forFilterKey} instead.
 	 *
 	 * @param plainType  the attribute's plain (non-array) declared type
 	 * @param comparator the tree comparator, or {@code null} for natural order

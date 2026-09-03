@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -751,4 +752,92 @@ class InvertedIndexPrimitiveBucketTest {
 			);
 		}
 	}
+
+	/**
+	 * The single-record primitive bucket is orthogonal to how a leaf stores its KEYS, and a range-typed index is the
+	 * one shape where those keys are reconstructed on every read rather than held as objects. These pin the two
+	 * mechanisms working together, at both persisted shapes.
+	 */
+	@Nested
+	@DisplayName("Primitive and overflow buckets over reconstructed range keys")
+	class RangeKeyedBucketTest {
+
+		/**
+		 * Builds an ascending integer range for the given ordinal, alternating an open bound in so both encodings of
+		 * a bound are exercised.
+		 *
+		 * @param ordinal the ordinal to derive the range from
+		 * @return the range
+		 */
+		@Nonnull
+		private IntegerNumberRange range(int ordinal) {
+			return ordinal % 7 == 0
+				? IntegerNumberRange.from(ordinal * 10)
+				: IntegerNumberRange.between(ordinal * 10, ordinal * 10 + 5);
+		}
+
+		/**
+		 * @return an empty inverted index over integer ranges, which selects the two-array range column
+		 */
+		@Nonnull
+		private InvertedIndex emptyRangeIndex() {
+			return new InvertedIndex(
+				IntegerNumberRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
+		}
+
+		@Test
+		@DisplayName("a single-leaf range index promotes and demotes buckets exactly as a boxed one does")
+		void shouldPromoteAndDemoteOverRangeKeys() {
+			final InvertedIndex index = emptyRangeIndex();
+			index.addRecord(range(1), 10);
+			assertFalse(index.isPaged(), "A small range index must stay inline (SINGLE).");
+			assertArrayEquals(new int[]{10}, index.getRecordsEqualTo(range(1)).getArray());
+
+			// a second record promotes the bucket to a bitmap; the KEY is untouched by that promotion
+			index.addRecord(range(1), 20);
+			assertArrayEquals(new int[]{10, 20}, index.getRecordsEqualTo(range(1)).getArray());
+			assertEquals(range(1), index.getValueToRecordBitmap()[0].getValue());
+
+			// and demoting back to a single record leaves the reconstructed key equal to what went in
+			index.removeRecord(range(1), 20);
+			assertArrayEquals(new int[]{10}, index.getRecordsEqualTo(range(1)).getArray());
+			assertEquals(range(1), index.getValueToRecordBitmap()[0].getValue());
+			assertEquals(IntegerNumberRange.class, index.getValueToRecordBitmap()[0].getValue().getClass());
+		}
+
+		@Test
+		@DisplayName("a paged range index keeps single and multi-record buckets aligned with their keys")
+		void shouldKeepBucketsAlignedAcrossLeavesOverRangeKeys() {
+			final InvertedIndex index = emptyRangeIndex();
+			final int valueCount = 800;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(range(i), i);
+				// every third value carries a second record, so single and multi buckets interleave across leaves
+				if (i % 3 == 0) {
+					index.addRecord(range(i), 100_000 + i);
+				}
+			}
+			assertTrue(index.isPaged(), "Fixture must span more than one leaf!");
+
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertEquals(valueCount, buckets.length);
+			final IntegerNumberRange[] expected = new IntegerNumberRange[valueCount];
+			for (int i = 0; i < valueCount; i++) {
+				expected[i] = range(i);
+			}
+			Arrays.sort(expected);
+			for (int i = 0; i < valueCount; i++) {
+				assertEquals(expected[i], buckets[i].getValue(), "bucket value mismatch at " + i);
+			}
+			// the record sets still belong to the values they were inserted under, across every leaf boundary
+			for (int i = 0; i < valueCount; i++) {
+				final int[] records = index.getRecordsEqualTo(range(i)).getArray();
+				assertArrayEquals(
+					i % 3 == 0 ? new int[]{i, 100_000 + i} : new int[]{i}, records,
+					"record set mismatch for value " + i
+				);
+			}
+		}
+	}
+
 }

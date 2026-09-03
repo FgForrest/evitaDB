@@ -219,8 +219,21 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 		}
 	}
 
+	/**
+	 * Refuses a range whose lower bound lies after its upper one.
+	 *
+	 * The comparison is made on the **instant**, which is the order this type sorts and compares by everywhere else:
+	 * {@link #toComparableLong(OffsetDateTime)} reduces a bound to its epoch second and both {@code equals} and
+	 * {@code compareTo} are derived from the two resulting longs. An offset-sensitive test would be stricter than the
+	 * type's own notion of equality — it would reject a legitimate zero-width range whose two bounds name the same
+	 * moment at two different offsets ({@code 12:00+02:00} … {@code 11:00+01:00}), while treating it as equal to the
+	 * very range it refused to build.
+	 *
+	 * @param from the lower bound, or {@code null} for an open one
+	 * @param to   the upper bound, or {@code null} for an open one
+	 */
 	private static void assertFromLesserThanTo(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
-		if (!(from == null || to == null || from.equals(to) || from.isBefore(to))) {
+		if (!(from == null || to == null || !from.isAfter(to))) {
 			throw new EvitaInvalidUsageException("From must be before or equals to to!");
 		}
 	}

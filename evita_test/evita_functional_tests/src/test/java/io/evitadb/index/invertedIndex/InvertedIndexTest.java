@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -47,8 +48,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.text.Collator;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.function.Function;
 
@@ -1683,6 +1687,124 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(highWater, afterReload.highWaterPageSequence(), "Reload must restore the high-water.");
 		}
 
+	}
+
+
+	/**
+	 * A range-typed inverted index stores its bucket values in the two-`long` range column rather than in the boxed
+	 * one, so every value a caller ever sees back is RECONSTRUCTED from those longs. These verify that the index
+	 * behaves identically either way, at both persisted shapes (`SINGLE`, one leaf inline; `PAGED`, several leaves).
+	 */
+	@Nested
+	@DisplayName("Range-keyed index parity")
+	class RangeKeyedIndexTest {
+
+		/**
+		 * Builds an empty date-time-range index, which selects the three-array range column.
+		 *
+		 * @return the empty index
+		 */
+		@Nonnull
+		private InvertedIndex emptyDateTimeRangeIndex() {
+			return new InvertedIndex(
+				DateTimeRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
+		}
+
+		/**
+		 * Builds an ascending date-time range whose zone offset varies with the ordinal, so the column's packed
+		 * offsets carry real information rather than a constant.
+		 *
+		 * @param ordinal the ordinal to derive the range from
+		 * @return the range
+		 */
+		@Nonnull
+		private DateTimeRange range(int ordinal) {
+			final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+			final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
+			return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
+		}
+
+		@Test
+		@DisplayName("a single-leaf range index answers lookups and value reads exactly as a boxed one would")
+		void shouldServeASingleLeafRangeIndex() {
+			final InvertedIndex index = emptyDateTimeRangeIndex();
+			assertFalse(index.isPaged(), "A small range index must stay inline (SINGLE).");
+			for (int i = 0; i < 10; i++) {
+				index.addRecord(range(i), 100 + i);
+			}
+			index.addRecord(range(3), 999);
+
+			assertEquals(10, index.getBucketCount());
+			assertFalse(index.isPaged(), "Ten values fit one leaf.");
+			assertArrayEquals(new int[]{103, 999}, index.getRecordsEqualTo(range(3)).getArray());
+			assertTrue(index.contains(range(7)));
+			assertFalse(index.contains(range(50)));
+
+			// the values a record reads back are the column's reconstructions, and they must be equal to what went in
+			final Serializable[] valuesOfRecord = index.getValuesForRecord(999, Serializable.class);
+			assertArrayEquals(new Serializable[]{range(3)}, valuesOfRecord);
+			assertEquals(DateTimeRange.class, valuesOfRecord[0].getClass());
+
+			index.removeRecord(range(3), 999);
+			assertArrayEquals(new int[]{103}, index.getRecordsEqualTo(range(3)).getArray());
+			index.removeRecord(range(3), 103);
+			assertFalse(index.contains(range(3)));
+			assertEquals(9, index.getBucketCount());
+		}
+
+		@Test
+		@DisplayName("a multi-leaf range index pages, and every bucket value survives the split unchanged")
+		void shouldServeAPagedRangeIndex() {
+			final InvertedIndex index = emptyDateTimeRangeIndex();
+			// well past one leaf block (256), so the tree splits repeatedly and the three arrays move in lockstep
+			final int valueCount = 1_000;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(range(i), i);
+			}
+			assertTrue(index.isPaged(), "A large range index must be paged.");
+			assertEquals(valueCount, index.getBucketCount());
+
+			// every value reads back equal to what went in, in ascending order and at the declared subtype
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertEquals(valueCount, buckets.length);
+			final DateTimeRange[] expected = new DateTimeRange[valueCount];
+			for (int i = 0; i < valueCount; i++) {
+				expected[i] = range(i);
+			}
+			Arrays.sort(expected);
+			for (int i = 0; i < valueCount; i++) {
+				assertEquals(expected[i], buckets[i].getValue(), "bucket value mismatch at " + i);
+				assertEquals(DateTimeRange.class, buckets[i].getValue().getClass());
+			}
+		}
+
+		@Test
+		@DisplayName("rebuilding a range index from its own buckets reproduces it — the inline reload path")
+		void shouldRebuildARangeIndexFromItsOwnBuckets() {
+			// this is what a `SINGLE` filter index does on load: the persisted bucket array is handed back to the
+			// plainType-aware constructor, which re-inserts every value into a fresh range-column-backed tree
+			final InvertedIndex index = emptyDateTimeRangeIndex();
+			for (int i = 0; i < 20; i++) {
+				index.addRecord(range(i), 100 + i);
+				if (i % 3 == 0) {
+					index.addRecord(range(i), 500 + i);
+				}
+			}
+
+			final InvertedIndex reloaded = new InvertedIndex(
+				DateTimeRange.class, index.getValueToRecordBitmap(),
+				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			assertEquals(index, reloaded, "a reload must reproduce the index it came from");
+			assertEquals(index.getBucketCount(), reloaded.getBucketCount());
+			for (int i = 0; i < 20; i++) {
+				assertArrayEquals(
+					index.getRecordsEqualTo(range(i)).getArray(),
+					reloaded.getRecordsEqualTo(range(i)).getArray(),
+					"record set mismatch for value " + i
+				);
+			}
+		}
 	}
 
 }

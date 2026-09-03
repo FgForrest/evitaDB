@@ -28,12 +28,17 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 
 import javax.annotation.Nonnull;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.SIZING_CAPACITY;
@@ -78,6 +83,24 @@ class ColumnSizingTest {
 	}
 
 	/**
+	 * Builds a deterministic ascending {@link DateTimeRange} for the given ordinal, used as the range column's key.
+	 * The offset varies with the ordinal so the column's `meta` array is populated rather than uniform — but **this
+	 * battery cannot see the offsets at all**: it asserts `keyAt` equality, and `DateTimeRange`'s `equals` /
+	 * `compareTo` are generated from the two comparison longs alone, so a range rebuilt at the wrong offset still
+	 * compares equal. The offsets themselves are pinned by the offset-level assertions in
+	 * {@code RangeValueColumnTest}.
+	 *
+	 * @param ordinal the ordinal to derive the key from
+	 * @return an ascending, deterministic date-time range
+	 */
+	@Nonnull
+	private static DateTimeRange dateTimeRange(int ordinal) {
+		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+		final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusDays(ordinal);
+		return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
+	}
+
+	/**
 	 * The leaf block size the arithmetic assertions use — the production value, so the numbers below read as the
 	 * ones a real inverted index actually takes.
 	 */
@@ -113,6 +136,26 @@ class ColumnSizingTest {
 		void shouldObeyTheSizingContractWhenBackedByABoxedArray() {
 			assertValueColumnSizing(
 				capacity -> new BoxedObjectColumn<UUID>(UUID.class, capacity), ColumnSizingTest::uuid, true
+			);
+		}
+
+		@Test
+		void shouldObeyTheSizingContractWhenBackedByRangeBoundArrays() {
+			// the range column has TWO shapes and both have to obey the contract: a `DateTimeRange` column, which
+			// materializes the third `meta` array and therefore grows / trims / duplicates three arrays in lockstep,
+			// and a numeric one, whose `meta` stays parked on the shared empty constant for the column's whole life
+			assertValueColumnSizing(
+				capacity -> new RangeValueColumn<DateTimeRange>(RangeKind.DATE_TIME, 0, capacity),
+				ColumnSizingTest::dateTimeRange,
+				true
+			);
+			// `NumberRange<Integer>` rather than `IntegerNumberRange`: the numeric hierarchy declares
+			// `Comparable<NumberRange<T>>` on the abstract class, so only the parameterized supertype satisfies the
+			// column's `M extends Comparable<M>` bound. `DateTimeRange` is `Comparable` of itself and needs no care
+			assertValueColumnSizing(
+				capacity -> new RangeValueColumn<NumberRange<Integer>>(RangeKind.INTEGER_NUMBER, 0, capacity),
+				ordinal -> IntegerNumberRange.between(ordinal, ordinal + 1),
+				true
 			);
 		}
 
@@ -329,6 +372,17 @@ class ColumnSizingTest {
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
+				() -> new RangeValueColumn<DateTimeRange>(RangeKind.DATE_TIME, 0, tiny).bulkLoad(dateTimeRanges(6), 6),
+				"the date-time range key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new RangeValueColumn<NumberRange<Integer>>(RangeKind.INTEGER_NUMBER, 0, tiny)
+					.bulkLoad(integerRanges(6), 6),
+				"the numeric range key column absorbed a load larger than its block"
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
 				() -> new IntRecordColumn(tiny).bulkLoad(new long[]{1, 2, 3, 4, 5, 6}, 6),
 				"the int record column absorbed a load larger than its block"
 			);
@@ -361,6 +415,36 @@ class ColumnSizingTest {
 			final Object[] result = new Object[count];
 			for (int i = 0; i < count; i++) {
 				result[i] = Instant.ofEpochSecond(i);
+			}
+			return result;
+		}
+
+		/**
+		 * Builds an ascending run of date-time ranges for the range column's bulk load.
+		 *
+		 * @param count the number of ranges to build
+		 * @return the ranges, ascending
+		 */
+		@Nonnull
+		private Object[] dateTimeRanges(int count) {
+			final Object[] result = new Object[count];
+			for (int i = 0; i < count; i++) {
+				result[i] = dateTimeRange(i);
+			}
+			return result;
+		}
+
+		/**
+		 * Builds an ascending run of integer ranges for the range column's bulk load.
+		 *
+		 * @param count the number of ranges to build
+		 * @return the ranges, ascending
+		 */
+		@Nonnull
+		private Object[] integerRanges(int count) {
+			final Object[] result = new Object[count];
+			for (int i = 0; i < count; i++) {
+				result[i] = IntegerNumberRange.between(i, i + 1);
 			}
 			return result;
 		}

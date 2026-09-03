@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.LeafPage;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
@@ -43,6 +44,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -1355,4 +1358,74 @@ class ValueIdTest {
 			);
 		}
 	}
+
+	/**
+	 * Value ids are minted per distinct value and stamped into a parallel id column that moves with the keys through
+	 * every split, merge and steal. A range-typed tree is the one shape where those keys are RECONSTRUCTED on every
+	 * read, so an id that stayed with the wrong key would surface here and nowhere else.
+	 */
+	@Nested
+	@DisplayName("Ids over a range-keyed tree")
+	class RangeKeyedIds {
+
+		/**
+		 * Builds an ascending date-time range whose zone offset varies with the ordinal.
+		 *
+		 * @param ordinal the ordinal to derive the range from
+		 * @return the range
+		 */
+		@Nonnull
+		private DateTimeRange range(int ordinal) {
+			final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+			final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
+			return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
+		}
+
+		/**
+		 * @return an empty, id-carrying inverted index over date-time ranges
+		 */
+		@Nonnull
+		private InvertedIndex emptyRangeIndexWithIds() {
+			final InvertedIndex index = new InvertedIndex(
+				DateTimeRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
+			index.attachValueIdConsumer(TEST_CONSUMER);
+			return index;
+		}
+
+		@Test
+		@DisplayName("a single-leaf range tree resolves every id back to the value that owns it")
+		void shouldResolveIdsOnASingleLeafRangeTree() {
+			final InvertedIndex index = emptyRangeIndexWithIds();
+			for (int i = 0; i < 10; i++) {
+				index.addRecord(range(i), 100 + i);
+			}
+			assertFalse(index.isPaged(), "The fixture must be small enough to be persisted inline.");
+
+			for (int i = 0; i < 10; i++) {
+				final int valueId = index.getValueId(range(i));
+				assertNotEquals(-1, valueId, "every live value must carry an id");
+				assertEquals(range(i), index.getValueById(valueId), "id " + valueId + " resolved to the wrong value");
+			}
+		}
+
+		@Test
+		@DisplayName("ids survive the splits of a paged range tree, each still naming its own value")
+		void shouldKeepIdsAlignedAcrossRangeTreeSplits() {
+			final InvertedIndex index = emptyRangeIndexWithIds();
+			final int valueCount = LEAF_BLOCK_SIZE * 3;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(range(i), i);
+			}
+			assertTrue(index.isPaged(), "The fixture must be large enough to be persisted as leaf pages.");
+
+			// ids are minted in insertion order, and the value each one names must survive every split the tree
+			// performed after it was stamped — including the three-array lockstep of the range column
+			for (int i = 0; i < valueCount; i++) {
+				final int valueId = index.getValueId(range(i));
+				assertNotEquals(-1, valueId, "value " + i + " lost its id across the splits");
+				assertEquals(range(i), index.getValueById(valueId), "id " + valueId + " resolved to the wrong value");
+			}
+		}
+	}
+
 }

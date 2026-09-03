@@ -23,6 +23,9 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +35,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static io.evitadb.test.TestTags.INDEXING;
@@ -111,6 +116,22 @@ class ColumnHeapSizeTest {
 		return sharedRoots;
 	}
 
+	/**
+	 * Builds a deterministic ascending {@link DateTimeRange} for the given ordinal, whose two bounds carry a varying
+	 * zone offset so the column's `meta` array is populated rather than uniform. This class measures **size**, never
+	 * content: an offset lost or misaligned by a lockstep failure weighs the same and is invisible here, and is
+	 * pinned by the offset-level assertions in {@code RangeValueColumnTest} instead.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic date-time range
+	 */
+	@Nonnull
+	private static DateTimeRange dateTimeRange(int ordinal) {
+		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+		final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusDays(ordinal);
+		return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
+	}
+
 	@Nested
 	@DisplayName("matches the measured heap for every implementation")
 	class MeasuredExactness {
@@ -142,6 +163,44 @@ class ColumnHeapSizeTest {
 				column.insertKeyAt(i, Instant.ofEpochSecond(i, i));
 			}
 			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForDateTimeRangeValueColumn() {
+			// the three-array shape: `from`, `to` and the `meta` word carrying both bounds' zone offsets. The `kind`
+			// enum constant is excluded because it is a shared JVM-wide constant, not this column's storage
+			final ValueColumn<DateTimeRange> column =
+				new RangeValueColumn<>(RangeKind.DATE_TIME, 0, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, dateTimeRange(i));
+			}
+			assertEquals(JolHeapSize.ownedSize(column, RangeKind.DATE_TIME), column.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldMatchMeasuredHeapForNumericRangeValueColumn() {
+			// the two-array shape: a numeric range needs no `meta`, so that field stays on the shared empty array
+			// and must not be charged - which is what makes this column 16 B per key against the date-time kind's 24
+			final ValueColumn<NumberRange<Integer>> column =
+				new RangeValueColumn<>(RangeKind.INTEGER_NUMBER, 0, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				column.insertKeyAt(i, IntegerNumberRange.between(i, i + 1));
+			}
+			assertEquals(
+				JolHeapSize.ownedSize(column, RangeKind.INTEGER_NUMBER, EMPTY_LONG_ARRAY),
+				column.getHeapSizeInBytes()
+			);
+			// and the missing third array is worth exactly what it costs: the same key count in the date-time shape
+			// carries one more `long` per slot
+			final ValueColumn<DateTimeRange> dateTimeShape =
+				new RangeValueColumn<>(RangeKind.DATE_TIME, 0, BLOCK_SIZE);
+			for (int i = 0; i < POPULATED_ENTRIES; i++) {
+				dateTimeShape.insertKeyAt(i, dateTimeRange(i));
+			}
+			assertTrue(
+				column.getHeapSizeInBytes() < dateTimeShape.getHeapSizeInBytes(),
+				"a numeric range column must be cheaper than a date-time one of the same length"
+			);
 		}
 
 		@Test
@@ -258,6 +317,21 @@ class ColumnHeapSizeTest {
 			assertEquals(
 				JolHeapSize.ownedSize(new InstantValueColumn<Instant>(BLOCK_SIZE), EMPTY_LONG_ARRAY, EMPTY_INT_ARRAY),
 				new InstantValueColumn<Instant>(BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.ownedSize(
+					new RangeValueColumn<DateTimeRange>(RangeKind.DATE_TIME, 0, BLOCK_SIZE),
+					RangeKind.DATE_TIME, EMPTY_LONG_ARRAY
+				),
+				new RangeValueColumn<DateTimeRange>(RangeKind.DATE_TIME, 0, BLOCK_SIZE).getHeapSizeInBytes()
+			);
+			assertEquals(
+				JolHeapSize.ownedSize(
+					new RangeValueColumn<NumberRange<Integer>>(RangeKind.INTEGER_NUMBER, 0, BLOCK_SIZE),
+					RangeKind.INTEGER_NUMBER, EMPTY_LONG_ARRAY
+				),
+				new RangeValueColumn<NumberRange<Integer>>(
+					RangeKind.INTEGER_NUMBER, 0, BLOCK_SIZE).getHeapSizeInBytes()
 			);
 			assertEquals(
 				JolHeapSize.ownedSize(new IntRecordColumn(BLOCK_SIZE), EMPTY_INT_ARRAY),

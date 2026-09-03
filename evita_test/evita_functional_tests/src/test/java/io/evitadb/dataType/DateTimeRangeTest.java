@@ -69,6 +69,22 @@ class DateTimeRangeTest {
 		}
 
 		@Test
+		@DisplayName("Should accept a zero-width range whose bounds name one moment at two offsets")
+		void shouldAcceptZeroWidthRangeWhenBoundsShareTheMomentAtDifferentOffsets() {
+			// the same moment written twice, once at +02:00 and once at +01:00: the bounds are neither `equals`
+			// (the offsets differ) nor strictly ordered, but they name one instant, which is the order this type
+			// compares by - so the range is legitimate and must build
+			final OffsetDateTime fromAtPlusTwo = OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.ofHours(2));
+			final OffsetDateTime toAtPlusOne = fromAtPlusTwo.withOffsetSameInstant(ZoneOffset.ofHours(1));
+
+			final DateTimeRange range = between(fromAtPlusTwo, toAtPlusOne);
+
+			assertEquals(fromAtPlusTwo, range.getPreciseFrom());
+			assertEquals(toAtPlusOne, range.getPreciseTo());
+			assertEquals(range, between(fromAtPlusTwo, fromAtPlusTwo));
+		}
+
+		@Test
 		@DisplayName("Should construct between range")
 		void shouldConstructBetweenOffsetDateTime() {
 			final DateTimeRange range = between(getOffsetDateTime(1), getOffsetDateTime(2));
