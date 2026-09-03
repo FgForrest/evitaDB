@@ -738,11 +738,25 @@ associated data are available.
 
 ```evitaql-syntax
 hierarchyContent(
+    argument:enum(COMPLETE|MATCHING)?,
     requireConstraint:(entityFetch|stopAt)*
 )
 ```
 
 <dl>
+    <dt>argument:enum(COMPLETE|MATCHING)?</dt>
+    <dd>
+        <p>**Default:** `MATCHING`</p>
+
+        <p>
+        optional argument that decides what happens to a parent entity whose requested body cannot be fetched;
+        the default `MATCHING` cuts the chain just below such a parent, so that every returned parent carries
+        the body you asked for, while `COMPLETE` keeps such a parent in the chain as a bodyless pointer and continues
+        the traversal above it (see [hierarchy parents behaviour](#hierarchy-parents-behaviour) chapter for more details);
+        the argument has no effect unless the `entityFetch` constraint is present, because without it no parent body
+        is requested and nothing can fail to be fetched
+        </p>
+    </dd>
     <dt>requireConstraint:(entityFetch|stopAt)*</dt>
     <dd>
         optional one or more constraints that allow you to define the completeness of the hierarchy entities and
@@ -767,7 +781,9 @@ the hierarchy placement is directly available in the retrieved entity object.
 
 If you provide a nested [`entityFetch`](#entity-fetch) constraint, the hierarchy information will contain the bodies of
 the parent entities in the required width. The [`attributeContent`](#attribute-content) inside the `entityFetch` allows
-you to access the attributes of the parent entities, etc.
+you to access the attributes of the parent entities, etc. Not every parent is guaranteed to be able to provide the body
+you ask for, though - the [hierarchy parents behaviour](#hierarchy-parents-behaviour) argument decides what the chain
+looks like when one of them can't.
 
 To fetch an entity with basic hierarchy information, use the following query:
 
@@ -853,6 +869,11 @@ The result is similar to using a [`parents`](hierarchy.md#parents) requirement, 
 information about statistics and the ability to list siblings of the entity parents. On the other hand, it's easier to
 use - since the hierarchy placement is directly available in the retrieved entity object.
 
+Not every parent is guaranteed to be able to provide the body you select, though. The `parents` field ends the chain
+below the first parent that can't, so everything it returns carries the requested body; the sibling `parentsComplete`
+field returns the very same axis without that cut, reporting such a parent as a bodyless pointer and continuing above
+it. See the [hierarchy parents behaviour](#hierarchy-parents-behaviour) chapter for the details.
+
 To fetch an entity with basic hierarchy information, use the following query:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -899,6 +920,112 @@ This quite complex example uses a [category reference field](#reference-content)
 chapter.
 
 </Note>
+
+</LS>
+
+### Hierarchy Parents Behaviour
+
+A parent entity may sit in the hierarchy tree and still be unable to provide the body you asked for. There are three
+ways this happens:
+
+- the parent holds **no data in the locale the query filters by** - you asked for the English variant of the tree with
+  the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) constraint and one of the parent categories
+  exists in Czech only;
+- the parent **was deleted**, while the entity below it still refers to its primary key;
+- the parent primary key **never belonged to an entity** - evitaDB doesn't enforce referential integrity on the parent
+  primary key, so an entity may legitimately be created with a parent that is going to be indexed later.
+
+The parent axis is walked from the direct parent upwards, and
+<LS to="e,j,c">the first optional argument of the `hierarchyContent` requirement</LS><LS to="r">the `parentsBehaviour`
+argument of the `hierarchyContent` requirement</LS><LS to="g">the field you select</LS> decides what the walk does when
+it reaches such a parent:
+
+- **MATCHING**: the chain is cut just below that parent - neither it nor anything above it is returned. Every parent you
+  receive therefore carries the body you asked for, at the price of the ones you never see.
+- **COMPLETE**: every parent is returned. The one that can't provide a body is reported as a bodyless pointer carrying
+  nothing but its primary key, and the traversal continues above it. A parent **with** a body may therefore appear above
+  a bodyless one, and your code has to be prepared for that.
+
+The last two cases - a deleted parent, and a parent primary key that never belonged to an entity - break the tree at
+that point, so there is nothing above the break for evitaDB to reach in the first place. `COMPLETE` then ends the chain
+at that bodyless pointer instead of continuing past it, and `MATCHING` ends it just below. The pointer is still worth
+having: it tells you the entity's ancestry goes on beyond what evitaDB is able to show you, which is precisely what
+`MATCHING` hides.
+
+`MATCHING` is the default, so an existing query keeps returning exactly what it returned before this argument existed.
+Reach for `COMPLETE` when you need the parents *above* an unfetchable one - a breadcrumb that has to reach the root even
+though one of its nodes isn't translated is the typical case - and be ready to render the bodyless pointers it brings
+with it.
+
+<Note type="info">
+
+The behaviour is defined in terms of the **requested** body, so it decides something only when there is a body to
+request. <LS to="e,j,c,r">A `hierarchyContent()` with no nested `entityFetch` constraint</LS><LS to="g">A `parents` or
+`parentsComplete` selection that asks for nothing but the primary key</LS> requests no parent body at all, nothing can
+fail to be fetched, and the whole chain of parent primary keys the entity has - up to the root, or up to a break in
+the tree - is returned under either behaviour.
+
+</Note>
+
+<LS to="e,j,c">
+
+<Note type="warning">
+
+Two `hierarchyContent` requirements in a single `entityFetch` are reduced to one, and the reduction widens rather than
+narrows. The `entityFetchAllContent()` shortcut already contains a bare `hierarchyContent()`, so writing
+`entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` produces exactly such a pair - and because an absent
+bound is the wider of the two, **the `stopAt(distance(1))` bound is dropped** and the whole parent chain is fetched.
+This is the same widening that makes [`attributeContentAll`](#attribute-content-all) swallow an
+`attributeContent("code")` written beside it. If you need the bound, don't ask for the full entity content next to it.
+
+The parents behaviour, on the other hand, survives the reduction: a requirement that asks for no parent body states no
+preference, so `entityFetchAllContentAnd(hierarchyContent(COMPLETE, entityFetch(attributeContentAll())))` really does
+fetch the complete chain. Only when **both** requirements ask for parent bodies and name different behaviours does
+the query fail - as it also does when both carry a `stopAt` and the two bounds differ. Neither behaviour is a superset
+of the other, so evitaDB refuses to guess which one you meant instead of silently picking one.
+
+</Note>
+
+</LS>
+
+<LS to="g">
+
+The behaviour isn't spelled out as an argument in GraphQL - each of the two values has a field of its own on
+the hierarchical entity object:
+
+- **`parents`** reports the axis under `MATCHING`. Its name, type and arguments are the ones it has always had, and
+  the elements it returns are entity objects - but it is now honest about that: where a parent couldn't be materialized
+  the list ends there, instead of going on with elements carrying nothing but a primary key.
+- **`parentsComplete`** reports the same axis under `COMPLETE`. Because its elements are either an entity or a bodyless
+  pointer, the field returns a **union** of the non-hierarchical entity object and a parent-pointer object named after
+  the collection - for a `Category` entity these are `NonHierarchicalCategory` and `CategoryParentPointer` - so you
+  select from it with inline fragments and can tell the two apart by `__typename`.
+
+Both fields accept the same `stopAt` argument as before. Selecting both at once is allowed and costs a single fetch, but
+the two `stopAt` arguments must then be equal - the server builds one `hierarchyContent` requirement from the union of
+the two selection sets, and it refuses to guess which of two different bounds you meant.
+
+</LS>
+
+<LS to="r">
+
+The behaviour is an argument of the `hierarchyContent` requirement, named `parentsBehaviour` in the REST query body and
+accepting the `COMPLETE` and `MATCHING` values described above. Which of the two you asked for then decides which
+property of the returned entity to read:
+
+- **`parentEntity`** always reports the axis under `MATCHING` - the chain of parent bodies cut below the first parent
+  that couldn't be materialized. Its name and meaning are the ones it has always had, and it is now honest about its own
+  declared type: whenever parent bodies were requested at all, the chain it carries no longer contains a bodyless
+  pointer, where before it could.
+- **`parentEntityComplete`** reports the same axis under `COMPLETE`, and its elements are typed as a `oneOf` of
+  the entity object and a bodyless parent pointer. The property is written only when the fetched chain really contains
+  such a pointer; when every parent could be materialized the two views are identical and only `parentEntity` is
+  returned.
+
+Watch out for the shape a `MATCHING` cut takes when it is the **direct parent** that can't provide a body: the cut then
+yields nothing at all, and `parentEntity` is **absent from the response entirely** - the same as for a root entity that
+genuinely has no parent. If you need to tell those two apart, or need the parents above the direct one, read the chain
+through `parentEntityComplete`.
 
 </LS>
 

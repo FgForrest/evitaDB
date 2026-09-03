@@ -1,8 +1,8 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-03 11:07
-status: proposed
+updated: 2026-09-03 11:23
+status: accepted
 kind: fix
 issues: [1365]
 prs: [1370]
@@ -336,11 +336,11 @@ against the intact control on chain `1 → 2 → 3`.
 **The argument, both constants and every layer that carries them are implemented and green.** The
 query model, the EvitaQL grammar and its visitor, the Kryo serializer, the engine's upward traversal
 and parent-slot handling, the gRPC wire shape and the entity proxy all carry the behaviour. The
-Phases 7 and 8 have landed on top of that: the Java client sends the enum as a query parameter, and
-GraphQL's `parentsComplete` and REST's `parentEntityComplete` expose the complete chain. The record
-stays `proposed` only because Phase 9 remains — the user documentation and the release note are
-unwritten. The starting point is verified too: a throwaway
-characterisation run on 2026-09-02 against `dev` executed every row of the behaviour matrix except
+Phases 7, 8 and 9 have landed on top of that: the Java client sends the enum as a query parameter,
+GraphQL's `parentsComplete` and REST's `parentEntityComplete` expose the complete chain, and the user
+documentation carries the argument, both values and the two sibling fields. The starting point is
+verified too: a throwaway characterisation run on 2026-09-02 against `dev` executed every row of the
+behaviour matrix except
 P6, which the landed P6 test measured afterwards, and classified the pre-#1365 behaviour as the
 position-dependent hybrid described above. That test was deleted after the run; the matrix is its
 record.
@@ -569,11 +569,17 @@ all four skips pre-existing `@Disabled` cases.
   `entityFetch` of its own `referenceHistogramStatistics`, and that wiring is exercised only
   indirectly. Pinning the parent axis of an anchor needs a bucketed-histogram fixture whose anchor
   entity is hierarchical, which the current dataset does not have.
-- **What Phase 9 still owes.** User documentation and the release note, which must carry the default's
-  silent change, the overload ambiguity, and the explicit-`COMPLETE`-to-an-old-server failure above.
+- **The release note is assembled from this record, not from the diff.** The user documentation landed
+  with Phase 9 — `documentation/user/en/query/requirements/fetching.md` gained the argument, both
+  values and a *Hierarchy Parents Behaviour* chapter covering the GraphQL and REST sibling fields.
+  The note itself has no home in this repository (releases are assembled outside it), so it is drafted
+  and handed to the maintainer rather than committed. It has to carry four things this record
+  establishes and nothing in the code announces: that the default preserves today's shapes, so #1365
+  is not fixed without opting in; the immediate-parent pointer's silent disappearance; the
+  literal-`null` overload ambiguity; and the explicit-`COMPLETE`-to-an-old-server failure above.
 - The in-flight plan, the measured review reports and the external-API option analysis live in
-  `specifications/1365-hierarchy-content-parents-behaviour/`, which is git-ignored. This record flips
-  to `accepted` and that folder is deleted when the work lands.
+  `specifications/1365-hierarchy-content-parents-behaviour/`, which is git-ignored. That folder is
+  deleted when the work merges; this record is what survives it.
 
 ## Timeline
 
