@@ -157,12 +157,17 @@ class ColumnHeapSizeTest {
 		}
 
 		@Test
-		void shouldMatchMeasuredHeapForInstantValueColumn() {
-			final ValueColumn<Instant> column = new InstantValueColumn<>(BLOCK_SIZE);
+		void shouldMatchMeasuredHeapForInstantKeyedLongValueColumn() {
+			// a temporal key is priced as the single `long` it now is - one array, one header. The measurement is
+			// kept as its own case rather than folded into the integral one above because the temporal shape is the
+			// one that used to carry a second (nanos) array, and this is what pins that it no longer does
+			final LongKeyCodec codec = LongKeyCodec.forType(Instant.class);
+			final ValueColumn<Instant> column = new LongValueColumn<>(codec, BLOCK_SIZE);
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
-				column.insertKeyAt(i, Instant.ofEpochSecond(i, i));
+				column.insertKeyAt(i, Instant.ofEpochMilli(i));
 			}
-			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
+			// the codec is excluded from the measurement because it is a shared enum constant, not this column's
+			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes());
 		}
 
 		@Test
@@ -314,9 +319,11 @@ class ColumnHeapSizeTest {
 				JolHeapSize.ownedSize(new LongValueColumn<Integer>(codec, BLOCK_SIZE), codec, EMPTY_LONG_ARRAY),
 				new LongValueColumn<Integer>(codec, BLOCK_SIZE).getHeapSizeInBytes()
 			);
+			final LongKeyCodec instantCodec = LongKeyCodec.forType(Instant.class);
 			assertEquals(
-				JolHeapSize.ownedSize(new InstantValueColumn<Instant>(BLOCK_SIZE), EMPTY_LONG_ARRAY, EMPTY_INT_ARRAY),
-				new InstantValueColumn<Instant>(BLOCK_SIZE).getHeapSizeInBytes()
+				JolHeapSize.ownedSize(
+					new LongValueColumn<Instant>(instantCodec, BLOCK_SIZE), instantCodec, EMPTY_LONG_ARRAY),
+				new LongValueColumn<Instant>(instantCodec, BLOCK_SIZE).getHeapSizeInBytes()
 			);
 			assertEquals(
 				JolHeapSize.ownedSize(

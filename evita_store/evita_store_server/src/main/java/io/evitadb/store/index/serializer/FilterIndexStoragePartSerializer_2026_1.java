@@ -103,9 +103,10 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 	 * `FilterIndex.getNormalizer` keys `LocalDateTime` attributes with.
 	 *
 	 * `2026.1` had no `LocalDateTime` branch in its normalizer, so it persisted the raw wall-clock value; the current
-	 * tree picks {@code InstantValueColumn} for such an attribute and would fail with a `ClassCastException` while
-	 * rehydrating those buckets. Anchoring at UTC is exactly what the normalizer now does on the write path, and
-	 * because the offset is constant the mapping preserves the bucket ordering the reload path relies on.
+	 * tree keys such an attribute by an {@code Instant} held in a primitive {@code long} column, and would fail with a
+	 * `ClassCastException` while rehydrating those buckets. Anchoring at UTC is exactly what the normalizer now does
+	 * on the write path, and because the offset is constant the mapping preserves the bucket ordering the reload path
+	 * relies on.
 	 *
 	 * The conversion is self-healing: once the index is written again it is persisted through the current serializer
 	 * with `Instant` keys, and this legacy reader is no longer consulted for it.

@@ -379,9 +379,16 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					(part.getInlineValueIds() != null ? "carry" : "do not carry") + " an id column."
 			);
 			// the inline shape replays its buckets through the ordinary insert path, which carries no ids - so the
-			// persisted column is stamped back on afterwards, in the ascending key order it was written in
+			// persisted column is stamped back on afterwards, in the ascending key order it was written in. The
+			// column is realigned first: the replay can legitimately end up with fewer buckets than were written when
+			// two persisted values collapse onto one tree key, and the stamping refuses a column that does not align
 			if (part.getInlineValueIds() != null) {
-				inlineIndex.restoreValueIds(part.getNextValueId(), part.getInlineValueIds());
+				inlineIndex.restoreValueIds(
+					part.getNextValueId(),
+					InvertedIndex.alignPersistedValueIds(
+						part.getHistogramPoints(), part.getInlineValueIds(), normalizer, comparator
+					)
+				);
 			}
 			return inlineIndex;
 		}

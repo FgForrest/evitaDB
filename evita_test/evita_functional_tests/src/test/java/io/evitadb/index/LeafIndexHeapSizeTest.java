@@ -51,6 +51,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Locale;
@@ -444,6 +445,37 @@ class LeafIndexHeapSizeTest {
 			assertTrue(
 				measured <= 424,
 				"a one-key integral index must stay within its 424 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldKeepAOneKeyTemporalIndexWithinItsSizingBudget() {
+			// A temporal key is normalized to a millisecond-exact `Instant` and stored as its epoch-milli, so it takes
+			// the very same single-`long` column an integral key does and this gate has the very same composition:
+			//
+			//   64  the index object                     64  the leaf node
+			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
+			//   40  the tree's `root` transactional      24  the record column object + 32 its four-slot int[]
+			//       reference holder and its             24  the tree's transactional dirty flag
+			//       AtomicReference
+			//
+			// 408 again, against the 440 the same shape cost while a temporal key rode a parallel `(long[], int[])`
+			// pair: the 32 bytes of a second four-slot array plus its header. The 424-byte budget is therefore the
+			// integral gate's budget verbatim, and it declines the pair — which is the whole point of stating it
+			// here rather than trusting the integral gate to stand in for this shape.
+			final AttributeIndexKey key = new AttributeIndexKey(null, "published", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, OffsetDateTime.class);
+			final InvertedIndex index = new InvertedIndex(OffsetDateTime.class, normalizer, comparator, 0);
+			index.addRecord(
+				LocalDateTime.of(2024, 1, 1, 10, 15, 30).atOffset(SHARED_OFFSET).plusNanos(123_456_789L), 1
+			);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 424,
+				"a one-key temporal index must stay within its 424 B budget - was " + measured
 			);
 		}
 

@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -32,11 +33,15 @@ import java.time.LocalTime;
  * Reversible, order-preserving codec between a boxed key type {@code M} and a primitive {@code long}, used by
  * {@link LongValueColumn} to store integral / temporal attribute keys without per-element boxing.
  *
- * Every codec is an exact **bijection** {@code M ↔ long} that is also **monotonic** under natural ordering — i.e.
+ * Every codec is a **bijection** {@code M ↔ long} that is also **monotonic** under natural ordering — i.e.
  * {@code a.compareTo(b)} has the same sign as {@code Long.compare(encode(a), encode(b))}. This is the safety invariant
  * that lets {@link LongValueColumn#findKeyPosition} binary-search the primitive {@code long[]} and obtain exactly the
  * position the boxed comparator would have produced. Because of this invariant the column may only be selected when the
  * tree's comparator is natural order (see {@link ValueColumnFactory}).
+ *
+ * All but one codec are bijective on the whole key type; {@link #INSTANT} is bijective on the millisecond-exact
+ * instants only, and its javadoc names the two guarantees that keep the tree inside that domain. Monotonicity is
+ * unconditional for every codec, including that one.
  *
  * All unchecked casts to/from {@code M} are confined to this class.
  *
@@ -171,6 +176,33 @@ enum LongKeyCodec {
 		public <M> M decode(long raw) {
 			return (M) LocalTime.ofNanoOfDay(raw);
 		}
+	},
+
+	/**
+	 * {@link Instant} ↔ its epoch-millisecond, which is monotonic with natural instant order (the encoding *floors*
+	 * to the millisecond below, and flooring never reorders two instants).
+	 *
+	 * **This is the one codec whose bijection holds on a restricted domain rather than on the whole key type**, and
+	 * that restriction is upheld outside this class: an instant carrying sub-millisecond digits encodes to the same
+	 * `long` as its truncated twin, so `decode(encode(v)) == v` only for millisecond-exact instants. Two independent
+	 * guarantees keep the tree inside that domain — `EvitaDataTypes#toSupportedType` truncates every temporal value
+	 * entering through the API (write path *and* query path), and `FilterIndex#getNormalizer` truncates again when
+	 * building the index key, which additionally covers values of other provenance (a catalog written before
+	 * millisecond truncation existed). Neither is redundant; see `FilterIndex#getNormalizer`.
+	 *
+	 * The domain restriction is what makes {@link Instant} — 12 bytes of state — fit a single 8-byte slot at all.
+	 */
+	INSTANT(Instant.class) {
+		@Override
+		public <M> long encode(@Nonnull M value) {
+			return ((Instant) value).toEpochMilli();
+		}
+
+		@Nonnull
+		@Override
+		public <M> M decode(long raw) {
+			return (M) Instant.ofEpochMilli(raw);
+		}
 	};
 
 	/**
@@ -184,7 +216,7 @@ enum LongKeyCodec {
 
 	/**
 	 * Returns the codec for the given (already normalized) key type, or {@code null} when the type has no
-	 * order-preserving {@code long} encoding (e.g. {@code String}, {@code BigDecimal}, {@code Instant}).
+	 * order-preserving {@code long} encoding (e.g. {@code String}, {@code BigDecimal}, {@code UUID}).
 	 *
 	 * @param type the (normalized) key type
 	 * @return the matching codec, or {@code null} when unsupported

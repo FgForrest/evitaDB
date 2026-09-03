@@ -43,8 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Shared assertions for the {@link ValueColumn} test suite. The three concrete-column tests
- * ({@code LongValueColumnTest}, {@code IntValueColumnTest}, {@code InstantValueColumnTest}) each
+ * Shared assertions for the {@link ValueColumn} test suite. The concrete-column tests
+ * ({@code LongValueColumnTest}, {@code IntValueColumnTest}, {@code RangeValueColumnTest}) each
  * drive a {@link TransactionalBucketBPlusTree} whose leaves use the column under test and verify it
  * against a {@link TreeMap} oracle; the cursor-vs-oracle walk and the structural-consistency check
  * are identical across all of them and live here so the column tests do not each repeat them.

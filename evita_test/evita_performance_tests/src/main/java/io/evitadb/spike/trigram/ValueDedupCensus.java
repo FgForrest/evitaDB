@@ -1359,10 +1359,12 @@ public class ValueDedupCensus {
 	 * pays **two** array headers rather than one - which is what separates this method from the single
 	 * `sizeOfArray(K, keyBytes)` the projection used before ranges were priced at all.
 	 *
-	 * The temporal `(seconds, nanos)` pair is deliberately **not** decomposed here, even though it is physically two
-	 * columns too. It is priced as one 12-byte-wide array, the way the published ledger measured it; a separate spike
-	 * quantified the resulting under-charge at 0.336% of the temporal domains' spine, far below anything the ledger's
-	 * conclusions turn on, and re-pricing it would silently move numbers that have already been reported.
+	 * A temporal key used to ride a `(seconds, nanos)` pair priced here as one 12-byte-wide array — the way the
+	 * published ledger measured it, with a separate spike quantifying the resulting under-charge at 0.336% of the
+	 * temporal domains' spine. That shape is gone: a temporal key is now a millisecond-exact `Instant` stored as its
+	 * epoch-milli in a single `long[]`, so it is priced as the 8-byte column it actually is and the under-charge with
+	 * it. Numbers this method produces for temporal domains are therefore **not** comparable with the published
+	 * ledger's; every other domain is unaffected.
 	 *
 	 * The switch is closed on purpose. A width this method has never been told about would otherwise be priced as a
 	 * single array by accident, which is exactly the mistake ranges made before - so an unrecognized width is a
@@ -1377,9 +1379,8 @@ public class ValueDedupCensus {
 		return switch (keyBytes) {
 			// dictionary projection - the key itself moves to the canonical owner and a 4-byte value id takes its place
 			case 0 -> layout.sizeOfArray(bucketCount, Integer.BYTES);
-			// a scaled `int` (BigDecimal), a single `long` (the long key codec), or the temporal pair kept as one array
-			case Integer.BYTES, Long.BYTES, Long.BYTES + Integer.BYTES ->
-				layout.sizeOfArray(bucketCount, keyBytes);
+			// a scaled `int` (BigDecimal) or a single `long` (the long key codec, temporal keys included)
+			case Integer.BYTES, Long.BYTES -> layout.sizeOfArray(bucketCount, keyBytes);
 			// a range - two parallel exact-sized `long[]` columns, hence two array headers
 			case RANGE_KEY_BYTES -> 2L * layout.sizeOfArray(bucketCount, Long.BYTES);
 			default -> throw new GenericEvitaInternalError(
@@ -1409,18 +1410,16 @@ public class ValueDedupCensus {
 	 * @return the primitive key width in bytes, or `0` when the type has no primitive leaf column
 	 */
 	static int containerKeyBytesOf(@Nonnull Serializable sample) {
-		// temporal keys decompose into a (seconds, nanos) parallel-array column - 8 + 4 bytes per entry
-		if (sample instanceof Instant || sample instanceof OffsetDateTime || sample instanceof LocalDateTime) {
-			return Long.BYTES + Integer.BYTES;
-		}
 		// BigDecimal filter/sort keys are normalized upstream to a scaled int before they ever reach a column
 		if (sample instanceof BigDecimal) {
 			return Integer.BYTES;
 		}
-		// everything the long key codec accepts rides a single long
+		// everything the long key codec accepts rides a single long - the temporal types included, since a temporal
+		// key is normalized to a millisecond-exact `Instant` and stored as its epoch-milli
 		if (sample instanceof Byte || sample instanceof Short || sample instanceof Integer
 			|| sample instanceof Long || sample instanceof Character || sample instanceof Boolean
-			|| sample instanceof LocalDate || sample instanceof LocalTime) {
+			|| sample instanceof LocalDate || sample instanceof LocalTime
+			|| sample instanceof Instant || sample instanceof OffsetDateTime || sample instanceof LocalDateTime) {
 			return Long.BYTES;
 		}
 		// a range is already nothing but its two comparison bounds - `fromToCompare` and `toToCompare` are `long`

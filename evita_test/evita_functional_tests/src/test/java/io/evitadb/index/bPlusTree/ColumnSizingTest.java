@@ -124,10 +124,11 @@ class ColumnSizingTest {
 		}
 
 		@Test
-		void shouldObeyTheSizingContractWhenBackedByTwoParallelArrays() {
+		void shouldObeyTheSizingContractWhenBackedByAnInstantKeyedLongArray() {
+			final LongKeyCodec codec = LongKeyCodec.forType(Instant.class);
 			assertValueColumnSizing(
-				capacity -> new InstantValueColumn<Instant>(capacity),
-				ordinal -> Instant.ofEpochSecond(ordinal, ordinal),
+				capacity -> new LongValueColumn<Instant>(codec, capacity),
+				ordinal -> Instant.ofEpochMilli(ordinal),
 				true
 			);
 		}
@@ -361,7 +362,7 @@ class ColumnSizingTest {
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new InstantValueColumn<Instant>(tiny).bulkLoad(instants(6), 6),
+				() -> new LongValueColumn<Instant>(LongKeyCodec.forType(Instant.class), tiny).bulkLoad(instants(6), 6),
 				"the temporal key column absorbed a load larger than its block"
 			);
 			assertThrows(

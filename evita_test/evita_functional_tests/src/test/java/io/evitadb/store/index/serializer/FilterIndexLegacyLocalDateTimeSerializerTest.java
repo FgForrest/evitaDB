@@ -61,9 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * Migration coverage for `2026.1` filter indexes built over a `LocalDateTime` attribute.
  *
  * `2026.1` had no `LocalDateTime` branch in `FilterIndex.getNormalizer`, so it persisted the raw wall-clock value as
- * the bucket key. `2026.2` normalizes such an attribute to a UTC `Instant` so the B+ tree can store it in the packed
- * `InstantValueColumn` — which means a legacy blob read verbatim would be fed `LocalDateTime` keys into a column that
- * hard-casts to `Instant`, and the catalog would fail to load with a `ClassCastException`.
+ * the bucket key. `2026.2` normalizes such an attribute to a UTC `Instant` so the B+ tree can store it as epoch-millis
+ * in a single-`long` column — which means a legacy blob read verbatim would be fed `LocalDateTime` keys into a column
+ * that hard-casts to `Instant`, and the catalog would fail to load with a `ClassCastException`.
  * {@link FilterIndexStoragePartSerializer_2026_1} therefore re-anchors those values on read.
  *
  * The rehydration assertion is the one that matters: it is the exact call `AttributeIndexLoader` makes, and it is what
@@ -136,7 +136,7 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 		final FilterIndexStoragePart migrated = roundTrip(LocalDateTime.class, FIRST, SECOND, THIRD);
 
 		// exactly what AttributeIndexLoader#loadInvertedIndex does - this throws ClassCastException when the
-		// legacy LocalDateTime keys are not re-anchored, because the tree picks InstantValueColumn for the type
+		// legacy LocalDateTime keys are not re-anchored, because the tree keys the type by an Instant
 		final InvertedIndex reloaded = new InvertedIndex(
 			LocalDateTime.class,
 			migrated.getHistogramPoints(),

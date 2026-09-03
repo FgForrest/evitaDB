@@ -793,16 +793,6 @@ public class ValueDedupRepresentationSpike {
 			}
 			return new ExactContainer(keys, postings, overflow, sortSlots);
 		}
-		if (keyBytes == Long.BYTES + Integer.BYTES) {
-			final long[] seconds = new long[bucketCount];
-			final int[] nanos = new int[bucketCount];
-			for (int i = 0; i < bucketCount; i++) {
-				final Instant instant = instantKeyOf(buckets[i].getValue());
-				seconds[i] = instant.getEpochSecond();
-				nanos[i] = instant.getNano();
-			}
-			return new ExactPairContainer(seconds, nanos, postings, overflow, sortSlots);
-		}
 		throw new GenericEvitaInternalError(
 			"Container key width " + keyBytes + " B has no column shape - `containerKeyBytesOf` returned a width " +
 				"this spike cannot build!",
@@ -918,6 +908,17 @@ public class ValueDedupRepresentationSpike {
 		if (value instanceof final LocalTime time) {
 			return time.toNanoOfDay();
 		}
+		// the temporal types share the same single `long` slot: normalized to a millisecond-exact `Instant` and
+		// stored as its epoch-milli
+		if (value instanceof final Instant instant) {
+			return instant.toEpochMilli();
+		}
+		if (value instanceof final OffsetDateTime offsetDateTime) {
+			return offsetDateTime.toInstant().toEpochMilli();
+		}
+		if (value instanceof final LocalDateTime localDateTime) {
+			return localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+		}
 		throw new GenericEvitaInternalError(
 			"Value of type `" + value.getClass().getName() + "` was priced at 8 B by `containerKeyBytesOf` but this " +
 				"spike has no long encoding for it!",
@@ -944,30 +945,6 @@ public class ValueDedupRepresentationSpike {
 			"Value of type `" + value.getClass().getName() + "` was priced at 4 B by `containerKeyBytesOf` but this " +
 				"spike has no int encoding for it!",
 			"An int-column key type has no encoding in the representation spike!"
-		);
-	}
-
-	/**
-	 * Decomposes a temporal bucket value into the {@link Instant} the engine's parallel-array column stores.
-	 *
-	 * @param value the bucket value
-	 * @return its instant form
-	 */
-	@Nonnull
-	private static Instant instantKeyOf(@Nonnull Serializable value) {
-		if (value instanceof final Instant instant) {
-			return instant;
-		}
-		if (value instanceof final OffsetDateTime offsetDateTime) {
-			return offsetDateTime.toInstant();
-		}
-		if (value instanceof final LocalDateTime localDateTime) {
-			return localDateTime.toInstant(ZoneOffset.UTC);
-		}
-		throw new GenericEvitaInternalError(
-			"Value of type `" + value.getClass().getName() + "` was priced at 12 B by `containerKeyBytesOf` but this " +
-				"spike has no temporal decomposition for it!",
-			"A temporal key type has no decomposition in the representation spike!"
 		);
 	}
 
@@ -1360,9 +1337,9 @@ public class ValueDedupRepresentationSpike {
 	}
 
 	/**
-	 * Prints the container-lever error split by key-width family. The census models a temporal key as one 12-byte
-	 * slot in a single array; the real column is a `(long[], int[])` pair inside a five-field container, so its error
-	 * has a different sign and magnitude from the single-array families and must not be averaged with them.
+	 * Prints the container-lever error split by key-width family. Two families remain — the scaled-`int` column and
+	 * the single-`long` one, the latter now carrying the temporal keys too — and they are still reported separately
+	 * because a 4-byte slot and an 8-byte slot amortize the container's fixed fields differently.
 	 *
 	 * @param readings every reading of the run
 	 */
@@ -1372,8 +1349,8 @@ public class ValueDedupRepresentationSpike {
 			"  %-26s %8s %14s %14s %8s %8s %8s%n",
 			"family", "trees", "projected", "measured", "p50 err", "min err", "max err"
 		);
-		final int[] families = {Integer.BYTES, Long.BYTES, Long.BYTES + Integer.BYTES};
-		final String[] labels = {"int[] (4 B)", "long[] (8 B)", "(long[],int[]) (12 B)"};
+		final int[] families = {Integer.BYTES, Long.BYTES};
+		final String[] labels = {"int[] (4 B)", "long[] (8 B)"};
 		for (int f = 0; f < families.length; f++) {
 			final ErrorSeries series = new ErrorSeries();
 			long trees = 0L;
@@ -2157,41 +2134,6 @@ public class ValueDedupRepresentationSpike {
 			@Nullable int[] sortSlots
 		) {
 			this.keys = keys;
-			this.postings = postings;
-			this.overflow = overflow;
-			this.sortSlots = sortSlots;
-		}
-	}
-
-	/**
-	 * The container a temporal domain needs: the engine's temporal column is a `(seconds, nanos)` parallel-array pair,
-	 * so it occupies **two** fields and **two** array headers where every other key shape occupies one of each.
-	 *
-	 * The census model prices a temporal key as a single 12-byte slot in a single array and therefore charges one
-	 * array header and one reference slot fewer than this. The container-lever error table is split by key width so
-	 * that difference is reported rather than averaged into the single-array families.
-	 */
-	private static final class ExactPairContainer {
-		/** Epoch seconds of each bucket's key. */
-		@Nonnull private final long[] seconds;
-		/** Nanosecond remainder of each bucket's key. */
-		@Nonnull private final int[] nanos;
-		/** The lone record id of each single-record bucket. */
-		@Nonnull private final int[] postings;
-		/** The multi-record bitmaps, `null` when the tree has none. */
-		@Nullable private final TransactionalBitmap[] overflow;
-		/** The canonical-order permutation, `null` when the domain does not serve ordering. */
-		@Nullable private final int[] sortSlots;
-
-		ExactPairContainer(
-			@Nonnull long[] seconds,
-			@Nonnull int[] nanos,
-			@Nonnull int[] postings,
-			@Nullable TransactionalBitmap[] overflow,
-			@Nullable int[] sortSlots
-		) {
-			this.seconds = seconds;
-			this.nanos = nanos;
 			this.postings = postings;
 			this.overflow = overflow;
 			this.sortSlots = sortSlots;

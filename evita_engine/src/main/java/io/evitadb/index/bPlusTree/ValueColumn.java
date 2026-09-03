@@ -39,8 +39,8 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
 /**
  * Pluggable key (bucket value) column of a {@link TransactionalBucketBPlusTree} leaf. It abstracts the leaf's key
  * storage so a leaf can hold its keys in the cheapest representation for the attribute type — a boxed {@code Object[]}
- * ({@link BoxedObjectColumn}, the universal fallback), for numeric / temporal attributes a primitive column
- * (`long[]` and parallel-array variants), for {@link io.evitadb.dataType.Range} attributes two or three `long[]`
+ * ({@link BoxedObjectColumn}, the universal fallback), for numeric / temporal attributes a single primitive column
+ * (an `int[]` or a `long[]`), for {@link io.evitadb.dataType.Range} attributes two or three `long[]`
  * bound columns ({@link RangeValueColumn}, reachable only through {@link ValueColumnFactory#forFilterKey}), or for
  * {@link String} attributes a front-coded (prefix-compressed) variable-length {@code byte[]}-blob column
  * ({@link FrontCodedStringColumn}, selected for every {@link String} key regardless of comparator). The
@@ -99,8 +99,7 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
  * @param <M> the (boxed) key type as seen by the tree's generic API
  */
 sealed interface ValueColumn<M extends Comparable<M>>
-	permits BoxedObjectColumn, LongValueColumn, InstantValueColumn, IntValueColumn, RangeValueColumn,
-	FrontCodedStringColumn {
+	permits BoxedObjectColumn, LongValueColumn, IntValueColumn, RangeValueColumn, FrontCodedStringColumn {
 
 	/**
 	 * Returns the **logical** capacity — the leaf block size this column was created with, which no mutation ever

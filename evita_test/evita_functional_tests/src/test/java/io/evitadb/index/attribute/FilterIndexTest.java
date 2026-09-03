@@ -1603,10 +1603,13 @@ class FilterIndexTest {
 	/**
 	 * Pins the index-side encoding of the temporal attribute types. `LocalDateTime` carries no offset of its own, so
 	 * it is anchored at UTC before it becomes a bucket key — the same `Instant` space `OffsetDateTime` already uses,
-	 * which is what lets the tree store it in the packed `InstantValueColumn` instead of boxing it. Because the
-	 * anchor is a *constant* offset the mapping is a lossless bijection and monotonic with `LocalDateTime`'s natural
-	 * order, so equality lookup and ordered iteration are unaffected. `LocalDate` and `LocalTime` are deliberately
-	 * left alone — each fits losslessly in a single `long`, so they take the cheaper `LongValueColumn`.
+	 * which is what lets the tree store it as epoch-millis in a single-`long` `LongValueColumn` instead of boxing it.
+	 * Because the anchor is a *constant* offset the mapping is a lossless bijection and monotonic with
+	 * `LocalDateTime`'s natural order, so equality lookup and ordered iteration are unaffected. `LocalDate` and
+	 * `LocalTime` are deliberately left alone — each fits losslessly in a single `long` of its own.
+	 *
+	 * The normalizer additionally truncates to whole milliseconds, which is what keeps every key inside
+	 * `LongKeyCodec.INSTANT`'s domain no matter where the value came from — see `FilterIndex#getNormalizer`.
 	 */
 	@Nested
 	@DisplayName("Temporal attribute index encoding")
@@ -1648,6 +1651,99 @@ class FilterIndexTest {
 			assertTrue(
 				((Instant) normalizer.apply(earlier)).isBefore((Instant) normalizer.apply(later))
 			);
+		}
+
+		@Test
+		@DisplayName("OffsetDateTime is truncated to whole milliseconds on the way into the index")
+		void shouldTruncateOffsetDateTimeToMilliseconds() {
+			final OffsetDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26)
+				.atOffset(ZoneOffset.ofHours(2)).plusNanos(123_456_789L);
+
+			assertEquals(
+				Instant.parse("2026-05-20T10:19:26.123Z"),
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("LocalDateTime is truncated to whole milliseconds on the way into the index")
+		void shouldTruncateLocalDateTimeToMilliseconds() {
+			final LocalDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26).plusNanos(123_456_789L);
+
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(LocalDateTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("a nano-precise Instant of any provenance is truncated too")
+		void shouldTruncateARawInstant() {
+			// this is the case `EvitaDataTypes#toSupportedType` cannot cover: a bucket value rehydrated from a catalog
+			// written before millisecond truncation existed reaches the normalizer as an `Instant`, never as an
+			// `OffsetDateTime`, and would otherwise be handed to the leaf column outside the codec's domain
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0)
+					.apply(Instant.parse("2026-05-20T12:19:26.123999999Z"))
+			);
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(LocalDateTime.class, 0)
+					.apply(Instant.parse("2026-05-20T12:19:26.123000001Z"))
+			);
+		}
+
+		@Test
+		@DisplayName("truncation floors on both sides of the epoch, so it can never reorder two values")
+		void shouldFloorTemporalValuesBelowTheEpochToo() {
+			// a truncate-toward-zero implementation would round a pre-1970 value UP, which is the one way this could
+			// break the monotonicity `LongKeyCodec.INSTANT` and the tree's binary search rest on
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+			final Instant lower = (Instant) normalizer.apply(
+				OffsetDateTime.ofInstant(Instant.parse("1969-12-31T23:59:59.000999999Z"), ZoneOffset.UTC));
+			final Instant higher = (Instant) normalizer.apply(
+				OffsetDateTime.ofInstant(Instant.parse("1969-12-31T23:59:59.001000000Z"), ZoneOffset.UTC));
+
+			assertEquals(Instant.parse("1969-12-31T23:59:59.000Z"), lower);
+			assertEquals(Instant.parse("1969-12-31T23:59:59.001Z"), higher);
+			assertTrue(lower.isBefore(higher));
+		}
+
+		@Test
+		@DisplayName("an already-millisecond-exact value comes back as the very same instance")
+		void shouldNotAllocateForAnAlreadyExactValue() {
+			// the normalizer runs once per indexed value on the write path; after `EvitaDataTypes#toSupportedType`
+			// almost every value is already exact, and re-deriving an equal `Instant` for each of them would be pure
+			// allocation
+			final Instant exact = Instant.parse("2026-05-20T12:19:26.123Z");
+
+			assertSame(exact, FilterIndex.getNormalizer(OffsetDateTime.class, 0).apply(exact));
+		}
+
+		@Test
+		@DisplayName("two sub-millisecond values reach one bucket end-to-end through a FilterIndex")
+		void shouldMatchAtMillisecondGranularityThroughAFilterIndex() {
+			final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "published", null), OffsetDateTime.class
+			);
+			final OffsetDateTime base = LocalDateTime.of(2026, 5, 20, 12, 19, 26).atOffset(ZoneOffset.ofHours(2));
+			filterIndex.addRecord(1, base.plusNanos(123_000_001L));
+			filterIndex.addRecord(2, base.plusNanos(123_999_999L));
+			filterIndex.addRecord(3, base.plusNanos(124_000_000L));
+
+			// a THIRD sub-millisecond value inside the same millisecond finds both records - a probe that merely
+			// echoed one of the stored values back would prove nothing
+			assertArrayEquals(
+				new int[]{1, 2},
+				filterIndex.getRecordsEqualTo(base.plusNanos(123_456_789L)).getArray()
+			);
+			// and the neighbouring millisecond stays separate, so the collapse is not simply "everything matches"
+			assertArrayEquals(
+				new int[]{3},
+				filterIndex.getRecordsEqualTo(base.plusNanos(124_000_000L)).getArray()
+			);
+			assertEquals(2, filterIndex.getDistinctValueCount());
 		}
 
 		@Test

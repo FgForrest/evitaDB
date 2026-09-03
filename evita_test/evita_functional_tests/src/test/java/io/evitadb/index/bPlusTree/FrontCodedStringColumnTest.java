@@ -1692,7 +1692,7 @@ class FrontCodedStringColumnTest {
 				boxed,
 				new IntValueColumn<Integer>(BLOCK_SIZE),
 				new LongValueColumn<Integer>(LongKeyCodec.forType(Integer.class), BLOCK_SIZE),
-				new InstantValueColumn<Instant>(BLOCK_SIZE)
+				new LongValueColumn<Instant>(LongKeyCodec.forType(Instant.class), BLOCK_SIZE)
 			};
 			final byte[] pattern = "abc".getBytes(StandardCharsets.UTF_8);
 			for (final ValueColumn<?> column : columns) {

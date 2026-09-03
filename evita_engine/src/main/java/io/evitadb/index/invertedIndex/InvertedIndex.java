@@ -45,9 +45,11 @@ import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -517,8 +519,25 @@ public class InvertedIndex implements
 	 * `indexedDecimalPlaces` scale is frozen into the index as the consistency witness described on
 	 * {@link #getIndexedDecimalPlaces()}.
 	 *
+	 * ## Two persisted buckets can collapse onto one tree key
+	 *
+	 * The persisted buckets are unique by *value*, which was enough while every value type had a lossless key
+	 * encoding. It no longer is: a catalog written before temporal values were truncated to whole milliseconds can
+	 * hold two buckets whose `Instant`s differ only below the millisecond, and both now encode to the same key (see
+	 * `LongKeyCodec#INSTANT`). The replaying insert below handles that by itself — the second bucket's records simply
+	 * join the first bucket — and the index is flagged {@link #isDirty() dirty} to say it is no longer the one on
+	 * disk. The persisted form is left untouched and stays internally consistent, so each load simply repeats the
+	 * merge until the index is next written for any reason, after which it is canonical and never collides again.
+	 * A catalog with nothing to repair is left completely alone, and in particular is NOT flagged dirty.
+	 *
+	 * **The inline value id column has to be realigned to match** — it is positional over the buckets that were
+	 * written, of which the tree may now hold fewer. That is
+	 * {@link #alignPersistedValueIds(ValueToRecordBitmap[], int[], Function, Comparator)}'s job, and it is the
+	 * caller's to invoke it; skipping it fails the load outright rather than mis-stamping.
+	 *
 	 * @param plainType            the plain (non-array) declared attribute type
-	 * @param buckets              the persisted buckets (unique & monotonic by value)
+	 * @param buckets              the persisted buckets (unique by value and monotonic; see above for the one way two
+	 *                             of them can still meet in a single tree key)
 	 * @param normalizer           the value normalizer
 	 * @param comparator           the value order
 	 * @param indexedDecimalPlaces decimal-places scale the `BigDecimal` keys are encoded at (0 for other types)
@@ -532,25 +551,31 @@ public class InvertedIndex implements
 	) {
 		this.plainType = plainType;
 		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
-		// rebuild the tree from the deserialized snapshot by inserting all buckets (values are unique & monotonic).
+		// rebuild the tree from the deserialized snapshot by inserting all buckets, normalized so the key space is the
+		// one the tree is contracted on whatever the buckets' provenance (see the class comment on getNormalizer).
 		// a single-record bucket lands as a primitive column entry, a multi-record bucket as an overflow bitmap entry,
 		// so the columnar heap win survives a reload without ever allocating a ValueToRecord wrapper.
+		boolean collapsed = false;
 		for (final ValueToRecordBitmap bucket : buckets) {
 			final Bitmap recordIds = bucket.getRecordIds();
-			final Comparable value = (Comparable) bucket.getValue();
+			final Comparable value = (Comparable) normalizer.apply(bucket.getValue());
+			// the birth-reporting variant costs nothing over the plain one and is the exact signal that this persisted
+			// bucket joined one already in the tree - i.e. that two persisted values collapsed onto a single key
+			final int bornValueId;
 			if (recordIds.size() == 1) {
 				//noinspection unchecked
-				tree.addRecord(value, recordIds.getFirst());
+				bornValueId = tree.addRecordReportingValueBirth(value, recordIds.getFirst());
 			} else {
 				//noinspection unchecked
-				tree.addRecord(value, recordIds.getArray());
+				bornValueId = tree.addRecordReportingValueBirth(value, recordIds.getArray());
 			}
+			collapsed |= bornValueId == TransactionalBucketBPlusTree.NO_CREATED_BUCKET;
 		}
 		this.buckets = tree;
 		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.dirty = new TransactionalBoolean(false);
+		this.dirty = new TransactionalBoolean(collapsed);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
@@ -558,11 +583,32 @@ public class InvertedIndex implements
 	 * Rebuilds a `PAGED` inverted index from its persisted leaf pages, preserving the original leaf boundaries and page
 	 * identities. Unlike the bucket-replaying constructor, this builds one leaf per persisted page (so
 	 * in-memory leaf *i* is byte-identical to persisted page *i*), stamps each leaf with its persisted page sequence, and
-	 * restores the page-stream bookkeeping (high-water + the live-page set). Reconstruction replays the buckets through
-	 * the leaf's mutation path, which flags the freshly built leaves dirty; they are cleared afterwards because they are
-	 * exactly what is already on disk. The result is a boundary-stable reload: a subsequent no-mutation commit rewrites
-	 * nothing (every leaf is clean), and the first real mutation rewrites only genuinely-changed leaves instead of
-	 * re-paginating the whole index.
+	 * restores the page-stream bookkeeping (high-water + the live-page set). The result is a boundary-stable reload: a
+	 * subsequent no-mutation commit rewrites nothing (every leaf is clean), and the first real mutation rewrites only
+	 * genuinely-changed leaves instead of re-paginating the whole index.
+	 *
+	 * ## When one persisted page no longer maps onto one leaf
+	 *
+	 * Page identity rests on the persisted buckets mapping one-to-one onto tree keys, and a catalog written before
+	 * temporal values were truncated to whole milliseconds breaks that: two buckets whose `Instant`s differ only below
+	 * the millisecond now encode to a single key (see `LongKeyCodec#INSTANT`). Left alone that reaches
+	 * `assembleFromSingleLeafTrees` as a leaf holding two equal keys and is reported as **index corruption** — a false
+	 * alarm that stops the catalog from opening, which is why this is detected here rather than there.
+	 *
+	 * Such buckets are therefore merged before the pages are built, by
+	 * {@link #collapseCollidingBuckets(int[], Object[][], ValueToRecord[][], int[][], Comparator)}: the colliding
+	 * bucket's records join the retained one, the surviving bucket keeps its persisted value id, and the retired one's
+	 * id is simply dropped (the value it named no longer exists). Pages keep their identity — a merged page is the
+	 * same page with fewer buckets — but a page the repair CHANGED gives up its identity
+	 * ({@link #releasePageIdentityOfMergedLeaves}), because a reassembled leaf is clean and would otherwise never be
+	 * written back. The rebuilt index reports itself {@link #isDirty() dirty}, exactly as the bucket-replaying
+	 * constructor does for the same reason.
+	 *
+	 * The repair is self-healing in the passive sense the legacy `LocalDateTime` re-anchoring relies on: it costs one
+	 * merge per load until this index is next flushed, and that flush rewrites every changed page in canonical form
+	 * and frees the records they superseded — after which nothing collides any more. Until then the persisted form is
+	 * untouched and internally consistent, so a load that is never followed by a flush simply repeats the merge. A
+	 * catalog with nothing to repair takes the fast path untouched and is not flagged dirty.
 	 *
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
@@ -596,20 +642,52 @@ public class InvertedIndex implements
 			perPageValueIds == null || perPageValueIds.length == orderedPageSequences.length,
 			"The per-page value id columns must align with the page sequences one for one."
 		);
-		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		// normalize every persisted bucket value into the key space the tree is contracted on - whatever the buckets'
+		// provenance - and, on the same pass, find out whether any two of them now meet in a single key
+		final Object[][] normalizedKeys = new Object[orderedPageSequences.length][];
+		boolean collapsed = false;
+		Comparable previousKey = null;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
+			final Object[] keys = new Object[buckets.length];
+			for (int j = 0; j < buckets.length; j++) {
+				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
+				keys[j] = key;
+				collapsed |= previousKey != null && comparator.compare(previousKey, key) == 0;
+				previousKey = key;
+			}
+			normalizedKeys[i] = keys;
+		}
+
+		int[] loadedPageSequences = orderedPageSequences;
+		Object[][] loadedKeys = normalizedKeys;
+		ValueToRecord[][] loadedBuckets = perPageBuckets;
+		int[][] loadedValueIds = perPageValueIds;
+		boolean[] rewrittenPages = null;
+		if (collapsed) {
+			// the rare repair path - see the "When one persisted page no longer maps onto one leaf" section above
+			final CollapsedPages repaired = collapseCollidingBuckets(
+				orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator
+			);
+			loadedPageSequences = repaired.pageSequences();
+			loadedKeys = repaired.keys();
+			loadedBuckets = repaired.buckets();
+			loadedValueIds = repaired.valueIds();
+			rewrittenPages = repaired.merged();
+		}
+
+		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(loadedPageSequences.length);
+		for (int i = 0; i < loadedPageSequences.length; i++) {
+			final ValueToRecord[] buckets = loadedBuckets[i];
 			// build a single-leaf tree from this page's buckets in one bulk pass — a page never exceeds a leaf's
 			// capacity, so no split — instead of `buckets.length` sequential addRecord calls, which would otherwise
 			// re-decode/re-encode a front-coded String column's whole blob per call; see bulkLoadPage's javadoc
 			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
-			final Object[] keys = new Object[buckets.length];
+			final Object[] keys = loadedKeys[i];
 			final long[] payloads = new long[buckets.length];
 			TransactionalBitmap[] overflow = null;
 			for (int j = 0; j < buckets.length; j++) {
-				final ValueToRecord bucket = buckets[j];
-				final Bitmap recordIds = bucket.getRecordIds();
-				keys[j] = bucket.getValue();
+				final Bitmap recordIds = buckets[j].getRecordIds();
 				if (recordIds.size() == 1) {
 					payloads[j] = recordIds.getFirst();
 				} else {
@@ -620,21 +698,209 @@ public class InvertedIndex implements
 				}
 			}
 			pageTree.bulkLoadPage(
-				keys, payloads, overflow, perPageValueIds == null ? null : perPageValueIds[i], buckets.length
+				keys, payloads, overflow, loadedValueIds == null ? null : loadedValueIds[i], buckets.length
 			);
 			pageTrees.add(pageTree);
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalBucketBPlusTree tree =
 			createEmptyTree(plainType, comparator, indexedDecimalPlaces).assembleFromSingleLeafTrees(
-				pageTrees, orderedPageSequences, "inverted index for type `" + plainType.getName() + "`"
+				pageTrees, loadedPageSequences, "inverted index for type `" + plainType.getName() + "`"
 			);
-		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
-			BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
-		);
-		return new InvertedIndex(
+		// the live-page set is the one the ROOT lists, not the one the assembled leaves carry: a page absorbed by the
+		// repair above holds no leaf any more, yet it is still on disk and the first commit has to free it
+		final PageStreamRegistry pageStreamRegistry = collapsed
+			? restoredFromPersistedPageList(highWaterPageSequence, orderedPageSequences)
+			: PageStreamRegistry.restoredFrom(BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles());
+		if (rewrittenPages != null) {
+			releasePageIdentityOfMergedLeaves(tree, rewrittenPages);
+		}
+		final InvertedIndex index = new InvertedIndex(
 			plainType, tree, normalizer, comparator, indexedDecimalPlaces, pageStreamRegistry
 		);
+		if (collapsed) {
+			index.dirty.setToTrue();
+		}
+		return index;
+	}
+
+	/**
+	 * Un-stamps the page sequence of every leaf the collision repair changed, so the first flush treats it as a fresh
+	 * leaf: it allocates a new (advance-only, never reused) sequence, writes the leaf out, and frees the persisted
+	 * record the leaf no longer matches.
+	 *
+	 * **This is what makes the repair safe rather than merely correct in memory.** The reassembled leaves are clean —
+	 * a bulk-loaded page is not flagged dirty — so a merged leaf would otherwise keep its identity, never be written,
+	 * and leave the persisted page holding the un-merged buckets. That is harmless while the root still lists the same
+	 * pages (the next load simply repeats the merge), and *data loss* the moment it does not: a page absorbed in its
+	 * entirety drops out of the root's list while the records it held live only in the predecessor's in-memory leaf.
+	 *
+	 * Leaves the repair did not touch keep their identity and stay clean, so a one-bucket collision in a large index
+	 * rewrites one page rather than re-paginating the whole tree.
+	 *
+	 * @param tree           the reassembled tree, its leaves in ascending key order
+	 * @param rewrittenPages `true` at every leaf whose persisted record no longer matches it
+	 */
+	@SuppressWarnings("rawtypes")
+	private static void releasePageIdentityOfMergedLeaves(
+		@Nonnull TransactionalBucketBPlusTree tree, @Nonnull boolean[] rewrittenPages
+	) {
+		final List<LeafPageHandle> handles = tree.leafPageHandles();
+		Assert.isPremiseValid(
+			handles.size() == rewrittenPages.length,
+			"The reassembled leaves must align one for one with the repaired pages."
+		);
+		for (int i = 0; i < rewrittenPages.length; i++) {
+			if (rewrittenPages[i]) {
+				handles.get(i).setPageSequence(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE);
+			}
+		}
+	}
+
+	/**
+	 * Builds the page-stream registry from the persisted root's own page list rather than from the reassembled leaves,
+	 * and — unlike {@link PageStreamRegistry#restoredFrom} — leaves the leaves' dirty flags alone. Used only by the
+	 * collision-repair path of {@link #fromPersistedPages}, where the two lists can legitimately differ: a page whose
+	 * every bucket was absorbed by its predecessor has no leaf left, but is still a record on disk that the first
+	 * commit must free.
+	 *
+	 * @param highWaterPageSequence the persisted stream high-water
+	 * @param orderedPageSequences  the persisted root's leaf-page list, which IS the live set on disk
+	 * @return the restored page-stream registry
+	 */
+	@Nonnull
+	private static PageStreamRegistry restoredFromPersistedPageList(
+		int highWaterPageSequence, @Nonnull int[] orderedPageSequences
+	) {
+		final PageStreamRegistry registry = new PageStreamRegistry();
+		registry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
+		return registry;
+	}
+
+	/**
+	 * Merges persisted buckets that collapse onto one tree key, page by page, carrying the merge across page
+	 * boundaries. See {@link #fromPersistedPages}'s "When one persisted page no longer maps onto one leaf" section for
+	 * why this exists at all.
+	 *
+	 * The merge target may sit on the **previous** page — the two colliding buckets can straddle a leaf boundary — so
+	 * this runs as a whole-index pre-pass rather than inside the page build loop, which has no way to reach back into
+	 * a page it has already turned into a leaf.
+	 *
+	 * @param orderedPageSequences the persisted leaf-page sequences in ascending key order
+	 * @param normalizedKeys       each page's bucket values, already normalized, aligned with `perPageBuckets`
+	 * @param perPageBuckets       each page's persisted buckets
+	 * @param perPageValueIds      each page's persisted value ids, or `null` when the tree carries none
+	 * @param comparator           the value order
+	 * @return the surviving pages, their surviving buckets, keys and value ids
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static CollapsedPages collapseCollidingBuckets(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull Object[][] normalizedKeys,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		@Nonnull Comparator comparator
+	) {
+		final int[] retainedPageSequences = new int[orderedPageSequences.length];
+		final Object[][] retainedKeys = new Object[orderedPageSequences.length][];
+		final ValueToRecord[][] retainedBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] retainedValueIds =
+			perPageValueIds == null ? null : new int[orderedPageSequences.length][];
+		final boolean[] retainedMerged = new boolean[orderedPageSequences.length];
+		int retainedPageCount = 0;
+		// the slot the next colliding bucket merges into, together with the page array it lives on and that page's
+		// index among the retained ones - which is the PREVIOUS page whenever the collision straddles a boundary
+		ValueToRecord[] targetPage = null;
+		int targetSlot = -1;
+		int targetRetainedPage = -1;
+		Comparable previousKey = null;
+
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final ValueToRecord[] buckets = perPageBuckets[i];
+			final Object[] keys = normalizedKeys[i];
+			final int[] valueIds = perPageValueIds == null ? null : perPageValueIds[i];
+			final ValueToRecord[] pageBuckets = new ValueToRecord[buckets.length];
+			final Object[] pageKeys = new Object[buckets.length];
+			final int[] pageValueIds = valueIds == null ? null : new int[buckets.length];
+			int count = 0;
+			for (int j = 0; j < buckets.length; j++) {
+				final Comparable key = (Comparable) keys[j];
+				final Bitmap recordIds = buckets[j].getRecordIds();
+				if (previousKey != null && comparator.compare(previousKey, key) == 0) {
+					// two persisted buckets meet in one tree key: the later one's records join the retained bucket and
+					// its value id is retired with it. The retained bucket keeps its own id, so every id still on disk
+					// either still names a live value or names none at all - never a different one
+					final ValueToRecord target = targetPage[targetSlot];
+					final BaseBitmap merged = new BaseBitmap(target.getRecordIds());
+					merged.addAll(recordIds);
+					targetPage[targetSlot] = new ValueToRecordBitmap((Serializable) key, merged);
+					if (targetRetainedPage < retainedPageCount) {
+						// the merge reached back into a page already closed above - that page gained a record and no
+						// longer matches its persisted form either, so it has to be rewritten as well
+						retainedMerged[targetRetainedPage] = true;
+					}
+					continue;
+				}
+				pageKeys[count] = key;
+				pageBuckets[count] = new ValueToRecordBitmap((Serializable) key, recordIds);
+				if (pageValueIds != null) {
+					pageValueIds[count] = valueIds[j];
+				}
+				targetPage = pageBuckets;
+				targetSlot = count;
+				targetRetainedPage = retainedPageCount;
+				count++;
+				previousKey = key;
+			}
+			if (count == 0) {
+				// every bucket of this page was absorbed by its predecessor - the page holds no leaf any more. It is
+				// still a record on disk; the registry keeps it in the live set so the first commit frees it
+				continue;
+			}
+			retainedPageSequences[retainedPageCount] = orderedPageSequences[i];
+			retainedKeys[retainedPageCount] = count == keys.length ? pageKeys : Arrays.copyOf(pageKeys, count);
+			retainedBuckets[retainedPageCount] =
+				count == buckets.length ? pageBuckets : Arrays.copyOf(pageBuckets, count);
+			if (retainedValueIds != null) {
+				retainedValueIds[retainedPageCount] =
+					count == buckets.length ? pageValueIds : Arrays.copyOf(pageValueIds, count);
+			}
+			// a page that lost a bucket here, or absorbed one from its successor, no longer matches its persisted
+			// record; a page whose whole bucket list survived intact still does, and must keep its identity
+			retainedMerged[retainedPageCount] |= count != buckets.length;
+			retainedPageCount++;
+		}
+		Assert.isPremiseValid(
+			retainedPageCount > 0, "A paged inverted index must keep at least one leaf page after a bucket collapse."
+		);
+		return new CollapsedPages(
+			Arrays.copyOf(retainedPageSequences, retainedPageCount),
+			Arrays.copyOf(retainedKeys, retainedPageCount),
+			Arrays.copyOf(retainedBuckets, retainedPageCount),
+			retainedValueIds == null ? null : Arrays.copyOf(retainedValueIds, retainedPageCount),
+			Arrays.copyOf(retainedMerged, retainedPageCount)
+		);
+	}
+
+	/**
+	 * The outcome of {@link #collapseCollidingBuckets}: the persisted pages that still hold at least one bucket, with
+	 * their colliding buckets merged. All four arrays are positionally aligned.
+	 *
+	 * @param pageSequences the surviving pages' sequences, in ascending key order
+	 * @param keys          each surviving page's normalized bucket keys
+	 * @param buckets       each surviving page's buckets, colliding ones merged
+	 * @param valueIds      each surviving page's persisted value ids, or `null` when the tree carries none
+	 * @param merged        `true` at every surviving page whose bucket list the collapse actually changed — the pages
+	 *                      whose persisted record no longer matches the leaf and must be rewritten
+	 */
+	private record CollapsedPages(
+		@Nonnull int[] pageSequences,
+		@Nonnull Object[][] keys,
+		@Nonnull ValueToRecord[][] buckets,
+		@Nullable int[][] valueIds,
+		@Nonnull boolean[] merged
+	) {
 	}
 
 	/**
@@ -826,6 +1092,67 @@ public class InvertedIndex implements
 		this.valueIdDirectoryStale = false;
 		// what was just restored is by definition what is on disk, so the root needs no rewrite until the next mint
 		this.emittedNextValueId = nextValueId;
+	}
+
+	/**
+	 * Realigns a persisted **inline** value id column with the buckets an index rebuilt from those very buckets
+	 * actually holds, dropping the id of every persisted bucket that collapses onto its predecessor's tree key.
+	 *
+	 * The inline id column is positional over the buckets that were *written*; the bucket-replaying constructor can
+	 * legitimately end up with fewer (see its "Two persisted buckets can collapse onto one tree key" section), and
+	 * `TransactionalBucketBPlusTree#installValueIdMinter` refuses a column that does not align exactly — so without
+	 * this the catalog does not open at all. The `PAGED` shape needs no equivalent: its ids ride inside the pages and
+	 * are compacted with them.
+	 *
+	 * The absorbed value no longer exists, so its id is retired; every surviving bucket keeps the id it was written
+	 * with, and no id is ever handed to a different value. Stateless on purpose — an `InvertedIndex` field
+	 * remembering this would cost 8 bytes on **every** inverted index in the catalog, load-path-only state charged to
+	 * a structure this whole line of work exists to shrink.
+	 *
+	 * The collapse predicate here is adjacent-normalized-key equality, whereas the constructor reads the tree's own
+	 * "no bucket was born" signal. The two agree because the normalizer maps onto exactly the key space the leaf
+	 * column encodes — which is what `FilterIndex#getNormalizer`'s millisecond truncation guarantees for the one
+	 * codec whose encoding is lossy. Should they ever diverge, `installValueIdMinter`'s alignment premise fails
+	 * loudly rather than mis-stamping.
+	 *
+	 * @param persistedBuckets  the buckets as they were written, in ascending key order
+	 * @param persistedValueIds the ids as they were written, one per persisted bucket
+	 * @param normalizer        the value normalizer of the index being restored
+	 * @param comparator        the value order of the index being restored
+	 * @return the ids of the buckets the rebuilt index holds — `persistedValueIds` itself when nothing collapsed
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public static int[] alignPersistedValueIds(
+		@Nonnull ValueToRecordBitmap[] persistedBuckets,
+		@Nonnull int[] persistedValueIds,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		Assert.isPremiseValid(
+			persistedBuckets.length == persistedValueIds.length,
+			"The persisted value id column holds " + persistedValueIds.length + " ids but the part carries "
+				+ persistedBuckets.length + " buckets - the two must align exactly."
+		);
+		int retained = 0;
+		int[] aligned = null;
+		Comparable previousKey = null;
+		for (int i = 0; i < persistedBuckets.length; i++) {
+			final Comparable key = (Comparable) normalizer.apply(persistedBuckets[i].getValue());
+			if (previousKey != null && comparator.compare(previousKey, key) == 0) {
+				if (aligned == null) {
+					// first collapse - materialize the compacted column from the prefix that survived so far
+					aligned = Arrays.copyOf(persistedValueIds, persistedValueIds.length);
+				}
+				continue;
+			}
+			if (aligned != null) {
+				aligned[retained] = persistedValueIds[i];
+			}
+			retained++;
+			previousKey = key;
+		}
+		return aligned == null ? persistedValueIds : Arrays.copyOf(aligned, retained);
 	}
 
 	/**

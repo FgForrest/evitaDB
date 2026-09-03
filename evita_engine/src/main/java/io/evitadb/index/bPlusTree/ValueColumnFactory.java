@@ -107,11 +107,11 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * bytes, skipping the per-candidate {@link String} allocation; see {@link FrontCodedStringColumn}'s "BMP-safe
 	 * byte-compare fast path" section.
 	 *
-	 * A primitive column is chosen only when the comparator is natural order. Temporal keys (normalized type
-	 * {@link Instant}, i.e. declared {@code OffsetDateTime} / {@code Instant} / {@code LocalDateTime}) select the
-	 * parallel-array {@link InstantValueColumn}; integral keys with a supported {@link LongKeyCodec} — which includes
-	 * {@code LocalDate} and {@code LocalTime}, each of which fits losslessly in a single {@code long} — select
-	 * {@link LongValueColumn}.
+	 * A primitive column is chosen only when the comparator is natural order. Every key type with a supported
+	 * {@link LongKeyCodec} selects {@link LongValueColumn} — the integral types, {@code LocalDate} and
+	 * {@code LocalTime}, and the temporal types too: a normalized-to-{@link Instant} key (declared
+	 * {@code OffsetDateTime} / {@code Instant} / {@code LocalDateTime}) rides in the same single {@code long} as
+	 * epoch-millis, because no sub-millisecond value ever reaches a tree key (see {@link LongKeyCodec#INSTANT}).
 	 * {@code BigDecimal} keys (normalized upstream to a scaled {@code int}) select the 4-byte {@link IntValueColumn}.
 	 * Otherwise the universal boxed {@link BoxedObjectColumn} (keyed by {@code Comparable.class}, the raw key type the
 	 * tree uses today) is returned, which is behavior-identical to the universal boxed leaf.
@@ -148,11 +148,6 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 			return (ValueColumnFactory) capacity -> new FrontCodedStringColumn(capacity, naturalOrderSafe);
 		}
 		if (isNaturalOrder(comparator)) {
-			if (normalizedType == Instant.class) {
-				// temporal keys (OffsetDateTime / Instant) decompose losslessly into a (seconds, nanos) parallel-array
-				// column whose lexicographic order matches natural Instant order (see InstantValueColumn)
-				return (ValueColumnFactory) capacity -> new InstantValueColumn(capacity);
-			}
 			if (plainType == BigDecimal.class) {
 				// BigDecimal filter/sort keys are normalized upstream to a scaled int (indexedDecimalPlaces);
 				// store them in a 4-byte int[] column. The column never sees a BigDecimal (already converted).
@@ -179,9 +174,9 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * {@code Currency} / {@code Locale} to their comparable wrappers — but those are **not** remapped here:
 	 * {@code BigDecimal} is matched on its declared type directly in {@link #forKey} (which then selects
 	 * {@link IntValueColumn}), and the wrapper types fall through to the boxed column either way. Everything else
-	 * (numbers, {@code LocalDate} / {@code LocalTime}, {@code String}, …) keeps its own class; `LocalDate` and
-	 * `LocalTime` each fit losslessly in a single {@code long} and are better served by the cheaper
-	 * {@link LongValueColumn}.
+	 * (numbers, {@code LocalDate} / {@code LocalTime}, {@code String}, …) keeps its own class. The remap exists
+	 * purely to name the key class the tree really holds — {@link Instant} has a {@link LongKeyCodec} of its own, so
+	 * the remapped type lands in {@link LongValueColumn} exactly as {@code LocalDate} and {@code LocalTime} do.
 	 *
 	 * @param plainType the plain (non-array) declared attribute type
 	 * @return the normalized key type used by the tree
