@@ -1,7 +1,7 @@
 ---
 title: Turn query telemetry into an actionable profile, and render the formula plan without ever computing it
 date: 2026-08-04
-updated: 2026-08-04 13:48
+updated: 2026-09-03 09:20
 status: accepted
 kind: feature
 issues: [1341]
@@ -164,15 +164,18 @@ which point the two renderers should merge rather than coexist.
   `actualCost` is therefore not necessarily a rejected alternative; a branch of the *winning* plan
   that the computation short-circuited past is legitimately unmemoized too.
 - **`QueryTelemetrySerializer` persists the level, and knowingly breaks older traffic recordings
-  doing so.** `QuerySerializationKryoConfigurer` has exactly two production users, both traffic
-  recording; the remote drivers send EvitaQL as a string and never reach it, so replay is the only
-  path affected. Before the level existed the serializer emitted **zero bytes**, and the recording
-  format carries no version, magic or length stamp, so a reader that consumes an enum eats into the
-  *next* element of a recording written by an earlier build. There is no compatible middle ground to
-  take instead: query constraints are registered directly rather than through
-  `SerialVersionBasedSerializer`, so there is no `serialVersionUID` to dispatch a backward-compatible
-  reader on, and Kryo binds one registration id per class, so the two forms cannot be told apart at
-  all. That finding is what makes the break clean rather than avoidable.
+  doing so.** Who `QuerySerializationKryoConfigurer` reaches: the traffic recorder and its
+  replaying reader, and the locally generated benchmark query corpora that `ClientSyntheticTestState`
+  and `SanityChecker` load; the remote drivers send EvitaQL as a string and never reach it. Replay of
+  an older recording is therefore affected, and so is any benchmark corpus written by an earlier
+  build — though no corpus is tracked in this repository, so the cost there is a regeneration of
+  local files rather than lost data. Before the level existed the serializer emitted **zero bytes**,
+  and the recording format carries no version, magic or length stamp, so a reader that consumes an
+  enum eats into the *next* element of a recording written by an earlier build. There is no
+  compatible middle ground to take instead: query constraints are registered directly rather than
+  through `SerialVersionBasedSerializer`, so there is no `serialVersionUID` to dispatch a
+  backward-compatible reader on, and Kryo binds one registration id per class, so the two forms
+  cannot be told apart at all. That finding is what makes the break clean rather than avoidable.
 
   Writing nothing was implemented first and reverted: it kept old recordings readable, but at the
   price of every recorded `queryTelemetry(PLAN)` replaying as `queryTelemetry()` — a debugging
