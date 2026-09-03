@@ -35,6 +35,7 @@ import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -862,6 +863,19 @@ public class QuerySerializationTest {
 					arguments("hierarchyContent(stopAt node filterBy + entityFetchAll)",
 						entityFetch(hierarchyContent(
 							stopAt(node(filterBy(attributeEquals("a", "b")))), entityFetchAll()))),
+					arguments("hierarchyContent(COMPLETE)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE))),
+					arguments("hierarchyContent(MATCHING)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING))),
+					arguments("hierarchyContent(COMPLETE + stopAt distance)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1))))),
+					arguments("hierarchyContent(COMPLETE + entityFetchAll)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE, entityFetchAll()))),
+					arguments("hierarchyContent(MATCHING + entityFetchAll)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING, entityFetchAll()))),
+					arguments("hierarchyContent(COMPLETE + stopAt distance + entityFetchAll)",
+						entityFetch(hierarchyContent(
+							HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)), entityFetchAll()))),
 
 					arguments("dataInLocalesAll",
 						entityFetch(dataInLocalesAll())),

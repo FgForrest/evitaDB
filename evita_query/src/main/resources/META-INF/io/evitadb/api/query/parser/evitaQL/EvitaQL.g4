@@ -369,9 +369,12 @@ allRefsWithAttributesReferenceContent2Args :        argsOpening (managedReferenc
 
 allRefsWithAttributesReferenceContent3Args :        argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
-singleRequireHierarchyContentArgs :                 argsOpening requirement = requireConstraint argsClosing ;
+singleRequireHierarchyContentArgs :                 argsOpening (
+                                                        (parentsBehaviour = valueToken) |
+                                                        ((parentsBehaviour = valueToken ARGS_DELIMITER)? requirement = requireConstraint)
+                                                    ) argsClosing ;
 
-allRequiresHierarchyContentArgs :                   argsOpening stopAt = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint argsClosing ;
+allRequiresHierarchyContentArgs :                   argsOpening (parentsBehaviour = valueToken ARGS_DELIMITER)? stopAt = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint argsClosing ;
 
 facetSummary1Args :                                 argsOpening depth = valueToken argsClosing ;
 

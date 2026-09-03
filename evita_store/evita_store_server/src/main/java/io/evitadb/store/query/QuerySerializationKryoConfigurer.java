@@ -215,6 +215,10 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SpacingGap.class, new SpacingGapSerializer(), index++);
 		kryo.register(Spacing.class, new SpacingSerializer(), index++);
 
+		// appended at the very tail for the same reason as everything above it: ids are assigned positionally, so
+		// a registration added anywhere higher renumbers every one below it
+		kryo.register(HierarchyParentsBehaviour.class, new EnumSerializer(HierarchyParentsBehaviour.class), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 
