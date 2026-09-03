@@ -31,6 +31,8 @@ variable is not set, use the project's usual location.
 
 Prefer the libraries already in use — Kryo (binary serialization), RoaringBitmap (bitmaps), Jackson (JSON), Netty/Armeria (web server & client), gRPC-Java & GraphQL-Java (APIs), Logback (logging), Byte Buddy (runtime codegen), MinIO (S3 storage). Don't introduce an alternative for a job one of these already does without discussion.
 
+The same applies to the project's own helpers: `evita_common`'s `io.evitadb.utils` package already solves most small problems, and a hand-rolled second version drifts from it. Inventory and when to reach for each: `documentation/developer/utilities.md`.
+
 ## Project Structure
 
 See "How this repository is organized" in README.md for module descriptions and dependency graph.
