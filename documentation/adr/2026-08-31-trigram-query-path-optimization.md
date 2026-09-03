@@ -1,7 +1,7 @@
 ---
 title: Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone
 date: 2026-08-31
-updated: 2026-09-01 17:05
+updated: 2026-09-03 10:45
 status: accepted
 kind: optimization
 issues: [1454]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/bitmap, evita_engine/src/main/java/io/evitadb/core/query/algebra/base, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute]
 supersedes: []
 superseded-by: []
-relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-08-31-front-coded-column-stores-wtf8]
+relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-03-content-sized-value-tree-columns]
 ---
 
 # Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone

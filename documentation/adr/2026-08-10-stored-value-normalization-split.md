@@ -1,7 +1,7 @@
 ---
 title: LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer
 date: 2026-08-10
-updated: 2026-08-10 10:05
+updated: 2026-09-03 10:45
 status: accepted
 kind: fix
 issues: [1403]
@@ -9,7 +9,7 @@ prs: [1404, 1405]
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-schema-handling-write-path-optimizations]
+relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns]
 ---
 
 # `LocalDateTime` keeps its declared type end to end; the UTC anchoring that makes it cheap to index moves into `FilterIndex.getNormalizer`

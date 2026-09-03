@@ -1,7 +1,7 @@
 ---
 title: Decompose index storage into granular paged parts and slim the index data structures
 date: 2026-07-10
-updated: 2026-08-01 10:45
+updated: 2026-09-03 10:45
 status: accepted
 kind: optimization
 issues: [760, 1252]
@@ -9,7 +9,7 @@ prs: [1268]
 areas: [evita_engine/index, evita_engine/store, evita_common/dataType/bPlusTree, evita_roaring_bitmap]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-03-content-sized-value-tree-columns]
 ---
 
 # Granular storage parts and slimmer index data structures

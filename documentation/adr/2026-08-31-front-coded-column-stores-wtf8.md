@@ -1,7 +1,7 @@
 ---
 title: Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry
 date: 2026-08-31
-updated: 2026-08-31 19:10
+updated: 2026-09-03 10:45
 status: accepted
 kind: fix
 issues: [1454]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-08-31-trigram-query-path-optimization, 2026-08-24-fulltext-search-lucene-vs-inhouse]
+relates: [2026-08-31-trigram-query-path-optimization, 2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-03-content-sized-value-tree-columns]
 ---
 
 # Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry
