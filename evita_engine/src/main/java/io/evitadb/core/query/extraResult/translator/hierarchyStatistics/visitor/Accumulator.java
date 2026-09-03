@@ -68,9 +68,11 @@ public class Accumulator {
 	 */
 	private final int entityPrimaryKey;
 	/**
-	 * The hierarchical entity in proper form. May be `null` until {@link #getEntity()} is called for the first time
-	 * and {@link #entityFetcher} resolves it lazily; for the synthetic root accumulator the value stays `null`
-	 * forever.
+	 * The hierarchical entity in proper form - a
+	 * {@link io.evitadb.api.requestResponse.data.SealedEntity} when a body was requested and could be
+	 * materialized, a bodiless {@link io.evitadb.api.requestResponse.data.structure.EntityReference} otherwise.
+	 * May be `null` until {@link #getEntity()} is called for the first time and {@link #entityFetcher} resolves it
+	 * lazily; for the synthetic root accumulator the value stays `null` forever.
 	 */
 	@Nullable private EntityClassifier entity;
 	/**
@@ -180,7 +182,10 @@ public class Accumulator {
 
 	/**
 	 * Returns the materialised {@link EntityClassifier} for this accumulator, fetching it lazily on first call
-	 * when the lazy-fetch constructor was used. Returns `null` only for the synthetic root accumulator.
+	 * when the lazy-fetch constructor was used. Returns `null` only for the synthetic root accumulator, which is
+	 * bound to no entity at all - {@link HierarchyEntityFetcher} itself never yields `null`, a node whose
+	 * requested body cannot be materialized comes back as a bodiless
+	 * {@link io.evitadb.api.requestResponse.data.structure.EntityReference}.
 	 */
 	@Nullable
 	public EntityClassifier getEntity() {
@@ -224,7 +229,10 @@ public class Accumulator {
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		final EntityClassifier resolvedEntity = getEntity();
-		Assert.isPremiseValid(resolvedEntity != null, "Entity reference was not initialized for this accumulator!");
+		Assert.isPremiseValid(
+			resolvedEntity != null,
+			"The synthetic root accumulator stands for no entity and must never be rendered as a level info!"
+		);
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			resolvedEntity,

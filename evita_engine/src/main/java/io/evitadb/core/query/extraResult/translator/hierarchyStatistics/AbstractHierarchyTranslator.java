@@ -54,6 +54,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Optional.ofNullable;
@@ -170,6 +171,22 @@ public abstract class AbstractHierarchyTranslator {
 	 *
 	 * - thin {@link EntityClassifier} that contains only entity type and primary key
 	 * - {@link SealedEntity} with varying content according to requirements
+	 *
+	 * **A node that made it into the tree is never dropped for want of a body.** Which nodes a hierarchy
+	 * statistics tree contains is settled before this fetcher runs, by the
+	 * {@link io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate} the computer was given - that is
+	 * where the query filter and its {@link io.evitadb.api.query.filter.EntityLocaleEquals} gate apply. This
+	 * fetcher only decides what an admitted node *carries*, so when the requested body cannot be materialized
+	 * (the node holds no data in the query locale, say) it falls back to the very thin {@link EntityReference}
+	 * the no-`entityFetch` branch above returns, rather than to `null`. A statistics tree is a picture of a
+	 * shape: cutting a node out of it, or handing the accumulator behind it a `null` to trip over when the
+	 * {@link LevelInfo} is rendered, would misreport the very structure the caller asked for.
+	 *
+	 * @param entityFetch          the requirement describing the body to load, or `null` when the caller wants
+	 *                             nothing but entity type and primary key
+	 * @param context              the context of the enclosing hierarchy requirement
+	 * @param extraResultPlanner   the planning visitor the requirement is being translated by
+	 * @return the fetcher, which always yields a classifier and never `null`
 	 */
 	@Nonnull
 	protected static HierarchyEntityFetcher createEntityFetcher(
@@ -190,7 +207,7 @@ public abstract class AbstractHierarchyTranslator {
 			return new HierarchyEntityFetcher() {
 				@Nullable private EntityFetch enrichedFetch;
 
-				@Nullable
+				@Nonnull
 				@Override
 				public EntityClassifier apply(QueryExecutionContext executionContext, Integer entityPk) {
 					EntityFetch enriched = this.enrichedFetch;
@@ -198,7 +215,12 @@ public abstract class AbstractHierarchyTranslator {
 						enriched = executionContext.enrichEntityFetch(entityFetch);
 						this.enrichedFetch = enriched;
 					}
-					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched).orElse(null);
+					final Optional<SealedEntity> fetchedEntity = executionContext.fetchEntity(
+						hierarchicalEntityType, entityPk, enriched
+					);
+					// the body could not be materialized - report the node bodiless instead of not at all
+					return fetchedEntity.isPresent() ?
+						fetchedEntity.get() : new EntityReference(hierarchicalEntityType, entityPk);
 				}
 			};
 		}

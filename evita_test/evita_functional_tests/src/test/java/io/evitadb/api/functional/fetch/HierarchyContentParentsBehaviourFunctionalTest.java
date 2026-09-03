@@ -26,6 +26,7 @@ package io.evitadb.api.functional.fetch;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -41,6 +42,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -72,8 +75,11 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.having;
 import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
 import static io.evitadb.api.query.QueryConstraints.level;
@@ -204,6 +210,21 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
 					.updateAndFetchVia(session);
 
+				// a flat collection referencing the hierarchical categories, so that the parent statistics can
+				// also be asked for through `hierarchyOfReference` rather than only for the queried entity itself
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withLocale(LOCALE_CZECH, Locale.ENGLISH)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						ReferenceSchemaEditor::indexedForFiltering
+					)
+					.updateAndFetchVia(session);
+
 				// the brand schema declares no locale whatsoever - a query-level locale filter therefore
 				// matches nothing in this collection at all
 				session.defineEntitySchema(Entities.BRAND)
@@ -281,6 +302,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				createCzechCategory(session, 132, 131);
 				createEnglishCategory(session, 133, 132);
 				createEnglishCategory(session, 134, 133);
+
+				// products reaching the category hierarchy through a reference - `301` sits under the P3 leaf,
+				// `302` under the intact control chain
+				createEnglishProduct(session, 301, 34);
+				createEnglishProduct(session, 302, 3);
 
 				// the non-localized hierarchy
 				createBrand(session, 101, null);
@@ -444,6 +470,26 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			builder.setParent(parentPrimaryKey);
 		}
 		builder.upsertVia(session);
+	}
+
+	/**
+	 * Creates a product holding English localized data and referencing a single category, so that the
+	 * category hierarchy can be reached through `hierarchyOfReference` from a query on another collection.
+	 *
+	 * @param session            the session to upsert through
+	 * @param primaryKey         the primary key to assign
+	 * @param categoryPrimaryKey the primary key of the category the product refers to
+	 */
+	private static void createEnglishProduct(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		int categoryPrimaryKey
+	) {
+		session.createNewEntity(Entities.PRODUCT, primaryKey)
+			.setAttribute(ATTRIBUTE_CODE, expectedCode(primaryKey))
+			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Product " + primaryKey)
+			.setReference(Entities.CATEGORY, categoryPrimaryKey)
+			.upsertVia(session);
 	}
 
 	/**
@@ -700,8 +746,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 	/**
 	 * Runs the `parents` hierarchy extra-result over the `CATEGORY` collection for a single queried node
-	 * and renders the returned {@link LevelInfo} tree. This is the second production caller of the upward
-	 * walk - the one that produces hierarchy statistics rather than a `hierarchyContent` chain.
+	 * and renders the returned {@link LevelInfo} tree, asking for every ancestor body and no query locale.
+	 * This is the second production caller of the upward walk - the one that produces hierarchy statistics
+	 * rather than a `hierarchyContent` chain.
 	 *
 	 * @param evita      the embedded evitaDB instance
 	 * @param primaryKey the primary key of the single node the hierarchy filter selects
@@ -709,21 +756,104 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 */
 	@Nonnull
 	private static String renderParentStatistics(@Nonnull Evita evita, int primaryKey) {
+		return renderParentStatistics(evita, primaryKey, null, entityFetch(attributeContentAll()));
+	}
+
+	/**
+	 * Runs the `parents` hierarchy extra-result over the `CATEGORY` collection for a single queried node
+	 * under an optional query locale and an optional ancestor-body requirement, and renders the returned
+	 * {@link LevelInfo} tree.
+	 *
+	 * Both knobs exist to separate the two decisions the extra result makes. The locale is the gate that
+	 * decides which ancestors the statistics tree contains at all, and it is applied by the hierarchy
+	 * filtering predicate before any body is fetched; the body requirement decides only what an admitted
+	 * node carries. Rendering the same fixture with and without ancestor bodies is therefore the direct
+	 * assertion that the second decision never changes the shape the first one produced.
+	 *
+	 * @param evita          the embedded evitaDB instance
+	 * @param primaryKey     the primary key of the single node the hierarchy filter selects
+	 * @param locale         the query locale to filter by, or `null` to query without one
+	 * @param ancestorBodies the body requirement for every reported node, or `null` to ask for none
+	 * @return the rendered parent statistics, one node per line
+	 */
+	@Nonnull
+	private static String renderParentStatistics(
+		@Nonnull Evita evita,
+		int primaryKey,
+		@Nullable Locale locale,
+		@Nullable EntityFetch ancestorBodies
+	) {
+		final FilterBy filterBy = locale == null ?
+			filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(primaryKey))) :
+			filterBy(entityLocaleEquals(locale), hierarchyWithinSelf(entityPrimaryKeyInSet(primaryKey)));
 		final List<LevelInfo> statistics = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(primaryKey))),
+						filterBy,
 						require(
 							hierarchyOfSelf(
-								parents("parents", entityFetch(attributeContentAll()))
+								ancestorBodies == null ?
+									parents("parents") : parents("parents", ancestorBodies)
 							)
 						)
 					),
 					EntityReference.class
 				).getExtraResult(Hierarchy.class).getSelfHierarchy("parents");
+			}
+		);
+		final StringBuilder result = new StringBuilder(128);
+		renderLevelInfo(result, statistics, 0);
+		return result.toString();
+	}
+
+	/**
+	 * Runs the `parents` hierarchy extra-result over the `CATEGORY` hierarchy reached through a reference
+	 * from the `PRODUCT` collection, and renders the returned {@link LevelInfo} tree.
+	 *
+	 * The `having` bound is what makes this query worth asking: it names the ancestors the traversal may
+	 * pass through explicitly, by primary key, so which nodes reach the tree no longer follows from
+	 * whether they hold data in the query locale. An ancestor the bound admits but the query locale cannot
+	 * materialize is exactly the node whose body the statistics computer has to answer for.
+	 *
+	 * @param evita                          the embedded evitaDB instance
+	 * @param categoryPrimaryKey             the primary key of the single category the hierarchy filter selects
+	 * @param locale                         the query locale, applied to the queried `PRODUCT` entities
+	 * @param traversableCategoryPrimaryKeys the primary keys the `having` bound admits into the traversal
+	 * @return the rendered parent statistics, one node per line
+	 */
+	@Nonnull
+	private static String renderReferencedParentStatistics(
+		@Nonnull Evita evita,
+		int categoryPrimaryKey,
+		@Nonnull Locale locale,
+		@Nonnull int... traversableCategoryPrimaryKeys
+	) {
+		final List<LevelInfo> statistics = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityLocaleEquals(locale),
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(categoryPrimaryKey),
+								having(entityPrimaryKeyInSet(traversableCategoryPrimaryKeys))
+							)
+						),
+						require(
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								parents("parents", entityFetch(attributeContentAll()))
+							)
+						)
+					),
+					EntityReference.class
+				).getExtraResult(Hierarchy.class).getReferenceHierarchy(Entities.CATEGORY, "parents");
 			}
 		);
 		final StringBuilder result = new StringBuilder(128);
@@ -1959,6 +2089,182 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 					      B(3) (requested)
 					""",
 				renderParentStatistics(evita, 3)
+			);
+		}
+	}
+
+	/**
+	 * Pins what a query locale does to the `parents` hierarchy extra-result, over the very fixtures the
+	 * behaviour matrix uses for `hierarchyContent`. The two callers walk the same axis and answer the
+	 * locale gate differently on purpose, and this class is where that difference is written down.
+	 *
+	 * A `hierarchyContent` chain is the ancestor axis of an entity the caller fetched, so
+	 * {@link HierarchyParentsBehaviour} lets the caller choose between a chain of nothing but
+	 * materializable bodies and a chain that keeps a bodiless pointer where a body is impossible. The
+	 * statistics tree is a different product: it is a picture of the hierarchy's shape, built to be
+	 * rendered as a menu or a breadcrumb, so it is never cut and never holds a hole for want of a body.
+	 * The extra result therefore behaves as {@link HierarchyParentsBehaviour#COMPLETE} at all times and
+	 * takes no argument to say so.
+	 *
+	 * What the tree *contains* is settled one layer earlier, by the hierarchy filtering predicate that
+	 * carries the query filter and its locale gate, before any body is fetched. That is why an ancestor
+	 * holding no data in the query locale is absent here rather than present as a pointer, and why the
+	 * absence is identical whether or not ancestor bodies were requested at all - the pair of rows below
+	 * asserts exactly that equality.
+	 */
+	@Nested
+	@DisplayName("Parent statistics under a query locale")
+	class ParentStatisticsUnderQueryLocaleTest {
+
+		/**
+		 * The P2 fixture `21(cs) -> 22 -> 23` queried at its leaf under the English locale. The Czech-only
+		 * root holds no English data, so the locale gate keeps it out of the tree and the statistics stop
+		 * at the materializable `22` - the same place the `MATCHING` chain of row P2 stops.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("A locale-less root is absent from the reported tree")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldOmitALocaleLessRoot_P2(Evita evita) {
+			assertEquals(
+				"""
+					B(22)
+					   B(23) (requested)
+					""",
+				renderParentStatistics(evita, 23, Locale.ENGLISH, entityFetch(attributeContentAll()))
+			);
+		}
+
+		/**
+		 * The P3 fixture `31 -> 32(cs) -> 33 -> 34` queried at its leaf under the English locale. This is
+		 * where the two callers part company: the `MATCHING` chain of row P3 stops below the Czech-only
+		 * `32` and never reports `31`, while the statistics tree drops `32` alone and keeps the
+		 * materializable root above it - which is what a breadcrumb needs and a cut cannot give.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("A locale-less ancestor is dropped while the materializable root above it stays")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldKeepTheRootAboveALocaleLessAncestor_P3(Evita evita) {
+			assertEquals(
+				"""
+					B(31)
+					   B(33)
+					      B(34) (requested)
+					""",
+				renderParentStatistics(evita, 34, Locale.ENGLISH, entityFetch(attributeContentAll()))
+			);
+		}
+
+		/**
+		 * The K4 fixture `121 -> 122(deleted) -> 123 -> 124` queried at `124` under the English locale.
+		 * A structural break is not a locale question, so the locale changes nothing here: the walk
+		 * reports the fragment the index still holds and stops at it, exactly as it does with no locale.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("A break in the chain stops the tree at the reachable fragment under a locale too")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheReachableFragmentUnderALocale_K4(Evita evita) {
+			assertEquals(
+				"""
+					B(123)
+					   B(124) (requested)
+					""",
+				renderParentStatistics(evita, 124, Locale.ENGLISH, entityFetch(attributeContentAll()))
+			);
+		}
+
+		/**
+		 * The P2 fixture again, this time asking for no ancestor bodies at all. Every node comes back as a
+		 * bodiless classifier, and the set of nodes is the one the body-carrying row above reports.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Without ancestor bodies the reported nodes are the same ones, bodiless")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheSameNodesWithoutBodies_P2(Evita evita) {
+			assertEquals(
+				"""
+					P(22)
+					   P(23) (requested)
+					""",
+				renderParentStatistics(evita, 23, Locale.ENGLISH, null)
+			);
+		}
+
+		/**
+		 * The P3 fixture asked without ancestor bodies. `32` is missing here as well, which is the proof
+		 * that the locale gate removed it before any body was fetched - a body requirement cannot be the
+		 * reason for an absence that survives the requirement being taken away.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("The locale-less ancestor is absent even when no body was asked for")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportTheSameNodesWithoutBodies_P3(Evita evita) {
+			assertEquals(
+				"""
+					P(31)
+					   P(33)
+					      P(34) (requested)
+					""",
+				renderParentStatistics(evita, 34, Locale.ENGLISH, null)
+			);
+		}
+
+		/**
+		 * The P3 chain reached through a reference from the `PRODUCT` collection, with the traversable
+		 * ancestors named by a `having` bound rather than left to the locale. The bound admits the
+		 * Czech-only `32`, whose body the English query locale cannot materialize - so this is the one
+		 * shape in which the statistics computer has to report a node it has no body for.
+		 *
+		 * It reports it as a bodiless classifier and keeps walking, which is what
+		 * {@link HierarchyParentsBehaviour#COMPLETE} means on the chain side: the tree keeps the shape the
+		 * hierarchy index actually has, and the root above the unmaterializable node is still reported.
+		 * Before this was so, the node reached {@link LevelInfo} rendering as a `null` entity and the
+		 * whole query died on an internal premise check.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("An admitted ancestor with no materializable body is reported bodiless, not dropped")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportAnUnmaterializableAncestorAsABodilessNode(Evita evita) {
+			assertEquals(
+				"""
+					B(31)
+					   P(32)
+					      B(33)
+					         B(34) (requested)
+					""",
+				renderReferencedParentStatistics(evita, 34, Locale.ENGLISH, 31, 32, 33, 34)
+			);
+		}
+
+		/**
+		 * The intact control chain `1 -> 2 -> 3` reached through the same reference and the same `having`
+		 * bound. Every node materializes, so the tree carries bodies throughout; without it the row above
+		 * could pass while the reference path reported bodiless nodes for everything.
+		 *
+		 * @param evita the embedded evitaDB instance provided by the test extension
+		 */
+		@DisplayName("Control: a fully materializable chain reached through a reference carries bodies")
+		@UseDataSet(DATA_SET)
+		@Test
+		void shouldReportBodiesThroughAReferenceWhenEveryAncestorMaterializes_control(Evita evita) {
+			assertEquals(
+				"""
+					B(1)
+					   B(2)
+					      B(3) (requested)
+					""",
+				renderReferencedParentStatistics(evita, 3, Locale.ENGLISH, 1, 2, 3)
 			);
 		}
 	}
