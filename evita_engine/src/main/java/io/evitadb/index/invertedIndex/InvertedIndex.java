@@ -1031,17 +1031,22 @@ public class InvertedIndex implements
 	 *
 	 * ## If you change this method, run the stress test that guards it
 	 *
-	 * `LongRunningValueIdDirectoryConcurrencyTest` is the only thing that covers the single-flight claim above; it is
-	 * `@Disabled` and lives in `evita_test/evita_long_running_tests`, so nothing runs it for you:
+	 * `LongRunningValueIdDirectoryConcurrencyTest` is the only thing that covers the single-flight claim above. It
+	 * lives in `evita_test/evita_long_running_tests`, which only the weekly `long-running-tests` workflow reaches, so
+	 * nothing in the fast loop runs it for you:
 	 *
 	 * ```
-	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+	 *     -Dtest=LongRunningValueIdDirectoryConcurrencyTest -Dsurefire.failIfNoSpecifiedTests=false
 	 * ```
 	 *
-	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below — and that has to be
-	 * re-measured too, not merely the green run. **Making this method faster narrows the window the test races in**, so
-	 * an optimization elsewhere can leave the test passing while it has stopped proving anything; that has already
-	 * happened once. The same obligation applies to `BucketBPlusTree#rebuildValueIdDirectory`.
+	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below, built on a shadow
+	 * classpath rather than by editing this file — and that has to be re-measured too, not merely the green run.
+	 * **Changing how fast this method runs moves the window the test races in**, so an optimization elsewhere can
+	 * leave the test passing while it has stopped proving anything. That has already happened once, and the window
+	 * has since moved back the other way: re-measured on 2026-09-03 the counterfactual fails within 16 of 2000
+	 * rounds, where on 2026-08-31 it needed 267-450. The same obligation applies to
+	 * `BucketBPlusTree#rebuildValueIdDirectory`.
 	 */
 	private synchronized void refreshValueIdDirectory() {
 		if (this.valueIdDirectoryStale) {

@@ -1266,10 +1266,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Shared body of the two rebuild entry points.
 	 *
 	 * **Changing this method obliges you to re-run — and re-calibrate — `LongRunningValueIdDirectoryConcurrencyTest`.**
-	 * It is `@Disabled` and lives in `evita_test/evita_long_running_tests`, so nothing runs it for you; see
-	 * `InvertedIndex#refreshValueIdDirectory` for the command and for why a green run alone is not evidence. Making
-	 * this rebuild shorter narrows the window that test races in, which is enough to make it stop failing on its own
-	 * counterfactual.
+	 * It lives in `evita_test/evita_long_running_tests`, which only the weekly `long-running-tests` workflow reaches,
+	 * so nothing in the fast loop runs it for you; see `InvertedIndex#refreshValueIdDirectory` for the command and
+	 * for why a green run alone is not evidence. Making this rebuild shorter narrows the window that test races in,
+	 * which is enough to make it stop failing on its own counterfactual — and lengthening it widens the window
+	 * without making the code any safer, so a re-measurement in either direction is what the calibration wants.
 	 *
 	 * @param reuseUnchangedLeaves whether a leaf whose instance identity is unchanged may keep its existing entries
 	 */

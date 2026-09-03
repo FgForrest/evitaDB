@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * **It lives here, and it runs.** A probabilistic test in the fast loop fails once every few hundred CI runs and
  * trains everyone to press re-run - but this module is not the fast loop. It is reached only by the weekly
  * `long-running-tests` workflow, which is the isolation that concern actually asks for; disabling it on top of that
- * bought nothing except invisibility, and a run costs ~2 s.
+ * bought nothing except invisibility, and a run costs about four seconds.
  *
  * **What running it weekly does and does not buy.** It catches the regression that matters most and is easiest to
  * commit: someone removing or weakening the `synchronized` on `InvertedIndex#refreshValueIdDirectory`. It cannot
@@ -75,22 +75,41 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * at both guarded methods rather than only here: change either of them and re-run the COUNTERFACTUAL, not just the
  * test.
  *
- * **Calibration (measured, not estimated).** With `synchronized` removed from
- * `InvertedIndex#refreshValueIdDirectory` the run fails 3 times out of 3, latest observed at round 417 of
- * {@link #ROUNDS} — either on a live value resolving to `null`, or on `assignLeafId`'s "assigned once and never
- * reassigned" premise, which are the two shapes the same race takes. With the guard in place all {@link #ROUNDS}
- * rounds pass in ~2 s, 3 times out of 3. Re-measure after changing either method: if the counterfactual stops
- * failing, this test has quietly become decorative, and {@link #READER_THREADS} or {@link #ROUNDS} must be raised
- * until it fails again before a green run means anything.
+ * **Calibration (measured 2026-09-03, not estimated).** With `synchronized` removed from
+ * `InvertedIndex#refreshValueIdDirectory` this test fails 3 times out of 3, in 0.53-0.80 s of wall clock, and a
+ * driver replicating its body with round attribution failed 23 times out of 23 — latest observed at round **16**
+ * of {@link #ROUNDS}, against a tree of 2 305 to 5 132 distinct values across 22 to 55 minted leaves. All 23 took
+ * `assignLeafId`'s "assigned once and never reassigned" premise; the other shape the same race can take, a live
+ * value resolving to `null`, did not appear once. With the guard in place all {@link #ROUNDS} rounds pass, 4 times
+ * out of 4, in 2.8 to 4.1 s. Measured on a 24-core x86_64 Linux box, OpenJDK 17.0.20, one-minute load average
+ * 1.0-6.8 — the box was coming off foreign load, so the five-minute figure ran 7.5-17.6 throughout, and the green
+ * side is the half of this pair that a busy box slows down. Re-measure after changing either method: if the
+ * counterfactual stops failing, this test has quietly become decorative, and
+ * {@link #READER_THREADS} or {@link #ROUNDS} must be raised until it fails again before a green run means anything.
  *
- * **That has already happened once, which is why the numbers above are the second set.** At the original 500 rounds
- * the counterfactual passed outright: the race window had narrowed under an unrelated optimization — the
- * directory's leaf table moved from a boxed `Map<Long, …>` to a primitive one, which makes the rebuild this test
- * races against measurably shorter. Across a recalibration sweep the failing round clustered at 267-450 whatever
- * the reader count was, so the window opens with tree SIZE rather than with the number of lottery tickets drawn;
- * 2000 rounds is that worst case with a margin of about four. Raising {@link #READER_THREADS} to 16 or 24 also
- * restores the failure and is the knob to reach for next, but it did not move the failing round — it buys overlap,
- * not margin.
+ * **Build the counterfactual on a shadow classpath, never by editing the shared source.** Copy `InvertedIndex.java`
+ * into a scratch directory, drop the `synchronized` there, compile the copy with `javac --release 17 -encoding UTF-8`
+ * against this module's test classpath — obtained from
+ * `mvn -o -pl evita_test/evita_long_running_tests dependency:build-classpath -Dmdep.includeScope=test`, with Lombok
+ * handed to `-processorpath` or the accessors it generates will not resolve — and **prepend** the output directory
+ * to that classpath so it shadows the installed engine class. Confirm the mutation reached the bytecode with
+ * `javap -p` before believing a failure, then drive this class from a JUnit platform launcher over the same
+ * classpath. `.claude/rules/testing.md` explains why a snapshot-mutate-restore harness over the shared file is not
+ * an option here.
+ *
+ * **The window has moved twice, in both directions, which is why this is re-measured rather than trusted.** At the
+ * original 500 rounds the counterfactual passed outright: the window had NARROWED under an unrelated optimization
+ * — the directory's leaf table moved from a boxed `Map<Long, …>` to a primitive one, which makes the rebuild this
+ * test races against measurably shorter. The recalibration sweep of 2026-08-31 then clustered the failing round at
+ * 267-450 whatever the reader count was, so the window opens with tree SIZE rather than with the number of lottery
+ * tickets drawn. By 2026-09-03 it had WIDENED again, by roughly a factor of 26, to a latest failing round of 16.
+ * That cause is deliberately not guessed at here: two lines of work landed in between — the trigram substring
+ * index, and the content-sized leaf columns of the value tree — and the latter demonstrably did not touch the
+ * rebuild body itself, so the movement comes from the insert side or from leaf density rather than from a slower
+ * rebuild. **Leave {@link #ROUNDS} at 2000 even though 16 would now do.** The rounds ARE the margin, the history
+ * above shows the window narrowing under changes that had nothing to do with it, and a green run costs four
+ * seconds. Raising {@link #READER_THREADS} to 16 or 24 also restores the failure and is the knob to reach for if
+ * rounds ever stop being enough, but it did not move the failing round — it buys overlap, not margin.
  *
  * **What this test does NOT cover, and why no test does.** A reader that already passed the staleness check — having
  * seen it `false` — can still be inside the tree's `valueOf` while a later reader rebuilds. That window is closed
