@@ -182,6 +182,12 @@ public abstract class AbstractHierarchyTranslator {
 	 * shape: cutting a node out of it, or handing the accumulator behind it a `null` to trip over when the
 	 * {@link LevelInfo} is rendered, would misreport the very structure the caller asked for.
 	 *
+	 * Now that `AbstractHierarchyStatisticsComputer#createStatistics` applies the locale gate on every path
+	 * it takes, no known query reaches that fallback: a node admitted into the tree holds data in the query
+	 * locale, so its body materializes. The fallback stays as the guard for any future path that admits
+	 * a node whose body cannot be materialized, so that such a path degrades to a bodiless node instead of
+	 * failing the whole query.
+	 *
 	 * @param entityFetch          the requirement describing the body to load, or `null` when the caller wants
 	 *                             nothing but entity type and primary key
 	 * @param context              the context of the enclosing hierarchy requirement

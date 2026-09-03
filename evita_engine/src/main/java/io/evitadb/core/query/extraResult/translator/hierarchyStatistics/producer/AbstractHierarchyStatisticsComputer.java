@@ -118,6 +118,13 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * Fabricates single collection of {@link LevelInfo} for requested hierarchical entity type. It respects
 	 * the {@link EntityLocaleEquals} and {@link HierarchyWithin} constraints used in the query. It also uses
 	 * `filteringFormula` to limit the reported cardinalities in level info objects.
+	 *
+	 * The query locale gates tree membership on every path through this method, and it gates it identically
+	 * whether or not a {@link HierarchyHaving} / {@link HierarchyExcluding} predicate was given: without one
+	 * the locale predicate *is* the gate, with one it is conjoined with it. When
+	 * `hierarchyFilterPredicateProducer` is present the locale needs no separate conjunction here, because
+	 * the predicate it produces is derived from the query's own filtering formula, which already carries
+	 * the {@link EntityLocaleEquals} constraint.
 	 */
 	@Nonnull
 	public final List<LevelInfo> createStatistics(
@@ -133,7 +140,11 @@ abstract class AbstractHierarchyStatisticsComputer {
 				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
 					filteringPredicate = new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language);
 				} else {
-					filteringPredicate.and(new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language));
+					// `and` is pure - the conjunction has to be assigned back, otherwise the having/excluding
+					// predicate would gate the tree alone and the query locale would be dropped from it
+					filteringPredicate = filteringPredicate.and(
+						new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language)
+					);
 				}
 			}
 		} else {

@@ -814,9 +814,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * from the `PRODUCT` collection, and renders the returned {@link LevelInfo} tree.
 	 *
 	 * The `having` bound is what makes this query worth asking: it names the ancestors the traversal may
-	 * pass through explicitly, by primary key, so which nodes reach the tree no longer follows from
-	 * whether they hold data in the query locale. An ancestor the bound admits but the query locale cannot
-	 * materialize is exactly the node whose body the statistics computer has to answer for.
+	 * pass through explicitly, by primary key, and it is the one shape in which the membership gate of the
+	 * statistics tree is not the query locale alone. The two are conjoined rather than one replacing the
+	 * other, so a node the bound names is still admitted only if it holds data in the query locale.
 	 *
 	 * @param evita                          the embedded evitaDB instance
 	 * @param categoryPrimaryKey             the primary key of the single category the hierarchy filter selects
@@ -2111,6 +2111,11 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 	 * holding no data in the query locale is absent here rather than present as a pointer, and why the
 	 * absence is identical whether or not ancestor bodies were requested at all - the pair of rows below
 	 * asserts exactly that equality.
+	 *
+	 * The gate holds on every path into the tree, including the `hierarchyOfReference` one, where a
+	 * `having` bound names the traversable ancestors explicitly. The bound narrows the gate rather than
+	 * replacing it, so the last two rows here reach the same fixtures through a reference and get the
+	 * trees the `hierarchyOfSelf` rows above them get.
 	 */
 	@Nested
 	@DisplayName("Parent statistics under a query locale")
@@ -2220,28 +2225,28 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * The P3 chain reached through a reference from the `PRODUCT` collection, with the traversable
-		 * ancestors named by a `having` bound rather than left to the locale. The bound admits the
-		 * Czech-only `32`, whose body the English query locale cannot materialize - so this is the one
-		 * shape in which the statistics computer has to report a node it has no body for.
+		 * ancestors named by a `having` bound that lists every one of them, the Czech-only `32` included.
+		 * This is the one shape in which the membership gate of the statistics tree is not the query
+		 * locale alone, and it pins how the two combine: the `having` bound and the locale are conjoined,
+		 * so naming `32` does not admit it, and the tree is the very one the `hierarchyOfSelf` row above
+		 * reports for the same fixture.
 		 *
-		 * It reports it as a bodiless classifier and keeps walking, which is what
-		 * {@link HierarchyParentsBehaviour#COMPLETE} means on the chain side: the tree keeps the shape the
-		 * hierarchy index actually has, and the root above the unmaterializable node is still reported.
-		 * Before this was so, the node reached {@link LevelInfo} rendering as a `null` entity and the
-		 * whole query died on an internal premise check.
+		 * The gate is the guard this row exists for. A `hierarchyOfReference` request carries no
+		 * predicate derived from the query's filtering formula, so the locale predicate has to be
+		 * conjoined with the `having` predicate explicitly; when that conjunction was dropped, `32`
+		 * entered the tree as a node whose body the English query locale cannot materialize.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
-		@DisplayName("An admitted ancestor with no materializable body is reported bodiless, not dropped")
+		@DisplayName("A having bound naming a locale-less ancestor still does not admit it")
 		@UseDataSet(DATA_SET)
 		@Test
-		void shouldReportAnUnmaterializableAncestorAsABodilessNode(Evita evita) {
+		void shouldGateAHavingBoundOnTheQueryLocaleToo_P3(Evita evita) {
 			assertEquals(
 				"""
 					B(31)
-					   P(32)
-					      B(33)
-					         B(34) (requested)
+					   B(33)
+					      B(34) (requested)
 					""",
 				renderReferencedParentStatistics(evita, 34, Locale.ENGLISH, 31, 32, 33, 34)
 			);
@@ -2249,8 +2254,9 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 		/**
 		 * The intact control chain `1 -> 2 -> 3` reached through the same reference and the same `having`
-		 * bound. Every node materializes, so the tree carries bodies throughout; without it the row above
-		 * could pass while the reference path reported bodiless nodes for everything.
+		 * bound, every node of it holding English data. The whole chain survives the conjoined gate, which
+		 * is what separates the row above from a `having` bound that simply admits nothing: without this
+		 * control, a gate rejecting every node would report the same absence and pass.
 		 *
 		 * @param evita the embedded evitaDB instance provided by the test extension
 		 */
