@@ -1,12 +1,12 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-02 23:48
+updated: 2026-09-03 06:24
 status: proposed
 kind: fix
 issues: [1365]
 prs: [1370]
-areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_engine/src/main/java/io/evitadb/core/query/fetch, evita_engine/src/main/java/io/evitadb/index/hierarchy, evita_api/src/main/java/io/evitadb/api/requestResponse/data, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_rest]
+areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_engine/src/main/java/io/evitadb/core/query/fetch, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/hierarchyStatistics, evita_engine/src/main/java/io/evitadb/index/hierarchy, evita_api/src/main/java/io/evitadb/api/requestResponse/data, evita_api/src/main/java/io/evitadb/api/proxy/impl/entity, evita_store/evita_store_server/src/main/java/io/evitadb/store/query, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_rest]
 supersedes: []
 superseded-by: []
 relates: []
@@ -241,6 +241,12 @@ against the intact control on chain `1 → 2 → 3`.
 | The resolver emits exactly one `hierarchyContent` | both fields selected means `COMPLETE` with the union of the two selection sets and equal `stopAt` required; `parents` is then derived by stopping the leaf→root walk at the first non-`SealedEntity`, which equals `MATCHING` and stays equal under `stopAt`, since a prefix of a truncated chain is a truncation of a prefix | two constraints and a merge, which the throw-on-conflict rule forbids |
 | Conflict check ignores a side that requests no bodies | a bare `hierarchyContent()` has an inert mode by definition, so `entityFetchAll()` combined with an explicit `hierarchyContent(COMPLETE, entityFetch(...))` keeps working | a strict check, which would make `entityFetchAll()` unusable next to any explicit `COMPLETE` fetch |
 | `CONCEALED_ENTITY` deprecated, not deleted | it is public `evita_api`, and it throws from `getType()` / `getPrimaryKey()`, which the exception policy forbids | deleting it; the `since` value is re-derived from the reactor pom at commit time rather than hardcoded now |
+| A parent primary key the index cannot resolve is reported as a bodyless pointer on top of the chain — in the bare form as much as in either mode | it is a key the entity genuinely carries, and only the body it can never yield distinguishes it from any other ancestor. It is offered to the stop predicate at its own distance with `UNKNOWN_LEVEL` as its level, so a `distance` bound cuts it like any ancestor and a `stopAt(node(...))` suppresses it; it is never registered for body fetching, which is what makes `MATCHING` cut below it for free. A key the chain already holds is dropped rather than reported twice, which is what bounds a ring | ending the chain at the last ancestor the index resolved — *rejected because* the key is real data on the entity, so hiding it makes a structural break indistinguishable from a genuine root. Measurable: K4's bare form reports `P(123) → P(122)`, where dropping the key would report `P(123)` and lose a primary key the entity carries |
+| Hierarchy **statistics** extra results always behave as `COMPLETE`; no argument carries the mode to them | two layers, and only the second is this record's business. *Which* nodes the tree contains is settled by the `HierarchyFilteringPredicate` before any body is fetched, so a locale-less ancestor is absent because the filter dropped it, not for want of a body; *what* an admitted node carries is the fetcher's job, and it never removes a node — `AbstractHierarchyTranslator#createEntityFetcher` falls back to the thin `EntityReference` the no-`entityFetch` branch already returns | **a new argument on `parents(...)` / `HierarchyOfSelf`** — *rejected because* it is query-model API, dragging EvitaQL, Kryo, gRPC, GraphQL and REST along for a mode with one sensible value. **Following the enveloping `entityFetch`'s `hierarchyContent`** — *rejected because* it is a different requirement over a possibly different collection (`hierarchyOfReference`), and the extra result is routinely asked by a query returning `EntityReference` only. **`MATCHING` here** — representable, but *rejected because* it is a regression: P3 reads `B(31) / B(33) / B(34)` today and `MATCHING` would drop the root a breadcrumb exists to show |
+| The query locale is **conjoined** with a `having` / `excluding` predicate in `AbstractHierarchyStatisticsComputer#createStatistics` rather than discarded | `HierarchyFilteringPredicate#and` is pure and its result was never assigned back, so `hierarchyOfReference` + `having`/`excluding` + a query locale gated the tree on the bound alone and admitted a locale-less ancestor. The sibling branch three lines up *assigns* the locale predicate and the method's JavaDoc has always claimed it respects `EntityLocaleEquals`, so the conjunction was intended and nothing documented the discard. It is folded in here because it answers, for statistics, the same question this record answers for `hierarchyContent` | leaving it and documenting the divergence — *rejected because* it would make `hierarchyOfReference` and `hierarchyOfSelf` disagree about a node set for no stated reason: the same P3 fixture read `B(31) / P(32) / B(33) / B(34)` under a reference and `B(31) / B(33) / B(34)` under self |
+| `EvitaRequest#isRequiresParent` reduces **every** `hierarchyContent` match with `combineWith` instead of demanding a single one | `entityFetchAllContent()` already emits a bare `hierarchyContent()`, so `entityFetchAllContentAnd(hierarchyContent(COMPLETE, entityFetch(...)))` always produced two siblings and failed the query with `MoreThanSingleResultException` before `combineWith` was ever reached. Reduced, the two express one requirement and the explicit behaviour survives | collapsing the siblings in the `EntityFetch` varargs constructor via `EntityContentRequireCombiningCollector` — *rejected because* that collector is reached only from `EntityFetch#combineWith`, never from the constructor, so wiring it in would change the children of **every** constraint at construction time, and with them `toString`, equality and every parsed-EvitaQL round trip, to fix one requirement's lookup |
+| A resolved parent slot is carried **verbatim** through every re-wrap, never re-derived through the interpreting getter | `EntityDecorator#getParentEntity()` translates the chain terminator into an empty result, so a re-wrap that refills a NULL slot from it cannot tell "the chain ends here" from "nobody resolved it" and falls back to the raw ancestor the delegate still carries — resurrecting one ancestor past every `stopAt` cut, every `MATCHING` cut and every `COMPLETE` substitution. The copy constructor and all three `EntityCollection` decorate sites therefore read `getParentEntityWithoutCheckingPredicate()` | refilling the slot from `getParentEntity()`, which is what the copy constructor did — *rejected because* that getter is the interpreting reader by design, so what it hands back is indistinguishable from "unresolved" and the re-wrap silently re-derives a chain the fetch had already cut |
+| The legacy primary-key `parent` chain is written **unconditionally** alongside the new `parentEntity`, not gated on the client version | non-Java drivers share evitaDB's version scheme but adopt new fields on their own schedule, so a `VersionUtils.isAtLeast(...)` gate could silently strip the ancestor axis from a client that reports a new version and yet reads only `parent`. The duplicate carries primary keys and no bodies, so what it costs is bounded and small | gating it as `EntityConverter` gates other new fields (the `AssociatedDataForm` switch at `2025.4` is the pattern) — *rejected because* the failure mode is not symmetric: a gate that guesses wrong drops data a client needs, while an ungated duplicate merely repeats keys it already has |
 
 ## Key technical details
 
@@ -248,10 +254,12 @@ against the intact control on chain `1 → 2 → 3`.
   when a body is missing. `COMPLETE` substitutes a pointer *and keeps recursing past it*; `MATCHING`
   keeps the short-circuit. The ancestor bitmap is already correct — `identifyParents` registers the
   whole axis before any body is fetched.
-- `EntityClassifierWithParent.CONCEALED_ENTITY` marks the top of **every** fetched chain — a real
-  root, a `stopAt` cut and the defect alike — not only the defect. It is what stops the delegate
-  fallback in `EntityDecorator#getParentEntity`; removing its producer before a replacement lands
-  would leak one raw ancestor past every `stopAt` truncation.
+- The chain terminator marks the top of **every** fetched chain — a real root, a `stopAt` cut and the
+  defect alike — not only the defect. It is what stops the delegate fallback in
+  `EntityDecorator#getParentEntity`; removing its producer before a replacement lands would leak one
+  raw ancestor past every `stopAt` truncation. `ParentChainEnd.INSTANCE` now plays that role and owns
+  the single table of the four parent-slot states; `EntityClassifierWithParent.CONCEALED_ENTITY` is
+  the deprecated predecessor, still accepted by `ParentChainEnd#isChainEnd`.
 - The live fallback that produces today's immediate-parent pointer is the **getter**
   `EntityDecorator#getParentEntity`, not the `EntityDecorator` constructor. An implementer aiming at
   the constructor fixes the wrong site.
@@ -276,9 +284,14 @@ against the intact control on chain `1 → 2 → 3`.
   reached from the `RemoveParentMutation` path, `removeNodeIfPresent` accepts its absence and is
   reached from entity removal and scope transitions. Both funnel into one private
   `finishNodeRemoval`, so a removal cannot come to cost different things on the two paths.
-- `GrpcEntityReferenceWithParent` is pointer-only recursively, so a body-above-pointer chain is not
-  transmissible today. The new field must be populated **alongside** the legacy one, so an old client
-  receives a complete chain degraded to pointers rather than a truncated one.
+- `GrpcEntityReferenceWithParent` was pointer-only recursively, so a body-above-pointer chain was not
+  transmissible at all. It gained `GrpcSealedEntity parentEntity = 5` — **append-only, nothing
+  renumbered** — mirroring the `parentReference` / `parentEntity` pair `GrpcSealedEntity` already
+  carries, so a body can now sit above a bodyless pointer on the wire. The new field is populated
+  **alongside** the legacy `parent` one, which `EntityConverter#toGrpcPrimaryKeyChain` fills with the
+  same ancestor reduced to primary keys, so a client that predates `parentEntity` receives a complete
+  chain degraded to pointers rather than a truncated one. Both fields describe one and the same
+  ancestor whenever both are set.
 - `HierarchyContent#cloneWithArguments` throws on any argument and `#getCopyWithNewChildren`
   silently discards arguments. Both must be taught the new value before the constraint carries one.
 - `ProxyUtils#createOptionalWrapper` picks a swallowing or rethrowing wrapper from the method
@@ -292,24 +305,44 @@ against the intact control on chain `1 → 2 → 3`.
 
 ## Verification
 
-**`HierarchyParentsBehaviour` itself is not implemented yet** — no query carries the argument, which
-is why this record is still `proposed`. What has landed is the groundwork the two modes will sit on:
-the upward traversal, the level rule, the phantom-root and re-rooting fixes, the tolerant tear-down
-and the three serializer fixes. The starting point is verified too: a throwaway characterisation run
-on 2026-09-02 against `dev` executed every row of the behaviour matrix except P6, which the landed
-P6 test measured afterwards, and classified the pre-#1365 behaviour as the position-dependent hybrid
-described above. That test was deleted after the run; the matrix is its record.
+**The argument, both constants and every layer that carries them are implemented and green.** The
+query model, the EvitaQL grammar and its visitor, the Kryo serializer, the engine's upward traversal
+and parent-slot handling, the gRPC wire shape and the entity proxy all carry the behaviour. The
+record stays `proposed` only because Phases 7-9 remain — the Java client cannot yet *send* the enum,
+GraphQL's `parentsComplete` and REST's `parentEntityComplete` are not built, and the user
+documentation and release note are unwritten. The starting point is verified too: a throwaway
+characterisation run on 2026-09-02 against `dev` executed every row of the behaviour matrix except
+P6, which the landed P6 test measured afterwards, and classified the pre-#1365 behaviour as the
+position-dependent hybrid described above. That test was deleted after the run; the matrix is its
+record.
 
-The implementation proves itself with:
+The implementation proves itself with the runs below. Every count is the aggregate `Tests run:` line
+of a foreground, offline, targeted Maven run under `-P unitAndFunctional`, all of them `BUILD
+SUCCESS`; the single skip in the GraphQL/REST batch is a pre-existing `@Disabled`.
 
 - `HierarchyContentParentsBehaviourFunctionalTest` — the behaviour matrix, both modes plus the
-  pre-#1365 column as the backward-compatibility guard. That column has already landed and grown
-  with the fixes: **38 tests across five nested classes** (locale gate, requirement variations,
-  broken chains, `ParentStatisticsOverBrokenChainTest`, index invariants), all green.
+  pre-#1365 column as the backward-compatibility guard: **97 tests across eight nested classes** —
+  locale gate 16 (P rows), requirement variations 30 (N rows), broken chains 28 (K rows), typed
+  proxy over the parent chain 8, re-wrapping a resolved chain 4, parent statistics over a broken
+  chain 2, parent statistics under a query locale 7, index invariants 2 — all green.
   `ParentStatisticsOverBrokenChainTest` is the only coverage of the *second* production caller of
-  the upward walk, and `IndexInvariantTest` carries the two invariants that replaced the defect pins
-  — a deleted root leaves the index and orphans its descendants, and clearing a parent re-roots the
-  entity instead of dropping it;
+  the upward walk, `ParentStatisticsUnderQueryLocaleTest#shouldGateAHavingBoundOnTheQueryLocaleToo_P3`
+  pins the conjoined locale gate,
+  `LocaleGateTest#shouldCountTheIoStatisticsOfAnAncestorOnce_control` pins that an ancestor
+  contributes its IO statistics exactly once, `ReWrapTest` pins that a resolved slot survives
+  `enrichEntity` / `limitEntity` verbatim, and `IndexInvariantTest` carries the two invariants that
+  replaced the defect pins — a deleted root leaves the index and orphans its descendants, and
+  clearing a parent re-roots the entity instead of dropping it;
+- `HierarchyContentTest.ParentsBehaviourTest` — **15 tests** over the requirement algebra: the
+  argument on every constructor, `getCopyWithNewChildren` / `cloneWithArguments`, the conflict rule,
+  the order-insensitive combination of two inert sides, the bound that survives only when both sides
+  carry it, and the containment of the bare form in a `MATCHING` container. The enclosing
+  `HierarchyContentTest` runs 31 in total; the other 16 are its pre-existing cases;
+- `EntityDecoratorTest.ParentSlotTest` — **12 tests** over the four states of the decorator's parent
+  slot, the terminator's own contract, the verbatim carry across a re-wrap, and the deprecated
+  `CONCEALED_ENTITY` surviving a Java de-serialization round trip;
+- `EntityConverterTest.ParentChainConversionTest` — **2 tests** over the gRPC chain shape, including
+  a body above a bodyless pointer and the legacy primary-key field written beside it;
 - `HierarchyIndexTest` — root removal, broken-chain traversal at two and three levels, the two ring
   shapes, the `-1` level pins and the two `listNodesIncludingParents` walks: **100 tests**, green.
   Before this line of work no test removed a hierarchical root at either layer, which is why the
@@ -329,10 +362,24 @@ The implementation proves itself with:
   top level, nested in `referenceContent` and with several gaps, the aliased zero-name and
   multi-name `referenceContent` shapes, and a multi-name `referenceContent` keeping its filter and
   order;
-- GraphQL and REST functional tests for `parentsComplete` / `parentEntityComplete`, plus the existing
-  `parents` tests unchanged as the additive-schema guard;
-- `ManagedReferenceLocaleFunctionalTest` untouched and green, proving the #1343 reference behaviour
-  is not disturbed.
+- `EvitaSessionServiceFunctionalTest` — **56 tests** against a real gRPC server, including
+  `shouldReturnCompleteParentChainWithABodyAboveAPointer`, the only end-to-end proof that the new
+  proto field is populated, read back and accompanied by the legacy pointer field. The converter unit
+  test cannot see a server, and this test could not have compiled before the proto change, since
+  `GrpcEntityReferenceWithParent.hasParentEntity()` did not exist;
+- `EntityByHierarchyFilteringFunctionalTest` — **137 tests**, the guard that the traversal and level
+  changes did not disturb hierarchy *filtering*;
+- the eight entity-fetch and lazy-load suites (`EntityHierarchyFetch`, `EntityBasicFetch`,
+  `EntityLazyLoad`, `EntityDeepFetch`, `EntityReferenceFetch`, `EntityCrossScopeReferenceFetch`,
+  `EntityNonManagedReference`, `EntityFetchException`) — **117 tests**; and the four proxying suites
+  (`EntityRecordProxying`, `EntityInterfaceProxying`, `EntityEditorProxying`,
+  `IsolatedEntityEditorProxying`) — **213 tests**, which is where the parent-entity method classifier
+  is exercised outside the eight rows of the matrix's own proxy class;
+- the GraphQL and REST catalog-query suites — **742 tests**, green and unchanged. `parentsComplete` /
+  `parentEntityComplete` are Phase 8; until they land this batch is the additive-schema guard,
+  proving the existing `parents` / `parentEntity` fields are untouched;
+- `ManagedReferenceLocaleFunctionalTest` untouched and green (**9 tests**), proving the #1343
+  reference behaviour is not disturbed.
 
 ## Consequences & open follow-ups
 
@@ -374,6 +421,62 @@ The implementation proves itself with:
   its replaying reader, and the locally generated benchmark query corpora read by
   `ClientSyntheticTestState` and `SanityChecker`; no corpus is tracked in git, so what a break costs
   is a local regeneration.
+- **IO statistics of the ancestor tail are folded in only when the read-time walk cannot reach
+  them.** `ServerEntityDecorator#getIoFetchCount` / `#getIoFetchedBytes` already add the parent
+  slot's total at read time, but only while that slot holds a `ServerEntityDecorator` — the walk
+  stops dead at a bodyless pointer. `ReferencedEntityFetcher#replaceWithSealedEntities` therefore
+  folds `findNearestDecoratedAncestor(...)`'s total into the constructor argument **only when the
+  resolved immediate element is not a `ServerEntityDecorator`**, i.e. exactly where the read-time
+  walk cannot get there. Adding it unconditionally double-counted a body sitting directly above.
+  Anyone reshaping either side has to keep the two halves complementary; the guard is
+  `LocaleGateTest#shouldCountTheIoStatisticsOfAnAncestorOnce_control`, written as the difference
+  between a bounded and an unbounded arm so it carries no absolute fixture cost.
+- **A scope with no hierarchy index resolves to the chain terminator, not to NULL.**
+  `identifyParents` writes nothing at all for such a scope, and a key the index never received is a
+  *resolved* answer meaning "nothing above this entity" — NULL means the opposite and sends the
+  decorator back to the raw ancestor its delegate carries.
+  `ReferencedEntityFetcher#getParentEntityFetcher` therefore answers `ParentChainEnd.INSTANCE` for a
+  miss. This makes `terminateEmptyChains` a **pure optimisation** rather than the only thing standing
+  between a cut chain and the fallback — do not "simplify" it away on the assumption that it is
+  load-bearing, and do not restore the raw NULL on the assumption that it is harmless. The miss is
+  unreachable from a query (`prefetchParents` iterates the scopes the queried entities themselves
+  report), so it carries no test; it is guarded indirectly by every matrix row that goes through the
+  same function on the hit path.
+- **`CacheEden` was measured and deliberately not changed.** `CacheEden#enrichCachedEntityIfNecessary`
+  passes a literal `null` parent slot, which reads like another site where a resolved chain is thrown
+  away and is not one: the cache carries no parent chain in either direction. `fetchAndCacheEntity`
+  builds `EntityPayload` from the delegate plus the six predicates only, and every
+  `fetchEntityDecorator` call site is followed by `limitEntity` + `applyReferenceFetcher` — so the
+  chain is resolved *after* the cache returns, on a hit and on a miss alike, and the `null` is the
+  same one the miss path uses. Putting the slot into
+  `EntityPayload` would also contradict that record's own stated reason for existing: entities are
+  deliberately not cached because they link to other entities and would trap a large graph, and a
+  `COMPLETE` parent chain is precisely such a graph.
+- **A literal `null` first argument to `hierarchyContent(...)` now needs a cast.** The behaviour-first
+  overloads make `hierarchyContent(null, entityFetch(...))` ambiguous where it used to resolve. The
+  overloads are kept deliberately: the headline usage is
+  `hierarchyContent(COMPLETE, entityFetch(...))`, mirroring the
+  `referenceContent(ManagedReferencesBehaviour, …)` precedent, and a typed variable or a cast is a
+  one-line fix at the few call sites that pass a literal null. It belongs in the release note.
+- **`entityFetchAllContent()` widens a bound written beside it.** It emits a bare
+  `hierarchyContent()`, so `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` combines
+  the two and the **bound is dropped** — an absent bound is the superset, exactly as
+  `attributeContentAll()` swallows an `attributeContent("code")` written beside it. Before this work
+  the same query failed with `MoreThanSingleResultException`, so nothing regressed, but the widening
+  is user-visible and is stated in `HierarchyContent`'s class JavaDoc. The same single-match lookup is
+  still used for `attributeContent`, `associatedDataContent` and `priceContent`, which carry the
+  identical latent defect; fixing them was out of scope and each needs its own combining semantics
+  reviewed first.
+- **Interim contract violation on REST until Phase 8.** `parentEntity` is documented to contain only
+  materialized ancestors, which a `MATCHING` chain guarantees. A query asking for `COMPLETE` through
+  a channel that has no `parentEntityComplete` field yet therefore serializes bodyless pointers into
+  `parentEntity`. That is knowingly accepted for the window between this work and Phase 8, which adds
+  the `oneOf`-typed sibling field.
+- **What Phases 7-9 still owe.** Phase 7: the Java client cannot *send* the enum — a
+  `GrpcHierarchyParentsBehaviour`, a `GrpcQueryParam` oneof field, and `EvitaEnumConverter` /
+  `QueryConverter` in both directions, with a client test. Phase 8: GraphQL `parentsComplete` and
+  REST `parentEntityComplete`, per the two subsidiary decisions above. Phase 9: user documentation
+  and the release note, which must carry the default's silent change and the overload ambiguity.
 - The in-flight plan, the measured review reports and the external-API option analysis live in
   `specifications/1365-hierarchy-content-parents-behaviour/`, which is git-ignored. This record flips
   to `accepted` and that folder is deleted when the work lands.
