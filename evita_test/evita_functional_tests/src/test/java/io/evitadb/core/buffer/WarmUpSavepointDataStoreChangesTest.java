@@ -136,7 +136,7 @@ class WarmUpSavepointDataStoreChangesTest {
 		 * wraps every fetch - establishes no context of its own. A real store would throw here; this stand-in records
 		 * the fact instead, so the test names the invariant rather than a serializer's symptom.
 		 */
-		class SchemaContextRecordingService extends InMemoryStoragePartPersistenceService {
+		static class SchemaContextRecordingService extends InMemoryStoragePartPersistenceService {
 			/** `TRUE` / `FALSE` once a read has happened, `null` while none has. */
 			@Nullable Boolean schemaContextWasLive;
 

@@ -183,7 +183,7 @@ class WarmUpSavepointValueIdRollbackTest {
 		 * @return the tree under test
 		 */
 		@Nonnull
-		private TransactionalBucketBPlusTree<Integer> treeCarryingValueIds(@Nonnull ValueIdAllocator allocator) {
+		private static TransactionalBucketBPlusTree<Integer> treeCarryingValueIds(@Nonnull ValueIdAllocator allocator) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
 			tree.installValueIdMinter(allocator::allocate);
 			return tree;
@@ -273,7 +273,7 @@ class WarmUpSavepointValueIdRollbackTest {
 		 * accelerator has attached to it
 		 */
 		@Nonnull
-		private InvertedIndex treeWithIds() {
+		private static InvertedIndex treeWithIds() {
 			final InvertedIndex tree = new InvertedIndex(
 				String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);

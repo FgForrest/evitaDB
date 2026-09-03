@@ -478,7 +478,7 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 		 * Builds a sort index over single-character string values, one record per value, in ascending value order.
 		 */
 		@Nonnull
-		private SortIndex newIndex(int count) {
+		private static SortIndex newIndex(int count) {
 			final SortIndex index = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			for (int i = 0; i < count; i++) {
 				index.addRecord(String.format("v%05d", i), i + 1);

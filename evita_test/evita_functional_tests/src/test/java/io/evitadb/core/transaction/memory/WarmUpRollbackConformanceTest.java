@@ -240,7 +240,7 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 		 * @return the loaded class
 		 */
 		@Nonnull
-		private Class<?> loadTopLevelClass(@Nonnull String relativePath) {
+		private static Class<?> loadTopLevelClass(@Nonnull String relativePath) {
 			final String className = relativePath
 				.substring(0, relativePath.length() - ".java".length())
 				.replace('/', '.');
@@ -264,7 +264,7 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 		 * @param subject the class to inspect
 		 * @return `true` when the class or one of its supertypes states the declaration
 		 */
-		private boolean declaresRollbackSupport(@Nonnull Class<?> subject) {
+		private static boolean declaresRollbackSupport(@Nonnull Class<?> subject) {
 			try {
 				return subject.getMethod("supportsWarmUpRollback").getDeclaringClass()
 					!= TransactionalLayerCreator.class;

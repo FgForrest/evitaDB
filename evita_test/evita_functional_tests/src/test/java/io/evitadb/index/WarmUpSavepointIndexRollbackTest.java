@@ -963,7 +963,7 @@ class WarmUpSavepointIndexRollbackTest {
 		 * @return a freshly populated hierarchy index
 		 */
 		@Nonnull
-		private HierarchyIndex newSeededHierarchy() {
+		private static HierarchyIndex newSeededHierarchy() {
 			final HierarchyIndex index = new HierarchyIndex();
 			index.addNode(1, null);
 			index.addNode(2, null);

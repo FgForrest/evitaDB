@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -53,7 +54,6 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.CatalogUnpublishableException;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestTags;
@@ -77,7 +77,6 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -456,7 +455,7 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	 * @return the ordered upsert mutation
 	 */
 	@Nonnull
-	private EntityMutation lateProduct(
+	private static EntityMutation lateProduct(
 		int primaryKey, @Nonnull String code, @Nonnull String sortableCode, int priceId
 	) {
 		return new EntityUpsertMutation(
@@ -511,7 +510,7 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	 * @return the ordered upsert mutation
 	 */
 	@Nonnull
-	private EntityMutation facetedProduct(int primaryKey, @Nonnull String code) {
+	private static EntityMutation facetedProduct(int primaryKey, @Nonnull String code) {
 		final ReferenceKey firstParameter = new ReferenceKey(REFERENCE_PARAMETER, PARAMETER_ONE);
 		final ReferenceKey secondParameter = new ReferenceKey(REFERENCE_PARAMETER, PARAMETER_TWO);
 		return new EntityUpsertMutation(
@@ -671,7 +670,7 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 					SealedEntity.class
 				);
 				final int[] actualPrimaryKeys = entities.stream()
-					.mapToInt(it -> it.getPrimaryKeyOrThrowException())
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.sorted()
 					.toArray();
 				assertEquals(

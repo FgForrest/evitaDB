@@ -134,7 +134,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * inserts splits it.
 		 */
 		@Nonnull
-		private TransactionalObjectBPlusTree<Integer, Integer> newTree(int count) {
+		private static TransactionalObjectBPlusTree<Integer, Integer> newTree(int count) {
 			final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
 				8, 3, 7, 3, Integer.class, Integer.class
 			);
@@ -148,7 +148,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the tree's whole logical content into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Integer, Integer> contents(@Nonnull TransactionalObjectBPlusTree<Integer, Integer> tree) {
+		private static TreeMap<Integer, Integer> contents(@Nonnull TransactionalObjectBPlusTree<Integer, Integer> tree) {
 			final TreeMap<Integer, Integer> result = new TreeMap<>();
 			final Iterator<TransactionalObjectBPlusTree.Entry<Integer, Integer>> it = tree.entryIterator();
 			while (it.hasNext()) {
@@ -282,7 +282,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Builds a tree of `count` consecutive long keys with block sizes small enough to split readily.
 		 */
 		@Nonnull
-		private TransactionalLongBPlusTree<Integer> newTree(int count) {
+		private static TransactionalLongBPlusTree<Integer> newTree(int count) {
 			final TransactionalLongBPlusTree<Integer> tree = new TransactionalLongBPlusTree<>(
 				8, 3, 7, 3, Integer.class
 			);
@@ -296,7 +296,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the tree's whole logical content into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Long, Integer> contents(@Nonnull TransactionalLongBPlusTree<Integer> tree) {
+		private static TreeMap<Long, Integer> contents(@Nonnull TransactionalLongBPlusTree<Integer> tree) {
 			final TreeMap<Long, Integer> result = new TreeMap<>();
 			final Iterator<TransactionalLongBPlusTree.Entry<Integer>> it = tree.entryIterator();
 			while (it.hasNext()) {
@@ -431,7 +431,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Builds a tree of `count` consecutive int keys with block sizes small enough to split readily.
 		 */
 		@Nonnull
-		private TransactionalIntToLongBPlusTree newTree(int count) {
+		private static TransactionalIntToLongBPlusTree newTree(int count) {
 			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(8, 3, 7, 3);
 			for (int i = 0; i < count; i++) {
 				tree.insert(i, i * 10L);
@@ -443,7 +443,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the tree's whole logical content into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Integer, Long> contents(@Nonnull TransactionalIntToLongBPlusTree tree) {
+		private static TreeMap<Integer, Long> contents(@Nonnull TransactionalIntToLongBPlusTree tree) {
 			final TreeMap<Integer, Long> result = new TreeMap<>();
 			final Iterator<TransactionalIntToLongBPlusTree.Entry> it = tree.entryIterator();
 			while (it.hasNext()) {
@@ -586,7 +586,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * key is visible in {@link #payloads(TransactionalElementBPlusTree)}.
 		 */
 		@Nonnull
-		private TransactionalElementBPlusTree<KeyedPayload> newKeyedTree(int count) {
+		private static TransactionalElementBPlusTree<KeyedPayload> newKeyedTree(int count) {
 			final TransactionalElementBPlusTree<KeyedPayload> tree = new TransactionalElementBPlusTree<>(
 				8, 3, 7, 3, KeyedPayload.class, KeyedPayload::key
 			);
@@ -600,7 +600,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the keyed tree's whole logical content into a comparable reference value.
 		 */
 		@Nonnull
-		private List<KeyedPayload> payloads(@Nonnull TransactionalElementBPlusTree<KeyedPayload> tree) {
+		private static List<KeyedPayload> payloads(@Nonnull TransactionalElementBPlusTree<KeyedPayload> tree) {
 			final List<KeyedPayload> result = new ArrayList<>(tree.size());
 			final Iterator<KeyedPayload> it = tree.valueIterator();
 			while (it.hasNext()) {
@@ -632,7 +632,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * value array — the leaf memento is the element array plus the peek index.
 		 */
 		@Nonnull
-		private TransactionalElementBPlusTree<Integer> newTree(int count) {
+		private static TransactionalElementBPlusTree<Integer> newTree(int count) {
 			final TransactionalElementBPlusTree<Integer> tree = new TransactionalElementBPlusTree<>(
 				8, 3, 7, 3, Integer.class, Integer::intValue
 			);
@@ -646,7 +646,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the tree's whole logical content into a comparable reference value.
 		 */
 		@Nonnull
-		private List<Integer> contents(@Nonnull TransactionalElementBPlusTree<Integer> tree) {
+		private static List<Integer> contents(@Nonnull TransactionalElementBPlusTree<Integer> tree) {
 			final List<Integer> result = new ArrayList<>(tree.size());
 			final Iterator<Integer> it = tree.valueIterator();
 			while (it.hasNext()) {
@@ -721,7 +721,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Builds a bucket tree of `count` consecutive bucket values, each holding a single record.
 		 */
 		@Nonnull
-		private TransactionalBucketBPlusTree<Integer> newTree(int count) {
+		private static TransactionalBucketBPlusTree<Integer> newTree(int count) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
 				8, 3, 7, 3, Integer.class, null
 			);
@@ -735,7 +735,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the whole bucket-to-records mapping into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Integer, List<Integer>> contents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		private static TreeMap<Integer, List<Integer>> contents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
 			final TreeMap<Integer, List<Integer>> result = new TreeMap<>();
 			final BucketCursor<Integer> cursor = tree.cursor();
 			while (cursor.next()) {
@@ -859,7 +859,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Builds a bucket tree of `count` consecutive single-record buckets, in leaves of eight.
 		 */
 		@Nonnull
-		private TransactionalBucketBPlusTree<Integer> newTree(int count) {
+		private static TransactionalBucketBPlusTree<Integer> newTree(int count) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
 				8, 3, 7, 3, Integer.class, null
 			);
@@ -874,7 +874,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 */
 		@Nonnull
 		@SuppressWarnings({"unchecked", "rawtypes"})
-		private TransactionalBucketBPlusTree<Integer> newLongTree(int count) {
+		private static TransactionalBucketBPlusTree<Integer> newLongTree(int count) {
 			final ValueColumnFactory factory = ValueColumnFactory.forKey(Integer.class, null);
 			//noinspection unchecked
 			final TransactionalBucketBPlusTree<Integer> tree = TransactionalBucketBPlusTree.withLongPayload(
@@ -890,7 +890,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads the whole bucket-to-records mapping into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Integer, List<Integer>> contents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		private static TreeMap<Integer, List<Integer>> contents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
 			final TreeMap<Integer, List<Integer>> result = new TreeMap<>();
 			final BucketCursor<Integer> cursor = tree.cursor();
 			while (cursor.next()) {
@@ -908,7 +908,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Reads a `long`-payload tree's whole bucket-to-payload mapping into a comparable reference value.
 		 */
 		@Nonnull
-		private TreeMap<Integer, Long> longContents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		private static TreeMap<Integer, Long> longContents(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
 			final TreeMap<Integer, Long> result = new TreeMap<>();
 			for (int i = -20; i < 200; i++) {
 				final OptionalLong payload = tree.getLongRecordEqualTo(i);
@@ -924,7 +924,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * whole-node memento works on a single-leaf tree, so the mutation and the assertion cannot drift apart.
 		 */
 		@Nonnull
-		private BPlusLeafTreeNode<Integer> onlyLeaf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		private static BPlusLeafTreeNode<Integer> onlyLeaf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
 			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
 			assertEquals(1, leaves.size(), "self-check: this test needs a single-leaf tree");
 			return leaves.get(0);
@@ -934,7 +934,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		 * Asserts the leaf has NOT been given a whole-node memento inside the open savepoint — i.e. the writes it just
 		 * took were journalled per operation, which is the whole point of the mechanism under test.
 		 */
-		private void assertJournalledPerOperation(
+		private static void assertJournalledPerOperation(
 			@Nonnull WarmUpSavepoint savepoint,
 			@Nonnull BPlusLeafTreeNode<Integer> leaf
 		) {

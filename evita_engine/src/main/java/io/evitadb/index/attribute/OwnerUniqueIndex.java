@@ -49,8 +49,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
-import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

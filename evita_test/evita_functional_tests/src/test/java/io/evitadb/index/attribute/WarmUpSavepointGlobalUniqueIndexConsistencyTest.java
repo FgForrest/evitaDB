@@ -49,6 +49,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -204,7 +205,7 @@ class WarmUpSavepointGlobalUniqueIndexConsistencyTest {
 		savepoint.rollback();
 
 		assertEquals(20, index.size(), "Rollback must restore the pre-savepoint number of unique keys.");
-		assertTrue(!index.isPaged(), "Rollback must restore the pre-split single-leaf shape of the value tree.");
+		assertFalse(index.isPaged(), "Rollback must restore the pre-split single-leaf shape of the value tree.");
 		for (int i = 1; i <= 20; i++) {
 			assertEquals(
 				new EntityReferenceWithLocale(Entities.PRODUCT, i, null),

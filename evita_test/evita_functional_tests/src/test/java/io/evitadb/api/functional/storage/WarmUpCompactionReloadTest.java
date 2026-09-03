@@ -68,7 +68,6 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
 import static io.evitadb.test.Entities.PRODUCT;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

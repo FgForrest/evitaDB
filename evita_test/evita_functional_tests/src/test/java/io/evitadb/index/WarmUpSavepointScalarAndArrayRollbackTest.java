@@ -360,7 +360,7 @@ class WarmUpSavepointScalarAndArrayRollbackTest {
 		 * @return the array under test
 		 */
 		@Nonnull
-		private TransactionalComplexObjArray<ValueHolder> plainArray(@Nonnull String... keys) {
+		private static TransactionalComplexObjArray<ValueHolder> plainArray(@Nonnull String... keys) {
 			final ValueHolder[] delegate = new ValueHolder[keys.length];
 			for (int i = 0; i < keys.length; i++) {
 				delegate[i] = new ValueHolder(keys[i]);
@@ -376,7 +376,7 @@ class WarmUpSavepointScalarAndArrayRollbackTest {
 		 * @return the array under test
 		 */
 		@Nonnull
-		private TransactionalComplexObjArray<ValueHolder> combiningArray(@Nonnull ValueHolder... elements) {
+		private static TransactionalComplexObjArray<ValueHolder> combiningArray(@Nonnull ValueHolder... elements) {
 			return new TransactionalComplexObjArray<>(
 				elements,
 				ValueHolder::combineWith,
