@@ -1,7 +1,7 @@
 ---
 title: Turn query telemetry into an actionable profile, and render the formula plan without ever computing it
 date: 2026-08-04
-updated: 2026-09-03 09:20
+updated: 2026-09-03 12:00
 status: accepted
 kind: feature
 issues: [1341]
