@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -320,6 +321,84 @@ public class AssertionUtils {
 					transaction.close();
 				}
 			}
+		);
+	}
+
+	/**
+	 * WARM_UP counterpart of {@link #assertSavepointRollbackRestores}: the same rollback-fidelity assertion for a
+	 * structure being written NON-transactionally, where the writes go straight to the delegate and a
+	 * {@link WarmUpSavepoint} — not a {@link TransactionalLayerMaintainer} — is what has to rewind them.
+	 *
+	 * There is no transaction, so the type bound is dropped (a warm-up participant need not be a
+	 * {@link TransactionalStateProducer}) and there is no commit-time layer sweep to verify — the delegate IS the
+	 * committed state. Everything else is the same four-step shape: baseline mutations that must survive, an oracle
+	 * reading, in-savepoint mutations that must be reverted, and an exact comparison after the rollback.
+	 *
+	 * @param tested       the structure under test
+	 * @param baselineOps  mutations applied before the savepoint (must survive)
+	 * @param oracleReader reads the structure's logical content into an `.equals`-comparable reference value
+	 * @param savepointOps mutations applied while the savepoint is open (must be reverted)
+	 */
+	public static <T, R> void assertWarmUpSavepointRollbackRestores(
+		@Nonnull T tested,
+		@Nonnull Consumer<T> baselineOps,
+		@Nonnull Function<T, R> oracleReader,
+		@Nonnull Consumer<T> savepointOps
+	) {
+		baselineOps.accept(tested);
+		final R expected = oracleReader.apply(tested);
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		boolean closed = false;
+		try {
+			savepointOps.accept(tested);
+			savepoint.rollback();
+			closed = true;
+		} finally {
+			// a savepoint is thread-bound, so one leaked by a failing batch would break every later assertion in this
+			// fork with a bogus "already open" error rather than the real failure
+			if (!closed && WarmUpSavepoint.getIfOpen() == savepoint) {
+				savepoint.commit();
+			}
+		}
+		assertEquals(
+			expected, oracleReader.apply(tested),
+			"Warm-up savepoint rollback must restore the exact pre-savepoint logical state!"
+		);
+	}
+
+	/**
+	 * WARM_UP counterpart of {@link #assertSavepointCommitKeeps}: the content captured *after* `savepointOps` must
+	 * remain unchanged once the {@link WarmUpSavepoint} is committed, since committing only discards the recorded
+	 * inverses and touches no state.
+	 *
+	 * @param tested       the structure under test
+	 * @param baselineOps  mutations applied before the savepoint
+	 * @param oracleReader reads the structure's logical content into an `.equals`-comparable reference value
+	 * @param savepointOps mutations applied while the savepoint is open (must be kept)
+	 */
+	public static <T, R> void assertWarmUpSavepointCommitKeeps(
+		@Nonnull T tested,
+		@Nonnull Consumer<T> baselineOps,
+		@Nonnull Function<T, R> oracleReader,
+		@Nonnull Consumer<T> savepointOps
+	) {
+		baselineOps.accept(tested);
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+		final R expected;
+		boolean closed = false;
+		try {
+			savepointOps.accept(tested);
+			expected = oracleReader.apply(tested);
+			savepoint.commit();
+			closed = true;
+		} finally {
+			if (!closed && WarmUpSavepoint.getIfOpen() == savepoint) {
+				savepoint.commit();
+			}
+		}
+		assertEquals(
+			expected, oracleReader.apply(tested),
+			"Warm-up savepoint commit must keep all changes made while it was open!"
 		);
 	}
 

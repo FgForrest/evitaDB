@@ -49,6 +49,8 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
@@ -62,6 +64,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -107,7 +110,7 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public abstract sealed class FilterIndex implements IndexDataStructure, Serializable
+public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTouchStamped, Serializable
 	permits OwnerFilterIndex, FilterIndexView {
 	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
@@ -117,6 +120,13 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 */
 	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM_POINTS = new ValueToRecordBitmap[0];
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	/**
 	 * Aggregation lambda used by {@link #getRangeHistogramOfAllRecords(Class, int)} when producing the subset's
@@ -634,9 +644,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
-		// memoizedAllRecords / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
+		// memoizedAllRecords / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int and the
+		// warmUpTouchStamp
 		long size = layout.sizeOfObject(
-			8L * layout.referenceSize() + Integer.BYTES + ownFieldBytes
+			8L * layout.referenceSize() + Integer.BYTES + Long.BYTES + ownFieldBytes
 		);
 		if (this.memoizedAllRecords != null && this.invertedIndex.getBucketCount() > 1) {
 			// more than one bucket, so the memoized union was computed rather than short-circuited to a bucket's own
@@ -801,6 +812,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -860,6 +872,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -925,6 +938,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -984,6 +998,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllRecords = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
@@ -1547,6 +1562,33 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		@Nonnull int[] rangeLeafPageSequences,
 		boolean listChanged
 	) {
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
+	 * memoized bitmaps have to be left INVALIDATED should the mutation be rolled back (see {@link WarmUpSavepoint}).
+	 *
+	 * The forward mutators already null both memos, so the state a rollback finds them in would be correct — were it
+	 * not for reads. A query executed later within the same root entity mutation (uniqueness checks and reference
+	 * cascades routinely run one) repopulates them from the HALF-MUTATED index, and that value would then survive the
+	 * rollback of the data underneath it. Re-nulling on restore is what closes that window.
+	 *
+	 * The memos are re-invalidated rather than restored to their captured pre-images on purpose: an absolute restore of
+	 * the underlying inverted index costs the memos nothing but a recomputation, whereas a captured bitmap would have
+	 * to be trusted to have been valid, which nothing here can establish.
+	 *
+	 * The touch is recorded once per savepoint - the whole cached state is these two slots, so a single re-invalidation
+	 * covers every write - and only from the non-transactional branch, since inside a transaction no warm-up savepoint
+	 * is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> {
+				this.memoizedAllRecords = null;
+				this.memoizedRangeHistogramSubSet = null;
+			});
+		}
 	}
 
 	/**

@@ -41,6 +41,7 @@ import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
+import io.evitadb.store.catalog.EntityCollectionHeaderReconciler;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask.BackupSettings;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -547,14 +548,20 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		totalRecords += catalogServiceRecordCount;
 
 		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-			final EntityCollectionFileHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
+			final EntityCollectionFileHeader storedCollectionHeader = catalogPersistenceService.getStoragePart(
 				catalogVersion,
 				entityTypeFileIndex.entityTypePrimaryKey(),
 				EntityCollectionFileHeader.class
 			);
 			Assert.isPremiseValid(
-				entityCollectionHeader != null,
+				storedCollectionHeader != null,
 				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
+			);
+			// the stored header may name a data file generation a compaction has already replaced; the historical
+			// branch below opens the collection from it directly, so it has to be reconciled with the catalog header
+			// of the very same version first (see EntityCollectionHeaderReconciler)
+			final EntityCollectionFileHeader entityCollectionHeader = EntityCollectionHeaderReconciler.reconcile(
+				catalogHeader.catalogName(), entityTypeFileIndex, storedCollectionHeader
 			);
 			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(

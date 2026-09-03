@@ -29,10 +29,13 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,6 +51,8 @@ import java.util.PrimitiveIterator.OfLong;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -186,7 +191,8 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		final VMLayout layout = VMLayout.current();
 		// id + four block-size ints + root/size slots
 		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 2L * layout.referenceSize());
-		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// the holder carries the warmUpTouchStamp beside its id, so it is two longs wide before its value slot
+		final long transactionalReference = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
 		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
 		return ownSize + getNodeGraphHeapSizeInBytes();
@@ -261,6 +267,11 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			leaf.decoupleTransactionalArrays();
 			final long[] values = leaf.getValues();
 			final long previousValue = values[existingIndex];
+			// this write is journalled HERE and nowhere else. decoupleTransactionalArrays() used to take the leaf's
+			// whole-node memento on its way past; it resolves through perOperationWriteLayer now, which records
+			// nothing outside a transaction, so the slot inverse has to be pushed explicitly and before the write.
+			// The twin of TransactionalLongBPlusTree#upsert - keep the two in step.
+			leaf.journalValueReplacementIfOpen(key, previousValue);
 			values[existingIndex] = updater.applyAsLong(previousValue);
 		} else {
 			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
@@ -524,6 +535,9 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Nonnull BPlusLeafTreeNode leaf,
 		@Nonnull Cursor cursor
 	) {
+		// a split is a structural rewrite of this leaf: it needs the whole-node memento that ordinary per-slot
+		// journalling deliberately does not take
+		leaf.captureBeforeStructuralChange();
 		final int mid = this.valueBlockSize / 2;
 		final int[] originKeys = leaf.getKeys();
 		final long[] originValues = leaf.getValues();
@@ -681,6 +695,18 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		IntKeyedNode,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento> {
 		@Serial private static final long serialVersionUID = 5744347408875846162L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -793,9 +819,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -831,9 +855,9 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + keys/values slots + peek
+			// id + warmUpTouchStamp + transactionalLayer + keys/values slots + peek
 			// both arrays hold primitives, so this leaf owns no element and ignores the sizer entirely
-			return layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES)
+			return layout.sizeOfObject(2L * Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES)
 				+ layout.sizeOfArray(this.keys.length, Integer.BYTES)
 				+ layout.sizeOfArray(this.values.length, Long.BYTES);
 		}
@@ -886,9 +910,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
@@ -924,9 +946,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
@@ -970,9 +990,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
@@ -997,9 +1015,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
@@ -1029,9 +1045,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 */
 		@Nonnull
 		public int[] getKeysForUpdate() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1065,9 +1079,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 */
 		@Nonnull
 		public long[] getValuesForUpdate() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -1224,6 +1236,75 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		}
 
 		/**
+		 * Captures this leaf's whole-node memento before a STRUCTURAL change rewrites it, when a warm-up savepoint is
+		 * open. Ordinary writes journal per slot and take no memento, but a split hands this leaf's arrays to another
+		 * node and installs fresh ones here — something no per-slot inverse can undo. The split therefore has to ask
+		 * for the memento explicitly; it used to inherit one only because `insert` captured it on the way in.
+		 *
+		 * First-touch dedup makes a repeat call free, and reverse replay runs this memento BEFORE the per-slot
+		 * inverses pushed earlier for the same leaf, which then refine the restored pre-split state.
+		 */
+		void captureBeforeStructuralChange() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.recordFirstTouch(this);
+			}
+		}
+
+		/**
+		 * Journals the inverse of an entry INSERTION this leaf is about to make: a deletion of that key. The inverse is
+		 * key-addressed and absolute — it re-finds the slot when it runs, because inverses replayed before it may have
+		 * shifted the columns, and it is a no-op when the key is absent (the insertion it undoes never happened).
+		 * Nothing is journalled once this savepoint already holds this leaf's whole-node memento
+		 * ({@link WarmUpSavepoint#isCaptured}), which restores every column and replays first.
+		 *
+		 * Must be called BEFORE the first column write.
+		 *
+		 * @param key the key about to be inserted, absent from this leaf at the time of the call
+		 */
+		private void journalEntryInsertionIfOpen(int key) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> delete(key));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an entry DELETION: a re-insertion of the key with the value it carried. Gate and
+		 * addressing are the ones {@link #journalEntryInsertionIfOpen} documents.
+		 *
+		 * @param key   the key about to be deleted
+		 * @param value the value that key carries, to be restored
+		 */
+		private void journalEntryDeletionIfOpen(int key, long value) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> insert(key, value));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an in-place VALUE REPLACEMENT at an existing key: putting the previous value back.
+		 * The value is a primitive `long`, so this is a total restore of the slot — unlike the reference-valued trees,
+		 * there is no in-place content mutation it could miss. Gate and addressing are the ones
+		 * {@link #journalEntryInsertionIfOpen} documents.
+		 *
+		 * @param key           the key whose value slot is about to be overwritten
+		 * @param previousValue the value currently stored at that key
+		 */
+		private void journalValueReplacementIfOpen(int key, long previousValue) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
+					if (index >= 0) {
+						this.values[index] = previousValue;
+					}
+				});
+			}
+		}
+
+		/**
 		 * Deletes a key-value pair from the BPlusLeafTreeNode based on the specified key.
 		 * If the key is found within the node, it removes the corresponding entry,
 		 * maintains the node's internal structure, and decrements the count of stored items.
@@ -1232,13 +1313,13 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
 
 				if (index >= 0) {
+					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+					journalEntryDeletionIfOpen(key, this.values[index]);
 					removeIntFromSameArrayOnIndex(this.keys, index);
 					removeLongFromSameArrayOnIndex(this.values, index);
 					this.keys[this.peek] = 0;
@@ -1275,9 +1356,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(int key, long value) {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.keys.length - 1,
@@ -1287,10 +1366,14 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
 					key, this.keys, 0, this.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalValueReplacementIfOpen(key, this.values[insertionPosition.position()]);
 					this.keys[insertionPosition.position()] = key;
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalEntryInsertionIfOpen(key);
 					insertIntIntoSameArrayOnIndex(key, this.keys, insertionPosition.position());
 					insertLongIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
@@ -1323,9 +1406,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {

@@ -247,6 +247,19 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 		return new FacetGroupIndexChanges();
 	}
 
+	/**
+	 * {@link FacetGroupIndexChanges} is pure in-transaction bookkeeping — it records which contained bitmaps a
+	 * commit-merge has to visit — and the delegate branch is an explicit `if (txLayer != null)` that writes nothing.
+	 * The facet memberships a mutation touches live in the contained `TransactionalBitmap` instances, which journal
+	 * their own warm-up writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public FacetGroupIndex createCopyWithMergedTransactionalMemory(

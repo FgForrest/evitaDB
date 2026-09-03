@@ -86,7 +86,6 @@ import static io.evitadb.utils.Assert.isTrue;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public final class OwnerUniqueIndex extends UniqueIndex {
 	@Serial private static final long serialVersionUID = 2639205026498958517L;
-
 	/**
 	 * Single page stream per owner unique index — its value bucket tree (mirrors {@code InvertedIndex.BUCKET_PAGE_STREAM}).
 	 */
@@ -543,7 +542,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
 	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
 	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
-	 * the collection's buffer ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses
+	 * the catalog unpublishable ({@code Catalog.markUnpublishable}), so every later flush of it refuses
 	 * deterministically. The two are the same invariant in different dresses: after a failed flush nothing ever diffs
 	 * against the baseline it left behind, because no later flush of that data runs at all. Whatever a SUCCEEDING flush
 	 * leaves staged is exactly the page set it wrote, regardless of whether a commit-merge ever ran for it. (If the
@@ -592,7 +591,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
 	 * element is first checked for a conflicting owner and only then registered, so a violation on any element
 	 * aborts the whole operation before mutating the index. Scalar keys are delegated straight to the single-value
-	 * overload. Finally invalidates the memoized records formula (outside transactions) and marks the index dirty.
+	 * overload. Finally marks the index dirty.
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
@@ -640,8 +639,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * Array-dispatching entry point for de-registration. When `key` is an array, every element's ownership is
 	 * first verified and only then removed, so a mismatch on any element aborts the operation before mutating the
 	 * index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since no single record id applies.
-	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally invalidates
-	 * the memoized records formula (outside transactions) and marks the index dirty.
+	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally marks the
+	 * index dirty.
 	 *
 	 * @param key              single unique value or an array of unique values to unregister
 	 * @param expectedRecordId record id expected to currently own the value(s)

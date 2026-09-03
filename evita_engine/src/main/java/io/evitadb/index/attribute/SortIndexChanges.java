@@ -26,10 +26,14 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.VMLayout;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,8 +53,15 @@ import static io.evitadb.index.attribute.SortIndex.invert;
  */
 @NotThreadSafe
 public class SortIndexChanges
-	implements Serializable, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
+	implements Serializable, WarmUpTouchStamped, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
 	@Serial private static final long serialVersionUID = -4791973822619493092L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Reference to the {@link SortIndex} this data structure is linked to.
@@ -200,7 +211,30 @@ public class SortIndexChanges
 	 * Invoked from every {@link SortIndex} mutation path.
 	 */
 	public void sortOrderChanged() {
+		recordWarmUpSavepointTouch();
 		invalidateSupplierArrays();
+	}
+
+	/**
+	 * Registers this helper with the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a rolled-back mutation leaves the memoized supplier arrays INVALIDATED (see {@link WarmUpSavepoint}).
+	 *
+	 * Outside a transaction this instance is not a diff layer but the owning {@link SortIndex}'s own long-lived
+	 * scratch helper (see `SortIndex#getOrCreateSortIndexChanges`), so nothing discards it when a warm-up mutation
+	 * fails. The method above already drops the arrays on the forward path; what the journal entry covers is an
+	 * ORDER BY executed LATER inside the same root entity mutation, which would rematerialize them from the
+	 * half-mutated `sortedRecords` and leave them stale once those are rewound.
+	 *
+	 * The existing {@link Snapshotable} contract is reused verbatim rather than hand-rolling an inverse: the memento
+	 * carries no state and {@link #restore(SortIndexChangesMemento)} is exactly the re-invalidation wanted here.
+	 *
+	 * Recorded once per savepoint. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			savepoint.recordFirstTouch(this);
+		}
 	}
 
 	/**
@@ -254,8 +288,8 @@ public class SortIndexChanges
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the sortIndex back-reference plus the two cache slots
-		long size = layout.sizeOfObject(3L * layout.referenceSize());
+		// warmUpTouchStamp + the sortIndex back-reference plus the two cache slots
+		long size = layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize());
 		if (this.memoizedAscending != null) {
 			size += sizeOfMaterializedSortRecords(this.memoizedAscending, true);
 		}

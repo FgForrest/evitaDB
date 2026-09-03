@@ -23,14 +23,11 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -40,10 +37,7 @@ import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@code SortIndexChanges} — the derived-cache diff layer of
@@ -60,55 +54,29 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * dangling layer. A model mirrors the contents so removals always target an existing pair. The run is time-bounded; the
  * random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("SortIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 @Tag(TRANSACTION)
-class LongRunningSavepointSortIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointSortIndexTest extends AbstractSavepointFuzzTest<List<Integer>> {
 	private static final int INITIAL_SIZE = 24;
 	private static final int VALUE_SPACE = 12;
 	private static final int RECORD_SPACE = 200;
 	private static final int MARKER = 1_000_000;
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint sorted record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint sorted record set")
-	void shouldRollBackSortIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final SortState state = new SortState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomOps(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointSortIndexTest::sortedContents,
-				tested -> {
-					// a guaranteed-new marker record makes the in-savepoint batch non-vacuous
-					state.addMarker();
-					state.applyRandomOps(random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint sorted record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint sorted record set")
-	void shouldCommitSortIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final SortState state = new SortState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomOps(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointSortIndexTest::sortedContents,
-				tested -> state.applyRandomOps(random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+		return new SortState(random);
 	}
 
 	/**
@@ -129,7 +97,7 @@ class LongRunningSavepointSortIndexTest implements TimeBoundedTestSupport {
 	 * valid (unique record ids on add, an existing pair on remove). The initial contents are seeded outside any
 	 * transaction; ops are applied within the framework's transaction.
 	 */
-	private static final class SortState {
+	private static final class SortState implements FuzzGeneration<List<Integer>> {
 		private final SortIndex index = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 		private final TreeSet<ValueRecord> model = new TreeSet<>();
 
@@ -145,6 +113,30 @@ class LongRunningSavepointSortIndexTest implements TimeBoundedTestSupport {
 				this.model.add(new ValueRecord(value, recordId));
 				this.index.addRecord(value, recordId);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return LongRunningSavepointSortIndexTest.sortedContents(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomOps(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomOps(random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			addMarker();
 		}
 
 		/**

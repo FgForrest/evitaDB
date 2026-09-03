@@ -28,10 +28,13 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,8 +73,15 @@ import static java.util.Optional.ofNullable;
 public class TransactionalComplexObjArray<
 	T extends TransactionalObject<T> & Comparable<T>>
 	implements TransactionalLayerProducer<
-	ComplexObjArrayChanges<T>, T[]>, Serializable {
+	ComplexObjArrayChanges<T>, T[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 1929748392138616409L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final Class<T> objectType;
 	private final boolean transactionalLayerProducer;
@@ -243,6 +253,7 @@ public class TransactionalComplexObjArray<
 	 * Applies the add directly to the delegate array without transactional layer.
 	 */
 	private void addWithoutTransaction(@Nonnull T recordId, @Nonnull InsertionPosition position) {
+		recordWarmUpSavepointTouch();
 		if (position.alreadyPresent()) {
 			if (this.producer != null) {
 				final T original = this.delegate[position.position()];
@@ -281,6 +292,7 @@ public class TransactionalComplexObjArray<
 		);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
+				recordWarmUpSavepointTouch();
 				final T original = this.delegate[position.position()];
 				if (this.reducer != null) {
 					this.reducer.accept(original, recordId);
@@ -391,9 +403,68 @@ public class TransactionalComplexObjArray<
 		return Arrays.toString(getArray());
 	}
 
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array's MEMBERSHIP to what it was before the
+	 * mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * Insertion and removal replace the delegate with a freshly allocated array
+	 * ({@link ArrayUtils#insertRecordIntoArrayOnIndex} / {@link ArrayUtils#removeRecordFromArrayOnIndex} never write
+	 * into the array handed to them) and this class never overwrites an element slot of a retained array, so the
+	 * outgoing reference is an immutable snapshot of which records were present and in what order. That is the whole of
+	 * this class's own state, hence the first-write-touch capture.
+	 *
+	 * **What this deliberately does NOT cover.** Unlike the sibling array wrappers, this one also mutates its elements
+	 * IN PLACE: adding a record that is already present hands it to the `producer` to be combined into the held
+	 * instance, and removing one hands it to the `reducer` to be subtracted from it — in both cases the array is
+	 * untouched and only the element's own contents change. Reverting that is the ELEMENT's responsibility: the
+	 * elements are {@link TransactionalObject}s that journal their own delegate-branch writes, exactly as the
+	 * nested-layer boundary of {@link io.evitadb.core.transaction.memory.Snapshotable} splits a layer's own diff from
+	 * the diffs of the producers it holds. The touch is recorded on those paths too — not because the reference would
+	 * change, but so that a later structural write in the same savepoint cannot capture an already-mutated array as if
+	 * it were the pre-image.
+	 *
+	 * That transitive coverage was verified element type by element type, since it is only as good as the elements
+	 * that actually exist. The engine declares exactly two {@link TransactionalObject} implementations, and neither
+	 * holds any raw mutable state of its own:
+	 *
+	 * - {@link io.evitadb.index.range.TransactionalRangePoint} — a `TransactionalBoolean` dirty flag plus two
+	 *   `TransactionalBitmap`s (`starts` / `ends`, assigned only by its constructors), all three of which journal
+	 *   their own warm-up writes.
+	 * - {@link io.evitadb.index.invertedIndex.ValueToRecordBitmap} — an immutable value plus one `TransactionalBitmap`.
+	 *
+	 * Both are in fact held by the B+ trees today (the range point in a `TransactionalLongBPlusTree`, the bucket in the
+	 * inverted index's `TransactionalBucketBPlusTree`) rather than in an array of this class, which no production code
+	 * currently instantiates — so the in-place element path is exercised only by this class's own tests. The coverage
+	 * argument is recorded here rather than left implicit because the moment a third element type appears, it is this
+	 * paragraph that has to be re-checked: an element carrying a plain field would silently escape the rollback.
+	 *
+	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
+		}
+	}
+
 	/*
 		TransactionalLayerProducer implementation
 	 */
+
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write.
+	 * In-place mutation of an individual element is covered transitively: the elements are themselves transactional
+	 * structures whose own mutators journal their writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
 
 	@Nullable
 	@Override

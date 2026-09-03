@@ -186,6 +186,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -437,6 +438,21 @@ public class DefaultCatalogPersistenceService
 	 * Obsolete file maintainer takes care of deleting files that are no longer referenced by any of the sessions.
 	 */
 	private final ObsoleteFileMaintainer obsoleteFileMaintainer;
+	/**
+	 * Retirements of WARM_UP data files whose superseding bootstrap record has not been published yet.
+	 *
+	 * In warm-up the maintainer purges eagerly - there are no catalog versions to hold a file against - but the file
+	 * a compaction supersedes is still named by the CURRENTLY published bootstrap record, and that record is only
+	 * replaced at the end of the round. Deleting inside the round therefore unlinks a file the published pointer
+	 * chain still reaches, and a crash before publication leaves a catalog that cannot be loaded at all. Retirement
+	 * is a **confirm-phase** action: it is parked here and released by {@link #writeCatalogBootstrap} once the
+	 * superseding record is durable.
+	 *
+	 * A round that never publishes leaves its entries parked - the next successful publication drains them, and
+	 * {@link #close()} drops them unrun, because a file the last published record still names must survive the
+	 * process that failed to supersede it.
+	 */
+	@Nonnull private final Queue<Runnable> unpublishedRetirements = new ConcurrentLinkedQueue<>();
 	/**
 	 * The single callback through which the history horizon is applied to the files on disk. It is a no-op unless
 	 * {@link StorageOptions#timeTravelEnabled()} is set - without time travel the files are deleted as soon as their
@@ -2349,12 +2365,7 @@ public class DefaultCatalogPersistenceService
 			final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(
 				catalogVersion);
 			for (EntityCollectionFileHeader entityHeader : entityHeaders) {
-				final FileLocation currentLocation = entityHeader.fileLocation();
-				final Optional<FileLocation> previousLocation = currentCatalogHeader
-					.getEntityTypeFileIndexIfExists(entityHeader.entityType())
-					.map(CollectionFileReference::fileLocation);
-				// if the location is different, store the header
-				if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+				if (needsCollectionHeaderWrite(currentCatalogHeader, entityHeader)) {
 					storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
 				}
 			}
@@ -2453,6 +2464,35 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
+	/**
+	 * Returns the collection header addressing the data file the published catalog header names.
+	 *
+	 * The whole decision - which of the two recorded copies wins, and what a disagreement between them means - lives in
+	 * {@link EntityCollectionHeaderReconciler}, because the catalog load path is not the only reader that has to make
+	 * it: both storage protocol migrations and the historical branch of the backup task reconstruct collections from a
+	 * stored header too, and a reader that skips the reconciliation reintroduces the defect for its own path.
+	 *
+	 * @param catalogVersion                catalog version being opened
+	 * @param storedHeader                  collection header as read from the catalog's offset index
+	 * @param storagePartPersistenceService service the catalog header is read from
+	 * @return the stored header, or a copy of it naming the file the catalog header addresses
+	 */
+	@Nonnull
+	private EntityCollectionFileHeader resolveAgainstCatalogHeader(
+		long catalogVersion,
+		@Nonnull EntityCollectionFileHeader storedHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
+	) {
+		return EntityCollectionHeaderReconciler.reconcile(
+			this.catalogName,
+			storagePartPersistenceService
+				.getCatalogHeader(catalogVersion)
+				.getEntityTypeFileIndexIfExists(storedHeader.entityType())
+				.orElse(null),
+			storedHeader
+		);
+	}
+
 	@Nonnull
 	@Override
 	public DefaultEntityCollectionPersistenceService getOrCreateEntityCollectionPersistenceService(
@@ -2467,6 +2507,7 @@ public class DefaultCatalogPersistenceService
 				catalogVersion, entityTypePrimaryKey, EntityCollectionFileHeader.class
 			)
 		)
+			.map(it -> resolveAgainstCatalogHeader(catalogVersion, it, storagePartPersistenceService))
 			.orElseGet(
 				() -> new EntityCollectionFileHeader(
 					entityType,
@@ -2581,6 +2622,40 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
+	/**
+	 * Tells whether the collection header just produced still has to be written - because nothing is persisted for
+	 * this entity type yet, or because what is persisted addresses a different record.
+	 *
+	 * A collection header is addressed by the file it lives in **and** by its location inside that file, so the write
+	 * is needed as soon as *either* of the two differs. Compaction copies the live records into a fresh file in the
+	 * same order, which routinely lands the header record at the very offset and length it occupied in the file it
+	 * supersedes - so comparing locations alone reports "unchanged" for precisely the rewrite that changed the file
+	 * index. Skipping the write there leaves the persisted header naming a generation compaction has already retired,
+	 * and since that header - not {@link CatalogHeader#collectionFileIndex()} - is what
+	 * {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)} resolves the data file from, the
+	 * catalog becomes unloadable the moment the retired file is unlinked.
+	 *
+	 * {@link CollectionFileReference#equals(Object)} deliberately ignores the location, because it identifies the file
+	 * rather than its contents - so neither half of this comparison can be delegated to it.
+	 *
+	 * @param currentCatalogHeader catalog header as published by the previous round
+	 * @param entityHeader         collection header produced by the round now being written
+	 * @return true when the header must be persisted, false only when the persisted one already names this file index
+	 *         at this location
+	 */
+	private static boolean needsCollectionHeaderWrite(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader,
+		@Nonnull EntityCollectionFileHeader entityHeader
+	) {
+		return currentCatalogHeader
+			.getEntityTypeFileIndexIfExists(entityHeader.entityType())
+			.map(
+				previous -> previous.fileIndex() != entityHeader.entityTypeFileIndex() ||
+					!Objects.equals(previous.fileLocation(), entityHeader.fileLocation())
+			)
+			.orElse(true);
+	}
+
 	@Nonnull
 	@Override
 	public EntityCollectionFileHeader getEntityCollectionHeader(
@@ -2642,12 +2717,7 @@ public class DefaultCatalogPersistenceService
 		boolean hasChanges = false;
 		for (EntityCollectionHeader entityHeader : entityCollectionHeaders) {
 			if (entityHeader instanceof EntityCollectionFileHeader entityFileHeader) {
-				final FileLocation currentLocation = entityFileHeader.fileLocation();
-				final Optional<FileLocation> previousLocation = currentCatalogHeader
-					.getEntityTypeFileIndexIfExists(entityFileHeader.entityType())
-					.map(CollectionFileReference::fileLocation);
-				// if the location is different, store the header
-				if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+				if (needsCollectionHeaderWrite(currentCatalogHeader, entityFileHeader)) {
 					storagePartPersistenceService.putStoragePart(catalogVersion, entityFileHeader);
 					hasChanges = true;
 				}
@@ -3777,6 +3847,11 @@ public class DefaultCatalogPersistenceService
 			this.historyHorizonLock.unlock();
 		}
 		if (!alreadyClosed) {
+			// Retirements still parked here name files the LAST PUBLISHED bootstrap record may still reach, because
+			// the round that would have superseded them never published. Dropping them unrun leaves the compacted
+			// generation as dead space and keeps the catalog loadable; running them would delete the very files a
+			// reload follows.
+			this.unpublishedRetirements.clear();
 			// the guard only ever reads and reclaims history, and the flag above has fenced it out by now
 			if (this.timeTravelSizeGuardTask != null) {
 				IOUtils.closeQuietly(this.timeTravelSizeGuardTask::close);
@@ -4400,8 +4475,36 @@ public class DefaultCatalogPersistenceService
 	 * @param removalLambda  lambda releasing the in-memory resources bound to the file
 	 */
 	private void retireDataFile(long catalogVersion, @Nonnull Path path, @Nonnull Runnable removalLambda) {
-		this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
-		scheduleTimeTravelSizeGuard();
+		if (catalogVersion <= 0L) {
+			// WARM_UP. The maintainer would purge this immediately - it has no catalog version to hold the file
+			// against - but the record that supersedes this file is not published yet, so the file is still named by
+			// the pointer chain a reload would follow. Park it and let `writeCatalogBootstrap` release it; see
+			// `unpublishedRetirements`.
+			this.unpublishedRetirements.add(
+				() -> {
+					this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+					scheduleTimeTravelSizeGuard();
+				}
+			);
+		} else {
+			this.obsoleteFileMaintainer.removeFileWhenNotUsed(catalogVersion, path, removalLambda);
+			scheduleTimeTravelSizeGuard();
+		}
+	}
+
+	/**
+	 * Releases every retirement that was waiting for a bootstrap record to supersede the file it names.
+	 *
+	 * Runs only after the record is durable, which is what makes the deletion safe: from that moment the published
+	 * pointer chain names the file that replaced it, so nothing a reload follows can reach the retired one. A round
+	 * that failed before publishing simply leaves its entries parked for the next successful one - the files it
+	 * wrote are unreferenced dead space until then, which costs disk and never correctness.
+	 */
+	private void releaseUnpublishedRetirements() {
+		Runnable retirement;
+		while ((retirement = this.unpublishedRetirements.poll()) != null) {
+			retirement.run();
+		}
 	}
 
 	/**
@@ -5206,6 +5309,12 @@ public class DefaultCatalogPersistenceService
 			// through, deferred checkpoints included - is what makes the budget observe the generation that
 			// scheduling on retirement alone would skip.
 			scheduleTimeTravelSizeGuard();
+
+			// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
+			// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
+			// earlier removes a file the previously published record still reaches, which no bootstrap write is
+			// needed to turn into an unloadable catalog.
+			releaseUnpublishedRetirements();
 
 			return bootstrapRecord;
 		} catch (InterruptedException e) {

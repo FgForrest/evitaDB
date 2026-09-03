@@ -36,6 +36,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -48,6 +50,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -89,8 +92,16 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
+public class RangeIndex
+	implements VoidTransactionMemoryProducer<RangeIndex>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link TransactionalRangePoint}.
@@ -383,6 +394,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			}
 		);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
 		}
 	}
@@ -397,7 +409,29 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		removeFromPoint(start, recordId, true);
 		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #envelopingNowCache} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The two mutators above already drop the cache on the forward path, so the state a rollback finds is normally
+	 * correct. The journal entry exists for the case where a query runs LATER inside the same root entity mutation:
+	 * {@link #getRecordsValidNowFormula(long)} would repopulate the cache from the half-mutated range tree, and that
+	 * value would then outlive the rollback of the points underneath it. Re-invalidating on restore costs one
+	 * recomputation and makes no claim about a captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.envelopingNowCache = null);
 		}
 	}
 
@@ -742,8 +776,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
 	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
 	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
@@ -885,8 +919,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
-		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+		// id + warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.ranges.getHeapSizeInBytes(
 				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()
@@ -917,8 +951,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
 			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
 			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
-			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
-			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// flush suspends this catalog's transaction processing — on the warm-up path it marks the catalog
+			// unpublishable instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new RangeIndex(

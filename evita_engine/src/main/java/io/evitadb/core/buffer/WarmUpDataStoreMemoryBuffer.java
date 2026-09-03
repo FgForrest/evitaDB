@@ -23,8 +23,8 @@
 
 package io.evitadb.core.buffer;
 
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -33,6 +33,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Supplier;
 import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -55,18 +56,25 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
 	@Nonnull private final DataStoreChanges dataStoreChanges;
-	/**
-	 * The failure of a previous flush, or {@code null} while this buffer is healthy. Declared {@code volatile} because
-	 * the catalog-level buffer is poisoned from inside a flush-future completion callback that may run on a worker
-	 * thread, while {@link #popTrappedChanges()} reads this field on the catalog writer thread — a plain field would not
-	 * guarantee the writer observes the poison.
-	 */
-	@Nullable private volatile Throwable flushFailure;
 
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
-		this.dataStoreChanges = new DataStoreChanges(persistenceService);
+		this(persistenceService, null);
+	}
+
+	/**
+	 * Creates a warm-up buffer whose savepoint pre-image reads can deserialize entity storage parts.
+	 *
+	 * @param persistenceService   the I/O service records are read from / written to
+	 * @param entitySchemaSupplier supplies the schema those reads deserialize against, or `null` for the catalog-level
+	 *                             buffer, whose parts carry neither references nor prices and need none
+	 */
+	public WarmUpDataStoreMemoryBuffer(
+		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nullable Supplier<EntitySchema> entitySchemaSupplier
+	) {
+		this.dataStoreChanges = new DataStoreChanges(persistenceService, false, entitySchemaSupplier);
 	}
 
 	/**
@@ -180,28 +188,21 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Nonnull
 	@Override
 	public TrappedChanges popTrappedChanges() {
-		// every warm-up collect passes through here, whatever triggered it - a session close, a collection being
-		// created / removed / replaced, going live or terminating - so this is the single point at which a warm-up
-		// buffer whose flush failed can be stopped before it writes again (this buffer backs both an entity collection
-		// and the catalog, so the refusal is phrased for either)
-		final Throwable theFlushFailure = this.flushFailure;
-		if (theFlushFailure != null) {
-			throw new GenericEvitaInternalError(
-				"Cannot collect changes: a previous warm-up flush failed, so the changes it had already collected are " +
-					"lost and the persisted state is incomplete. Reload the catalog from disk to recover.",
-				theFlushFailure
-			);
-		}
+		// DESTRUCTIVE, and that is what makes a failed flush terminal for the catalog: this hands the pending parts
+		// over AND advances every index's change-detection baseline, so nothing collected here can be collected
+		// again. A flush that fails after this point therefore cannot be retried - the refusal that follows it lives
+		// on the catalog (`Catalog#markUnpublishable`), because publication is catalog-wide and publication is the
+		// only thing that has to be stopped.
+		//
+		// NOT guarded against running mid-savepoint, deliberately. Draining here while a WarmUpSavepoint were open
+		// would hand the storage layer state the journal may still rewind, but the two cannot interleave: every caller
+		// of this method is a flush entry point (EntityCollection#createFlushFuture / #flush / #flush(long),
+		// Catalog#flush / #flush(long)), and a savepoint exists only for the duration of one root entity mutation
+		// inside LocalMutationExecutorCollector#execute, which reaches no flush entry point. A guard here would
+		// therefore be unreachable code asserting an invariant that holds one level up - so the invariant is recorded
+		// rather than enforced. Should a flush ever become reachable from inside a mutation, this is the site to
+		// revisit first.
 		return this.dataStoreChanges.popTrappedUpdates();
-	}
-
-	@Override
-	public void poison(@Nonnull Throwable cause) {
-		// keep the FIRST failure: it is the one that actually lost the collected changes, and every later refusal is
-		// merely its consequence
-		if (this.flushFailure == null) {
-			this.flushFailure = cause;
-		}
 	}
 
 }

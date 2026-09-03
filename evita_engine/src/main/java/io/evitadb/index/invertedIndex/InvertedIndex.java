@@ -34,6 +34,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -58,6 +60,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -127,6 +130,7 @@ public class InvertedIndex implements
 	IndexDataStructure,
 	ConsistencySensitiveDataStructure,
 	VoidTransactionMemoryProducer<InvertedIndex>,
+	WarmUpTouchStamped,
 	Serializable {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
 
@@ -276,6 +280,12 @@ public class InvertedIndex implements
 	 * three fields it is made of in whatever order they happened to land.
 	 */
 	private volatile boolean valueIdDirectoryStale;
+	/**
+	 * Stamp of the {@link WarmUpSavepoint} whose rollback already has this index's directory invalidation
+	 * recorded — see {@link #markValueIdDirectoryStale()}. Transient because it is per-savepoint scratch state of
+	 * a live instance and means nothing to a deserialized one.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
@@ -975,6 +985,20 @@ public class InvertedIndex implements
 	 * the entries of every leaf whose version token is unchanged, and an in-place mutation keeps the token. The merge
 	 * in {@link #createCopyWithMergedTransactionalMemory} reads the flag to choose between the two rebuilds.
 	 *
+	 * ## Why a rollback records one too
+	 *
+	 * A rollback is also a write to published leaves, and it can move a bucket to a slot other than the one the
+	 * directory records for it — but it puts the leaves back through the undo journal rather than through the mutators
+	 * that call this method, so nothing on that path raises the flag, and a reader that rebuilt the directory while
+	 * the savepoint was open has already cleared it. The re-raise is therefore recorded as a POST-RESTORE
+	 * invalidation (see {@link WarmUpSavepoint#pushPostRestoreInvalidation(Runnable)}), which runs once the leaves
+	 * are back rather than at its own position in the reverse replay.
+	 *
+	 * It restores the constant `true` rather than the pre-image a scalar memento would capture. That pre-image reads
+	 * `false` only because the directory agreed with a tree the rollback is about to undo, so putting it back would
+	 * re-bless a directory describing slots that have since moved. `true` is correct on every path and costs at most
+	 * one rebuild, on a mutation that has already failed.
+	 *
 	 * Guarded on the allocator so that the volatile store - a StoreLoad barrier, drained on every write - is paid only
 	 * by trees that actually carry value ids. Most inverted indexes never do: ids are switched on only where a filter
 	 * accelerator is declared, so every other attribute would otherwise pay a barrier on every single record write to
@@ -988,6 +1012,10 @@ public class InvertedIndex implements
 	private void markValueIdDirectoryStale() {
 		if (this.valueIdAllocator != null && !Transaction.isTransactionAvailable()) {
 			this.valueIdDirectoryStale = true;
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && savepoint.claimFirstTouch(this)) {
+				savepoint.pushPostRestoreInvalidation(() -> this.valueIdDirectoryStale = true);
+			}
 		}
 	}
 
@@ -1788,9 +1816,10 @@ public class InvertedIndex implements
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + indexedDecimalPlaces + emittedNextValueId + valueIdDirectoryStale, then the dirty / buckets /
-		// normalizer / comparator / plainType / pageStreamRegistry / valueIdAllocator / valueIdConsumers slots
-		return layout.sizeOfObject(Long.BYTES + 2L * Integer.BYTES + 1L + 8L * layout.referenceSize())
+		// id + warmUpTouchStamp + indexedDecimalPlaces + emittedNextValueId + valueIdDirectoryStale, then the
+		// dirty / buckets / normalizer / comparator / plainType / pageStreamRegistry / valueIdAllocator /
+		// valueIdConsumers slots
+		return layout.sizeOfObject(2L * Long.BYTES + 2L * Integer.BYTES + 1L + 8L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			// the id COLUMNS are charged by the tree walk below; only the allocator object itself is charged here.
 			// The consumer registry holds a handful of interned names and is not charged — it is diagnostics-sized,
@@ -1816,8 +1845,8 @@ public class InvertedIndex implements
 			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
 			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
 			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
-			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
-			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// flush suspends this catalog's transaction processing — on the warm-up path it marks the catalog
+			// unpublishable instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			final InvertedIndex merged = new InvertedIndex(
@@ -1925,8 +1954,8 @@ public class InvertedIndex implements
 	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
 	 * cannot and does not lean on the previous flush's bytes having landed by now. It does not need to: a flush that
 	 * fails during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two are
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two are
 	 * the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so nothing can
 	 * ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding exactly the page
 	 * set it wrote — the baseline the next flush must diff against — regardless of which path staged it, and regardless

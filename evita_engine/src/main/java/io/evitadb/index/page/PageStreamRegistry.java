@@ -34,11 +34,13 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Per-stream bookkeeping for the granular index page layout. A *stream* is the page sequence of one
@@ -66,7 +68,7 @@ import java.util.Set;
  * **Commit handshake.** A flush stages the next live set for each touched stream ({@link #stage(int, int[])}); the
  * staged sets become live only when the commit is known durable ({@link #publishStaged()}). A failed flush is never
  * followed by another flush of the same data — a failure during trunk incorporation suspends the catalog's transaction
- * processing, and one on the warm-up path poisons the collection's buffer — so a staged set that never publishes is
+ * processing, and one on the warm-up path makes the catalog unpublishable — so a staged set that never publishes is
  * simply abandoned in memory and the registry is rebuilt from disk on restart; nothing ever diffs against it. The
  * high-water, by contrast, advances *live* at allocation time — an aborted transaction never reaches flush so it
  * allocates nothing, while a flush that allocates then crashes before its durable write merely burns an id harmlessly
@@ -93,7 +95,7 @@ public class PageStreamRegistry implements Serializable {
 	/**
 	 * Per-stream state keyed by {@code streamId}. Created lazily on first allocation, staging, or restore.
 	 */
-	private final Map<Integer, PageStream> streams = new HashMap<>(32);
+	private final Map<Integer, PageStream> streams = createHashMap(32);
 
 	/**
 	 * Allocates the next page-sequence number for the given stream, advancing (and never decreasing) its high-water.
@@ -287,7 +289,7 @@ public class PageStreamRegistry implements Serializable {
 	 */
 	public void stage(int streamId, @Nonnull int[] liveSequences) {
 		final PageStream stream = this.streams.computeIfAbsent(streamId, id -> new PageStream());
-		final Set<Integer> staged = new HashSet<>(liveSequences.length);
+		final Set<Integer> staged = createHashSet(liveSequences.length);
 		for (final int pageSequence : liveSequences) {
 			// a staged page must be a real, allocated page: non-negative and within this stream's high-water envelope
 			Assert.isPremiseValid(
@@ -331,7 +333,7 @@ public class PageStreamRegistry implements Serializable {
 	) {
 		final int[] orderedPageSequences = new int[handles.size()];
 		final List<P> changedPages = new ArrayList<>(handles.size());
-		final Set<Integer> nextLive = new HashSet<>(handles.size());
+		final Set<Integer> nextLive = createHashSet(handles.size());
 		boolean anyFreshLeaf = false;
 		int idx = 0;
 		for (final H handle : handles) {

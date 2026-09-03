@@ -78,6 +78,14 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * outside the baseline guarantees the in-savepoint batch is never a no-op. The run is time-bounded; the random seed is
  * echoed on failure for deterministic reproduction.
  *
+ * **ALIVE only, and deliberately not on {@link AbstractSavepointFuzzTest}.** Every other `LongRunningSavepoint*` suite
+ * runs its scenario in both phases through that harness; this one cannot, because the thing under test only exists in
+ * a transaction. {@link TransactionalContainerChanges} IS a diff layer — the bookkeeping the maintainer keeps of which
+ * nested producers a transaction created and removed, so it can sweep them at commit. In WARM_UP there is no
+ * transaction, no diff layer and therefore no such bookkeeping at all: writes go straight to the delegate structures,
+ * and what a {@code WarmUpSavepoint} rewinds is those structures' own state, which their own suites cover. There is no
+ * warm-up counterpart to port this scenario to, rather than one that has been skipped.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Container-changes savepoint rollback/commit (generational fuzz)")

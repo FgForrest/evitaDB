@@ -1747,6 +1747,19 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		return isTransactionAvailable() ? new AttributeIndexChanges() : null;
 	}
 
+	/**
+	 * {@link AttributeIndexChanges} is pure in-transaction bookkeeping — it records which contained sub-indexes a
+	 * commit-merge has to visit — so outside a transaction there is no layer to create and the delegate branch writes
+	 * nothing of its own (every call site is `ofNullable(layer).ifPresent(...)`). The real state a mutation touches
+	 * lives in the contained unique / filter / sort / chain indexes, which journal their own warm-up writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.uniqueIndex.removeLayer(transactionalLayer);

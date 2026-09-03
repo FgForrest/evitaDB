@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.index.map.TransactionalMap.TransactionalMemoryEntrySet;
 import io.evitadb.index.map.TransactionalMap.TransactionalMemoryKeySet;
@@ -282,6 +283,19 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * The delegate branch journals PER OPERATION through {@link WarmUpMapJournal}, which records the entry each write
+	 * overwrites (value plus presence) before applying it — the same granularity as {@link TransactionalMap}, chosen
+	 * for the same reason: the whole-state pre-image of the accumulated base map is the rollback cliff the journal
+	 * strategy exists to avoid.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * {@inheritDoc}
 	 *
 	 * Produces the next committed snapshot. When a diff layer exists, its modified and removed keys are
@@ -371,27 +385,49 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	@Override
 	public Set<K> keySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		return layer == null ?
-			this.state.keySet() :
-			new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
+		if (layer != null) {
+			return new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
+		}
+		final Map<K, V> current = this.state;
+		return warmUpWritesNeedJournaling(current) ? WarmUpMapJournal.keySet(current) : current.keySet();
 	}
 
 	@Nonnull
 	@Override
 	public Collection<V> values() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		return layer == null ?
-			this.state.values() :
-			new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
+		if (layer != null) {
+			return new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
+		}
+		final Map<K, V> current = this.state;
+		return warmUpWritesNeedJournaling(current) ? WarmUpMapJournal.values(current) : current.values();
 	}
 
 	@Nonnull
 	@Override
 	public Set<Entry<K, V>> entrySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
-		return layer == null ?
-			this.state.entrySet() :
-			new TransactionalMemoryEntrySet<>(layer, this);
+		if (layer != null) {
+			return new TransactionalMemoryEntrySet<>(layer, this);
+		}
+		final Map<K, V> current = this.state;
+		return warmUpWritesNeedJournaling(current) ? WarmUpMapJournal.entrySet(current) : current.entrySet();
+	}
+
+	/**
+	 * Resolves whether a collection view over the given state has to be handed out journaled — i.e. whether a warm-up
+	 * savepoint is open AND the state is the thawed buffer, whose views can actually be written through.
+	 *
+	 * A **sealed** state is deliberately excluded. {@link ChampMap} hands out immutable views, so a write through one
+	 * throws today and leaves nothing to revert; wrapping it would journal an inverse for a mutation that never
+	 * happened, and that inverse would itself throw when the rollback replayed it — turning a caller's
+	 * `UnsupportedOperationException` into a failed rollback, which costs the whole bulk load.
+	 *
+	 * @param state the state a view is about to be taken over
+	 * @return `true` when the view must journal the writes made through it
+	 */
+	private static boolean warmUpWritesNeedJournaling(@Nonnull Map<?, ?> state) {
+		return !(state instanceof ChampMap) && WarmUpSavepoint.getIfOpen() != null;
 	}
 
 	/**
@@ -435,7 +471,13 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		if (layer == null) {
 			Assert.notNull(key, "Null keys are not supported in transactional maps!");
 			Assert.notNull(value, "Null values are not supported in persistent transactional maps!");
-			return thawed().put(key, value);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			final Map<K, V> priorState = this.state;
+			final Map<K, V> mutable = thawed();
+			if (savepoint != null) {
+				journalWarmUpWrite(savepoint, priorState, mutable, key);
+			}
+			return mutable.put(key, value);
 		} else {
 			return layer.put(key, value);
 		}
@@ -453,7 +495,14 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		Assert.notNull(key, "Null keys are not supported in transactional maps!");
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			return thawed().remove(key);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			final Map<K, V> priorState = this.state;
+			final Map<K, V> mutable = thawed();
+			if (savepoint != null) {
+				//noinspection unchecked
+				journalWarmUpWrite(savepoint, priorState, mutable, (K) key);
+			}
+			return mutable.remove(key);
 		} else {
 			return layer.remove(key);
 		}
@@ -463,7 +512,18 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	public void putAll(@Nonnull Map<? extends K, ? extends V> t) {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			final Map<K, V> priorState = this.state;
 			final Map<K, V> mutable = thawed();
+			if (savepoint != null) {
+				if (priorState == mutable) {
+					for (final Entry<? extends K, ? extends V> entry : t.entrySet()) {
+						WarmUpMapJournal.journalSlot(savepoint, mutable, entry.getKey());
+					}
+				} else {
+					journalStateRestore(savepoint, priorState);
+				}
+			}
 			for (final Entry<? extends K, ? extends V> entry : t.entrySet()) {
 				Assert.notNull(entry.getKey(), "Null keys are not supported in transactional maps!");
 				Assert.notNull(entry.getValue(), "Null values are not supported in persistent transactional maps!");
@@ -480,6 +540,12 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	public void clear() {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// nothing has to be copied: the clear does not empty the buffer, it swaps a fresh one in, so putting
+				// the outgoing reference back is already an absolute O(1) restore of every entry
+				journalStateRestore(savepoint, this.state);
+			}
 			// a fresh mutable buffer keeps subsequent non-transactional warm-up writes O(1)
 			this.state = new HashMap<>();
 		} else {
@@ -488,6 +554,51 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 					.orElseThrow(() -> new IllegalStateException("Transactional layer must be present!"))
 			);
 		}
+	}
+
+	/**
+	 * Records the inverse of a warm-up write about to change one key, choosing between the two forms the two-state
+	 * representation makes possible.
+	 *
+	 * When the state was already **thawed**, the buffer being written *is* the pre-mutation state, so only the one slot
+	 * the write overwrites can be captured — a copy of the buffer would be the accumulated base structure and would
+	 * reintroduce the per-entity rollback cliff.
+	 *
+	 * When the write **thawed a sealed snapshot**, the far better inverse is available for free: that snapshot is an
+	 * immutable {@link ChampMap} that nothing can subsequently change, so putting its reference back restores every
+	 * entry at once. Capturing the slot as well would be redundant, and would in fact restore it into a buffer the
+	 * reference swap is about to discard.
+	 *
+	 * Either way the inverse also normalizes the sealed-vs-thawed MODE back to what it was, which is what keeps a
+	 * {@link #sealed()} call landing in the middle of a savepoint from making the rollback incomplete.
+	 *
+	 * @param savepoint  the open savepoint to record into
+	 * @param priorState the state as it was BEFORE {@link #thawed()} ran
+	 * @param mutable    the thawed buffer the write will be applied to
+	 * @param key        the key whose slot is about to change
+	 */
+	private void journalWarmUpWrite(
+		@Nonnull WarmUpSavepoint savepoint,
+		@Nonnull Map<K, V> priorState,
+		@Nonnull Map<K, V> mutable,
+		K key
+	) {
+		if (priorState == mutable) {
+			WarmUpMapJournal.journalSlot(savepoint, mutable, key);
+		} else {
+			journalStateRestore(savepoint, priorState);
+		}
+	}
+
+	/**
+	 * Pushes an inverse that puts the given state reference back, restoring both the contents (when the reference is a
+	 * sealed, immutable snapshot) and the sealed-vs-thawed mode.
+	 *
+	 * @param savepoint  the open savepoint to record into
+	 * @param priorState the state reference to reinstate
+	 */
+	private void journalStateRestore(@Nonnull WarmUpSavepoint savepoint, @Nonnull Map<K, V> priorState) {
+		savepoint.push(() -> this.state = priorState);
 	}
 
 	/* ===========================================================================================

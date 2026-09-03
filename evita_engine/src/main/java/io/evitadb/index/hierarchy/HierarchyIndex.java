@@ -32,6 +32,8 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -58,6 +60,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -81,6 +84,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -103,8 +107,15 @@ import static java.util.Optional.ofNullable;
 public class HierarchyIndex
 	implements HierarchyIndexContract,
 	VoidTransactionMemoryProducer<HierarchyIndex>,
-	IndexDataStructure, IndexComponent, Serializable {
+	IndexDataStructure, IndexComponent, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 4121668650337515744L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -163,8 +174,8 @@ public class HierarchyIndex
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
 		this.roots = new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY);
-		this.levelIndex = new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new);
-		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
+		this.levelIndex = new TransactionalMap<>(createHashMap(32), TransactionalIntArray.class, TransactionalIntArray::new);
+		this.itemIndex = new TransactionalMap<>(createHashMap(32));
 		this.orphans = new TransactionalIntArray();
 		this.memoizedAllNodes = EmptyBitmap.INSTANCE;
 	}
@@ -273,6 +284,7 @@ public class HierarchyIndex
 			}
 		}
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			resetMemoizedValues();
 		}
 	}
@@ -293,6 +305,7 @@ public class HierarchyIndex
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			resetMemoizedValues();
 		}
 		return removedNode.parentEntityPrimaryKey();
@@ -801,8 +814,9 @@ public class HierarchyIndex
 		// a HierarchyNode is a record of the node's own primary key and a boxed parent key, which is this node's
 		// alone - a root node has none and pays only for the slot
 		final long hierarchyNode = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
-		// id, then the dirty / itemIndex / roots / levelIndex / orphans / memoizedAllNodes slots
-		long size = layout.sizeOfObject(Long.BYTES + 6L * layout.referenceSize())
+		// id + warmUpTouchStamp, then the dirty / itemIndex / roots / levelIndex / orphans /
+		// memoizedAllNodes slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 6L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.roots.getHeapSizeInBytes()
 			+ this.orphans.getHeapSizeInBytes()
@@ -1406,6 +1420,27 @@ public class HierarchyIndex
 	 */
 	private void resetMemoizedValues() {
 		this.memoizedAllNodes = null;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that this index's
+	 * memoized node formula has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * {@link #resetMemoizedValues()} already runs on the forward path, so the memo a rollback finds is normally
+	 * correct; what the journal entry covers is a read performed LATER inside the same root entity mutation, which
+	 * would repopulate the memo from the half-mutated hierarchy and leave it stale once the nodes underneath it are
+	 * rewound. Re-invalidating (rather than restoring a captured formula) costs one recomputation and needs no
+	 * assumption about the captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(this::resetMemoizedValues);
+		}
 	}
 
 	/**

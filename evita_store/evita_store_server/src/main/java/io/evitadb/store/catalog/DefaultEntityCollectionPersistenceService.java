@@ -95,6 +95,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
@@ -140,6 +141,7 @@ import java.util.stream.Stream;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -455,7 +457,7 @@ public class DefaultEntityCollectionPersistenceService
 	) {
 		// if there is single request for associated data
 		if (newAssociatedDataValuePredicate.isRequiresEntityAssociatedData()) {
-			final Set<AssociatedDataKey> missingAssociatedDataSet = new HashSet<>(allAssociatedDataKeys.size());
+			final Set<AssociatedDataKey> missingAssociatedDataSet = createHashSet(allAssociatedDataKeys.size());
 			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getLocales();
 			final Set<String> requestedAssociatedDataSet = newAssociatedDataValuePredicate.getAssociatedDataSet();
 			final Predicate<AssociatedDataKey> wasNotFetched =
@@ -499,6 +501,39 @@ public class DefaultEntityCollectionPersistenceService
 				.collect(Collectors.toList());
 		}
 		return Collections.emptyList();
+	}
+
+	/**
+	 * Measures the collection data file the given header addresses, refusing one that cannot hold what the header
+	 * says is in it.
+	 *
+	 * {@link File#length()} answers zero both for an empty file and for one that is not there at all, and everything
+	 * downstream sees only that number - so a header naming a generation that compaction has already retired arrives
+	 * as a report of a zero-length file and reads as a truncated write. Naming the file, and saying which of the two
+	 * it actually is, is the difference between a five-minute diagnosis and an afternoon of them.
+	 *
+	 * A collection that has never been flushed carries no location yet and measures zero legitimately.
+	 *
+	 * @param entityCollectionFile the data file the header addresses
+	 * @param entityTypeHeader     header naming the record that file has to contain
+	 * @return length of the data file in bytes
+	 */
+	private static long measureDataFile(
+		@Nonnull Path entityCollectionFile,
+		@Nonnull EntityCollectionFileHeader entityTypeHeader
+	) {
+		final File dataFile = entityCollectionFile.toFile();
+		final long length = dataFile.length();
+		final FileLocation fileLocation = entityTypeHeader.fileLocation();
+		if (fileLocation.endPosition() > length) {
+			throw new UnexpectedIOException(
+				"Header of entity collection `" + entityTypeHeader.entityType() + "` addresses bytes up to position " +
+					fileLocation.endPosition() + " of `" + entityCollectionFile + "`, but that file " +
+					(dataFile.exists() ? "is only " + length + " bytes long" : "does not exist") + "!",
+				"Entity collection data file does not hold the record its header addresses."
+			);
+		}
+		return length;
 	}
 
 	/**
@@ -565,7 +600,7 @@ public class DefaultEntityCollectionPersistenceService
 						this.createTypeKryoInstance(),
 						// we don't know here yet - this will be recomputed on first flush
 						entityTypeHeader.activeRecordShare(),
-						this.entityCollectionFile.toFile().length()
+						measureDataFile(this.entityCollectionFile, entityTypeHeader)
 					),
 					storageSettings.outputBufferSize(),
 					storageSettings.maxOpenedReadHandlesOrDefault(),

@@ -32,6 +32,8 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -46,6 +48,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -71,7 +74,14 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends AbstractPriceListAndCurrencyPriceIndex<SELF>>
 	implements VoidTransactionMemoryProducer<SELF>,
 	PriceListAndCurrencyPriceIndex<SELF>,
-	IndexDataStructure, Serializable {
+	IndexDataStructure, WarmUpTouchStamped, Serializable {
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Shared empty array reused by callers that need to return "no price records" without per-call
@@ -476,10 +486,10 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 */
 	protected long getBaseHeapSizeInBytes(@Nonnull ToLongFunction<Object> priceRecordSizer, long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
-		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords
-		// /terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the instance
-		// carries ONE header, so the whole hierarchy's fields are sized in a single call
-		long size = layout.sizeOfObject(Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
+		// id + warmUpTouchStamp, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex
+		// /priceRecords/terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the
+		// instance carries ONE header, so the whole hierarchy's fields are sized in a single call
+		long size = layout.sizeOfObject(2L * Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.terminated.getHeapSizeInBytes();
 		size += this.indexedPriceIds.getHeapSizeInBytes();
@@ -538,7 +548,28 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	protected void markDirtyAndInvalidateCache() {
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedIndexedPriceIds = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedIndexedPriceIds} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Every price mutator funnels through the method above, which already nulls the memo on the forward path; the
+	 * journal entry covers a read performed LATER inside the same root entity mutation, which would repopulate it from
+	 * the half-mutated price index and leave it stale once the price records underneath are rewound. Re-invalidating on
+	 * restore costs one recomputation and makes no claim about a captured array's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedIndexedPriceIds = null);
 		}
 	}
 

@@ -37,6 +37,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -58,6 +60,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -113,9 +116,16 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public abstract sealed class SortIndex
 	implements SortedRecordsSupplierFactory, TransactionalLayerProducer<SortIndexChanges, SortIndex>,
-	IndexDataStructure, Serializable
+	IndexDataStructure, WarmUpTouchStamped, Serializable
 	permits OwnerSortIndex, SortIndexView {
 	@Serial private static final long serialVersionUID = 5862170244589598450L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	/**
 	 * Contains record ids sorted by assigned values. The array is divided in so called record ids block that respects
 	 * order in the index's value ordering. Record ids within the same block are sorted naturally by their integer id.
@@ -785,7 +795,32 @@ public abstract sealed class SortIndex
 	 */
 	private void invalidateCommittedSnapshotCacheIfNonTransactional() {
 		if (Transaction.getTransactionalMemoryLayerIfExists(this) == null) {
+			recordWarmUpSavepointTouch();
 			this.cachedAscendingArrays = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #cachedAscendingArrays} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The method above already drops the cache on the forward path; the journal entry covers an ORDER BY executed
+	 * LATER inside the same root entity mutation, which would take the committed-snapshot fast path (no layer exists
+	 * outside a transaction), rematerialize the arrays from the half-mutated {@link #sortedRecords} and leave them
+	 * stale once those are rewound. That cache is deliberately long-lived - it is reused across every query against
+	 * this snapshot - so nothing else would ever drop it.
+	 *
+	 * The lazily created {@link #sortIndexChanges} helper needs no inverse of its own: it holds nothing but
+	 * rebuildable caches, which `SortIndexChanges#sortOrderChanged` journals for itself, so a helper instantiated
+	 * inside a rolled-back mutation is indistinguishable from the `null` slot it replaced.
+	 *
+	 * Recorded once per savepoint. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.cachedAscendingArrays = null);
 		}
 	}
 
@@ -879,10 +914,10 @@ public abstract sealed class SortIndex
 	 */
 	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
-		// id + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer / comparator / referenceKey
-		// / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
+		// id + warmUpTouchStamp + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer /
+		// comparator / referenceKey / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
 		long size = layout.sizeOfObject(
-			Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
+			2L * Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
 		)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.sortedRecords.getHeapSizeInBytes()
@@ -909,6 +944,22 @@ public abstract sealed class SortIndex
 	@Override
 	public SortIndexChanges createLayer() {
 		return new SortIndexChanges(this);
+	}
+
+	/**
+	 * The ordered data this index writes lives in contained transactional structures that journal their own writes;
+	 * what is left to this class is {@link #cachedAscendingArrays}, which {@link #recordWarmUpSavepointTouch()}
+	 * journals as an invalidation so a rollback cannot leave it rematerialized from half-mutated records.
+	 *
+	 * The lazily created {@link #sortIndexChanges} helper the delegate branch installs needs no inverse of its own: it
+	 * holds nothing but rebuildable caches, which `SortIndexChanges` journals for itself, so a helper instantiated
+	 * inside a rolled-back mutation is indistinguishable from the `null` slot it replaced.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	/**

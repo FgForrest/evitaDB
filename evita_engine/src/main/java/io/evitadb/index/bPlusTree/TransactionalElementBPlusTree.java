@@ -30,11 +30,14 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,6 +56,8 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
 
@@ -972,7 +977,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		final VMLayout layout = VMLayout.current();
 		// id + four block-size ints + elementType/keyExtractor/root/size slots
 		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 4L * layout.referenceSize());
-		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// the holder carries the warmUpTouchStamp beside its id, so it is two longs wide before its value slot
+		final long transactionalReference = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
 		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
 		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
@@ -1257,6 +1263,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull BPlusLeafTreeNode<E> leaf,
 		@Nonnull Cursor cursor
 	) {
+		// a split is a structural rewrite of this leaf: it needs the whole-node memento that ordinary per-slot
+		// journalling deliberately does not take
+		leaf.captureBeforeStructuralChange();
 		final int mid = this.valueBlockSize / 2;
 		final E[] originValues = leaf.getValues();
 
@@ -1447,6 +1456,18 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		IntBoundaryKeyedNode,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<E>> {
 		@Serial private static final long serialVersionUID = 4087516269781010854L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -1570,9 +1591,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
 			// steal/merge): flag the leaf so the granular write path re-emits its page
 			if (layer == null) {
@@ -1612,10 +1631,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + dirty + keyExtractor/values slots + peek + pageSequence. There is no key
+			// id + warmUpTouchStamp + transactionalLayer + dirty + keyExtractor/values slots + peek
+			// + pageSequence. There is no key
 			// array at all - this leaf derives each key from its element through the extractor, which is one lambda
 			// shared by every node of the tree and so contributes only its slot
-			long size = layout.sizeOfObject(Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
+			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
 			// the elements are exactly the case the sizer exists for: a PriceListAndCurrencyPriceRefIndex holds the
 			// very same PriceRecord instances as the super index, so it sizes this tree spine-only (sizer -> 0)
@@ -1677,9 +1697,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<E> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -1710,9 +1728,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<E> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -1748,9 +1764,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<E> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// merging shifts this leaf's content and prepends the donor's: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
@@ -1774,9 +1788,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<E> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// appending the donor's content mutates this leaf's page: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
@@ -1831,9 +1843,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		@Nonnull
 		public E[] getValuesForUpdate() {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -2012,6 +2022,85 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		}
 
 		/**
+		 * Captures this leaf's whole-node memento before a STRUCTURAL change rewrites it, when a warm-up savepoint is
+		 * open. Ordinary writes journal per slot and take no memento, but a split hands this leaf's arrays to another
+		 * node and installs fresh ones here — something no per-slot inverse can undo. The split therefore has to ask
+		 * for the memento explicitly; it used to inherit one only because `insert` captured it on the way in, and that
+		 * implicit coupling is exactly what the per-slot conversion removed.
+		 *
+		 * First-touch dedup makes a repeat call free. Reverse replay runs this memento BEFORE the per-slot inverses
+		 * pushed earlier for the same leaf, so it restores the pre-split state and those inverses then refine exactly
+		 * the slots they had overwritten.
+		 */
+		void captureBeforeStructuralChange() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.recordFirstTouch(this);
+			}
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of an element INSERTION this leaf is about to make: a deletion of that key.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this leaf's whole-node memento (see
+		 * {@link WarmUpSavepoint#isCaptured}). That memento restores every column and was pushed later than any
+		 * inverse recorded here, so reverse replay runs it FIRST for this leaf and the per-slot inverses then refine
+		 * exactly the slots they had overwritten — which is what lets a leaf journal per-slot for a run of ordinary
+		 * writes and fall back to a whole-node memento the moment a split, steal or merge reaches it.
+		 *
+		 * **The inverse is key-addressed and absolute**, re-finding the slot by derived key when it runs rather than
+		 * closing over a position, because inverses replayed before it may have shifted the column. Finding the key
+		 * ABSENT means the insertion this undoes never happened, and the inverse is a no-op.
+		 *
+		 * Must be called BEFORE the first column write.
+		 *
+		 * @param key the derived key about to be inserted, absent from this leaf at the time of the call
+		 */
+		private void journalElementInsertionIfOpen(int key) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> delete(key));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an element DELETION: a re-insertion of the element that was removed. The gate and
+		 * the key addressing are the ones {@link #journalElementInsertionIfOpen} documents.
+		 *
+		 * @param value the element about to be removed, to be put back
+		 */
+		private void journalElementDeletionIfOpen(@Nonnull E value) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> insert(value));
+			}
+		}
+
+		/**
+		 * Journals the inverse of an in-place element REPLACEMENT at an existing key: putting the previous element
+		 * back. The gate and the key addressing are the ones {@link #journalElementInsertionIfOpen} documents.
+		 *
+		 * It captures the previous element REFERENCE, so it undoes a replacement of the stored instance but not a
+		 * mutation the caller made to that instance in place — no regression, since the whole-node memento it replaces
+		 * cloned the array of references and never captured element contents either.
+		 *
+		 * @param key           the derived key whose slot is about to be overwritten
+		 * @param previousValue the element currently stored at that key
+		 */
+		private void journalElementReplacementIfOpen(int key, @Nullable E previousValue) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final InsertionPosition position = searchKey(key, this.values, this.peek);
+					if (position.alreadyPresent()) {
+						this.values[position.position()] = previousValue;
+					}
+				});
+			}
+		}
+
+		/**
 		 * Inserts an element into this leaf, preserving ascending derived-key order. If an element with the same key is
 		 * already present it is replaced in place (no size change).
 		 *
@@ -2020,9 +2109,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		private boolean insert(@Nonnull E value) {
 			final int key = this.keyExtractor.applyAsInt(value);
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// inserting / replacing an element mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -2033,9 +2120,13 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
 				if (insertionPosition.alreadyPresent()) {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalElementReplacementIfOpen(key, this.values[insertionPosition.position()]);
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					journalElementInsertionIfOpen(key);
 					insertRecordIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
 					return true;
@@ -2068,14 +2159,14 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
 			if (layer == null) {
 				this.dirty = true;
 				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
 				if (insertionPosition.alreadyPresent()) {
+					// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
+					journalElementDeletionIfOpen(this.values[insertionPosition.position()]);
 					removeRecordFromSameArrayOnIndex(this.values, insertionPosition.position());
 					this.values[this.peek] = null;
 					this.peek--;
@@ -2137,9 +2228,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<E> layer = this.transactionalLayer ?
-				Transaction.getOrCreateTransactionalMemoryLayer(this) :
-				null;
+			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {

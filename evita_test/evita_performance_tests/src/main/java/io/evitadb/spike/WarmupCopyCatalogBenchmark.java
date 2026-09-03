@@ -26,11 +26,15 @@ package io.evitadb.spike;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
@@ -50,10 +54,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.priceContentAll;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.require;
 
 /**
@@ -95,6 +107,11 @@ public class WarmupCopyCatalogBenchmark {
 	 * still guarding against a runaway response.
 	 */
 	private static final int MAX_GRPC_MESSAGE_SIZE = 256 * 1024 * 1024;
+
+	/**
+	 * Shared empty array for the common case of a collection with nothing to strip before upserting.
+	 */
+	private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
 	/**
 	 * Program entry point. See class-level documentation for the full description.
@@ -379,8 +396,10 @@ public class WarmupCopyCatalogBenchmark {
 	) {
 		final String entityType = schema.getName();
 		// reflected references are read-only projections auto-maintained from the owning (plain) reference on
-		// the other entity; they must not be fetched or written here - copying the plain reference rebuilds them
-		final EntityFetch contentRequirement = CatalogCopySupport.buildContentRequirement(schema);
+		// the other entity; they must not be written here - copying the plain reference rebuilds them
+		final CollectionCopyPlan copyPlan = buildCopyPlan(schema);
+		final EntityFetch contentRequirement = copyPlan.contentRequirement();
+		final String[] referencesToStrip = copyPlan.referencesToStrip();
 		int[] primaryKeys = fetchAllPrimaryKeys(client, sourceCatalog, entityType);
 		if (maxPerCollection > 0 && primaryKeys.length > maxPerCollection) {
 			final int[] capped = new int[maxPerCollection];
@@ -409,11 +428,86 @@ public class WarmupCopyCatalogBenchmark {
 				)
 			);
 			for (int i = 0; i < entities.size(); i++) {
-				targetSession.upsertEntity(new CopyExistingEntityBuilder(entities.get(i)));
+				final EntityBuilder entityBuilder = new CopyExistingEntityBuilder(entities.get(i));
+				// drop the read-only projections that had to be fetched to keep `getReferences()` legal
+				for (int j = 0; j < referencesToStrip.length; j++) {
+					entityBuilder.removeReferences(referencesToStrip[j]);
+				}
+				targetSession.upsertEntity(entityBuilder);
 			}
 			copied += entities.size();
 		}
 		return copied;
+	}
+
+	/**
+	 * Decides how one collection has to be read and what has to be dropped before its entities are written
+	 * into the target catalog. Reflected references are read-only projections rebuilt automatically from the
+	 * owning (plain) reference on the other entity, so they must never be written - but they cannot simply be
+	 * left unfetched either, because {@link CopyExistingEntityBuilder} reads `getReferences()` unconditionally
+	 * and an entity fetched without ANY reference requirement throws
+	 * {@link io.evitadb.api.exception.ContextMissingException} the moment it is asked for them.
+	 *
+	 * That gives three cases:
+	 *
+	 * - **no reflected references** - {@link io.evitadb.api.query.QueryConstraints#entityFetchAll()
+	 *   entityFetchAll()}, complete and future-proof, nothing to strip;
+	 * - **reflected AND plain references** - an equivalent fetch naming only the plain references, so the
+	 *   projections are never transferred over the wire at all and nothing has to be stripped;
+	 * - **reflected references ONLY** - there is no plain reference to name, and a `referenceContent` naming
+	 *   nothing means "all". So everything is fetched and the projections are stripped from the builder
+	 *   instead. Such collections are the tail of a catalog (the demo dataset's `ParameterGroup` is one), so
+	 *   the wasted transfer is not worth a more elaborate mechanism.
+	 *
+	 * @param schema the source schema of the collection
+	 * @return the fetch to use and the reference names to remove before upserting
+	 */
+	@Nonnull
+	private static CollectionCopyPlan buildCopyPlan(@Nonnull final EntitySchemaContract schema) {
+		final List<String> reflectedNames = new ArrayList<>(4);
+		final List<String> plainNames = new ArrayList<>(schema.getReferences().size());
+		for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
+			if (reference instanceof ReflectedReferenceSchemaContract) {
+				reflectedNames.add(reference.getName());
+			} else {
+				plainNames.add(reference.getName());
+			}
+		}
+		if (reflectedNames.isEmpty()) {
+			return new CollectionCopyPlan(entityFetchAll(), EMPTY_STRING_ARRAY);
+		}
+		if (plainNames.isEmpty()) {
+			return new CollectionCopyPlan(entityFetchAll(), reflectedNames.toArray(new String[0]));
+		}
+		final List<EntityContentRequire> requirements = new ArrayList<>();
+		requirements.add(attributeContentAll());
+		requirements.add(associatedDataContentAll());
+		requirements.add(dataInLocalesAll());
+		if (schema.isWithPrice()) {
+			requirements.add(priceContentAll());
+		}
+		if (schema.isWithHierarchy()) {
+			requirements.add(hierarchyContent());
+		}
+		for (int i = 0; i < plainNames.size(); i++) {
+			requirements.add(referenceContentWithAttributes(plainNames.get(i)));
+		}
+		return new CollectionCopyPlan(
+			entityFetch(requirements.toArray(new EntityContentRequire[0])), EMPTY_STRING_ARRAY
+		);
+	}
+
+	/**
+	 * How one collection is read and cleaned up on its way into the target catalog.
+	 *
+	 * @param contentRequirement the fetch requirement to read source entities with
+	 * @param referencesToStrip  reference names that were fetched but must not be written - always the
+	 *                           read-only reflected projections, never a plain reference
+	 */
+	private record CollectionCopyPlan(
+		@Nonnull EntityFetch contentRequirement,
+		@Nonnull String[] referencesToStrip
+	) {
 	}
 
 	/**

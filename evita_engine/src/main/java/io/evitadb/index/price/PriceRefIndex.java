@@ -151,6 +151,20 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		return new PriceIndexChanges();
 	}
 
+	/**
+	 * {@link PriceIndexChanges} is pure in-transaction bookkeeping — it records which contained price-list indexes a
+	 * commit-merge has to visit — and the delegate branch writes nothing of its own (every call site is
+	 * `ofNullable(layer).ifPresent(...)`). The price data a mutation touches lives in the contained
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex} instances, which journal their own warm-up
+	 * writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
