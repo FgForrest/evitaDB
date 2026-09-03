@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-03 11:23
+updated: 2026-09-03 11:37
 status: accepted
 kind: fix
 issues: [1365]
@@ -548,10 +548,13 @@ all four skips pre-existing `@Disabled` cases.
   where two same-name siblings disagree it can report a `hierarchyContent` the engine did not serve.
   The superset is kept: mirroring the engine would hard-code a coin flip, it is the same defect class
   this record already rejected when it made `EvitaRequest#isRequiresParent` reduce its matches, and
-  a wrong pick degrades to the old inference rather than to wrong output. **Reported, not fixed:** the
-  engine silently drops one of two same-name `referenceContent` siblings, the same family as the
-  single-match `attributeContent` / `associatedDataContent` / `priceContent` lookups above. Fixing it
-  changes which references are fetched for *every* API, which is far wider than #1365.
+  a wrong pick degrades to the old inference rather than to wrong output. **Reported, not fixed, now tracked as #1493:**
+  the engine silently drops one of two same-name `referenceContent` siblings — plain `put` calls in
+  `EvitaRequest#getReferenceEntityFetch()`, where the default requirement keeps the *first* match and the
+  named ones keep the *last*. It is the same family as the single-match `attributeContent` /
+  `associatedDataContent` / `priceContent` lookups above, which fail loudly instead, so one situation has
+  three different outcomes across five requirements. Fixing it changes which references are fetched for
+  *every* API, which is far wider than #1365.
 - **Neither API lets a parent field recurse into another one, and that is what keeps the two
   cut decisions well-defined.** A `hierarchyContent` describes exactly one level, so there is no
   requirement to answer "were bodies requested" with for the ancestors *of an ancestor*; a nested
