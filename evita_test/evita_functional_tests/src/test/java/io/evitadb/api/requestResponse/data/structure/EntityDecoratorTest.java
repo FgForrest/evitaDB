@@ -23,9 +23,23 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.EntityPrimaryKeyAwareComparator;
+import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -34,16 +48,30 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
@@ -455,6 +483,201 @@ class EntityDecoratorTest {
 				"A comparator that does not accumulate non-sorted count across calls must let " +
 					"sortAndFilterSubList complete in the same way on every invocation."
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("parent slot")
+	@Tag(HIERARCHY)
+	class ParentSlotTest {
+		private static final String CATEGORY = "category";
+		private static final OffsetDateTime NOW = OffsetDateTime.of(
+			2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+
+		/**
+		 * Builds a hierarchical schema with no attributes, associated data, references or prices - the parent slot is
+		 * the only surface these tests touch.
+		 */
+		@Nonnull
+		private static EntitySchema hierarchicalSchema() {
+			return EntitySchema._internalBuild(
+				1, CATEGORY, null, null, null,
+				false,
+				true, new Scope[]{Scope.LIVE},
+				false, null,
+				2,
+				Collections.emptySet(), Collections.emptySet(),
+				Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+				Collections.emptySet(), Collections.emptyMap()
+			);
+		}
+
+		/**
+		 * Builds a bare {@link Entity} of the hierarchical schema. The `parent` argument is what the delegate fallback
+		 * of {@link EntityDecorator#getParentEntity()} would surface when nobody resolved the parent.
+		 */
+		@Nonnull
+		private static Entity entity(@Nonnull EntitySchema schema, int primaryKey, @Nullable Integer parent) {
+			return Entity._internalBuild(
+				primaryKey, 1, schema, parent,
+				new References(schema),
+				new EntityAttributes(schema),
+				new AssociatedData(schema),
+				new Prices(schema, PriceInnerRecordHandling.NONE),
+				Collections.emptySet(),
+				Scope.DEFAULT_SCOPE,
+				false
+			);
+		}
+
+		/**
+		 * Produces a request stub that asks for nothing but still satisfies the predicates' constructors - only the
+		 * array-valued price accessors are dereferenced eagerly and therefore need stubbing.
+		 */
+		@Nonnull
+		private static EvitaRequest emptyRequest() {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[0]);
+			when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[0]);
+			when(evitaRequest.getAccompanyingPrices()).thenReturn(new AccompanyingPrice[0]);
+			return evitaRequest;
+		}
+
+		/**
+		 * Wraps `delegate` in a decorator whose parent slot holds `parentEntity` and whose hierarchy predicate is
+		 * driven by `hierarchyFetched`. Every other predicate is empty, so the decorator exposes identity and
+		 * hierarchy and nothing else.
+		 */
+		@Nonnull
+		private static EntityDecorator decorate(
+			@Nonnull EntitySchema schema,
+			@Nonnull Entity delegate,
+			@Nullable EntityClassifierWithParent parentEntity,
+			boolean hierarchyFetched
+		) {
+			final EvitaRequest evitaRequest = emptyRequest();
+			return new EntityDecorator(
+				delegate,
+				schema,
+				parentEntity,
+				new LocaleSerializablePredicate(evitaRequest),
+				new HierarchySerializablePredicate(hierarchyFetched),
+				new AttributeValueSerializablePredicate(evitaRequest),
+				new AssociatedDataValueSerializablePredicate(evitaRequest),
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new PriceContractSerializablePredicate(evitaRequest, Boolean.FALSE),
+				NOW
+			);
+		}
+
+		@Test
+		@DisplayName("Should fall back to the delegate pointer when nobody resolved the parent")
+		void shouldFallBackToDelegateWhenParentWasNotResolved() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator decorator = decorate(schema, entity(schema, 11, 10), null, true);
+
+			assertTrue(decorator.parentAvailable());
+			final EntityClassifierWithParent parent = decorator.getParentEntity().orElseThrow();
+			assertEquals(new EntityReferenceWithParent(CATEGORY, 10, null), parent);
+		}
+
+		@Test
+		@DisplayName("Should expose the resolved parent body")
+		void shouldExposeResolvedParentBody() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator parentBody = decorate(
+				schema, entity(schema, 10, null), ParentChainEnd.INSTANCE, true);
+			final EntityDecorator decorator = decorate(schema, entity(schema, 11, 10), parentBody, true);
+
+			final EntityClassifierWithParent parent = decorator.getParentEntity().orElseThrow();
+			assertSame(parentBody, parent);
+			assertTrue(parent instanceof SealedEntity);
+			// the body sits at the top of a resolved chain, so it reports no ancestor of its own
+			assertEquals(Optional.empty(), parentBody.getParentEntity());
+		}
+
+		@Test
+		@DisplayName("Should expose a bodyless parent pointer and let the chain continue above it")
+		void shouldExposeBodylessParentPointer() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityReferenceWithParent pointer = new EntityReferenceWithParent(
+				CATEGORY, 10, new EntityReferenceWithParent(CATEGORY, 9, null));
+			final EntityDecorator decorator = decorate(schema, entity(schema, 11, 10), pointer, true);
+
+			final EntityClassifierWithParent parent = decorator.getParentEntity().orElseThrow();
+			assertSame(pointer, parent);
+			assertFalse(parent instanceof SealedEntity);
+			assertEquals(9, parent.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		}
+
+		@Test
+		@DisplayName("Should report no parent when the resolved chain ends, even though the delegate knows one")
+		void shouldReportNoParentWhenChainEnds() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator decorator = decorate(
+				schema, entity(schema, 11, 10), ParentChainEnd.INSTANCE, true);
+
+			// the delegate still carries parent 10 - the terminator is what stops it from leaking out
+			assertEquals(10, decorator.getDelegate().getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+			assertTrue(decorator.parentAvailable());
+			assertEquals(Optional.empty(), decorator.getParentEntity());
+		}
+
+		@Test
+		@DisplayName("Should keep honouring the deprecated concealed entity as a chain end")
+		@SuppressWarnings("deprecation")
+		void shouldKeepHonouringConcealedEntity() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator decorator = decorate(
+				schema, entity(schema, 11, 10), EntityClassifierWithParent.CONCEALED_ENTITY, true);
+
+			assertTrue(ParentChainEnd.isChainEnd(EntityClassifierWithParent.CONCEALED_ENTITY));
+			assertEquals(Optional.empty(), decorator.getParentEntity());
+		}
+
+		@Test
+		@DisplayName("Should refuse parent access when the hierarchy was not fetched at all")
+		void shouldRefuseParentAccessWhenHierarchyWasNotFetched() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator decorator = decorate(schema, entity(schema, 11, 10), null, false);
+
+			assertFalse(decorator.parentAvailable());
+			assertThrows(ContextMissingException.class, decorator::getParentEntity);
+		}
+
+		@Test
+		@DisplayName("Should recognise the chain end only for the terminator itself")
+		void shouldRecogniseChainEndOnlyForTerminator() {
+			assertTrue(ParentChainEnd.isChainEnd(ParentChainEnd.INSTANCE));
+			assertFalse(ParentChainEnd.isChainEnd(null));
+			assertFalse(ParentChainEnd.isChainEnd(new EntityReferenceWithParent(CATEGORY, 10, null)));
+		}
+
+		@Test
+		@DisplayName("Should survive a serialization round trip as the very same instance")
+		void shouldSurviveSerializationRoundTrip() throws IOException, ClassNotFoundException {
+			final byte[] serialized;
+			try (
+				final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+				final ObjectOutputStream out = new ObjectOutputStream(bytes)
+			) {
+				out.writeObject(ParentChainEnd.INSTANCE);
+				out.flush();
+				serialized = bytes.toByteArray();
+			}
+			try (final ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(serialized))) {
+				final Object deserialized = in.readObject();
+				assertSame(ParentChainEnd.INSTANCE, deserialized);
+				assertTrue(ParentChainEnd.isChainEnd((EntityClassifierWithParent) deserialized));
+			}
+		}
+
+		@Test
+		@DisplayName("Should refuse to be read as an entity classifier")
+		void shouldRefuseToBeReadAsEntityClassifier() {
+			assertThrows(GenericEvitaInternalError.class, ParentChainEnd.INSTANCE::getType);
+			assertThrows(GenericEvitaInternalError.class, ParentChainEnd.INSTANCE::getPrimaryKey);
+			assertEquals(Optional.empty(), ParentChainEnd.INSTANCE.getParentEntity());
 		}
 	}
 }

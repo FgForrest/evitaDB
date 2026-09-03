@@ -1467,6 +1467,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return an optional containing the sealed entity with its parent chain, or empty if the entity body
 	 * was not found in {@code parentBodies}
 	 */
+	@SuppressWarnings("deprecation")
 	@Nonnull
 	private static Optional<SealedEntity> replaceWithSealedEntities(
 		@Nonnull EntityReferenceWithParent entityReference,
@@ -1477,6 +1478,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return Optional.empty();
 		}
 
+		// the deprecated terminator is still emitted here on purpose: this method collapses "the chain genuinely ends"
+		// and "the next ancestor body is missing" into one outcome, and only a variant that tells the two apart may
+		// switch to ParentChainEnd - swapping the constant alone would gain nothing and hide the remaining conflation
 		final EntityClassifierWithParent enrichedParentEntity = entityReference.getParentEntity()
 			.flatMap(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
 			.map(EntityClassifierWithParent.class::cast)

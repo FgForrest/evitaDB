@@ -138,8 +138,16 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	private final PriceContractSerializablePredicate pricePredicate;
 	/**
-	 * Contains body of the parent entity. The body is accessible only when the input request (query) contains
-	 * requirements for fetching entity (i.e. {@link EntityFetch}) in the {@link HierarchyContent} requirement.
+	 * Carries the outcome of resolving this entity's parent. The slot distinguishes four situations, and
+	 * {@link ParentChainEnd} documents them in a single table:
+	 *
+	 * - NULL - nobody resolved the parent, so {@link #getParentEntity()} falls back to the pointer the
+	 *   {@link #delegate} carries;
+	 * - a {@link SealedEntity} - the parent was resolved and its body is present, which requires the input request
+	 *   (query) to carry an {@link EntityFetch} inside its {@link HierarchyContent} requirement;
+	 * - an {@link EntityReferenceWithParent} - the parent was resolved as a bodyless pointer and the chain may
+	 *   continue above it;
+	 * - {@link ParentChainEnd#INSTANCE} - the parent chain was resolved and ends here.
 	 */
 	private final EntityClassifierWithParent parentEntity;
 	/**
@@ -815,6 +823,11 @@ public class EntityDecorator implements SealedEntity {
 		return this.delegate.getPrimaryKey();
 	}
 
+	/**
+	 * Answers whether parent information is reachable at all - the entity is hierarchical and the query asked for its
+	 * hierarchy. It deliberately does not consult {@link #parentEntity}: a resolved chain that ends at this entity is
+	 * still available parent information, it merely happens to be empty, exactly as it is for a hierarchy root.
+	 */
 	@Override
 	public boolean parentAvailable() {
 		return this.delegate.parentAvailable() && this.hierarchyPredicate.wasFetched();
@@ -829,7 +842,9 @@ public class EntityDecorator implements SealedEntity {
 			() -> new EntityIsNotHierarchicalException(getSchema().getName())
 		);
 		if (parentAvailable()) {
-			return this.parentEntity == CONCEALED_ENTITY ? empty() :
+			// a resolved chain that ends here conceals whatever the delegate still knows about - it is the only
+			// signal that separates "there is nothing above" from "nobody looked", which is what the fallback needs
+			return ParentChainEnd.isChainEnd(this.parentEntity) ? empty() :
 				ofNullable(this.parentEntity).or(this.delegate::getParentEntity);
 		} else {
 			return empty();
@@ -963,7 +978,9 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
-	 * Returns parent entity without checking the predicate.
+	 * Returns the raw contents of the parent slot without checking the predicate and without interpreting them - the
+	 * result may therefore be {@link ParentChainEnd#INSTANCE}, which is not an entity and must not be dereferenced.
+	 * Callers are expected to narrow the result to the shape they can use, typically a {@link SealedEntity}.
 	 * Part of the PRIVATE API.
 	 */
 	@Nonnull

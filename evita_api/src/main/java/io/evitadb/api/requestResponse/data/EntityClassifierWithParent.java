@@ -41,7 +41,15 @@ public interface EntityClassifierWithParent extends EntityClassifier {
 	/**
 	 * Special value for {@link EntityClassifierWithParent} that represents concealed entity. This constant is expected
 	 * to be used for concealing parents that were not requested by the client, but in reality they do exist.
+	 *
+	 * @deprecated its name promises more than it delivers - it marks the top of every resolved parent chain, a genuine
+	 * hierarchy root just as much as a chain deliberately cut short, and it is an anonymous class whose identity is
+	 * lost on a Java de-serialization round trip. Use
+	 * {@link io.evitadb.api.requestResponse.data.structure.ParentChainEnd#INSTANCE} instead, and recognize it with
+	 * {@link io.evitadb.api.requestResponse.data.structure.ParentChainEnd#isChainEnd(EntityClassifierWithParent)},
+	 * which still accepts this constant.
 	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	EntityClassifierWithParent CONCEALED_ENTITY = new EntityClassifierWithParent() {
 		@Serial private static final long serialVersionUID = -2322605230612089578L;
 
