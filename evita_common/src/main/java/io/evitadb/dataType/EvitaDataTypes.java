@@ -28,6 +28,7 @@ import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -93,6 +94,8 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
  * - **Precision over performance:** Uses BigDecimal for floating-point to avoid precision loss
  * - **UTC normalization:** Converts LocalDateTime to OffsetDateTime at UTC to avoid timezone
  * ambiguities
+ * - **Millisecond precision:** Truncates every temporal value to whole milliseconds as it enters the database, so
+ * that a stored value and a query probe derived from the same instant still compare equal
  * - **Null-safe:** Returns null unchanged rather than throwing exceptions
  * - **Flexible parsing:** Date/time converters try multiple ISO-8601 formats before failing
  * - **Array support:** All single-valued types also support array forms (e.g., Integer[])
@@ -137,6 +140,30 @@ public class EvitaDataTypes {
 	 * chain — a statement about position within a chain, not about the absence of an entity.
 	 */
 	public static final int RESERVED_PRIMARY_KEY = 0;
+	/**
+	 * Number of nanoseconds in a single millisecond. Used to tell whether a temporal value still carries
+	 * sub-millisecond digits that {@link #toSupportedType(Serializable)} has to discard.
+	 */
+	private static final int NANOS_PER_MILLISECOND = 1_000_000;
+	/**
+	 * Lowest epoch second a temporal value may carry. evitaDB handles every temporal value as a whole number of
+	 * milliseconds since the epoch held in a 64-bit `long`, so the second it is derived from must survive being
+	 * multiplied by 1000. The `+ 1` absorbs the millisecond remainder that the truncating division drops.
+	 */
+	private static final long MIN_SUPPORTED_EPOCH_SECOND = Long.MIN_VALUE / 1_000L + 1L;
+	/**
+	 * Highest epoch second a temporal value may carry - the counterpart of {@link #MIN_SUPPORTED_EPOCH_SECOND}.
+	 */
+	private static final long MAX_SUPPORTED_EPOCH_SECOND = Long.MAX_VALUE / 1_000L - 1L;
+	/**
+	 * Human-readable form of the instant range delimited by {@link #MIN_SUPPORTED_EPOCH_SECOND} and
+	 * {@link #MAX_SUPPORTED_EPOCH_SECOND}, quoted in the message of the exception that rejects a value outside it.
+	 * The range spans roughly +/- 292 million years, so only the JDK sentinels (`LocalDateTime.MIN` / `MAX` and
+	 * their `OffsetDateTime` counterparts) fall outside it.
+	 */
+	private static final String SUPPORTED_MOMENT_RANGE =
+		LocalDateTime.ofEpochSecond(MIN_SUPPORTED_EPOCH_SECOND, 0, ZoneOffset.UTC) + "Z .. " +
+			LocalDateTime.ofEpochSecond(MAX_SUPPORTED_EPOCH_SECOND, 0, ZoneOffset.UTC) + "Z";
 	/**
 	 * Unmodifiable set of all data types directly supported by evitaDB. This includes primitive
 	 * types and their wrappers, date/time types, ranges, locales, currencies, UUIDs, and
@@ -910,11 +937,36 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Tells whether the passed value would be altered - or rejected - by {@link #toSupportedType(Serializable)},
+	 * and therefore has to be routed through it.
+	 *
+	 * Knowing that a value's *type* is supported is not enough to conclude the *value* is already normal:
+	 * `OffsetDateTime`, `LocalDateTime` and `LocalTime` are supported types whose values are still truncated to
+	 * whole milliseconds and checked against the representable instant range. A caller that skips normalization
+	 * for them lets a query probe keep sub-millisecond digits the stored value no longer has, and the two never
+	 * meet again.
+	 *
+	 * Arrays are deliberately reported as *not* requiring normalization - the scalar
+	 * {@link #toSupportedType(Serializable)} rejects them outright, and callers holding arrays use
+	 * {@link #toSupportedTypeOrItsArray(Serializable)}, which normalizes element by element on its own.
+	 *
+	 * @param value the value to examine
+	 * @return `true` when the value has to be normalized before it is used
+	 */
+	public static boolean requiresNormalization(@Nonnull Serializable value) {
+		final Class<?> type = value.getClass();
+		return !isSupportedTypeOrItsArrayOrEnum(type) ||
+			type == OffsetDateTime.class || type == LocalDateTime.class || type == LocalTime.class;
+	}
+
+	/**
 	 * Validates and normalizes input values for use in evitaDB queries. Performs type checking and
 	 * automatic normalization for certain types to ensure consistency across the database:
 	 *
 	 * - Returns `null` unchanged (nulls are allowed)
 	 * - Normalizes `Float` and `Double` to `BigDecimal` (throws if NaN or Infinite)
+	 * - Truncates `OffsetDateTime`, `LocalDateTime` and `LocalTime` to whole milliseconds and rejects a moment
+	 * that cannot be expressed as epoch milliseconds in a 64-bit `long`
 	 * - Normalizes `LocalDateTime` to `OffsetDateTime` at UTC
 	 * - Passes through supported types unchanged (String, primitives, wrappers, BigDecimal,
 	 * OffsetDateTime, LocalDate, LocalTime, ranges, Locale, Currency, UUID, Predecessor,
@@ -937,6 +989,7 @@ public class EvitaDataTypes {
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB (includes Float
 	 *                                      and Double with NaN/Infinite values)
+	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
@@ -957,9 +1010,14 @@ public class EvitaDataTypes {
 	 *
 	 * Query values deliberately keep the rewrite; see {@link #toSupportedType(Serializable)}.
 	 *
+	 * The truncation of temporal values to whole milliseconds is **not** an exception - it applies here exactly as
+	 * it does on the query path, which is the entire point: the stored value and the probe that looks for it are
+	 * cut to the same precision, so they still compare equal.
+	 *
 	 * @param unknownObject the value to validate and normalize
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	public static Serializable toSupportedStoredType(
@@ -978,6 +1036,7 @@ public class EvitaDataTypes {
 	 *                                type it already is
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 * @throws EvitaInvalidUsageException   if a temporal value lies outside the range evitaDB can represent
 	 */
 	@Nullable
 	private static Serializable toSupportedType(
@@ -999,10 +1058,21 @@ public class EvitaDataTypes {
 			}
 			// normalize doubles to big decimal
 			return new BigDecimal(unknownObject.toString());
-		} else if (coerceLocalDateTime && unknownObject instanceof LocalDateTime) {
+		} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+			// temporal values are handled at millisecond precision - sub-millisecond digits are discarded here so
+			// that a stored value and a query probe derived from the same instant still meet
+			final OffsetDateTime truncated = truncateToMilliseconds(offsetDateTime);
+			assertRepresentableAsEpochMilliseconds(truncated.toEpochSecond(), truncated);
+			return truncated;
+		} else if (unknownObject instanceof LocalDateTime localDateTime) {
+			final LocalDateTime truncated = truncateToMilliseconds(localDateTime);
+			assertRepresentableAsEpochMilliseconds(truncated.toEpochSecond(ZoneOffset.UTC), truncated);
 			// always convert local date time to zoned - on the query path only, a stored value must
 			// keep the type its attribute schema declares
-			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
+			return coerceLocalDateTime ? truncated.atOffset(ZoneOffset.UTC) : truncated;
+		} else if (unknownObject instanceof LocalTime localTime) {
+			// a local time carries no date, so its instant can never leave the representable range
+			return truncateToMilliseconds(localTime);
 		} else if (unknownObject.getClass().isEnum()) {
 			return unknownObject.getClass().isAnnotationPresent(SupportedEnum.class) ?
 				unknownObject : ((Enum<?>) unknownObject).name();
@@ -1013,6 +1083,69 @@ public class EvitaDataTypes {
 		} else {
 			throw new UnsupportedDataTypeException(
 				unknownObject.getClass(), SUPPORTED_QUERY_DATA_TYPES
+			);
+		}
+	}
+
+	/**
+	 * Discards the sub-millisecond digits of the passed moment.
+	 *
+	 * The nanosecond check is not merely an optimisation: `truncatedTo` allocates unconditionally, and callers
+	 * rely on an already-truncated value coming back as the very same instance so that the surrounding
+	 * normalization can report "nothing changed" and hand the original array or value straight back.
+	 *
+	 * @param value the moment to truncate
+	 * @return the moment truncated to whole milliseconds, or `value` itself when it already was
+	 */
+	@Nonnull
+	private static OffsetDateTime truncateToMilliseconds(@Nonnull OffsetDateTime value) {
+		return value.getNano() % NANOS_PER_MILLISECOND == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * Discards the sub-millisecond digits of the passed local date-time - see
+	 * {@link #truncateToMilliseconds(OffsetDateTime)} for why identity is preserved.
+	 *
+	 * @param value the local date-time to truncate
+	 * @return the local date-time truncated to whole milliseconds, or `value` itself when it already was
+	 */
+	@Nonnull
+	private static LocalDateTime truncateToMilliseconds(@Nonnull LocalDateTime value) {
+		return value.getNano() % NANOS_PER_MILLISECOND == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * Discards the sub-millisecond digits of the passed local time - see
+	 * {@link #truncateToMilliseconds(OffsetDateTime)} for why identity is preserved.
+	 *
+	 * @param value the local time to truncate
+	 * @return the local time truncated to whole milliseconds, or `value` itself when it already was
+	 */
+	@Nonnull
+	private static LocalTime truncateToMilliseconds(@Nonnull LocalTime value) {
+		return value.getNano() % NANOS_PER_MILLISECOND == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * Verifies that a temporal value can be expressed as a whole number of milliseconds since the epoch held in a
+	 * 64-bit `long` - the representation evitaDB's temporal indexes are built on.
+	 *
+	 * The verification is a plain bounds comparison rather than a `try` / `catch` around
+	 * {@link java.time.Instant#toEpochMilli()}: exceptions are not used for control flow here, and multiplying the
+	 * epoch second by 1000 is the only step that can overflow. The rejection happens at the data-type boundary on
+	 * purpose - whether a value is acceptable must not depend on whether the attribute carrying it happens to be
+	 * indexed.
+	 *
+	 * @param epochSecond the value's moment expressed in whole seconds since the epoch
+	 * @param value       the value being validated, quoted in the rejection message
+	 * @throws EvitaInvalidUsageException when the moment lies outside the representable range
+	 */
+	private static void assertRepresentableAsEpochMilliseconds(long epochSecond, @Nonnull Serializable value) {
+		if (epochSecond < MIN_SUPPORTED_EPOCH_SECOND || epochSecond > MAX_SUPPORTED_EPOCH_SECOND) {
+			throw new EvitaInvalidUsageException(
+				"The temporal value `" + value + "` lies outside the range evitaDB is able to represent. " +
+					"Temporal values are handled as a whole number of milliseconds since the epoch stored in a " +
+					"64-bit long, which spans " + SUPPORTED_MOMENT_RANGE + "."
 			);
 		}
 	}

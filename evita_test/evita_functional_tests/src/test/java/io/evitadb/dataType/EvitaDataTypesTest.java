@@ -25,6 +25,7 @@ package io.evitadb.dataType;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.JolHeapSize;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -2593,6 +2594,514 @@ class EvitaDataTypesTest {
 			);
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Millisecond precision of temporal values")
+	class MillisecondPrecisionTest {
+
+		/**
+		 * A moment whose sub-millisecond digits are non-zero on purpose - `456789` nanoseconds beyond the
+		 * `123` milliseconds. Every expectation below names the truncated value explicitly, so an
+		 * implementation that stopped truncating would produce `...123456789` and fail the comparison.
+		 */
+		private static final OffsetDateTime NANO_PRECISE_MOMENT =
+			OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_456_789, ZoneOffset.UTC);
+		private static final OffsetDateTime TRUNCATED_MOMENT =
+			OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_000_000, ZoneOffset.UTC);
+		private static final LocalDateTime NANO_PRECISE_LOCAL_MOMENT =
+			LocalDateTime.of(2021, 6, 15, 10, 15, 30, 123_456_789);
+		private static final LocalDateTime TRUNCATED_LOCAL_MOMENT =
+			LocalDateTime.of(2021, 6, 15, 10, 15, 30, 123_000_000);
+		private static final LocalTime NANO_PRECISE_TIME =
+			LocalTime.of(10, 15, 30, 123_456_789);
+		private static final LocalTime TRUNCATED_TIME =
+			LocalTime.of(10, 15, 30, 123_000_000);
+
+		@Test
+		@DisplayName(
+			"should truncate an OffsetDateTime on"
+			+ " the storage path"
+		)
+		void shouldTruncateOffsetDateTimeOnStoragePath() {
+			final Serializable result =
+				EvitaDataTypes.toSupportedStoredType(
+					NANO_PRECISE_MOMENT
+				);
+
+			assertEquals(TRUNCATED_MOMENT, result);
+			assertEquals(
+				123_000_000,
+				((OffsetDateTime) result).getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate an OffsetDateTime on"
+			+ " the query path"
+		)
+		void shouldTruncateOffsetDateTimeOnQueryPath() {
+			final Serializable result =
+				EvitaDataTypes.toSupportedType(
+					NANO_PRECISE_MOMENT
+				);
+
+			assertEquals(TRUNCATED_MOMENT, result);
+			assertEquals(
+				123_000_000,
+				((OffsetDateTime) result).getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate a LocalDateTime and"
+			+ " keep its type when stored"
+		)
+		void shouldTruncateLocalDateTimeOnStoragePath() {
+			final Serializable result =
+				EvitaDataTypes.toSupportedStoredType(
+					NANO_PRECISE_LOCAL_MOMENT
+				);
+
+			assertInstanceOf(
+				LocalDateTime.class, result
+			);
+			assertEquals(
+				TRUNCATED_LOCAL_MOMENT, result
+			);
+			assertEquals(
+				123_000_000,
+				((LocalDateTime) result).getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate a LocalDateTime before"
+			+ " rewriting it to UTC on the query path"
+		)
+		void shouldTruncateLocalDateTimeOnQueryPath() {
+			final Serializable result =
+				EvitaDataTypes.toSupportedType(
+					NANO_PRECISE_LOCAL_MOMENT
+				);
+
+			assertInstanceOf(
+				OffsetDateTime.class, result
+			);
+			assertEquals(
+				TRUNCATED_LOCAL_MOMENT
+					.atOffset(ZoneOffset.UTC),
+				result
+			);
+			assertEquals(
+				123_000_000,
+				((OffsetDateTime) result).getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate a LocalTime on both"
+			+ " paths"
+		)
+		void shouldTruncateLocalTime() {
+			final Serializable stored =
+				EvitaDataTypes.toSupportedStoredType(
+					NANO_PRECISE_TIME
+				);
+			final Serializable queried =
+				EvitaDataTypes.toSupportedType(
+					NANO_PRECISE_TIME
+				);
+
+			assertEquals(TRUNCATED_TIME, stored);
+			assertEquals(TRUNCATED_TIME, queried);
+			assertEquals(
+				123_000_000,
+				((LocalTime) stored).getNano()
+			);
+			assertEquals(
+				123_000_000,
+				((LocalTime) queried).getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate every element of a"
+			+ " temporal array"
+		)
+		void shouldTruncateTemporalArrays() {
+			final OffsetDateTime[] moments = {
+				NANO_PRECISE_MOMENT,
+				OffsetDateTime.of(
+					2021, 6, 16, 11, 45, 0,
+					999_999_999, ZoneOffset.UTC
+				)
+			};
+
+			final Serializable result =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						moments
+					);
+
+			assertInstanceOf(
+				OffsetDateTime[].class, result
+			);
+			final OffsetDateTime[] normalized =
+				(OffsetDateTime[]) result;
+			assertEquals(
+				TRUNCATED_MOMENT, normalized[0]
+			);
+			assertEquals(
+				OffsetDateTime.of(
+					2021, 6, 16, 11, 45, 0,
+					999_000_000, ZoneOffset.UTC
+				),
+				normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should truncate every element of a"
+			+ " LocalDateTime and LocalTime array"
+		)
+		void shouldTruncateLocalTemporalArrays() {
+			final Serializable dateTimes =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						new LocalDateTime[]{
+							NANO_PRECISE_LOCAL_MOMENT
+						}
+					);
+			final Serializable times =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						new LocalTime[]{
+							NANO_PRECISE_TIME
+						}
+					);
+
+			assertInstanceOf(
+				LocalDateTime[].class, dateTimes
+			);
+			assertEquals(
+				TRUNCATED_LOCAL_MOMENT,
+				((LocalDateTime[]) dateTimes)[0]
+			);
+			assertInstanceOf(
+				LocalTime[].class, times
+			);
+			assertEquals(
+				TRUNCATED_TIME,
+				((LocalTime[]) times)[0]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should leave an already truncated value"
+			+ " as the very same instance"
+		)
+		void shouldBeIdempotent() {
+			// truncation must not churn objects, and truncating twice must not move the value again
+			assertSame(
+				TRUNCATED_MOMENT,
+				EvitaDataTypes.toSupportedStoredType(
+					TRUNCATED_MOMENT
+				)
+			);
+			assertSame(
+				TRUNCATED_LOCAL_MOMENT,
+				EvitaDataTypes.toSupportedStoredType(
+					TRUNCATED_LOCAL_MOMENT
+				)
+			);
+			assertSame(
+				TRUNCATED_TIME,
+				EvitaDataTypes.toSupportedStoredType(
+					TRUNCATED_TIME
+				)
+			);
+			assertEquals(
+				TRUNCATED_MOMENT,
+				EvitaDataTypes.toSupportedStoredType(
+					EvitaDataTypes
+						.toSupportedStoredType(
+							NANO_PRECISE_MOMENT
+						)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should cut a stored value and a query"
+			+ " probe to the same moment"
+		)
+		void shouldMakeStoredValueAndQueryProbeMeet() {
+			final Serializable stored =
+				EvitaDataTypes.toSupportedStoredType(
+					NANO_PRECISE_MOMENT
+				);
+			final Serializable probe =
+				EvitaDataTypes.toSupportedType(
+					NANO_PRECISE_MOMENT
+				);
+
+			// both halves are pinned to the exact truncated moment, so neither can drift together
+			assertEquals(TRUNCATED_MOMENT, stored);
+			assertEquals(TRUNCATED_MOMENT, probe);
+			assertEquals(stored, probe);
+			assertNotEquals(
+				NANO_PRECISE_MOMENT, stored
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should leave a LocalDate untouched"
+		)
+		void shouldLeaveLocalDateUntouched() {
+			// a local date carries no sub-day component at all
+			final LocalDate date =
+				LocalDate.of(2021, 6, 15);
+
+			assertSame(
+				date,
+				EvitaDataTypes.toSupportedStoredType(
+					date
+				)
+			);
+			assertSame(
+				date,
+				EvitaDataTypes.toSupportedType(date)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should leave a DateTimeRange and its"
+			+ " sub-millisecond bounds untouched"
+		)
+		void shouldLeaveDateTimeRangeUntouched() {
+			// DateTimeRange compares at second granularity, so its bounds are deliberately not cut
+			final DateTimeRange range =
+				DateTimeRange.between(
+					NANO_PRECISE_MOMENT,
+					NANO_PRECISE_MOMENT.plusDays(1)
+				);
+
+			assertSame(
+				range,
+				EvitaDataTypes.toSupportedStoredType(
+					range
+				)
+			);
+			assertEquals(
+				123_456_789,
+				range.getPreciseFrom().getNano()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still build a DateTimeRange with"
+			+ " open bounds"
+		)
+		void shouldStillBuildOpenEndedRanges() {
+			// the open bounds are LocalDateTime.MIN / MAX internally - the guard must not reach them
+			final DateTimeRange since =
+				DateTimeRange.since(NANO_PRECISE_MOMENT);
+			final DateTimeRange until =
+				DateTimeRange.until(NANO_PRECISE_MOMENT);
+			final DateTimeRange widest =
+				DateTimeRange.between(
+					LocalDateTime.MIN, LocalDateTime.MAX,
+					ZoneOffset.UTC
+				);
+
+			assertSame(
+				since,
+				EvitaDataTypes.toSupportedStoredType(
+					since
+				)
+			);
+			assertSame(
+				until,
+				EvitaDataTypes.toSupportedStoredType(
+					until
+				)
+			);
+			assertSame(
+				widest,
+				EvitaDataTypes.toSupportedStoredType(
+					widest
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should reject the JDK temporal"
+			+ " sentinels"
+		)
+		void shouldRejectJdkSentinels() {
+			// none of these can be expressed as epoch milliseconds in a 64-bit long
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredType(
+						LocalDateTime.MIN
+					)
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredType(
+						LocalDateTime.MAX
+					)
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					OffsetDateTime.MIN
+				)
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					OffsetDateTime.MAX
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should name the value and the supported"
+			+ " range when rejecting"
+		)
+		void shouldExplainWhyAValueIsRejected() {
+			final EvitaInvalidUsageException ex =
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> EvitaDataTypes
+						.toSupportedStoredType(
+							LocalDateTime.MAX
+						)
+				);
+
+			assertTrue(
+				ex.getMessage()
+					.contains("+999999999-12-31"),
+				ex.getMessage()
+			);
+			assertTrue(
+				ex.getMessage()
+					.contains("292278994"),
+				ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should reject a sentinel inside a"
+			+ " temporal array"
+		)
+		void shouldRejectSentinelInsideArray() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						new LocalDateTime[]{
+							NANO_PRECISE_LOCAL_MOMENT,
+							LocalDateTime.MAX
+						}
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should accept every realistic calendar"
+			+ " year"
+		)
+		void shouldAcceptRealisticYears() {
+			final LocalDateTime endOfYear9999 =
+				LocalDateTime.of(
+					9999, 12, 31, 23, 59, 59,
+					999_999_999
+				);
+			final LocalDateTime startOfYear1 =
+				LocalDateTime.of(1, 1, 1, 0, 0);
+
+			assertEquals(
+				LocalDateTime.of(
+					9999, 12, 31, 23, 59, 59,
+					999_000_000
+				),
+				EvitaDataTypes.toSupportedStoredType(
+					endOfYear9999
+				)
+			);
+			assertSame(
+				startOfYear1,
+				EvitaDataTypes.toSupportedStoredType(
+					startOfYear1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should report temporal values as"
+			+ " requiring normalization"
+		)
+		void shouldReportTemporalValuesAsRequiringNormalization() {
+			// a supported *type* is not a normalized *value* - see EvitaDataTypes#requiresNormalization
+			assertTrue(
+				EvitaDataTypes.requiresNormalization(
+					TRUNCATED_MOMENT
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.requiresNormalization(
+					TRUNCATED_LOCAL_MOMENT
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.requiresNormalization(
+					TRUNCATED_TIME
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.requiresNormalization(
+					3.14f
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.requiresNormalization(
+					LocalDate.of(2021, 6, 15)
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.requiresNormalization(
+					"code"
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.requiresNormalization(
+					DateTimeRange.since(
+						TRUNCATED_MOMENT
+					)
+				)
+			);
+		}
 	}
 
 	@Nested

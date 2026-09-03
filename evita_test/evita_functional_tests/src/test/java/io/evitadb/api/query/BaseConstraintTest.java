@@ -30,7 +30,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Tag;
@@ -115,6 +119,90 @@ class BaseConstraintTest {
 		void shouldHandleBigDecimalArguments() {
 			final AttributeEquals constraint = attributeEquals("price", new BigDecimal("10.5"));
 			assertArrayEquals(new Object[]{"price", new BigDecimal("10.5")}, constraint.getArguments());
+		}
+	}
+
+	@Nested
+	@DisplayName("Temporal argument normalization")
+	class TemporalArgumentNormalization {
+
+		@Test
+		@DisplayName("should cut an OffsetDateTime argument to whole milliseconds")
+		void shouldTruncateOffsetDateTimeArgument() {
+			// an OffsetDateTime is already a supported type - the value still has to be normalized, or the
+			// probe would keep sub-millisecond digits the stored value was cut of when it was written
+			final AttributeEquals constraint = attributeEquals(
+				"validity",
+				OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_456_789, ZoneOffset.UTC)
+			);
+
+			assertEquals(
+				OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
+				constraint.getAttributeValue()
+			);
+			assertEquals(123_000_000, ((OffsetDateTime) constraint.getAttributeValue()).getNano());
+		}
+
+		@Test
+		@DisplayName("should cut a LocalDateTime argument to whole milliseconds")
+		void shouldTruncateLocalDateTimeArgument() {
+			// the query path additionally rewrites a LocalDateTime to an OffsetDateTime at UTC
+			final AttributeEquals constraint = attributeEquals(
+				"publishedAt",
+				LocalDateTime.of(2021, 6, 15, 10, 15, 30, 123_456_789)
+			);
+
+			assertEquals(
+				OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
+				constraint.getAttributeValue()
+			);
+		}
+
+		@Test
+		@DisplayName("should cut a LocalTime argument to whole milliseconds")
+		void shouldTruncateLocalTimeArgument() {
+			final AttributeEquals constraint = attributeEquals(
+				"openedAt",
+				LocalTime.of(10, 15, 30, 123_456_789)
+			);
+
+			assertEquals(LocalTime.of(10, 15, 30, 123_000_000), constraint.getAttributeValue());
+		}
+
+		@Test
+		@DisplayName("should cut a temporal argument of a range constraint")
+		void shouldTruncateTemporalArgumentOfRangeConstraint() {
+			final AttributeInRange constraint = attributeInRange(
+				"validity",
+				OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_456_789, ZoneOffset.UTC)
+			);
+
+			assertEquals(
+				OffsetDateTime.of(2021, 6, 15, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
+				constraint.getTheMoment()
+			);
+		}
+
+		@Test
+		@DisplayName("should leave a non-temporal argument alone")
+		void shouldLeaveNonTemporalArgumentAlone() {
+			final String code = "samsung";
+			final AttributeEquals constraint = attributeEquals("code", code);
+
+			assertSame(code, constraint.getAttributeValue());
+		}
+
+		@Test
+		@DisplayName("should reject a moment evitaDB cannot represent")
+		void shouldRejectUnrepresentableMoment() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> attributeEquals("validity", LocalDateTime.MAX)
+			);
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> attributeEquals("validity", OffsetDateTime.MIN)
+			);
 		}
 	}
 

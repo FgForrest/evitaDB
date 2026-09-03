@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -980,8 +981,12 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("returns price valid in from filter")
 		void shouldReturnPriceValidIn() {
+			// the moment carries sub-millisecond digits, which the query boundary discards
 			final OffsetDateTime moment =
-				OffsetDateTime.now();
+				OffsetDateTime.of(
+					2026, 5, 20, 12, 19, 26,
+					123_456_789, ZoneOffset.UTC
+				);
 			final EvitaRequest request = createRequest(
 				query(
 					collection("product"),
@@ -990,7 +995,10 @@ class EvitaRequestTest {
 			);
 
 			assertEquals(
-				moment,
+				OffsetDateTime.of(
+					2026, 5, 20, 12, 19, 26,
+					123_000_000, ZoneOffset.UTC
+				),
 				request.getRequiresPriceValidIn()
 			);
 		}

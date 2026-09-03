@@ -64,11 +64,15 @@ class PriceValidInTest {
 		@Test
 		@DisplayName("should create datetime variant via factory method")
 		void shouldCreateDatetimeVariantViaFactory() {
-			final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-			final PriceValidIn constraint = priceValidIn(now);
+			// the moment carries sub-millisecond digits, which the query boundary discards
+			final OffsetDateTime moment = OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_456_789, ZoneOffset.UTC);
+			final PriceValidIn constraint = priceValidIn(moment);
 
 			assertNotNull(constraint);
-			assertEquals(now, constraint.getTheMoment(() -> null));
+			assertEquals(
+				OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC),
+				constraint.getTheMoment(() -> null)
+			);
 		}
 
 		@Test

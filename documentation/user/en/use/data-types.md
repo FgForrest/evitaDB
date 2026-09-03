@@ -295,6 +295,57 @@ enough for our case - it identifies a globally valid time that is known at the t
 
 </Note>
 
+#### Millisecond precision
+
+<LS to="j,e,g,r">
+evitaDB stores and matches temporal values at **millisecond** precision. An `OffsetDateTime`, `LocalDateTime` or
+`LocalTime` is truncated to whole milliseconds the moment it enters the database — both when it is written as an
+attribute value and when it is used as an argument of a query constraint. Digits below the millisecond are discarded
+and cannot be read back.
+
+The truncation happens on both paths on purpose. Cutting only the stored value would leave a nano-precise query probe
+hunting a value that no longer exists, and the filter would silently match nothing. Because both halves are cut to the
+same precision, a value written as `2026-05-20T12:19:26.123456789Z` is stored as `2026-05-20T12:19:26.123Z` and is
+still found by a query written with the original, nano-precise value. Two values that differ only below the
+millisecond become indistinguishable — they compare equal, sort as ties and share one index entry.
+
+Two data types are deliberately left out:
+
+- `LocalDate` carries no sub-day component, so there is nothing to truncate.
+- `DateTimeRange` keeps the sub-millisecond digits of its boundaries, because it compares, sorts and matches at
+  **second** granularity anyway — truncating to milliseconds would change nothing about how a range behaves.
+
+The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
+64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
+comfortably; only the JDK's own extreme sentinels — `LocalDateTime.MIN` / `LocalDateTime.MAX` and their
+`OffsetDateTime` counterparts — fall outside it and are rejected with an error naming the value and the supported
+range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a sentinel.
+</LS>
+<LS to="c">
+evitaDB stores and matches temporal values at **millisecond** precision. A `DateTimeOffset`, `DateTime` or `TimeOnly`
+is truncated to whole milliseconds the moment it enters the database — both when it is written as an attribute value
+and when it is used as an argument of a query constraint. Digits below the millisecond are discarded and cannot be
+read back.
+
+The truncation happens on both paths on purpose. Cutting only the stored value would leave a more precise query probe
+hunting a value that no longer exists, and the filter would silently match nothing. Because both halves are cut to the
+same precision, a value written as `2026-05-20T12:19:26.1234567Z` is stored as `2026-05-20T12:19:26.123Z` and is still
+found by a query written with the original, more precise value. Two values that differ only below the millisecond
+become indistinguishable — they compare equal, sort as ties and share one index entry.
+
+Two data types are deliberately left out:
+
+- `DateOnly` carries no sub-day component, so there is nothing to truncate.
+- `DateTimeRange` keeps the sub-millisecond digits of its boundaries, because it compares, sorts and matches at
+  **second** granularity anyway — truncating to milliseconds would change nothing about how a range behaves.
+
+The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
+64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
+comfortably; only extreme sentinel values fall outside it and are rejected with an error naming the value and the
+supported range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a
+sentinel.
+</LS>
+
 ### DateTimeRange
 
 <LS to="j,e,g,r">
