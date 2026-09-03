@@ -74,10 +74,16 @@ enum RangeKind {
 
 	/**
 	 * {@link LongNumberRange} — as {@link #BYTE_NUMBER}, with the one documented ambiguity of the family: an
-	 * **explicit** {@code Long.MIN_VALUE} bound encodes to the very same long an open bound does, so the two are
-	 * indistinguishable once stored. They are also indistinguishable in behaviour — every comparison in the engine
-	 * runs on {@code getFrom()} / {@code getTo()}, and {@code cloneWithDifferentBounds} re-encodes either form to
-	 * the same long — so the substitution is invisible to the tree, the range index and consolidation alike.
+	 * **explicit** {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} bound encodes to the very same long an open bound
+	 * does, so the two are indistinguishable once stored. That is invisible to the tree and to the range index —
+	 * every comparison in the engine runs on {@code getFrom()} / {@code getTo()}, and
+	 * {@code cloneWithDifferentBounds} re-encodes either form to the same long.
+	 *
+	 * It is **not** invisible to consolidation for the one range that saturates **both** sentinels: read
+	 * independently, each would decode to an open bound and the rebuilt range would carry two `null` precise
+	 * bounds, which `LongNumberRange`'s constructor refuses and {@code Range.consolidateRange} walks straight into.
+	 * That pair is therefore decoded with both bounds materialized — {@code RangeValueColumn#decodeLongRange} is
+	 * what upholds it, and re-encoding the result lands on the same two longs.
 	 */
 	LONG_NUMBER(LongNumberRange.class, false),
 

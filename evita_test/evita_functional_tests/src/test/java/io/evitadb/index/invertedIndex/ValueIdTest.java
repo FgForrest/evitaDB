@@ -27,8 +27,8 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.LeafPage;
 import io.evitadb.index.invertedIndex.InvertedIndex.MatchedBuckets;
@@ -1427,5 +1427,4 @@ class ValueIdTest {
 			}
 		}
 	}
-
 }

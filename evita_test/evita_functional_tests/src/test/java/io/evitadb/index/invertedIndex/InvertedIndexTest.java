@@ -29,8 +29,8 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
-import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -1688,7 +1688,6 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 	}
-
 
 	/**
 	 * A range-typed inverted index stores its bucket values in the two-`long` range column rather than in the boxed

@@ -296,7 +296,7 @@ public class InvertedIndex implements
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
 	 * attribute's plain type and the comparator: a numeric / temporal attribute under natural order uses a primitive
-	 * `long[]` column, one of the six concrete range types uses a pair of `long[]` bound columns, otherwise the
+	 * `long[]` column, one of the six concrete range types uses two or three `long[]` bound columns, otherwise the
 	 * universal boxed column.
 	 *
 	 * The selection goes through {@link ValueColumnFactory#forFilterKey} rather than

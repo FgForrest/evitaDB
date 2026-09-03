@@ -40,8 +40,8 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
  * Pluggable key (bucket value) column of a {@link TransactionalBucketBPlusTree} leaf. It abstracts the leaf's key
  * storage so a leaf can hold its keys in the cheapest representation for the attribute type — a boxed {@code Object[]}
  * ({@link BoxedObjectColumn}, the universal fallback), for numeric / temporal attributes a primitive column
- * (`long[]` and parallel-array variants), for {@link io.evitadb.dataType.Range} attributes a pair of `long[]` bound
- * columns ({@link RangeValueColumn}, reachable only through {@link ValueColumnFactory#forFilterKey}), or for
+ * (`long[]` and parallel-array variants), for {@link io.evitadb.dataType.Range} attributes two or three `long[]`
+ * bound columns ({@link RangeValueColumn}, reachable only through {@link ValueColumnFactory#forFilterKey}), or for
  * {@link String} attributes a front-coded (prefix-compressed) variable-length {@code byte[]}-blob column
  * ({@link FrontCodedStringColumn}, selected for every {@link String} key regardless of comparator). The
  * {@code int[]} single-record column and the lazy

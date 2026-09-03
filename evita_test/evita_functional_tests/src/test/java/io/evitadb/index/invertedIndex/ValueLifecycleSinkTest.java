@@ -23,8 +23,8 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -433,7 +433,6 @@ class ValueLifecycleSinkTest {
 		}
 
 	}
-
 
 	/**
 	 * The sink is handed the value the tree actually stores, which for a range-typed tree is the range column's

@@ -33,6 +33,7 @@ import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
@@ -77,13 +78,13 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
  * than the original objects did — after which {@code FilterIndex.removeRecordDelta} asks the range index to drop a
  * threshold no {@code addRange} ever inserted. Silent range-index corruption, no exception.
  *
- * The layout is therefore one {@code long} per key: **high 32 bits the from-bound's
- * {@code ZoneOffset.getTotalSeconds()}, low 32 bits the to-bound's**, with {@link #OPEN_BOUND}
- * ({@code Integer.MIN_VALUE}) in a half meaning that bound is open. Two full {@code int} halves rather than a
- * bit-packed field because the bit budget does not fit anything smaller: {@code ZoneOffset} admits ±64800 s, so two
- * offsets plus the open flags need 36 bits and neither an {@code int[]} nor a {@code short[]} nor a {@code byte[]}
- * can carry them. At most one bound is ever open ({@code DateTimeRange} refuses a both-null construction), which is
- * asserted on decode.
+ * The layout is therefore one {@code long} per key, packed via {@link io.evitadb.utils.NumberUtils#pack(int, int)}:
+ * **high 32 bits the from-bound's {@code ZoneOffset.getTotalSeconds()}, low 32 bits the to-bound's**, with
+ * {@link #OPEN_BOUND} ({@code Integer.MIN_VALUE}) in a half meaning that bound is open. Two full {@code int} halves
+ * rather than a bit-packed field because the bit budget does not fit anything smaller: {@code ZoneOffset} admits
+ * ±64800 s, so two offsets plus the open flags need 36 bits and neither an {@code int[]} nor a {@code short[]} nor a
+ * {@code byte[]} can carry them. At most one bound is ever open ({@code DateTimeRange} refuses a both-null
+ * construction), which is asserted on decode.
  *
  * ## The binding invariant
  *
@@ -144,8 +145,14 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
  * folds its length into the bound only for the kind that has one. See {@link ValueColumn} for the family-wide
  * contract.
  *
- * Per-key cost: **16 B** for the five numeric kinds and **24 B** for {@link DateTimeRange}, against ~84 B, ~132 B and
- * ~236 B respectively for the boxed graphs they replace.
+ * Per-key cost is exact by construction: **16 B** (two {@code long}s) for the five numeric kinds and **24 B**
+ * (three) for {@link DateTimeRange} — field widths, not an estimate. {@code LeafIndexHeapSizeTest} pins the fixed,
+ * non-per-key overhead on top of that for a one-key index: 464 B for the plain integral shape this column sits
+ * next to, and 568 B for a {@link DateTimeRange} column against a 584 B budget — a 104 B gap that is the wider key
+ * column, three four-slot {@code long[]} arrays at 48 B each instead of the integral shape's one. The same test
+ * notes that a numeric-kind column pays 48 B less for the {@code meta} array it never materializes, i.e. 520 B for
+ * one key. None of these figures price the boxed range graph this column replaces; no test pins that cost, so this
+ * doc does not guess at one.
  *
  * ## Selection
  *
@@ -264,11 +271,17 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * **The {@code meta} array counts only for the kind that materializes it.** Folding a permanently zero-length
 	 * array into the bound unconditionally would report a live run of {@code 0} for every numeric range tree and
 	 * silently truncate every cursor walking one.
+	 *
+	 * A live run still bounds only *which slots exist*, not which of the two or three per-slot stores a reader has
+	 * observed, so a session-free reader can assemble a key out of two neighbouring slots while one is being
+	 * written in place. This column is the one in the family whose {@code keyAt} **validates** what it read, so
+	 * such a hybrid surfaces as a thrown {@link GenericEvitaInternalError} rather than as a stale value — see
+	 * {@code decodeDateTimeRange}.
 	 */
 	@Override
 	public int observableLiveRun() {
 		final int bound = Math.min(this.size, Math.min(this.from.length, this.to.length));
-		return this.kind == RangeKind.DATE_TIME ? Math.min(bound, this.meta.length) : bound;
+		return this.kind.isMetaCarrying() ? Math.min(bound, this.meta.length) : bound;
 	}
 
 	@Nonnull
@@ -332,7 +345,9 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * - **The four integral {@code NumberRange} kinds** store {@code getFrom()} / {@code getTo()} verbatim, and their
 	 *   constructors map a {@code null} bound to exactly the {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} sentinel
 	 *   this column reads back as "open". {@code _internalBuild} is handed both the boxed bounds and the two longs,
-	 *   so nothing is recomputed at all.
+	 *   so nothing is recomputed at all. {@link LongNumberRange} is the only one of the four whose bounds can reach
+	 *   those sentinels explicitly; its saturated pair is decoded with both bounds materialized, for the reason
+	 *   {@code decodeLongRange} spells out.
 	 * - **{@link BigDecimalNumberRange}** rebuilds each bound as {@code BigDecimal.valueOf(long,
 	 *   indexedDecimalPlaces)} — the exact inverse of the
 	 *   {@code setScale(…).scaleByPowerOfTen(…).longValueExact()} the index encoded it with — and carries
@@ -369,11 +384,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 				upper == Long.MAX_VALUE ? null : (int) upper,
 				null, lower, upper
 			);
-			case LONG_NUMBER -> LongNumberRange._internalBuild(
-				lower == Long.MIN_VALUE ? null : lower,
-				upper == Long.MAX_VALUE ? null : upper,
-				null, lower, upper
-			);
+			case LONG_NUMBER -> decodeLongRange(lower, upper);
 			case BIG_DECIMAL_NUMBER -> decodeBigDecimalRange(lower, upper);
 			case DATE_TIME -> decodeDateTimeRange(lower, upper, this.meta[index]);
 		};
@@ -395,8 +406,10 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		// would make this the one mutator in the family that writes into arrays it did not allocate
 		final long[] targetFrom = newLongArray(count);
 		final long[] targetTo = newLongArray(count);
-		final long[] targetMeta = this.kind == RangeKind.DATE_TIME ? newLongArray(count) : EMPTY_LONG_ARRAY;
-		if (targetMeta.length > 0) {
+		final long[] targetMeta = this.kind.isMetaCarrying() ? newLongArray(count) : EMPTY_LONG_ARRAY;
+		// the kind is read, never inferred from the allocation: a zero-length load parks `targetMeta` on the shared
+		// empty constant, which would send a date-time column down the numeric arm and its `NumberRange` cast
+		if (this.kind.isMetaCarrying()) {
 			for (int i = 0; i < count; i++) {
 				final DateTimeRange range = (DateTimeRange) keys[i];
 				targetFrom[i] = range.getFrom();
@@ -425,13 +438,13 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		// lockstep left-shift of every live array
 		System.arraycopy(this.from, index + 1, this.from, index, this.size - index - 1);
 		System.arraycopy(this.to, index + 1, this.to, index, this.size - index - 1);
-		if (this.kind == RangeKind.DATE_TIME) {
+		if (this.kind.isMetaCarrying()) {
 			System.arraycopy(this.meta, index + 1, this.meta, index, this.size - index - 1);
 		}
 		this.size--;
 		this.from[this.size] = 0L;
 		this.to[this.size] = 0L;
-		if (this.kind == RangeKind.DATE_TIME) {
+		if (this.kind.isMetaCarrying()) {
 			this.meta[this.size] = 0L;
 		}
 	}
@@ -441,7 +454,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		if (index < this.size) {
 			Arrays.fill(this.from, index, this.size, 0L);
 			Arrays.fill(this.to, index, this.size, 0L);
-			if (this.kind == RangeKind.DATE_TIME) {
+			if (this.kind.isMetaCarrying()) {
 				Arrays.fill(this.meta, index, this.size, 0L);
 			}
 			this.size = index;
@@ -460,13 +473,13 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 			// a right shift opens a hole between the destination's old live end and dstPos; it must read as empty
 			Arrays.fill(target.from, oldSize, dstPos, 0L);
 			Arrays.fill(target.to, oldSize, dstPos, 0L);
-			if (this.kind == RangeKind.DATE_TIME) {
+			if (this.kind.isMetaCarrying()) {
 				Arrays.fill(target.meta, oldSize, dstPos, 0L);
 			}
 		}
 		System.arraycopy(this.from, srcPos, target.from, dstPos, length);
 		System.arraycopy(this.to, srcPos, target.to, dstPos, length);
-		if (this.kind == RangeKind.DATE_TIME) {
+		if (this.kind.isMetaCarrying()) {
 			System.arraycopy(this.meta, srcPos, target.meta, dstPos, length);
 		}
 		target.size = Math.max(oldSize, required);
@@ -477,7 +490,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		if (fromInclusive < this.size) {
 			Arrays.fill(this.from, fromInclusive, this.size, 0L);
 			Arrays.fill(this.to, fromInclusive, this.size, 0L);
-			if (this.kind == RangeKind.DATE_TIME) {
+			if (this.kind.isMetaCarrying()) {
 				Arrays.fill(this.meta, fromInclusive, this.size, 0L);
 			}
 			this.size = fromInclusive;
@@ -503,7 +516,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	public InsertionPosition findKeyPosition(@Nonnull M key, int from, int to, @Nullable Comparator<M> comparator) {
 		final long probeFrom;
 		final long probeTo;
-		if (this.kind == RangeKind.DATE_TIME) {
+		if (this.kind.isMetaCarrying()) {
 			final DateTimeRange probe = (DateTimeRange) key;
 			probeFrom = probe.getFrom();
 			probeTo = probe.getTo();
@@ -592,6 +605,34 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	}
 
 	/**
+	 * Rebuilds a {@link LongNumberRange} from its two comparison longs.
+	 *
+	 * `LongNumberRange` is the one kind whose bounds span the whole `long` domain, so an **explicit** bound can
+	 * carry the very value the open-bound sentinel spends. Read independently, the saturated pair
+	 * `(Long.MIN_VALUE, Long.MAX_VALUE)` — which `between(MIN, MAX)`, `from(MIN)` and `to(MAX)` all store — would
+	 * therefore rebuild with **both** precise bounds `null`, a shape `LongNumberRange`'s own constructor refuses:
+	 * {@link io.evitadb.dataType.Range#consolidateRange} clones the winner of a merge with its two precise bounds
+	 * and would hand that constructor `(null, null)`. The saturated pair is consequently decoded with both bounds
+	 * materialized, which re-encodes to the identical two longs — so the tree, the range index and equality see
+	 * nothing move, and the result is `equals` to all three constructions above.
+	 *
+	 * @param lower the stored lower comparison bound
+	 * @param upper the stored upper comparison bound
+	 * @return the rebuilt range
+	 */
+	@Nonnull
+	private static LongNumberRange decodeLongRange(long lower, long upper) {
+		if (lower == Long.MIN_VALUE && upper == Long.MAX_VALUE) {
+			return LongNumberRange._internalBuild(Long.MIN_VALUE, Long.MAX_VALUE, null, lower, upper);
+		}
+		return LongNumberRange._internalBuild(
+			lower == Long.MIN_VALUE ? null : lower,
+			upper == Long.MAX_VALUE ? null : upper,
+			null, lower, upper
+		);
+	}
+
+	/**
 	 * Rebuilds a {@link BigDecimalNumberRange} from its two comparison longs at the column's
 	 * {@code indexedDecimalPlaces}.
 	 *
@@ -628,6 +669,12 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * route is the direct inverse of the {@code toEpochSecond()} that produced the stored long, and reaches the
 	 * bound without materializing an intermediate {@code Instant} to convert away again.
 	 *
+	 * An inverted pair is refused up front. No {@link DateTimeRange} can carry one — its own factories validate the
+	 * bounds — so seeing one means the three per-slot loads did not come from one slot: a session-free reader
+	 * assembled a hybrid key out of a column being shifted in place. Left to {@code DateTimeRange.between}, that
+	 * would surface as a client-facing {@code EvitaInvalidUsageException} blaming the caller's bounds, out of a read
+	 * the column contract promises will merely under-report.
+	 *
 	 * @param lower  the stored lower comparison bound
 	 * @param upper  the stored upper comparison bound
 	 * @param packed the stored packed offsets
@@ -635,8 +682,14 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 */
 	@Nonnull
 	private static DateTimeRange decodeDateTimeRange(long lower, long upper, long packed) {
-		final int fromOffset = (int) (packed >> 32);
-		final int toOffset = (int) packed;
+		if (lower > upper) {
+			throw new GenericEvitaInternalError(
+				"A stored date-time range's lower bound is above its upper one, which no `DateTimeRange` can be - " +
+					"this is a torn read of a column being written concurrently."
+			);
+		}
+		final int fromOffset = NumberUtils.unpackHigh(packed);
+		final int toOffset = NumberUtils.unpackLow(packed);
 		if (fromOffset == OPEN_BOUND) {
 			if (toOffset == OPEN_BOUND) {
 				// DateTimeRange refuses a both-null construction, so no stored key can have carried this
@@ -666,8 +719,8 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	}
 
 	/**
-	 * Packs a {@link DateTimeRange}'s two zone offsets into one {@code long} — high 32 bits the from-bound's, low 32
-	 * the to-bound's, {@link #OPEN_BOUND} for an open bound.
+	 * Packs a {@link DateTimeRange}'s two zone offsets into one {@code long} via {@link NumberUtils#pack(int, int)}
+	 * — high 32 bits the from-bound's, low 32 the to-bound's, {@link #OPEN_BOUND} for an open bound.
 	 *
 	 * @param range the range to encode
 	 * @return the packed offsets
@@ -677,7 +730,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		final OffsetDateTime preciseTo = range.getPreciseTo();
 		final int fromOffset = preciseFrom == null ? OPEN_BOUND : preciseFrom.getOffset().getTotalSeconds();
 		final int toOffset = preciseTo == null ? OPEN_BOUND : preciseTo.getOffset().getTotalSeconds();
-		return (((long) fromOffset) << 32) | (toOffset & 0xFFFF_FFFFL);
+		return NumberUtils.pack(fromOffset, toOffset);
 	}
 
 	/**
@@ -723,7 +776,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 			final int grown = ColumnSizing.grownLength(this.from.length, requiredLength, this.capacity);
 			this.from = Arrays.copyOf(this.from, grown);
 			this.to = Arrays.copyOf(this.to, grown);
-			if (this.kind == RangeKind.DATE_TIME) {
+			if (this.kind.isMetaCarrying()) {
 				this.meta = Arrays.copyOf(this.meta, grown);
 			}
 		}
@@ -755,7 +808,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		System.arraycopy(this.to, index, this.to, index + 1, tail);
 		// the key is narrowed to one of the TWO classes that actually declare `getFrom` / `getTo` rather than to
 		// `Range`, which has six implementors — see the class javadoc for why that matters on this path
-		if (this.kind == RangeKind.DATE_TIME) {
+		if (this.kind.isMetaCarrying()) {
 			System.arraycopy(this.meta, index, this.meta, index + 1, tail);
 			final DateTimeRange range = (DateTimeRange) value;
 			this.from[index] = range.getFrom();
@@ -795,25 +848,31 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	}
 
 	/**
-	 * Narrows a sibling column to the same concrete kind. One attribute index means one value type, so the kinds
-	 * always agree in production; a mismatch would move keys between two incompatible encodings — a
-	 * {@code DateTimeRange} slot arriving in a column with no {@code meta} array to receive its offsets, say — and is
+	 * Narrows a sibling column to the same concrete encoding. One attribute index means one value type at one scale,
+	 * so both always agree in production; a mismatch would move keys between two incompatible encodings and is
 	 * refused rather than absorbed.
 	 *
+	 * Two things make an encoding: the {@link RangeKind} — a {@code DateTimeRange} slot arriving in a column with no
+	 * {@code meta} array to receive its offsets, say — and, for {@link RangeKind#BIG_DECIMAL_NUMBER},
+	 * {@code indexedDecimalPlaces}. The scale is the subtler half: the longs move across intact and the destination
+	 * then rebuilds every one of them at **its** scale, so an unguarded copy between two big-decimal columns of
+	 * different scale silently rewrites the values it moved.
+	 *
 	 * @param other the sibling column
-	 * @return {@code other} as a {@link RangeValueColumn} of this column's kind
+	 * @return {@code other} as a {@link RangeValueColumn} of this column's kind and scale
 	 */
 	@Nonnull
 	private RangeValueColumn<M> asSameKind(@Nonnull ValueColumn<M> other) {
-		if (other instanceof RangeValueColumn<M> range && range.kind == this.kind) {
+		if (other instanceof RangeValueColumn<M> range && range.kind == this.kind
+			&& range.indexedDecimalPlaces == this.indexedDecimalPlaces) {
 			return range;
 		}
 		final String actual = other instanceof RangeValueColumn<M> range
-			? range.kind + " range column"
+			? range.kind + " range column at scale " + range.indexedDecimalPlaces
 			: other.getClass().getName();
 		throw new IllegalArgumentException(
-			"Cannot mix value column kinds within one tree: expected a " + this.kind + " range column but got "
-				+ actual
+			"Cannot mix value column kinds within one tree: expected a " + this.kind + " range column at scale "
+				+ this.indexedDecimalPlaces + " but got " + actual
 		);
 	}
 }

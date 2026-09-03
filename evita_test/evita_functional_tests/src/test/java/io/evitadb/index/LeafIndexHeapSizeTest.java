@@ -25,11 +25,11 @@ package io.evitadb.index;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -148,6 +148,12 @@ class LeafIndexHeapSizeTest {
 		private static final String ID_CONSUMER = "leaf-index-heap-size-test";
 
 		/**
+		 * The one zone offset every date-time-range fixture bound carries. `ZoneOffset.ofHours` interns it JVM-wide,
+		 * so it is a shared root rather than anything an index owns.
+		 */
+		private static final ZoneOffset SHARED_OFFSET = ZoneOffset.ofHours(2);
+
+		/**
 		 * Builds a string-keyed inverted index, whose leaves front-code their keys.
 		 *
 		 * @param distinctValues how many distinct bucket values to seed
@@ -175,6 +181,35 @@ class LeafIndexHeapSizeTest {
 			index.attachValueIdConsumer(ID_CONSUMER);
 			for (int i = 0; i < distinctValues; i++) {
 				index.addRecord(String.format("value-%05d", i), i + 1);
+			}
+			return index;
+		}
+
+		/**
+		 * Builds a date-time-range-keyed inverted index, whose leaves hold their keys as three parallel `long[]`
+		 * columns rather than as boxed objects — the shape whose separator keys this nest otherwise never measures.
+		 *
+		 * **Every bound gets its own `LocalDate` and `LocalTime`, and that is load-bearing.** The JDK hands out one
+		 * cached `LocalTime` for a whole hour and reuses a `LocalDateTime`'s time instance in anything derived from
+		 * it, so a fixture built on midnights lets one `LocalTime` stand behind every bound in the index — the walk
+		 * then counts it once where `EvitaDataTypes.estimateSize` counts it per bound, and the exactness below turns
+		 * into a divergence that grows with the separators. The minute and second offsets are what avoid that.
+		 *
+		 * @param distinctValues how many distinct bucket values to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static InvertedIndex dateTimeRangeKeyed(int distinctValues) {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
+			final InvertedIndex index = new InvertedIndex(DateTimeRange.class, normalizer, comparator, 0);
+			final LocalDateTime base = LocalDateTime.of(2024, 1, 1, 0, 0);
+			for (int i = 0; i < distinctValues; i++) {
+				final LocalDateTime from = base.plusDays(i).plusMinutes(i % 59 + 1);
+				final LocalDateTime to = from.plusDays(1).plusSeconds(i % 53 + 1);
+				index.addRecord(
+					DateTimeRange.between(from.atOffset(SHARED_OFFSET), to.atOffset(SHARED_OFFSET)), i + 1);
 			}
 			return index;
 		}
@@ -445,6 +480,36 @@ class LeafIndexHeapSizeTest {
 			assertTrue(
 				measured <= 584,
 				"a one-key range index must stay within its 584 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldAccountForTheSeparatorKeysOfAMultiLeafRangeIndex() {
+			// A range tree is the one shape that flips the tree's `separatorKeysAreOwned` verdict from false to
+			// true - the check is "the leaf's key column is not the boxed one" - so the moment a range index grows
+			// internal nodes every separator starts being charged through `EvitaDataTypes.estimateSize`. The gate
+			// above is a SINGLE leaf and has no separators at all, and the two multi-leaf cases in this nest key
+			// on a String and on a UUID, so this shape is measured nowhere else.
+			//
+			// A range separator is a freshly minted object - `keyAt` rebuilds it and cannot alias a leaf key the
+			// way a boxed column's promoted-by-reference separator does - so it is really retained and really
+			// walked, and the two sides agree byte for byte once the one thing neither owns is taken off the walk:
+			// the zone offset behind every bound. `ZoneOffset.ofHours` interns it JVM-wide and `estimateSize`
+			// deliberately charges only the reference slot pointing at it, so it is named here as the shared root
+			// it is. Measured, it is a fixed 72 bytes at any index size - which is what makes exactness attainable
+			// here rather than the bounded divergence the front-coded String case has to settle for.
+			final Object[] internedOffset = {SHARED_OFFSET};
+			final InvertedIndex index = dateTimeRangeKeyed(1_000);
+			assertTrue(index.isPaged(), "the seeded index must span several leaves");
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, internedOffset, INVERTED_EXCLUSIONS);
+
+			// four times the values is four times the leaves and four times the separators: a separator term that
+			// had gone missing would surface as a divergence growing with them, and this stays exact
+			final InvertedIndex larger = dateTimeRangeKeyed(4_000);
+			assertMatchesMeasuredHeap(larger.getHeapSizeInBytes(), larger, internedOffset, INVERTED_EXCLUSIONS);
+			assertTrue(
+				larger.getHeapSizeInBytes() > index.getHeapSizeInBytes(),
+				"a larger paged range index must price above a smaller one"
 			);
 		}
 	}

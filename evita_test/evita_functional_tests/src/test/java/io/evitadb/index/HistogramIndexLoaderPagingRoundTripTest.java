@@ -29,6 +29,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
@@ -89,6 +90,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -144,6 +146,8 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME);
 	/** > 1 leaf page (bucket leaf capacity) so the histogram pages out across several leaves. */
 	private static final int VALUE_COUNT = 3200;
+	/** The scale a `BigDecimalNumberRange` histogram freezes its bounds at, and rebuilds them at on reload. */
+	private static final int BIG_DECIMAL_SCALE = 2;
 	/** Survivors kept after the `PAGED -> SINGLE` collapse; a handful of buckets fit inside a single bucket leaf. */
 	private static final int COLLAPSE_KEEP = 12;
 	private static final long PERSISTED_VERSION = 1L;
@@ -396,6 +400,77 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 				assertEquals(
 					0, emit(restored).size(),
 					"an untouched reloaded date-time-range paged histogram must emit nothing on its first flush"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a big-decimal-range PAGED histogram reloads its bounds at the frozen index scale")
+		void shouldReloadPagedBigDecimalRangeTypedHistogramThroughTheRealLoader() {
+			// the reload threads the persisted `indexedDecimalPlaces` into every leaf column it rebuilds, and a
+			// range rebuilt at the wrong scale is still `equals` to the right one: the comparison longs, the
+			// ordering and the range-index thresholds are all scale-invariant. Only the precise bounds move, and
+			// this is the only test in the suite that reaches them through the paged reload
+			final SimpleHistogramIndex source = new SimpleHistogramIndex(
+				HISTOGRAM_NAME, REFERENCE_NAME, BigDecimalNumberRange.class, BIG_DECIMAL_SCALE
+			);
+			for (int i = 1; i <= VALUE_COUNT; i++) {
+				source.insertValue(null, bigDecimalRange(i), i);
+			}
+
+			final List<StoragePart> emitted = emit(source);
+			final HistogramIndexStoragePart root = histogramRoot(emitted);
+			assertTrue(root.isPaged(), "the big-decimal-range histogram must page its bucket axis out");
+			assertTrue(root.isRangePaged(), "the big-decimal-range histogram must page its range axis out");
+			assertTrue(leafPages(emitted).size() >= 3, "the bucket axis must emit at least three leaf pages");
+			assertTrue(
+				rangeLeafPages(emitted).size() >= 3, "the range axis must emit at least three range leaf pages"
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(stripRemovals(emitted));
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final HistogramIndex restored = reloadThroughLoader(
+					reloaded, SIMPLE_MANIFEST_KEYS, PERSISTED_VERSION, HISTOGRAM_NAME
+				);
+				assertReloadIdentical(source, restored, null);
+				// a big-decimal threshold IS the scaled long, so the probes are expressed as the longs the bounds
+				// encode to rather than as the decimal values a caller would write
+				assertSameRangeQueries(
+					source, restored,
+					new long[][]{
+						{bigDecimalRange(1).getFrom(), bigDecimalRange(5).getTo()},
+						{bigDecimalRange(1600).getFrom(), bigDecimalRange(1600).getTo()},
+						{bigDecimalRange(VALUE_COUNT).getFrom(), bigDecimalRange(VALUE_COUNT).getTo()},
+						{bigDecimalRange(1).getFrom() - 100L, bigDecimalRange(VALUE_COUNT).getTo() + 100L}
+					}
+				);
+
+				// the scale-level pass, the analogue of the date-time sibling's offset pass: `toString` renders the
+				// PRECISE bounds, and `BigDecimal`'s rendering carries its scale - so a bucket reloaded at scale 0
+				// renders "[105,180]" where the source renders "[1.05,1.80]", which nothing above can see
+				final FilterIndex restoredFilter = restored.getFilterIndex(null);
+				assertNotNull(restoredFilter, "the reloaded histogram must expose a filter index");
+				final ValueToRecordBitmap[] restoredBuckets =
+					restoredFilter.getInvertedIndex().getValueToRecordBitmap();
+				assertEquals(
+					VALUE_COUNT, restoredBuckets.length, "every distinct range must reload as its own bucket"
+				);
+				for (int i = 0; i < restoredBuckets.length; i++) {
+					assertEquals(
+						bigDecimalRange(i + 1).toString(), restoredBuckets[i].getValue().toString(),
+						"bucket " + i + " must reload at the frozen index scale"
+					);
+				}
+
+				assertEquals(
+					0, emit(restored).size(),
+					"an untouched reloaded big-decimal-range paged histogram must emit nothing on its first flush"
 				);
 			} finally {
 				if (reloaded != null) {
@@ -1113,8 +1188,10 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	 * offsets are what the reloaded leaf column has to carry in a third backing array beside the two comparison
 	 * bounds — the shape no other reload test exercises, since an `IntegerNumberRange` needs only the two.
 	 *
-	 * Ordinals map to strictly ascending `getFrom()` instants: the moment advances an hour per ordinal while the
-	 * offset moves by at most half of one, so bucket order is ordinal order and the ranges double as a reload oracle.
+	 * Ordinals map to strictly ascending `getFrom()` instants: the moment advances a full hour (3600 s) per ordinal,
+	 * and the offset trails that within each five-ordinal cycle (steps of 1800 s) and overshoots it at the cycle's
+	 * wrap (a 7200 s swing the other way) — either way `instant = moment − offset` keeps climbing, so bucket order
+	 * is ordinal order and the ranges double as a reload oracle.
 	 *
 	 * @param ordinal the ordinal to derive the range from
 	 * @return an ascending, deterministic date-time range
@@ -1124,6 +1201,25 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
 		final LocalDateTime moment = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
 		return DateTimeRange.between(moment.atOffset(offset), moment.plusHours(1).atOffset(offset));
+	}
+
+	/**
+	 * Builds the ordinal's distinct `BigDecimalNumberRange`, three quarters of a unit wide, at
+	 * {@link #BIG_DECIMAL_SCALE}. The scale is what the reloaded leaf column has to rebuild the precise bounds at —
+	 * the two comparison longs it stores carry no scale of their own, so a reload that lost it is invisible to every
+	 * equality, ordering and range-overlap assertion.
+	 *
+	 * Ordinals map to strictly ascending `getFrom()` thresholds — the lower bound advances a whole unit per ordinal
+	 * while the range spans three quarters of one — so bucket order is ordinal order and the ranges double as a
+	 * reload oracle.
+	 *
+	 * @param ordinal the ordinal to derive the range from
+	 * @return an ascending, deterministic big decimal range
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange bigDecimalRange(int ordinal) {
+		final BigDecimal from = BigDecimal.valueOf(ordinal * 100L + 5L, BIG_DECIMAL_SCALE);
+		return BigDecimalNumberRange.between(from, from.add(new BigDecimal("0.75")), BIG_DECIMAL_SCALE);
 	}
 
 	/**

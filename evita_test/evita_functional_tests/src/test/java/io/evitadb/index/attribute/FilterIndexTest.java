@@ -1662,7 +1662,6 @@ class FilterIndexTest {
 
 	}
 
-
 	@Nested
 	@DisplayName("array-delta parity over a reconstructed range column")
 	@Tag(DATA_TYPE)
@@ -1810,6 +1809,66 @@ class FilterIndexTest {
 			assertNotEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
 			FilterIndexTest.this.rangeAttribute.removeRecordDelta(1, mixed);
 			assertEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
+		}
+
+		@Test
+		@DisplayName("an array delta over a saturated long range matches the boxed index it replaced")
+		void shouldLeaveNoThresholdBehindForASaturatedLongRangeArray() {
+			// the delta paths are the only ones that feed values READ BACK out of the tree into
+			// `Range.consolidateRange`, and every other parity case in this nest uses bounds nowhere near the two
+			// sentinels the open-bound encoding spends. A range saturating BOTH of them is the shape that is not
+			// covered - and `LongNumberRange.from(Long.MIN_VALUE)` is an ordinary way for a caller to write one.
+			// `NumberRange.class` is the counterfactual: an abstract declared type falls through to the boxed
+			// column, which hands the stored instances back and therefore never rebuilds a bound at all
+			final LongNumberRange[] added = {LongNumberRange.between(10L, 20L)};
+			final OwnerFilterIndex rebuilding = saturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex boxed = saturatedLongRangeIndex(NumberRange.class);
+			final String before = thresholdsOf(rebuilding);
+			assertEquals(before, thresholdsOf(boxed), "the two arms must start from one shape");
+
+			rebuilding.addRecordDelta(1, added);
+			boxed.addRecordDelta(1, added);
+			assertEquals(
+				thresholdsOf(boxed), thresholdsOf(rebuilding), "the added delta must agree with the boxed arm");
+			rebuilding.removeRecordDelta(1, added);
+			boxed.removeRecordDelta(1, added);
+			assertEquals(before, thresholdsOf(rebuilding), "the removal must retire exactly the thresholds it added");
+			assertEquals(thresholdsOf(boxed), thresholdsOf(rebuilding), "the removed delta must agree too");
+
+			// the other arm: a removal that leaves the saturated range behind, which is what the consolidation of
+			// the REMAINING ranges then has to clone
+			final OwnerFilterIndex shrinking = saturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex shrinkingBoxed = saturatedLongRangeIndex(NumberRange.class);
+			final LongNumberRange[] removed = {LongNumberRange.between(1L, 5L)};
+			shrinking.removeRecordDelta(1, removed);
+			shrinkingBoxed.removeRecordDelta(1, removed);
+			assertEquals(thresholdsOf(shrinkingBoxed), thresholdsOf(shrinking));
+			assertArrayEquals(
+				new int[]{1}, shrinking.getRecordsEqualTo(LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE))
+					.getArray(),
+				"the saturated range must survive the removal of its sibling"
+			);
+		}
+
+		/**
+		 * Builds a range index holding one record whose value set contains a range saturating both open-bound
+		 * sentinels plus an overlapping sibling — the shape a delta has to read back out of the tree and
+		 * consolidate. A fresh index per arm keeps a half-applied delta from colouring the next one.
+		 *
+		 * @param attributeType the declared attribute type, which decides whether the keys are rebuilt or boxed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private OwnerFilterIndex saturatedLongRangeIndex(@Nonnull Class<?> attributeType) {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "span", null), attributeType);
+			index.addRecord(
+				1,
+				new LongNumberRange[]{
+					LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE), LongNumberRange.between(1L, 5L)
+				}
+			);
+			return index;
 		}
 	}
 

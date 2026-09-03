@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.assertTreeMatchesOracle;
 import static io.evitadb.index.bPlusTree.ValueColumnTestSupport.verifyConsistent;
@@ -58,6 +60,7 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -65,6 +68,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -317,6 +321,35 @@ class RangeValueColumnTest {
 		}
 
 		@Test
+		@DisplayName("a long range saturating both sentinels rebuilds with both precise bounds materialized")
+		void shouldRebuildASaturatedLongRange() {
+			// three ordinary constructions store the saturated pair, and the two open-ended ones are the plausible
+			// shapes - "open from the smallest representable value" is a legal thing for a caller to write
+			final LongNumberRange[] saturated = {
+				LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE),
+				LongNumberRange.from(Long.MIN_VALUE),
+				LongNumberRange.to(Long.MAX_VALUE)
+			};
+			for (final LongNumberRange original : saturated) {
+				assertEquals(Long.MIN_VALUE, original.getFrom(), "the fixture must store the saturated pair");
+				assertEquals(Long.MAX_VALUE, original.getTo(), "the fixture must store the saturated pair");
+
+				final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
+				column.insertKeyAt(0, original);
+				final NumberRange<Long> decoded = column.keyAt(0);
+				assertEquals(original, decoded, "equality is generated from the two comparison longs alone");
+				assertEquals(Long.MIN_VALUE, decoded.getFrom());
+				assertEquals(Long.MAX_VALUE, decoded.getTo());
+
+				// reading each sentinel independently would mint a range with BOTH precise bounds null - a shape
+				// `LongNumberRange` itself refuses - so the saturated pair is the one decoded with both bounds
+				// materialized. They re-encode to the very same two longs, so nothing observable moves
+				assertEquals(Long.valueOf(Long.MIN_VALUE), decoded.getPreciseFrom());
+				assertEquals(Long.valueOf(Long.MAX_VALUE), decoded.getPreciseTo());
+			}
+		}
+
+		@Test
 		@DisplayName("big decimal ranges round-trip at the index scale, including a scale-mismatched input")
 		void shouldRoundTripBigDecimalRangesAtTheIndexScale() {
 			// the normalizer rewrites every key to the schema scale before it reaches the tree, so a range built at a
@@ -346,6 +379,42 @@ class RangeValueColumnTest {
 			final ValueColumn<NumberRange<BigDecimal>> column = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 2);
 			column.insertKeyAt(0, BigDecimalNumberRange.INFINITE);
 			assertSame(BigDecimalNumberRange.INFINITE, column.keyAt(0));
+		}
+
+		@Test
+		@DisplayName("the rebuilt big decimal bounds carry the column's scale, which nothing comparing them sees")
+		void shouldRebuildBigDecimalBoundsAtTheColumnScale() {
+			// the column's scale is threaded into `BigDecimal.valueOf(long, scale)` AND into the rebuilt range's own
+			// `retainedDecimalPlaces`, which makes the reconstruction self-consistent at ANY scale: the comparison
+			// longs, equality, ordering and consolidation all agree whatever it is. Only the precise bounds move -
+			// so they are the only thing that can pin the scale, and the guard below spells that out
+			final BigDecimalNumberRange original =
+				BigDecimalNumberRange.between(new BigDecimal("1.25"), new BigDecimal("9.50"), 2);
+			final ValueColumn<NumberRange<BigDecimal>> atTwo = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 2);
+			atTwo.insertKeyAt(0, original);
+			final NumberRange<BigDecimal> decodedAtTwo = atTwo.keyAt(0);
+			// BigDecimal equality is scale-sensitive, so each assertion pins the value AND the scale it carries
+			assertEquals(new BigDecimal("1.25"), decodedAtTwo.getPreciseFrom());
+			assertEquals(new BigDecimal("9.50"), decodedAtTwo.getPreciseTo());
+
+			// the non-vacuity guard: the SAME range stored in a column built at scale 0 rebuilds to bounds a hundred
+			// times larger, and everything the engine compares still reads the two reconstructions as identical
+			final ValueColumn<NumberRange<BigDecimal>> atZero = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 0);
+			atZero.insertKeyAt(0, original);
+			final NumberRange<BigDecimal> decodedAtZero = atZero.keyAt(0);
+			assertEquals(decodedAtTwo, decodedAtZero, "equality is generated from the two comparison longs alone");
+			assertEquals(decodedAtTwo.getFrom(), decodedAtZero.getFrom());
+			assertEquals(decodedAtTwo.getTo(), decodedAtZero.getTo());
+			final Range<BigDecimal> reclonedAtTwo = decodedAtTwo.cloneWithDifferentBounds(
+				decodedAtTwo.getPreciseFrom(), decodedAtTwo.getPreciseTo());
+			final Range<BigDecimal> reclonedAtZero = decodedAtZero.cloneWithDifferentBounds(
+				decodedAtZero.getPreciseFrom(), decodedAtZero.getPreciseTo());
+			assertEquals(reclonedAtTwo.getFrom(), reclonedAtZero.getFrom(), "consolidation re-derives one long pair");
+			assertEquals(reclonedAtTwo.getTo(), reclonedAtZero.getTo(), "consolidation re-derives one long pair");
+			assertNotEquals(
+				decodedAtTwo.getPreciseFrom(), decodedAtZero.getPreciseFrom(),
+				"the precise bounds are all the scale moves - unasserted, a wrong scale passes the whole suite"
+			);
 		}
 
 		@Test
@@ -475,6 +544,50 @@ class RangeValueColumnTest {
 				"the reconstruction must search back to its own slot"
 			);
 		}
+
+		@Test
+		@DisplayName("asBoxedArray materializes the declared concrete subtype and appendKey renders the rebuilt key")
+		void shouldMaterializeTheDeclaredSubtypeArrayAndRenderKeys() {
+			final List<DateTimeRange> dateTimes =
+				List.of(offsetBearingRange(0), offsetBearingRange(1), offsetBearingRange(2));
+			final ValueColumn<DateTimeRange> dateTimeColumn = assertRoundTrip(RangeKind.DATE_TIME, 0, dateTimes);
+			assertSubtypeArrayAndRendering(dateTimeColumn, DateTimeRange.class, dateTimes);
+
+			final List<IntegerNumberRange> integers = List.of(
+				IntegerNumberRange.to(-17), IntegerNumberRange.between(-4, 4), IntegerNumberRange.from(11)
+			);
+			final ValueColumn<NumberRange<Integer>> integerColumn =
+				assertRoundTrip(RangeKind.INTEGER_NUMBER, 0, integers);
+			assertSubtypeArrayAndRendering(integerColumn, IntegerNumberRange.class, integers);
+		}
+
+		/**
+		 * Asserts a populated column materializes its boxed array as the **declared** concrete subtype — the
+		 * component type `ReevaluateExpressionExecutor` re-indexes against, and the one thing that separates this
+		 * implementation's `asBoxedArray` from every sibling's — and that `appendKey` renders the rebuilt key.
+		 *
+		 * @param column   the populated column
+		 * @param subtype  the concrete range subtype its boxed array must be typed by
+		 * @param expected the ranges the column holds, in slot order
+		 */
+		private static <M extends Comparable<M>> void assertSubtypeArrayAndRendering(
+			@Nonnull ValueColumn<M> column, @Nonnull Class<?> subtype, @Nonnull List<? extends Range<?>> expected
+		) {
+			final M[] boxed = column.asBoxedArray();
+			assertEquals(
+				subtype, boxed.getClass().getComponentType(),
+				"the array must be typed by the declared subtype, not by the abstract range class"
+			);
+			assertEquals(expected.size(), boxed.length, "the boxed array must be exactly the live run");
+			for (int i = 0; i < expected.size(); i++) {
+				assertEquals(expected.get(i), boxed[i], "boxed slot " + i);
+				final StringBuilder sb = new StringBuilder(64);
+				column.appendKey(sb, i);
+				assertEquals(
+					column.keyAt(i).toString(), sb.toString(), "appendKey must render the rebuilt key at slot " + i
+				);
+			}
+		}
 	}
 
 	/**
@@ -508,6 +621,27 @@ class RangeValueColumnTest {
 			for (int i = 0; i < loaded.length; i++) {
 				assertBoundOffsetsAt(column, i, loaded[i], "bulkLoad");
 			}
+		}
+
+		@Test
+		@DisplayName("an empty bulk load leaves a date-time column on the shared empty arrays and still round-trips")
+		void shouldBulkLoadAnEmptyDateTimeColumn() {
+			// `bulkLoad` is the one site in the column that infers the kind rather than reading it - it branches on
+			// the length of the `meta` array it has just allocated, and a zero-length allocation parks that array on
+			// the shared empty constant, so an empty date-time load takes the NUMERIC arm. Harmless only because
+			// that arm's loop body never runs; this pins the observable shape a kind-based branch must preserve
+			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
+			column.bulkLoad(new Object[0], 0);
+			assertEquals(0, column.size());
+			assertEquals(
+				columnOf(RangeKind.DATE_TIME, 0).getHeapSizeInBytes(), column.getHeapSizeInBytes(),
+				"an empty load must leave all three arrays on the shared empty constant"
+			);
+
+			// and the column is still a date-time column afterwards, offsets included
+			final DateTimeRange range = offsetBearingRange(3);
+			column.insertKeyAt(0, range);
+			assertBoundOffsetsAt(column, 0, range, "insert after an empty bulkLoad");
 		}
 
 		@Test
@@ -728,6 +862,32 @@ class RangeValueColumnTest {
 				}
 			);
 		}
+
+		@Test
+		@DisplayName("a rebuilt saturated long range consolidates with an overlapping sibling")
+		void shouldConsolidateARebuiltSaturatedLongRangeWithAnOverlappingSibling() {
+			// `consolidateRange` merges an overlapping pair by cloning the winner with the two precise bounds that
+			// won, and the saturated range wins both - so it is cloned with the pair its reconstruction carries
+			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
+			column.insertKeyAt(0, LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE));
+			final LongNumberRange rebuilt = (LongNumberRange) column.keyAt(0);
+			final LongNumberRange sibling = LongNumberRange.between(1L, 5L);
+			assertTrue(rebuilt.overlaps(sibling), "the saturated range overlaps everything");
+			final LongNumberRange[] pair = {rebuilt, sibling};
+
+			// the merge clones the winner with the two precise bounds that won, so the reconstruction has to carry a
+			// pair `cloneWithDifferentBounds` accepts - and the result must be the boxed column's answer verbatim
+			final LongNumberRange[] consolidated = Range.consolidateRange(pair);
+			assertEquals(1, consolidated.length, "the saturated range swallows every sibling it overlaps");
+			assertEquals(Long.MIN_VALUE, consolidated[0].getFrom());
+			assertEquals(Long.MAX_VALUE, consolidated[0].getTo());
+			assertArrayEquals(
+				Range.consolidateRange(new LongNumberRange[]{LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE),
+					sibling}),
+				consolidated,
+				"the rebuilt range must consolidate exactly as the original object does"
+			);
+		}
 	}
 
 	/**
@@ -829,6 +989,53 @@ class RangeValueColumnTest {
 	}
 
 	/**
+	 * Two columns may exchange keys only when their encodings agree, and this is the only column in the family whose
+	 * compatibility has **two** dimensions: one class covers six kinds, so `instanceof` alone does not establish that
+	 * a source slot means the same thing in the destination.
+	 */
+	@Nested
+	@DisplayName("cross-column copy compatibility")
+	class CopyCompatibilityTest {
+
+		@Test
+		@DisplayName("a copy between two incompatible key encodings is refused rather than absorbed")
+		void shouldRefuseToCopyBetweenTwoDifferentColumnKinds() {
+			final ValueColumn<DateTimeRange> source = columnOf(RangeKind.DATE_TIME, 0);
+			for (int i = 0; i < 3; i++) {
+				source.insertKeyAt(i, offsetBearingRange(i));
+			}
+
+			// the key type is a compile-time argument only, so a numeric column can be named at this type - and it
+			// is exactly the column that has no `meta` array to receive the offsets these three keys carry
+			final ValueColumn<DateTimeRange> otherKind = columnOf(RangeKind.INTEGER_NUMBER, 0);
+			assertThrows(IllegalArgumentException.class, () -> source.copyRangeTo(0, otherKind, 0, 3));
+			assertEquals(0, otherKind.size(), "a refused copy must leave the destination untouched");
+
+			// the other arm of the same check: a different implementation altogether
+			final ValueColumn<DateTimeRange> boxed = new BoxedObjectColumn<>(DateTimeRange.class, BLOCK_SIZE);
+			assertThrows(IllegalArgumentException.class, () -> source.copyRangeTo(0, boxed, 0, 3));
+			assertEquals(0, boxed.size(), "a refused copy must leave the destination untouched");
+		}
+
+		@Test
+		@DisplayName("a copy between two big decimal columns of different scale is refused rather than absorbed")
+		void shouldRefuseACopyBetweenTwoBigDecimalColumnsOfDifferentScale() {
+			final ValueColumn<NumberRange<BigDecimal>> atTwo = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 2);
+			atTwo.insertKeyAt(0, BigDecimalNumberRange.between(new BigDecimal("1.25"), new BigDecimal("9.50"), 2));
+			final ValueColumn<NumberRange<BigDecimal>> atZero = columnOf(RangeKind.BIG_DECIMAL_NUMBER, 0);
+
+			// the longs move across intact and the destination rebuilds every one of them at ITS scale, so an
+			// unguarded copy silently turns 1.25 into 125 - two incompatible encodings, exactly what this check
+			// claims to catch, and the only pair of them that shares a kind
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class, () -> atTwo.copyRangeTo(0, atZero, 0, 1));
+			assertTrue(ex.getMessage().contains("2"), () -> "the source scale must be named: " + ex.getMessage());
+			assertTrue(ex.getMessage().contains("0"), () -> "the target scale must be named: " + ex.getMessage());
+			assertEquals(0, atZero.size(), "a refused copy must leave the destination untouched");
+		}
+	}
+
+	/**
 	 * Verifies which entry point may select the range column, and for which declared types.
 	 */
 	@Nested
@@ -901,6 +1108,44 @@ class RangeValueColumnTest {
 				);
 			}
 		}
+
+		@Test
+		@DisplayName("a type the range column does not claim gets exactly the column forKey would have chosen")
+		void shouldDelegateEveryTypeItDoesNotClaimToForKey() {
+			// every filter index in the engine now goes through `forFilterKey`, so a regression in its fall-through
+			// would move every String and integral one back to the boxed column - a large, silent memory regression
+			// that only two budget assertions elsewhere would catch, and only indirectly
+			final Class<?>[] unclaimed = {
+				String.class, Long.class, Integer.class, OffsetDateTime.class, UUID.class
+			};
+			for (final Class<?> type : unclaimed) {
+				assertDelegatesToForKey(type, Comparator.naturalOrder(), 0);
+				assertDelegatesToForKey(type, null, 0);
+			}
+			// and the scale it would have used is simply ignored on the delegating path
+			assertDelegatesToForKey(BigDecimal.class, Comparator.naturalOrder(), 2);
+		}
+
+		/**
+		 * Asserts `forFilterKey` hands back the very column class `forKey` would have chosen for the same type and
+		 * comparator. The two are compared against **each other** rather than against a named column, which keeps
+		 * this about the delegation instead of duplicating `forKey`'s own selection tests.
+		 *
+		 * @param type                 the declared plain attribute type
+		 * @param comparator           the tree comparator, or `null` for natural order
+		 * @param indexedDecimalPlaces the scale the filter-index entry point would carry
+		 */
+		private static void assertDelegatesToForKey(
+			@Nonnull Class<?> type, @Nullable Comparator<?> comparator, int indexedDecimalPlaces
+		) {
+			final Object delegated =
+				ValueColumnFactory.forFilterKey(type, comparator, indexedDecimalPlaces).create(BLOCK_SIZE);
+			final Object direct = ValueColumnFactory.forKey(type, comparator).create(BLOCK_SIZE);
+			assertEquals(
+				direct.getClass(), delegated.getClass(),
+				"forFilterKey must delegate " + type.getSimpleName() + " to forKey verbatim"
+			);
+		}
 	}
 
 	/**
@@ -951,7 +1196,7 @@ class RangeValueColumnTest {
 
 			final List<DateTimeRange> domain = dateTimeDomain();
 			final TreeMap<DateTimeRange, TreeSet<Integer>> oracle = new TreeMap<>();
-			final Random random = new Random(1486L);
+			final Random random = new Random(424242L);
 			for (int op = 0; op < 6_000; op++) {
 				final DateTimeRange key = domain.get(random.nextInt(domain.size()));
 				final int recordId = random.nextInt(1_000);
