@@ -56,9 +56,28 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
 	exit 1
 fi
 
-if ! mvn -N comenius:run -Dcomenius.action=translate; then
+LOG="$(mktemp -t comenius-translate.XXXXXX.log)"
+trap 'rm -f "$LOG"' EXIT
+
+if ! mvn -N comenius:run -Dcomenius.action=translate 2>&1 | tee "$LOG"; then
 	echo
 	echo "Translation failed. Check that OPENAI_API_KEY is valid and that the account has credit;"
 	echo "the plugin reports an authorization failure the same way it reports a missing token."
+	exit 1
+fi
+
+# The plugin rejects a translation whose structure drifted from the source - a changed blank-line or
+# heading count - keeps the rejected text under target/comenius-failures, and still ends the build
+# successfully. A per-file failure therefore leaves the Czech mirror silently one revision behind,
+# which is precisely the kind of skipped state this project refuses to let pass unreported.
+FAILED="$(sed -n 's/^\[INFO\] Failed: \([0-9][0-9]*\).*/\1/p' "$LOG" | tail -1)"
+if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
+	echo
+	echo "$FAILED file(s) were NOT translated - the plugin rejected the result as structurally drifted:"
+	sed -n 's/^\[ERROR\].*Translation failed for \([^ ]*\) .*: \(.*\)$/  \1 - \2/p' "$LOG"
+	echo
+	echo "The rejected text is kept under target/comenius-failures/ for inspection. Structural drift is a"
+	echo "stochastic model failure, so re-running usually clears it; if the same file fails twice, hand-fix"
+	echo "just the broken span per .claude/rules/documentation.md."
 	exit 1
 fi
