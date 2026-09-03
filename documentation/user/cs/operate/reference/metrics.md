@@ -1,6 +1,6 @@
 ---
 translated: 'true'
-commit: ab1f0b542c8221dfa52db009d89f0ff2305e278f
+commit: '0b6c7205d8b95150e11c94463bada7a4b54d70f1'
 ---
 ### Metriky
 
@@ -313,13 +313,13 @@ doba kontroly připravenosti.</dd>
 
 <dl>
   <dt><code>io_evitadb_session_closed_active_sessions</code> (GAUGE)</dt>
-  <dd><strong>Počet stále aktivních relací</strong>: Počet stále aktivních relací v okamžiku, kdy byla tato relace uzavřena.</dd>
+  <dd><strong>Počet stále aktivních relací</strong>: Počet stále aktivních relací v době, kdy byla tato relace uzavřena.</dd>
   <dt><code>io_evitadb_session_closed_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Doba trvání relace v milisekundách</dd>
   <dt><code>io_evitadb_session_closed_mutations</code> (HISTOGRAM)</dt>
   <dd><strong>Počet volání mutací provedených v relaci</strong>: Počet mutací provedených během této relace.</dd>
   <dt><code>io_evitadb_session_closed_oldest_session_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstarší relace</strong>: Časové razítko nejstarší relace v okamžiku, kdy byla tato relace uzavřena.</dd>
+  <dd><strong>Časové razítko nejstarší relace</strong>: Časové razítko nejstarší relace v době, kdy byla tato relace uzavřena.</dd>
   <dt><code>io_evitadb_session_closed_queries</code> (HISTOGRAM)</dt>
   <dd><strong>Počet dotazů provedených v relaci</strong>: Počet požadavků provedených během této relace.</dd>
   <dt><code>io_evitadb_session_closed_total</code> (COUNTER)</dt>
@@ -334,13 +334,13 @@ doba kontroly připravenosti.</dd>
 
 <dl>
   <dt><code>io_evitadb_storage_catalog_checkpoint_cadence_milliseconds</code> (GAUGE)</dt>
-  <dd><strong>Interval kontrolních bodů v milisekundách</strong>: Čas uplynulý od předchozího dokončeného kontrolního bodu. Porovnejte s nastaveným intervalem kontrolních bodů – trvale vyšší hodnoty znamenají, že kontrolní body nestíhají tempo zápisu.</dd>
+  <dd><strong>Interval kontrolních bodů v milisekundách</strong>: Čas, který uplynul od předchozího dokončeného kontrolního bodu. Porovnejte s nastaveným intervalem kontrolních bodů – trvale vyšší hodnoty znamenají, že kontrolní body nestíhají tempo zápisu.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_fence_depth_milliseconds</code> (GAUGE)</dt>
-  <dd><strong>Hloubka oplocení v milisekundách</strong>: Jak dlouho nejstarší změna pokrytá tímto kontrolním bodem čekala, než se stala trvalou. Omezuje jak dobu uchování write-ahead logu, tak množství přehrávání při restartu. Nula, pokud byl kontrolní bod proveden bez odkladu.</dd>
+  <dd><strong>Hloubka plotu v milisekundách</strong>: Jak dlouho nejstarší změna zahrnutá v tomto kontrolním bodu čekala, než se stala trvalou. Určuje jak dobu uchování write-ahead logu, tak množství přehrávání, které je nutné při restartu provést. Nula znamená, že kolo bylo zapsáno bez odkladu.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_files_forced</code> (GAUGE)</dt>
   <dd><strong>Počet vynucených souborů</strong>: Počet datových souborů, které byly tímto kontrolním bodem vynuceny na fyzické zařízení.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_force_duration_milliseconds</code> (GAUGE)</dt>
-  <dd><strong>Doba vynucení na zařízení v milisekundách</strong>: Čas strávený vynucením datových souborů na fyzické zařízení. Toto je náklad, který má interval kontrolních bodů rozložit – platí se jednou za kontrolní bod místo jednou za každé kolo trunku.</dd>
+  <dd><strong>Doba vynucení na zařízení v milisekundách</strong>: Čas strávený vynucením datových souborů na fyzické zařízení. Toto je náklad, který má interval kontrolních bodů rozložit – platí se jednou za kontrolní bod místo jednou za každé kolo zápisu.</dd>
   <dt><code>io_evitadb_storage_catalog_checkpoint_total</code> (COUNTER)</dt>
   <dd>Kontrolní body katalogu.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_entity_collections</code> (GAUGE)</dt>
@@ -348,189 +348,193 @@ doba kontroly připravenosti.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_occupied_disk_space_bytes</code> (GAUGE)</dt>
   <dd><strong>Celkový obsazený diskový prostor v bajtech</strong>: Celkové množství diskového prostoru využitého katalogem v bajtech.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_oldest_catalog_version_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstarší dostupné verze katalogu v sekundách</strong>: Stáří nejstarší dostupné verze katalogu v sekundách. Tato hodnota určuje, jak daleko do minulosti může katalog sahat.</dd>
+  <dd><strong>Časové razítko nejstarší dostupné verze katalogu v sekundách</strong>: Stáří nejstarší dostupné verze katalogu v sekundách. Tato hodnota určuje, jak daleko zpět v čase může katalog sahat.</dd>
+  <dt><code>io_evitadb_storage_catalog_statistics_retained_history_size_bytes</code> (GAUGE)</dt>
+  <dd><strong>Velikost uchovávané historie v bajtech</strong>: Diskový prostor zabraný historickými datovými soubory uchovávanými pro cestování v čase, nad rámec aktivní datové sady. Vždy nula, pokud není cestování v čase povoleno, a omezeno hodnotou `timeTravelSizeLimitBytes`.</dd>
   <dt><code>io_evitadb_storage_data_file_compact_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba komprimace OffsetIndex.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Doba kompakce OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
-  <dd>Komprimace OffsetIndex.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Kompakce OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_observable_output_change_occupied_memory_bytes</code> (GAUGE)</dt>
   <dd><strong>Paměť obsazená otevřenými výstupními buffery v bajtech</strong>: Množství paměti v bajtech obsazené otevřenými výstupními buffery OffsetIndex.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_opened_buffers</code> (GAUGE)</dt>
-  <dd><strong>Počet otevřených výstupních bufferů</strong>: Počet otevřených bufferů používaných pro zápis dat do OffsetIndexů.</dd>
+  <dd><strong>Počet otevřených výstupních bufferů</strong>: Počet otevřených bufferů používaných k zápisu dat do OffsetIndexů.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_total</code> (COUNTER)</dt>
   <dd>Změny počtu bufferů ObservableOutput.</dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_disk_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Aktivní část velikosti disku v bajtech</strong>: Velikost aktivní části OffsetIndex na disku v bajtech.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Aktivní část velikosti disku v bajtech</strong>: Velikost v bajtech aktivní části OffsetIndex na disku.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_records</code> (GAUGE)</dt>
-  <dd><strong>Počet aktivních záznamů</strong>: Počet aktivních (přístupných) záznamů v OffsetIndex.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Počet aktivních záznamů</strong>: Počet aktivních (přístupných) záznamů v OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_disk_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Velikost na disku v bajtech</strong>: Velikost OffsetIndex na disku v bajtech.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Velikost disku v bajtech</strong>: Velikost OffsetIndex na disku v bajtech.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba flushování OffsetIndex na disk.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Doba flushování OffsetIndex na disk.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_estimated_memory_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Odhadovaná velikost v paměti v bajtech</strong>: Odhadovaná velikost OffsetIndex v paměti v bajtech.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Odhadovaná velikost paměti v bajtech</strong>: Odhadovaná velikost OffsetIndex v paměti v bajtech.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_max_record_size</code> (GAUGE)</dt>
-  <dd><strong>Největší záznam v bajtech</strong>: Velikost největšího záznamu v OffsetIndex v bajtech.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Největší záznam v bajtech</strong>: Velikost největšího záznamu v OffsetIndex v bajtech.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_oldest_record_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstaršího záznamu v paměti v sekundách</strong>: Časové razítko v sekundách nejstaršího volatilního záznamu uchovávaného v paměti. Volatilní záznamy jsou ty, které ještě nebyly flushnuty na disk.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Časové razítko nejstaršího záznamu uchovávaného v paměti v sekundách</strong>: Časové razítko v sekundách nejstaršího nestálého záznamu uchovávaného v paměti. Nestálé záznamy jsou ty, které ještě nebyly zapsány na disk.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_total</code> (COUNTER)</dt>
-  <dd>Flushování OffsetIndex na disk.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Flushování OffsetIndex na disk.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_history_kept_oldest_record_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstaršího záznamu v paměti v sekundách</strong>: Časové razítko nejstarších dat verze katalogu uchovávaných v paměti, v sekundách. Data z předchozích verzí se používají k udržení kontraktu SNAPSHOT izolace pro aktuálně otevřené relace zaměřené na starší verze katalogu. Nula, pokud nejsou uchovávána žádná data.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Časové razítko nejstaršího záznamu uchovávaného v paměti v sekundách</strong>: Časové razítko nejstarších dat verze katalogu uchovávaných v paměti, v sekundách. Data z předchozích verzí se používají k udržení izolačního kontraktu SNAPSHOT pro aktuálně otevřené relace zaměřené na starší verze katalogu. Nula, pokud nejsou žádná data uchována.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_non_flushed_record_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Velikost záznamů čekajících na flush v bajtech</strong>: Velikost záznamů čekajících na flush v OffsetIndex v bajtech.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Velikost záznamů čekajících na flush v bajtech</strong>: Velikost záznamů čekajících na flush v bajtech v OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_non_flushed_records</code> (GAUGE)</dt>
-  <dd><strong>Počet záznamů čekajících na flush</strong>: Počet volatilních záznamů čekajících na flush v OffsetIndex.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Počet záznamů čekajících na flush</strong>: Počet nestálých záznamů čekajících na flush v OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_record_type_count_changed_records</code> (GAUGE)</dt>
-  <dd><strong>Počet záznamů</strong>: Celkový počet záznamů daného typu v OffsetIndex.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term>, <Term>recordType</Term><br/></dd>
+  <dd><strong>Počet záznamů</strong>: Celkový počet záznamů daného typu v OffsetIndex.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term>, <Term>recordType</Term><br/></dd>
   <dt><code>io_evitadb_storage_read_only_handle_closed_total</code> (COUNTER)</dt>
-  <dd>Uzavřené read-only handly souborů.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Uzavřené handlery pro čtení souborů.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_read_only_handle_opened_total</code> (COUNTER)</dt>
-  <dd>Otevřené read-only handly souborů.<br/><br/><strong>Popisky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd>Otevřené handlery pro čtení souborů.<br/><br/><strong>Štítky:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
 </dl>
 
 #### Systém
 
 <dl>
   <dt><code>io_evitadb_system_background_task_finished_total</code> (COUNTER)</dt>
-  <dd>Dokončené úlohy na pozadí<br/><br/><strong>Popisky:</strong> <Term>taskName</Term><br/></dd>
+  <dd>Dokončené úlohy na pozadí<br/><br/><strong>Štítky:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_rejected_total</code> (COUNTER)</dt>
-  <dd>Zamítnuté úlohy na pozadí<br/><br/><strong>Popisky:</strong> <Term>taskName</Term><br/></dd>
+  <dd>Zamítnuté úlohy na pozadí<br/><br/><strong>Štítky:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_started_total</code> (COUNTER)</dt>
-  <dd>Zahájené úlohy na pozadí<br/><br/><strong>Popisky:</strong> <Term>taskName</Term><br/></dd>
+  <dd>Zahájené úlohy na pozadí<br/><br/><strong>Štítky:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_timed_out_timed_out_tasks</code> (COUNTER)</dt>
-  <dd><strong>Úlohy s vypršeným časem</strong>: Počet úloh, u kterých vypršel čas a byly zrušeny.<br/><br/><strong>Popisky:</strong> <Term>taskName</Term><br/></dd>
+  <dd><strong>Vypršené úlohy</strong>: Počet úloh, kterým vypršel čas a byly zrušeny.<br/><br/><strong>Štítky:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_cache_anteroom_record_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet záznamů v předsíni cache</strong>: Nastavený práh pro maximální počet záznamů v předsíni cache (`cache.anteroomRecordCount`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet záznamů v předsíni cache</strong>: Nastavený limit pro maximální počet záznamů v předsíni cache (`cache.anteroomRecordCount`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_cache_reevaluation_seconds</code> (GAUGE)</dt>
-  <dd><strong>Interval přehodnocení cache v sekundách</strong>: Nastavený práh pro interval přehodnocení cache v sekundách (`cache.reevaluateEachSeconds`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Interval přehodnocení cache v sekundách</strong>: Nastavený limit pro interval přehodnocení cache v sekundách (`cache.reevaluateEachSeconds`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_cache_size_in_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximální velikost cache v bajtech</strong>: Nastavený práh pro maximální velikost cache v bajtech (`cache.cacheSizeInBytes`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální velikost cache v bajtech</strong>: Nastavený limit pro maximální velikost cache v bajtech (`cache.cacheSizeInBytes`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Počet katalogů</strong>: Počet přístupných katalogů spravovaných touto instancí evitaDB.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
-  <dt><code>io_evitadb_system_evita_statistics_uzavřít_relace_po_vteřinách_neaktivity</code> (GAUGE)</dt>
-  <dd><strong>Uzavření relací po nečinnosti</strong>: Počet sekund, po kterých je relace uzavřena, pokud je neaktivní.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Počet katalogů</strong>: Počet přístupných katalogů spravovaných touto instancí evitaDB.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_uzavřít_relace_po_sekundách_neaktivity</code> (GAUGE)</dt>
+  <dd><strong>Uzavření relací po nečinnosti</strong>: Počet sekund, po kterých je relace uzavřena, pokud je neaktivní.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_compaction_file_size_threshold_bytes</code> (GAUGE)</dt>
-  <dd><strong>Minimální práh velikosti souboru pro zahájení komprese v bajtech</strong>: Nastavený práh pro minimální velikost souboru pro zahájení komprese v bajtech (`storage.fileSizeCompactionThresholdBytes`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Minimální velikost souboru pro zahájení komprese v bajtech</strong>: Nastavený limit pro minimální velikost souboru pro zahájení komprese v bajtech (`storage.fileSizeCompactionThresholdBytes`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_compaction_minimal_active_record_share_percent</code> (GAUGE)</dt>
-  <dd><strong>Minimální procento aktivních záznamů v souboru pro zahájení komprese v %.</strong>: Nastavený práh pro minimální procento aktivních záznamů v souboru pro zahájení komprese v % (`storage.minimalActiveRecordShare`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Minimální procento aktivních záznamů v souboru pro zahájení kompakce v %.</strong>: Nastavený limit pro minimální procento aktivních záznamů v souboru pro zahájení kompakce v % (`storage.minimalActiveRecordShare`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_corrupted_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Počet poškozených katalogů</strong>: Počet poškozených katalogů, které evitaDB nemohla načíst.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Počet poškozených katalogů</strong>: Počet poškozených katalogů, které evitaDB nedokázala načíst.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_inactive_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Počet neaktivních katalogů</strong>: Počet nepřístupných (nahraných do paměti) katalogů přítomných ve složce úložiště této instance evitaDB.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Počet neaktivních katalogů</strong>: Počet nepřístupných (nenačtených do paměti) katalogů přítomných v adresáři úložiště této instance evitaDB.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_query_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Timeout požadavku pouze pro čtení v sekundách</strong>: Nastavený práh pro timeout požadavku pouze pro čtení v sekundách (`server.queryTimeoutInMilliseconds`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Časový limit požadavku pouze ke čtení v sekundách</strong>: Nastavený limit pro časový limit požadavku pouze ke čtení v sekundách (`server.queryTimeoutInMilliseconds`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_read_only_handles_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet otevřených read-only handle</strong>: Nastavený práh pro maximální počet otevřených read-only handle (`storage.maxOpenedReadHandles`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet otevřených read-only handlerů</strong>: Nastavený limit pro maximální počet otevřených read-only handlerů (`storage.maxOpenedReadHandles`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_request_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet vláken pro zpracování požadavků pouze pro čtení</strong>: Nastavený práh pro maximální počet vláken pro zpracování požadavků pouze pro čtení (`server.requestThreadPool.maxThreadCount`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet vláken pro obsluhu read-only požadavků</strong>: Nastavený limit pro maximální počet vláken pro obsluhu read-only požadavků (`server.requestThreadPool.maxThreadCount`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_request_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximální velikost fronty pro zpracování požadavků pouze pro čtení</strong>: Nastavený práh pro maximální velikost fronty pro zpracování požadavků pouze pro čtení (`server.requestThreadPool.queueSize`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální velikost fronty pro obsluhu read-only požadavků</strong>: Nastavený limit pro maximální velikost fronty pro obsluhu read-only požadavků (`server.requestThreadPool.queueSize`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_service_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet vláken pro servisní úlohy</strong>: Nastavený práh pro maximální počet vláken pro servisní úlohy (`server.serviceThreadPool.maxThreadCount`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet vláken pro servisní úlohy</strong>: Nastavený limit pro maximální počet vláken pro servisní úlohy (`server.serviceThreadPool.maxThreadCount`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_service_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximální velikost fronty pro servisní úlohy</strong>: Nastavený práh pro maximální velikost fronty pro servisní úlohy (`server.serviceThreadPool.queueSize`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální velikost fronty pro servisní úlohy</strong>: Nastavený limit pro maximální velikost fronty pro servisní úlohy (`server.serviceThreadPool.queueSize`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_session_max_inactive_age_seconds</code> (GAUGE)</dt>
-  <dd><strong>Maximální doba neaktivity relace v sekundách</strong>: Nastavený práh pro maximální dobu neaktivity relace v sekundách (`server.closeSessionsAfterSecondsOfInactivity`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální doba neaktivity relace v sekundách</strong>: Nastavený limit pro maximální dobu neaktivity relace v sekundách (`server.closeSessionsAfterSecondsOfInactivity`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_time_travel_enabled</code> (GAUGE)</dt>
-  <dd><strong>Cestování v čase povoleno</strong>: Příznak indikující, zda je cestování v čase povoleno.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Cestování v čase povoleno</strong>: Příznak, zda je povoleno cestování v čase.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_time_travel_size_limit_bytes</code> (GAUGE)</dt>
+  <dd><strong>Limit velikosti cestování v čase v bajtech</strong>: Nastavený horní limit diskového prostoru, který může uchovávaná historie zabírat nad rámec aktivní datové sady, na katalog (`storage.timeTravelSizeLimitBytes`). Záporná hodnota znamená bez omezení.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_total</code> (COUNTER)</dt>
-  <dd>Celkový počet spuštění Evita<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd>Celkový počet spuštění Evity<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_traffic_recording_enabled</code> (GAUGE)</dt>
-  <dd><strong>Záznam provozu povolen</strong>: Příznak indikující, zda je povolen záznam provozu.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Záznam provozu povolen</strong>: Příznak, zda je povolen záznam provozu.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_flush_frequency_in_millis</code> (GAUGE)</dt>
-  <dd><strong>Frekvence flushování transakcí</strong>: Frekvence flushování transakcí v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Frekvence flushování transakcí</strong>: Frekvence flushování transakcí v milisekundách.<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet vláken pro požadavky na čtení/zápis</strong>: Nastavený práh pro maximální počet vláken pro požadavky na čtení/zápis (`server.transactionThreadPool.maxThreadCount`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet vláken pro požadavky na čtení/zápis</strong>: Nastavený limit pro maximální počet vláken pro požadavky na čtení/zápis (`server.transactionThreadPool.maxThreadCount`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximální velikost fronty pro požadavky na čtení/zápis</strong>: Nastavený práh pro maximální velikost fronty pro požadavky na čtení/zápis (`server.transactionThreadPool.queueSize`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální velikost fronty pro požadavky na čtení/zápis</strong>: Nastavený limit pro maximální velikost fronty pro požadavky na čtení/zápis (`server.transactionThreadPool.queueSize`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_memory_buffer_limit_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Velikost off-heap paměťového bufferu pro transakce v bajtech</strong>: Nastavený práh pro velikost off-heap paměťového bufferu pro transakce v bajtech (`transaction.transactionMemoryBufferLimitSizeBytes`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Velikost off-heap paměťového bufferu pro transakce v bajtech</strong>: Nastavený limit pro velikost off-heap paměťového bufferu pro transakce v bajtech (`transaction.transactionMemoryBufferLimitSizeBytes`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_memory_regions</code> (GAUGE)</dt>
-  <dd><strong>Počet off-heap paměťových regionů pro transakce</strong>: Nastavený práh pro počet off-heap paměťových regionů pro transakce (`transaction.transactionMemoryRegionCount`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Počet off-heap paměťových regionů pro transakce</strong>: Nastavený limit pro počet off-heap paměťových regionů pro transakce (`transaction.transactionMemoryRegionCount`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_transaction_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Timeout požadavku na čtení/zápis v sekundách</strong>: Nastavený práh pro timeout požadavku na čtení/zápis v sekundách (`server.transactionTimeoutInMilliseconds`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Časový limit požadavku na čtení/zápis v sekundách</strong>: Nastavený limit pro časový limit požadavku na čtení/zápis v sekundách (`server.transactionTimeoutInMilliseconds`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_wal_max_file_count_kept</code> (GAUGE)</dt>
-  <dd><strong>Maximální počet uchovávaných write-ahead log souborů</strong>: Nastavený práh pro maximální počet uchovávaných write-ahead log souborů (`transaction.walFileCountKept`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální počet uchovávaných WAL souborů</strong>: Nastavený limit pro maximální počet uchovávaných WAL souborů (`transaction.walFileCountKept`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_wal_max_file_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximální velikost write-ahead log souboru v bajtech</strong>: Nastavený práh pro maximální velikost write-ahead log souboru v bajtech (`transaction.walFileSizeBytes`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dd><strong>Maximální velikost WAL souboru v bajtech</strong>: Nastavený limit pro maximální velikost WAL souboru v bajtech (`transaction.walFileSizeBytes`).<br/><br/><strong>Štítky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
+  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která právě vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline akumuluje tyto přírůstky do celkového počítadla dokončených úloh</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline tyto per-tick delty akumuluje do celkového počítadla dokončených úloh</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
-  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která kdy byla současně v poolu</dd>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která byla kdy současně v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
-  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken pro pool</dd>
+  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
   <dd><strong>Maximální počet pracovníků</strong>: Maximální povolený počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva vůči nastavenému měkkému limitu fronty pro request/transaction pooly, nebo zbývající kapacita podpůrné fronty pro plánovací pool)</dd>
+  <dd><strong>Zbývající kapacita fronty</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva do nastaveného měkkého limitu fronty pro request/transaction pooly nebo zbývající kapacita podkladové fronty pro plánovací pool)</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Zařazené úlohy</strong>: Přibližný počet zařazených úloh čekajících na provedení</dd>
+  <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na provedení</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
   <dd><strong>Přijaté položky</strong>: Celkový počet položek přijatých do bufferu od jeho vytvoření.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_available</code> (GAUGE)</dt>
-  <dd><strong>Dostupné položky</strong>: Aktuální počet položek dostupných ke skenování/kopírování s ohledem na efektivní koncový watermark.</dd>
+  <dd><strong>Dostupné položky</strong>: Aktuální počet položek dostupných ke skenování/kopírování s ohledem na efektivní koncovou značku.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_copied</code> (COUNTER)</dt>
-  <dd><strong>Zkopírované položky</strong>: Celkový počet položek zkopírovaných z bufferu pomocí operací kopírování od jeho vytvoření.</dd>
+  <dd><strong>Zkopírované položky</strong>: Celkový počet položek zkopírovaných z bufferu pomocí kopírovacích operací od jeho vytvoření.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_present</code> (GAUGE)</dt>
   <dd><strong>Přítomné položky</strong>: Aktuální počet položek přítomných v bufferu.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_scanned</code> (COUNTER)</dt>
-  <dd><strong>Prohledané položky</strong>: Celkový počet položek prohledaných pomocí operací forEach od jeho vytvoření.</dd>
+  <dd><strong>Skenované položky</strong>: Celkový počet položek skenovaných pomocí operací forEach od jeho vytvoření.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
+  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která právě vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline akumuluje tyto přírůstky do celkového počítadla dokončených úloh</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline tyto per-tick delty akumuluje do celkového počítadla dokončených úloh</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_largest_pool_size</code> (GAUGE)</dt>
-  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která kdy byla současně v poolu</dd>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která byla kdy současně v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
-  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken pro pool</dd>
+  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_max</code> (GAUGE)</dt>
   <dd><strong>Maximální počet pracovníků</strong>: Maximální povolený počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva vůči nastavenému měkkému limitu fronty pro request/transaction pooly, nebo zbývající kapacita podpůrné fronty pro plánovací pool)</dd>
+  <dd><strong>Zbývající kapacita fronty</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva do nastaveného měkkého limitu fronty pro request/transaction pooly nebo zbývající kapacita podkladové fronty pro plánovací pool)</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Zařazené úlohy</strong>: Přibližný počet zařazených úloh čekajících na provedení</dd>
+  <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na provedení</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
+  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která právě vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline akumuluje tyto přírůstky do celkového počítadla dokončených úloh</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které byly dokončeny od předchozího měření; metrická pipeline tyto per-tick delty akumuluje do celkového počítadla dokončených úloh</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
-  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která kdy byla současně v poolu</dd>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která byla kdy současně v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
-  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken pro pool</dd>
+  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
   <dd><strong>Maximální počet pracovníků</strong>: Maximální povolený počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva vůči nastavenému měkkému limitu fronty pro request/transaction pooly, nebo zbývající kapacita podpůrné fronty pro plánovací pool)</dd>
+  <dd><strong>Zbývající kapacita fronty</strong>: Přibližný počet dalších úloh, které může executor ještě přijmout do backlogu; přesný význam je specifický pro executor (rezerva do nastaveného měkkého limitu fronty pro request/transaction pooly nebo zbývající kapacita podkladové fronty pro plánovací pool)</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Zařazené úlohy</strong>: Přibližný počet zařazených úloh čekajících na provedení</dd>
+  <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na provedení</dd>
 </dl>
 
 #### Transakce
 
 <dl>
   <dt><code>io.evitadb.transaction.WalStatistics.oldestWalEntryTimestampSeconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstarší položky WAL</strong>: Časové razítko nejstarší položky WAL v souborech WAL (aktivních nebo historických).</dd>
+  <dd><strong>Časové razítko nejstaršího záznamu WAL</strong>: Časové razítko nejstaršího záznamu WAL v souborech WAL (aktivních nebo historických).</dd>
   <dt><code>io.evitadb.transaction.WalStatistics.oldestWalEntryTimestampSeconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstarší položky WAL</strong>: Časové razítko nejstarší položky WAL v souborech WAL (aktivních nebo historických).</dd>
+  <dd><strong>Časové razítko nejstaršího záznamu WAL</strong>: Časové razítko nejstaršího záznamu WAL v souborech WAL (aktivních nebo historických).</dd>
   <dt><code>io_evitadb_transaction_catalog_goes_live_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba přechodu katalogu do živého stavu</dd>
+  <dd>Doba přechodu katalogu do stavu "živý"</dd>
   <dt><code>io_evitadb_transaction_catalog_goes_live_total</code> (COUNTER)</dt>
-  <dd>Počet přechodů katalogu do živého stavu</dd>
+  <dd>Počet přechodů katalogu do stavu "živý"</dd>
   <dt><code>io_evitadb_transaction_isolated_wal_file_closed_total</code> (COUNTER)</dt>
   <dd>Uzavřené soubory pro izolované WAL úložiště.</dd>
   <dt><code>io_evitadb_transaction_isolated_wal_file_opened_total</code> (COUNTER)</dt>
   <dd>Otevřené soubory pro izolované WAL úložiště.</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_collapsed_transactions</code> (COUNTER)</dt>
-  <dd><strong>Transakce propagované do živého pohledu.</strong>: Počet transakcí, které byly propagovány do živého pohledu v rámci jednoho přechodu.</dd>
+  <dd><strong>Transakce propagované do živého pohledu.</strong>: Počet transakcí, které byly propagovány do živého pohledu v jednom přechodu.</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Doba propagace nové verze katalogu v milisekundách</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_total</code> (COUNTER)</dt>
@@ -540,11 +544,11 @@ doba kontroly připravenosti.</dd>
   <dt><code>io_evitadb_transaction_off_heap_memory_allocation_change_used_memory_bytes</code> (GAUGE)</dt>
   <dd><strong>Využitá paměť v bajtech</strong>: Množství paměti využité pro off-heap úložiště v bajtech.</dd>
   <dt><code>io_evitadb_transaction_transaction_accepted_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba řešení konfliktů v milisekundách<br/><br/><strong>Popisky:</strong> <Term>rozlišení</Term><br/></dd>
+  <dd>Doba řešení konfliktu v milisekundách<br/><br/><strong>Štítky:</strong> <Term>rozlišení</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_accepted_total</code> (COUNTER)</dt>
-  <dd>Přijaté transakce<br/><br/><strong>Popisky:</strong> <Term>rozlišení</Term><br/></dd>
+  <dd>Přijaté transakce<br/><br/><strong>Štítky:</strong> <Term>rozlišení</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_appended_atomic_mutations</code> (COUNTER)</dt>
-  <dd><strong>Připojené atomické mutace.</strong>: Počet atomických mutací (schéma, schéma katalogu nebo entity) připojených do sdíleného WAL.</dd>
+  <dd><strong>Připojené atomické mutace.</strong>: Počet atomických mutací (schéma, schéma katalogu nebo mutace entit) připojených do sdíleného WAL.</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_appended_wal_bytes</code> (COUNTER)</dt>
   <dd><strong>Velikost zapsaného WAL v bajtech.</strong>: Velikost zapsaného WAL v bajtech.</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_duration_milliseconds</code> (HISTOGRAM)</dt>
@@ -552,13 +556,13 @@ doba kontroly připravenosti.</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_total</code> (COUNTER)</dt>
   <dd>Transakce připojené do WAL</dd>
   <dt><code>io_evitadb_transaction_transaction_conflict_total</code> (COUNTER)</dt>
-  <dd>Detekované konflikty transakcí<br/><br/><strong>Popisky:</strong> <Term>conflictPolicy</Term>, <Term>conflictScope</Term>, <Term>resolutionLayer</Term><br/></dd>
+  <dd>Detekované konflikty transakcí<br/><br/><strong>Štítky:</strong> <Term>conflictPolicy</Term>, <Term>conflictScope</Term>, <Term>resolutionLayer</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba trvání životnosti transakce v milisekundách<br/><br/><strong>Popisky:</strong> <Term>rozlišení</Term><br/></dd>
+  <dd>Doba trvání životního cyklu transakce v milisekundách<br/><br/><strong>Štítky:</strong> <Term>rozlišení</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_oldest_transaction_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Časové razítko nejstarší transakce</strong>: Časové razítko nejstarší nedokončené (běžící) transakce v katalogu.<br/><br/><strong>Popisky:</strong> <Term>rozlišení</Term><br/></dd>
+  <dd><strong>Časové razítko nejstarší transakce</strong>: Časové razítko nejstarší nedokončené (běžící) transakce v katalogu.<br/><br/><strong>Štítky:</strong> <Term>rozlišení</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_total</code> (COUNTER)</dt>
-  <dd>Dokončené transakce<br/><br/><strong>Popisky:</strong> <Term>rozlišení</Term><br/></dd>
+  <dd>Dokončené transakce<br/><br/><strong>Štítky:</strong> <Term>rozlišení</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_incorporated_to_trunk_collapsed_transactions</code> (COUNTER)</dt>
   <dd><strong>Transakce začleněné do sdílených datových struktur.</strong>: N/A</dd>
   <dt><code>io_evitadb_transaction_transaction_incorporated_to_trunk_incorporation_duration_milliseconds</code> (HISTOGRAM)</dt>
@@ -568,13 +572,13 @@ doba kontroly připravenosti.</dd>
   <dt><code>io_evitadb_transaction_transaction_incorporated_to_trunk_processed_local_mutations</code> (COUNTER)</dt>
   <dd><strong>Zpracované lokální mutace.</strong>: N/A</dd>
   <dt><code>io_evitadb_transaction_transaction_processed_lag_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Zpoždění transakce</strong>: Čas, který trvalo, než se transakce stala viditelnou pro všechny nové relace. Jinými slovy, čas mezi potvrzením transakce a ovlivněním sdíleného pohledu.</dd>
+  <dd><strong>Zpoždění transakce</strong>: Doba, kterou trvalo, než se transakce stala viditelnou pro všechny nové relace. Jinými slovy, čas mezi potvrzením transakce a ovlivněním sdíleného pohledu.</dd>
   <dt><code>io_evitadb_transaction_transaction_queued_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba čekání transakce ve frontě.<br/><br/><strong>Popisky:</strong> <Term>stage</Term><br/></dd>
+  <dd>Doba čekání transakce ve frontě.<br/><br/><strong>Štítky:</strong> <Term>stage</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_started_total</code> (COUNTER)</dt>
   <dd>Zahájené transakce</dd>
   <dt><code>io_evitadb_transaction_wal_cache_size_changed_locations_cached</code> (GAUGE)</dt>
-  <dd><strong>Celkový počet cachovaných umístění v souboru WAL</strong>: Celkový počet cachovaných umístění (používaných pro rychlé vyhledávání mutací) ve sdíleném souboru WAL.</dd>
+  <dd><strong>Celkový počet cachovaných míst v souboru WAL</strong>: Celkový počet cachovaných míst (používaných pro rychlé vyhledávání mutací) ve sdíleném souboru WAL.</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Doba rotace WAL v milisekundách</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_total</code> (COUNTER)</dt>

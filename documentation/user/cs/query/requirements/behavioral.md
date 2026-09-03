@@ -115,7 +115,7 @@ a [řadicí omezení](../ordering/behavioral.md#v-rozsahu) se stejným účelem 
 <Note type="info">
 
 Některá require omezení umožňují kombinovat výsledky z více referencí. Například [souhrn referencí](reference.md#referenční-souhrn),
-[histogram atributů](histogram.md#histogram-atributu) a [histogram cen](histogram.md#cenový-histogram) lze
+[histogram atributů](histogram.md#histogram-atributu) a [histogram cen](histogram.md#histogram-cen) lze
 vypočítat jak pro živé, tak pro archivované entity, pokud jsou k dispozici odpovídající indexy.
 
 </Note>
