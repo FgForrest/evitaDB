@@ -48,7 +48,7 @@ import java.util.function.ToLongFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface BucketBPlusTree<K extends Comparable<K>> extends
-	TransactionalLayerProducer<Void, TransactionalBucketBPlusTree<K>>,
+	TransactionalLayerProducer<BucketCountChanges, TransactionalBucketBPlusTree<K>>,
 	ConsistencySensitiveDataStructure,
 	Serializable {
 

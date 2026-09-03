@@ -239,9 +239,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private final boolean longPayload;
 	/**
-	 * Number of buckets in the tree.
+	 * Number of buckets in the tree — the committed value; a transaction that creates or deletes buckets sees its own
+	 * count through the {@link BucketCountChanges} diff layer instead.
+	 *
+	 * `volatile` is required, and is what the removed {@link TransactionalReference} used to supply through the
+	 * {@link java.util.concurrent.atomic.AtomicReference} it wrapped: {@link #bucketCount()} is reached from a request
+	 * thread with **no transaction bound** by the statistics API (`IndexCardinalityProjection#describeIndex`, through
+	 * `FilterIndex#getDistinctValueCount`), concurrently with a warm-up bulk load mutating this very tree — and every
+	 * cursor creation reaches it too, via {@link #estimatedPathLength()}. Without `volatile` those readers could
+	 * observe an indefinitely stale count. {@link io.evitadb.index.bool.TransactionalBoolean}'s plain field is not
+	 * a precedent here — nothing reads it off-thread.
 	 */
-	private final TransactionalReference<Integer> size;
+	private volatile int size;
 	/**
 	 * Root node of the tree.
 	 */
@@ -851,7 +860,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		this.recordColumnFactory = recordColumnFactory;
 		this.longPayload = recordColumnFactory == RecordColumnFactory.LONG;
 		this.root = new TransactionalReference<>(root);
-		this.size = new TransactionalReference<>(size);
+		this.size = size;
 	}
 
 	/**
@@ -1611,7 +1620,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		int bornValueId = NO_CREATED_BUCKET;
 		if (insertedAt != NO_NEW_BUCKET) {
 			bornValueId = stampValueId(leaf, insertedAt);
-			this.size.set(size() + 1);
+			incrementBucketCount();
 			// op-time boundary-mutation asserts run on the new-bucket branch before the (possible) split, while the
 			// descent context still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order
 			// with no structural op firing
@@ -1664,7 +1673,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		int bornValueId = NO_CREATED_BUCKET;
 		if (insertedAt != NO_NEW_BUCKET) {
 			bornValueId = stampValueId(leaf, insertedAt);
-			this.size.set(size() + 1);
+			incrementBucketCount();
 			// op-time boundary-mutation asserts — see addRecord(K, int); the new-bucket branch validates cross-leaf
 			// order before the (possible) split
 			assertInsertBoundaries(context, value, insertedAt);
@@ -1721,7 +1730,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
 		final int dyingValueId = leaf.removeRecords(value, pks);
 		if (dyingValueId != NO_DELETED_BUCKET) {
-			this.size.set(size() - 1);
+			decrementBucketCount();
 			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
 			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
 			// and overlap a neighbour that split during the transaction — so removals are validated too
@@ -1807,7 +1816,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
 		final int insertedAt = leaf.addLongRecord(value, payload);
 		stampValueId(leaf, insertedAt);
-		this.size.set(size() + 1);
+		incrementBucketCount();
 		// op-time boundary-mutation asserts — a long-payload add always inserts a new bucket (or throws on a duplicate),
 		// so validate cross-leaf order unconditionally before the (possible) split
 		assertInsertBoundaries(context, value, insertedAt);
@@ -1855,7 +1864,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
 		if (leaf.removeLongRecord(value)) {
-			this.size.set(size() - 1);
+			decrementBucketCount();
 			// register the dirtied leaf as a dirty-scope token for this transaction: a removal
 			// narrows the leaf's key range, but a later reverted layer could restore the wider pre-transaction range
 			// and overlap a neighbour that split during the transaction — so removals are validated too
@@ -1935,11 +1944,57 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Returns the number of buckets currently stored in the tree (alias of {@link #bucketCount()}).
 	 *
+	 * Reads the transaction's own count when one is bound and has already touched this tree, and the committed count
+	 * otherwise. The **read-only** resolver is used deliberately: a read must never snapshot a layer into an open
+	 * savepoint (see {@link TransactionalLayerMaintainer#getTransactionalMemoryLayerIfExists}), and it must never
+	 * create one either — a session that only reads the count would otherwise register a layer of its own.
+	 *
 	 * @return the number of buckets
 	 */
 	@Override
 	public int size() {
-		return Objects.requireNonNull(this.size.get());
+		final BucketCountChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		return layer == null ? this.size : layer.getBucketCount();
+	}
+
+	/**
+	 * Records the birth of one bucket, into the transaction's own count when one is bound and into the committed count
+	 * otherwise.
+	 *
+	 * The un-transacted branch is **single-writer by contract**, exactly as every other mutation of this tree is:
+	 * `this.size++` on a volatile field is a read-modify-write and therefore not atomic, and neither was the
+	 * `AtomicReference.set(get() + 1)` it replaces. `volatile` is here for the session-free *readers* (see the
+	 * {@link #size} field), not to make concurrent writers safe.
+	 */
+	private void incrementBucketCount() {
+		final BucketCountChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		if (layer == null) {
+			this.size++;
+		} else {
+			layer.increment();
+		}
+	}
+
+	/**
+	 * Records the deletion of one bucket, into the transaction's own count when one is bound and into the committed
+	 * count otherwise — see {@link #incrementBucketCount()} for the single-writer contract of the un-transacted branch.
+	 *
+	 * Both branches refuse to count below zero, the committed one here and the transaction-local one in
+	 * {@link BucketCountChanges#decrement()}. The count is a scalar carried apart from the node graph it counts, so a
+	 * bucket death with no matching birth would otherwise surface only far from its cause — the un-transacted branch is
+	 * the bulk-load path that builds an index from scratch, which is where most bucket births happen at all.
+	 */
+	private void decrementBucketCount() {
+		final BucketCountChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		if (layer == null) {
+			Assert.isPremiseValid(
+				this.size > 0,
+				"The committed bucket count would go negative - a bucket was deleted that this tree never saw born."
+			);
+			this.size--;
+		} else {
+			layer.decrement();
+		}
 	}
 
 	/**
@@ -1969,23 +2024,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 		final VMLayout layout = VMLayout.current();
-		// id + four block-size ints + longPayload + seven reference slots: keyType, comparator, the two column
-		// factories, size, root and the value id minter. The factories are lambdas the caller supplied and every tree
-		// of this key type receives the same pair, so only their slots belong here; the minter is likewise a lambda
-		// owned by the index above this tree
+		// id + four block-size ints + the bucket count + longPayload + six reference slots: keyType, comparator, the
+		// two column factories, root and the value id minter. The factories are lambdas the caller supplied and every
+		// tree of this key type receives the same pair, so only their slots belong here; the minter is likewise
+		// a lambda owned by the index above this tree
 		long ownSize = layout.sizeOfObject(
-			Long.BYTES + 4L * Integer.BYTES + 1L + 7L * layout.referenceSize()
+			Long.BYTES + 5L * Integer.BYTES + 1L + 6L * layout.referenceSize()
 				// nextLeafId, plus the single value id directory slot - the directory is one immutable record behind
 				// one volatile field, and its contents are reported apart, by getValueIdDirectoryHeapSizeInBytes
 				+ Long.BYTES + layout.referenceSize()
 		);
-		// the two TransactionalReference holders are the tree's own, and each wraps an AtomicReference. The `root`
-		// holder addresses the node walked below; the `size` holder addresses a boxed Integer, charged in full -
-		// whether the JVM happens to hand back a cached instance is an implementation detail that moves with
-		// -XX:AutoBoxCacheMax and must not decide what this reports
+		// the `root` TransactionalReference holder is the tree's own and wraps an AtomicReference; it addresses the
+		// node walked below. The bucket count needs no holder of its own - it is the plain int counted above, carried
+		// across a transaction by a BucketCountChanges layer that belongs to that transaction and is never counted here
 		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
-		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		ownSize += transactionalReference;
 		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
 	}
 
@@ -2094,19 +2148,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		return sb.toString();
 	}
 
+	@Nonnull
 	@Override
-	public Void createLayer() {
-		return null;
+	public BucketCountChanges createLayer() {
+		return new BucketCountChanges(this.size);
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// this drops the tree's OWN bucket-count layer, which is load-bearing: the tree registers a layer of its own
+		// since the count stopped living in a TransactionalReference. Its position is safe rather than accidental -
+		// the count layer is keyed on this tree's id, while getRoot() below resolves through the root reference's
+		// separate entry, so dropping one cannot disturb the other
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// capture the in-transaction root BEFORE dropping the root reference's own layer - otherwise getRoot() would
 		// fall back to the committed root and the node-graph recursion would miss every node created during this
 		// transaction (e.g. split offspring), leaking their layers during the commit sweep
 		final BPlusTreeNode<K, ?> theRoot = getRoot();
-		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
 		removeLayerRecursively(theRoot, transactionalLayer);
 	}
@@ -2114,9 +2172,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Nonnull
 	@Override
 	public TransactionalBucketBPlusTree<K> createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		@Nullable BucketCountChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final BPlusTreeNode<K, ?> theRoot = transactionalLayer.getStateCopyWithCommittedChanges(this.root)
 			.orElseThrow();
+		// resolved once, so both root-shape branches below hand the merged tree the very same count
+		final int mergedSize = layer == null ? this.size : layer.getBucketCount();
 		final TransactionalBucketBPlusTree<K> merged;
 		if (theRoot instanceof BPlusLeafTreeNode<?> leafNode) {
 			//noinspection unchecked
@@ -2129,7 +2189,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.valueColumnFactory,
 				this.recordColumnFactory,
 				transactionalLayer.getStateCopyWithCommittedChanges(theLeafNode),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
+				mergedSize
 			);
 		} else if (theRoot instanceof BPlusInternalTreeNode<?> internalNode) {
 			//noinspection unchecked
@@ -2141,7 +2201,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.valueColumnFactory,
 				this.recordColumnFactory,
 				transactionalLayer.getStateCopyWithCommittedChanges((BPlusInternalTreeNode<K>) internalNode),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
+				mergedSize
 			);
 		} else {
 			throw new GenericEvitaInternalError("Unknown node type: " + theRoot);

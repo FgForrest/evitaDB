@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
@@ -284,6 +285,49 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 					// the original snapshot is untouched
 					assertEquals(payloadFor(0), original.getLongRecordEqualTo(0).getAsLong());
 					assertEquals(OptionalLong.empty(), original.getLongRecordEqualTo(100));
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("bucket count MVCC")
+	class BucketCountMvcc {
+
+		@Test
+		@DisplayName("an insert and a removal move only the transaction's own count")
+		void shouldIsolateTheBucketCountAcrossTheLongPayloadApi() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			for (int key = 0; key < 10; key++) {
+				tree.addLongRecord(key, payloadFor(key));
+			}
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// the count layer does not exist until the first bucket is born or dies
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(tested));
+
+					tested.addLongRecord(100, payloadFor(100));
+					tested.addLongRecord(101, payloadFor(101));
+					assertEquals(12, tested.size(), "the writer must see the buckets it created");
+
+					// the long-payload removal is the decrement site this API reaches
+					assertTrue(tested.removeLongRecord(0));
+					assertTrue(tested.removeLongRecord(1));
+					assertTrue(tested.removeLongRecord(2));
+					assertEquals(9, tested.size(), "the writer must see the buckets it deleted");
+
+					final BucketCountChanges layer = Transaction.getTransactionalMemoryLayerIfExists(tested);
+					assertNotNull(layer, "mutating the bucket set must open the tree's own count layer");
+					assertEquals(9, layer.getBucketCount());
+				},
+				// the harness verifies the whole transactional memory was swept, so a count layer left ALIVE would
+				// fail the commit before these assertions are reached
+				(original, committed) -> {
+					assertEquals(10, original.size(), "the pre-merge tree keeps reporting the committed count");
+					assertEquals(9, committed.size(), "the merged tree carries the in-transaction count");
+					assertEquals(ConsistencyState.CONSISTENT, committed.getConsistencyReport().state());
 				}
 			);
 		}

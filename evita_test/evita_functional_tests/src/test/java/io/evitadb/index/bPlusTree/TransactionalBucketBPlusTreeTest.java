@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.BucketCountChanges.BucketCountMemento;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusTreeNode;
@@ -57,6 +58,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.CACHE;
@@ -75,9 +77,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * inverted index. Exercises bucket insert/promotion/demotion, single↔multi representation, point
  * lookups, ordered forward / from-key / reverse cursors, leaf split / merge / steal rebalancing, bucket delete +
  * collapse, negative primary keys (including {@link Integer#MIN_VALUE}) as single and multi members, and the full
- * MVCC machinery (isolation, rollback, commit merge including a deep-committed overflow bitmap, and the
- * delete-a-multi-bucket-then-commit path that proves the discarded bitmap layer is released). Bounded fixed-seed
- * randomized churn guards the rebalancing/commit machinery against regressions.
+ * MVCC machinery (isolation, rollback, commit merge including a deep-committed overflow bitmap, the
+ * delete-a-multi-bucket-then-commit path that proves the discarded bitmap layer is released, and the bucket count's
+ * own diff layer — its isolation from a session-free reader, its registration and commit sweep, and its
+ * savepoint rollback/commit fidelity against the node graph it counts). Bounded fixed-seed randomized churn guards
+ * the rebalancing/commit machinery against regressions.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -1283,6 +1287,312 @@ class TransactionalBucketBPlusTreeTest {
 					verifyTreeConsistency(committed, 1, 9);
 				}
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucket count MVCC")
+	class BucketCountMvccTest {
+
+		/**
+		 * Reads the tree's bucket count on a thread that has **no transaction bound**, which is the shape the
+		 * statistics and management walks take: a request thread asking a live tree how many buckets it holds while
+		 * another thread's transaction is mutating it. Such a reader must always see the committed count, never the
+		 * writer's in-flight one.
+		 *
+		 * @param tree the tree to interrogate
+		 * @return the bucket count as seen with no transaction bound
+		 * @throws InterruptedException when the reading thread is interrupted while being joined
+		 */
+		private static int bucketCountWithoutTransaction(@Nonnull TransactionalBucketBPlusTree<?> tree)
+			throws InterruptedException {
+			final AtomicInteger seen = new AtomicInteger();
+			final AtomicReference<Throwable> failure = new AtomicReference<>();
+			final Thread reader = new Thread(() -> seen.set(tree.bucketCount()));
+			// without this the reader's own failure would be swallowed and reported as a count of zero, hiding the very
+			// thing this helper probes behind an unrelated "expected 3 but was 0"
+			reader.setUncaughtExceptionHandler((thread, ex) -> failure.set(ex));
+			reader.start();
+			reader.join();
+			final Throwable readerFailure = failure.get();
+			if (readerFailure != null) {
+				throw new IllegalStateException("the session-free reader failed to read the count", readerFailure);
+			}
+			return seen.get();
+		}
+
+		/**
+		 * Renders the tree's bucket count together with the keys its forward cursor yields, as a single
+		 * `.equals`-comparable value. Pairing the two is what lets a savepoint assertion fail on a count that was
+		 * restored out of step with the node graph it is supposed to describe — a count-only oracle cannot see that,
+		 * and a contents-only oracle cannot see it either.
+		 *
+		 * @param tree the tree to read
+		 * @return the bucket count and the cursor keys, rendered as `count:key,key,...`
+		 */
+		@Nonnull
+		private static String countAndKeysOf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final StringBuilder sb = new StringBuilder(64).append(tree.bucketCount()).append(':');
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				sb.append(cursor.value()).append(',');
+			}
+			return sb.toString();
+		}
+
+		@Test
+		@DisplayName("a transaction sees its own count while a session-free reader still sees the committed one")
+		void shouldIsolateTheBucketCountFromASessionFreeReader() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+			tree.addRecord(2, 20);
+			tree.addRecord(3, 30);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					try {
+						// two buckets born inside the transaction, one through each of the two `addRecord` overloads -
+						// both are distinct increment sites
+						tested.addRecord(4, 40);
+						tested.addRecord(5, 50, 51);
+						assertEquals(5, tested.bucketCount(), "the writer must see its own inserts");
+						assertEquals(
+							3, bucketCountWithoutTransaction(tested),
+							"a reader resolving no transaction must still see the committed count"
+						);
+
+						// and one bucket deleted inside it - the decrement has to be visible to the writer alone too
+						tested.removeRecord(1, 10);
+						assertEquals(4, tested.bucketCount(), "the writer must see its own removal");
+						assertEquals(
+							3, bucketCountWithoutTransaction(tested),
+							"a removal inside the transaction must not move the committed count either"
+						);
+					} catch (InterruptedException ex) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException("interrupted while reading the count off-transaction", ex);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(3, original.bucketCount(), "the pre-merge tree keeps reporting the committed count");
+					assertEquals(4, committed.bucketCount(), "the merged tree carries the in-transaction count");
+					verifyTreeConsistency(committed, 2, 3, 4, 5);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled-back transaction leaves the committed count untouched")
+		void shouldLeaveTheCommittedBucketCountUntouchedOnRollback() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			assertStateAfterRollback(
+				tree,
+				tested -> {
+					tested.addRecord(100, 1_000);
+					tested.addRecord(101, 1_010);
+					tested.removeRecord(0, 0);
+					assertEquals(7, tested.bucketCount(), "the transaction must see its own count while it runs");
+				},
+				(original, committed) -> assertEquals(
+					6, original.bucketCount(),
+					"a rolled-back transaction must not have moved the committed count"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("dropping a tree's layers inside a transaction gives its count back and sweeps clean")
+		void shouldGiveTheBucketCountBackWhenTheLayerIsDropped() {
+			// the outer tree is never touched - it only provides the transactional context that drives the commit sweep
+			final TransactionalBucketBPlusTree<Integer> outer = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> discarded =
+				new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				discarded.addRecord(i, i * 10);
+			}
+
+			assertStateAfterCommit(
+				outer,
+				tested -> {
+					// two births and one death, so the in-transaction count (7) differs from the committed one (6) and
+					// the assertion after the drop can tell the two apart
+					discarded.addRecord(100, 1_000);
+					discarded.addRecord(101, 1_010);
+					discarded.removeRecord(0, 0);
+					assertEquals(7, discarded.bucketCount(), "the transaction must see its own count before the drop");
+					// dropping the layers must release the tree's OWN bucket-count layer too - if it did not, the sweep
+					// below would refuse the commit with StaleTransactionMemoryException
+					discarded.removeLayer(Transaction.getTransactionalLayerMaintainer());
+					assertEquals(
+						6, discarded.bucketCount(),
+						"a dropped layer must give the committed count back, not keep the in-transaction one"
+					);
+					// the count fell back to the committed value - so must the graph it counts; the consistency report
+					// walks both cursors and cross-checks the walked bucket count against the one just asserted
+					verifyTreeConsistency(discarded, 0, 1, 2, 3, 4, 5);
+				},
+				(original, committed) -> assertEquals(0, committed.bucketCount())
+			);
+
+			assertEquals(6, discarded.bucketCount(), "the discarded tree keeps its pre-transaction committed count");
+		}
+
+		@Test
+		@DisplayName("a transaction that changes the count registers a layer of its own and the commit sweeps it")
+		void shouldRegisterAndSweepTheTreesOwnBucketCountLayer() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(tested),
+						"a transaction that has not moved the count must not have opened a layer for it"
+					);
+					assertEquals(1, tested.bucketCount(), "and a bare read must not open one either");
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(tested));
+
+					tested.addRecord(2, 20);
+					final BucketCountChanges layer = Transaction.getTransactionalMemoryLayerIfExists(tested);
+					assertNotNull(layer, "a bucket born inside the transaction must open the tree's own count layer");
+					assertEquals(2, layer.getBucketCount());
+				},
+				// the harness verifies the whole transactional memory was swept - a tree-level layer left ALIVE would
+				// fail the commit here rather than reach these assertions
+				(original, committed) -> {
+					assertEquals(1, original.bucketCount());
+					assertEquals(2, committed.bucketCount());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback returns the count to the value it had when the savepoint opened")
+		void shouldRestoreTheBucketCountOnSavepointRollback() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			// the baseline insert opens the count layer BEFORE the savepoint, so the rollback has to restore that layer
+			// from its memento rather than take the cheaper drop-a-layer-created-inside-the-savepoint arm
+			assertSavepointRollbackRestores(
+				tree,
+				t -> t.addRecord(2, 20),
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					t.addRecord(3, 30);
+					t.addRecord(4, 40);
+					t.removeRecord(1, 10);
+					assertEquals(3, t.bucketCount(), "the savepoint's own changes must be visible while it is open");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback drops a count layer that was born inside it")
+		void shouldDropTheBucketCountLayerBornInsideTheSavepoint() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			// the baseline only adds a record to an EXISTING bucket, so it opens the leaf's own layer while leaving the
+			// count untouched - no count layer exists when the savepoint opens, and the rollback therefore has to drop
+			// the layer born inside it entirely rather than restore it from a memento
+			assertSavepointRollbackRestores(
+				tree,
+				t -> {
+					t.addRecord(1, 11);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(t),
+						"a mutation that creates no bucket must not open the count layer"
+					);
+				},
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					t.addRecord(2, 20);
+					t.addRecord(3, 30);
+					assertEquals(
+						3, t.bucketCount(),
+						"the buckets born inside the savepoint are visible while it is open"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a committed savepoint keeps the count it moved to")
+		void shouldKeepTheBucketCountWhenTheSavepointIsCommitted() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			assertSavepointCommitKeeps(
+				tree,
+				t -> t.addRecord(2, 20),
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					// a NON-ZERO net count change: the harness captures the oracle AFTER these operations, so a
+					// commitSavepoint that wrongly restored the memento (count 2, keys 1,2) instead of releasing it
+					// would be visible here as a mismatch against the count 3, keys 2,3,4 it must keep
+					t.addRecord(3, 30);
+					t.addRecord(4, 40);
+					t.removeRecord(1, 10);
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucket count diff layer")
+	class BucketCountChangesTest {
+
+		@Test
+		@DisplayName("counts up and down from the committed value it was created with")
+		void shouldCountUpAndDownFromTheCommittedValue() {
+			final BucketCountChanges layer = new BucketCountChanges(7);
+			assertEquals(7, layer.getBucketCount());
+
+			layer.increment();
+			layer.increment();
+			layer.decrement();
+
+			assertEquals(8, layer.getBucketCount());
+		}
+
+		@Test
+		@DisplayName("restores the same memento any number of times")
+		void shouldRestoreTheSameMementoRepeatedly() {
+			final BucketCountChanges layer = new BucketCountChanges(7);
+			layer.increment();
+			final BucketCountMemento memento = layer.snapshot();
+			assertEquals(8, memento.bucketCount());
+
+			layer.increment();
+			layer.increment();
+			layer.restore(memento);
+			assertEquals(8, layer.getBucketCount(), "the first restore must return the captured count");
+
+			// the memento holds a primitive, so it is untouched by either the mutations above or the restore itself
+			layer.decrement();
+			layer.decrement();
+			layer.restore(memento);
+			assertEquals(8, layer.getBucketCount(), "the same memento must still be faithful on a second restore");
+			assertEquals(8, memento.bucketCount(), "a restore must not consume the memento");
+		}
+
+		@Test
+		@DisplayName("refuses to count below zero")
+		void shouldRefuseToCountBelowZero() {
+			final BucketCountChanges layer = new BucketCountChanges(1);
+			layer.decrement();
+			assertEquals(0, layer.getBucketCount(), "the last bucket the layer saw may still be counted away");
+
+			// a count that outlives the buckets it counts would surface far from its cause - as a wrong distinct value
+			// count reported to the user, and as an estimated path length silently collapsing through NaN to zero
+			assertThrows(GenericEvitaInternalError.class, layer::decrement);
 		}
 	}
 

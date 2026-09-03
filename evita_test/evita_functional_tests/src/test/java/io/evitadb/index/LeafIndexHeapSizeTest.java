@@ -423,15 +423,16 @@ class LeafIndexHeapSizeTest {
 			//
 			//   64  the index object                     64  the leaf node
 			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
-			//   80  the tree's two transactional             24  the record column object + 32 its four-slot int[]
-			//       reference holders and their           24  the tree's transactional dirty flag
-			//       AtomicReferences                      16  the boxed bucket count the tree memoizes
+			//   40  the tree's `root` transactional       24  the record column object + 32 its four-slot int[]
+			//       reference holder and its              24  the tree's transactional dirty flag
+			//       AtomicReference
 			//
-			// That sums to 464, which is what both sides report. The four-slot floor is deliberate (see
-			// ColumnSizing): the reduced value trees this sizing exists for are dominated by one to four distinct
-			// values, so a floor of four covers the common case in a single allocation and never reallocates. The
-			// 480-byte budget therefore leaves room for one more small object without leaving room for a column that
-			// has gone back to allocating its whole block.
+			// That sums to 408, which is what both sides report. The bucket count is a plain int inside the tree's
+			// own 80 bytes - it costs no holder and no box. The four-slot floor is deliberate (see ColumnSizing):
+			// the reduced value trees this sizing exists for are dominated by one to four distinct values, so a
+			// floor of four covers the common case in a single allocation and never reallocates. The 424-byte
+			// budget therefore leaves room for one more small object without leaving room for a column that has
+			// gone back to allocating its whole block.
 			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(Integer.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, Integer.class);
@@ -441,8 +442,8 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 480,
-				"a one-key integral index must stay within its 480 B budget - was " + measured
+				measured <= 424,
+				"a one-key integral index must stay within its 424 B budget - was " + measured
 			);
 		}
 
@@ -453,16 +454,15 @@ class LeafIndexHeapSizeTest {
 			//
 			//   64  the index object                     64  the leaf node
 			//   80  the bucket tree object               40  the key column object
-			//   80  the tree's two transactional        144  its THREE four-slot long[] arrays, 48 each
-			//       reference holders and their          24  the record column object + 32 its four-slot int[]
-			//       AtomicReferences                     24  the tree's transactional dirty flag
-			//                                            16  the boxed bucket count the tree memoizes
+			//   40  the tree's `root` transactional      144  its THREE four-slot long[] arrays, 48 each
+			//       reference holder and its              24  the record column object + 32 its four-slot int[]
+			//       AtomicReference                       24  the tree's transactional dirty flag
 			//
-			// That sums to 568 - the integral gate's 464 plus 104 for the wider key column (a 40-byte object holding
+			// That sums to 512 - the integral gate's 408 plus 104 for the wider key column (a 40-byte object holding
 			// three arrays rather than a 32-byte one holding a single array). A `DateTimeRange` is the expensive
-			// shape: the five numeric kinds park `meta` on the shared empty array and pay 48 bytes less. The
-			// 584-byte budget leaves room for one more small object without leaving room for a column that has gone
-			// back to allocating its whole block - or for a fourth array
+			// shape: the five numeric kinds park `meta` on the shared empty array and pay 48 bytes less, landing on
+			// 464. The 528-byte budget leaves room for one more small object without leaving room for a column that
+			// has gone back to allocating its whole block - or for a fourth array
 			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
@@ -478,8 +478,8 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 584,
-				"a one-key range index must stay within its 584 B budget - was " + measured
+				measured <= 528,
+				"a one-key range index must stay within its 528 B budget - was " + measured
 			);
 		}
 
@@ -583,16 +583,17 @@ class LeafIndexHeapSizeTest {
 		};
 
 		@Test
-		void shouldOverReportAnEmptyOwnerByTheOneZeroBoxItsThreeCountersShare() {
+		void shouldOverReportAnEmptyOwnerByTheOneZeroBoxItsTwoCountersShare() {
 			final OwnerSortIndex index = ownerSortIndex(0);
-			// an empty index has three structures whose size counter boxes ZERO - the owned tree and the two inner
-			// trees of the sorted-records facade - and the JVM hands all three the SAME cached Integer. Rule 1
-			// charges a box to each holder regardless, because whether one is shared moves with -XX:AutoBoxCacheMax
-			// and must not decide what a reading says; a walk dedupes by identity and sees the single instance once.
-			// Three holders, one instance, so the gap is two boxes - and it is fixed, not a term that grows: every
-			// seeded fixture here starts above the cache ceiling, which is why only empty ones diverge at all
+			// an empty index has two structures whose size counter boxes ZERO - the two inner trees of the
+			// sorted-records facade - and the JVM hands both the SAME cached Integer. Rule 1 charges a box to each
+			// holder regardless, because whether one is shared moves with -XX:AutoBoxCacheMax and must not decide
+			// what a reading says; a walk dedupes by identity and sees the single instance once. Two holders, one
+			// instance, so the gap is one box - and it is fixed, not a term that grows: every seeded fixture here
+			// starts above the cache ceiling, which is why only empty ones diverge at all. The owned bucket tree
+			// used to be a third such holder; it now keeps its count in a plain int and boxes nothing
 			assertExceedsMeasuredHeapBy(
-				index.getHeapSizeInBytes(), 2L * VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
+				index.getHeapSizeInBytes(), VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
 			);
 		}
 
@@ -803,7 +804,7 @@ class LeafIndexHeapSizeTest {
 			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
 			// scaffolding to price at an upper bound.
 			//
-			// This is the accounting face of the leak fixed in #1458: a formula node carries the execution context
+			// This is the accounting face of a previously fixed leak: a formula node carries the execution context
 			// of the first query to initialize it, so an index that kept one pinned that query's session and its
 			// whole catalog generation. A step up here would mean a memo came back.
 			final long warm = index.getHeapSizeInBytes();
