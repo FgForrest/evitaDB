@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
@@ -41,11 +43,13 @@ import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.model.UnionDescriptorToOpenApiUnionTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
@@ -56,6 +60,8 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructParentPointerObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructParentUnionObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferencePageObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceStripObjectName;
@@ -75,6 +81,7 @@ public class EntityObjectBuilder {
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
@@ -130,6 +137,9 @@ public class EntityObjectBuilder {
 			entityObject.property(RestEntityDescriptor.PARENT_ENTITY
 				.to(this.propertyBuilderTransformer)
 				.type(typeRefTo(objectName)));
+			entityObject.property(RestEntityDescriptor.PARENT_ENTITY_COMPLETE
+				.to(this.propertyBuilderTransformer)
+				.type(buildParentUnion(entitySchema, localized, objectName)));
 		}
 
 		// build price fields
@@ -159,6 +169,47 @@ public class EntityObjectBuilder {
 		}
 
 		return entityObject.build();
+	}
+
+	/**
+	 * Builds the type of {@link RestEntityDescriptor#PARENT_ENTITY_COMPLETE} - one element of a parent chain fetched
+	 * under the `COMPLETE` parents behaviour, which is either the ancestor with the body that was asked for or
+	 * a bodyless pointer standing in for a body that could not be materialized.
+	 *
+	 * The `oneOf` deliberately carries no discriminator: an ancestor and the pointer that stands in for it report the
+	 * same entity type, so the `type` property cannot tell the two apart. What tells them apart is the shape - only
+	 * the entity branch carries a `version` and a `scope`.
+	 *
+	 * The pointer object holds the recursive link, so that the axis can continue above the pointer; it therefore has
+	 * to be built per collection, and per localized variant of the entity object it points into.
+	 *
+	 * @param entitySchema     the schema of the hierarchical collection
+	 * @param localized        whether the localized variant of the entity object is being built
+	 * @param entityObjectName the name of the entity object the materialized branch points at
+	 * @return reference to the registered union
+	 */
+	@Nonnull
+	private OpenApiTypeReference buildParentUnion(@Nonnull EntitySchemaContract entitySchema,
+	                                              boolean localized,
+	                                              @Nonnull String entityObjectName) {
+		final String parentUnionName = constructParentUnionObjectName(entitySchema, localized);
+
+		final OpenApiObject parentPointerObject = ParentPointerDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructParentPointerObjectName(entitySchema, localized))
+			.property(RestEntityDescriptor.PARENT_ENTITY_COMPLETE
+				.to(this.propertyBuilderTransformer)
+				.type(typeRefTo(parentUnionName)))
+			.build();
+		final OpenApiTypeReference parentPointerObjectRef = this.buildingContext.registerType(parentPointerObject);
+
+		final OpenApiUnion parentUnion = ParentUnionDescriptor.THIS
+			.to(this.unionBuilderTransformer)
+			.name(parentUnionName)
+			.type(typeRefTo(entityObjectName))
+			.type(parentPointerObjectRef)
+			.build();
+		return this.buildingContext.registerType(parentUnion);
 	}
 
 	@Nonnull

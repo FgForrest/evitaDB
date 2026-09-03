@@ -64,6 +64,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -125,19 +126,147 @@ public class EntityJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeSingleEntity(@Nonnull EntitySerializationContext ctx, @Nonnull EntityClassifier entityClassifier) {
+		final ObjectNode rootNode = serializeEntityWithoutParentAxis(ctx, entityClassifier);
+		if (entityClassifier instanceof EntityClassifierWithParent entity) {
+			serializeParentAxis(ctx, rootNode, entity);
+		}
+		return rootNode;
+	}
+
+	/**
+	 * Serializes everything an entity carries except the chain of its ancestors, which is written separately because
+	 * the same ancestor may have to be reported through two different properties.
+	 *
+	 * @param ctx             context of the serialization
+	 * @param entityClassifier the entity or the mere pointer at one
+	 * @return the serialized entity, with no parent property of any kind
+	 */
+	@Nonnull
+	private ObjectNode serializeEntityWithoutParentAxis(@Nonnull EntitySerializationContext ctx,
+	                                                    @Nonnull EntityClassifier entityClassifier) {
 		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
 		if (entityClassifier instanceof EntityDecorator entity) {
 			final EntitySchemaContract entitySchema = ctx.getCatalogSchema().getEntitySchemaOrThrowException(entity.getType());
-			serializeEntityBody(ctx, rootNode, entity);
+			serializeEntityBody(rootNode, entity);
 			serializeAttributes(rootNode, entity.getLocales(), entity, entitySchema, entitySchema);
 			serializeAssociatedData(rootNode, entity.getLocales(), entity, entitySchema);
 			serializePrices(rootNode, entity);
 			serializeReferences(ctx, rootNode, entity, entitySchema);
-		} else if (entityClassifier instanceof EntityClassifierWithParent entity) {
-			entity.getParentEntity().ifPresent(parent ->
-				rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));
 		}
 		return rootNode;
+	}
+
+	/**
+	 * Writes the chain of ancestors of `entity` into `rootNode`.
+	 *
+	 * {@link RestEntityDescriptor#PARENT_ENTITY} is documented to contain materialized ancestors only, so it reports
+	 * the chain cut below the first ancestor whose requested body could not be materialized - which is exactly what
+	 * {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#MATCHING} returns.
+	 * {@link RestEntityDescriptor#PARENT_ENTITY_COMPLETE} reports the whole chain including the bodyless pointers, and
+	 * is written only when the chain actually holds one, since otherwise the two would be identical.
+	 *
+	 * Whether a chain element that is not an {@link EntityDecorator} is a bodyless pointer or a plain primary key of
+	 * a `hierarchyContent()` that asked for no ancestor body at all is decided by the rest of the chain: only
+	 * a requirement that asked for bodies can have materialized any of them. A chain in which nothing materialized is
+	 * therefore reported whole under {@link RestEntityDescriptor#PARENT_ENTITY} - correct for the far more common
+	 * bodyless request, and for a `COMPLETE` request whose every ancestor failed it hands back genuine primary keys
+	 * rather than fabricating anything.
+	 *
+	 * @param ctx      context of the serialization
+	 * @param rootNode the node of the entity whose ancestors are written
+	 * @param entity   the entity whose ancestors are written
+	 */
+	private void serializeParentAxis(@Nonnull EntitySerializationContext ctx,
+	                                 @Nonnull ObjectNode rootNode,
+	                                 @Nonnull EntityClassifierWithParent entity) {
+		final EntityClassifierWithParent parent = resolveParent(entity);
+		if (parent == null) {
+			return;
+		}
+		if (!holdsBodylessAncestorAmongMaterializedOnes(parent)) {
+			rootNode.putIfAbsent(
+				RestEntityDescriptor.PARENT_ENTITY.name(),
+				serializeParentChain(ctx, parent, RestEntityDescriptor.PARENT_ENTITY.name(), false)
+			);
+			return;
+		}
+		final ObjectNode matchingChain = serializeParentChain(
+			ctx, parent, RestEntityDescriptor.PARENT_ENTITY.name(), true
+		);
+		if (matchingChain != null) {
+			rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), matchingChain);
+		}
+		rootNode.putIfAbsent(
+			RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(),
+			serializeParentChain(ctx, parent, RestEntityDescriptor.PARENT_ENTITY_COMPLETE.name(), false)
+		);
+	}
+
+	/**
+	 * Serializes one ancestor together with everything above it, linking the elements through `parentPropertyName` so
+	 * that the whole chain is walkable through a single property.
+	 *
+	 * @param ctx                context of the serialization
+	 * @param ancestor           the ancestor to serialize
+	 * @param parentPropertyName the property the next ancestor is written into
+	 * @param cutBelowBodyless   whether to end the chain below an ancestor whose body was not materialized
+	 * @return the serialized ancestor, or NULL when the chain is cut below it
+	 */
+	@Nullable
+	private ObjectNode serializeParentChain(@Nonnull EntitySerializationContext ctx,
+	                                        @Nonnull EntityClassifierWithParent ancestor,
+	                                        @Nonnull String parentPropertyName,
+	                                        boolean cutBelowBodyless) {
+		if (cutBelowBodyless && !(ancestor instanceof EntityDecorator)) {
+			return null;
+		}
+		final ObjectNode ancestorNode = serializeEntityWithoutParentAxis(ctx, ancestor);
+		final EntityClassifierWithParent parent = resolveParent(ancestor);
+		if (parent != null) {
+			final ObjectNode parentNode = serializeParentChain(ctx, parent, parentPropertyName, cutBelowBodyless);
+			if (parentNode != null) {
+				ancestorNode.putIfAbsent(parentPropertyName, parentNode);
+			}
+		}
+		return ancestorNode;
+	}
+
+	/**
+	 * Returns TRUE when the chain starting at `chainHead` mixes ancestors that carry the requested body with ancestors
+	 * that do not. Only a requirement asking for ancestor bodies can produce such a chain, and only the `COMPLETE`
+	 * parents behaviour keeps walking past the ancestor that failed to yield one.
+	 *
+	 * @param chainHead the immediate parent of the entity whose axis is being reported
+	 * @return TRUE when the chain holds both a materialized ancestor and a bodyless one
+	 */
+	private static boolean holdsBodylessAncestorAmongMaterializedOnes(@Nonnull EntityClassifierWithParent chainHead) {
+		boolean materializedFound = false;
+		boolean bodylessFound = false;
+		EntityClassifierWithParent ancestor = chainHead;
+		while (ancestor != null) {
+			if (ancestor instanceof EntityDecorator) {
+				materializedFound = true;
+			} else {
+				bodylessFound = true;
+			}
+			ancestor = resolveParent(ancestor);
+		}
+		return materializedFound && bodylessFound;
+	}
+
+	/**
+	 * Returns the next ancestor above `entity`, or NULL when there is none - including when the entity was fetched
+	 * without its hierarchy placement and therefore cannot answer the question at all.
+	 *
+	 * @param entity the entity whose ancestor is looked up
+	 * @return the next ancestor, or NULL
+	 */
+	@Nullable
+	private static EntityClassifierWithParent resolveParent(@Nonnull EntityClassifierWithParent entity) {
+		if (entity instanceof EntityDecorator entityDecorator && !entityDecorator.parentAvailable()) {
+			return null;
+		}
+		return entity.getParentEntity().orElse(null);
 	}
 
 	@Nonnull
@@ -149,17 +278,13 @@ public class EntityJsonSerializer {
 	}
 
 	/**
-	 * Serialize body of entity
+	 * Serialize body of entity. The chain of ancestors is not part of it - see
+	 * {@link #serializeParentAxis(EntitySerializationContext, ObjectNode, EntityClassifierWithParent)}.
 	 */
-	private void serializeEntityBody(@Nonnull EntitySerializationContext ctx,
-	                                 @Nonnull ObjectNode rootNode,
+	private void serializeEntityBody(@Nonnull ObjectNode rootNode,
 	                                 @Nonnull EntityDecorator entity) {
 		rootNode.put(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entity.version()));
 		rootNode.put(EntityDescriptor.SCOPE.name(), this.objectJsonSerializer.serializeObject(entity.getScope()));
-
-		if (entity.parentAvailable()) {
-			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));
-		}
 
 		if (!entity.getLocales().isEmpty()) {
 			rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getLocales()));

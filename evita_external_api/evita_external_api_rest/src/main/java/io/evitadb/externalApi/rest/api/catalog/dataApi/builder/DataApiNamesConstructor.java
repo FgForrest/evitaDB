@@ -26,6 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.ParentUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordStripDescriptor;
@@ -69,6 +71,16 @@ public class DataApiNamesConstructor {
 	@Nonnull
 	public static String constructEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return EntityDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructParentPointerObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ParentPointerDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructParentUnionObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ParentUnionDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull

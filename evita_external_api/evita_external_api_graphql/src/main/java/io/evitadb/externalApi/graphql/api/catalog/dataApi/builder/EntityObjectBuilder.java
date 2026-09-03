@@ -199,6 +199,7 @@ public class EntityObjectBuilder {
 				constraintSchemaBuildingContext,
 				filterConstraintSchemaBuilder,
 				argumentBuilderTransformer,
+				objectBuilderTransformer,
 				fieldBuilderTransformer
 			),
 			new EntityObjectAttributeDecorator(
