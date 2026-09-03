@@ -28,21 +28,15 @@ Incremental indexing is the phase in which we continuously synchronize changes f
 
 ## Atomicity of individual writes
 
-A single write — an [`upsertEntity`](../use/api/write-data.md#upsert) or [`deleteEntity`](../use/api/write-data.md#removal) call together with all the index changes it implies (attributes, references, facets, prices, hierarchy placement, reflected references) — is treated as one unit of work, and that unit is atomic in **both** phases. What differs between them is only what surrounds it: in the ALIVE phase the write also sits inside a transaction, while in the WARM-UP phase it does not.
+A single write — an [`upsertEntity`](../use/api/write-data.md#upsert) or [`deleteEntity`](../use/api/write-data.md#removal) call together with all the index changes it implies (attributes, references, facets, prices, hierarchy placement, reflected references) — is treated as one unit of work. That unit is atomic, and it behaves the same way in **both** phases.
 
-### ALIVE phase — every write is atomic
+If applying an entity mutation fails part-way through — for example because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine reverts exactly that entity's partial changes. The index entries already written for it are removed, any unique value it reserved becomes available again, and its stored body goes back to what it was before the call. Nothing half-applied is left behind, such as an orphaned facet or a phantom price.
 
-In the ALIVE phase each entity upsert or removal is **atomic on its own**, in addition to the atomicity of the enclosing transaction. If applying a single entity mutation fails part-way through — for example because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine surgically reverts exactly that entity's partial changes and leaves the surrounding transaction untouched. The failing call throws an exception, but every entity written before it in the same transaction remains valid, and the client may catch the exception and continue writing further entities and then commit. One failed entity therefore never corrupts the transaction nor leaks a half-applied index entry (such as an orphaned facet or a phantom price), and any value it tried to reserve (e.g. a unique attribute) becomes available again immediately. This per-entity revert is independent of the enclosing transaction's own outcome: committing publishes only the entities that succeeded, and rolling back discards everything as usual.
+The failing call throws an exception and the session stays usable. You may catch it, skip or retry the offending entity, and continue writing the rest of your data. Neither compensating on the client side nor rebuilding the catalog is needed because of a single rejected entity.
 
-### WARM-UP phase — every write is atomic as well
+In the ALIVE phase the enclosing transaction is untouched by the failure: every entity written before the failing one remains valid, and you may commit afterwards — the commit publishes exactly the entities that succeeded. Rolling back still discards everything, as usual.
 
-Bulk indexing writes index changes in place to maximize throughput and maintains none of the transactional diff layers the ALIVE phase reverts from. It nevertheless offers the same per-write guarantee: as an entity is written, the engine records how to undo each change it makes, so an entity upsert or removal that fails part-way through is **reverted completely**. The index entries already written for that entity are removed, any unique value it reserved becomes available again, and its stored body goes back to what it was before the call.
-
-The failing call throws an exception and the session stays usable. You may catch it, skip or retry the offending entity, and continue the import with the rest of the data — the catalog remains consistent, and the later transition to the ALIVE phase proceeds normally. Neither compensating on the client side nor rebuilding the catalog is needed because of a single rejected entity.
-
-Recording the undo information costs on the order of 2 % of bulk indexing throughput, which is why the guarantee is unconditional rather than something you opt into.
-
-One thing is deliberately not rewound: the primary key drawn for a failed entity is not returned to the pool. Primary key sequences guarantee uniqueness, not contiguity, so a reverted write leaves a harmless gap in the numbering — the same as in the ALIVE phase.
+One thing is deliberately not rewound: the primary key drawn for a failed entity is not returned to the pool. Primary key sequences guarantee uniqueness, not contiguity, so a reverted write leaves a harmless gap in the numbering.
 
 ## Full reindex of the live catalog
 

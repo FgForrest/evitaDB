@@ -16,7 +16,7 @@ Snapshot isolation describes how an entire transaction is isolated from the othe
 
 If a single entity mutation fails part-way through — typically because it violates a unique constraint or another consistency rule after some of its index entries have already been written — the engine reverts exactly that entity's partial changes and keeps the rest of the transaction intact. The failing call throws an exception that the client may catch and then continue issuing further writes in the same transaction before committing. Entities written before the failure stay valid, and no half-applied index entry (such as an orphaned facet or a phantom price) is left behind.
 
-Internally this is implemented with a savepoint over the [transactional diff layers](#isolation-of-changes-in-the-memory-indexes): before a top-level entity mutation is applied, the engine records the affected layers, and on failure it restores them to their pre-mutation state. This is a finer-grained mechanism than the transaction-wide [atomicity described below](#atomic-transactions). The WARM-UP (bulk indexing) phase provides the same per-entity guarantee, but by a different route — it has no diff layers to restore, so it journals the inverse of each change it writes instead. See [Bulk vs. incremental indexing](bulk-vs-incremental-indexing.md#atomicity-of-individual-writes).
+This per-entity guarantee is finer-grained than the transaction-wide [atomicity described below](#atomic-transactions), and it does not depend on a transaction being open: writes made during bulk indexing in the WARM-UP phase behave exactly the same way — see [Bulk vs. incremental indexing](bulk-vs-incremental-indexing.md#atomicity-of-individual-writes).
 
 ## Lifecycle of a transaction
 
