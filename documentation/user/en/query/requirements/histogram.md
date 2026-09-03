@@ -307,7 +307,7 @@ prices actually reachable under the user's current attribute range and facet pic
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
 requirement, the histogram visualizes the price with tax.
 
-### Price histogram granularity and inner-record handling {#price-histogram-granularity}
+### Price histogram granularity and inner-record handling
 
 The histogram answers *"what prices are reachable in the candidate pool?"* The answer depends on how the collection
 handles inner records (`PriceInnerRecordHandling`), because that determines what constitutes one price data point:
