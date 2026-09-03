@@ -2365,7 +2365,7 @@ public class DefaultCatalogPersistenceService
 			final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(
 				catalogVersion);
 			for (EntityCollectionFileHeader entityHeader : entityHeaders) {
-				if (!isCollectionHeaderAlreadyPersisted(currentCatalogHeader, entityHeader)) {
+				if (needsCollectionHeaderWrite(currentCatalogHeader, entityHeader)) {
 					storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
 				}
 			}
@@ -2623,15 +2623,15 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Tells whether the already persisted collection header addresses exactly the same record as the one just
-	 * produced, and may therefore be left alone.
+	 * Tells whether the collection header just produced still has to be written - because nothing is persisted for
+	 * this entity type yet, or because what is persisted addresses a different record.
 	 *
 	 * A collection header is addressed by the file it lives in **and** by its location inside that file, so the write
-	 * may be skipped only while *both* still match. Compaction copies the live records into a fresh file in the same
-	 * order, which routinely lands the header record at the very offset and length it occupied in the file it
+	 * is needed as soon as *either* of the two differs. Compaction copies the live records into a fresh file in the
+	 * same order, which routinely lands the header record at the very offset and length it occupied in the file it
 	 * supersedes - so comparing locations alone reports "unchanged" for precisely the rewrite that changed the file
-	 * index. The persisted header then keeps naming a generation compaction has already retired, and since that
-	 * header - not {@link CatalogHeader#collectionFileIndex()} - is what
+	 * index. Skipping the write there leaves the persisted header naming a generation compaction has already retired,
+	 * and since that header - not {@link CatalogHeader#collectionFileIndex()} - is what
 	 * {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)} resolves the data file from, the
 	 * catalog becomes unloadable the moment the retired file is unlinked.
 	 *
@@ -2640,19 +2640,20 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * @param currentCatalogHeader catalog header as published by the previous round
 	 * @param entityHeader         collection header produced by the round now being written
-	 * @return true when the persisted header already names this file index at this location
+	 * @return true when the header must be persisted, false only when the persisted one already names this file index
+	 *         at this location
 	 */
-	private static boolean isCollectionHeaderAlreadyPersisted(
+	private static boolean needsCollectionHeaderWrite(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader,
 		@Nonnull EntityCollectionFileHeader entityHeader
 	) {
 		return currentCatalogHeader
 			.getEntityTypeFileIndexIfExists(entityHeader.entityType())
 			.map(
-				previous -> previous.fileIndex() == entityHeader.entityTypeFileIndex() &&
-					Objects.equals(previous.fileLocation(), entityHeader.fileLocation())
+				previous -> previous.fileIndex() != entityHeader.entityTypeFileIndex() ||
+					!Objects.equals(previous.fileLocation(), entityHeader.fileLocation())
 			)
-			.orElse(false);
+			.orElse(true);
 	}
 
 	@Nonnull
@@ -2716,7 +2717,7 @@ public class DefaultCatalogPersistenceService
 		boolean hasChanges = false;
 		for (EntityCollectionHeader entityHeader : entityCollectionHeaders) {
 			if (entityHeader instanceof EntityCollectionFileHeader entityFileHeader) {
-				if (!isCollectionHeaderAlreadyPersisted(currentCatalogHeader, entityFileHeader)) {
+				if (needsCollectionHeaderWrite(currentCatalogHeader, entityFileHeader)) {
 					storagePartPersistenceService.putStoragePart(catalogVersion, entityFileHeader);
 					hasChanges = true;
 				}
