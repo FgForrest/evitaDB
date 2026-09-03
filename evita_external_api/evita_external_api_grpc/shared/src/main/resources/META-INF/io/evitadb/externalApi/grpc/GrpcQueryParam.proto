@@ -105,6 +105,13 @@ message GrpcQueryParam {
     // Binds a `GrpcTraversalMode` enum parameter into the query, used by the
     // `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
     GrpcTraversalMode traversalMode = 27;
+    // Binds a `GrpcHierarchyParentsBehaviour` enum parameter into the query, used by the `hierarchyContent`
+    // requirement to select what happens to an ancestor whose requested body cannot be materialized - whether the
+    // parent chain is cut below it, or continues above it with that ancestor reported as a bodyless pointer.
+    //
+    // A query that leaves the argument out simply carries no placeholder for it, so no entry of this arm is sent at
+    // all and the requirement keeps its own default, `MATCHING`.
+    GrpcHierarchyParentsBehaviour hierarchyParentsBehaviour = 28;
 
     // Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
     // as `attributeInSet` over string-typed attributes.

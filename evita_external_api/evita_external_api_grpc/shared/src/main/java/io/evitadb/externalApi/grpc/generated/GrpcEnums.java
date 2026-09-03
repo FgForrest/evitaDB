@@ -282,7 +282,9 @@ public final class GrpcEnums {
       "Y_BUCKETED\020\006\022\'\n#SCHEMA_CAPABILITY_HIERAR" +
       "CHY_INDEXED\020\007\022#\n\037SCHEMA_CAPABILITY_PRICE" +
       "_INDEXED\020\010\022+\n\'SCHEMA_CAPABILITY_SUBSTRIN" +
-      "G_ACCELERATED\020\tB\014P\001\252\002\007EvitaDBb\006proto3"
+      "G_ACCELERATED\020\t*;\n\035GrpcHierarchyParentsB" +
+      "ehaviour\022\014\n\010MATCHING\020\000\022\014\n\010COMPLETE\020\001B\014P\001" +
+      "\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

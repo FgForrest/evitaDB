@@ -1229,3 +1229,27 @@ enum GrpcSchemaCapability {
   SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
 
 }
+
+// The enumeration controls what the `hierarchyContent` requirement does with an ancestor whose requested body
+// cannot be materialized. An ancestor may be present in the hierarchy index and still fail to yield a body: it may
+// hold no data in the locale the query filters by, it may have been deleted, or the parent primary key may point at
+// an entity that was never created. The chain is walked from the immediate parent upwards, and this enumeration
+// decides what happens when the walk reaches such a node.
+//
+// The choice only has anything to act on when `hierarchyContent` carries an inner `entityFetch`. A bare
+// `hierarchyContent()` requests no body at all, so nothing can fail to materialize and both values return the
+// complete chain of parent primary keys.
+enum GrpcHierarchyParentsBehaviour {
+  // The chain is cut just below the first ancestor whose requested body cannot be materialized - that ancestor and
+  // everything above it is left out entirely, so every ancestor the caller receives carries the requested body.
+  //
+  // This is the default, and deliberately the zero value: a query parameter that is absent from the request - as it
+  // always is for a client built against a server release that predates this enumeration - therefore selects the
+  // behaviour `hierarchyContent` has always had, and can never be mistaken for `COMPLETE`.
+  MATCHING = 0;
+  // Every ancestor is returned. One whose requested body cannot be materialized arrives as a bodyless pointer
+  // carrying nothing but its primary key, and the walk continues above it - so an ancestor carrying a body may well
+  // appear above a bodyless one. A client selecting this value must be prepared for a returned ancestor that carries
+  // no body.
+  COMPLETE = 1;
+}

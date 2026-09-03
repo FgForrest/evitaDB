@@ -165,6 +165,8 @@ public final class QueryConverter {
 			return toFacetGroupRelationLevel(GrpcQueryParam.getFacetGroupRelationLevel());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.TRAVERSALMODE) {
 			return toTraversalMode(GrpcQueryParam.getTraversalMode());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HIERARCHYPARENTSBEHAVIOUR) {
+			return toHierarchyParentsBehaviour(GrpcQueryParam.getHierarchyParentsBehaviour());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
 			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
@@ -326,6 +328,8 @@ public final class QueryConverter {
 			builder.setFacetGroupRelationLevel(EvitaEnumConverter.toGrpcFacetGroupRelationLevel(facetGroupRelationLevel));
 		} else if (parameter instanceof final TraversalMode traversalMode) {
 			builder.setTraversalMode(EvitaEnumConverter.toGrpcTraversalMode(traversalMode));
+		} else if (parameter instanceof final HierarchyParentsBehaviour hierarchyParentsBehaviour) {
+			builder.setHierarchyParentsBehaviour(EvitaEnumConverter.toGrpcHierarchyParentsBehaviour(hierarchyParentsBehaviour));
 		} else if (parameter instanceof Expression expression) {
 			builder.setExpressionValue(expression.toString());
 		} else if (parameter instanceof final String[] stringArrayValue) {

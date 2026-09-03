@@ -27,6 +27,7 @@ import com.google.protobuf.Int32Value;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -34,6 +35,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -134,6 +136,26 @@ class QueryConverterTest {
 		assertEquals(AttributeSpecialValue.NOT_NULL, convertQueryParam(attributeSpecialValueValue));
 		final OrderDirection orderDirectionValue = OrderDirection.DESC;
 		assertEquals(OrderDirection.DESC, convertQueryParam(orderDirectionValue));
+		final HierarchyParentsBehaviour hierarchyParentsBehaviourValue = HierarchyParentsBehaviour.COMPLETE;
+		assertEquals(HierarchyParentsBehaviour.COMPLETE, convertQueryParam(hierarchyParentsBehaviourValue));
+	}
+
+	/**
+	 * The `hierarchyContent` parents behaviour is the only enum parameter whose default value is also the zero value
+	 * of its gRPC counterpart, so a round-trip on its own would not tell a correctly bound arm from an unset message -
+	 * `MATCHING` survives both. The arm actually carrying the value is therefore asserted alongside the round-trip,
+	 * for both values.
+	 */
+	@Test
+	void shouldConvertHierarchyParentsBehaviourInBothDirections() {
+		for (final HierarchyParentsBehaviour behaviour : HierarchyParentsBehaviour.values()) {
+			final GrpcQueryParam queryParam = QueryConverter.convertQueryParam(behaviour);
+			assertEquals(
+				QueryParamCase.HIERARCHYPARENTSBEHAVIOUR, queryParam.getQueryParamCase(),
+				"The behaviour must travel in its own arm, otherwise the server cannot tell it from an unset value."
+			);
+			assertEquals(behaviour, QueryConverter.convertQueryParam(queryParam));
+		}
 	}
 
 	@Test
