@@ -62,6 +62,24 @@ with single-record buckets counted separately because they hold no bitmap at all
 catalog-wide table and rides the TSV per domain. The bins are asserted against `bitmapBytes` and against the
 bucket count, so a mis-binned bucket fails the run rather than skewing the answer.
 
+**The sorted-array projection the histogram was missing (added 2026-09-04).** The banded histogram counted the
+first factor of issue #1455's prize but left the comparison itself to a reader with a calculator, and a median
+read off bands whose edges *are* the candidate thresholds answers with the threshold it was asked about. The
+histogram therefore also carries an **exact** per-cardinality count — dense up to 1,024 records, sparse above it,
+so a percentile is read rather than interpolated — the summed record count behind the multi-record buckets, and a
+per-bucket comparison against `16 B + 4 B x cardinality`. It prints one catalog-wide table giving the bitmap
+count, `p50 / p90 / p99 / max` cardinality, the Roaring bytes today, the array projection both unpadded and
+8-byte aligned, and **how many buckets Roaring is already smaller for and by how much** — because converting
+those would cost bytes rather than save them, and a headline that ignored them would be a gross saving posing as
+a net one. The per-domain TSV columns are unchanged.
+
+On the production e-commerce catalog (862,478 reduced value trees, 8,088,957 buckets) it says: **395,613 bitmaps
+holding 8,782,760 records, cardinality `p50 5 / p90 22 / p99 213 / max 113,238`, 129.9 MB of Roaring against
+39.5 MB of sorted `int[]` — +90.3 MB, or +96.4 MB skipping the 2,558 buckets (0.6 %) Roaring is already smaller
+for.** 95.1 % of buckets hold a single record and no bitmap at all, and the prize sits almost entirely in the
+2-8 band: 274,755 buckets paying 258 B each for a median of five ids. The figure is a **floor** — this census
+walks non-GLOBAL indexes only, so the global trees' bitmaps are outside it.
+
 **A second dictionary spine variant — the dictionary on an exact-sized *tree*.** The original `spine` column
 models a *container*: parallel arrays with no tree above them. Once the reduced trees are themselves
 exact-sized, the counterfactual worth pricing keeps the tree and swaps only its key column, so

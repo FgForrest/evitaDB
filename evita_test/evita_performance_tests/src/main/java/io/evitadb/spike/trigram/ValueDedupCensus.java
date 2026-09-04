@@ -88,6 +88,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.ToLongFunction;
 
@@ -413,6 +414,31 @@ public class ValueDedupCensus {
 	 * Human labels of {@link #BUCKET_CARDINALITY_UPPER_BOUNDS}, aligned by position.
 	 */
 	static final String[] BUCKET_CARDINALITY_LABELS = {"2-8", "9-32", "33-128", ">128"};
+
+	/**
+	 * Largest bucket cardinality the exact percentile buffer counts in a dense array; anything above it is counted in
+	 * a sparse tail instead.
+	 *
+	 * The split exists because the buffer is per domain and folded up, so a dense array covering the whole `int` range
+	 * would cost more than the census measures. A thousand slots hold the entire body of the distribution on every
+	 * corpus measured so far, and the tail stays exact rather than being clipped.
+	 */
+	static final int DENSE_CARDINALITY_LIMIT = 1024;
+
+	/**
+	 * Object header and length word of the sorted `int[]` that issue #1455 would put in a small bucket's place, in
+	 * bytes.
+	 *
+	 * This is the figure the issue's arithmetic is stated in. The JVM additionally pads every array to an eight-byte
+	 * boundary, so the census reports the padded total on its own line rather than folding the padding into this
+	 * constant and making the two figures impossible to compare.
+	 */
+	static final long SORTED_ARRAY_HEADER_BYTES = 16L;
+
+	/**
+	 * Bytes one record identifier occupies in the sorted `int[]` of issue #1455.
+	 */
+	static final long SORTED_ARRAY_ELEMENT_BYTES = 4L;
 
 	/**
 	 * The smallest physical backing array a non-empty leaf column ever holds - a replica of the engine's
@@ -1653,6 +1679,52 @@ public class ValueDedupCensus {
 				"  fixed overhead - array cost)`; this table counts the first term, per band, so a threshold T can\n" +
 				"  be chosen against real bucket counts rather than against an assumption."
 		);
+		printSortedArrayProjection(rollUp);
+	}
+
+	/**
+	 * Prints the exact cardinality distribution of the Roaring bitmaps and what a sorted `int[]` would cost in their
+	 * place - the whole of issue #1455's arithmetic, on real buckets.
+	 *
+	 * The percentiles are read from an exact per-cardinality count rather than interpolated from the band edges above,
+	 * because the bands were chosen as the issue's candidate thresholds and reading a median off them would answer
+	 * with the threshold it was asked about.
+	 *
+	 * Two array totals are printed. The first is the issue's own arithmetic, `16 B + 4 B x cardinality`. The second
+	 * adds the four bytes of padding an odd-length `int[]` really pays, which is what the allocator would charge - the
+	 * two are quoted side by side rather than blended, so a reader can tell the model from the allocation.
+	 *
+	 * @param rollUp the catalog-wide histogram
+	 */
+	private static void printSortedArrayProjection(@Nonnull CardinalityHistogram rollUp) {
+		final long bitmaps = rollUp.multiRecordBucketCount();
+		final long roaringBytes = rollUp.totalBitmapBytes();
+		final long arrayBytes = rollUp.sortedArrayBytes(false);
+		final long alignedArrayBytes = rollUp.sortedArrayBytes(true);
+		System.out.printf("%n=== ISSUE #1455 - ROARING BITMAPS AGAINST SORTED INT ARRAYS ===%n");
+		System.out.printf("    %-38s %,16d%n", "bitmaps (multi-record buckets)", bitmaps);
+		System.out.printf("    %-38s %,16d%n", "records they hold", rollUp.multiRecordBucketRecords);
+		System.out.printf(
+			"    %-38s %16s%n", "cardinality p50 / p90 / p99 / max",
+			rollUp.cardinalityPercentile(0.50d) + " / " + rollUp.cardinalityPercentile(0.90d) + " / " +
+				rollUp.cardinalityPercentile(0.99d) + " / " + rollUp.maximumCardinality()
+		);
+		System.out.printf("    %-38s %16s%n", "roaring bytes today", bytes(roaringBytes));
+		System.out.printf("    %-38s %16s%n", "sorted int[] (16 B + 4 B x n)", bytes(arrayBytes));
+		System.out.printf("    %-38s %16s%n", "sorted int[], 8 B aligned", bytes(alignedArrayBytes));
+		System.out.printf(
+			"    %-38s %16s%n", "saving, every bucket converted", signedBytes(roaringBytes - arrayBytes)
+		);
+		System.out.printf(
+			"    %-38s %,16d%n", "buckets where roaring is smaller", rollUp.roaringAlreadySmallerBuckets
+		);
+		System.out.printf(
+			"    %-38s %16s%n", "  ...and by how much, summed", bytes(rollUp.roaringAlreadySmallerBytes)
+		);
+		System.out.printf(
+			"    %-38s %16s%n", "saving, converting only where it pays",
+			signedBytes(roaringBytes - arrayBytes + rollUp.roaringAlreadySmallerBytes)
+		);
 	}
 
 	/**
@@ -2849,6 +2921,19 @@ public class ValueDedupCensus {
 		@Nonnull private final long[] bucketCounts = new long[BUCKET_CARDINALITY_LABELS.length];
 		/** Roaring bytes per band, aligned with {@link #BUCKET_CARDINALITY_LABELS}. */
 		@Nonnull private final long[] bitmapBytes = new long[BUCKET_CARDINALITY_LABELS.length];
+		/** How many records the multi-record buckets hold between them, the second factor of the array projection. */
+		private long multiRecordBucketRecords;
+		/** How many multi-record buckets a sorted `int[]` would already be larger than the Roaring bitmap for. */
+		private long roaringAlreadySmallerBuckets;
+		/** By how many bytes, summed over those buckets alone. */
+		private long roaringAlreadySmallerBytes;
+		/**
+		 * Exact bucket counts indexed by cardinality, for cardinalities up to {@link #DENSE_CARDINALITY_LIMIT}.
+		 * Allocated on the first multi-record bucket, so a domain holding none costs nothing for it.
+		 */
+		@Nullable private long[] denseCardinalities;
+		/** Exact bucket counts for cardinalities above the dense limit, kept sparse because there are few of them. */
+		@Nonnull private final TreeMap<Integer, Long> sparseCardinalities = new TreeMap<>();
 
 		/**
 		 * Counts one single-record bucket.
@@ -2867,6 +2952,22 @@ public class ValueDedupCensus {
 			final int band = bandOf(cardinality);
 			this.bucketCounts[band]++;
 			this.bitmapBytes[band] += bitmapBytes;
+			this.multiRecordBucketRecords += cardinality;
+			final long arrayBytes = sortedArrayBytesFor(cardinality);
+			if (bitmapBytes < arrayBytes) {
+				// Roaring is already the cheaper representation here, so issue #1455 must not convert this bucket -
+				// counting these separately is what turns a headline saving into a defensible one
+				this.roaringAlreadySmallerBuckets++;
+				this.roaringAlreadySmallerBytes += arrayBytes - bitmapBytes;
+			}
+			if (cardinality <= DENSE_CARDINALITY_LIMIT) {
+				if (this.denseCardinalities == null) {
+					this.denseCardinalities = new long[DENSE_CARDINALITY_LIMIT + 1];
+				}
+				this.denseCardinalities[cardinality]++;
+			} else {
+				this.sparseCardinalities.merge(cardinality, 1L, Long::sum);
+			}
 		}
 
 		/**
@@ -2880,6 +2981,131 @@ public class ValueDedupCensus {
 				this.bucketCounts[band] += other.bucketCounts[band];
 				this.bitmapBytes[band] += other.bitmapBytes[band];
 			}
+			this.multiRecordBucketRecords += other.multiRecordBucketRecords;
+			this.roaringAlreadySmallerBuckets += other.roaringAlreadySmallerBuckets;
+			this.roaringAlreadySmallerBytes += other.roaringAlreadySmallerBytes;
+			if (other.denseCardinalities != null) {
+				if (this.denseCardinalities == null) {
+					this.denseCardinalities = new long[DENSE_CARDINALITY_LIMIT + 1];
+				}
+				for (int cardinality = 0; cardinality < this.denseCardinalities.length; cardinality++) {
+					this.denseCardinalities[cardinality] += other.denseCardinalities[cardinality];
+				}
+			}
+			for (final Map.Entry<Integer, Long> entry : other.sparseCardinalities.entrySet()) {
+				this.sparseCardinalities.merge(entry.getKey(), entry.getValue(), Long::sum);
+			}
+		}
+
+		/**
+		 * @return how many multi-record buckets the histogram covers, which is how many Roaring bitmaps exist behind it
+		 */
+		long multiRecordBucketCount() {
+			long total = 0L;
+			for (int band = 0; band < this.bucketCounts.length; band++) {
+				total += this.bucketCounts[band];
+			}
+			return total;
+		}
+
+		/**
+		 * Prices every multi-record bucket as the sorted `int[]` issue #1455 would put in its place.
+		 *
+		 * @param aligned whether to round each array up to the eight-byte boundary the JVM actually allocates on
+		 * @return the projected bytes across every multi-record bucket
+		 */
+		long sortedArrayBytes(boolean aligned) {
+			long total = SORTED_ARRAY_HEADER_BYTES * multiRecordBucketCount()
+				+ SORTED_ARRAY_ELEMENT_BYTES * this.multiRecordBucketRecords;
+			if (aligned) {
+				// an int[] of odd length pays four bytes of padding, and only the odd-length ones do - so the padding
+				// is counted per bucket rather than applied to the total
+				total += 4L * oddCardinalityBucketCount();
+			}
+			return total;
+		}
+
+		/**
+		 * @return how many multi-record buckets hold an odd number of records, and therefore pay array padding
+		 */
+		long oddCardinalityBucketCount() {
+			long odd = 0L;
+			final long[] dense = this.denseCardinalities;
+			if (dense != null) {
+				for (int cardinality = 1; cardinality < dense.length; cardinality += 2) {
+					odd += dense[cardinality];
+				}
+			}
+			for (final Map.Entry<Integer, Long> entry : this.sparseCardinalities.entrySet()) {
+				if ((entry.getKey() & 1) == 1) {
+					odd += entry.getValue();
+				}
+			}
+			return odd;
+		}
+
+		/**
+		 * Reads one percentile of the multi-record bucket cardinality distribution, exactly rather than from band
+		 * midpoints.
+		 *
+		 * @param quantile the quantile to read, between zero and one
+		 * @return the cardinality at that quantile, or zero when there is no multi-record bucket at all
+		 */
+		int cardinalityPercentile(double quantile) {
+			final long buckets = multiRecordBucketCount();
+			if (buckets == 0L) {
+				return 0;
+			}
+			final long rank = Math.max(1L, (long) Math.ceil(quantile * buckets));
+			long seen = 0L;
+			final long[] dense = this.denseCardinalities;
+			if (dense != null) {
+				for (int cardinality = 0; cardinality < dense.length; cardinality++) {
+					seen += dense[cardinality];
+					if (seen >= rank) {
+						return cardinality;
+					}
+				}
+			}
+			for (final Map.Entry<Integer, Long> entry : this.sparseCardinalities.entrySet()) {
+				seen += entry.getValue();
+				if (seen >= rank) {
+					return entry.getKey();
+				}
+			}
+			throw new GenericEvitaInternalError(
+				"Percentile " + quantile + " fell past every counted cardinality although " + buckets +
+					" buckets were counted - the distribution and its total disagree!",
+				"The cardinality distribution disagrees with its own bucket count!"
+			);
+		}
+
+		/**
+		 * @return the largest cardinality any multi-record bucket holds, or zero when there is none
+		 */
+		int maximumCardinality() {
+			if (!this.sparseCardinalities.isEmpty()) {
+				return this.sparseCardinalities.lastKey();
+			}
+			final long[] dense = this.denseCardinalities;
+			if (dense != null) {
+				for (int cardinality = dense.length - 1; cardinality >= 0; cardinality--) {
+					if (dense[cardinality] > 0L) {
+						return cardinality;
+					}
+				}
+			}
+			return 0;
+		}
+
+		/**
+		 * Prices one bucket as the sorted `int[]` issue #1455 would put in its place, unpadded.
+		 *
+		 * @param cardinality how many records the bucket holds
+		 * @return the projected bytes
+		 */
+		static long sortedArrayBytesFor(int cardinality) {
+			return SORTED_ARRAY_HEADER_BYTES + SORTED_ARRAY_ELEMENT_BYTES * cardinality;
 		}
 
 		/**
