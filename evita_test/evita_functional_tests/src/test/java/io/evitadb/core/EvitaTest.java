@@ -144,6 +144,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -5709,49 +5710,59 @@ class EvitaTest implements EvitaTestSupport {
 
 	/**
 	 * Activates the same catalog a second time while the first activation is still in flight and asserts
-	 * the engine refuses the second one.
+	 * the engine refuses the second one with {@link ConflictingEngineMutationException}.
 	 *
-	 * The overlap is established rather than hoped for. `EngineTransactionManager#applyMutation` registers
-	 * the mutation's conflict keys synchronously and only then hands the actual work to the engine executor,
-	 * so the instant the first thread's `applyMutation` returns is exactly the instant the conflict window
-	 * opens. That instant is signalled on the latch and the second attempt is issued after it — nothing here
-	 * depends on how the scheduler interleaves the two.
+	 * The overlap has to be *held* open, not merely waited for. `EngineTransactionManager#applyMutation`
+	 * registers the mutation's conflict keys synchronously, but it also dispatches the work before it returns:
+	 * {@link io.evitadb.api.requestResponse.progress.ProgressRecord} calls `ProgressingFuture#execute` from its
+	 * own constructor, and the completion callback that *removes* the conflict keys can therefore run before the
+	 * first thread ever gets its {@link Progress} back. Signalling on the return of `applyMutation` - which this
+	 * helper used to do - only proves the mutation was submitted, never that its conflict window is still open.
 	 *
-	 * That dependency is what made this test flaky: both attempts used to be submitted through
-	 * {@link CompletableFuture#runAsync(Runnable)}, which routes them to
-	 * {@link java.util.concurrent.ForkJoinPool#commonPool()} — a process-wide pool shared with every other
-	 * test class running concurrently. A saturated pool starts the second task only once the first has
-	 * finished, by which time the conflict window is long closed.
+	 * So the window is pinned from inside the mutation instead. The progress observer passed to `applyMutation`
+	 * is notified twice from two different places: once at 0% from the issuing thread, inside `applyMutation`
+	 * itself while it still holds the engine state lock, and then from the engine executor as the catalog loads.
+	 * Only the latter is usable - the issuing thread's notification arrives while the lock that the second
+	 * attempt needs is still held, so blocking there would starve it into a lock timeout instead of a conflict.
+	 * Blocking on an executor notification, by contrast, lands exactly in the window: the lock is released, the
+	 * conflict keys are registered, and completion cannot remove them until this helper lets go.
 	 *
-	 * Two outcomes are legitimate, and both are asserted rather than assumed:
-	 *
-	 * - the second attempt finds the window open and fails with {@link ConflictingEngineMutationException} —
-	 *   the property this test exists for, and what happens in practice;
-	 * - the first activation completed before the second attempt reached the guard, so the second one is
-	 *   rejected by {@link SetCatalogStateMutation#verifyApplicability(io.evitadb.api.EvitaContract)} with
-	 *   {@link InvalidMutationException} because the catalog is already active. That is evidence the window
-	 *   closed, not evidence the guard is missing.
-	 *
-	 * What must never happen — and what a missing guard would produce — is both attempts succeeding.
+	 * That is what makes the outcome an assertion rather than a coin toss. The earlier version of this test also
+	 * accepted an {@link InvalidMutationException} saying the catalog was already active, on the grounds that it
+	 * proved the window had closed. It proves nothing of the sort: that is exactly what an engine with *no*
+	 * conflict guard at all returns once the first activation has finished, so accepting it let the test pass
+	 * against the very defect it exists to catch. The window is now held open, so the only correct answer is the
+	 * conflict.
 	 *
 	 * @param catalog catalog name
 	 */
 	private void activateCatalogTwiceInParallelExpectingConflict(@Nonnull String catalog) {
 		final CountDownLatch conflictWindowOpen = new CountDownLatch(1);
+		final CountDownLatch secondAttemptDecided = new CountDownLatch(1);
+		final AtomicBoolean windowHeldOpen = new AtomicBoolean();
 		final AtomicReference<Throwable> firstOutcome = new AtomicReference<>();
 		final Thread firstAttempt = new Thread(
 			() -> {
+				final Thread issuingThread = Thread.currentThread();
 				try {
 					final Progress<Void> progress = this.evita.applyMutation(
-						new SetCatalogStateMutation(catalog, true)
+						new SetCatalogStateMutation(catalog, true),
+						percentCompleted -> {
+							// anything reported from a thread other than the one that issued the mutation comes from
+							// the engine executor, which is only reached after the engine state lock has been released
+							// and while the conflict keys are still registered - see this method's javadoc
+							if (Thread.currentThread() != issuingThread) {
+								windowHeldOpen.set(true);
+								conflictWindowOpen.countDown();
+								awaitQuietly(secondAttemptDecided);
+							}
+						}
 					);
-					// the conflict keys are registered by now - let the second attempt in
-					conflictWindowOpen.countDown();
 					progress.onCompletion().toCompletableFuture().join();
 				} catch (Throwable ex) {
 					firstOutcome.set(ex);
 				} finally {
-					// releases the second attempt also when the first one never got as far as registering
+					// releases the second attempt also when the first one never reached the engine executor
 					conflictWindowOpen.countDown();
 				}
 			},
@@ -5781,6 +5792,9 @@ class EvitaTest implements EvitaTestSupport {
 			Thread.currentThread().interrupt();
 			fail("Interrupted while waiting for the first activation to open the conflict window!");
 		} finally {
+			// the engine executor thread is parked inside the progress observer until this is released, so it has
+			// to happen on every path out - including the interrupted one - or the first activation never completes
+			secondAttemptDecided.countDown();
 			joinQuietly(firstAttempt);
 		}
 
@@ -5790,25 +5804,22 @@ class EvitaTest implements EvitaTestSupport {
 			firstFailure,
 			() -> "The first activation of `" + catalog + "` was expected to succeed, but it failed with: " + firstFailure
 		);
+		assertTrue(
+			windowHeldOpen.get(),
+			"The first activation never reported progress from the engine executor, so the conflict window was never " +
+				"held open and the second attempt raced it instead of hitting it - this test proved nothing!"
+		);
 		assertNotNull(
 			secondOutcome,
 			"Both activations of `" + catalog + "` succeeded - the engine did not reject the conflicting one!"
 		);
 
-		if (findInCauseChain(secondOutcome, ConflictingEngineMutationException.class) == null) {
-			final InvalidMutationException alreadyActive = findInCauseChain(
-				secondOutcome, InvalidMutationException.class
-			);
-			assertNotNull(
-				alreadyActive,
-				"The second activation of `" + catalog + "` failed with an unexpected exception: " + secondOutcome
-			);
-			assertTrue(
-				alreadyActive.getMessage().contains("is already active"),
-				"The second activation of `" + catalog + "` was rejected for an unexpected reason: " +
-					alreadyActive.getMessage()
-			);
-		}
+		final Throwable rejection = secondOutcome;
+		assertNotNull(
+			findInCauseChain(secondOutcome, ConflictingEngineMutationException.class),
+			() -> "The second activation of `" + catalog + "` was issued while the first one was provably still in " +
+				"flight, so the conflict guard had to refuse it - instead it failed with: " + rejection
+		);
 
 		// the catalog was deactivated from WARMING_UP, so activation returns it there rather than to ALIVE -
 		// what matters is that exactly one activation took effect
@@ -5852,6 +5863,23 @@ class EvitaTest implements EvitaTestSupport {
 	private static void joinQuietly(@Nonnull Thread thread) {
 		try {
 			thread.join(TimeUnit.MINUTES.toMillis(1));
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+		}
+	}
+
+	/**
+	 * Waits for the passed latch to open without letting an interruption escape into engine code.
+	 *
+	 * This runs on an engine executor thread, so an {@link InterruptedException} thrown from here would surface as
+	 * a failure of the mutation being observed rather than of the test - the flag is restored and the wait simply
+	 * ends instead. The bound keeps a test that never releases the latch from parking an engine thread for good.
+	 *
+	 * @param latch the latch to wait for
+	 */
+	private static void awaitQuietly(@Nonnull CountDownLatch latch) {
+		try {
+			latch.await(1, TimeUnit.MINUTES);
 		} catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
 		}
