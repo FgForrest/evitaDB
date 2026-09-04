@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-04 07:15
+updated: 2026-09-04 10:15
 status: accepted
 kind: optimization
 issues: [1486]
@@ -498,6 +498,41 @@ proportionally larger against a smaller total, and the census charged the tempor
   with no normalization and natural ordering, discarding the plain type, so a tree round-tripped through
   it lands on the boxed column whatever its type. Loaders go through the attribute index loader instead,
   so it is unreachable today — but a column selected off the plain type must know it exists.
+- **The reader-side guard family was completed in a follow-up, and the gap was in the sweep rather than
+  in the reasoning.** The first round bound seven cursor sites against the arrays they index; two more
+  shapes survived it. `findLeafNode` — the allocation-free descent behind every point lookup — wrote
+  `getChildren()[searchIndex(key)]`, and because Java evaluates the array expression *before* the index
+  expression, that captures the pre-growth array and indexes it with an index computed from a freshly
+  read `keys`/`peek` pair. Separately, all five `findKeyPosition` implementations took the caller's
+  `peek + 1` as their bound while reading their own key array later, inside the call. Both are now bound
+  to the array actually indexed. **What let the first round miss them is worth more than the fix:** the
+  concurrency sweep's reader took the three cursor descents and the heap walk, and no reader in it ever
+  called a point lookup — so the one descent that is not a cursor was never executed at all. A sweep
+  proves nothing about an entry point it does not call, and "the tree is covered" is not the same claim
+  as "every way into the tree is covered". The sweep now probes `contains`, `cardinalityOf`, `valueIdOf`,
+  `getRecordsEqualTo` and `computePreviousRecord` on every pass.
+- **Two `getChildren()[getPeek()]` pairs are deliberately left unguarded.** `predecessorLeaf` and
+  `predecessorLeafOf` carry the same array-first shape, but both are reached only from the insert path's
+  boundary asserts, which run with a happens-before edge to the writer. The clamp would be a provable
+  no-op there, so decorating them would suggest a hazard that does not exist at those sites. The four
+  reads in the consistency-check report are a different case and remain genuinely open: that report
+  catches `IllegalStateException` only, so a concurrent warm-up writer can produce an escaped
+  `ArrayIndexOutOfBoundsException` or a false BROKEN verdict.
+- **`FrontCodedStringColumn`'s publish is still torn, and its bound guards only half of it.** Its search
+  is now bounded by the observable live run like its siblings, but `restartOffsets`, `data`, `size` and
+  `hasEncodedSurrogate` are four separate field stores with no combined publish, so a reader can still
+  pair a new blob with a stale restart offset, or decode new WTF-8 through a stale
+  `hasEncodedSurrogate == false` and silently mangle lone surrogates. That predates this work, belongs to
+  `2026-08-31-front-coded-column-stores-wtf8`, and the comment at the search site says so explicitly so
+  the partial guard cannot be read as a complete one.
+- **The public go-live path does not drain incumbent warm-up sessions.** Adjacent to the session-admission
+  note above and also untouched here. `Evita#makeCatalogAliveWithProgress` applies the mutation directly;
+  `closeAllSessionsAndSuspend` has exactly one caller in the main tree, the session-driven
+  `EvitaSession#goLiveAndCloseWithProgress`, and neither `MakeCatalogAliveMutationOperator` nor
+  `Catalog#goLive()` fences a session. The operator does install an `UnusableCatalog(GOING_ALIVE)`
+  synchronously, which refuses *new* sessions for the duration — so the exposure is narrower than it
+  first looks — but a session opened *before* the transition holds the superseded `Catalog` instance and
+  nothing drains it, so warm-up writes racing the `flush()`/`goLive()` pair can be lost.
 - **The site inventory needed a second sweep, and that is the process lesson.** One reading of a
   6,000-line region produced four classes of omission, two of which would have thrown on first
   execution: a missing column mutator with four call sites, ten unlisted raw overflow-array moves, a
