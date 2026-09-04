@@ -5757,6 +5757,10 @@ class EvitaTest implements EvitaTestSupport {
 			},
 			"first-catalog-activation"
 		);
+		// a genuine engine hang is exactly what this test guards against, and the join inside the thread body is
+		// unbounded - so the thread must not be able to hold the surefire fork open after the test has already
+		// failed on its own bounded join (see `.claude/rules/testing.md`)
+		firstAttempt.setDaemon(true);
 
 		Throwable secondOutcome = null;
 		firstAttempt.start();
