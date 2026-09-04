@@ -2285,23 +2285,37 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldReportLeafForOverflowOnlyBitmapMutation() {
 			// value 0 is a multi bucket (0 % 5 == 0) holding {0, 1}
 			final TreeTuple prepared = prepareRandomMultiTree(13L, 300, 5);
+			// grow it past the small-bucket threshold so its record set is a live, mutable TransactionalBitmap. Only
+			// the bitmap tier can be mutated behind the leaf's back at all - a sorted-array bucket is immutable and
+			// every change to it goes through the leaf, which then acquires a layer of its own - and it is that
+			// behind-the-back mutation this test exists to prove the rebuilt-node detection still catches
+			final int[] filler = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD];
+			for (int i = 0; i < filler.length; i++) {
+				filler[i] = 1_000 + i;
+			}
+			prepared.tree().addRecord(0, filler);
+			final int cardinalityBefore = prepared.tree().getRecordsEqualTo(0).size();
+
 			assertStateAfterCommit(
 				prepared.tree(),
 				tree -> {
 					// mutate the live overflow bitmap directly, bypassing the leaf's addRecord — so the leaf node
 					// itself never acquires a transactional layer (the case the old leaf-layer predicate missed)
 					final Bitmap records = tree.getRecordsEqualTo(0);
-					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a multi-record bucket.");
+					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a bitmap-tier bucket.");
 					records.add(9_999);
 				},
 				(original, committed) -> {
 					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
 					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
 					assertEquals(1, leafCount(rebuilt), "The overflow mutation must rebuild exactly its one leaf.");
-					assertArrayEquals(
-						new int[] {0, 1, 9_999}, committed.getRecordsEqualTo(0).getArray(),
+					final Bitmap committedRecords = committed.getRecordsEqualTo(0);
+					assertEquals(
+						cardinalityBefore + 1, committedRecords.size(),
 						"The committed tree must carry the overflow-added record."
 					);
+					assertTrue(committedRecords.contains(9_999), "The added record must be present.");
+					assertTrue(committedRecords.contains(0) && committedRecords.contains(1), "No record may be lost.");
 				}
 			);
 		}
@@ -3841,7 +3855,9 @@ class TransactionalBucketBPlusTreeTest {
 			assertEquals(6, leaf.getOverflow().size(), "the overflow column covers exactly the live buckets");
 			assertEquals(255, leaf.getOverflow().capacity(), "its logical capacity is still the block size");
 			for (int value = 0; value < 6; value++) {
-				assertNotNull(leaf.getOverflow().bitmapAt(value), "bucket " + value + " must carry a bitmap");
+				assertNotNull(
+					leaf.getOverflow().recordsAt(value), "bucket " + value + " must carry a multi-record set"
+				);
 				assertArrayEquals(
 					new int[]{value * 100, value * 100 + 1, value * 100 + 2}, recordsOf(tree, value),
 					"records lost at value " + value

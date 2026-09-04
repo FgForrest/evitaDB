@@ -43,6 +43,8 @@ import java.io.Serializable;
  * - {@link ValueToRecordBitmap} - the multi-record, {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}-backed bucket. It is
  *   *mutable*: record ids are added / removed in place, isolated transactionally by the inner
  *   {@link TransactionalBitmap}.
+ * - {@link ValueToRecordArray} - the small multi-record bucket. It stores the ids as a sorted `int[]` (again no
+ *   {@code PersistentRoaringBitmap}), and is *immutable* for the same reason.
  * - {@link ValueToRecordPrimitive} - the single-record bucket. It stores the lone record id as a bare `int` (no
  *   {@code PersistentRoaringBitmap}, no inner transactional bitmap) and is therefore *immutable*: any change produces a brand-new
  *   instance.
@@ -53,7 +55,9 @@ import java.io.Serializable;
  * {@link TransactionalBitmap}. A {@code ValueToRecord} is therefore a transient *flyweight* materialized on demand over
  * a leaf slot - the per-bucket projection that lets callers (serializer DTO, iterator bridge) read a bucket through one
  * uniform interface while the storage stays decomposed. {@link ValueToRecordPrimitive} is the flyweight over the
- * `int`-column case, {@link ValueToRecordBitmap} over the overflow-bitmap case.
+ * `int`-column case, {@link ValueToRecordArray} over the small-array overflow slot and {@link ValueToRecordBitmap}
+ * over the bitmap one. A bucket's tier is not a function of its cardinality (the promote and demote thresholds
+ * differ), so a consumer must dispatch on the implementation it is handed, never on {@link #size()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

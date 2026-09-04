@@ -1,0 +1,809 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.bPlusTree;
+
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.SortedArrayBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import java.util.Arrays;
+import java.util.UUID;
+import java.util.PrimitiveIterator.OfInt;
+import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
+
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Verifies the three-tier record-set representation of a {@link TransactionalBucketBPlusTree} bucket introduced for
+ * issue #1455: a single record in the primitive column, a sorted `int[]` up to
+ * {@link OverflowRecords#SMALL_BUCKET_THRESHOLD}, a {@link TransactionalBitmap} above it.
+ *
+ * The suite covers the boundary at which each transition happens, the MVCC isolation the array tier inherits from the
+ * leaf rather than owning itself, the equality of what a query reads across all three tiers, and the heap the tier is
+ * there to save.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+@DisplayName("Bucket record-set tiers")
+class BucketRecordTierTest {
+	/**
+	 * A leaf block size wide enough that every test here stays inside one leaf, so a tier assertion reads the same
+	 * slot the mutation touched.
+	 */
+	private static final int LEAF_BLOCK_SIZE = 255;
+	/**
+	 * The value whose bucket every test mutates.
+	 */
+	private static final int VALUE = 42;
+
+	/**
+	 * @return an empty bucket tree with {@link #LEAF_BLOCK_SIZE} slots per leaf
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<Integer> emptyTree() {
+		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class);
+	}
+
+	/**
+	 * Builds a tree whose {@link #VALUE} bucket holds `recordCount` records, added one at a time so the bucket passes
+	 * through every tier transition the production write path would take it through.
+	 *
+	 * @param recordCount how many records the bucket must end up holding
+	 * @return the populated tree
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<Integer> treeWithBucketOfSize(int recordCount) {
+		final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+		for (int record = 1; record <= recordCount; record++) {
+			tree.addRecord(VALUE, record);
+		}
+		return tree;
+	}
+
+	/**
+	 * Reads the raw overflow slot of {@link #VALUE}'s bucket - the tier itself, not a view of it.
+	 *
+	 * @param tree the tree to look into
+	 * @return the slot content: `null` for a single-record bucket, an `int[]` or a {@link TransactionalBitmap} otherwise
+	 */
+	@Nullable
+	private static Object overflowSlot(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+		final OverflowColumn overflow = leaf.getOverflow();
+		if (overflow == null) {
+			return null;
+		}
+		return overflow.recordsAt(leaf.getValueIndex(VALUE));
+	}
+
+	/**
+	 * @param tree the tree to read
+	 * @return the record ids of {@link #VALUE}'s bucket, in the order the bucket enumerates them
+	 */
+	@Nonnull
+	private static int[] recordsOfValue(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		return tree.getRecordsEqualTo(VALUE).getArray();
+	}
+
+	/**
+	 * @param count how many ids to produce
+	 * @return the ids `1..count`
+	 */
+	@Nonnull
+	private static int[] idsUpTo(int count) {
+		final int[] ids = new int[count];
+		for (int i = 0; i < count; i++) {
+			ids[i] = i + 1;
+		}
+		return ids;
+	}
+
+	/**
+	 * Runs `insideTransaction` under a real transaction, then either commits it - handing the committed copy of the
+	 * tree to `afterCommit` - or rolls it back, leaving the original untouched.
+	 *
+	 * @param tree              the tree under test
+	 * @param insideTransaction the writes to perform inside the transaction
+	 * @param afterCommit       receives the committed copy; `null` rolls the transaction back instead
+	 */
+	private static void inTransaction(
+		@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+		@Nonnull Runnable insideTransaction,
+		@Nullable Consumer<TransactionalBucketBPlusTree<Integer>> afterCommit
+	) {
+		final CommitCapturingHandler handler = new CommitCapturingHandler(tree);
+		Transaction.executeInTransactionIfProvided(
+			new Transaction(UUID.randomUUID(), handler, false),
+			() -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				try {
+					insideTransaction.run();
+				} finally {
+					if (afterCommit == null) {
+						transaction.setRollbackOnly();
+					}
+					transaction.close();
+				}
+			}
+		);
+		if (afterCommit != null) {
+			afterCommit.accept(
+				assertNotNullCommitted(handler.getCommitted())
+			);
+		}
+	}
+
+	/**
+	 * @param committed the committed copy captured by the handler
+	 * @return the same instance, once it is proven present
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<Integer> assertNotNullCommitted(
+		@Nullable TransactionalBucketBPlusTree<Integer> committed
+	) {
+		assertNotNull(committed, "the transaction must have committed and produced a merged tree");
+		return committed;
+	}
+
+	/**
+	 * Transaction handler that captures the committed copy of the tree under test, so a test can assert on what the
+	 * commit merge produced rather than on what the open transaction saw.
+	 */
+	private static final class CommitCapturingHandler implements TransactionHandler {
+		@Nonnull private final TransactionalBucketBPlusTree<Integer> tree;
+		@Nullable private TransactionalBucketBPlusTree<Integer> committed;
+
+		CommitCapturingHandler(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			this.tree = tree;
+		}
+
+		@Nullable
+		TransactionalBucketBPlusTree<Integer> getCommitted() {
+			return this.committed;
+		}
+
+		@Override
+		public void registerMutation(@Nonnull Mutation mutation) {
+			// no mutation recording is needed for a structure-level test
+		}
+
+		@Override
+		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
+			transactionalLayer.verifyLayerWasFullySwept();
+		}
+
+		@Override
+		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
+			// the writes made inside are discarded; only the untouched original matters
+		}
+	}
+
+	@Nested
+	@DisplayName("Promotion boundary")
+	class PromotionBoundary {
+
+		@Test
+		@DisplayName("the second record leaves the primitive tier for a sorted array, not a bitmap")
+		void shouldPromoteSingleToArrayOnSecondRecord() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(1);
+			assertNull(overflowSlot(tree), "a one-record bucket keeps its id in the primitive column");
+
+			tree.addRecord(VALUE, 2);
+
+			assertArrayEquals(
+				new int[]{1, 2},
+				assertInstanceOf(
+					int[].class, overflowSlot(tree),
+					"the second record must promote the bucket into the sorted-array tier"
+				),
+				"the promoted array must hold both ids in order"
+			);
+		}
+
+		@Test
+		@DisplayName("a bucket holding exactly the threshold is still an array, and the next record makes it a bitmap")
+		void shouldPromoteArrayToBitmapAboveThreshold() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold);
+
+			final int[] atThreshold = assertInstanceOf(
+				int[].class, overflowSlot(tree),
+				"a bucket of exactly " + threshold + " records must still be a sorted array"
+			);
+			assertEquals(threshold, atThreshold.length);
+
+			tree.addRecord(VALUE, threshold + 1);
+
+			assertInstanceOf(
+				TransactionalBitmap.class, overflowSlot(tree),
+				"record " + (threshold + 1) + " must promote the bucket to a bitmap"
+			);
+			assertArrayEquals(idsUpTo(threshold + 1), recordsOfValue(tree), "no record may be lost by the promotion");
+		}
+
+		@Test
+		@DisplayName("a bulk add that crosses the threshold in one step promotes to a bitmap")
+		void shouldPromoteToBitmapOnBulkAddCrossingThreshold() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(2);
+
+			final int[] bulk = new int[threshold];
+			for (int i = 0; i < threshold; i++) {
+				bulk[i] = i + 3;
+			}
+			tree.addRecord(VALUE, bulk);
+
+			assertInstanceOf(
+				TransactionalBitmap.class, overflowSlot(tree),
+				"a bulk add whose union exceeds the threshold must land in the bitmap tier"
+			);
+			assertArrayEquals(idsUpTo(threshold + 2), recordsOfValue(tree));
+		}
+
+		@Test
+		@DisplayName("re-adding a record the bucket already holds allocates no new array")
+		void shouldKeepTheSameArrayWhenReAddingAMember() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(5);
+			final Object before = overflowSlot(tree);
+
+			tree.addRecord(VALUE, 3);
+
+			assertTrue(before == overflowSlot(tree), "a no-op add must leave the very same array in the slot");
+			assertArrayEquals(idsUpTo(5), recordsOfValue(tree));
+		}
+	}
+
+	@Nested
+	@DisplayName("Demotion")
+	class Demotion {
+
+		@Test
+		@DisplayName("a bitmap that shrinks to the demotion threshold becomes an array at the commit merge")
+		void shouldDemoteBitmapToArrayAtCommit() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final int demotion = OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+			assertInstanceOf(TransactionalBitmap.class, overflowSlot(tree));
+
+			final int[] doomed = new int[threshold + 1 - demotion];
+			for (int i = 0; i < doomed.length; i++) {
+				doomed[i] = demotion + 1 + i;
+			}
+			inTransaction(
+				tree,
+				() -> {
+					tree.removeRecord(VALUE, doomed);
+					assertInstanceOf(
+						TransactionalBitmap.class, overflowSlot(tree),
+						"the representation must NOT change mid-transaction"
+					);
+				},
+				committed -> {
+					final int[] demoted = assertInstanceOf(
+						int[].class, overflowSlot(committed),
+						"a bucket at or below the demotion threshold must settle back into a sorted array"
+					);
+					assertArrayEquals(idsUpTo(demotion), demoted);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a bitmap still above the demotion threshold stays a bitmap after the commit merge")
+		void shouldKeepBitmapAboveDemotionThreshold() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final int demotion = OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+
+			// remove one record fewer than the demotion test, landing exactly one above the demotion threshold - the
+			// hysteresis gap is what this asserts, so the boundary is tested from both sides
+			final int[] doomed = new int[threshold - demotion];
+			for (int i = 0; i < doomed.length; i++) {
+				doomed[i] = demotion + 2 + i;
+			}
+			inTransaction(
+				tree,
+				() -> tree.removeRecord(VALUE, doomed),
+				committed -> assertInstanceOf(
+					TransactionalBitmap.class, overflowSlot(committed),
+					"a bucket of " + (demotion + 1) + " records must stay a bitmap - demotion is at " + demotion
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an array bucket reduced to one record returns to the primitive tier at the commit merge")
+		void shouldDemoteArrayToSingleAtCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(4);
+			assertInstanceOf(int[].class, overflowSlot(tree));
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.removeRecord(VALUE, 2, 3, 4);
+					assertInstanceOf(
+						int[].class, overflowSlot(tree), "the representation must NOT change mid-transaction"
+					);
+				},
+				committed -> {
+					assertNull(overflowSlot(committed), "a one-record bucket must go back to the primitive column");
+					assertArrayEquals(new int[]{1}, recordsOfValue(committed));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("draining an array bucket of every record deletes the bucket")
+		void shouldDeleteBucketWhenArrayDrains() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(3);
+
+			tree.removeRecord(VALUE, 1, 2, 3);
+
+			assertTrue(tree.getRecordsEqualTo(VALUE).isEmpty(), "the drained bucket must be gone");
+			assertEquals(-1, tree.enumerateLeaves().get(0).getValueIndex(VALUE));
+		}
+	}
+
+	@Nested
+	@DisplayName("MVCC isolation")
+	class Isolation {
+
+		@Test
+		@DisplayName("a rolled-back add to an array bucket leaves the committed bucket unchanged")
+		void shouldLeaveCommittedArrayBucketIntactOnRollback() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(4);
+			final Object committedSlotBefore = overflowSlot(tree);
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.addRecord(VALUE, 99);
+					assertArrayEquals(
+						new int[]{1, 2, 3, 4, 99}, recordsOfValue(tree),
+						"the writing transaction must see its own record"
+					);
+				},
+				null
+			);
+
+			assertArrayEquals(idsUpTo(4), recordsOfValue(tree), "the rolled-back record must not survive");
+			assertTrue(
+				committedSlotBefore == overflowSlot(tree),
+				"the committed leaf must still point at the very array it held before the transaction"
+			);
+			assertArrayEquals(
+				idsUpTo(4), assertInstanceOf(int[].class, committedSlotBefore),
+				"and that array must not have been written to in place"
+			);
+		}
+
+		@Test
+		@DisplayName("a committed add to an array bucket is visible after the merge")
+		void shouldPublishArrayBucketAddOnCommit() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(4);
+
+			inTransaction(
+				tree,
+				() -> tree.addRecord(VALUE, 99),
+				committed -> {
+					assertArrayEquals(
+						new int[]{1, 2, 3, 4, 99}, recordsOfValue(committed),
+						"the committed tree must carry the record the transaction added"
+					);
+					assertArrayEquals(
+						idsUpTo(4), recordsOfValue(tree),
+						"and the pre-commit instance must be untouched, as MVCC requires"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled-back removal from an array bucket leaves the committed bucket unchanged")
+		void shouldLeaveCommittedArrayBucketIntactOnRolledBackRemoval() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(6);
+
+			inTransaction(tree, () -> tree.removeRecord(VALUE, 2, 4), null);
+
+			assertArrayEquals(idsUpTo(6), recordsOfValue(tree), "the rolled-back removal must not survive");
+		}
+	}
+
+	@Nested
+	@DisplayName("Read parity across the tiers")
+	class ReadParity {
+
+		@Test
+		@DisplayName("the same record set reads identically whichever tier holds it")
+		void shouldReadIdenticallyInEveryTier() {
+			// one record: the primitive tier; five: the array tier; threshold + 1: the bitmap tier
+			for (final int size : new int[]{1, 5, OverflowRecords.SMALL_BUCKET_THRESHOLD + 1}) {
+				final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(size);
+				final Bitmap records = tree.getRecordsEqualTo(VALUE);
+
+				assertEquals(size, records.size(), "cardinality differs at size " + size);
+				assertArrayEquals(idsUpTo(size), records.getArray(), "ids differ at size " + size);
+				assertEquals(1, records.getFirst(), "first differs at size " + size);
+				assertEquals(size, records.getLast(), "last differs at size " + size);
+				assertTrue(records.contains(size), "contains(last) differs at size " + size);
+				assertFalse(records.contains(size + 1), "contains(absent) differs at size " + size);
+				assertEquals(size, tree.cardinalityOf(VALUE), "tree cardinality differs at size " + size);
+			}
+		}
+
+		@Test
+		@DisplayName("the previous-record anchor answers the same in the array and bitmap tiers")
+		void shouldAnswerPreviousRecordIdenticallyInEveryTier() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> asArray = treeWithBucketOfSize(threshold);
+			final TransactionalBucketBPlusTree<Integer> asBitmap = treeWithBucketOfSize(threshold + 1);
+			// take the extra record back out so both trees hold the same ids in different tiers
+			asBitmap.removeRecord(VALUE, threshold + 1);
+			assertInstanceOf(int[].class, overflowSlot(asArray));
+			assertInstanceOf(TransactionalBitmap.class, overflowSlot(asBitmap));
+
+			for (final int probe : new int[]{1, 2, 17, threshold, threshold + 1}) {
+				assertEquals(
+					asBitmap.computePreviousRecord(VALUE, probe), asArray.computePreviousRecord(VALUE, probe),
+					"the anchor before record " + probe + " must not depend on the tier"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a record set the array tier holds is read-only from outside")
+		void shouldRefuseMutationOfTheArrayView() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(4);
+			final Bitmap records = tree.getRecordsEqualTo(VALUE);
+
+			assertInstanceOf(SortedArrayBitmap.class, records);
+			assertThrows(UnsupportedOperationException.class, () -> records.add(9));
+			assertThrows(UnsupportedOperationException.class, () -> records.remove(1));
+		}
+	}
+
+	@Nested
+	@DisplayName("Unsigned ordering")
+	class UnsignedOrdering {
+
+		@Test
+		@DisplayName("an array bucket holding negative ids answers exactly as the bitmap tier would")
+		void shouldPresentNegativeIdsLikeARoaringBitmap() {
+			final int[] ids = {7, -3, Integer.MIN_VALUE, 0, Integer.MAX_VALUE, -1};
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			for (final int id : ids) {
+				tree.addRecord(VALUE, id);
+			}
+			assertInstanceOf(int[].class, overflowSlot(tree));
+			final Bitmap arrayTier = tree.getRecordsEqualTo(VALUE);
+			// the same ids in the tier this bucket would be in above the threshold
+			final TransactionalBitmap bitmapTier = new TransactionalBitmap(ids);
+
+			// getArray() is SIGNED (negatives first) on both tiers - that is what TransactionalBitmap answers
+			assertArrayEquals(
+				bitmapTier.getArray(), arrayTier.getArray(),
+				"getArray must answer in the same signed order on both tiers"
+			);
+			// while positional access and iteration are UNSIGNED on both (negatives last), which is roaring's own order
+			assertEquals(bitmapTier.getFirst(), arrayTier.getFirst(), "getFirst differs between the tiers");
+			assertEquals(bitmapTier.getLast(), arrayTier.getLast(), "getLast differs between the tiers");
+			for (int i = 0; i < ids.length; i++) {
+				assertEquals(bitmapTier.get(i), arrayTier.get(i), "get(" + i + ") differs between the tiers");
+			}
+			final OfInt bitmapIt = bitmapTier.iterator();
+			final OfInt arrayIt = arrayTier.iterator();
+			while (bitmapIt.hasNext()) {
+				assertEquals(bitmapIt.nextInt(), arrayIt.nextInt(), "iteration order differs between the tiers");
+			}
+			assertFalse(arrayIt.hasNext(), "the array tier must not enumerate more ids than the bitmap tier");
+			for (final int id : ids) {
+				assertEquals(bitmapTier.indexOf(id), arrayTier.indexOf(id), "indexOf(" + id + ") differs");
+			}
+		}
+
+		@Test
+		@DisplayName("the signed predecessor of an array bucket matches the roaring answer for the same ids")
+		void shouldAnswerSignedPreviousValueLikeARoaringBitmap() {
+			final int[] ids = {7, -3, Integer.MIN_VALUE, 0, Integer.MAX_VALUE, -1};
+			final int[] sorted = RoaringBitmapBackedBitmap.fromArray(ids).toArray();
+			final PersistentRoaringBitmap reference = RoaringBitmapBackedBitmap.fromArray(ids);
+
+			for (final int probe : new int[]{
+				Integer.MIN_VALUE, Integer.MIN_VALUE + 1, -4, -3, -2, -1, 0, 6, 7, 8, Integer.MAX_VALUE
+			}) {
+				assertEquals(
+					RoaringBitmapBackedBitmap.signedPreviousValue(reference, probe),
+					OverflowRecords.signedPreviousValue(sorted, probe),
+					"the signed predecessor of " + probe + " must not depend on the tier"
+				);
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Heap")
+	class Heap {
+
+		@Test
+		@DisplayName("a leaf of small buckets costs far less in the array tier than in the bitmap tier")
+		void shouldCostLessInTheArrayTier() {
+			final int bucketCount = 200;
+			final int recordsPerBucket = 5;
+
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			for (int value = 0; value < bucketCount; value++) {
+				for (int record = 1; record <= recordsPerBucket; record++) {
+					tree.addRecord(value, value * 1000 + record);
+				}
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final OverflowColumn overflow = leaf.getOverflow();
+			assertNotNull(overflow);
+
+			long arrayTierBytes = 0L;
+			long bitmapTierBytes = 0L;
+			for (int slot = 0; slot < bucketCount; slot++) {
+				final Object records = overflow.recordsAt(slot);
+				final int[] asArray = assertInstanceOf(int[].class, records, "bucket " + slot + " must be an array");
+				arrayTierBytes += OverflowRecords.heapSizeInBytes(asArray);
+				bitmapTierBytes += new TransactionalBitmap(asArray).getHeapSizeInBytes();
+			}
+
+			// measured on the running VM's layout: 200 buckets of 5 record ids each
+			assertTrue(
+				arrayTierBytes * 4 < bitmapTierBytes,
+				"the array tier must cost less than a quarter of the bitmap tier, was " + arrayTierBytes
+					+ " B against " + bitmapTierBytes + " B"
+			);
+		}
+
+		@Test
+		@DisplayName("the leaf's own heap figure follows the tier a bucket is in")
+		void shouldChargeTheLeafForTheTierItHolds() {
+			final TransactionalBucketBPlusTree<Integer> small = treeWithBucketOfSize(4);
+			final TransactionalBucketBPlusTree<Integer> large =
+				treeWithBucketOfSize(OverflowRecords.SMALL_BUCKET_THRESHOLD + 1);
+
+			// the sizer prices a boxed Integer key; it is the same on both sides, so it cancels out of the comparison
+			final ToLongFunction<Object> keySizer = key -> 16L;
+			assertTrue(
+				small.getHeapSizeInBytes(keySizer) < large.getHeapSizeInBytes(keySizer),
+				"a four-record array bucket must be charged less than a bitmap bucket"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Record-set algebra")
+	class RecordSetAlgebra {
+
+		@Test
+		@DisplayName("removing ids the bucket does not hold changes nothing")
+		void shouldIgnoreAbsentIdsOnRemoval() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(5);
+			final Object before = overflowSlot(tree);
+
+			tree.removeRecord(VALUE, 77, 88);
+
+			assertTrue(before == overflowSlot(tree), "a no-op removal must leave the very same array in the slot");
+			assertArrayEquals(idsUpTo(5), recordsOfValue(tree));
+		}
+
+		@Test
+		@DisplayName("a bulk add with repeats and members stores each id exactly once")
+		void shouldDeduplicateBulkAdds() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(3);
+
+			tree.addRecord(VALUE, 3, 3, 5, 4, 5, 1);
+
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5}, recordsOfValue(tree));
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5}, assertInstanceOf(int[].class, overflowSlot(tree)));
+		}
+
+		@Test
+		@DisplayName("a bucket born multi-record arrives sorted and distinct")
+		void shouldSortAndDeduplicateANewlyInsertedBucket() {
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+
+			tree.addRecord(VALUE, 9, 3, 9, 1);
+
+			assertArrayEquals(new int[]{1, 3, 9}, recordsOfValue(tree));
+			assertArrayEquals(new int[]{1, 3, 9}, assertInstanceOf(int[].class, overflowSlot(tree)));
+		}
+
+		@Test
+		@DisplayName("the unsigned search agrees with a linear scan over ids of both signs")
+		void shouldSearchUnsignedSortedArrays() {
+			final int[] ids = RoaringBitmapBackedBitmap
+				.fromArray(new int[]{5, -7, Integer.MIN_VALUE, 0, Integer.MAX_VALUE}).toArray();
+
+			for (final int id : ids) {
+				assertEquals(
+					linearIndexOf(ids, id), SortedArrayBitmap.unsignedBinarySearch(ids, id),
+					"the search must find " + id + " where a scan does"
+				);
+			}
+			assertTrue(SortedArrayBitmap.unsignedBinarySearch(ids, 1) < 0, "an absent id must report absent");
+		}
+
+		/**
+		 * @param ids the array to scan
+		 * @param id  the id to look for
+		 * @return the index of `id`, or `-1`
+		 */
+		private static int linearIndexOf(@Nonnull int[] ids, int id) {
+			for (int i = 0; i < ids.length; i++) {
+				if (ids[i] == id) {
+					return i;
+				}
+			}
+			return -1;
+		}
+	}
+
+	@Nested
+	@DisplayName("Bulk load")
+	class BulkLoad {
+
+		@Test
+		@DisplayName("a persisted page of small buckets loads straight into the array tier")
+		void shouldLoadSmallBucketsAsArrays() {
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			final Object[] overflow = {
+				OverflowRecords.loadedRecordSet(new TransactionalBitmap(1, 2, 3)),
+				null,
+				OverflowRecords.loadedRecordSet(new TransactionalBitmap(idsUpTo(OverflowRecords.SMALL_BUCKET_THRESHOLD + 1)))
+			};
+
+			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{0, 7, 0}, overflow, 3);
+
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final OverflowColumn column = leaf.getOverflow();
+			assertNotNull(column);
+			assertArrayEquals(new int[]{1, 2, 3}, assertInstanceOf(int[].class, column.recordsAt(0)));
+			assertNull(column.recordsAt(1), "a single-record bucket carries no slot");
+			assertInstanceOf(
+				TransactionalBitmap.class, column.recordsAt(2),
+				"a bucket above the threshold must load as a bitmap"
+			);
+			assertArrayEquals(new int[]{1, 2, 3}, tree.getRecordsEqualTo(10).getArray());
+			assertArrayEquals(new int[]{7}, tree.getRecordsEqualTo(20).getArray());
+			assertEquals(
+				OverflowRecords.SMALL_BUCKET_THRESHOLD + 1, tree.getRecordsEqualTo(30).size()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Split and merge")
+	class SplitAndMerge {
+
+		@Test
+		@DisplayName("array buckets survive a leaf split with every record intact")
+		void shouldKeepArrayBucketsAcrossASplit() {
+			// a small block size forces splits after a handful of buckets, moving array slots between leaves
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			for (int value = 0; value < 40; value++) {
+				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
+			}
+
+			assertTrue(tree.enumerateLeaves().size() > 1, "the tree must have split");
+			for (int value = 0; value < 40; value++) {
+				assertArrayEquals(
+					new int[]{value * 10 + 1, value * 10 + 2, value * 10 + 3},
+					tree.getRecordsEqualTo(value).getArray(),
+					"records lost at value " + value
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("array buckets survive the leaf merges a bulk deletion causes")
+		void shouldKeepArrayBucketsAcrossMerges() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			for (int value = 0; value < 40; value++) {
+				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
+			}
+			for (int value = 0; value < 40; value += 2) {
+				tree.removeRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
+			}
+
+			for (int value = 1; value < 40; value += 2) {
+				assertArrayEquals(
+					new int[]{value * 10 + 1, value * 10 + 2, value * 10 + 3},
+					tree.getRecordsEqualTo(value).getArray(),
+					"records lost at surviving value " + value
+				);
+			}
+			for (int value = 0; value < 40; value += 2) {
+				assertTrue(tree.getRecordsEqualTo(value).isEmpty(), "value " + value + " must be gone");
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Refusals")
+	class Refusals {
+
+		@Test
+		@DisplayName("a slot of an unexpected shape is refused rather than mis-cast")
+		void shouldRefuseAForeignSlotShape() {
+			assertThrows(
+				io.evitadb.exception.GenericEvitaInternalError.class,
+				() -> OverflowRecords.cardinality("not a record set")
+			);
+		}
+
+		@Test
+		@DisplayName("the sorted view refuses a range outside the array")
+		void shouldRefuseAnOutOfBoundsRange() {
+			final SortedArrayBitmap view = new SortedArrayBitmap(1, 2, 3);
+			assertThrows(IndexOutOfBoundsException.class, () -> view.getRange(0, 4));
+			assertArrayEquals(new int[]{2, 3}, view.getRange(1, 3));
+		}
+
+		@Test
+		@DisplayName("the sorted view hands out a copy, never the array it wraps")
+		void shouldHandOutACopyOfTheArray() {
+			final int[] backing = {1, 2, 3};
+			final SortedArrayBitmap view = new SortedArrayBitmap(backing);
+
+			final int[] handedOut = view.getArray();
+			handedOut[0] = 99;
+
+			assertArrayEquals(new int[]{1, 2, 3}, backing, "the wrapped array must not be reachable for writing");
+			assertArrayEquals(new int[]{1, 2, 3}, Arrays.copyOf(view.getArray(), 3));
+		}
+	}
+
+}

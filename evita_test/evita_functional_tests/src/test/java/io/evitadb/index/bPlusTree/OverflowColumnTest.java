@@ -82,8 +82,8 @@ class OverflowColumnTest {
 			final OverflowColumn column = new OverflowColumn(BLOCK);
 			assertEquals(BLOCK, column.capacity());
 			assertEquals(0, column.size());
-			assertNull(column.bitmapAt(0), "an unmaterialized slot reads as null");
-			assertNull(column.bitmapAt(BLOCK - 1), "the whole logical run reads as null");
+			assertNull(column.recordsAt(0), "an unmaterialized slot reads as null");
+			assertNull(column.recordsAt(BLOCK - 1), "the whole logical run reads as null");
 		}
 
 		@Test
@@ -118,7 +118,7 @@ class OverflowColumnTest {
 		@DisplayName("a read past the logical capacity is a programming error")
 		void shouldThrowWhenReadingPastTheLogicalCapacity() {
 			final OverflowColumn column = new OverflowColumn(BLOCK);
-			assertThrows(GenericEvitaInternalError.class, () -> column.bitmapAt(BLOCK));
+			assertThrows(GenericEvitaInternalError.class, () -> column.recordsAt(BLOCK));
 		}
 
 		@Test
@@ -146,7 +146,7 @@ class OverflowColumnTest {
 			}
 			assertEquals(3, column.size(), "a tiny block still fills completely");
 			for (int i = 0; i < 3; i++) {
-				assertEquals(bitmap(i), column.bitmapAt(i), "content mismatch at slot " + i);
+				assertEquals(bitmap(i), column.recordsAt(i), "content mismatch at slot " + i);
 			}
 			assertThrows(
 				GenericEvitaInternalError.class, () -> column.setAt(3, bitmap(3)),
@@ -166,7 +166,7 @@ class OverflowColumnTest {
 			assertEquals(BLOCK, column.capacity(), "no mutation ever moves the logical capacity");
 			assertTrue(column.getHeapSizeInBytes() > emptyHeap, "the backing array grew with the content");
 			for (int i = 0; i < 12; i++) {
-				assertEquals(bitmap(i), column.bitmapAt(i), "content mismatch at slot " + i);
+				assertEquals(bitmap(i), column.recordsAt(i), "content mismatch at slot " + i);
 			}
 		}
 
@@ -177,7 +177,7 @@ class OverflowColumnTest {
 			assertEquals(7, column.size());
 			assertEquals(BLOCK, column.capacity());
 			for (int i = 0; i < 7; i++) {
-				assertNull(column.bitmapAt(i), "every slot of a freshly aligned column is null");
+				assertNull(column.recordsAt(i), "every slot of a freshly aligned column is null");
 			}
 		}
 
@@ -190,9 +190,9 @@ class OverflowColumnTest {
 			final OverflowColumn column = new OverflowColumn(BLOCK);
 			column.bulkLoad(source, 5);
 			assertEquals(5, column.size());
-			assertEquals(bitmap(1), column.bitmapAt(1));
-			assertEquals(bitmap(4), column.bitmapAt(4));
-			assertNull(column.bitmapAt(0));
+			assertEquals(bitmap(1), column.recordsAt(1));
+			assertEquals(bitmap(4), column.recordsAt(4));
+			assertNull(column.recordsAt(0));
 
 			// a five-slot page costs its object plus a five-reference array and nothing more - the whole point of
 			// sizing at load time rather than growing into the block size
@@ -209,16 +209,16 @@ class OverflowColumnTest {
 			final OverflowColumn emptyPage = new OverflowColumn(BLOCK);
 			emptyPage.bulkLoad(source, 0);
 			assertEquals(0, emptyPage.size(), "a page holding nothing materializes nothing");
-			assertNull(emptyPage.bitmapAt(0));
+			assertNull(emptyPage.recordsAt(0));
 
 			// and a source shorter than the page leaves the shortfall null - what a page holding no multi bucket
 			// past that point means
 			final OverflowColumn shortSource = new OverflowColumn(BLOCK);
 			shortSource.bulkLoad(new TransactionalBitmap[]{bitmap(0)}, 4);
 			assertEquals(4, shortSource.size(), "the live run follows the page, not the source array");
-			assertEquals(bitmap(0), shortSource.bitmapAt(0));
+			assertEquals(bitmap(0), shortSource.recordsAt(0));
 			for (int i = 1; i < 4; i++) {
-				assertNull(shortSource.bitmapAt(i), "the shortfall must read as null at slot " + i);
+				assertNull(shortSource.recordsAt(i), "the shortfall must read as null at slot " + i);
 			}
 		}
 	}
@@ -235,9 +235,9 @@ class OverflowColumnTest {
 			column.insertAt(1, bitmap(1));
 			column.insertAt(1, null);
 			assertEquals(3, column.size());
-			assertEquals(bitmap(0), column.bitmapAt(0));
-			assertNull(column.bitmapAt(1), "the inserted single bucket carries no bitmap");
-			assertEquals(bitmap(1), column.bitmapAt(2));
+			assertEquals(bitmap(0), column.recordsAt(0));
+			assertNull(column.recordsAt(1), "the inserted single bucket carries no bitmap");
+			assertEquals(bitmap(1), column.recordsAt(2));
 		}
 
 		@Test
@@ -249,9 +249,9 @@ class OverflowColumnTest {
 			}
 			column.removeAt(0);
 			assertEquals(2, column.size());
-			assertEquals(bitmap(1), column.bitmapAt(0));
-			assertEquals(bitmap(2), column.bitmapAt(1));
-			assertNull(column.bitmapAt(2), "nothing may survive past the live run - an alias would be discarded twice");
+			assertEquals(bitmap(1), column.recordsAt(0));
+			assertEquals(bitmap(2), column.recordsAt(1));
+			assertNull(column.recordsAt(2), "nothing may survive past the live run - an alias would be discarded twice");
 		}
 
 		@Test
@@ -261,9 +261,9 @@ class OverflowColumnTest {
 			column.setAt(5, bitmap(5));
 			assertEquals(6, column.size());
 			for (int i = 0; i < 5; i++) {
-				assertNull(column.bitmapAt(i), "the materialized gap must read as null at slot " + i);
+				assertNull(column.recordsAt(i), "the materialized gap must read as null at slot " + i);
 			}
-			assertEquals(bitmap(5), column.bitmapAt(5));
+			assertEquals(bitmap(5), column.recordsAt(5));
 		}
 
 		@Test
@@ -275,7 +275,7 @@ class OverflowColumnTest {
 			}
 			column.clearAt(4);
 			assertEquals(4, column.size());
-			assertNull(column.bitmapAt(4));
+			assertNull(column.recordsAt(4));
 
 			// a truncation at or past the live run is a strict no-op, which is what makes it safe on a committed
 			// column a transactional layer still aliases
@@ -297,8 +297,8 @@ class OverflowColumnTest {
 			column.removeAt(2);
 			column.removeAt(BLOCK - 1);
 			assertEquals(2, column.size(), "a removal past the live run must not shorten it");
-			assertEquals(bitmap(0), column.bitmapAt(0));
-			assertEquals(bitmap(1), column.bitmapAt(1));
+			assertEquals(bitmap(0), column.recordsAt(0));
+			assertEquals(bitmap(1), column.recordsAt(1));
 		}
 	}
 
@@ -317,7 +317,7 @@ class OverflowColumnTest {
 			source.copyRangeTo(2, destination, 0, 4);
 			assertEquals(4, destination.size());
 			for (int i = 0; i < 4; i++) {
-				assertEquals(bitmap(i + 2), destination.bitmapAt(i), "copied slot mismatch at " + i);
+				assertEquals(bitmap(i + 2), destination.recordsAt(i), "copied slot mismatch at " + i);
 			}
 		}
 
@@ -330,9 +330,9 @@ class OverflowColumnTest {
 			destination.insertAt(0, bitmap(9));
 			source.copyRangeTo(0, destination, 4, 1);
 			assertEquals(5, destination.size());
-			assertEquals(bitmap(9), destination.bitmapAt(0));
-			assertNull(destination.bitmapAt(2), "the gap opened by the copy must read as null");
-			assertEquals(bitmap(0), destination.bitmapAt(4));
+			assertEquals(bitmap(9), destination.recordsAt(0));
+			assertNull(destination.recordsAt(2), "the gap opened by the copy must read as null");
+			assertEquals(bitmap(0), destination.recordsAt(4));
 		}
 
 		@Test
@@ -345,7 +345,7 @@ class OverflowColumnTest {
 			column.copyRangeTo(0, column, 3, 4);
 			assertEquals(7, column.size());
 			for (int i = 0; i < 4; i++) {
-				assertEquals(bitmap(i), column.bitmapAt(i + 3), "shifted slot mismatch at " + (i + 3));
+				assertEquals(bitmap(i), column.recordsAt(i + 3), "shifted slot mismatch at " + (i + 3));
 			}
 		}
 
@@ -359,9 +359,9 @@ class OverflowColumnTest {
 			receiver.copyRangeTo(0, receiver, 2, 3);
 			receiver.fillNulls(0, 2);
 			assertEquals(5, receiver.size());
-			assertNull(receiver.bitmapAt(0), "the vacated range must not alias the shifted-from bitmaps");
-			assertNull(receiver.bitmapAt(1));
-			assertEquals(bitmap(0), receiver.bitmapAt(2));
+			assertNull(receiver.recordsAt(0), "the vacated range must not alias the shifted-from bitmaps");
+			assertNull(receiver.recordsAt(1));
+			assertEquals(bitmap(0), receiver.recordsAt(2));
 		}
 
 		@Test
@@ -380,10 +380,10 @@ class OverflowColumnTest {
 			// receiver's own buckets end
 			column.fillNulls(2, 2);
 			assertEquals(4, column.size());
-			assertEquals(bitmap(0), column.bitmapAt(0), "a fill must not disturb what is live");
-			assertEquals(bitmap(1), column.bitmapAt(1));
-			assertNull(column.bitmapAt(2), "the appended run must read as null");
-			assertNull(column.bitmapAt(3));
+			assertEquals(bitmap(0), column.recordsAt(0), "a fill must not disturb what is live");
+			assertEquals(bitmap(1), column.recordsAt(1));
+			assertNull(column.recordsAt(2), "the appended run must read as null");
+			assertNull(column.recordsAt(3));
 		}
 
 		@Test
@@ -402,7 +402,7 @@ class OverflowColumnTest {
 			// the range that stops at the donor's live end is served as before
 			source.copyRangeTo(0, destination, 0, 2);
 			assertEquals(2, destination.size());
-			assertEquals(bitmap(1), destination.bitmapAt(1), "the multi bucket must arrive as a multi bucket");
+			assertEquals(bitmap(1), destination.recordsAt(1), "the multi bucket must arrive as a multi bucket");
 		}
 	}
 
@@ -427,13 +427,13 @@ class OverflowColumnTest {
 				"a duplicate keeps the physical shape verbatim and never trims"
 			);
 			assertSame(
-				shared, copy.bitmapAt(0),
+				shared, copy.recordsAt(0),
 				"the clone must be SHALLOW - each bitmap owns its own transactional layer and memento"
 			);
 
 			// ...and the arrays are independent, so the layer can null a slot without disturbing the committed leaf
 			copy.setAt(0, null);
-			assertSame(shared, column.bitmapAt(0), "the duplicate must not alias the source's array");
+			assertSame(shared, column.recordsAt(0), "the duplicate must not alias the source's array");
 		}
 
 		@Test
@@ -454,11 +454,11 @@ class OverflowColumnTest {
 			assertEquals(8, headroom.size(), "the copy carries the source's live run");
 			assertEquals(BLOCK, headroom.capacity(), "a duplication must never move the logical capacity");
 			assertSame(
-				column.bitmapAt(0), headroom.bitmapAt(0),
+				column.recordsAt(0), headroom.recordsAt(0),
 				"the clone stays SHALLOW - each bitmap owns its own transactional layer and memento"
 			);
-			assertSame(column.bitmapAt(6), headroom.bitmapAt(6));
-			assertNull(headroom.bitmapAt(1), "a single bucket's slot must still read as null");
+			assertSame(column.recordsAt(6), headroom.recordsAt(6));
+			assertNull(headroom.recordsAt(1), "a single bucket's slot must still read as null");
 
 			final OverflowColumn reference = new OverflowColumn(BLOCK);
 			for (int i = 0; i < 9; i++) {
@@ -479,7 +479,7 @@ class OverflowColumnTest {
 			assertEquals(9, headroom.size());
 			assertEquals(beforeInsert, headroom.getHeapSizeInBytes(), "the layer's first insert must land in place");
 			assertEquals(8, column.size(), "the source must not observe the copy's insert");
-			assertSame(column.bitmapAt(0), headroom.bitmapAt(0), "the copy must still share the bitmaps it carried");
+			assertSame(column.recordsAt(0), headroom.recordsAt(0), "the copy must still share the bitmaps it carried");
 
 			// a column that still has slack is copied verbatim - its next insert has nothing to grow
 			final OverflowColumn withSlack = OverflowColumn.withLiveRun(BLOCK, 0);
@@ -521,7 +521,7 @@ class OverflowColumnTest {
 			assertEquals(BLOCK, trimmed.capacity(), "trimming never moves the logical capacity");
 			assertTrue(trimmed.getHeapSizeInBytes() < fullHeap, "a trim must actually give the bytes back");
 			for (int i = 0; i < 3; i++) {
-				assertEquals(bitmap(i), trimmed.bitmapAt(i), "a trim must preserve the content at slot " + i);
+				assertEquals(bitmap(i), trimmed.recordsAt(i), "a trim must preserve the content at slot " + i);
 			}
 		}
 	}

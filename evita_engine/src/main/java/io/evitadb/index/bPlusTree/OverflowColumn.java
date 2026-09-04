@@ -34,18 +34,28 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
- * The lazy **multi-record** column of a {@link TransactionalBucketBPlusTree} leaf: one
- * {@link TransactionalBitmap} reference per bucket, `null` at every bucket that still holds its single record in the
- * primitive {@link RecordColumn}. The presence of a bitmap at a slot **is** the leaf's single/multi discriminator, so
- * this column is the third parallel column of the leaf and moves in lockstep with the key and record columns through
- * every insert, delete, split, steal and merge.
+ * The lazy **multi-record** column of a {@link TransactionalBucketBPlusTree} leaf: one record-set reference per
+ * bucket, `null` at every bucket that still holds its single record in the primitive {@link RecordColumn}. The
+ * presence of a record set at a slot **is** the leaf's single/multi discriminator, so this column is the third
+ * parallel column of the leaf and moves in lockstep with the key and record columns through every insert, delete,
+ * split, steal and merge.
+ *
+ * ## A slot is an untyped reference, and what may legally sit in it
+ *
+ * A live slot holds either a sorted, immutable `int[]` (the small-bucket tier) or a {@link TransactionalBitmap} (the
+ * large one); {@link OverflowRecords} owns the whole state machine that decides which, and every operation on a slot's
+ * content. This column is deliberately ignorant of the distinction — it moves references and nothing else.
+ *
+ * The slots are typed `Object` rather than a sealed interface because an `int[]` cannot implement one, and wrapping
+ * every small bucket to give it a type would add a header and an indirection to hundreds of thousands of buckets. See
+ * {@link OverflowRecords} for the full argument.
  *
  * ## Why it is a class and not another member of the sealed family
  *
  * {@link ValueColumn} and {@link RecordColumn} are sealed interfaces because their storage has several genuinely
  * different physical shapes (boxed vs. primitive keys, 4-byte vs. 8-byte payloads) that the tree picks between at
- * construction. The overflow column has exactly one: an array of bitmap references. A second type would buy nothing,
- * so this is a plain final class carrying the same contract the two interfaces state.
+ * construction. The overflow column has exactly one: an array of references. A second type would buy nothing, so this
+ * is a plain final class carrying the same contract the two interfaces state.
  *
  * ## Logical capacity, physical backing
  *
@@ -63,14 +73,22 @@ import java.util.Arrays;
  *
  * ## The memento contract — the clone is deliberately SHALLOW
  *
- * {@link #duplicate()} copies the **array**, never the bitmaps in it, and that is not an optimization but the
- * transactional contract. Each {@link TransactionalBitmap} is itself a transactional structure owning its own diff
- * layer and its own savepoint memento, so a leaf-level snapshot only has to remember *which slot points at which
- * bitmap*; the bitmaps snapshot and restore themselves. Deep-copying them here would produce a second, detached
- * instance whose later mutations the commit sweep would never see — and would double-discard the layer of the one it
- * replaced. The same shallow contract serves the MVCC decouple of a transactional layer, where the layer must be free
- * to null a slot or point it at a freshly promoted bitmap without disturbing the committed leaf, while a bitmap both
- * of them still reference stays exactly one object.
+ * {@link #duplicate()} copies the **array**, never the record sets in it, and that is not an optimization but the
+ * transactional contract. It holds for both tiers, for two different reasons.
+ *
+ * A {@link TransactionalBitmap} is itself a transactional structure owning its own diff layer and its own savepoint
+ * memento, so a leaf-level snapshot only has to remember *which slot points at which bitmap*; the bitmaps snapshot
+ * and restore themselves. Deep-copying them here would produce a second, detached instance whose later mutations the
+ * commit sweep would never see — and would double-discard the layer of the one it replaced.
+ *
+ * An `int[]` slot is never written in place ({@link OverflowRecords} returns a new array for every content change),
+ * so the pre-image a memento has to preserve is the *reference*, and copying the reference array preserves it
+ * exactly. A deep copy would preserve nothing extra and would cost one array allocation per multi bucket per
+ * snapshot.
+ *
+ * The same shallow contract serves the MVCC decouple of a transactional layer, where the layer must be free to null a
+ * slot or point it at a freshly promoted record set without disturbing the committed leaf, while a record set both of
+ * them still reference stays exactly one object.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -80,14 +98,14 @@ final class OverflowColumn {
 	 */
 	private final int capacity;
 	/**
-	 * The number of materialized slots held in {@link #bitmaps}. Slots in {@code [size, capacity)} read as `null`.
+	 * The number of materialized slots held in {@link #recordSets}. Slots in {@code [size, capacity)} read as `null`.
 	 */
 	private int size;
 	/**
-	 * The bitmap reference backing array, sized to the live content rather than to {@link #capacity}. Slots in
-	 * {@code [size, bitmaps.length)} are always `null`.
+	 * The record-set reference backing array, sized to the live content rather than to {@link #capacity}. Slots in
+	 * {@code [size, recordSets.length)} are always `null`.
 	 */
-	@Nonnull private TransactionalBitmap[] bitmaps;
+	@Nonnull private Object[] recordSets;
 
 	/**
 	 * Creates an empty column for a leaf of the given block size.
@@ -104,7 +122,7 @@ final class OverflowColumn {
 	OverflowColumn(int capacity) {
 		this.capacity = capacity;
 		this.size = 0;
-		this.bitmaps = new TransactionalBitmap[Math.min(ColumnSizing.MIN_PHYSICAL_LENGTH, capacity)];
+		this.recordSets = new Object[Math.min(ColumnSizing.MIN_PHYSICAL_LENGTH, capacity)];
 	}
 
 	/**
@@ -112,12 +130,12 @@ final class OverflowColumn {
 	 *
 	 * @param capacity the logical capacity
 	 * @param size     the materialized slot count
-	 * @param bitmaps  the backing array to adopt
+	 * @param recordSets the backing array to adopt
 	 */
-	private OverflowColumn(int capacity, int size, @Nonnull TransactionalBitmap[] bitmaps) {
+	private OverflowColumn(int capacity, int size, @Nonnull Object[] recordSets) {
 		this.capacity = capacity;
 		this.size = size;
-		this.bitmaps = bitmaps;
+		this.recordSets = recordSets;
 	}
 
 	/**
@@ -166,34 +184,35 @@ final class OverflowColumn {
 	 * @return the live run that is safe to index without synchronization
 	 */
 	int observableLiveRun() {
-		return Math.min(this.size, this.bitmaps.length);
+		return Math.min(this.size, this.recordSets.length);
 	}
 
 	/**
-	 * Returns a column holding the same bitmap references with its physical backing shrunk to the live content, or
+	 * Returns a column holding the same record-set references with its physical backing shrunk to the live content, or
 	 * {@code this} when the slack does not justify the copy. See {@link ValueColumn#trimmed()} for why it belongs at
 	 * the commit merge and nowhere else.
 	 *
-	 * The shrunk copy shares the bitmaps with this column, for the reason {@link #duplicate()} states.
+	 * The shrunk copy shares the record sets with this column, for the reason {@link #duplicate()} states.
 	 *
 	 * @return a shrunk copy, or {@code this} when no shrink is warranted
 	 */
 	@Nonnull
 	OverflowColumn trimmed() {
-		final int target = ColumnSizing.trimmedLength(this.size, this.bitmaps.length, this.capacity);
-		if (target == this.bitmaps.length) {
+		final int target = ColumnSizing.trimmedLength(this.size, this.recordSets.length, this.capacity);
+		if (target == this.recordSets.length) {
 			return this;
 		}
-		return new OverflowColumn(this.capacity, this.size, Arrays.copyOf(this.bitmaps, target));
+		return new OverflowColumn(this.capacity, this.size, Arrays.copyOf(this.recordSets, target));
 	}
 
 	/**
-	 * Creates a copy of this column with an independent backing array but the **same** bitmap instances in it. Used to
+	 * Creates a copy of this column with an independent backing array but the **same** record-set instances in it. Used to
 	 * decouple a transactional layer's overflow column from the shared base on first write, and to snapshot it into a
 	 * savepoint memento.
 	 *
-	 * **The clone is shallow by contract, not by omission** — see the type javadoc: every {@link TransactionalBitmap}
-	 * owns its own diff layer and its own memento, so the leaf must remember only which slot points at which bitmap.
+	 * **The clone is shallow by contract, not by omission** — see the type javadoc: a {@link TransactionalBitmap} owns
+	 * its own diff layer and its own memento, and an `int[]` slot is never written in place, so the leaf must remember
+	 * only which slot points at which record set.
 	 *
 	 * **The copy keeps the source's physical length verbatim and never trims it** (use {@link #trimmed()} for that): a
 	 * decoupled layer is about to be written, and a memento has to be a faithful pre-image so a rollback does not
@@ -203,7 +222,7 @@ final class OverflowColumn {
 	 */
 	@Nonnull
 	OverflowColumn duplicate() {
-		return new OverflowColumn(this.capacity, this.size, this.bitmaps.clone());
+		return new OverflowColumn(this.capacity, this.size, this.recordSets.clone());
 	}
 
 	/**
@@ -213,7 +232,7 @@ final class OverflowColumn {
 	 * {@link ValueColumn#duplicateForInsert()} for the measurement behind it and for the invariant that the savepoint
 	 * memento must keep using {@link #duplicate()}.
 	 *
-	 * The bitmaps are shared with this column, for the reason {@link #duplicate()} states; the slots the extra length
+	 * The record sets are shared with this column, for the reason {@link #duplicate()} states; the slots the extra length
 	 * opens are `null`, which is what an unwritten overflow slot has always read as.
 	 *
 	 * @return a shallow copy of this column, sized to absorb one more slot without reallocating
@@ -222,12 +241,13 @@ final class OverflowColumn {
 	OverflowColumn duplicateForInsert() {
 		return new OverflowColumn(
 			this.capacity, this.size,
-			Arrays.copyOf(this.bitmaps, ColumnSizing.headroomLength(this.size, this.bitmaps.length, this.capacity))
+			Arrays.copyOf(this.recordSets, ColumnSizing.headroomLength(this.size, this.recordSets.length, this.capacity))
 		);
 	}
 
 	/**
-	 * Returns the multi-record bitmap held at the given slot, or `null` when that bucket is still single.
+	 * Returns the multi-record record set held at the given slot — a sorted `int[]` or a {@link TransactionalBitmap},
+	 * as {@link OverflowRecords} decides — or `null` when that bucket is still single.
 	 *
 	 * A slot at or beyond {@link #size()} but below {@link #capacity()} reads `null`, the value an unwritten slot has
 	 * always held.
@@ -241,12 +261,12 @@ final class OverflowColumn {
 	 * before it raises the count — see {@link ValueColumn#observableLiveRun()}.
 	 *
 	 * @param index the slot to read
-	 * @return the bucket's bitmap, or `null` when the bucket is single
+	 * @return the bucket's record set, or `null` when the bucket is single
 	 */
 	@Nullable
-	TransactionalBitmap bitmapAt(int index) {
-		final TransactionalBitmap[] theBitmaps = this.bitmaps;
-		return index < Math.min(this.size, theBitmaps.length) ? theBitmaps[index] : emptySlotAt(index);
+	Object recordsAt(int index) {
+		final Object[] theRecordSets = this.recordSets;
+		return index < Math.min(this.size, theRecordSets.length) ? theRecordSets[index] : emptySlotAt(index);
 	}
 
 	/**
@@ -257,20 +277,20 @@ final class OverflowColumn {
 	 * {@link #size()} becomes {@code index + 1}.
 	 *
 	 * @param index  the slot to overwrite
-	 * @param bitmap the bucket's multi-record bitmap, or `null` to mark the bucket single
+	 * @param records the bucket's record set - a sorted `int[]` or a {@link TransactionalBitmap} - or `null` to mark the bucket single
 	 */
-	void setAt(int index, @Nullable TransactionalBitmap bitmap) {
+	void setAt(int index, @Nullable Object records) {
 		if (index >= this.size) {
 			ensurePhysicalLength(index + 1);
 			// the gap between the old live end and `index` is already null - the array grows out of a null-filled
 			// allocation and every mutator nulls what it releases
 			this.size = index + 1;
 		}
-		this.bitmaps[index] = bitmap;
+		this.recordSets[index] = records;
 	}
 
 	/**
-	 * Inserts {@code bitmap} at {@code index}, shifting the live tail one slot to the right and raising {@link #size()}
+	 * Inserts {@code records} at {@code index}, shifting the live tail one slot to the right and raising {@link #size()}
 	 * by one (the leaf grows {@code peek} afterwards). Passing `null` is how a newly inserted **single** bucket takes
 	 * its place in a leaf that already carries multi buckets.
 	 *
@@ -278,23 +298,23 @@ final class OverflowColumn {
 	 * column. Only the live tail moves — {@code size() - index} slots — never the whole block.
 	 *
 	 * @param index  the insertion position
-	 * @param bitmap the inserted bucket's bitmap, or `null` when the new bucket is single
+	 * @param records the inserted bucket's record set, or `null` when the new bucket is single
 	 */
-	void insertAt(int index, @Nullable TransactionalBitmap bitmap) {
+	void insertAt(int index, @Nullable Object records) {
 		final int liveSize = this.size;
 		if (index >= liveSize) {
 			// inserting into the null tail: shifting nulls right changes nothing, so this is a plain write
-			setAt(index, bitmap);
+			setAt(index, records);
 			return;
 		}
 		ensurePhysicalLength(liveSize + 1);
-		System.arraycopy(this.bitmaps, index, this.bitmaps, index + 1, liveSize - index);
-		this.bitmaps[index] = bitmap;
+		System.arraycopy(this.recordSets, index, this.recordSets, index + 1, liveSize - index);
+		this.recordSets[index] = records;
 		this.size = liveSize + 1;
 	}
 
 	/**
-	 * Bulk-populates this freshly created (empty) column from an already-known slice of bitmap references — the
+	 * Bulk-populates this freshly created (empty) column from an already-known slice of record-set references — the
 	 * load-time counterpart to {@code count} sequential {@link #insertAt} calls, used when a persisted leaf page is
 	 * replayed and the full slot set is known up front.
 	 *
@@ -302,24 +322,24 @@ final class OverflowColumn {
 	 * lands at its exact footprint with no overshoot at all. A source shorter than {@code count} leaves the remaining
 	 * slots `null`, which is what a page holding no multi bucket past that point means.
 	 *
-	 * @param bitmaps the bitmap references to load; only {@code bitmaps[0, count)} are read
+	 * @param recordSets the record-set references to load; only {@code recordSets[0, count)} are read
 	 * @param count   the number of live slots ({@code <= capacity()})
 	 */
-	void bulkLoad(@Nonnull TransactionalBitmap[] bitmaps, int count) {
+	void bulkLoad(@Nonnull Object[] recordSets, int count) {
 		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
 		// always a fresh array: the contract says this column is freshly created, and reusing the existing backing
 		// would make this the one mutator in the family that writes into an array it did not allocate
-		final TransactionalBitmap[] target = new TransactionalBitmap[count];
-		System.arraycopy(bitmaps, 0, target, 0, Math.min(count, bitmaps.length));
-		this.bitmaps = target;
+		final Object[] target = new Object[count];
+		System.arraycopy(recordSets, 0, target, 0, Math.min(count, recordSets.length));
+		this.recordSets = target;
 		this.size = count;
 	}
 
 	/**
 	 * Removes the slot at {@code index}, shifting the live tail one slot to the left and lowering {@link #size()} by
 	 * one (the leaf clears the freed last slot via {@link #clearAt} and shrinks {@code peek} afterwards). The vacated
-	 * slot is nulled, so no bitmap reference survives past the live run and a moved bitmap is never aliased at two
-	 * slots — an alias would be committed, and discarded, twice by the transactional merge sweep.
+	 * slot is nulled, so no record-set reference survives past the live run and a moved record set is never aliased at
+	 * two slots — an aliased bitmap would be committed, and discarded, twice by the transactional merge sweep.
 	 *
 	 * Removing a slot at or beyond {@link #size()} is a no-op rather than an error: that region is already `null`, and
 	 * dropping one `null` out of a run of `null`s leaves a run of `null`s.
@@ -330,9 +350,9 @@ final class OverflowColumn {
 		if (index >= this.size) {
 			return;
 		}
-		System.arraycopy(this.bitmaps, index + 1, this.bitmaps, index, this.size - index - 1);
+		System.arraycopy(this.recordSets, index + 1, this.recordSets, index, this.size - index - 1);
 		this.size--;
-		this.bitmaps[this.size] = null;
+		this.recordSets[this.size] = null;
 	}
 
 	/**
@@ -346,7 +366,7 @@ final class OverflowColumn {
 	 */
 	void clearAt(int index) {
 		if (index < this.size) {
-			Arrays.fill(this.bitmaps, index, this.size, null);
+			Arrays.fill(this.recordSets, index, this.size, null);
 			this.size = index;
 		}
 	}
@@ -372,8 +392,8 @@ final class OverflowColumn {
 	 * This is the "donor carries no overflow column" half of the leaf's rebalancing: the receiver has multi buckets
 	 * and the donor does not, so every donated bucket is single and its slot here must read `null`. The range cannot
 	 * simply be left alone — the receiver has just shifted its own buckets aside with a copy rather than a move, so
-	 * the vacated range still aliases the shifted-from bitmaps, and leaving one aliased at two slots would have the
-	 * transactional merge sweep commit and discard the same bitmap twice.
+	 * the vacated range still aliases the shifted-from record sets, and leaving one aliased at two slots would have
+	 * the transactional merge sweep commit and discard the same bitmap twice.
 	 *
 	 * **The range must start at or before the live end** ({@code dstPos <= size()}), so it either overwrites live
 	 * slots or extends the run contiguously. Every rebalancing shape satisfies that: the receiver's column is created
@@ -390,12 +410,12 @@ final class OverflowColumn {
 		}
 		final int required = dstPos + length;
 		ensurePhysicalLength(required);
-		Arrays.fill(this.bitmaps, dstPos, required, null);
+		Arrays.fill(this.recordSets, dstPos, required, null);
 		this.size = Math.max(this.size, required);
 	}
 
 	/**
-	 * Bulk lockstep move: copies {@code length} bitmap references from {@code this[srcPos]} into {@code dst[dstPos]}
+	 * Bulk lockstep move: copies {@code length} record-set references from {@code this[srcPos]} into {@code dst[dstPos]}
 	 * (supports overlapping ranges when {@code dst == this}, like {@code System.arraycopy}).
 	 *
 	 * **Grows the destination to {@code dstPos + length} before any reference moves** and sets its {@link #size()} to
@@ -423,9 +443,9 @@ final class OverflowColumn {
 		dst.ensurePhysicalLength(required);
 		if (dstPos > oldSize) {
 			// a right shift opens a hole between the destination's old live end and dstPos; it must read as null
-			Arrays.fill(dst.bitmaps, oldSize, dstPos, null);
+			Arrays.fill(dst.recordSets, oldSize, dstPos, null);
 		}
-		System.arraycopy(this.bitmaps, srcPos, dst.bitmaps, dstPos, length);
+		System.arraycopy(this.recordSets, srcPos, dst.recordSets, dstPos, length);
 		dst.size = Math.max(oldSize, required);
 	}
 
@@ -473,8 +493,8 @@ final class OverflowColumn {
 	}
 
 	/**
-	 * Returns the heap this column occupies in bytes, the bitmaps it points at **excluded** — they are charged by the
-	 * leaf, which walks them one by one and asks each for its own footprint.
+	 * Returns the heap this column occupies in bytes, the record sets it points at **excluded** — they are charged by
+	 * the leaf, which walks them one by one and asks {@link OverflowRecords} for each one's own footprint.
 	 *
 	 * The backing array is measured at its *allocated* length, which follows the live content rather than the leaf
 	 * block size, so the figure moves as buckets are promoted and demoted. The array is always this column's own —
@@ -485,7 +505,7 @@ final class OverflowColumn {
 	long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		return layout.sizeOfObject(layout.referenceSize() + 2L * Integer.BYTES)
-			+ layout.sizeOfArray(this.bitmaps.length, layout.referenceSize());
+			+ layout.sizeOfArray(this.recordSets.length, layout.referenceSize());
 	}
 
 	/**
@@ -497,7 +517,7 @@ final class OverflowColumn {
 	 * @return always `null`
 	 */
 	@Nullable
-	private TransactionalBitmap emptySlotAt(int index) {
+	private Object emptySlotAt(int index) {
 		Assert.isPremiseValid(
 			index < this.capacity,
 			() -> "Slot " + index + " lies past this overflow column's logical capacity (" + this.capacity + ")!"
@@ -506,15 +526,15 @@ final class OverflowColumn {
 	}
 
 	/**
-	 * Reallocates {@link #bitmaps} so it holds at least {@code requiredLength} slots, carrying the live references
+	 * Reallocates {@link #recordSets} so it holds at least {@code requiredLength} slots, carrying the live references
 	 * across. Kept out of the mutators so their steady-state path stays a single field compare.
 	 *
 	 * @param requiredLength the number of slots the caller is about to address
 	 */
 	private void ensurePhysicalLength(int requiredLength) {
-		if (requiredLength > this.bitmaps.length) {
-			this.bitmaps = Arrays.copyOf(
-				this.bitmaps, ColumnSizing.grownLength(this.bitmaps.length, requiredLength, this.capacity)
+		if (requiredLength > this.recordSets.length) {
+			this.recordSets = Arrays.copyOf(
+				this.recordSets, ColumnSizing.grownLength(this.recordSets.length, requiredLength, this.capacity)
 			);
 		}
 	}

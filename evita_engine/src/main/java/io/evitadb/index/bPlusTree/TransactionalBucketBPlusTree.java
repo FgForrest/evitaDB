@@ -73,8 +73,8 @@ import static io.evitadb.utils.ArrayUtils.*;
  * A transactional, **columnar-leaf** B+ tree that maps a comparable value (the tree key) to a set of record ids. It is
  * the backing store for the inverted index bucket store: instead of storing a per-bucket
  * `ValueToRecord` object in each leaf slot, the leaf decomposes the bucket into parallel columns — the value key, a
- * primitive `int` single-record column, and a sparse, lazily-allocated {@link TransactionalBitmap} overflow column for
- * the few multi-record buckets.
+ * primitive `int` single-record column, and a sparse, lazily-allocated overflow column for the few multi-record
+ * buckets.
  *
  * **Leaf layout — LAZY-PARALLEL.** All four columns have a logical capacity of `valueBlockSize` and move in lockstep
  * on insert-shift / split / merge / steal:
@@ -82,8 +82,10 @@ import static io.evitadb.utils.ArrayUtils.*;
  * - `ValueColumn keys` — the value, ordered by the {@link #comparator} (natural order when `null`).
  * - `RecordColumn records` — the single record id (pk) when the bucket has no overflow bitmap; the default
  *   {@link IntRecordColumn} backs it with a bare `int[]`.
- * - `OverflowColumn overflow` — **lazy**: `null` until the leaf's first multi bucket, then a non-null bitmap at a
- *   slot marks a multi bucket whose record set is that bitmap.
+ * - `OverflowColumn overflow` — **lazy**: `null` until the leaf's first multi bucket, then a non-null slot marks a
+ *   multi bucket and carries its record set. That record set is TIERED — a sorted, immutable `int[]` up to
+ *   {@link OverflowRecords#SMALL_BUCKET_THRESHOLD} ids, a {@link TransactionalBitmap} above it — with
+ *   {@link OverflowRecords} owning the state machine and every operation on a slot's content.
  * - `RecordColumn valueIds` — **lazy and optional**: `null` until a value-id minter is installed on the tree, then
  *   `valueIds.intAt(i)` is the stable id naming bucket `i`'s distinct value.
  *
@@ -94,23 +96,34 @@ import static io.evitadb.utils.ArrayUtils.*;
  * exit, but deliberately not on the per-insert path; see `BPlusLeafTreeNode.assertColumnsAlignedWithPeek` for
  * exactly which paths that is and why the per-insert exclusion is safe.
  *
- * The single/multi discriminator is **always** the presence of an overflow bitmap at the slot, **never** the sign or
- * value of `records[i]`. Externally-assigned primary keys may be any 32-bit int (including `-1` and
+ * The single/multi discriminator is **always** the presence of a record set at the overflow slot, **never** the sign
+ * or value of `records[i]`, and never the cardinality of the bucket. Externally-assigned primary keys may be any 32-bit int (including `-1` and
  * {@link Integer#MIN_VALUE}), so no int value is reserved as a sentinel; when a slot carries a bitmap the matching
  * `records[i]` is don't-care and is never read.
  *
  * **Promotion / demotion** live inside the leaf mutation (mirroring `InvertedIndex.addRecord/removeRecord`):
- * an absent value inserts a single record; a second distinct record promotes the bucket to a {@link TransactionalBitmap}
- * (allocating the overflow column lazily); removing the last record deletes the bucket. Promotion happens eagerly at
- * mutation time; **demotion is deferred to the leaf commit-merge** — a multi bucket reduced back to a single record is
- * not demoted mid-transaction (a bucket oscillating across the 1/2 boundary within one transaction would otherwise
- * allocate and free its bitmap on every crossing). At commit, {@link BPlusLeafTreeNode#createCopyWithMergedTransactionalMemory}
- * reads each overflow bitmap's committed cardinality and, when it has settled at one, reverts the bucket to the
- * primitive single-record form (writing the sole surviving id into the records column, nulled overflow slot); at most
- * one promote-alloc and one demote-free therefore occur per bucket per transaction. When a multi bucket is deleted, its
- * bitmap's transactional diff layer is explicitly released via {@code discardRemovedValueLayer} so it is not left ALIVE
- * and detected as stale during commit; a demoted bitmap needs no such release because the commit-merge consumes its
- * layer via {@code getStateCopyWithCommittedChanges} (the same call every kept-multi bucket uses).
+ * an absent value inserts a single record; a second distinct record promotes the bucket into the sorted-array tier
+ * (allocating the overflow column lazily); growing past {@link OverflowRecords#SMALL_BUCKET_THRESHOLD} promotes it
+ * again, to a {@link TransactionalBitmap}; removing the last record deletes the bucket. Both promotions happen
+ * eagerly at mutation time.
+ *
+ * **Every demotion is deferred to the leaf commit-merge** — the leaf's one quiescent point, and the only place a
+ * {@link TransactionalBitmap}'s committed content is obtainable. At commit,
+ * {@link BPlusLeafTreeNode#createCopyWithMergedTransactionalMemory} reads each multi bucket's committed cardinality
+ * and, when it has settled at one, reverts the bucket to the primitive single-record form (writing the sole surviving
+ * id into the records column, nulled overflow slot); a bitmap that has fallen to
+ * {@link OverflowRecords#SMALL_BUCKET_DEMOTION_THRESHOLD} or below settles back into a sorted array. Deferring is what
+ * keeps a bucket oscillating across a boundary from rebuilding its representation on every crossing — at most one
+ * change per bucket per transaction, in each direction. Because the demotion threshold is deliberately half the
+ * promotion one, **a bucket's tier cannot be inferred from its cardinality**; every consumer must dispatch on what
+ * the slot holds.
+ *
+ * When a multi bucket is deleted, a bitmap's transactional diff layer is explicitly released via
+ * {@code discardRemovedValueLayer} so it is not left ALIVE and detected as stale during commit; a demoted bitmap needs
+ * no such release because the commit-merge consumes its layer via {@code getStateCopyWithCommittedChanges}. An
+ * array-tier bucket has no layer at all: it is an immutable value, isolated by the leaf's own transactional layer
+ * (which every leaf mutation decouples before writing), so replacing it in the layer's overflow column is invisible to
+ * the committed leaf and a savepoint restore of the reference array restores it exactly.
  *
  * The tree participates fully in the MVCC framework as a {@link TransactionalLayerProducer}. It depends only on the
  * {@link io.evitadb.index.bitmap} layer and emits a NEUTRAL {@link BucketCursor} so a later task can adapt it to the
@@ -602,9 +615,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (overflow != null) {
 				final int peek = leafNode.getPeek();
 				for (int i = 0; i <= peek; i++) {
-					// overflow bitmaps guard their own layer removal internally
-					final TransactionalBitmap bitmap = overflow.bitmapAt(i);
-					if (bitmap != null) {
+					// only the bitmap tier owns a diff layer; a sorted `int[]` bucket has none to remove. Overflow
+					// bitmaps guard their own layer removal internally
+					if (overflow.recordsAt(i) instanceof final TransactionalBitmap bitmap) {
 						bitmap.removeLayer(transactionalLayer);
 					}
 				}
@@ -626,11 +639,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * transaction is open. Must NOT be applied to bitmaps merely moved to a sibling node (steal/merge), as those remain
 	 * referenced and their layers must survive.
 	 *
-	 * @param removed the overflow bitmap removed from the leaf, may be null
+	 * A sorted `int[]` bucket owns no layer at all — it is an immutable value the leaf's own transactional layer
+	 * isolates — so it is simply ignored here.
+	 *
+	 * @param removed the overflow record set removed from the leaf, may be null
 	 */
-	private static void discardRemovedValueLayer(@Nullable TransactionalBitmap removed) {
-		if (removed != null) {
-			removed.removeLayer();
+	private static void discardRemovedValueLayer(@Nullable Object removed) {
+		if (removed instanceof final TransactionalBitmap bitmap) {
+			bitmap.removeLayer();
 		}
 	}
 
@@ -927,26 +943,30 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Bulk-populates this tree's root as a single leaf page from an already-known, ascending-ordered key/bucket
 	 * set, in one pass — the overflow-aware sibling of {@link #bulkLoadSingleRecordPage}, for trees whose persisted
 	 * page CAN hold a value shared by more than one record (e.g. {@code InvertedIndex}). Each key maps to either a
-	 * single payload ({@code overflow[i] == null}, {@code payloads[i]} is read) or a pre-built multi-record bitmap
+	 * single payload ({@code overflow[i] == null}, {@code payloads[i]} is read) or a pre-built multi-record set
 	 * ({@code overflow[i] != null}, {@code payloads[i]} is a don't-care, matching the leaf's own contract for a
 	 * promoted bucket's primitive slot — see {@link RecordColumn}'s javadoc).
+	 *
+	 * A pre-built multi-record slot is whatever {@link OverflowRecords} would hold there: a sorted, distinct `int[]`
+	 * for a small bucket, a {@link TransactionalBitmap} for a large one. Building the small ones directly is what lets
+	 * a catalog load back into the tiered representation without first constructing the bitmaps it would demote.
 	 *
 	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
 	 * @param payloads the single-record payload for each key that is NOT overflow-promoted; only
 	 *                 {@code payloads[0, count)} are read, and only where the aligned {@code overflow} slot is null
-	 * @param overflow per-key pre-built multi-record bitmap, or {@code null} at a slot whose key holds a single
+	 * @param overflow per-key pre-built multi-record set, or {@code null} at a slot whose key holds a single
 	 *                 record; pass {@code null} entirely if no key in this page is ever multi-record
 	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize} — a page never exceeds a
 	 *                 leaf's capacity)
 	 */
 	public void bulkLoadPage(
-		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable TransactionalBitmap[] overflow, int count
+		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow, int count
 	) {
 		bulkLoadPage(keys, payloads, overflow, null, count);
 	}
 
 	/**
-	 * Value-id-aware sibling of {@link #bulkLoadPage(Object[], long[], TransactionalBitmap[], int)}: restores a
+	 * Value-id-aware sibling of {@link #bulkLoadPage(Object[], long[], Object[], int)}: restores a
 	 * persisted page together with the stable value ids its buckets carried when the page was written.
 	 *
 	 * The loaded page's id column is built from `valueIds` alone and does NOT depend on whether a value id minter has
@@ -955,7 +975,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
 	 * @param payloads the single-record payload for each key that is NOT overflow-promoted
-	 * @param overflow per-key pre-built multi-record bitmap, or {@code null} at a single-record slot; {@code null}
+	 * @param overflow per-key pre-built multi-record set, or {@code null} at a single-record slot; {@code null}
 	 *                 entirely when no key in this page is multi-record
 	 * @param valueIds the persisted value id of each key, aligned by index with {@code keys}; only
 	 *                 {@code valueIds[0, count)} are read. {@code null} when the tree carries no value ids, in which
@@ -964,7 +984,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@SuppressWarnings("unchecked")
 	public void bulkLoadPage(
-		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable TransactionalBitmap[] overflow,
+		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow,
 		@Nullable int[] valueIds, int count
 	) {
 		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
@@ -2523,7 +2543,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public boolean isSingle() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.overflow == null || this.overflow.bitmapAt(this.currentIndex) == null;
+			return this.overflow == null || this.overflow.recordsAt(this.currentIndex) == null;
 		}
 
 		@Override
@@ -2542,20 +2562,29 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public Bitmap records() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.overflow == null ? null : this.overflow.bitmapAt(this.currentIndex);
-			if (bitmap != null) {
-				return bitmap;
+			final Object bucketRecords =
+				this.overflow == null ? null : this.overflow.recordsAt(this.currentIndex);
+			if (bucketRecords != null) {
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.records.intAt(this.currentIndex));
+		}
+
+		@Nullable
+		@Override
+		public int[] recordArray() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			final Object bucketRecords =
+				this.overflow == null ? null : this.overflow.recordsAt(this.currentIndex);
+			return bucketRecords instanceof final int[] small ? small : null;
 		}
 
 		@Override
 		public int size() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.overflow == null ? null : this.overflow.bitmapAt(this.currentIndex);
-			return bitmap == null ? 1 : bitmap.size();
+			final Object bucketRecords =
+				this.overflow == null ? null : this.overflow.recordsAt(this.currentIndex);
+			return bucketRecords == null ? 1 : OverflowRecords.cardinality(bucketRecords);
 		}
 
 		@Override
@@ -4013,8 +4042,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		long longRecordId();
 
 		/**
-		 * Returns the record set of the current bucket: a lean {@link SingleRecordBitmap} for a single bucket, the
-		 * {@link TransactionalBitmap} for a multi bucket.
+		 * Returns the record set of the current bucket: a lean {@link SingleRecordBitmap} for a single bucket, a
+		 * read-only {@link io.evitadb.index.bitmap.SortedArrayBitmap} view for a small multi bucket, the live
+		 * {@link TransactionalBitmap} for a large one. The result is read-only in every case - it is the tree's own
+		 * storage, or a view of it.
 		 *
 		 * @return the record set, never null
 		 */
@@ -4022,7 +4053,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		Bitmap records();
 
 		/**
-		 * Returns the cardinality of the current bucket (1 for single, the bitmap size for multi).
+		 * Returns the current bucket's record ids when it is held in the sorted-array tier, `null` when it is single or
+		 * bitmap-backed. This is the one place the tier is visible outside the tree, and it exists so a consumer that
+		 * builds its own per-bucket projection can build the cheap one instead of forcing a roaring bitmap.
+		 *
+		 * **The array is the leaf's own storage and must never be written to.** It is also not a cardinality test: the
+		 * promote and demote thresholds differ, so a bucket's tier is not a function of how many records it holds, and
+		 * a caller must dispatch on this answer rather than on {@link #size()}.
+		 *
+		 * @return the bucket's record ids, or `null` when it is not in the sorted-array tier
+		 */
+		@Nullable
+		int[] recordArray();
+
+		/**
+		 * Returns the cardinality of the current bucket (1 for single, the record-set size for multi).
 		 *
 		 * @return the current bucket's cardinality
 		 */
@@ -5459,9 +5504,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// must not trust a size the column's backing array may not yet be long enough to serve
 				final int overflowSize = this.overflow.observableLiveRun();
 				for (int i = 0; i < overflowSize; i++) {
-					final TransactionalBitmap bitmap = this.overflow.bitmapAt(i);
-					if (bitmap != null) {
-						size += bitmap.getHeapSizeInBytes();
+					final Object bucketRecords = this.overflow.recordsAt(i);
+					if (bucketRecords != null) {
+						// the tier decides the arithmetic: a sorted `int[]` is priced as an array, a bitmap answers
+						// for itself
+						size += OverflowRecords.heapSizeInBytes(bucketRecords);
 					}
 				}
 			}
@@ -5565,9 +5612,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			for (int i = 0; i <= thePeek; i++) {
 				theKeys.appendKey(sb, i);
 				sb.append(":");
-				final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow.bitmapAt(i);
-				if (bitmap != null) {
-					sb.append(bitmap);
+				final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(i);
+				if (bucketRecords != null) {
+					sb.append(OverflowRecords.asBitmapView(bucketRecords));
 				} else {
 					sb.append(theRecords.intAt(i));
 				}
@@ -6055,9 +6102,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return EmptyBitmap.INSTANCE;
 			}
 			final int index = insertionPosition.position();
-			final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow.bitmapAt(index);
-			if (bitmap != null) {
-				return bitmap;
+			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
+			if (bucketRecords != null) {
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(theRecords.intAt(index));
 		}
@@ -6082,9 +6129,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				: null;
 			final RecordColumn theRecords = layer == null ? this.records : layer.records;
 			final OverflowColumn theOverflow = layer == null ? this.overflow : layer.overflow;
-			final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow.bitmapAt(slot);
-			if (bitmap != null) {
-				return bitmap;
+			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(slot);
+			if (bucketRecords != null) {
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(theRecords.intAt(slot));
 		}
@@ -6151,9 +6198,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			final boolean matchBytes = containsPatternUtf8 != null && theKeys.supportsUtf8Matching();
 			final M value = matchBytes || valuePredicate == null ? null : theKeys.keyAt(slot);
-			final TransactionalBitmap bucketBitmap = theOverflow == null ? null : theOverflow.bitmapAt(slot);
-			final Bitmap records = bucketBitmap != null
-				? bucketBitmap : new SingleRecordBitmap(theRecords.intAt(slot));
+			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(slot);
+			final Bitmap records = bucketRecords != null
+				? OverflowRecords.asBitmapView(bucketRecords) : new SingleRecordBitmap(theRecords.intAt(slot));
 			if (matchBytes) {
 				// safe to run AFTER the reads above, unlike `valuePredicate`: this is the column's own code and cannot
 				// mutate the tree, so it cannot shift the slot the reads have already resolved
@@ -6197,8 +6244,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return 0;
 			}
 			final int index = insertionPosition.position();
-			final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow.bitmapAt(index);
-			return bitmap == null ? 1 : bitmap.size();
+			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
+			return bucketRecords == null ? 1 : OverflowRecords.cardinality(bucketRecords);
 		}
 
 		/**
@@ -6242,14 +6289,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// records sharing a value ascend by (signed) id - the anchor is the greatest id strictly below the
 				// inserted one; nothing can sort below Integer.MIN_VALUE, so the guard above keeps `recordId - 1`
 				// from wrapping around
-				final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow.bitmapAt(index);
-				if (bitmap == null) {
+				final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
+				if (bucketRecords == null) {
 					final int single = theRecords.intAt(index);
 					if (single < recordId) {
 						return single;
 					}
 				} else {
-					final long previous = bitmap.signedPreviousValue(recordId - 1);
+					final long previous = OverflowRecords.signedPreviousValue(bucketRecords, recordId - 1);
 					if (previous != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE) {
 						return (int) previous;
 					}
@@ -6304,11 +6351,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull RecordColumn records,
 			@Nullable OverflowColumn overflow
 		) {
-			final TransactionalBitmap bitmap = overflow == null ? null : overflow.bitmapAt(index);
-			if (bitmap == null) {
+			final Object bucketRecords = overflow == null ? null : overflow.recordsAt(index);
+			if (bucketRecords == null) {
 				return records.intAt(index);
 			}
-			final long last = bitmap.signedPreviousValue(Integer.MAX_VALUE);
+			final long last = OverflowRecords.signedPreviousValue(bucketRecords, Integer.MAX_VALUE);
 			Assert.isPremiseValid(
 				last != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE,
 				"An overflow bucket must never be empty!"
@@ -6436,25 +6483,57 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				thePeek = layer.peek;
 			}
 
-			// commit-wrap runs ONLY on the overflow column (producer bitmaps); keys/records are plain references, EXCEPT
-			// that a multi bucket drained to a single record is DEMOTED here to the primitive single-record form: the
-			// sole surviving id (read from the committed bitmap, never from records[i] which is don't-care
-			// post-promotion) is written into a copy-on-write records column and the overflow slot is nulled. Demotion is
-			// deferred to commit (never mid-transaction) so a bucket oscillating across the 1/2 boundary within one
-			// transaction allocates its bitmap at most once — see the class javadoc.
+			// commit-wrap runs ONLY on the overflow column (producer bitmaps); keys/records are plain references.
+			// This is also the leaf's ONE quiescent point, and therefore the only place a bucket is ever DEMOTED:
+			//
+			//   - to the primitive single-record form when the committed cardinality is 1 — the sole surviving id is
+			//     read from the committed record set, never from records[i] which is don't-care post-promotion, and
+			//     written into a copy-on-write records column with the overflow slot nulled;
+			//   - from a bitmap back to a sorted `int[]` at or below OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD.
+			//
+			// Demotion is deferred to commit (never mid-transaction) so a bucket oscillating across a boundary within
+			// one transaction changes its representation at most once — see the class javadoc. The committed content
+			// of a TransactionalBitmap is obtainable nowhere else either.
 			OverflowColumn newOverflow = null;
 			RecordColumn newRecords = null;
 			if (theOverflow != null) {
 				for (int i = 0; i < thePeek + 1; i++) {
-					final TransactionalBitmap original = theOverflow.bitmapAt(i);
+					final Object original = theOverflow.recordsAt(i);
 					if (original == null) {
 						// the rebuilt column, when there is one, is a copy of this one and already holds `null` here
 						continue;
 					}
-					final Bitmap committedBitmap = transactionalLayer.getStateCopyWithCommittedChanges(original);
-					final int committedCardinality = committedBitmap.size();
+					// an `int[]` slot carries no diff layer of its own: it was replaced wholesale in the layer's
+					// overflow column, so what the slot holds already IS its committed state. Only the bitmap arm has
+					// to ask the maintainer, and only it can be demoted a tier
+					final Object committed;
+					final int committedCardinality;
+					final int survivingSingleId;
+					if (original instanceof final TransactionalBitmap bitmap) {
+						final Bitmap committedRecords =
+							transactionalLayer.getStateCopyWithCommittedChanges(bitmap);
+						committedCardinality = committedRecords.size();
+						survivingSingleId = committedCardinality == 1 ? committedRecords.getFirst() : 0;
+						if (committedCardinality <= 1) {
+							committed = null;
+						} else {
+							// a bitmap that has shrunk far enough settles back into a sorted `int[]`; otherwise its
+							// committed state is re-wrapped as a TransactionalBitmap
+							final int[] demoted = OverflowRecords.demotedToArray(committedRecords);
+							committed = demoted != null ? demoted : wrapOverflow(committedRecords);
+						}
+					} else {
+						final int[] small = OverflowRecords.asRecordArray(original);
+						committedCardinality = small.length;
+						survivingSingleId = committedCardinality == 1 ? small[0] : 0;
+						// an `int[]` slot can never have outgrown its tier - the promotion above the threshold
+						// happens eagerly, at mutation time - so it is carried across unchanged
+						committed = original;
+					}
 					if (committedCardinality == 1) {
-						// DEMOTE: revert the multi bucket to the primitive single-record form
+						// DEMOTE: revert the multi bucket to the primitive single-record form. The surviving id is
+						// read from the committed record set, never from records[i], which is don't-care once the
+						// bucket has been promoted
 						if (newOverflow == null) {
 							newOverflow = theOverflow.duplicate();
 						}
@@ -6462,15 +6541,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						if (newRecords == null) {
 							newRecords = theRecords.duplicate();
 						}
-						newRecords.setAt(i, committedBitmap.getFirst());
+						newRecords.setAt(i, survivingSingleId);
 					} else if (committedCardinality == 0) {
 						// a present overflow slot can never be empty — a bucket drained to zero is deleted at mutation time
 						throw new GenericEvitaInternalError(
 							"Empty overflow bucket at index " + i + " — a drained-to-zero bucket must be deleted, not left!"
 						);
 					} else {
-						// keep the multi bucket: re-wrap the committed state as a TransactionalBitmap
-						final TransactionalBitmap committed = wrapOverflow(committedBitmap);
 						if (newOverflow == null && committed != original) {
 							newOverflow = theOverflow.duplicate();
 						}
@@ -6798,10 +6875,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param pk    the record id to add
 		 */
 		private void addToExistingBucket(int index, int pk) {
-			final TransactionalBitmap bitmap = this.overflow == null ? null : this.overflow.bitmapAt(index);
-			if (bitmap != null) {
-				// multi bucket - mutate in place
-				bitmap.add(pk);
+			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
+			if (bucketRecords != null) {
+				// multi bucket - the tier decides whether this is an in-place bitmap add or a replacement array, and
+				// the result is stored back unconditionally because the two arms answer differently
+				final Object updated = OverflowRecords.add(bucketRecords, pk);
+				if (updated != bucketRecords) {
+					this.overflow.setAt(index, updated);
+				}
 				return;
 			}
 			// single bucket
@@ -6809,8 +6890,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// already the sole record - no-op, stay single
 				return;
 			}
-			// second distinct record - promote to a multi-record bitmap
-			ensureOverflowColumn().setAt(index, new TransactionalBitmap(this.records.intAt(index), pk));
+			// second distinct record - promote out of the primitive tier into a sorted two-element array
+			ensureOverflowColumn().setAt(index, OverflowRecords.promoteSingle(this.records.intAt(index), pk));
 		}
 
 		/**
@@ -6820,10 +6901,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param pks   the record ids to add; must be non-empty
 		 */
 		private void addRecordsToExistingBucket(int index, @Nonnull int... pks) {
-			final TransactionalBitmap bitmap = this.overflow == null ? null : this.overflow.bitmapAt(index);
-			if (bitmap != null) {
-				// multi bucket - mutate in place
-				bitmap.addAll(pks);
+			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
+			if (bucketRecords != null) {
+				// multi bucket - see addToExistingBucket for why the result is stored back
+				final Object updated = OverflowRecords.addAll(bucketRecords, pks);
+				if (updated != bucketRecords) {
+					this.overflow.setAt(index, updated);
+				}
 				return;
 			}
 			// single bucket
@@ -6831,11 +6915,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// the only id being added is the one already held - keep the compact form
 				return;
 			}
-			// promote to a bitmap holding the existing id plus all added ids (the bitmap dedupes & orders)
-			final OverflowColumn overflowColumn = ensureOverflowColumn();
-			final TransactionalBitmap promoted = new TransactionalBitmap(this.records.intAt(index));
-			promoted.addAll(pks);
-			overflowColumn.setAt(index, promoted);
+			// promote to a record set holding the existing id plus all added ids (the tier dedupes & orders)
+			ensureOverflowColumn().setAt(
+				index, OverflowRecords.promoteSingleWithAll(this.records.intAt(index), pks)
+			);
 		}
 
 		/**
@@ -6851,17 +6934,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link #NO_DELETED_BUCKET} when the bucket survived
 		 */
 		private int removeFromBucket(int index, @Nonnull int... pks) {
-			final TransactionalBitmap bitmap = this.overflow == null ? null : this.overflow.bitmapAt(index);
-			if (bitmap != null) {
-				// multi bucket - mutate in place
-				bitmap.removeAll(pks);
-				if (bitmap.isEmpty()) {
-					// the multi bucket drained to zero - delete it (release its bitmap layer). The id is read here, off
-					// the slot the caller's search already resolved and while the bucket is still there: once
-					// deleteBucketAt has collapsed the slot there is nothing left to read it from
+			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
+			if (bucketRecords != null) {
+				// multi bucket - the bitmap arm mutates in place, the array arm answers with a shorter array
+				final Object updated = OverflowRecords.remove(bucketRecords, pks);
+				if (OverflowRecords.cardinality(updated) == 0) {
+					// the multi bucket drained to zero - delete it (releasing a bitmap arm's layer). The id is read
+					// here, off the slot the caller's search already resolved and while the bucket is still there:
+					// once deleteBucketAt has collapsed the slot there is nothing left to read it from
 					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
 					deleteBucketAt(index);
 					return dyingValueId;
+				}
+				if (updated != bucketRecords) {
+					this.overflow.setAt(index, updated);
 				}
 				return NO_DELETED_BUCKET;
 			}
@@ -6924,7 +7010,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// lockstep with the record column beside it
 				final OverflowColumn overflowColumn = ensureOverflowColumn();
 				this.records.insertAt(position, 0);
-				overflowColumn.insertAt(position, new TransactionalBitmap(pks));
+				overflowColumn.insertAt(position, OverflowRecords.ofDistinctUnordered(pks));
 			}
 			if (this.valueIds != null) {
 				// shift the id column in lockstep and leave the freed slot unassigned — the tree stamps the freshly
@@ -6943,7 +7029,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private void deleteBucketAt(int index) {
 			if (this.overflow != null) {
 				// release the discarded multi bucket's bitmap layer (no-op for a single bucket / null entry)
-				discardRemovedValueLayer(this.overflow.bitmapAt(index));
+				discardRemovedValueLayer(this.overflow.recordsAt(index));
 				this.overflow.removeAt(index);
 			}
 			this.keys.removeKeyAt(index);
@@ -7298,7 +7384,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public boolean isSingle() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.leafOverflow == null || this.leafOverflow.bitmapAt(this.currentIndex) == null;
+			return this.leafOverflow == null || this.leafOverflow.recordsAt(this.currentIndex) == null;
 		}
 
 		@Override
@@ -7323,20 +7409,29 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public Bitmap records() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.leafOverflow == null ? null : this.leafOverflow.bitmapAt(this.currentIndex);
-			if (bitmap != null) {
-				return bitmap;
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			if (bucketRecords != null) {
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
+		}
+
+		@Nullable
+		@Override
+		public int[] recordArray() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			return bucketRecords instanceof final int[] small ? small : null;
 		}
 
 		@Override
 		public int size() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.leafOverflow == null ? null : this.leafOverflow.bitmapAt(this.currentIndex);
-			return bitmap == null ? 1 : bitmap.size();
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			return bucketRecords == null ? 1 : OverflowRecords.cardinality(bucketRecords);
 		}
 
 		@Override
@@ -7457,7 +7552,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public boolean isSingle() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.leafOverflow == null || this.leafOverflow.bitmapAt(this.currentIndex) == null;
+			return this.leafOverflow == null || this.leafOverflow.recordsAt(this.currentIndex) == null;
 		}
 
 		@Override
@@ -7482,20 +7577,29 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public Bitmap records() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.leafOverflow == null ? null : this.leafOverflow.bitmapAt(this.currentIndex);
-			if (bitmap != null) {
-				return bitmap;
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			if (bucketRecords != null) {
+				return OverflowRecords.asBitmapView(bucketRecords);
 			}
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
+		}
+
+		@Nullable
+		@Override
+		public int[] recordArray() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			return bucketRecords instanceof final int[] small ? small : null;
 		}
 
 		@Override
 		public int size() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			final TransactionalBitmap bitmap =
-				this.leafOverflow == null ? null : this.leafOverflow.bitmapAt(this.currentIndex);
-			return bitmap == null ? 1 : bitmap.size();
+			final Object bucketRecords =
+				this.leafOverflow == null ? null : this.leafOverflow.recordsAt(this.currentIndex);
+			return bucketRecords == null ? 1 : OverflowRecords.cardinality(bucketRecords);
 		}
 
 		@Override

@@ -86,11 +86,11 @@ public class InvertedIndexSubSet {
 	private Formula memoizedResult;
 
 	/**
-	 * Returns the buckets of this subset in their polymorphic {@link ValueToRecord} form - each element is either a
-	 * multi-record {@link ValueToRecordBitmap} or a compact single-record {@link ValueToRecordPrimitive}, exactly as
-	 * held by the source index. No materialization happens: a single-record bucket stays a bare-`int` primitive and
-	 * only allocates its lightweight {@link io.evitadb.index.bitmap.SingleRecordBitmap} view on demand if a consumer
-	 * actually reads {@link ValueToRecord#getRecordIds()}. Consumers read this slice through the read-only
+	 * Returns the buckets of this subset in their polymorphic {@link ValueToRecord} form - each element is a compact
+	 * single-record {@link ValueToRecordPrimitive}, a small-array {@link ValueToRecordArray} or a multi-record
+	 * {@link ValueToRecordBitmap}, exactly as held by the source index. No materialization happens: a single-record
+	 * bucket stays a bare-`int` primitive and a small one stays a sorted `int[]`, each allocating its lightweight
+	 * read-only view on demand only if a consumer actually reads {@link ValueToRecord#getRecordIds()}. Consumers read this slice through the read-only
 	 * {@link ValueToRecord} surface ({@link ValueToRecord#getValue()}, {@link ValueToRecord#getRecordIds()},
 	 * {@link ValueToRecord#size()}); they key their own staleness on the leaf-page transactional ids the slice crossed,
 	 * not on per-bucket bitmap ids.
