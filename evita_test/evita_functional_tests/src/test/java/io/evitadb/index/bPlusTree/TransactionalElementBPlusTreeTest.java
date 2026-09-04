@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree.BPlusLeafTreeNode;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -1584,4 +1585,112 @@ class TransactionalElementBPlusTreeTest {
 		}
 
 	}
+
+	@Nested
+	@DisplayName("Reader bounds when a leaf peek runs ahead of its array")
+	class TornLeafReaderBoundTest {
+
+		/**
+		 * Builds a single-leaf tree left in exactly the shape a cross-thread reader can observe: a `peek` that belongs
+		 * to a growth whose longer array is not visible beside it.
+		 *
+		 * A content-sized leaf sizes its array to its load, so a leaf holding four elements really does own a four-slot
+		 * array and a read one slot past it really does run off the end — which is what makes the bound an assertion
+		 * rather than a formality. Before the leaf array followed its content this shape was unreachable: every leaf
+		 * carried a full-block array, so the same torn read landed inside it and merely returned a stale element.
+		 *
+		 * @return a tree whose single leaf holds four live elements under a peek of four
+		 */
+		@Nonnull
+		private TransactionalElementBPlusTree<PriceRecordContract> tornSingleLeafTree() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(8);
+			for (int key = 0; key < 4; key++) {
+				tree.insert(rec(key));
+			}
+
+			//noinspection unchecked
+			final BPlusLeafTreeNode<PriceRecordContract> leaf =
+				(BPlusLeafTreeNode<PriceRecordContract>) tree.getRoot();
+			assertEquals(4, leaf.getValues().length, "the fixture needs a leaf sized exactly to its load");
+			assertEquals(3, leaf.getPeek(), "the fixture needs peek at the last occupied slot");
+
+			leaf.setPeek(leaf.getPeek() + 1);
+			assertEquals(4, leaf.getPeek(), "the fixture must leave peek one slot past the array");
+			assertEquals(4, leaf.getValues().length, "the array must stay at the length it was");
+			return tree;
+		}
+
+		@Test
+		@DisplayName("the heap walk stays inside the array it read")
+		void shouldBoundTheHeapWalkWhenPeekRunsAheadOfTheArray() {
+			// reached from EntityCollection#describeIndex, which takes no snapshot and holds no transaction
+			assertTrue(tornSingleLeafTree().getHeapSizeInBytes() > 0, "the heap walk must survive the torn leaf");
+		}
+
+		@Test
+		@DisplayName("point lookup stays inside the array it read")
+		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArray() {
+			// this is the hot price-record lookup - a query thread resolving prices shares no transaction binding with
+			// a warm-up thread growing the same leaf
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = tornSingleLeafTree();
+			for (int key = 0; key < 4; key++) {
+				assertEquals(rec(key), tree.search(key), "point lookup must still find every live element");
+			}
+			// past the last key, so an unbounded binary search walks up into the slot the array does not carry
+			assertNull(tree.search(9), "a lookup past the end must miss rather than run off the array");
+		}
+
+		@Test
+		@DisplayName("forward iteration stays inside the array it read")
+		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArray() {
+			final List<PriceRecordContract> forward = new ArrayList<>();
+			final Iterator<PriceRecordContract> it = tornSingleLeafTree().valueIterator();
+			while (it.hasNext()) {
+				forward.add(it.next());
+			}
+			assertEquals(
+				List.of(rec(0), rec(1), rec(2), rec(3)), forward,
+				"the forward walk must stop at the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("reverse iteration stays inside the array it read")
+		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArray() {
+			final List<PriceRecordContract> reverse = new ArrayList<>();
+			final Iterator<PriceRecordContract> it = tornSingleLeafTree().valueReverseIterator();
+			while (it.hasNext()) {
+				reverse.add(it.next());
+			}
+			assertEquals(
+				List.of(rec(3), rec(2), rec(1), rec(0)), reverse,
+				"the reverse walk must stop at the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("the keyed-start iterator stays inside the array it read")
+		void shouldBoundKeyedStartIterationWhenPeekRunsAheadOfTheArray() {
+			// exercises findKeyPosition, which resolves the iterator's starting slot inside the leaf
+			final List<PriceRecordContract> tail = new ArrayList<>();
+			final Iterator<PriceRecordContract> it = tornSingleLeafTree().greaterOrEqualValueIterator(2);
+			while (it.hasNext()) {
+				tail.add(it.next());
+			}
+			assertEquals(List.of(rec(2), rec(3)), tail, "the keyed walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("the verbose rendering stays inside the array it read")
+		void shouldBoundVerboseRenderingWhenPeekRunsAheadOfTheArray() {
+			// a debugger or a log statement is exactly how a live tree gets read off a thread that never wrote to it,
+			// and an out-of-bounds thrown out of toString would break the diagnostics used to investigate it
+			assertFalse(
+				tornSingleLeafTree().toString().isEmpty(),
+				"the verbose rendering must survive the torn leaf"
+			);
+		}
+
+	}
+
 }
