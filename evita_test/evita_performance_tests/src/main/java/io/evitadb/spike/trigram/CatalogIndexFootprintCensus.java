@@ -42,6 +42,14 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndexView;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.FilterIndexView;
@@ -63,6 +71,7 @@ import org.apache.commons.io.FileUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,8 +79,10 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -157,6 +168,25 @@ public class CatalogIndexFootprintCensus {
 	 * Whether to run the distinct price-record census, which needs an identity map over every price record.
 	 */
 	private static final String PRICE_RECORDS_PROPERTY = "probe.priceRecords";
+	/**
+	 * Whether to decompose the four largest families into their components.
+	 */
+	private static final String DECOMPOSE_PROPERTY = "probe.decompose";
+	/**
+	 * What one empty {@link io.evitadb.index.attribute.AttributeIndex} reports, measured directly by
+	 * {@link AttributeIndexScaffoldingProbe} against the engine's own accounting.
+	 *
+	 * Pinned here rather than re-measured because the sibling probe measures it from a directly constructed empty
+	 * index, which this census has no reason to build. If `AttributeIndex` gains or loses a field, re-measure it there
+	 * and update this constant — the scaffolding row of the residual table is the only thing that depends on it.
+	 */
+	private static final long EMPTY_ATTRIBUTE_INDEX_BYTES = 680L;
+	/**
+	 * Initial capacity of {@link io.evitadb.index.EntityIndex}'s flush-ordering list, replicated from its own
+	 * `INITIAL_COMPONENT_CAPACITY`, which is private. The list never shrinks below it, so the array it charges is
+	 * `max(this, size())` slots.
+	 */
+	private static final int INITIAL_COMPONENT_CAPACITY = 8;
 	/**
 	 * How many attribute names the per-attribute table prints.
 	 */
@@ -289,7 +319,8 @@ public class CatalogIndexFootprintCensus {
 			final long usedHeapAfterLoad = usedHeapAfterCollection();
 			System.out.printf("JVM used heap after load and two collections: %s%n", humanReadable(usedHeapAfterLoad));
 
-			final CatalogIndexFootprintCensus census = new CatalogIndexFootprintCensus(priceRecords);
+			final boolean decompose = Boolean.parseBoolean(System.getProperty(DECOMPOSE_PROPERTY, "true"));
+			final CatalogIndexFootprintCensus census = new CatalogIndexFootprintCensus(priceRecords, decompose);
 			census.walk(catalog);
 			census.print(catalog, usedHeapAfterLoad);
 		}
@@ -328,6 +359,70 @@ public class CatalogIndexFootprintCensus {
 	 */
 	private final Map<String, long[]> priceRecordClasses = new TreeMap<>();
 	/**
+	 * Whether the four largest families are decomposed into their components.
+	 */
+	private final boolean decompose;
+	/**
+	 * Component breakdown of the price super indexes.
+	 */
+	private final Breakdown priceSuperBreakdown = new Breakdown();
+	/**
+	 * Component breakdown of the price reference indexes.
+	 */
+	private final Breakdown priceRefBreakdown = new Breakdown();
+	/**
+	 * Component breakdown of the attribute sort indexes.
+	 */
+	private final Breakdown sortBreakdown = new Breakdown();
+	/**
+	 * Component breakdown of the entity-index residual.
+	 */
+	private final Breakdown residualBreakdown = new Breakdown();
+	/**
+	 * Every distinct price index, kept so the lazily-memoized price-id array can be priced by a second pass.
+	 */
+	private final List<PriceListAndCurrencyPriceIndex<?>> distinctPriceIndexes = new ArrayList<>(1 << 18);
+	/**
+	 * One representative sort index per attribute name, so the top-ten table can name the value type it sorts on.
+	 */
+	private final Map<String, SortIndex> sortSamples = new HashMap<>(256);
+	/**
+	 * Per-attribute-name sort-index heap, so the sort table can rank attributes independently of the other families.
+	 */
+	private final Map<String, Tally> sortPerAttribute = new HashMap<>(256);
+	/**
+	 * How many sort indexes are owners, views, and how many sit in a global rather than a reduced index.
+	 */
+	private long sortOwners;
+	/**
+	 * How many sort indexes are stateless views over a shared value tree.
+	 */
+	private long sortViews;
+	/**
+	 * How many sort indexes sit in a global entity index.
+	 */
+	private long sortInGlobalIndexes;
+	/**
+	 * How many record ids the sort indexes order between them.
+	 */
+	private long sortedRecordCount;
+	/**
+	 * How many distinct values the sort indexes order by, summed.
+	 */
+	private long sortDistinctValueCount;
+	/**
+	 * How many entity indexes of each concrete class the walk visited.
+	 */
+	private final Map<String, Long> entityIndexClasses = new TreeMap<>();
+	/**
+	 * How many hierarchy nodes the catalog's entity indexes hold, orphans included.
+	 */
+	private long hierarchyNodeCount;
+	/**
+	 * How many per-language entity-id bitmaps exist across every entity index.
+	 */
+	private long languageBitmapCount;
+	/**
 	 * How many entity indexes the walk visited.
 	 */
 	private long entityIndexCount;
@@ -349,8 +444,9 @@ public class CatalogIndexFootprintCensus {
 	 *
 	 * @param priceRecordCensus whether to count distinct price records, which costs an identity map over all of them
 	 */
-	private CatalogIndexFootprintCensus(boolean priceRecordCensus) {
+	private CatalogIndexFootprintCensus(boolean priceRecordCensus, boolean decompose) {
 		this.priceRecordCensus = priceRecordCensus;
+		this.decompose = decompose;
 		this.chargedPriceRecords = priceRecordCensus ? new IdentityHashMap<>(1 << 22) : null;
 	}
 
@@ -374,8 +470,142 @@ public class CatalogIndexFootprintCensus {
 				chargeAttributes(index, collectionTallies);
 				chargePrices(index, collectionTallies);
 				chargeFacets(index, collectionTallies);
+				if (this.decompose) {
+					decomposeEntityIndex(index);
+				}
 			});
 		}
+		if (this.decompose) {
+			pricePriceIdMemo();
+		}
+	}
+
+	/**
+	 * Enumerates the components of {@link EntityIndex#getHeapSizeInBytes()} that the family walk does not reach, so
+	 * the residual row of the Pareto table stops being one undifferentiated number.
+	 *
+	 * Two rows are **exact** — the entity-id bitmap and the hierarchy orphan bitmap are both handed out by a public
+	 * accessor as the very instance the index charges. The rest are marked `(inferred)` and are the implementation's
+	 * own arithmetic applied to a publicly observable count: they are reproducible from the source, but a change to
+	 * that source silently changes them, which an exact reading could never do.
+	 *
+	 * @param index the entity index to decompose
+	 */
+	private void decomposeEntityIndex(@Nonnull EntityIndex index) {
+		final VMLayout layout = VMLayout.current();
+		this.residualBreakdown.total(0L);
+		this.entityIndexClasses.merge(index.getClass().getSimpleName(), 1L, Long::sum);
+		this.residualBreakdown.add("entity id bitmap", index.getAllPrimaryKeys().getHeapSizeInBytes());
+		this.residualBreakdown.add("hierarchy orphan bitmap", index.getOrphanHierarchyNodes().getHeapSizeInBytes());
+		final int nodes = index.getHierarchySizeIncludingOrphans();
+		this.hierarchyNodeCount += nodes;
+		if (nodes > 0) {
+			// HierarchyIndex#getHeapSizeInBytes: a boxed key, the node record itself, and a boxed parent for every
+			// node that has one - assumed here for all of them, since only the roots do not and there are few
+			this.residualBreakdown.add(
+				"hierarchy nodes (inferred)",
+				nodes * (2L * layout.sizeOfObject(Integer.BYTES)
+					+ layout.sizeOfObject(Integer.BYTES + layout.referenceSize()))
+			);
+		}
+		this.languageBitmapCount += index.getLanguages().size();
+		this.residualBreakdown.add("attribute index scaffolding (inferred)", EMPTY_ATTRIBUTE_INDEX_BYTES);
+		this.residualBreakdown.add("dirty flag (inferred)", layout.sizeOfObject(Long.BYTES + 1L));
+		this.residualBreakdown.add(
+			"entity index object shell (inferred)",
+			layout.sizeOfObject(
+				Long.BYTES + 2L * Integer.BYTES + 2L + 13L * layout.referenceSize()
+					+ ownFieldBytesOf(index) * layout.referenceSize()
+			)
+		);
+		this.residualBreakdown.add(
+			"flush ordering list and wrappers (inferred)",
+			layout.sizeOfObject(2L * Integer.BYTES + layout.referenceSize())
+				+ layout.sizeOfArray(
+					Math.max(INITIAL_COMPONENT_CAPACITY, index.getRegisteredComponents().size()), layout.referenceSize()
+				)
+				+ layout.sizeOfObject(2L * layout.referenceSize())
+		);
+		if (index.getActivity() != null) {
+			this.residualBreakdown.add("usage activity holder (inferred)", layout.sizeOfObject(5L * Long.BYTES));
+		}
+	}
+
+	/**
+	 * Reports how many reference slots the concrete entity index class declares beyond the base's own thirteen.
+	 *
+	 * Replicated from each class's `getHeapSizeInBytes`, because the field count is what the object header arithmetic
+	 * turns on and no accessor reports it. An unknown implementation fails the run rather than being charged the
+	 * base's own figure, which would understate it silently.
+	 *
+	 * @param index the entity index to classify
+	 * @return how many extra reference-sized fields the concrete class declares
+	 */
+	private static long ownFieldBytesOf(@Nonnull EntityIndex index) {
+		if (index instanceof GlobalEntityIndex) {
+			// the priceIndex and trigramIndex slots
+			return 2L;
+		} else if (index instanceof ReferencedTypeEntityIndex) {
+			// priceIndex, indexPrimaryKeyCardinality, cardinalityIndexes, histogramIndexes, histogramComponent
+			return 5L;
+		} else if (index instanceof ReducedGroupEntityIndex) {
+			// the reduced base's priceIndex slot, plus cardinalityDirty / pkCardinalities
+			// / referencedPrimaryKeysIndex / cardinalityIndexes / histogramIndexes / histogramComponent
+			return 7L;
+		} else if (index instanceof ReducedEntityIndex) {
+			// the reduced base's priceIndex slot alone
+			return 1L;
+		}
+		throw new GenericEvitaInternalError(
+			"Entity index implementation `" + index.getClass().getName() + "` declares a field count this census " +
+				"does not know - teach it before trusting the shell row.",
+			"Unknown entity index implementation!"
+		);
+	}
+
+	/**
+	 * Prices the lazily-memoized price-id arrays by **measuring the difference they make**, rather than by modelling
+	 * them.
+	 *
+	 * `AbstractPriceListAndCurrencyPriceIndex#memoizedIndexedPriceIds` caches
+	 * `TransactionalBitmap#getArray()` on the first `getIndexedPriceIds()` call, so a freshly loaded catalog that has
+	 * served no query holds none of them. Every index's footprint is read, its accessor called, and its footprint read
+	 * again: the summed delta is what the memo costs once every price index has served one query, which is the
+	 * ceiling a removal would reclaim. The array lengths are summed alongside so the two figures cross-check.
+	 */
+	private void pricePriceIdMemo() {
+		final VMLayout layout = VMLayout.current();
+		for (int i = 0; i < this.distinctPriceIndexes.size(); i++) {
+			final PriceListAndCurrencyPriceIndex<?> priceIndex = this.distinctPriceIndexes.get(i);
+			final Breakdown breakdown = priceIndex instanceof PriceListAndCurrencyPriceSuperIndex
+				? this.priceSuperBreakdown : this.priceRefBreakdown;
+			final long before = priceIndexHeapOf(priceIndex);
+			final int memoLength = priceIndex.getIndexedPriceIds().length;
+			final long after = priceIndexHeapOf(priceIndex);
+			breakdown.add("memoizedIndexedPriceIds, measured delta", after - before);
+			breakdown.add(
+				"memoizedIndexedPriceIds, from array length", layout.sizeOfArray(memoLength, Integer.BYTES)
+			);
+		}
+	}
+
+	/**
+	 * Reads a price index's footprint through whichever concrete accessor it declares.
+	 *
+	 * @param priceIndex the index to price
+	 * @return what it says it occupies
+	 */
+	private static long priceIndexHeapOf(@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex) {
+		if (priceIndex instanceof final PriceListAndCurrencyPriceSuperIndex superIndex) {
+			return superIndex.getHeapSizeInBytes();
+		} else if (priceIndex instanceof final PriceListAndCurrencyPriceRefIndex refIndex) {
+			return refIndex.getHeapSizeInBytes();
+		}
+		throw new GenericEvitaInternalError(
+			"Price index implementation `" + priceIndex.getClass().getName() + "` prices itself through no accessor " +
+				"this census knows.",
+			"Unknown price index implementation!"
+		);
 	}
 
 	/**
@@ -394,7 +624,13 @@ public class CatalogIndexFootprintCensus {
 		for (final AttributeIndexKey key : index.getSortIndexes()) {
 			final SortIndex sortIndex = index.getSortIndex(key);
 			if (sortIndex != null) {
-				charge(Family.ATTRIBUTE_SORT, sortIndex, sortIndex.getHeapSizeInBytes(), collectionTallies, key);
+				final long heapBytes = sortIndex.getHeapSizeInBytes();
+				final boolean firstSight = charge(
+					Family.ATTRIBUTE_SORT, sortIndex, heapBytes, collectionTallies, key
+				);
+				if (firstSight && this.decompose) {
+					decomposeSortIndex(sortIndex, index, key, heapBytes);
+				}
 			}
 		}
 		for (final AttributeIndexKey key : index.getChainIndexes()) {
@@ -436,6 +672,67 @@ public class CatalogIndexFootprintCensus {
 	}
 
 	/**
+	 * Splits one sort index's footprint into the components `SortIndex#getSharedHeapSizeInBytes` charges, and counts
+	 * the shape of the family alongside.
+	 *
+	 * Every row here is `(inferred)`: the sort index publishes its ordering as a **copy**
+	 * ({@link SortIndex#getSortedRecords()}) rather than as the `TransactionalUnorderedIntArray` it charges, so the
+	 * length is observable and the object is not. The `comparatorBase` array is not observable at all and is charged
+	 * as a single comparator source, which is right for a plain sortable attribute and understates a sortable
+	 * compound.
+	 *
+	 * What falls into the breakdown's residual is the part that matters most for a decision: an
+	 * {@link OwnerSortIndex} additionally charges the value tree it owns, and a {@link SortIndexView} charges nothing
+	 * beyond the shared rows. The owner/view split is counted so the residual can be read against it.
+	 *
+	 * @param sortIndex the index to decompose
+	 * @param owner     the entity index it belongs to, which decides the global/reduced count
+	 * @param key       the attribute it orders on
+	 * @param heapBytes what it says it occupies in total
+	 */
+	private void decomposeSortIndex(
+		@Nonnull SortIndex sortIndex,
+		@Nonnull EntityIndex owner,
+		@Nonnull AttributeIndexKey key,
+		long heapBytes
+	) {
+		final VMLayout layout = VMLayout.current();
+		this.sortBreakdown.total(heapBytes);
+		if (sortIndex instanceof OwnerSortIndex) {
+			this.sortOwners++;
+		} else if (sortIndex instanceof SortIndexView) {
+			this.sortViews++;
+		} else {
+			throw new GenericEvitaInternalError(
+				"Sort index implementation `" + sortIndex.getClass().getName() + "` is neither an owner nor a view - " +
+					"teach this census which value tree it charges before trusting the residual.",
+				"Unknown sort index implementation!"
+			);
+		}
+		if (owner instanceof GlobalEntityIndex) {
+			this.sortInGlobalIndexes++;
+		}
+		final int records = sortIndex.getSortedRecords().length;
+		this.sortedRecordCount += records;
+		this.sortDistinctValueCount += sortIndex.getDistinctValueCount();
+		this.sortBreakdown.add("sortedRecords int[] (inferred)", layout.sizeOfArray(records, Integer.BYTES));
+		this.sortBreakdown.add(
+			"object shell (inferred)",
+			layout.sizeOfObject(Long.BYTES + Integer.BYTES + 10L * layout.referenceSize())
+		);
+		this.sortBreakdown.add("dirty flag (inferred)", layout.sizeOfObject(Long.BYTES + 1L));
+		this.sortBreakdown.add(
+			"sortIndexChanges shell (inferred)", layout.sizeOfObject(3L * layout.referenceSize())
+		);
+		this.sortBreakdown.add(
+			"comparatorBase, one source (inferred)",
+			layout.sizeOfArray(1, layout.referenceSize()) + layout.sizeOfObject(3L * layout.referenceSize())
+		);
+		this.sortPerAttribute.computeIfAbsent(key.attributeName(), name -> new Tally()).add(heapBytes, true);
+		this.sortSamples.putIfAbsent(key.attributeName(), sortIndex);
+	}
+
+	/**
 	 * Charges every price index one entity index owns, and folds its price records into the distinct-record census.
 	 *
 	 * @param index             the entity index being walked
@@ -444,25 +741,98 @@ public class CatalogIndexFootprintCensus {
 	private void chargePrices(@Nonnull EntityIndex index, @Nonnull Map<Family, Tally> collectionTallies) {
 		final PriceIndexContract priceIndex = index.getPriceIndex();
 		for (final PriceListAndCurrencyPriceIndex<?> perPriceList : priceIndex.getPriceListAndCurrencyIndexes()) {
-			final boolean firstSight;
-			if (perPriceList instanceof final PriceListAndCurrencyPriceSuperIndex superIndex) {
-				firstSight = charge(
-					Family.PRICE_SUPER, superIndex, superIndex.getHeapSizeInBytes(), collectionTallies, null
-				);
-			} else if (perPriceList instanceof final PriceListAndCurrencyPriceRefIndex refIndex) {
-				firstSight = charge(
-					Family.PRICE_REF, refIndex, refIndex.getHeapSizeInBytes(), collectionTallies, null
-				);
-			} else {
+			final long heapBytes = priceIndexHeapOf(perPriceList);
+			final boolean superIndex = perPriceList instanceof PriceListAndCurrencyPriceSuperIndex;
+			final boolean firstSight = charge(
+				superIndex ? Family.PRICE_SUPER : Family.PRICE_REF, perPriceList, heapBytes, collectionTallies, null
+			);
+			if (firstSight) {
+				this.distinctPriceIndexes.add(perPriceList);
+				// materialized once and handed to both consumers - the tree walk behind it is the expensive part, and
+				// a second call would double it for every index in the catalog
+				final PriceRecordContract[] records = this.priceRecordCensus || this.decompose
+					? perPriceList.getPriceRecords() : null;
+				if (records != null && this.priceRecordCensus) {
+					chargePriceRecords(records);
+				}
+				if (records != null && this.decompose) {
+					decomposePriceIndex(perPriceList, superIndex, records.length, heapBytes);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Splits one price index's footprint into the components its own accounting charges.
+	 *
+	 * The reachable half is exact: the entity-id bitmap is handed out as the instance the index charges, and every
+	 * {@link EntityPrices} value of a super index is reachable through {@link PriceListAndCurrencyPriceSuperIndex#getEntityPrices(int)}
+	 * keyed by the very bitmap the index publishes. What no accessor exposes — the element B+ tree of price records,
+	 * the `indexedPriceIds` bitmap and the validity {@link RangeIndex} — is left to the breakdown's own residual row
+	 * rather than being estimated.
+	 *
+	 * The three `EntityPrices` arrays are separated using the implementations' own arithmetic: the two whose lengths
+	 * are publicly readable are priced directly, and the third falls out of the subtraction, which makes it exact
+	 * rather than inferred. A single-price entity reports zero for it, correctly — its one array *is* the lowest-price
+	 * array.
+	 *
+	 * @param priceIndex  the index to decompose
+	 * @param superIndex  whether it is a super index, which owns its record bodies and its entity-price map
+	 * @param recordCount how many price records its tree holds
+	 * @param heapBytes   what the index says it occupies in total
+	 */
+	private void decomposePriceIndex(
+		@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex,
+		boolean superIndex,
+		int recordCount,
+		long heapBytes
+	) {
+		final VMLayout layout = VMLayout.current();
+		final Breakdown breakdown = superIndex ? this.priceSuperBreakdown : this.priceRefBreakdown;
+		breakdown.total(heapBytes);
+		final Bitmap entityIds = priceIndex.getIndexedPriceEntityIds();
+		breakdown.add("indexedPriceEntityIds bitmap", entityIds.getHeapSizeInBytes());
+		breakdown.add("dirty and terminated flags (inferred)", 2L * layout.sizeOfObject(Long.BYTES + 1L));
+		breakdown.add(
+			"object shell (inferred)",
+			layout.sizeOfObject(Long.BYTES + (superIndex ? 10L : 9L) * layout.referenceSize())
+		);
+		if (!superIndex) {
+			return;
+		}
+		// only a super index owns the bodies - a reference index stores the very same instances and prices them at
+		// zero, which is why this row exists on one side of the table only
+		breakdown.add("price record bodies", recordCount * layout.sizeOfObject(5L * Integer.BYTES));
+		final PriceListAndCurrencyPriceSuperIndex superPriceIndex = (PriceListAndCurrencyPriceSuperIndex) priceIndex;
+		final long boxedKey = layout.sizeOfObject(Integer.BYTES);
+		final long entityPricesShell = layout.sizeOfObject(3L * layout.referenceSize());
+		final OfInt iterator = entityIds.iterator();
+		while (iterator.hasNext()) {
+			final int entityPrimaryKey = iterator.nextInt();
+			final EntityPrices entityPrices = superPriceIndex.getEntityPrices(entityPrimaryKey);
+			if (entityPrices == null) {
+				// the entity ids come from this index's own bitmap, so every one of them must resolve - a miss means
+				// the two disagree, which would silently understate the very row this method exists to produce
 				throw new GenericEvitaInternalError(
-					"Price index implementation `" + perPriceList.getClass().getName() + "` prices itself through no " +
-						"accessor this census knows - teach it before trusting the total.",
-					"Unknown price index implementation!"
+					"Entity `" + entityPrimaryKey + "` is in the price index's own entity bitmap but has no entity " +
+						"prices!",
+					"Indexed price entity has no entity prices!"
 				);
 			}
-			if (this.priceRecordCensus && firstSight) {
-				chargePriceRecords(perPriceList);
-			}
+			final long internalPriceIds = layout.sizeOfArray(
+				entityPrices.getInternalPriceIds().length, Integer.BYTES
+			);
+			final long lowestPrices = layout.sizeOfArray(
+				entityPrices.getLowestPriceRecords().length, layout.referenceSize()
+			);
+			breakdown.add("entityPrices - internalPriceIds int[]", internalPriceIds);
+			breakdown.add("entityPrices - lowestPrice ref[]", lowestPrices);
+			breakdown.add(
+				"entityPrices - prices ref[]",
+				entityPrices.getHeapSizeInBytes() - entityPricesShell - internalPriceIds - lowestPrices
+			);
+			breakdown.add("entityPrices - object shells", entityPricesShell);
+			breakdown.add("entityPrices - boxed map keys (inferred)", boxedKey);
 		}
 	}
 
@@ -473,9 +843,9 @@ public class CatalogIndexFootprintCensus {
 	 * count with references that do not exist. The sharing this counts is the one between a super index and the
 	 * reference indexes that borrow from it, which is a different instance each time.
 	 *
-	 * @param priceIndex the price index whose records to fold in
+	 * @param records the records one first-sighted price index holds, materialized once by the caller
 	 */
-	private void chargePriceRecords(@Nonnull PriceListAndCurrencyPriceIndex<?> priceIndex) {
+	private void chargePriceRecords(@Nonnull PriceRecordContract[] records) {
 		final Map<PriceRecordContract, Boolean> charged = this.chargedPriceRecords;
 		if (charged == null) {
 			throw new GenericEvitaInternalError(
@@ -483,7 +853,6 @@ public class CatalogIndexFootprintCensus {
 				"Price record census ran without its identity map!"
 			);
 		}
-		final PriceRecordContract[] records = priceIndex.getPriceRecords();
 		for (int i = 0; i < records.length; i++) {
 			final PriceRecordContract record = records[i];
 			this.priceRecordReferences++;
@@ -589,6 +958,13 @@ public class CatalogIndexFootprintCensus {
 		);
 
 		printCatalogIndexes(catalog);
+		if (this.decompose) {
+			printBreakdown("PRICE SUPER INDEX", this.priceSuperBreakdown);
+			printBreakdown("PRICE REF INDEX", this.priceRefBreakdown);
+			printBreakdown("ATTRIBUTE SORT INDEX", this.sortBreakdown);
+			printSortShape();
+			printResidualBreakdown(residual);
+		}
 		printPerCollection();
 		printPerAttribute();
 		printPriceRecords();
@@ -599,6 +975,126 @@ public class CatalogIndexFootprintCensus {
 		System.out.printf(
 			"  share of used heap explained             : %s%%%n",
 			share(this.entityIndexTotalBytes, usedHeapAfterLoad)
+		);
+	}
+
+	/**
+	 * Prints one family's component breakdown, ordered by size, with everything unreached as one residual row.
+	 *
+	 * @param label     the family's name
+	 * @param breakdown the components charged for it
+	 */
+	private static void printBreakdown(@Nonnull String label, @Nonnull Breakdown breakdown) {
+		System.out.printf(
+			"%n=== %s - COMPONENTS (%,d instances, %s) ===%n",
+			label, breakdown.instances, humanReadable(breakdown.totalBytes)
+		);
+		System.out.printf("%-42s %14s %9s %14s%n", "component", "heap", "share", "charges");
+		final List<Map.Entry<String, long[]>> ranked = new ArrayList<>(breakdown.rows.entrySet());
+		ranked.sort(Comparator.comparingLong((Map.Entry<String, long[]> e) -> e.getValue()[0]).reversed());
+		for (final Map.Entry<String, long[]> row : ranked) {
+			System.out.printf(
+				"%-42s %14s %8s%% %,14d%n",
+				row.getKey(), humanReadable(row.getValue()[0]),
+				share(row.getValue()[0], breakdown.totalBytes), row.getValue()[1]
+			);
+		}
+		final long residual = breakdown.totalBytes - breakdown.accounted();
+		System.out.printf(
+			"%-42s %14s %8s%% %14s%n",
+			"other (unreached)", humanReadable(residual), share(residual, breakdown.totalBytes), "-"
+		);
+	}
+
+	/**
+	 * Prints what the sort-index family is made of structurally, which is what its unreached residual has to be read
+	 * against.
+	 */
+	private void printSortShape() {
+		System.out.printf("%n=== ATTRIBUTE SORT INDEX - SHAPE ===%n");
+		System.out.printf("  %-38s %,14d%n", "sort indexes", this.sortOwners + this.sortViews);
+		System.out.printf("  %-38s %,14d%n", "  ...owners (own their value tree)", this.sortOwners);
+		System.out.printf("  %-38s %,14d%n", "  ...views (share a filter index tree)", this.sortViews);
+		System.out.printf("  %-38s %,14d%n", "  ...in a global entity index", this.sortInGlobalIndexes);
+		System.out.printf(
+			"  %-38s %,14d%n", "  ...in a reduced entity index",
+			this.sortOwners + this.sortViews - this.sortInGlobalIndexes
+		);
+		System.out.printf("  %-38s %,14d%n", "record ids ordered, summed", this.sortedRecordCount);
+		System.out.printf("  %-38s %,14d%n", "distinct values ordered by, summed", this.sortDistinctValueCount);
+
+		System.out.printf("%n  top %d attributes by sort-index heap:%n", TOP_ATTRIBUTES);
+		final List<Map.Entry<String, Tally>> ranked = new ArrayList<>(this.sortPerAttribute.entrySet());
+		ranked.sort(Comparator.comparingLong((Map.Entry<String, Tally> e) -> e.getValue().distinctBytes).reversed());
+		System.out.printf("  %-34s %12s %14s %9s %-22s%n", "attribute", "indexes", "heap", "share", "value type");
+		final int rows = Math.min(TOP_ATTRIBUTES, ranked.size());
+		for (int i = 0; i < rows; i++) {
+			final Map.Entry<String, Tally> row = ranked.get(i);
+			System.out.printf(
+				"  %-34s %,12d %14s %8s%% %-22s%n",
+				row.getKey(), row.getValue().distinctInstances, humanReadable(row.getValue().distinctBytes),
+				share(row.getValue().distinctBytes, this.sortBreakdown.totalBytes), valueTypeOf(row.getKey())
+			);
+		}
+	}
+
+	/**
+	 * Names the runtime type one attribute is sorted on, read from a representative index's own ordered values.
+	 *
+	 * Only the top rows are asked, because materializing a sort index's values is `O(distinct values)` and doing it
+	 * for every attribute in the catalog would cost more than the whole rest of the walk.
+	 *
+	 * @param attributeName the attribute to name the type of
+	 * @return the simple class name of its first ordered value, or a dash when it orders nothing
+	 */
+	@Nonnull
+	private String valueTypeOf(@Nonnull String attributeName) {
+		final SortIndex sample = this.sortSamples.get(attributeName);
+		if (sample == null) {
+			return "-";
+		}
+		final Serializable[] values = sample.getSortedRecordValues();
+		return values.length == 0 ? "-" : values[0].getClass().getSimpleName();
+	}
+
+	/**
+	 * Prints what the residual of the Pareto table is made of, and how much of it is still unexplained.
+	 *
+	 * @param residual the Pareto table's residual row, in bytes
+	 */
+	private void printResidualBreakdown(long residual) {
+		System.out.printf(
+			"%n=== RESIDUAL - COMPONENTS (%,d entity indexes, %s) ===%n",
+			this.entityIndexCount, humanReadable(residual)
+		);
+		System.out.printf("%-42s %14s %9s %14s%n", "component", "heap", "share", "charges");
+		final List<Map.Entry<String, long[]>> ranked = new ArrayList<>(this.residualBreakdown.rows.entrySet());
+		ranked.sort(Comparator.comparingLong((Map.Entry<String, long[]> e) -> e.getValue()[0]).reversed());
+		long accounted = 0L;
+		for (final Map.Entry<String, long[]> row : ranked) {
+			accounted += row.getValue()[0];
+			System.out.printf(
+				"%-42s %14s %8s%% %,14d%n",
+				row.getKey(), humanReadable(row.getValue()[0]), share(row.getValue()[0], residual),
+				row.getValue()[1]
+			);
+		}
+		final long stillUnexplained = residual - accounted;
+		System.out.printf(
+			"%-42s %14s %8s%% %14s%n",
+			"still unexplained", humanReadable(stillUnexplained), share(stillUnexplained, residual), "-"
+		);
+		System.out.printf(
+			"  hierarchy nodes: %,d   per-language entity id bitmaps: %,d%n",
+			this.hierarchyNodeCount, this.languageBitmapCount
+		);
+		for (final Map.Entry<String, Long> entry : this.entityIndexClasses.entrySet()) {
+			System.out.printf("  %-40s %,14d%n", entry.getKey(), entry.getValue());
+		}
+		System.out.println(
+			"  Still unexplained holds the per-language entity-id bitmaps, the four persisted `original*` baselines,\n" +
+				"  the attribute-index map spines above their empty-index floor, the facet index shell, and the\n" +
+				"  reference-type cardinality and histogram state - none of which any accessor reaches."
 		);
 	}
 
@@ -896,6 +1392,67 @@ public class CatalogIndexFootprintCensus {
 		 * @param index the live index
 		 */
 		void visit(@Nonnull EntityIndex index);
+
+	}
+
+	/**
+	 * A component breakdown of one family: every row an accessor or the implementation's own arithmetic could reach,
+	 * against the family total, so what is left over is a subtraction rather than a guess.
+	 */
+	private static final class Breakdown {
+
+		/**
+		 * Rows in first-seen order, each holding its summed bytes and how many times it was charged.
+		 */
+		private final Map<String, long[]> rows = new LinkedHashMap<>();
+		/**
+		 * What the family reports in total.
+		 */
+		private long totalBytes;
+		/**
+		 * How many instances of the family were decomposed.
+		 */
+		private long instances;
+
+		/**
+		 * Records one instance's total, which the rows are set against.
+		 *
+		 * @param bytes what the instance says it occupies
+		 */
+		void total(long bytes) {
+			this.totalBytes += bytes;
+			this.instances++;
+		}
+
+		/**
+		 * Adds one component charge.
+		 *
+		 * @param label the row it belongs to
+		 * @param bytes what it occupies
+		 */
+		void add(@Nonnull String label, long bytes) {
+			this.rows.computeIfAbsent(label, key -> new long[2])[0] += bytes;
+			this.rows.get(label)[1]++;
+		}
+
+		/**
+		 * Sums every row that belongs inside the family total.
+		 *
+		 * The memo rows are excluded: they are measured **after** the totals were taken, on a state the totals do not
+		 * describe, so folding them in would make the residual smaller than it is by exactly the amount the memo
+		 * would later cost.
+		 *
+		 * @return the bytes the rows account for
+		 */
+		long accounted() {
+			long total = 0L;
+			for (final Map.Entry<String, long[]> entry : this.rows.entrySet()) {
+				if (!entry.getKey().startsWith("memoizedIndexedPriceIds")) {
+					total += entry.getValue()[0];
+				}
+			}
+			return total;
+		}
 
 	}
 
