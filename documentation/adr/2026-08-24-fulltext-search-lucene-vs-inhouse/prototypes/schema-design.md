@@ -1155,6 +1155,22 @@ P5) as follows:
    assembled** when it is mixed. The exchangeability of the artefact thereby turns from a promise into an
    enforced property — and it is exactly what the defensive-design rule in `CLAUDE.md` asks of us.
 
+**Deferred here from P5 (2026-08-25, PR #1453 review).** The P5 prototype shipped the *identifier* half
+of the contract of `p5-analyzers.md` §4.5 only — `AnalyzerAssignment` carries names, no parameters. Two
+items therefore land in this step and must not be lost:
+
+- **Analyzer parameters.** Named values travelling with the identifier: a custom stop-word list per
+  analyzer, and switches for the optional pipeline steps (concretely the word/number split step of
+  `p5-analyzers.md` §4.6 point 2 — not yet in any built-in chain: its contract is pinned by
+  `WordNumberSplitAnalysisTest`, and wiring it means composing the built-in chains from their components,
+  see the 2026-09-02 note there). Note the parameter set shrank: "expressions exempted from stemming" dropped out when the
+  keyword-marker protection was discarded (§4.6 point 1 — exact-match values go into separate
+  non-fulltext attributes served by `attributeContains`/the trigram `SUBSTRING` lane, #1454).
+- **User documentation of the unknown-language fallback** (P5-5): an unknown language silently gets the
+  `generic` analyzer (tokenize + lowercase) plus a one-time log warning. That behaviour becomes
+  user-visible the moment the schema exposes analyzer selection, so its documentation belongs to this
+  step's deliverables, not to the inert prototype.
+
 An illustration of the registry contract — it is not part of the schema, but it shows what the schema
 refers to:
 

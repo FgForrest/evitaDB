@@ -1017,6 +1017,24 @@ rather than a tuning one. Both are open items below.
   are handled without indexed positions, by re-ranking the top-K.
 - [`prototypes/p5-analyzers.md`](prototypes/p5-analyzers.md) — the analyser registry, the Czech chain,
   and the coexistence of the analysis chain with today's NFD normalisation.
+- [`prototypes/p5-prior-art-accent-vs-stemming.md`](prototypes/p5-prior-art-accent-vs-stemming.md) —
+  the 2026-08-27 prior-art survey behind P5 §12: how seven engines (plus the in-house EdeeCMS
+  analyzers) reconcile diacritics folding with stemming, with `path:line` evidence; establishes that
+  the co-designed folded-space stemmer is the only known fix and that the second-lane-per-term
+  question must be settled before the term dictionary layout freezes.
+- [`prototypes/p5-approach-measurements-accent-vs-stemming.md`](prototypes/p5-approach-measurements-accent-vs-stemming.md)
+  — the empirical half of the survey: all six proposed mechanisms built and measured over one Czech
+  vocabulary on five metrics. Settles that the folded-space stemmer reaches 296/298 on the real
+  bare-typed cross-form query at one term per token, that the second-lane mechanism buys 3 pairs of
+  72 for a 1.95x term inflation and therefore has **no** claim on the term dictionary layout, and
+  that the remaining open questions are whether we own a Czech stemmer and whether the `ů→o` rule is
+  worth its false merges.
+- [`prototypes/p5-word-number-split-comparison.md`](prototypes/p5-word-number-split-comparison.md) —
+  the old client's word/number splitter (`UHD7800` found by `7800`) ported and measured against Lucene's
+  `WordDelimiterGraphFilter` in two placements. Settles that the step must sit between the tokenizer and
+  the stemmer — appended after the chain, as the old client did, the word half never meets its stemmed
+  query — which in turn means the built-in chains have to be composed from components before the step
+  can be switched on.
 - [`prototypes/p6-vector-spike.md`](prototypes/p6-vector-spike.md) — the vector branch as a separate
   decision with its own mini-gate: jVector as an embeddable library versus an in-house HNSW.
 - [`prototypes/p7-rank-profiles-and-boost-channel.md`](prototypes/p7-rank-profiles-and-boost-channel.md)
