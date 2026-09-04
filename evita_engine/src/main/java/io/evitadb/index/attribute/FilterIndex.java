@@ -72,6 +72,7 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -322,6 +323,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			// encoding: the schema keeps declaring `LocalDateTime`, and the value handed back to the client comes
 			// from `AttributesStoragePart`, not here
 			return FilterIndex::toUtcAnchoredMillisecondInstant;
+		} else if (LocalTime.class.isAssignableFrom(attributeType)) {
+			// a local time keeps its declared type - `LongKeyCodec.LOCAL_TIME` already encodes it losslessly as
+			// nano-of-day - so only the millisecond truncation applies. Without this branch the type fell through to
+			// NO_NORMALIZATION while every query probe was still cut to milliseconds at the data-type boundary, so a
+			// value written before that truncation existed kept a nanosecond-exact key that no probe could ever match
+			return FilterIndex::toMillisecondLocalTime;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency
 				? new ComparableCurrency(currency)
@@ -362,6 +369,26 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	}
 
 	/**
+	 * Cuts a {@link LocalTime} index key to whole milliseconds, leaving anything else untouched.
+	 *
+	 * Unlike the two date-time branches this performs no re-anchoring: `LocalTime` keeps its declared type all the way
+	 * to {@link io.evitadb.index.bPlusTree.LongKeyCodec#LOCAL_TIME}, which encodes nano-of-day and is injective, so the
+	 * truncation is the only thing the key needs.
+	 *
+	 * It is what makes a legacy catalog's keys reachable again. Reload runs every persisted value through this
+	 * normalizer, so two values that differed only below the millisecond now collapse onto one key and are merged by
+	 * the comparator-based collision repair before the tree's ascending checks ever see them - the same path that
+	 * already handles sub-millisecond `Instant` twins.
+	 *
+	 * @param value the value to normalize
+	 * @return the value truncated to whole milliseconds, or the value itself when it is not a `LocalTime`
+	 */
+	@Nullable
+	private static Serializable toMillisecondLocalTime(@Nullable Object value) {
+		return value instanceof LocalTime localTime ? truncateToMilliseconds(localTime) : (Serializable) value;
+	}
+
+	/**
 	 * Normalizes an `OffsetDateTime` attribute value into the millisecond-exact `Instant` the value tree keys it by.
 	 *
 	 * Accepts an `Instant` as well, and truncates that too — which is what makes the normalizer's idempotence hold
@@ -372,7 +399,6 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param value the raw attribute value (or an already-normalized one, or `null`)
 	 * @return the millisecond-exact instant, or the value unchanged when it is neither temporal type
 	 */
-	@Nullable
 	private static Serializable toMillisecondInstant(@Nullable Object value) {
 		if (value instanceof OffsetDateTime offsetDateTime) {
 			return truncateToMilliseconds(offsetDateTime.toInstant());
@@ -416,6 +442,24 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	@Nonnull
 	private static Instant truncateToMilliseconds(@Nonnull Instant instant) {
 		return instant.getNano() % 1_000_000 == 0 ? instant : instant.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * The `LocalTime` twin of {@link #truncateToMilliseconds(Instant)}: discards the sub-millisecond digits so that a
+	 * key and a query probe derived from the same wall-clock time meet.
+	 *
+	 * `LongKeyCodec#LOCAL_TIME` encodes nano-of-day and could represent the full precision, so unlike the `Instant`
+	 * branch this truncation is not forced by the codec's domain - it is what makes the index agree with the
+	 * millisecond precision every other surface already applies.
+	 *
+	 * An already-exact value is returned as the very same instance, for the same reason as its twin.
+	 *
+	 * @param value the local time to truncate
+	 * @return the millisecond-exact local time
+	 */
+	@Nonnull
+	private static LocalTime truncateToMilliseconds(@Nonnull LocalTime value) {
+		return value.getNano() % 1_000_000 == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
 	}
 
 	/**

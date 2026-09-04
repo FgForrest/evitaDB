@@ -1608,8 +1608,10 @@ class FilterIndexTest {
 	 * it is anchored at UTC before it becomes a bucket key — the same `Instant` space `OffsetDateTime` already uses,
 	 * which is what lets the tree store it as epoch-millis in a single-`long` `LongValueColumn` instead of boxing it.
 	 * Because the anchor is a *constant* offset the mapping is a lossless bijection and monotonic with
-	 * `LocalDateTime`'s natural order, so equality lookup and ordered iteration are unaffected. `LocalDate` and
-	 * `LocalTime` are deliberately left alone — each fits losslessly in a single `long` of its own.
+	 * `LocalDateTime`'s natural order, so equality lookup and ordered iteration are unaffected. `LocalDate` keeps its
+	 * own type — it has no sub-day component to cut — while `LocalTime` keeps its type but IS truncated: its codec
+	 * could hold the full nano-of-day, so the cut is not forced by the codec's domain, it is what makes the index
+	 * agree with the millisecond precision every other surface applies.
 	 *
 	 * The normalizer additionally truncates to whole milliseconds, which is what keeps every key inside
 	 * `LongKeyCodec.INSTANT`'s domain no matter where the value came from — see `FilterIndex#getNormalizer`.
@@ -1750,13 +1752,62 @@ class FilterIndexTest {
 		}
 
 		@Test
-		@DisplayName("LocalDate and LocalTime pass through unnormalized")
-		void shouldLeaveLocalDateAndLocalTimeAlone() {
+		@DisplayName("LocalDate passes through unnormalized")
+		void shouldLeaveLocalDateAlone() {
 			final LocalDate date = LocalDate.of(2026, 5, 20);
-			final LocalTime time = LocalTime.of(12, 19, 26);
 
 			assertSame(date, FilterIndex.getNormalizer(LocalDate.class, 0).apply(date));
-			assertSame(time, FilterIndex.getNormalizer(LocalTime.class, 0).apply(time));
+		}
+
+		@Test
+		@DisplayName("LocalTime keeps its type but is truncated to whole milliseconds")
+		void shouldTruncateLocalTimeToMilliseconds() {
+			// this assertion used to read `assertSame(time, ...)` under the name "LocalTime passes through
+			// unnormalized", and it kept passing after the truncation was added because the value it used had no
+			// sub-millisecond digits to lose - the identity fast path returned the very same instance. A value that
+			// actually carries nanoseconds is the only one that can tell the two behaviours apart
+			final LocalTime value = LocalTime.of(12, 19, 26).plusNanos(123_456_789L);
+
+			assertEquals(
+				LocalTime.of(12, 19, 26).plusNanos(123_000_000L),
+				FilterIndex.getNormalizer(LocalTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("an already-exact LocalTime comes back as the very same instance")
+		void shouldNotAllocateForAnAlreadyExactLocalTime() {
+			final LocalTime exact = LocalTime.of(12, 19, 26).plusNanos(123_000_000L);
+
+			assertSame(exact, FilterIndex.getNormalizer(LocalTime.class, 0).apply(exact));
+		}
+
+		@Test
+		@DisplayName("two sub-millisecond LocalTimes reach one bucket end-to-end through a FilterIndex")
+		void shouldMatchLocalTimeAtMillisecondGranularityThroughAFilterIndex() {
+			// the regression this guards: without a `LocalTime` branch in `getNormalizer` the index kept
+			// nanosecond-exact keys while every query probe was cut to milliseconds at the data-type boundary, so a
+			// value written before the truncation existed became permanently unreachable by its own attribute
+			final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "openedAt", null), LocalTime.class
+			);
+			final LocalTime base = LocalTime.of(12, 19, 26);
+			filterIndex.addRecord(1, base.plusNanos(123_000_001L));
+			filterIndex.addRecord(2, base.plusNanos(123_999_999L));
+			filterIndex.addRecord(3, base.plusNanos(124_000_000L));
+
+			// a THIRD sub-millisecond value inside the same millisecond finds both records - a probe that merely
+			// echoed one of the stored values back would prove nothing
+			assertArrayEquals(
+				new int[]{1, 2},
+				filterIndex.getRecordsEqualTo(base.plusNanos(123_456_789L)).getArray()
+			);
+			// and the neighbouring millisecond stays separate, so the collapse is not simply "everything matches"
+			assertArrayEquals(
+				new int[]{3},
+				filterIndex.getRecordsEqualTo(base.plusNanos(124_000_000L)).getArray()
+			);
+			assertEquals(2, filterIndex.getDistinctValueCount());
 		}
 
 	}
