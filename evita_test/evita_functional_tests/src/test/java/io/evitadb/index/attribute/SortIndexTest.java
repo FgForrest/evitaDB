@@ -1805,4 +1805,73 @@ class SortIndexTest {
 		}
 	}
 
+
+	@Nested
+	@DisplayName("Content-sized footprint")
+	class ContentSizedFootprintTest {
+
+		/**
+		 * The heap gate for a one-record owner sort index. The engine's own accounting measured **1,112 B** after the
+		 * two trees behind `sortedRecords` were content-sized, against **2,072 B** before it — 960 B of that
+		 * difference is three primitive arrays that used to be allocated at the full leaf block regardless of how
+		 * many records the index held (`int[65]` in the position tree, `int[64]` and `long[64]` in the value index).
+		 * The gate sits above the measurement rather than on it, because the figure follows the running VM's object
+		 * layout; it sits far below the pre-change figure, which is what makes it a regression gate at all.
+		 */
+		private static final long ONE_RECORD_SORT_INDEX_GATE = 1_200L;
+
+		/**
+		 * The heap gate for an EMPTY owner sort index — measured **856 B** after, against **1,656 B** before, which is
+		 * the floor the design note derived for this shape. The whole 800 B is the value index's eagerly allocated
+		 * root leaf, which every sort index owns from birth whether or not it ever holds a record.
+		 */
+		private static final long EMPTY_SORT_INDEX_GATE = 900L;
+
+		@Test
+		@DisplayName("a one-record sort index stays under the content-sized gate")
+		void shouldKeepAOneRecordSortIndexUnderTheGate() {
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord(7, 2);
+
+			final long heap = sortIndex.getHeapSizeInBytes();
+			assertTrue(
+				heap <= ONE_RECORD_SORT_INDEX_GATE,
+				"a one-record sort index must stay under " + ONE_RECORD_SORT_INDEX_GATE
+					+ " B (measured 1112 B after content sizing, 2072 B before it), was " + heap
+			);
+		}
+
+		@Test
+		@DisplayName("an empty sort index no longer pays for two full leaf blocks")
+		void shouldKeepAnEmptySortIndexUnderTheGate() {
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			final long heap = sortIndex.getHeapSizeInBytes();
+			assertTrue(
+				heap <= EMPTY_SORT_INDEX_GATE,
+				"an empty sort index must stay under " + EMPTY_SORT_INDEX_GATE
+					+ " B (measured 856 B after content sizing, 1656 B before it), was " + heap
+			);
+		}
+
+		@Test
+		@DisplayName("the footprint still grows with the records the index actually holds")
+		void shouldStillGrowWithTheRecordCount() {
+			final SortIndex small = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			small.addRecord(7, 2);
+			final SortIndex large = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			for (int recordId = 1; recordId <= 500; recordId++) {
+				large.addRecord(recordId, recordId);
+			}
+
+			// content sizing must not have turned the accounting into a constant - a 500-record index still costs
+			// more than a one-record one, which is what proves the arrays follow the content in both directions
+			assertTrue(
+				large.getHeapSizeInBytes() > small.getHeapSizeInBytes() * 10,
+				"a 500-record index must still cost far more than a one-record one, was "
+					+ large.getHeapSizeInBytes() + " vs " + small.getHeapSizeInBytes()
+			);
+		}
+	}
+
 }

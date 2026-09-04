@@ -28,6 +28,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree.BPlusInternalTreeNode;
+import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree.Entry;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
@@ -1075,8 +1077,9 @@ class TransactionalIntToLongBPlusTreeTest {
 		private static TransactionalIntToLongBPlusTree.BPlusLeafTreeNode leaf(int key) {
 			final int[] keys = {key};
 			final long[] values = {valueOf(key)};
+			// a hand-built leaf: a 3-slot logical capacity, its arrays sized to the single entry it carries
 			return new TransactionalIntToLongBPlusTree.BPlusLeafTreeNode(
-				keys, values, new int[3], new long[3], 0, 1, true
+				keys, values, new int[1], new long[1], 3, 0, 1, true
 			);
 		}
 
@@ -2540,8 +2543,9 @@ class TransactionalIntToLongBPlusTreeTest {
 		private static TransactionalIntToLongBPlusTree.BPlusLeafTreeNode leaf(int key) {
 			final int[] keys = {key};
 			final long[] values = {valueOf(key)};
+			// a hand-built leaf: a 3-slot logical capacity, its arrays sized to the single entry it carries
 			return new TransactionalIntToLongBPlusTree.BPlusLeafTreeNode(
-				keys, values, new int[3], new long[3], 0, 1, true
+				keys, values, new int[1], new long[1], 3, 0, 1, true
 			);
 		}
 
@@ -2946,6 +2950,197 @@ class TransactionalIntToLongBPlusTreeTest {
 			);
 		}
 
+	}
+
+
+	@Nested
+	@DisplayName("Content-sized leaf arrays")
+	class ContentSizedLeafTest {
+
+		/**
+		 * Builds a tree with a 16-entry leaf block and inserts `entries` ascending keys into it.
+		 *
+		 * @param entries how many keys to insert
+		 * @return the populated tree
+		 */
+		@Nonnull
+		private TransactionalIntToLongBPlusTree treeWith(int entries) {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(16, 7, 15, 7);
+			for (int key = 0; key < entries; key++) {
+				tree.insert(key, (long) key * 10 + 1);
+			}
+			return tree;
+		}
+
+		@Test
+		@DisplayName("the eagerly built root leaf of an empty tree allocates nothing")
+		void shouldAllocateNothingForTheEagerRootLeaf() {
+			// this leaf is built by the constructor of every TransactionalUnorderedIntArray, so it is one per sort
+			// index and one per chain index in the catalog - it used to cost an int[64] plus a long[64]
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) new TransactionalIntToLongBPlusTree().getRoot();
+			assertEquals(0, leaf.getKeys().length, "an empty leaf must allocate no key slots");
+			assertEquals(0, leaf.getValues().length, "an empty leaf must allocate no value slots");
+			assertEquals(64, leaf.capacity(), "the LOGICAL capacity must still be the default block size");
+		}
+
+		@Test
+		@DisplayName("a leaf whose arrays are full but whose capacity has room does not report full")
+		void shouldNotReportFullWhileTheLogicalCapacityHasRoom() {
+			// THE regression this test exists for: `isFull` / `isNearlyFull` reading `values.length` would make this
+			// four-entry leaf report itself full, split there, and leave the tree correct but with a WORSE footprint
+			// than before content sizing - every existing test would still pass
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) treeWith(4).getRoot();
+
+			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
+			assertEquals(4, leaf.getValues().length, "the fixture needs both arrays sized to the load");
+			assertEquals(16, leaf.capacity(), "the LOGICAL capacity must be the tree's configured block size");
+			assertFalse(
+				leaf.isFull(),
+				"a leaf holding 4 of 16 capacity slots must not report full merely because its array is"
+			);
+			assertFalse(
+				leaf.isNearlyFull(),
+				"and it must not claim one insert could fill it either"
+			);
+		}
+
+		@Test
+		@DisplayName("a leaf splits at the configured block size, never at its array length")
+		void shouldSplitOnlyAtTheConfiguredBlockSize() {
+			final TransactionalIntToLongBPlusTree tree = treeWith(15);
+			assertInstanceOf(
+				BPlusLeafTreeNode.class, tree.getRoot(),
+				"15 entries in a 16-entry block must still be one leaf"
+			);
+
+			tree.insert(15, 151L);
+			assertInstanceOf(
+				BPlusInternalTreeNode.class, tree.getRoot(),
+				"the 16th entry fills the block and must split it"
+			);
+			for (int key = 0; key < 16; key++) {
+				assertEquals(
+					(long) key * 10 + 1, tree.searchOrDefault(key, -1L),
+					"every entry must survive the split of two content-sized halves, key " + key
+				);
+			}
+			assertEquals(16, tree.size());
+		}
+
+		@Test
+		@DisplayName("growth doubles from four to the block size and reallocates no more often than the policy allows")
+		void shouldGrowLeafArraysAlongTheSizingPolicy() {
+			final int blockSize = 16;
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(blockSize, 7, 15, 7);
+			final int[] lengthAfterInsert = new int[blockSize + 1];
+			int reallocations = 0;
+			int[] previousArray = null;
+
+			for (int entries = 1; entries <= blockSize - 1; entries++) {
+				tree.insert(entries - 1, (long) entries);
+				final int[] current = ((BPlusLeafTreeNode) tree.getRoot()).getKeys();
+				//noinspection ArrayEquality
+				if (current != previousArray) {
+					reallocations++;
+					previousArray = current;
+				}
+				lengthAfterInsert[entries] = current.length;
+			}
+
+			// 4 -> 8 -> the block size: three allocations to fill a 16-entry leaf, against 15 inserts
+			assertEquals(3, reallocations, "filling a 16-entry leaf must cost 3 allocations, was " + reallocations);
+			assertEquals(4, lengthAfterInsert[1], "the first insert allocates the sizing floor");
+			assertEquals(4, lengthAfterInsert[4], "four entries still fit the floor");
+			assertEquals(8, lengthAfterInsert[5], "the fifth entry doubles the array");
+			assertEquals(8, lengthAfterInsert[8], "eight entries still fit the doubled array");
+			assertEquals(
+				blockSize, lengthAfterInsert[9],
+				"past half the block the policy goes straight to the capacity rather than overshooting"
+			);
+			assertEquals(blockSize, lengthAfterInsert[blockSize - 1], "a nearly full leaf sits at its capacity");
+		}
+	}
+
+	@Nested
+	@DisplayName("Reader bounds when a leaf peek runs ahead of its arrays")
+	class TornLeafReaderBoundTest {
+
+		/**
+		 * Builds a single-leaf tree left in exactly the shape an unsynchronized reader can observe: a `peek` that
+		 * belongs to a growth whose longer arrays are not visible beside it.
+		 *
+		 * A content-sized leaf sizes both arrays to its load, so a leaf holding four entries really does own a
+		 * four-slot array and a read one slot past it really does run off the end — which is what makes the bound an
+		 * assertion rather than a formality. Before the leaf arrays followed their content this shape was
+		 * unreachable: every leaf carried a full-block array, so the same torn read landed inside it and merely
+		 * returned a stale element.
+		 *
+		 * @return a tree whose single leaf holds four live entries under a peek of four
+		 */
+		@Nonnull
+		private TransactionalIntToLongBPlusTree tornSingleLeafTree() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(16, 7, 15, 7);
+			for (int key = 0; key < 4; key++) {
+				tree.insert(key, (long) key * 10 + 1);
+			}
+
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
+			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
+			assertEquals(3, leaf.getPeek(), "the fixture needs peek at the last occupied slot");
+
+			leaf.setPeek(leaf.getPeek() + 1);
+			assertEquals(4, leaf.getPeek(), "the fixture must leave peek one slot past the arrays");
+			assertEquals(4, leaf.getKeys().length, "the arrays must stay at the length they were");
+			return tree;
+		}
+
+		@Test
+		@DisplayName("point lookup stays inside the arrays it read")
+		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArrays() {
+			final TransactionalIntToLongBPlusTree tree = tornSingleLeafTree();
+			for (int key = 0; key < 4; key++) {
+				assertEquals(
+					(long) key * 10 + 1, tree.searchOrDefault(key, -1L),
+					"point lookup must still find every live key, key " + key
+				);
+			}
+			// past the last key, so an unbounded binary search walks up into the slot the arrays do not carry
+			assertEquals(
+				-1L, tree.searchOrDefault(9, -1L),
+				"a lookup past the end must miss rather than run off the array"
+			);
+		}
+
+		@Test
+		@DisplayName("forward iteration stays inside the arrays it read")
+		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArrays() {
+			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueIterator();
+			final StringBuilder forward = new StringBuilder();
+			while (it.hasNext()) {
+				forward.append(it.nextLong()).append(' ');
+			}
+			assertEquals("1 11 21 31 ", forward.toString(), "the forward walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("reverse iteration stays inside the arrays it read")
+		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArrays() {
+			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueReverseIterator();
+			final StringBuilder reverse = new StringBuilder();
+			while (it.hasNext()) {
+				reverse.append(it.nextLong()).append(' ');
+			}
+			assertEquals("31 21 11 1 ", reverse.toString(), "the reverse walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("the verbose rendering stays inside the arrays it read")
+		void shouldBoundTheVerboseRenderingWhenPeekRunsAheadOfTheArrays() {
+			assertEquals(
+				"0:1, 1:11, 2:21, 3:31", tornSingleLeafTree().toString().trim(),
+				"the rendering must stop at the live run rather than index past the arrays"
+			);
+		}
 	}
 
 }

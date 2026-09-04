@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntLongMap;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.ColumnSizing;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -1147,13 +1148,13 @@ class UnorderedLookupTreeTest {
 			// respaceOrderKeys re-stamps EVERY container via setOrderKey - it must not re-dirty (and re-emit) every page,
 			// so setOrderKey is proven not to set the flag while a content mutator (getRecordIdsForUpdate) does
 			final UnorderedLookupTree.LeafNode leaf = new UnorderedLookupTree.LeafNode(false, 4, 1);
-			leaf.getRecordIdsForUpdate()[0] = 1;
+			leaf.getRecordIdsForUpdate(1)[0] = 1;
 			leaf.setCount(1);
 			assertTrue(leaf.isDirty(), "a content mutation must dirty the leaf");
 			leaf.clearDirty();
 			leaf.setOrderKey(123_456L);
 			assertFalse(leaf.isDirty(), "setOrderKey (order-key re-space) must NOT dirty the leaf");
-			leaf.getRecordIdsForUpdate();
+			leaf.getRecordIdsForUpdate(1);
 			assertTrue(leaf.isDirty(), "a content mutation must dirty the leaf");
 		}
 
@@ -1161,7 +1162,7 @@ class UnorderedLookupTreeTest {
 		@DisplayName("savepoint: pageSequence and dirty survive snapshot -> mutate -> restore")
 		void shouldRestorePageSequenceAndDirtyFromMemento() {
 			final UnorderedLookupTree.LeafNode leaf = new UnorderedLookupTree.LeafNode(false, 4, 1);
-			leaf.getRecordIdsForUpdate()[0] = 7;
+			leaf.getRecordIdsForUpdate(1)[0] = 7;
 			leaf.setCount(1);          // dirty = true
 			leaf.setPageSequence(42);
 			final UnorderedLookupTree.LeafNode.LeafNodeMemento memento = leaf.snapshot();
@@ -1177,21 +1178,30 @@ class UnorderedLookupTreeTest {
 		}
 
 		@Test
-		@DisplayName("SortIndex-style tree stays zero-cost: 65-wide leaves, null head mask, non-paged")
+		@DisplayName("SortIndex-style tree stays zero-cost: empty leaves allocate nothing, null head mask, non-paged")
 		void shouldKeepNonPagedNonHeadAwareTreeZeroCost() {
-			// the SortIndex family uses new LeafNode(true, DEFAULT_BLOCK_SIZE, 0): 65-slot record arrays, NO head-mask
-			// array allocated at all (null), while the paged head-aware ChainIndex tree grows page-sized leaves + mask
+			// the SortIndex family uses new LeafNode(true, DEFAULT_BLOCK_SIZE, 0): a 65-slot LOGICAL capacity whose
+			// record array follows the live content (nothing at all while empty), and NO head-mask array allocated at
+			// all (null), while the paged head-aware ChainIndex tree grows page-sized leaves + a multi-word mask
 			final UnorderedLookupTree.LeafNode sortLeaf =
 				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.DEFAULT_BLOCK_SIZE, 0);
 			assertEquals(
-				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, sortLeaf.getRecordIds().length,
-				"SortIndex leaves stay DEFAULT_BLOCK_SIZE + 1 (65) slots wide"
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, sortLeaf.capacity(),
+				"SortIndex leaves keep a DEFAULT_BLOCK_SIZE + 1 (65) slot logical capacity"
+			);
+			assertEquals(
+				0, sortLeaf.getRecordIds().length,
+				"an empty SortIndex leaf must allocate no record slots at all"
 			);
 			assertNull(sortLeaf.getHeadMask(), "SortIndex leaves allocate no head-mask array (null - zero cost)");
 			final int maskWords = (UnorderedLookupTree.PAGE_RECORDS + 1 + 63) / 64;
 			final UnorderedLookupTree.LeafNode chainLeaf =
 				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.PAGE_RECORDS, maskWords);
-			assertEquals(UnorderedLookupTree.PAGE_RECORDS + 1, chainLeaf.getRecordIds().length);
+			assertEquals(UnorderedLookupTree.PAGE_RECORDS + 1, chainLeaf.capacity());
+			assertEquals(
+				0, chainLeaf.getRecordIds().length,
+				"an empty ChainIndex leaf must allocate no record slots either - this is the 4,120 B that goes away"
+			);
 			assertEquals(maskWords, chainLeaf.getHeadMask().length, "paged head-aware leaves carry a multi-word mask");
 			// the non-paged, non-head-aware tree rejects every page-SPI call (the SPI is gated behind `paged`)
 			final UnorderedLookupTree sortIndexStyle = new UnorderedLookupTree();
@@ -1386,6 +1396,246 @@ class UnorderedLookupTreeTest {
 			final UnorderedLookupTree.PositionCursor cursor = tested.tree.reversePositionCursor();
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(3));
 			assertThrows(GenericEvitaInternalError.class, () -> cursor.recordAt(-1));
+		}
+	}
+
+
+	@Nested
+	@DisplayName("Content-sized leaf containers")
+	class ContentSizedLeafTest {
+
+		/**
+		 * Returns the one and only container of a single-leaf tree, failing the test when the tree has already grown
+		 * a routing spine (which would mean the fixture split when it was not supposed to).
+		 *
+		 * @param tree the tree under test
+		 * @return its root container
+		 */
+		@Nonnull
+		private UnorderedLookupTree.LeafNode singleLeaf(@Nonnull UnorderedLookupTree tree) {
+			final Object root = tree.getRoot();
+			assertInstanceOf(
+				UnorderedLookupTree.LeafNode.class, root,
+				"the fixture needs a single-leaf tree, but the root is " + root
+			);
+			return (UnorderedLookupTree.LeafNode) root;
+		}
+
+		/**
+		 * Appends `count` records (1..count) to an empty tree in logical order.
+		 *
+		 * @param tested the tree wrapper to fill
+		 * @param count  how many records to append
+		 */
+		private void appendAscending(@Nonnull TreeWithIndex tested, int count) {
+			tested.addAtPosition(0, 1);
+			for (int recordId = 2; recordId <= count; recordId++) {
+				tested.addAfter(recordId - 1, recordId);
+			}
+		}
+
+		@Test
+		@DisplayName("a one-record container holds four slots, not the whole leaf capacity")
+		void shouldSizeAOneRecordContainerToTheSizingFloor() {
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.addAtPosition(0, 42);
+
+			final UnorderedLookupTree.LeafNode leaf = singleLeaf(tested.tree);
+			assertEquals(1, leaf.getCount(), "the fixture must hold exactly one record");
+			assertEquals(
+				ColumnSizing.MIN_PHYSICAL_LENGTH, leaf.getRecordIds().length,
+				"a one-record container must allocate the sizing floor, not its capacity"
+			);
+			assertEquals(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, leaf.capacity(),
+				"the LOGICAL capacity must be untouched by the physical sizing"
+			);
+		}
+
+		@Test
+		@DisplayName("growth doubles from four to the capacity and reallocates no more often than the policy allows")
+		void shouldGrowLeafArrayAlongTheSizingPolicy() {
+			final int splitThreshold = UnorderedLookupTree.DEFAULT_BLOCK_SIZE;
+			final int capacity = splitThreshold + 1;
+			final TreeWithIndex tested = new TreeWithIndex();
+			final int[] lengthAfterInsert = new int[splitThreshold + 1];
+			int reallocations = 0;
+			int[] previousArray = null;
+
+			for (int recordId = 1; recordId <= splitThreshold; recordId++) {
+				if (recordId == 1) {
+					tested.addAtPosition(0, 1);
+				} else {
+					tested.addAfter(recordId - 1, recordId);
+				}
+				final int[] current = singleLeaf(tested.tree).getRecordIds();
+				//noinspection ArrayEquality
+				if (current != previousArray) {
+					reallocations++;
+					previousArray = current;
+				}
+				lengthAfterInsert[recordId] = current.length;
+			}
+
+			// 4 -> 8 -> 16 -> 32 -> the capacity: five allocations to fill a 64-record container, against 64 inserts
+			assertEquals(
+				5, reallocations,
+				"filling a container must cost 5 allocations, was " + reallocations
+			);
+			assertEquals(4, lengthAfterInsert[1], "the first insert allocates the sizing floor");
+			assertEquals(4, lengthAfterInsert[4], "four records still fit the floor");
+			assertEquals(8, lengthAfterInsert[5], "the fifth record doubles the array");
+			assertEquals(16, lengthAfterInsert[9], "the ninth doubles it again");
+			assertEquals(32, lengthAfterInsert[17], "and again at seventeen");
+			assertEquals(
+				capacity, lengthAfterInsert[33],
+				"past half the capacity the policy goes straight to it rather than overshooting"
+			);
+			assertEquals(capacity, lengthAfterInsert[splitThreshold], "a full container reaches its capacity");
+			for (int records = 1; records <= splitThreshold; records++) {
+				assertTrue(
+					lengthAfterInsert[records] >= records && lengthAfterInsert[records] <= capacity,
+					"the array must hold the content and never exceed the capacity, was "
+						+ lengthAfterInsert[records] + " for " + records + " records"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a split of content-sized halves keeps every record")
+		void shouldKeepEveryRecordWhenSplittingContentSizedHalves() {
+			// one record past the split threshold, so the container overflows and both halves are rebuilt
+			final int records = UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1;
+			final TreeWithIndex tested = new TreeWithIndex();
+			appendAscending(tested, records);
+
+			final List<Integer> oracle = new ArrayList<>(records);
+			for (int recordId = 1; recordId <= records; recordId++) {
+				oracle.add(recordId);
+			}
+			// the whole oracle assertion: flattened order, every position, every reverse lookup and the structural
+			// consistency report - a half-copied right container would fail all four at once
+			assertConsistentWithOracle(tested, oracle);
+			assertInstanceOf(
+				UnorderedLookupTree.InternalNode.class, tested.tree.getRoot(),
+				"the fixture must actually have split"
+			);
+		}
+
+		@Test
+		@DisplayName("a container split at a small fan-out keeps every record too")
+		void shouldKeepEveryRecordWhenSplittingRepeatedlyAtSmallFanOut() {
+			// a fan-out of 3 forces split after split after split, each one halving an already content-sized array
+			final TreeWithIndex tested = new TreeWithIndex(3, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			final List<Integer> oracle = new ArrayList<>();
+			tested.addAtPosition(0, 1);
+			oracle.add(1);
+			for (int recordId = 2; recordId <= 200; recordId++) {
+				tested.addAfter(recordId - 1, recordId);
+				oracle.add(recordId);
+			}
+
+			assertConsistentWithOracle(tested, oracle);
+		}
+	}
+
+	@Nested
+	@DisplayName("Reader bounds when a container count runs ahead of its array")
+	class TornLeafReaderBoundTest {
+
+		/**
+		 * Builds a single-container tree left in exactly the shape an unsynchronized reader can observe: a `count`
+		 * that belongs to a growth whose longer array is not visible beside it.
+		 *
+		 * A content-sized container sizes its array to its load, so a container holding four records really does own
+		 * a four-slot array and a read one slot past it really does run off the end — which is what makes the bound
+		 * an assertion rather than a formality. Before the containers followed their content this shape was
+		 * unreachable: every container carried a `leafCapacity + 1` array, so the same torn read landed inside it and
+		 * merely returned a stale record id.
+		 *
+		 * @return a tree whose single container holds four live records under a count of five
+		 */
+		@Nonnull
+		private TreeWithIndex tornSingleContainerTree() {
+			final TreeWithIndex tested = new TreeWithIndex(
+				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP));
+			tested.bulkLoad(new int[]{11, 22, 33, 44});
+
+			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
+			assertEquals(4, leaf.getRecordIds().length, "the fixture needs a container sized exactly to its load");
+			assertEquals(4, leaf.getCount(), "the fixture needs the count at the last occupied slot");
+
+			leaf.setCount(leaf.getCount() + 1);
+			assertEquals(5, leaf.getCount(), "the fixture must leave the count one slot past the array");
+			assertEquals(4, leaf.getRecordIds().length, "the array must stay at the length it was");
+			assertEquals(4, tested.tree.size(), "the tree's own size must stay at the four records it holds");
+			return tested;
+		}
+
+		@Test
+		@DisplayName("the flatten walk stays inside the array it read")
+		void shouldBoundTheFlattenWalkWhenTheCountRunsAheadOfTheArray() {
+			assertArrayEquals(
+				new int[]{11, 22, 33, 44}, tornSingleContainerTree().tree.getArray(),
+				"the flatten must copy the live run, not the count it was handed"
+			);
+		}
+
+		@Test
+		@DisplayName("the last-record read stays inside the array it read")
+		void shouldBoundTheLastRecordReadWhenTheCountRunsAheadOfTheArray() {
+			assertEquals(
+				44, tornSingleContainerTree().tree.getLastRecordId(),
+				"the last record must come from the array the reader holds"
+			);
+		}
+
+		@Test
+		@DisplayName("the in-container scan stays inside the array it read")
+		void shouldBoundTheInContainerScanWhenTheCountRunsAheadOfTheArray() {
+			final TreeWithIndex tested = tornSingleContainerTree();
+			final long orderKey = tested.valueIndex.get(11);
+			// every live record is still found at its true position ...
+			assertEquals(0, tested.tree.findPositionByOrderKey(orderKey, 11));
+			assertEquals(3, tested.tree.findPositionByOrderKey(orderKey, 44));
+			// ... and a record the container does not hold reports "not found" rather than running off the array
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tested.tree.findPositionByOrderKey(orderKey, 999),
+				"an absent record must miss rather than index past the array"
+			);
+		}
+
+		@Test
+		@DisplayName("the reverse position cursor stays inside the array it read")
+		void shouldBoundTheReverseCursorWhenTheCountRunsAheadOfTheArray() {
+			// the reverse cursor derives its leaf base from the count (`size() - leafCount`), so an unbounded count
+			// shifts the whole window one slot past the array
+			final UnorderedLookupTree.PositionCursor cursor =
+				tornSingleContainerTree().tree.reversePositionCursor();
+			assertEquals(44, cursor.recordAt(0), "the reverse walk must start at the live tail");
+			assertEquals(33, cursor.recordAt(1));
+			assertEquals(22, cursor.recordAt(2));
+			assertEquals(11, cursor.recordAt(3));
+		}
+
+		@Test
+		@DisplayName("the emitted persistence page carries the live run, never a phantom record")
+		void shouldBoundTheEmittedPageWhenTheCountRunsAheadOfTheArray() {
+			// this one is not an out-of-bounds hazard but a correctness one: `Arrays.copyOf` would happily pad the
+			// page with a zero record id and persist it
+			final TreeWithIndex tested = new TreeWithIndex(
+				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true, 1024, true));
+			tested.bulkLoadWithHeads(new int[]{11, 22, 33, 44}, new int[]{0});
+			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
+			leaf.setCount(leaf.getCount() + 1);
+
+			final List<UnorderedLookupTree.LeafPageHandle> handles = tested.tree.leafPageHandles();
+			assertEquals(1, handles.size());
+			assertArrayEquals(
+				new int[]{11, 22, 33, 44}, handles.get(0).recordIds(),
+				"the page must carry the live run, never a padded zero record id"
+			);
 		}
 	}
 

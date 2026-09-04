@@ -46,14 +46,19 @@ import io.evitadb.utils.Assert;
  *   hysteresis: without it a leaf oscillating around a power-of-two occupancy would alternate grow and trim on every
  *   commit. It mirrors the promotion / demotion gap the trigram postings already use, for the same reason.
  *
+ * The policy is **public to the engine, not to the API**: the same grow-and-trim arithmetic now also sizes the leaf
+ * containers of {@link io.evitadb.index.array.UnorderedLookupTree}, which lives in a neighbouring package. Widening
+ * the visibility was preferred to a second copy of the numbers — this class exists precisely so the two decisions
+ * below are stated once and cannot drift.
+ *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class ColumnSizing {
+public final class ColumnSizing {
 
 	/**
 	 * The smallest physical backing array a non-empty column ever holds.
 	 */
-	static final int MIN_PHYSICAL_LENGTH = 4;
+	public static final int MIN_PHYSICAL_LENGTH = 4;
 
 	/**
 	 * How much slack a column must carry before {@code trimmed()} shrinks it: the live count has to fall to at most
@@ -73,7 +78,7 @@ final class ColumnSizing {
 	 * @param capacity       the column's logical capacity (the leaf block size), the growth cap
 	 * @return the new physical length, never below {@code requiredLength} and never above {@code capacity}
 	 */
-	static int grownLength(int currentLength, int requiredLength, int capacity) {
+	public static int grownLength(int currentLength, int requiredLength, int capacity) {
 		Assert.isPremiseValid(
 			requiredLength <= capacity,
 			() -> "A column can never be asked for more slots (" + requiredLength + ") than its logical capacity ("
@@ -108,7 +113,7 @@ final class ColumnSizing {
 	 * @param capacity      the column's logical capacity (the leaf block size)
 	 * @return the physical length the copy should allocate, never below {@code currentLength}
 	 */
-	static int headroomLength(int size, int currentLength, int capacity) {
+	public static int headroomLength(int size, int currentLength, int capacity) {
 		if (size == 0 || size < currentLength || currentLength >= capacity) {
 			return currentLength;
 		}
@@ -127,7 +132,7 @@ final class ColumnSizing {
 	 * @param count    the number of live entries the caller is loading
 	 * @param capacity the column's logical capacity (the leaf block size)
 	 */
-	static void assertLoadFitsCapacity(int count, int capacity) {
+	public static void assertLoadFitsCapacity(int count, int capacity) {
 		Assert.isPremiseValid(
 			count >= 0 && count <= capacity,
 			() -> "A column can never be loaded with more entries (" + count + ") than its logical capacity ("
@@ -144,7 +149,7 @@ final class ColumnSizing {
 	 * @param capacity      the column's logical capacity (the leaf block size)
 	 * @return the target physical length; equal to {@code currentLength} when no trim is warranted
 	 */
-	static int trimmedLength(int size, int currentLength, int capacity) {
+	public static int trimmedLength(int size, int currentLength, int capacity) {
 		if (size > currentLength / TRIM_RATIO) {
 			// not enough slack to pay for a copy — and shrinking here is what would make a leaf hovering around a
 			// power of two alternate grow and trim on every commit

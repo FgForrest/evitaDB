@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.ColumnSizing;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.VMLayout;
@@ -43,6 +44,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
 
 /**
  * The **position tree** of the two-tree backing for {@link UnorderedLookup}: a count-augmented (order-statistic) B+
@@ -85,10 +88,12 @@ public class UnorderedLookupTree implements
 	@Serial private static final long serialVersionUID = -7242020610200620162L;
 
 	/**
-	 * Default (and maximum) physical capacity of a single node block (both container record slots and internal child
-	 * slots). A power of two keeps the blocks small enough to be TLAB-allocated and cache friendly. Node arrays are
-	 * always allocated to this fixed size; the per-instance {@link #blockSize} is the LOGICAL split threshold (≤ this
-	 * value) so tests can force splits/steals/merges at a small fan-out without changing the physical allocation.
+	 * Default (and maximum) logical capacity of a single node block (both container record slots and internal child
+	 * slots). A power of two keeps the blocks small enough to be TLAB-allocated and cache friendly. INTERNAL node
+	 * arrays are always allocated to this fixed size; leaf container arrays are sized to their live content and grow
+	 * towards {@link #leafCapacity} instead ({@link LeafNode#capacity}). The per-instance {@link #blockSize} is the
+	 * LOGICAL split threshold (≤ this value) so tests can force splits/steals/merges at a small fan-out without
+	 * changing the physical allocation.
 	 */
 	static final int DEFAULT_BLOCK_SIZE = 64;
 	/**
@@ -156,8 +161,9 @@ public class UnorderedLookupTree implements
 	 */
 	private final boolean headAware;
 	/**
-	 * Physical record capacity of a single leaf **container** (its `recordIds` / head-mask arrays are sized to
-	 * `leafCapacity + 1` to host the transient pre-split overflow slot). Decoupled from {@link #blockSize} (the
+	 * Logical record capacity of a single leaf **container**: its head-mask array is sized to `leafCapacity + 1` bits
+	 * to host the transient pre-split overflow slot, and its `recordIds` array may grow to that many slots but is
+	 * sized to the live content until it does ({@link LeafNode#capacity}). Decoupled from {@link #blockSize} (the
 	 * internal-node fan-out): a **paged** tree sizes its leaves to {@link #PAGE_RECORDS} while the routing spine keeps
 	 * the small {@link #blockSize} fan-out; a non-paged tree keeps the legacy {@link #DEFAULT_BLOCK_SIZE}-wide leaves so
 	 * the SortIndex family is byte-for-byte unaffected.
@@ -167,7 +173,8 @@ public class UnorderedLookupTree implements
 	 * Logical fill threshold at which a leaf container splits (and the bulk-load leaf-packing size). A **paged** tree
 	 * splits leaves at {@link #leafCapacity} (page-sized leaves); a non-paged tree keeps the legacy behaviour of
 	 * splitting at {@link #blockSize} (so small-fan-out tests still force frequent leaf splits). Always
-	 * `<= leafCapacity`, so the transient overflow occupancy (`+1`) fits the physical `leafCapacity + 1` array.
+	 * `<= leafCapacity`, so the transient overflow occupancy (`+1`) fits the container's `leafCapacity + 1` logical
+	 * capacity.
 	 */
 	private final int leafSplitThreshold;
 	/**
@@ -321,9 +328,10 @@ public class UnorderedLookupTree implements
 	/**
 	 * Returns the heap this tree occupies, in bytes.
 	 *
-	 * The figure is exact rather than an estimate: node arrays are charged at their allocated capacity (they are
-	 * always {@link #DEFAULT_BLOCK_SIZE}-sized regardless of how full the node is, so the slack is real and is
-	 * reported), and object headers plus alignment padding come from the running VM.
+	 * The figure is exact rather than an estimate: every array is charged at the length it was actually allocated at,
+	 * and object headers plus alignment padding come from the running VM. Internal-node arrays are always
+	 * {@link #DEFAULT_BLOCK_SIZE}-sized regardless of how full the node is, so their slack is real and is reported;
+	 * leaf container arrays follow their live content, so whatever slack they still carry is reported just the same.
 	 *
 	 * Everything this structure stores is a primitive — record ids, order-keys, per-child counts — so unlike the B+
 	 * tree family there is no element to price and no ownership question: nothing here can be shared with anyone.
@@ -423,7 +431,8 @@ public class UnorderedLookupTree implements
 			final long key = (long) c * this.orderKeyGap;
 			container.setOrderKey(key);
 			final int cnt = Math.min(this.leafSplitThreshold, n - pos);
-			final int[] containerRecordIds = container.getRecordIdsForUpdate();
+			// the container is fresh and parked on the shared empty array, so this is its first and only allocation
+			final int[] containerRecordIds = container.getRecordIdsForUpdate(cnt);
 			System.arraycopy(recordIds, pos, containerRecordIds, 0, cnt);
 			container.setCount(cnt);
 			for (int i = 0; i < cnt; i++) {
@@ -555,8 +564,10 @@ public class UnorderedLookupTree implements
 			final LeafPageInput page = pages.get(c);
 			final int[] pageRecordIds = page.recordIds();
 			final int cnt = pageRecordIds.length;
-			// the physical leaf array is leafCapacity+1 wide (transient overflow slot); copy the page records verbatim
-			final int[] leafRecordIds = new int[this.leafCapacity + 1];
+			// a load knows exactly how many records the page carries and needs no headroom, so the leaf array is sized
+			// straight to the page rather than to the leafCapacity+1 the transient overflow slot would need - the
+			// first insert that reaches this leaf grows it through `getRecordIdsForUpdate`
+			final int[] leafRecordIds = cnt == 0 ? EMPTY_INT_ARRAY : new int[cnt];
 			System.arraycopy(pageRecordIds, 0, leafRecordIds, 0, cnt);
 			// re-mint an ephemeral order-key for this leaf (order-keys are not persisted, re-spaced by leaf index)
 			final long key = (long) c * this.orderKeyGap;
@@ -575,7 +586,8 @@ public class UnorderedLookupTree implements
 			}
 			// build the leaf directly (dirty=false) so a first post-load flush emits nothing; participating node
 			// (transactionalLayer=true) so later transactions can layer changes over it
-			final LeafNode container = new LeafNode(key, leafRecordIds, cnt, leafMask, page.pageSequence(), false, true);
+			final LeafNode container = new LeafNode(
+				key, leafRecordIds, cnt, leafMask, page.pageSequence(), false, this.leafCapacity + 1, true);
 			for (final int pageRecordId : pageRecordIds) {
 				assignments.accept(pageRecordId, key);
 			}
@@ -639,7 +651,18 @@ public class UnorderedLookupTree implements
 			node = children[childIndex];
 		}
 		final LeafNode leaf = (LeafNode) node;
-		return leaf.getRecordIds()[remaining];
+		final int[] leafRecordIds = leaf.getRecordIds();
+		if (remaining >= leafRecordIds.length) {
+			// the position was resolved from the augmented child counts, which are read separately from the array
+			// below them; a reader with no edge to the writer can hold counts that belong to a growth the array
+			// beside them does not carry yet. Answer with the method's own out-of-bounds contract rather than an
+			// ArrayIndexOutOfBoundsException from the middle of a descent
+			throw new GenericEvitaInternalError(
+				"Position " + position + " not found!",
+				"Unknown position in the array!"
+			);
+		}
+		return leafRecordIds[remaining];
 	}
 
 	/**
@@ -657,7 +680,13 @@ public class UnorderedLookupTree implements
 			node = internal.getChildren()[internal.getChildCount() - 1];
 		}
 		final LeafNode container = (LeafNode) node;
-		return container.getRecordIds()[container.getCount() - 1];
+		final int[] containerRecordIds = container.getRecordIds();
+		// the count and the array are two independent transactional reads - bound one by the other
+		final int liveCount = observableLeafCount(container.getCount(), containerRecordIds);
+		if (liveCount == 0) {
+			throw new ArrayIndexOutOfBoundsException("Array is empty!");
+		}
+		return containerRecordIds[liveCount - 1];
 	}
 
 	/**
@@ -783,7 +812,17 @@ public class UnorderedLookupTree implements
 			);
 		}
 		final int headPos = posPrefix + localOffset;
-		final int recordId = leaf.getRecordIds()[localOffset];
+		final int[] leafRecordIds = leaf.getRecordIds();
+		if (localOffset >= leafRecordIds.length) {
+			// the offset came from the head mask, which is read separately from the record array beside it and is
+			// never content-sized; a reader with no edge to the writer can pair a mask bit with the shorter array
+			// that preceded the growth which opened its slot
+			throw new GenericEvitaInternalError(
+				"Head rank " + rank + " not found!",
+				"Inconsistent lookup state!"
+			);
+		}
+		final int recordId = leafRecordIds[localOffset];
 		return ((long) headPos << 32) | (recordId & 0xFFFFFFFFL);
 	}
 
@@ -864,6 +903,44 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * The number of record slots a reader may address on the `recordIds` array **it has already read**, given the
+	 * `count` it has already read.
+	 *
+	 * **This is a concurrency bound, not a consistency check.** For any caller sharing a happens-before edge with the
+	 * writer — the whole mutation path, every descent under a transaction — it returns `count` unchanged and is a pure
+	 * no-op: a container's array is grown to the length the mutation will need *before* the {@link LeafNode#setCount}
+	 * that raises the count, every shrink lowers the count and leaves the array alone, and the commit-merge trim
+	 * builds a **new** leaf rather than shortening this one. So the bound can never truncate a view that was
+	 * consistent to begin with.
+	 *
+	 * It exists for the readers that have no such edge. {@code EntityCollection#describeIndex} states outright that it
+	 * takes no snapshot, and the sort- and chain-index read paths resolve the leaf's count and its record array
+	 * through two independent transactional reads; such a reader can pair a freshly-read count with the array that
+	 * preceded the growth which raised it.
+	 *
+	 * **This bound became necessary when the leaf containers started following their content.** While every container
+	 * was allocated at `leafCapacity + 1` and never replaced, the same torn read landed inside a fixed-length array
+	 * and merely returned a stale record id; now it runs off the end.
+	 *
+	 * ## CALIBRATION — read this before simplifying the bound away
+	 *
+	 * A green concurrent sweep on an x86 box is **evidence about the box, not about this code**: x86's total store
+	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 — which
+	 * evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
+	 * {@code UnorderedLookupTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each guarded
+	 * reader its own test, so no one of them can be proven by another throwing first. This mirrors
+	 * {@code TransactionalLongBPlusTree#observableLeafPeek} and {@code TransactionalBucketBPlusTree#observableLeafPeek},
+	 * whose javadoc carries the same calibration for the B+ tree siblings.
+	 *
+	 * @param count     the container's own record count, as the caller read it
+	 * @param recordIds the container's record array, as the caller read it
+	 * @return the number of slots the reader may address, `0` when it may read nothing
+	 */
+	private static int observableLeafCount(int count, @Nonnull int[] recordIds) {
+		return Math.min(count, recordIds.length);
+	}
+
+	/**
 	 * Returns `headMask` when present, throwing otherwise. Head-awareness is a whole-tree property, so on a head-aware
 	 * tree every leaf carries a non-`null` head mask; a `null` here would mean the invariant was broken (a head-mask
 	 * operation reached a non-head-aware leaf) and must fail fast instead of dereferencing to an NPE.
@@ -887,7 +964,7 @@ public class UnorderedLookupTree implements
 		if (getRoot() == null) {
 			final LeafNode container = new LeafNode(true, this.leafCapacity, this.maskWords);
 			container.setOrderKey(0L);
-			container.getRecordIdsForUpdate()[0] = recordId;
+			container.getRecordIdsForUpdate(1)[0] = recordId;
 			container.setCount(1);
 			setRoot(container);
 			setSize(1);
@@ -929,7 +1006,8 @@ public class UnorderedLookupTree implements
 		final LeafNode container = descendByKey(orderKey, cursor);
 		final int offset = indexInContainer(container, recordId);
 		final int count = container.getCount();
-		final int[] recordIds = container.getRecordIdsForUpdate();
+		// a removal only ever reads and writes below the live count, so it never grows anything
+		final int[] recordIds = container.getRecordIdsForUpdate(count);
 		System.arraycopy(recordIds, offset + 1, recordIds, offset, count - offset - 1);
 		container.setCount(count - 1);
 		if (this.headAware) {
@@ -1297,9 +1375,14 @@ public class UnorderedLookupTree implements
 	/**
 	 * Returns the current view of the root node — the transactional view when a layer exists, the committed node
 	 * otherwise. Returns `null` for an empty tree.
+	 *
+	 * Package-private rather than private so the suites in this package can reach a container directly. That is the
+	 * only way to build the torn shape {@link #observableLeafCount} guards — a count that runs ahead of the array
+	 * beside it is unreachable through the public API, because every mutation grows the array first. {@link Node} and
+	 * {@link LeafNode} are themselves package-private, so this widens nothing beyond this package.
 	 */
 	@Nullable
-	private Node<?> getRoot() {
+	Node<?> getRoot() {
 		return this.root.get();
 	}
 
@@ -1369,7 +1452,8 @@ public class UnorderedLookupTree implements
 	 */
 	private void insertIntoContainer(@Nonnull LeafNode container, int offset, int recordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
 		final int count = container.getCount();
-		final int[] recordIds = container.getRecordIdsForUpdate();
+		// the shift opens a hole at `count`, so the write reaches one slot past the live run
+		final int[] recordIds = container.getRecordIdsForUpdate(count + 1);
 		System.arraycopy(recordIds, offset, recordIds, offset + 1, count - offset);
 		recordIds[offset] = recordId;
 		container.setCount(count + 1);
@@ -1655,8 +1739,11 @@ public class UnorderedLookupTree implements
 		// mutation routes through a snapshot-able layer and can be rolled back per-entity
 		final LeafNode right = new LeafNode(true, this.leafCapacity, this.maskWords);
 		right.setOrderKey(rightKey);
-		final int[] containerRecordIds = container.getRecordIdsForUpdate();
-		final int[] rightRecordIds = right.getRecordIdsForUpdate();
+		// the left half is read and blanked across its whole live run [0, total); the right half is written across
+		// [0, rightCount). `total` is at most the leafSplitThreshold plus the one overflow record, so both stay inside
+		// the logical capacity
+		final int[] containerRecordIds = container.getRecordIdsForUpdate(total);
+		final int[] rightRecordIds = right.getRecordIdsForUpdate(rightCount);
 		System.arraycopy(containerRecordIds, leftCount, rightRecordIds, 0, rightCount);
 		right.setCount(rightCount);
 		container.setCount(leftCount);
@@ -2281,8 +2368,10 @@ public class UnorderedLookupTree implements
 	 * Returns the slot index of `recordId` within `container`.
 	 */
 	private static int indexInContainer(@Nonnull LeafNode container, int recordId) {
-		final int count = container.getCount();
 		final int[] recordIds = container.getRecordIds();
+		// reached from the public `findPositionByOrderKey` as well as from the mutators, so the count is bound by the
+		// array it was read beside; for a caller holding the writer's edge the bound is a no-op
+		final int count = observableLeafCount(container.getCount(), recordIds);
 		for (int i = 0; i < count; i++) {
 			if (recordIds[i] == recordId) {
 				return i;
@@ -2299,8 +2388,12 @@ public class UnorderedLookupTree implements
 	 */
 	private static void flattenInto(@Nonnull Node<?> node, @Nonnull int[] result, @Nonnull int[] positionHolder) {
 		if (node instanceof final LeafNode leaf) {
-			System.arraycopy(leaf.getRecordIds(), 0, result, positionHolder[0], leaf.getCount());
-			positionHolder[0] += leaf.getCount();
+			final int[] leafRecordIds = leaf.getRecordIds();
+			// the array and the count are two independent transactional reads; copying the count out of a shorter
+			// array would throw out of the middle of a flatten rather than merely return a stale record id
+			final int liveCount = observableLeafCount(leaf.getCount(), leafRecordIds);
+			System.arraycopy(leafRecordIds, 0, result, positionHolder[0], liveCount);
+			positionHolder[0] += liveCount;
 		} else {
 			final InternalNode internal = (InternalNode) node;
 			final int childCount = internal.getChildCount();
@@ -2381,7 +2474,10 @@ public class UnorderedLookupTree implements
 		@Nonnull
 		@Override
 		public int[] recordIds() {
-			return Arrays.copyOf(this.leaf.getRecordIds(), this.leaf.getCount());
+			final int[] leafRecordIds = this.leaf.getRecordIds();
+			// `Arrays.copyOf` would pad a count taken from a longer state with zeroes and emit them as record ids -
+			// a torn read must shorten the page, never invent records for it
+			return Arrays.copyOf(leafRecordIds, observableLeafCount(this.leaf.getCount(), leafRecordIds));
 		}
 
 		@Nullable
@@ -2414,15 +2510,18 @@ public class UnorderedLookupTree implements
 		 */
 		private final boolean descending;
 		/**
-		 * The leaf currently under the cursor (`null` only for an empty tree).
+		 * The record array of the leaf currently under the cursor — empty for an empty tree. The leaf itself is not
+		 * retained: its array and its count are everything an emit needs, and holding the two together is what binds
+		 * the count to the array the emits will index (see {@link #adoptLeaf}).
 		 */
-		@Nullable private LeafNode leaf;
+		@Nonnull private int[] leafRecordIds = EMPTY_INT_ARRAY;
 		/**
-		 * Ascending logical position of slot 0 of {@link #leaf}.
+		 * Ascending logical position of slot 0 of the current leaf.
 		 */
 		private int leafBase;
 		/**
-		 * Record count of {@link #leaf} (the leaf spans ascending positions `[leafBase, leafBase + leafCount)`).
+		 * Record count of the current leaf (which spans ascending positions `[leafBase, leafBase + leafCount)`),
+		 * bounded by {@link #leafRecordIds} at adoption time.
 		 */
 		private int leafCount;
 		/**
@@ -2439,18 +2538,31 @@ public class UnorderedLookupTree implements
 			this.descending = descending;
 			final Node<?> theRoot = getRoot();
 			if (theRoot == null) {
-				this.leaf = null;
 				this.leafBase = 0;
 				this.leafCount = 0;
 			} else if (descending) {
-				this.leaf = descendRightmost(theRoot);
-				this.leafCount = this.leaf.getCount();
+				adoptLeaf(descendRightmost(theRoot));
 				this.leafBase = size() - this.leafCount;
 			} else {
-				this.leaf = descendLeftmost(theRoot);
+				adoptLeaf(descendLeftmost(theRoot));
 				this.leafBase = 0;
-				this.leafCount = this.leaf.getCount();
 			}
+		}
+
+		/**
+		 * Installs `newLeaf` as the cursor's current leaf, caching its record array and binding the leaf's record
+		 * count to that same array.
+		 *
+		 * The count and the array are two independent transactional reads, so a cursor with no happens-before edge to
+		 * the writer can pair a count that belongs to a growth with the array that preceded it. Binding them once per
+		 * leaf — never per emit, which would re-read on the hot path — is what keeps {@link #recordAt} inside the
+		 * array it actually holds.
+		 *
+		 * @param newLeaf the leaf the cursor is moving onto
+		 */
+		private void adoptLeaf(@Nonnull LeafNode newLeaf) {
+			this.leafRecordIds = newLeaf.getRecordIds();
+			this.leafCount = observableLeafCount(newLeaf.getCount(), this.leafRecordIds);
 		}
 
 		/**
@@ -2489,8 +2601,7 @@ public class UnorderedLookupTree implements
 					advanceToNextLeaf();
 				}
 			}
-			//noinspection ConstantConditions - a valid in-bounds emit index always resolves onto a non-null leaf
-			return this.leaf.getRecordIds()[ascendingPos - this.leafBase];
+			return this.leafRecordIds[ascendingPos - this.leafBase];
 		}
 
 		/**
@@ -2542,8 +2653,7 @@ public class UnorderedLookupTree implements
 			}
 			this.cursor.idx[level]++;
 			this.cursor.depth = level + 1;
-			this.leaf = descendLeftmostFromChild(level);
-			this.leafCount = this.leaf.getCount();
+			adoptLeaf(descendLeftmostFromChild(level));
 		}
 
 		/**
@@ -2565,8 +2675,7 @@ public class UnorderedLookupTree implements
 			}
 			this.cursor.idx[level]--;
 			this.cursor.depth = level + 1;
-			this.leaf = descendRightmostFromChild(level);
-			this.leafCount = this.leaf.getCount();
+			adoptLeaf(descendRightmostFromChild(level));
 			this.leafBase -= this.leafCount;
 		}
 
@@ -2674,9 +2783,23 @@ public class UnorderedLookupTree implements
 		 */
 		private long orderKey;
 		/**
-		 * Record ids in logical order (only the first {@link #count} slots are valid).
+		 * Record ids in logical order (only the first {@link #count} slots are valid). Sized to the live content
+		 * rather than to {@link #capacity}: nothing at all while the container is empty, four slots on the first
+		 * write, doubling towards the capacity, trimmed back by the commit-merge once the content has fallen far
+		 * enough behind ({@link ColumnSizing}). Its length is therefore **not** the number of records the container
+		 * may hold — see {@link #capacity}.
 		 */
 		private int[] recordIds;
+		/**
+		 * The **logical** capacity — `leafCapacity + 1` record slots (the `+1` hosts the transient pre-split overflow
+		 * record), which no mutation ever changes. {@link #recordIds} is sized to the live content instead and grows
+		 * towards this bound, so the two numbers are equal only in a container that is actually full.
+		 *
+		 * Everything asking "may one more record go in here" reads THIS. Everything indexing the array reads that
+		 * array's own length. The split decision itself reads neither: it compares the count against the tree's
+		 * {@link UnorderedLookupTree#leafSplitThreshold}, which is a tree field and always was.
+		 */
+		private final int capacity;
 		/**
 		 * Number of valid record ids in this container.
 		 */
@@ -2715,7 +2838,10 @@ public class UnorderedLookupTree implements
 		 * @param maskWords          number of head-mask words to allocate (`0` ⇒ no mask array, non-head-aware tree)
 		 */
 		LeafNode(boolean transactionalLayer, int leafCapacity, int maskWords) {
-			this.recordIds = new int[leafCapacity + 1];
+			this.capacity = leafCapacity + 1;
+			// an empty container allocates nothing - the array starts at ColumnSizing.MIN_PHYSICAL_LENGTH on the
+			// first write and grows from there
+			this.recordIds = EMPTY_INT_ARRAY;
 			this.count = 0;
 			this.orderKey = 0L;
 			this.headMask = maskWords > 0 ? new long[maskWords] : null;
@@ -2728,14 +2854,18 @@ public class UnorderedLookupTree implements
 		 * Internal constructor used by {@link #createLayer()} and {@link #createCopyWithMergedTransactionalMemory}.
 		 *
 		 * @param orderKey           the container order-key
-		 * @param recordIds          the record id array (used directly, not copied)
+		 * @param recordIds          the record id array (used directly, not copied); its length is the array's
+		 *                           physical length and is NOT required to match `capacity`
 		 * @param count              the number of valid record ids
 		 * @param headMask           the head-mask words (`null` for a non-head-aware tree; used directly, not copied)
 		 * @param pageSequence       the logical persistence page sequence
 		 * @param dirty              the granular-storage change-detection flag
+		 * @param capacity           the container's logical capacity — `leafCapacity + 1` record slots
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
-		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask, int pageSequence, boolean dirty, boolean transactionalLayer) {
+		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask, int pageSequence, boolean dirty, int capacity, boolean transactionalLayer) {
+			ColumnSizing.assertLoadFitsCapacity(count, capacity);
+			this.capacity = capacity;
 			this.orderKey = orderKey;
 			this.recordIds = recordIds;
 			this.count = count;
@@ -2745,19 +2875,56 @@ public class UnorderedLookupTree implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Returns the **logical** capacity — `leafCapacity + 1` record slots, which no mutation ever changes. See
+		 * {@link #capacity}.
+		 *
+		 * @return the logical capacity in record slots
+		 */
+		int capacity() {
+			return this.capacity;
+		}
+
+		/**
+		 * Grows THIS node's own record array so that the first `requiredLength` slots may be addressed, leaving the
+		 * logical {@link #capacity} untouched.
+		 *
+		 * Call it on the object whose array is about to be written — the committed node outside a transaction, the
+		 * layer inside one — and inside a transaction only after the layer has been given an array of its own, or the
+		 * growth would copy and then abandon the shared committed array. {@link #getRecordIdsForUpdate(int)} is the
+		 * only caller and does both in the right order.
+		 *
+		 * @param requiredLength the number of slots the caller is about to address; never above {@link #capacity}
+		 */
+		private void ensurePhysicalLength(int requiredLength) {
+			if (requiredLength > this.recordIds.length) {
+				this.recordIds = Arrays.copyOf(
+					this.recordIds,
+					ColumnSizing.grownLength(this.recordIds.length, requiredLength, this.capacity)
+				);
+			}
+		}
+
 		@Override
 		public long getHeapSizeInBytes() {
 			final VMLayout layout = VMLayout.current();
-			// id + orderKey + transactionalLayer + dirty + count + pageSequence + recordIds/headMask slots
+			// id + orderKey + transactionalLayer + dirty + count + pageSequence + capacity + recordIds/headMask slots
 			long size = layout.sizeOfObject(
-				2L * Long.BYTES + 2L + 2L * Integer.BYTES + 2L * layout.referenceSize()
+				2L * Long.BYTES + 2L + 3L * Integer.BYTES + 2L * layout.referenceSize()
 			);
-			// the record array is allocated at `leafCapacity + 1` and never trimmed, so the slack above `count` is
-			// real occupied heap and is reported as such
-			size += layout.sizeOfArray(this.recordIds.length, Integer.BYTES);
+			// the record array follows the live content rather than the capacity, so whatever slack it still carries
+			// is real occupied heap and is reported as such - read ONCE into a local, because this walk is reached
+			// from a management thread with no happens-before edge to a warm-up writer
+			final int[] theRecordIds = this.recordIds;
+			// an empty container parks on the JVM-wide shared empty array, which costs it nothing beyond the slot
+			// above - the same policy the ValueColumn family applies, and the same one every heap walk subtracts
+			if (theRecordIds != EMPTY_INT_ARRAY) {
+				size += layout.sizeOfArray(theRecordIds.length, Integer.BYTES);
+			}
 			// allocated only on a head-aware tree - the SortIndex family pays nothing here
-			if (this.headMask != null) {
-				size += layout.sizeOfArray(this.headMask.length, Long.BYTES);
+			final long[] theHeadMask = this.headMask;
+			if (theHeadMask != null) {
+				size += layout.sizeOfArray(theHeadMask.length, Long.BYTES);
 			}
 			return size;
 		}
@@ -2954,29 +3121,50 @@ public class UnorderedLookupTree implements
 
 		/**
 		 * Returns the record id array for UPDATE, decoupling an independent copy into the transactional layer on first
-		 * write so the committed array stays untouched.
+		 * write so the committed array stays untouched, and growing it so the caller may address its first
+		 * `requiredLength` slots.
+		 *
+		 * The length is a **parameter rather than a default** on purpose. The array no longer spans the whole
+		 * {@link #capacity}, so a caller that writes past what it asked for runs off the end; making every write site
+		 * state its own reach is what keeps that a compile-time obligation instead of a latent
+		 * {@link ArrayIndexOutOfBoundsException}. `requiredLength` is the number of slots the caller will address, not
+		 * the number of records it will leave behind: a shift that opens a hole at `count` asks for `count + 1`.
+		 *
+		 * @param requiredLength the number of slots the caller is about to address; never above {@link #capacity}
+		 * @return the record array the caller may write, at least `requiredLength` slots long
 		 */
 		@Nonnull
-		int[] getRecordIdsForUpdate() {
+		int[] getRecordIdsForUpdate(int requiredLength) {
 			final LeafNode layer = this.transactionalLayer ?
 				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
 			if (layer == null) {
 				this.dirty = true;
+				ensurePhysicalLength(requiredLength);
 				return this.recordIds;
 			} else {
 				//noinspection ArrayEquality
 				if (layer.recordIds == this.recordIds) {
-					layer.recordIds = new int[this.recordIds.length];
-					System.arraycopy(this.recordIds, 0, layer.recordIds, 0, this.recordIds.length);
+					// the decouple anticipates the growth the caller is about to need, so an exactly-full committed
+					// array is copied once at its grown length rather than copied short and grown a statement later.
+					// An EMPTY container keeps pointing at the shared empty array: allocating here would mint a
+					// private zero-length one, costing a header and breaking the identity the heap walk subtracts
+					final int headroom = ColumnSizing.headroomLength(
+						this.count, this.recordIds.length, this.capacity);
+					layer.recordIds = headroom == 0 ? this.recordIds : new int[headroom];
+					System.arraycopy(this.recordIds, 0, layer.recordIds, 0, this.count);
 				}
 				layer.dirty = true;
+				layer.ensurePhysicalLength(requiredLength);
 				return layer.recordIds;
 			}
 		}
 
 		@Override
 		public LeafNode createLayer() {
-			return new LeafNode(this.orderKey, this.recordIds, this.count, this.headMask, this.pageSequence, this.dirty, false);
+			return new LeafNode(
+				this.orderKey, this.recordIds, this.count, this.headMask, this.pageSequence, this.dirty,
+				this.capacity, false
+			);
 		}
 
 		/**
@@ -2996,7 +3184,9 @@ public class UnorderedLookupTree implements
 
 		/**
 		 * Restores the state captured by {@link #snapshot}. A fresh clone of the memento's record-id array is installed
-		 * so the memento stays reusable for a repeated restore.
+		 * so the memento stays reusable for a repeated restore. The array's **physical length** rides along with the
+		 * clone, so a container grown after the snapshot is restored to the shorter array its restored count belongs
+		 * to — the two can never end up disagreeing.
 		 *
 		 * @param memento the state previously captured by {@link #snapshot}
 		 */
@@ -3044,21 +3234,55 @@ public class UnorderedLookupTree implements
 			}
 			// primitive int record ids / head-mask words never carry their own transactional layer, nothing to merge
 			if (leafLayer != null) {
-				return new LeafNode(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty, true);
+				return trimmedCommittedCopy(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty);
 			} else if (!this.transactionalLayer) {
 				// nodes created during splits are built with transactionalLayer=false so they do not allocate STM
 				// layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
 				// nodes so subsequent transactions can layer changes over them
-				return new LeafNode(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty, true);
+				return trimmedCommittedCopy(theOrderKey, theRecordIds, theCount, theHeadMask, thePageSequence, theDirty);
 			} else {
 				return this;
 			}
 		}
 
+		/**
+		 * Builds the committed container the commit-merge installs, shrinking the record array when the live content
+		 * has fallen far enough behind it to pay for the copy ({@link ColumnSizing#trimmedLength}). This is the only
+		 * place a container's array ever gets smaller: the incremental paths only grow, so without it a container that
+		 * once filled up would hold its peak allocation for the rest of the catalog's life.
+		 *
+		 * Reached only from the branches that already build a new node. A container the merge leaves untouched returns
+		 * itself and must not be rebuilt merely to trim — that would allocate on every commit for every container.
+		 *
+		 * The head mask is deliberately carried through at full width. Trimming it would need an ensure-capacity
+		 * inside the head-slot shifts for 152 B per chain container, which is not worth the added surface.
+		 *
+		 * @param orderKey     the committed container order-key
+		 * @param recordIds    the committed record array (the layer's, or this node's own)
+		 * @param count        the number of valid record ids
+		 * @param headMask     the committed head-mask words, or `null` on a non-head-aware tree
+		 * @param pageSequence the committed logical persistence page sequence
+		 * @param dirty        the committed granular-storage change-detection flag
+		 * @return the committed container, on an array trimmed to the live content where that was worth doing
+		 */
+		@Nonnull
+		private LeafNode trimmedCommittedCopy(
+			long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask,
+			int pageSequence, boolean dirty
+		) {
+			final int trimmed = ColumnSizing.trimmedLength(count, recordIds.length, this.capacity);
+			return new LeafNode(
+				orderKey,
+				trimmed < recordIds.length ? Arrays.copyOf(recordIds, trimmed) : recordIds,
+				count, headMask, pageSequence, dirty, this.capacity, true
+			);
+		}
+
 		@Override
 		public String toString() {
 			final int[] theRecordIds = getRecordIds();
-			final int theCount = getCount();
+			// two independent transactional reads, so bound the count by the array it was paired with
+			final int theCount = observableLeafCount(getCount(), theRecordIds);
 			final StringBuilder sb = new StringBuilder(8 + (theCount << 2));
 			sb.append('[');
 			for (int i = 0; i < theCount; i++) {
