@@ -470,6 +470,39 @@ for a field with an EAN or a catalog number it is exactly what the user expects.
 > complete rather than being reopened later. The per-field switch that turns it on arrives with the
 > analyzer parameters (`schema-design.md` §6.5).
 
+> **Revised (2026-09-02).** The filter did **not** ship in PR #1453 — the note above and the wording in
+> `schema-design.md` §6.5 ran ahead of the code; the plan's "deliberately not done" list was the accurate one.
+> Analysing the placement before implementing it changed the shape of the step; the side-by-side measurement,
+> the old client's wiring and the query-side shapes are in
+> [`p5-word-number-split-comparison.md`](p5-word-number-split-comparison.md). The old client's documentation
+> motivates the step with a code found by its bare number — the data holds `UHD7800`, users type `7800`. Both
+> placements below serve that, because a digit run has nothing for a stemmer to change; the placement decides
+> the fate of the word half only.
+>
+> - **Appending the filter to the finished analyzer — the old client's route, and the one this point
+>   described — is rejected for stemming chains.** The word part comes out unstemmed and never meets the term
+>   the same word produces on its own: `boty42` yields `boty` while the query `boty` yields `bot`; `iPhone15`
+>   yields `iphone` while `iPhone` yields `iphon`. And once the stemmer has shortened the token (`GTX1080Ti` →
+>   `gtx1080t`) the parts' offsets can no longer be adjusted, so every part reports the whole token as its
+>   surface form and the word part is a fragment (`t`). The placement is harmless only on chains without a
+>   stemmer (generic, Slovak), where it coincides with the accepted one.
+> - **Accepted: Lucene's `WordDelimiterGraphFilter` directly after the tokenizer**, ahead of the stop filter
+>   and the stemmer, with `GENERATE_WORD_PARTS | GENERATE_NUMBER_PARTS | SPLIT_ON_NUMERICS | PRESERVE_ORIGINAL`,
+>   `adjustInternalOffsets = true` and a `FlattenGraphFilter` behind it (the term contract carries a position
+>   increment, no position length). Parts are then stemmed and folded exactly like standalone words, each
+>   part's surface form is the part, and positions follow Lucene's graph convention — the original at one
+>   position, its parts at consecutive ones — so `boty42 kožené` and `boty 42 kožené` align position for position,
+>   which the old client's "every part at one position" did not. No filter of our own is written, for the
+>   reason point 3 gives. Accepted differences from the old client: every letter/digit transition splits
+>   (`GTX1080Ti` → `gtx`, `1080`, `ti`, not `gtx` + `1080ti`); punctuation the tokenizer kept inside a token
+>   splits too (`3.5mm` → `3`, `5`, `mm`), symmetric and therefore harmless; a digits-only code such as an EAN is
+>   never touched — the motivating case is a mixed code like `XC90`, not a barcode.
+> - **Consequence for the built-in chains.** The accepted placement cannot be reached by wrapping
+>   `CzechAnalyzer` and its siblings; enabling the step for a language means composing that language's chain
+>   from its components in `BuiltInAnalyzers`. That work travels with the per-attribute switch of
+>   `schema-design.md` §6.5. Until then the step has no production caller; its contract is pinned by
+>   `WordNumberSplitAnalysisTest`, which is what the wiring is written against.
+
 **3. `DiacriticFilter` — and why it is *not* NFD. Reject as a component, adopt as a test criterion.** The
 existing filter is a manual, fully written-out conversion table of European characters with diacritics onto
 basic Latin, including cases decomposition does not address at all — `ß → ss`, `æ → ae` and other

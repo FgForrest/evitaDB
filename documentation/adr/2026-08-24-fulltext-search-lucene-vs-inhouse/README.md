@@ -300,6 +300,12 @@ Open items, each actionable:
   72 for a 1.95x term inflation and therefore has **no** claim on the term dictionary layout, and
   that the remaining open questions are whether we own a Czech stemmer and whether the `ů→o` rule is
   worth its false merges.
+- [`prototypes/p5-word-number-split-comparison.md`](prototypes/p5-word-number-split-comparison.md) —
+  the old client's word/number splitter (`UHD7800` found by `7800`) ported and measured against Lucene's
+  `WordDelimiterGraphFilter` in two placements. Settles that the step must sit between the tokenizer and
+  the stemmer — appended after the chain, as the old client did, the word half never meets its stemmed
+  query — which in turn means the built-in chains have to be composed from components before the step
+  can be switched on.
 - [`prototypes/p6-vector-spike.md`](prototypes/p6-vector-spike.md) — the vector branch as a separate
   decision with its own mini-gate: jVector as an embeddable library versus an in-house HNSW.
 - [`prototypes/p7-rank-profiles-and-boost-channel.md`](prototypes/p7-rank-profiles-and-boost-channel.md)
