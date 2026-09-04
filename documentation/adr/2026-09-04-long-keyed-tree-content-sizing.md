@@ -261,8 +261,8 @@ thread must give the leaf a combined publish first.
   pinned by ten deterministic tests instead. This is the same calibration the bucket tree's
   `observableLeafPeek` javadoc carries, repeated here because the temptation to simplify the bound away
   is what both javadocs exist to resist.
-- **The two probes are tracked evidence, deliberately.** `RangeIndexFootprintProbe` and
-  `PriceIndexFootprintProbe` are force-added past the `spike/trigram/` ignore rule, on the carve-out that
+- **The three probes are tracked evidence, deliberately.** `RangeIndexFootprintProbe`,
+  `PriceIndexFootprintProbe` and `AttributeIndexScaffoldingProbe` are force-added past the `spike/trigram/` ignore rule, on the carve-out that
   rule states for a spike that becomes evidence an issue depends on. An untracked earlier copy of the
   first one was lost with the worktree that held it, silently, because the ignore rule keeps such files
   out of `git status` entirely.
@@ -272,6 +272,22 @@ thread must give the leaf a combined publish first.
   false positive for this change. At 32 GB the VM turns compressed oops off and every absolute-size
   assertion in the suite fails; `MemoryMeasuringConstantsTest.shouldRunUnderCompressedLayout` says so in
   its own failure message.
+- **The attribute-index map scaffolding is the largest measured item left, and the estimate it was
+  carried under was wrong by an order of magnitude.** It had been queued as "~19 MB, estimated". An
+  empty `AttributeIndex` measures **680 B** and allocates the same twelve maps whatever it holds; on a
+  production e-commerce catalog (18 collections, **564,187 entity indexes**) the floor is therefore
+  **365.9 MiB**, of which **64.4 % of the observable family slots are allocated and empty**. If that
+  ratio holds across all seven maps — an inference, since only four are reachable through
+  `AttributeIndexContract` — lazy allocation is worth on the order of **218 MB**, plus 11 MB from the
+  16,104 indexes whose attribute index is entirely empty. `AttributeIndexScaffoldingProbe` carries the
+  method and the caveats. **Nothing here scopes the fix**: those maps are `TransactionalMap` /
+  `PersistentTransactionalProducerMap` wired into the MVCC layer, so null-until-first-use lands on
+  every read site and on the commit-merge.
+- **Every other number in this campaign's queue is a demo-dataset measurement, and the demo understates
+  anything that scales per index by about two orders of magnitude.** The demo carries a few thousand
+  entity indexes against this corpus's 564,187. The queue was ordered on those figures and that ordering
+  should not be trusted until the existing probes are re-run against a production-shaped catalog — which
+  is now cheap, since both probes exist and such a catalog loads in about 25 s.
 - **Issue #1455 remains the next item** and is unaffected by this work: it shrinks bucket record bitmaps
   inside the bucket tree's leaves, a different structure from either tree touched here.
 
