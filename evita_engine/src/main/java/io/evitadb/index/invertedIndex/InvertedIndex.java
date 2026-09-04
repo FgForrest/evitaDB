@@ -786,6 +786,20 @@ public class InvertedIndex implements
 	 * this runs as a whole-index pre-pass rather than inside the page build loop, which has no way to reach back into
 	 * a page it has already turned into a leaf.
 	 *
+	 * ## The merge-target invariant
+	 *
+	 * **`targetPage` is always the very array stored in `retainedBuckets[targetRetainedPage]`, never a pre-copy
+	 * local.** A page is retained by reference when every bucket survived and as a trimmed `Arrays.copyOf` when one
+	 * did not, so the two diverge exactly on the pages that lost a bucket — and a merge written through the stale
+	 * reference is invisible to the array that is returned, bulk-loaded and persisted. The page is still flagged for
+	 * rewrite, so it is written back **without** the merge and the absorbed bucket's records are gone for good, with
+	 * no exception anywhere. The page-close site therefore re-points `targetPage` at whatever it stored.
+	 *
+	 * Only the bucket array has this hazard: `retainedKeys` and `retainedValueIds` are written **only** in the
+	 * survive branch, before the page is closed, and the merge branch never touches either (an absorbed bucket's key
+	 * is by definition equal to the retained one, and its value id is deliberately retired). Their copies are final
+	 * at close time, so nothing can write past them.
+	 *
 	 * @param orderedPageSequences the persisted leaf-page sequences in ascending key order
 	 * @param normalizedKeys       each page's bucket values, already normalized, aligned with `perPageBuckets`
 	 * @param perPageBuckets       each page's persisted buckets
@@ -860,8 +874,16 @@ public class InvertedIndex implements
 			}
 			retainedPageSequences[retainedPageCount] = orderedPageSequences[i];
 			retainedKeys[retainedPageCount] = count == keys.length ? pageKeys : Arrays.copyOf(pageKeys, count);
-			retainedBuckets[retainedPageCount] =
+			final ValueToRecord[] retainedPageBuckets =
 				count == buckets.length ? pageBuckets : Arrays.copyOf(pageBuckets, count);
+			retainedBuckets[retainedPageCount] = retainedPageBuckets;
+			// UPHOLDS THE MERGE-TARGET INVARIANT: `targetPage` must be the array this method RETURNS, never the local
+			// one it was built in. A page that lost a bucket is retained as a trimmed COPY, and `targetPage` still
+			// pointed at the pre-copy original - so a later cross-page merge into this page's last bucket wrote into
+			// an orphan while the returned copy kept the un-merged bucket, silently dropping the absorbed records.
+			// Re-pointing here is enough because `targetPage` is necessarily THIS page's array at this point: every
+			// surviving bucket reassigns it, and a page with no survivor never reaches this line
+			targetPage = retainedPageBuckets;
 			if (retainedValueIds != null) {
 				retainedValueIds[retainedPageCount] =
 					count == buckets.length ? pageValueIds : Arrays.copyOf(pageValueIds, count);

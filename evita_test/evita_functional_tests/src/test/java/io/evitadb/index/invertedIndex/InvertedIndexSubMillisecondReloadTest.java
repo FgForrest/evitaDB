@@ -291,6 +291,123 @@ class InvertedIndexSubMillisecondReloadTest {
 		}
 
 		@Test
+		@DisplayName("merges across a boundary out of a page that ALSO lost a bucket to an intra-page collision")
+		void shouldMergeAcrossABoundaryOutOfAPageThatWasAlsoTrimmed() {
+			// the two sibling tests above each exercise ONE condition, and both pass with the merge target aliased to
+			// a page array that is about to be copied away - because a page with no intra-page collision is retained
+			// BY REFERENCE, so writing through the stale reference happens to write into the returned array.
+			// Combine the conditions on one page and the aliasing bites: the page is retained as a COPY, the later
+			// cross-boundary merge writes into the orphaned original, and the absorbed record is lost from the index
+			// with no exception anywhere
+			final PersistedPages pages = seedAndEmit();
+			assertTrue(pages.perPageBuckets.length > 1, "the seeded index must span several pages");
+			final ValueToRecordBitmap[] previousPage = pages.perPageBuckets[0];
+			final ValueToRecordBitmap[] nextPage = pages.perPageBuckets[1];
+
+			// (1) an INTRA-page collision, which makes the page be retained as a trimmed copy
+			final Instant intraPageTarget = (Instant) previousPage[10].getValue();
+			previousPage[11] =
+				new ValueToRecordBitmap(intraPageTarget.plusNanos(1), previousPage[11].getRecordIds());
+			// (2) a CROSS-page collision out of that same page's last surviving bucket
+			final Instant lastOfPreviousPage = (Instant) previousPage[previousPage.length - 1].getValue();
+			nextPage[0] = new ValueToRecordBitmap(lastOfPreviousPage.plusNanos(1), nextPage[0].getRecordIds());
+
+			final InvertedIndex reloaded = pages.reload();
+
+			assertEquals(
+				SEEDED_BUCKETS - 2, reloaded.getBucketCount(), "exactly two buckets must have been absorbed"
+			);
+			assertArrayEquals(
+				new int[]{recordOf(intraPageTarget), recordOf(intraPageTarget) + 1},
+				reloaded.getRecordsEqualTo(intraPageTarget).getArray(),
+				"the intra-page merge must still hold both records"
+			);
+			assertArrayEquals(
+				new int[]{recordOf(lastOfPreviousPage), recordOf(lastOfPreviousPage) + 1},
+				reloaded.getRecordsEqualTo(lastOfPreviousPage).getArray(),
+				"the cross-page merge must survive the page having been retained as a copy"
+			);
+			// and the absorbed record must be reachable AT ALL - the failure mode is silent loss, not a wrong bucket
+			assertTrue(
+				reloaded.getRecordsEqualTo(lastOfPreviousPage).contains(recordOf(lastOfPreviousPage) + 1),
+				"the absorbed bucket's record must not have vanished from the index"
+			);
+		}
+
+		@Test
+		@DisplayName("merges across a boundary INTO a page that also loses a bucket of its own")
+		void shouldMergeAcrossABoundaryIntoAPageThatIsAlsoTrimmed() {
+			// the mirror combination: the RECEIVING page is clean but the DONATING page carries an intra-page
+			// collision of its own, so both pages are rewritten and the two merges must not interfere
+			final PersistedPages pages = seedAndEmit();
+			assertTrue(pages.perPageBuckets.length > 1, "the seeded index must span several pages");
+			final ValueToRecordBitmap[] previousPage = pages.perPageBuckets[0];
+			final ValueToRecordBitmap[] nextPage = pages.perPageBuckets[1];
+
+			final Instant lastOfPreviousPage = (Instant) previousPage[previousPage.length - 1].getValue();
+			nextPage[0] = new ValueToRecordBitmap(lastOfPreviousPage.plusNanos(1), nextPage[0].getRecordIds());
+			final Instant intraPageTarget = (Instant) nextPage[5].getValue();
+			nextPage[6] = new ValueToRecordBitmap(intraPageTarget.plusNanos(1), nextPage[6].getRecordIds());
+
+			final InvertedIndex reloaded = pages.reload();
+
+			assertEquals(SEEDED_BUCKETS - 2, reloaded.getBucketCount());
+			assertArrayEquals(
+				new int[]{recordOf(lastOfPreviousPage), recordOf(lastOfPreviousPage) + 1},
+				reloaded.getRecordsEqualTo(lastOfPreviousPage).getArray(),
+				"the cross-page merge must hold both records"
+			);
+			assertArrayEquals(
+				new int[]{recordOf(intraPageTarget), recordOf(intraPageTarget) + 1},
+				reloaded.getRecordsEqualTo(intraPageTarget).getArray(),
+				"and so must the donating page's own intra-page merge"
+			);
+		}
+
+		@Test
+		@DisplayName("keeps the value ids straight when one page is both trimmed and merged across its boundary")
+		void shouldKeepValueIdsWhenAPageIsBothTrimmedAndMergedAcross() {
+			// the id column is copied on the very same line as the bucket column and under the very same condition,
+			// so it has to be shown - not argued - that it carries no equivalent aliasing hazard. It does not, because
+			// nothing writes an id after the page is closed: the merge branch retires the absorbed bucket's id rather
+			// than moving it. This drives the exact combination that broke the bucket array and checks the ids too
+			final PersistedPages pages = seedAndEmit(true);
+			assertTrue(pages.perPageBuckets.length > 1, "the seeded index must span several pages");
+			final ValueToRecordBitmap[] previousPage = pages.perPageBuckets[0];
+			final ValueToRecordBitmap[] nextPage = pages.perPageBuckets[1];
+
+			final Instant intraPageTarget = (Instant) previousPage[10].getValue();
+			final int intraPageTargetId = pages.perPageValueIds[0][10];
+			previousPage[11] =
+				new ValueToRecordBitmap(intraPageTarget.plusNanos(1), previousPage[11].getRecordIds());
+			final int lastSlot = previousPage.length - 1;
+			final Instant lastOfPreviousPage = (Instant) previousPage[lastSlot].getValue();
+			final int lastOfPreviousPageId = pages.perPageValueIds[0][lastSlot];
+			nextPage[0] = new ValueToRecordBitmap(lastOfPreviousPage.plusNanos(1), nextPage[0].getRecordIds());
+
+			final InvertedIndex reloaded = pages.reload();
+
+			assertTrue(reloaded.carriesValueIds());
+			assertEquals(
+				intraPageTargetId, reloaded.getValueId(intraPageTarget),
+				"the intra-page merge target must keep the id it was persisted with"
+			);
+			assertEquals(
+				lastOfPreviousPageId, reloaded.getValueId(lastOfPreviousPage),
+				"and so must the cross-page merge target, whose slot moved down when the page was trimmed"
+			);
+			assertEquals(
+				pages.nextValueId, reloaded.getNextValueId(), "the repair must not mint anything"
+			);
+			// the records themselves are the thing the aliasing lost, so assert them here too
+			assertArrayEquals(
+				new int[]{recordOf(lastOfPreviousPage), recordOf(lastOfPreviousPage) + 1},
+				reloaded.getRecordsEqualTo(lastOfPreviousPage).getArray(),
+				"the cross-page merge must hold both records"
+			);
+		}
+
+		@Test
 		@DisplayName("rewrites only the pages the repair changed, and frees the records they superseded")
 		void shouldRewriteOnlyTheRepairedPage() {
 			// the repair is only correct in memory until the merged page is written back: a bulk-loaded leaf is clean,
