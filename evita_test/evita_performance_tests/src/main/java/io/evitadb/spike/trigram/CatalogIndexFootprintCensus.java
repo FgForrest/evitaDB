@@ -379,10 +379,6 @@ public class CatalogIndexFootprintCensus {
 	 */
 	private final Breakdown residualBreakdown = new Breakdown();
 	/**
-	 * Every distinct price index, kept so the lazily-memoized price-id array can be priced by a second pass.
-	 */
-	private final List<PriceListAndCurrencyPriceIndex<?>> distinctPriceIndexes = new ArrayList<>(1 << 18);
-	/**
 	 * One representative sort index per attribute name, so the top-ten table can name the value type it sorts on.
 	 */
 	private final Map<String, SortIndex> sortSamples = new HashMap<>(256);
@@ -475,9 +471,6 @@ public class CatalogIndexFootprintCensus {
 				}
 			});
 		}
-		if (this.decompose) {
-			pricePriceIdMemo();
-		}
 	}
 
 	/**
@@ -561,32 +554,6 @@ public class CatalogIndexFootprintCensus {
 				"does not know - teach it before trusting the shell row.",
 			"Unknown entity index implementation!"
 		);
-	}
-
-	/**
-	 * Prices the lazily-memoized price-id arrays by **measuring the difference they make**, rather than by modelling
-	 * them.
-	 *
-	 * `AbstractPriceListAndCurrencyPriceIndex#memoizedIndexedPriceIds` caches
-	 * `TransactionalBitmap#getArray()` on the first `getIndexedPriceIds()` call, so a freshly loaded catalog that has
-	 * served no query holds none of them. Every index's footprint is read, its accessor called, and its footprint read
-	 * again: the summed delta is what the memo costs once every price index has served one query, which is the
-	 * ceiling a removal would reclaim. The array lengths are summed alongside so the two figures cross-check.
-	 */
-	private void pricePriceIdMemo() {
-		final VMLayout layout = VMLayout.current();
-		for (int i = 0; i < this.distinctPriceIndexes.size(); i++) {
-			final PriceListAndCurrencyPriceIndex<?> priceIndex = this.distinctPriceIndexes.get(i);
-			final Breakdown breakdown = priceIndex instanceof PriceListAndCurrencyPriceSuperIndex
-				? this.priceSuperBreakdown : this.priceRefBreakdown;
-			final long before = priceIndexHeapOf(priceIndex);
-			final int memoLength = priceIndex.getIndexedPriceIds().length;
-			final long after = priceIndexHeapOf(priceIndex);
-			breakdown.add("memoizedIndexedPriceIds, measured delta", after - before);
-			breakdown.add(
-				"memoizedIndexedPriceIds, from array length", layout.sizeOfArray(memoLength, Integer.BYTES)
-			);
-		}
 	}
 
 	/**
@@ -747,7 +714,6 @@ public class CatalogIndexFootprintCensus {
 				superIndex ? Family.PRICE_SUPER : Family.PRICE_REF, perPriceList, heapBytes, collectionTallies, null
 			);
 			if (firstSight) {
-				this.distinctPriceIndexes.add(perPriceList);
 				// materialized once and handed to both consumers - the tree walk behind it is the expensive part, and
 				// a second call would double it for every index in the catalog
 				final PriceRecordContract[] records = this.priceRecordCensus || this.decompose
@@ -1436,20 +1402,14 @@ public class CatalogIndexFootprintCensus {
 		}
 
 		/**
-		 * Sums every row that belongs inside the family total.
-		 *
-		 * The memo rows are excluded: they are measured **after** the totals were taken, on a state the totals do not
-		 * describe, so folding them in would make the residual smaller than it is by exactly the amount the memo
-		 * would later cost.
+		 * Sums every row of the breakdown, which is what the family residual is set against.
 		 *
 		 * @return the bytes the rows account for
 		 */
 		long accounted() {
 			long total = 0L;
 			for (final Map.Entry<String, long[]> entry : this.rows.entrySet()) {
-				if (!entry.getKey().startsWith("memoizedIndexedPriceIds")) {
-					total += entry.getValue()[0];
-				}
+				total += entry.getValue()[0];
 			}
 			return total;
 		}

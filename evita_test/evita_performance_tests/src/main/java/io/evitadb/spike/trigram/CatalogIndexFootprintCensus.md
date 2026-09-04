@@ -69,19 +69,7 @@ charges. A row is **exact** when an accessor handed out the very instance the in
 `(inferred)` is the implementation's arithmetic applied to a publicly observable count. Every table ends with an
 `other (unreached)` row, which is a subtraction between two measured quantities.
 
-Three of its readings are worth knowing before running it again:
-
-**`memoizedIndexedPriceIds` is measured, not modelled.** It is lazily built on the first `getIndexedPriceIds()`
-call, so the probe reads each price index's footprint, calls the accessor, and reads it again; the summed delta is
-what the memo costs, cross-checked against the summed array lengths. On the production catalog the two agree on
-the super indexes (21.6 MB, not yet built) and disagree on the reference indexes (0 B delta against a 112.1 MB
-projection), which is how it established that the reference side is **already** memoized at load time. The probe
-opens no session, so the non-memoizing transactional branch is unreachable and a zero delta can only mean the
-array was already there.
-
-**The memo rows are excluded from the accounted total** — they are measured after the family totals were taken, on
-a state those totals do not describe, so folding them in would shrink the residual by exactly the amount the memo
-later costs.
+Two of its readings are worth knowing before running it again:
 
 **The entity index has four implementations, not three.** `ReducedGroupEntityIndex` is a sibling of
 `ReducedEntityIndex` under `AbstractReducedEntityIndex` and declares six extra reference fields plus its own
