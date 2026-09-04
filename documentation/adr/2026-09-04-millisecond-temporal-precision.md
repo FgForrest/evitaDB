@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-09-04 07:10
+updated: 2026-09-04 11:45
 status: accepted
 kind: feature
 issues: [1486]
@@ -228,13 +228,33 @@ catalog a test reads was written by the current writer.
   back truncated. GraphQL and REST clients are unaffected, having been truncated already. `DateTimeRange`
   equality and `hashCode` derive from the comparison longs, so two ranges less than a second apart used to
   compare equal and no longer do — strictly more precise, but it is a behaviour change.
-- **Open — legacy `unique` / `uniqueGlobally` temporal values are never retroactively truncated.** Unique
-  indexes store raw values and `AttributeValueSerializer` reads them verbatim, so a new write truncating to
-  the same millisecond as a legacy nanosecond value does **not** collide, and uniqueness is silently
-  unenforced across that pair. Three options are on the table and none is chosen yet: truncate on read in the
-  unique load path (cheapest, self-healing, and the current lean), document it as a migration-boundary
-  limitation, or reindex unique attributes on upgrade. Whichever wins, it is a decision about an *existing*
-  catalog only — a catalog created after this change cannot contain such a pair.
+- **Decided not to fix — legacy `unique` / `uniqueGlobally` temporal values are never retroactively
+  truncated.** Unique indexes store raw values and `AttributeValueSerializer` reads them verbatim, so a value
+  written before this change keeps its sub-millisecond digits while every probe against it is cut to
+  milliseconds. A new write landing in the same millisecond therefore does **not** collide, and the unique
+  index durably holds two entries that this record's own rule says are one value. The damage, should it ever
+  surface, is specific: a lookup by the legacy entity's own value returns the *other* entity, and the legacy
+  entity can no longer be saved at all, because its own rewrite truncates onto the twin and throws
+  `UniqueValueViolationException`. The scope is narrower than it sounds — an attribute that is unique **and**
+  filterable is safe, its unique role being a view folded onto the FILTER tree that the reload repair already
+  covers, so only globally-unique and unique-but-not-filterable temporal attributes are exposed, and a catalog
+  created after this change cannot contain such a pair at all.
+  **Rejected because** no known dataset declares a temporal attribute as a unique identifier, which puts the
+  realistic exposure at roughly zero, while the fix is not small: a normalizer at the unique-index boundary
+  applied at *four* entry points — register, unregister, lookup and reload — on `OwnerUniqueIndex` as well as
+  `GlobalUniqueIndex`, and covering `LocalTime` or the sibling truncation gap reappears on unique trees. The
+  cost is out of proportion to the benefit. Revisit only if a catalog is found that declares a temporal
+  attribute unique.
+  **If it ever is implemented, the rule is last-wins with a warning.** Of two legacy keys collapsing into one
+  millisecond the larger raw key is by construction the later timestamp, so "last" is well defined without any
+  write-order information the index does not carry; the loser is dropped and logged. Failing the load with a
+  diagnostic naming both entities was the alternative and lost: it refuses to open a catalog that was valid
+  under the previous contract, which is a worse outcome than a warning for a collision this rare.
+  **And the trap that makes this more dangerous than it looks:** canonicalising keys on reload *without*
+  merging the neighbours that have just become equal hands `bulkLoadPage` two identical adjacent keys, which
+  its "keys must be strictly ascending and distinct" invariant refuses — turning a repair for broken catalogs
+  into a change that stops working ones from opening. Neither entry of such a pair can prevent a load today; a
+  careless fix can. Merge before the loader sees the page, never after.
 - **Three defects were found here that predate this work**, and are recorded because each shows a live trap
   rather than a typo: the `forKey`/`forFilterKey` remap above; `InitialAttributesBuilder.setAttribute`
   normalizing at `buildChangeSet()` instead of accept time, which made a read-back before `upsertVia` differ

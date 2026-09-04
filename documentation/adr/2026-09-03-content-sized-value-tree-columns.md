@@ -532,7 +532,9 @@ proportionally larger against a smaller total, and the census charged the tempor
   `Catalog#goLive()` fences a session. The operator does install an `UnusableCatalog(GOING_ALIVE)`
   synchronously, which refuses *new* sessions for the duration — so the exposure is narrower than it
   first looks — but a session opened *before* the transition holds the superseded `Catalog` instance and
-  nothing drains it, so warm-up writes racing the `flush()`/`goLive()` pair can be lost.
+  nothing drains it, so warm-up writes racing the `flush()`/`goLive()` pair can be lost. **Filed as
+  issue #1495** rather than folded in here: it is session and catalog lifecycle rather than index work,
+  and no commit on this branch touches it.
 - **The site inventory needed a second sweep, and that is the process lesson.** One reading of a
   6,000-line region produced four classes of omission, two of which would have thrown on first
   execution: a missing column mutator with four call sites, ten unlisted raw overflow-array moves, a
