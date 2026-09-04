@@ -1,7 +1,7 @@
 ---
 title: Size the long-keyed and element-keyed B+ tree leaves to their content, and bound every reader that made torn
 date: 2026-09-04
-updated: 2026-09-04 20:15
+updated: 2026-09-04 20:55
 status: accepted
 kind: optimization
 issues: [1486]
@@ -20,13 +20,17 @@ same treatment, and it is what every `RangeIndex` is built on: a leaf allocated 
 `V[512]` of references — 6,176 bytes — however little it held. Measured on the demo dataset, a range
 index holds **4.0 points**, so the leaf ran at **0.78 % occupancy**. The leaf now carries its logical
 capacity as a field and lets both arrays follow the content, through the same `ColumnSizing` policy.
-The measured saving is **≈49.5 MB on the demo dataset**, over two disjoint sets of objects.
+The measured saving is **≈49.5 MB on the demo dataset** and **≈2.33 GB on a production e-commerce
+catalog** (18 collections, 564,187 entity indexes), over two disjoint sets of objects — 4,736 MB down
+to 2,410 MB, 49.1 % of the structure measured. The demo figure is quoted only because it is what the
+work was developed against; **the production figure is the result**, and the gap between them is the
+most transferable thing in this record.
 
 The same change was then applied to `TransactionalElementBPlusTree`, but only after it had first been
 **declined** on this record and the declination's own reopening trigger had been evaluated. It is worth
-**1.7 MB (5.4 %)** — two orders of magnitude less than the long tree, exactly as the declination
-predicted — and was kept anyway, as a deliberate cost/benefit call recorded below rather than because
-the number justified it.
+**1.7 MB on the demo dataset** — and **143 MB on the production catalog**, 84x more. It was kept on a
+judgement made against the demo figure, and the judgement happened to be right for a reason nobody
+had yet measured.
 
 Content sizing also **turned a benign torn read into an out-of-bounds one** in both trees, which an
 adversarial review caught in the long tree after it had already been committed. Both trees now carry a
@@ -105,19 +109,24 @@ touching at all, and that question was answered by measurement rather than by ar
 is the policy the bucket tree already proved, applied to a leaf that holds raw arrays instead of column
 objects.
 
-**The element tree was declined, then reopened, measured, and kept — and that sequence is the most
-useful thing here.** The declination was right about the magnitude: the port is worth **1.7 MB (5.4 %)**,
-against the long tree's 77 %. What settled it was not the per-index occupancy histogram the reopening
-trigger asked for, but the cheaper move of *building the port and measuring the difference directly* —
-the histogram would have cost about as much and still needed interpreting, whereas the port produces
-the number itself and is revertible.
+**The element tree was declined, then reopened, measured on the wrong catalog, nearly reverted, and
+kept — and that sequence is the most useful thing here.** What settled the reopening trigger was not
+the per-index occupancy histogram it asked for, but the cheaper move of *building the port and
+measuring the difference directly*: the histogram would have cost about as much and still needed
+interpreting, whereas the port produces the number itself and is revertible.
 
-It was kept on a judgement, not on the number, and the judgement is recorded so it can be disagreed
-with: 1.7 MB is real and free at runtime, all four trees now behave the same way so nobody has to ask
-why one is different, and the saving comes from *sparse* leaves — the demo's ~101 records per index is
-a mean, and a catalog carrying many price lists x currencies with few products each would be sparser.
-**That last point is a hypothesis, not a measurement.** The counter-case is honest too: 5.4 % of a
-structure whose real weight is the ~15-17 MB of `PriceRecord` bodies, not its spine.
+**The port was then recommended for reversion on a demo-dataset measurement of 1.7 MB, and that
+recommendation was wrong by 84x.** The same port is worth **143 MB** on a production catalog, because
+the saving scales with the number of *sparse* leaves and the demo carries ~4,300 price indexes against
+production's 283,275. The recommendation was overruled and the port kept; the number that vindicates it
+was measured afterwards.
+
+The hypothesis was even written down before the mistake was made — this record already said the saving
+"comes from sparse leaves" and that a catalog with many price lists x currencies would be sparser, and
+labelled it explicitly as a hypothesis. It was then not tested before ranking the work, although a
+production catalog was available. **A measurement on a development dataset is not evidence about
+production for any quantity that scales per index**, and quoting one as though it were is the failure
+this paragraph exists to stop being repeated.
 
 ## Key technical details
 
@@ -188,6 +197,23 @@ thread must give the leaf a combined publish first.
 
 ## Verification
 
+- **Measured on a production e-commerce catalog** (18 collections, 564,187 entity indexes), same probes,
+  each build compiled from its own source, `-Xmx24g` so compressed oops stay on:
+
+  | | before | after | saved |
+  |---|---|---|---|
+  | range indexes (92,229, holding 376,495 points) | 703.8 MB | **167.6 MB** | 536.2 MB (76.2 %) |
+  | price indexes (283,275, holding 33,806,439 records) | 4,032.4 MB | **2,242.4 MB** | 1,790.0 MB (44.4 %) |
+  | **total** | **4,736 MB** | **2,410 MB** | **2,326 MB (49.1 %)** |
+
+  Isolated by measuring the intermediate commit as well: of the price-index saving, **1,646.9 MB** is
+  the long-keyed port and **143.1 MB** the element-keyed one (125 -> 73 -> 69 B per record).
+  For scale, the array container this campaign declined was projected at +1.55 GB on an e-commerce
+  corpus; what shipped is worth half again as much and is already gated.
+- **Two independent checks say this is the same mechanism at a different scale, not an artifact.**
+  Per-point cost moves 1,960 -> 466 B here against 1,976 -> 452 B on the demo; and the price probe's
+  identity dedup reports `283,275 of 283,275 (1.0x)`, so no instance shared between a super index and
+  its 283,002 reference indexes was counted twice.
 - **The reader bound is proven by counterfactual, one test per guarded reader.** Sharing a single test
   across readers would let the first one to throw stand in for the rest, so each has its own:
   `TransactionalLongBPlusTreeTest.TornLeafReaderBoundTest` (4) and
