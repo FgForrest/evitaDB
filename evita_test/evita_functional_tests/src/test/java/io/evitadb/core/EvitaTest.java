@@ -64,6 +64,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -110,6 +111,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -143,6 +145,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
@@ -164,6 +167,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ENGINE)
 @Tag(MANAGEMENT)
 class EvitaTest implements EvitaTestSupport {
+	/**
+	 * Upper bound on how deep {@link #findInCauseChain(Throwable, Class)} walks a cause chain.
+	 */
+	private static final int MAX_INSPECTED_CAUSE_DEPTH = 32;
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_URL = "url";
 	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
@@ -5701,32 +5708,148 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Activates the same catalog in two parallel tasks and expects a conflict.
+	 * Activates the same catalog a second time while the first activation is still in flight and asserts
+	 * the engine refuses the second one.
+	 *
+	 * The overlap is established rather than hoped for. `EngineTransactionManager#applyMutation` registers
+	 * the mutation's conflict keys synchronously and only then hands the actual work to the engine executor,
+	 * so the instant the first thread's `applyMutation` returns is exactly the instant the conflict window
+	 * opens. That instant is signalled on the latch and the second attempt is issued after it — nothing here
+	 * depends on how the scheduler interleaves the two.
+	 *
+	 * That dependency is what made this test flaky: both attempts used to be submitted through
+	 * {@link CompletableFuture#runAsync(Runnable)}, which routes them to
+	 * {@link java.util.concurrent.ForkJoinPool#commonPool()} — a process-wide pool shared with every other
+	 * test class running concurrently. A saturated pool starts the second task only once the first has
+	 * finished, by which time the conflict window is long closed.
+	 *
+	 * Two outcomes are legitimate, and both are asserted rather than assumed:
+	 *
+	 * - the second attempt finds the window open and fails with {@link ConflictingEngineMutationException} —
+	 *   the property this test exists for, and what happens in practice;
+	 * - the first activation completed before the second attempt reached the guard, so the second one is
+	 *   rejected by {@link SetCatalogStateMutation#verifyApplicability(io.evitadb.api.EvitaContract)} with
+	 *   {@link InvalidMutationException} because the catalog is already active. That is evidence the window
+	 *   closed, not evidence the guard is missing.
+	 *
+	 * What must never happen — and what a missing guard would produce — is both attempts succeeding.
 	 *
 	 * @param catalog catalog name
 	 */
 	private void activateCatalogTwiceInParallelExpectingConflict(@Nonnull String catalog) {
-		try {
-			final CompletableFuture<Void> f1 = CompletableFuture.runAsync(
-				() -> this.evita
-					.applyMutation(new SetCatalogStateMutation(catalog, true))
-					.onCompletion()
-					.toCompletableFuture()
-					.join()
-			);
-			final CompletableFuture<Void> f2 = CompletableFuture.runAsync(
-				() -> this.evita
-					.applyMutation(new SetCatalogStateMutation(catalog, true))
-					.onCompletion()
-					.toCompletableFuture()
-					.join()
-			);
+		final CountDownLatch conflictWindowOpen = new CountDownLatch(1);
+		final AtomicReference<Throwable> firstOutcome = new AtomicReference<>();
+		final Thread firstAttempt = new Thread(
+			() -> {
+				try {
+					final Progress<Void> progress = this.evita.applyMutation(
+						new SetCatalogStateMutation(catalog, true)
+					);
+					// the conflict keys are registered by now - let the second attempt in
+					conflictWindowOpen.countDown();
+					progress.onCompletion().toCompletableFuture().join();
+				} catch (Throwable ex) {
+					firstOutcome.set(ex);
+				} finally {
+					// releases the second attempt also when the first one never got as far as registering
+					conflictWindowOpen.countDown();
+				}
+			},
+			"first-catalog-activation"
+		);
 
-			CompletableFuture.allOf(f1, f2).join();
-		} catch (CompletionException ex) {
-			assertInstanceOf(ConflictingEngineMutationException.class, ex.getCause());
-		} catch (ConflictingEngineMutationException ex) {
-			// expected exception, as we are trying to activate the same catalog in two threads
+		Throwable secondOutcome = null;
+		firstAttempt.start();
+		try {
+			assertTrue(
+				conflictWindowOpen.await(1, TimeUnit.MINUTES),
+				"The first activation neither opened the conflict window nor failed within a minute!"
+			);
+			try {
+				this.evita.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join();
+			} catch (Throwable ex) {
+				secondOutcome = ex;
+			}
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			fail("Interrupted while waiting for the first activation to open the conflict window!");
+		} finally {
+			joinQuietly(firstAttempt);
+		}
+
+		assertFalse(firstAttempt.isAlive(), "The first activation did not terminate!");
+		final Throwable firstFailure = firstOutcome.get();
+		assertNull(
+			firstFailure,
+			() -> "The first activation of `" + catalog + "` was expected to succeed, but it failed with: " + firstFailure
+		);
+		assertNotNull(
+			secondOutcome,
+			"Both activations of `" + catalog + "` succeeded - the engine did not reject the conflicting one!"
+		);
+
+		if (findInCauseChain(secondOutcome, ConflictingEngineMutationException.class) == null) {
+			final InvalidMutationException alreadyActive = findInCauseChain(
+				secondOutcome, InvalidMutationException.class
+			);
+			assertNotNull(
+				alreadyActive,
+				"The second activation of `" + catalog + "` failed with an unexpected exception: " + secondOutcome
+			);
+			assertTrue(
+				alreadyActive.getMessage().contains("is already active"),
+				"The second activation of `" + catalog + "` was rejected for an unexpected reason: " +
+					alreadyActive.getMessage()
+			);
+		}
+
+		// the catalog was deactivated from WARMING_UP, so activation returns it there rather than to ALIVE -
+		// what matters is that exactly one activation took effect
+		assertTrue(
+			this.evita.getCatalogState(catalog).orElseThrow().isActive(),
+			"The catalog `" + catalog + "` did not end up active!"
+		);
+	}
+
+	/**
+	 * Walks the entire cause chain of the passed throwable looking for an instance of the requested type.
+	 *
+	 * Asynchronous engine mutations surface their failure through a varying number of wrappers - a synchronous
+	 * throw from `applyMutation`, a {@link CompletionException} from the inner `join`, or both - so a fixed-depth
+	 * `getCause()` unwrap cannot decide what actually went wrong.
+	 *
+	 * @param throwable the throwable to inspect, may be null
+	 * @param type      the exception type to look for
+	 * @return the first matching exception in the chain or null when there is none
+	 */
+	@Nullable
+	private static <T extends Throwable> T findInCauseChain(@Nonnull Throwable throwable, @Nonnull Class<T> type) {
+		Throwable current = throwable;
+		// the depth bound keeps a self-referencing or cyclic cause chain from spinning here
+		for (int depth = 0; current != null && depth < MAX_INSPECTED_CAUSE_DEPTH; depth++) {
+			if (type.isInstance(current)) {
+				return type.cast(current);
+			}
+			final Throwable cause = current.getCause();
+			current = cause == current ? null : cause;
+		}
+		return null;
+	}
+
+	/**
+	 * Waits for the passed thread to terminate without letting an interruption mask the failure that is being
+	 * reported by the caller.
+	 *
+	 * @param thread the thread to wait for
+	 */
+	private static void joinQuietly(@Nonnull Thread thread) {
+		try {
+			thread.join(TimeUnit.MINUTES.toMillis(1));
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -5768,15 +5891,9 @@ class EvitaTest implements EvitaTestSupport {
 		// Set up the original catalog with schema and data
 		setupCatalogWithProductAndCategory();
 
-		// Make the catalog alive (active) before duplication
+		// Make the catalog alive (active) before duplication - `makeCatalogAlive` joins the progress it starts,
+		// so the catalog is fully initialized by the time it returns
 		this.evita.makeCatalogAlive(TEST_CATALOG);
-
-		// Wait a moment to ensure catalog is fully initialized
-		try {
-			Thread.sleep(100);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-		}
 
 		final String duplicatedCatalogName = TEST_CATALOG + "_duplicated";
 
