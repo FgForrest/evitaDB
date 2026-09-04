@@ -1126,7 +1126,7 @@ class TransactionalLongBPlusTreeTest {
 			final long[] keys = {key};
 			final String[] values = {"Value" + key};
 			return new TransactionalLongBPlusTree.BPlusLeafTreeNode<>(
-				keys, values, new long[3], new String[3], 0, 1, true, null
+				keys, values, new long[3], new String[3], 3, 0, 1, true, null
 			);
 		}
 
@@ -2554,7 +2554,7 @@ class TransactionalLongBPlusTreeTest {
 			final long[] keys = {key};
 			final String[] values = {"Value" + key};
 			return new TransactionalLongBPlusTree.BPlusLeafTreeNode<>(
-				keys, values, new long[3], new String[3], 0, 1, true, null
+				keys, values, new long[3], new String[3], 3, 0, 1, true, null
 			);
 		}
 

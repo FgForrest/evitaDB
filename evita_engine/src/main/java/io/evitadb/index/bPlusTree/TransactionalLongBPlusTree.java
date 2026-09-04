@@ -949,7 +949,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	private GenericEvitaInternalError missingSplitPathError(@Nonnull BPlusLeafTreeNode<V> leaf) {
 		return new GenericEvitaInternalError(
 			"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
-				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getKeys().length +
+				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.capacity() +
 				", tree block size: " + this.valueBlockSize + ")!",
 			"Leaf is full but no cursor path was captured!"
 		);
@@ -1506,8 +1506,9 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		final BPlusLeafTreeNode<V> leftLeaf = new BPlusLeafTreeNode<>(
 			originKeys,
 			originValues,
-			new long[this.valueBlockSize],
-			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
+			new long[mid],
+			(V[]) Array.newInstance(this.valueType, mid),
+			this.valueBlockSize,
 			0,
 			mid,
 			// nodes created during a split must participate in the transactional layer so their
@@ -1523,10 +1524,15 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		final BPlusLeafTreeNode<V> rightLeaf = new BPlusLeafTreeNode<>(
 			originKeys,
 			originValues,
-			new long[this.valueBlockSize],
-			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
+			new long[this.valueBlockSize - mid],
+			(V[]) Array.newInstance(this.valueType, this.valueBlockSize - mid),
+			this.valueBlockSize,
 			mid,
-			leftLeaf.getKeys().length,
+			// the LOGICAL capacity, which a split always finds equal to the origin's live count because a leaf only
+			// splits when it is full. It must never become a backing array's physical length: now that the halves are
+			// sized to their content, `end` would collapse to `mid`, the right leaf would copy the empty range
+			// [mid, mid) and half the leaf would vanish with no exception and no failing assert — silent data loss
+			this.valueBlockSize,
 			true,
 			this.transactionalLayerWrapper
 		);
@@ -2546,6 +2552,15 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		private V[] values;
 		/**
+		 * The **logical** capacity — the leaf block size this node was created with, which no mutation ever
+		 * changes. {@link #keys} and {@link #values} are sized to the live content instead and grow towards this
+		 * bound, so the two numbers are equal only in a leaf that is actually full.
+		 *
+		 * Everything asking "may one more key go in here" — {@link #isFull()}, {@link #isNearlyFull()}, the insert
+		 * premise — reads THIS. Everything indexing an array reads that array's own length.
+		 */
+		private final int capacity;
+		/**
 		 * Index of the last occupied position in the keys array.
 		 */
 		private int peek;
@@ -2580,9 +2595,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			@Nullable Function<Object, V> transactionalLayerWrapper,
 			boolean transactionalLayer
 		) {
-			this.keys = new long[blockSize];
+			this.capacity = blockSize;
+			// an empty leaf allocates nothing — the arrays start at ColumnSizing.MIN_PHYSICAL_LENGTH on the first insert
+			this.keys = EMPTY_LONG_ARRAY;
 			//noinspection unchecked
-			this.values = (V[]) Array.newInstance(valueType, blockSize);
+			this.values = (V[]) Array.newInstance(valueType, 0);
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
@@ -2596,6 +2613,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @param originValues              the source array of values to copy from
 		 * @param keys                      the target array for keys (may be the same as originKeys)
 		 * @param values                    the target array for values (may be the same as originValues)
+		 * @param capacity                  the node's logical capacity — the leaf block size. The target arrays are
+		 *                                  NOT required to match it; they are sized to the range being copied
 		 * @param start                     the start index (inclusive) in the origin arrays
 		 * @param end                       the end index (exclusive) in the origin arrays
 		 * @param transactionalLayer        whether this node participates in the transactional memory layer
@@ -2606,10 +2625,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			@Nonnull V[] originValues,
 			@Nonnull long[] keys,
 			@Nonnull V[] values,
+			int capacity,
 			int start, int end,
 			boolean transactionalLayer,
 			@Nullable Function<Object, V> transactionalLayerWrapper
 		) {
+			ColumnSizing.assertLoadFitsCapacity(end - start, capacity);
+			this.capacity = capacity;
 			this.keys = keys;
 			this.values = values;
 			// Copy the keys and values from the origin arrays
@@ -2632,14 +2654,51 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			@Nonnull long[] keys,
 			@Nonnull V[] values,
 			int peek,
+			int capacity,
 			boolean transactionalLayer,
 			@Nullable Function<Object, V> transactionalLayerWrapper
 		) {
+			this.capacity = capacity;
 			this.keys = keys;
 			this.values = values;
 			this.peek = peek;
 			this.transactionalLayer = transactionalLayer;
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
+		}
+
+		/**
+		 * Returns the **logical** capacity — the leaf block size this node was created with, which no mutation
+		 * ever changes. See {@link #capacity}.
+		 *
+		 * @return the logical capacity (the leaf block size)
+		 */
+		int capacity() {
+			return this.capacity;
+		}
+
+		/**
+		 * Grows THIS node's own backing arrays so that the first `requiredLength` slots may be addressed, leaving
+		 * the logical {@link #capacity} untouched.
+		 *
+		 * Call it on the object whose arrays are about to be written — the committed node outside a transaction,
+		 * the layer inside one — and inside a transaction only after {@link #decoupleTransactionalArrays()} has
+		 * given the layer arrays of its own, or the growth would copy and then abandon the shared committed arrays.
+		 *
+		 * Each array is grown against **its own** length rather than against the other's. The two are equal in
+		 * every state this class produces, but a guard that read only one of them would silently leave the other
+		 * short if they ever diverged, and the write that follows indexes both.
+		 *
+		 * @param requiredLength the number of slots the caller is about to address; never above {@link #capacity}
+		 */
+		private void ensurePhysicalLength(int requiredLength) {
+			if (requiredLength > this.keys.length) {
+				this.keys = Arrays.copyOf(
+					this.keys, ColumnSizing.grownLength(this.keys.length, requiredLength, this.capacity));
+			}
+			if (requiredLength > this.values.length) {
+				this.values = Arrays.copyOf(
+					this.values, ColumnSizing.grownLength(this.values.length, requiredLength, this.capacity));
+			}
 		}
 
 		@Nonnull
@@ -2727,9 +2786,15 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + dirty + wrapper/keys/values slots + peek + pageSequence
-			long size = layout.sizeOfObject(Long.BYTES + 2L + 3L * layout.referenceSize() + 2L * Integer.BYTES);
-			size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			// id + transactionalLayer + dirty + wrapper/keys/values slots + peek + pageSequence + capacity
+			long size = layout.sizeOfObject(Long.BYTES + 2L + 3L * layout.referenceSize() + 3L * Integer.BYTES);
+			// an empty leaf parks its keys on the JVM-wide shared empty array, which costs it nothing beyond the slot
+			// above — the same policy the ValueColumn family applies, and the same one every heap walk subtracts. The
+			// value array is always privately owned (there is no shared empty of an arbitrary component type), so it is
+			// charged unconditionally, at a zero length while the leaf is empty
+			if (this.keys != EMPTY_LONG_ARRAY) {
+				size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			}
 			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
 			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
 			// transactional layer, which is a separate node object owning a separate `values` array
@@ -2761,9 +2826,9 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
 				null;
 			if (layer == null) {
-				return this.peek == this.values.length - 1;
+				return this.peek == this.capacity - 1;
 			} else {
-				return layer.peek == layer.values.length - 1;
+				return layer.peek == layer.capacity - 1;
 			}
 		}
 
@@ -2771,10 +2836,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * Whether a single insert of a **new** key could make this leaf {@link #isFull()} — i.e. whether the caller
 		 * must capture a cursor path before mutating, so a split has one.
 		 *
-		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and the capacity from the **same** resolved state,
-		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would hold
-		 * only while every leaf array happens to be allocated at exactly that size, and nothing enforces that
-		 * coupling — a shorter array would reach {@link #isFull()} without ever tripping the guard.
+		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and {@link #capacity} from the **same** resolved
+		 * state, so the two can never disagree. Both read the LOGICAL capacity and never a backing array's length —
+		 * the arrays are sized to the live content and grow towards the capacity, so an array's length says nothing
+		 * about how many more keys this leaf may still accept.
 		 *
 		 * @return true when one more key could fill this leaf
 		 */
@@ -2783,9 +2848,9 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
 				null;
 			if (layer == null) {
-				return this.peek >= this.values.length - 2;
+				return this.peek >= this.capacity - 2;
 			} else {
-				return layer.peek >= layer.values.length - 2;
+				return layer.peek >= layer.capacity - 2;
 			}
 		}
 
@@ -2830,6 +2895,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				layer.dirty = true;
 			}
 			if (layer == null) {
+				ensurePhysicalLength(this.peek + 1 + numberOfTailValues);
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
 				System.arraycopy(
@@ -2845,6 +2911,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				decoupleTransactionalArrays();
 				previousNode.decoupleTransactionalArrays();
 
+				layer.ensurePhysicalLength(layer.peek + 1 + numberOfTailValues);
 				System.arraycopy(layer.keys, 0, layer.keys, numberOfTailValues, layer.peek + 1);
 				System.arraycopy(layer.values, 0, layer.values, numberOfTailValues, layer.peek + 1);
 				System.arraycopy(
@@ -2878,6 +2945,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
 				// decouple them first (...ForUpdate) or it would corrupt the shared committed state. The ...ForUpdate
 				// accessors decouple a committed sibling inside a transaction and are in-place no-ops outside one.
+				ensurePhysicalLength(this.peek + 1 + numberOfHeadValues);
 				System.arraycopy(nextNode.getKeysForUpdate(), 0, this.keys, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(nextNode.getValuesForUpdate(), 0, this.values, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
@@ -2895,6 +2963,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				decoupleTransactionalArrays();
 				nextNode.decoupleTransactionalArrays();
 
+				layer.ensurePhysicalLength(layer.peek + 1 + numberOfHeadValues);
 				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, numberOfHeadValues);
 				System.arraycopy(nextNode.getValuesForUpdate(), 0, layer.values, layer.peek + 1, numberOfHeadValues);
 				System.arraycopy(
@@ -2923,6 +2992,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				layer.dirty = true;
 			}
 			if (layer == null) {
+				ensurePhysicalLength(this.peek + 1 + mergePeek + 1);
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
 				System.arraycopy(previousNode.getKeys(), 0, this.keys, 0, mergePeek + 1);
@@ -2934,6 +3004,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				decoupleTransactionalArrays();
 				previousNode.decoupleTransactionalArrays();
 
+				layer.ensurePhysicalLength(layer.peek + 1 + mergePeek + 1);
 				System.arraycopy(layer.keys, 0, layer.keys, mergePeek + 1, layer.peek + 1);
 				System.arraycopy(layer.values, 0, layer.values, mergePeek + 1, layer.peek + 1);
 				System.arraycopy(previousNode.getKeysForUpdate(), 0, layer.keys, 0, mergePeek + 1);
@@ -2956,6 +3027,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				layer.dirty = true;
 			}
 			if (layer == null) {
+				ensurePhysicalLength(this.peek + 1 + mergePeek + 1);
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
 				this.peek += mergePeek + 1;
@@ -2965,6 +3037,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				decoupleTransactionalArrays();
 				nextNode.decoupleTransactionalArrays();
 
+				layer.ensurePhysicalLength(layer.peek + 1 + mergePeek + 1);
 				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, mergePeek + 1);
 				System.arraycopy(nextNode.getValuesForUpdate(), 0, layer.values, layer.peek + 1, mergePeek + 1);
 				layer.peek += mergePeek + 1;
@@ -3074,7 +3147,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				// we need to copy them in the transactional layer, before modifying
 
 				//noinspection ArrayEquality
-				if (layer.keys == this.keys) {
+				if (layer.keys == this.keys && this.keys.length > 0) {
+					// length 0 is the shared empty array — see `decoupleTransactionalArrays`
 					layer.keys = new long[this.keys.length];
 					System.arraycopy(this.keys, 0, layer.keys, 0, this.keys.length);
 				}
@@ -3130,7 +3204,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				// we need to copy them in the transactional layer, before modifying
 
 				//noinspection ArrayEquality
-				if (layer.values == this.values) {
+				if (layer.values == this.values && this.values.length > 0) {
+					// length 0 carries nothing to decouple — the first write allocates through `ensurePhysicalLength`
 					//noinspection unchecked
 					layer.values = (V[]) Array.newInstance(
 						this.values.getClass().getComponentType(), this.values.length);
@@ -3232,6 +3307,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				this.values,
 				this.keys,
 				this.values,
+				this.capacity,
 				0,
 				this.peek + 1,
 				false,
@@ -3314,32 +3390,14 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 			final BPlusLeafTreeNode<V> result;
 			if (newValues != null) {
-				result = new BPlusLeafTreeNode<>(
-					theKeys,
-					newValues,
-					thePeek,
-					true,
-					this.transactionalLayerWrapper
-				);
+				result = trimmedCommittedCopy(theKeys, newValues, thePeek);
 			} else if (layer != null) {
-				result = new BPlusLeafTreeNode<>(
-					theKeys,
-					theValues,
-					thePeek,
-					true,
-					this.transactionalLayerWrapper
-				);
+				result = trimmedCommittedCopy(theKeys, theValues, thePeek);
 			} else if (!this.transactionalLayer) {
 				// nodes created during splits/merges are built with transactionalLayer=false so they do
 				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
 				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
-				result = new BPlusLeafTreeNode<>(
-					theKeys,
-					theValues,
-					thePeek,
-					true,
-					this.transactionalLayerWrapper
-				);
+				result = trimmedCommittedCopy(theKeys, theValues, thePeek);
 			} else {
 				return this;
 			}
@@ -3348,6 +3406,33 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			// it fresh
 			result.pageSequence = this.pageSequence;
 			return result;
+		}
+
+		/**
+		 * Builds the committed leaf the commit-merge installs, shrinking the backing arrays when the live content
+		 * has fallen far enough behind them to pay for the copy ({@link ColumnSizing#trimmedLength}). This is the
+		 * only place a leaf's arrays ever get smaller: the incremental paths only grow, so without it a leaf that
+		 * once filled up would hold its peak allocation for the rest of the catalog's life.
+		 *
+		 * Reached only from the branches that already build a new node. A leaf the merge leaves untouched returns
+		 * itself and must not be rebuilt merely to trim — that would allocate on every commit for every leaf.
+		 *
+		 * @param keys   the committed key array (the layer's, or this node's own)
+		 * @param values the committed value array, matching `keys` slot for slot
+		 * @param peek   the index of the last occupied slot
+		 * @return the committed leaf, on arrays trimmed to the live content where that was worth doing
+		 */
+		@Nonnull
+		private BPlusLeafTreeNode<V> trimmedCommittedCopy(@Nonnull long[] keys, @Nonnull V[] values, int peek) {
+			final int trimmed = ColumnSizing.trimmedLength(peek + 1, keys.length, this.capacity);
+			return new BPlusLeafTreeNode<>(
+				trimmed < keys.length ? Arrays.copyOf(keys, trimmed) : keys,
+				trimmed < values.length ? Arrays.copyOf(values, trimmed) : values,
+				peek,
+				this.capacity,
+				true,
+				this.transactionalLayerWrapper
+			);
 		}
 
 		/**
@@ -3452,7 +3537,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 			if (layer == null) {
 				Assert.isPremiseValid(
-					this.peek < this.keys.length - 1,
+					this.peek < this.capacity - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
@@ -3469,6 +3554,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					ensurePhysicalLength(this.peek + 2);
 					insertLongIntoSameArrayOnIndex(key, this.keys, insertionPosition.position());
 					insertRecordIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
@@ -3477,7 +3563,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
-					layer.peek < layer.keys.length - 1,
+					layer.peek < layer.capacity - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
@@ -3494,7 +3580,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					layer.values[insertionPosition.position()] = value;
 					return false;
 				} else {
-					insertLongIntoSameArrayOnIndex(key, layer.keys, insertionPosition.position());
+						layer.ensurePhysicalLength(layer.peek + 2);
+						insertLongIntoSameArrayOnIndex(key, layer.keys, insertionPosition.position());
 					insertRecordIntoSameArrayOnIndex(value, layer.values, insertionPosition.position());
 					layer.peek++;
 					return true;
@@ -3513,14 +3600,19 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
-					layer.keys = new long[this.keys.length];
+					// an empty leaf keeps pointing at the shared empty array: allocating here would mint a private
+					// zero-length one, costing a header and breaking the identity every heap walk subtracts
+					final int keysHeadroom = ColumnSizing.headroomLength(this.peek + 1, this.keys.length, this.capacity);
+					layer.keys = keysHeadroom == 0 ? this.keys : new long[keysHeadroom];
 					System.arraycopy(this.keys, 0, layer.keys, 0, this.peek + 1);
 				}
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {
+					final int valuesHeadroom = ColumnSizing.headroomLength(this.peek + 1, this.values.length, this.capacity);
 					//noinspection unchecked
-					layer.values = (V[]) Array.newInstance(
-						this.values.getClass().getComponentType(), this.values.length);
+					layer.values = valuesHeadroom == 0 ?
+						this.values :
+						(V[]) Array.newInstance(this.values.getClass().getComponentType(), valuesHeadroom);
 					System.arraycopy(this.values, 0, layer.values, 0, this.peek + 1);
 				}
 			}
