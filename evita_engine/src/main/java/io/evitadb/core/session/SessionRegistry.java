@@ -908,6 +908,23 @@ public final class SessionRegistry {
 			} catch (CatalogTransitioningException ignored) {
 				// catalog is transitioning, we cannot notify it anyway - and nothing was pinned, so nothing is owed
 				return CatalogVersionPin.NONE;
+			} catch (Throwable ex) {
+				// The count above was raised for a session that is about to be abandoned. Nothing downstream takes
+				// it back: the registration catch closes the unpublished session, and `removeSession` opens with an
+				// `activeSessions.remove` that answers null for a session no caller ever received, so it returns
+				// before reaching the census at all. Left standing, this version's reader count never falls to zero
+				// again - `unregisterSessionConsumingCatalogInVersion` keeps taking its non-last-reader branch,
+				// `catalogConsumersLeft` is never fired for it, and its files, history roots and conflict keys are
+				// retained for the life of the process. Repeated failures stack.
+				//
+				// This is the only place that knows the increment happened, so it is the only place that can undo
+				// it. The decrement mirrors the one in `unregisterSessionConsumingCatalogInVersion` exactly,
+				// including dropping the entry at one rather than leaving a zero behind.
+				targetIndex.compute(
+					version,
+					(k, v) -> v == null || v == 1 ? null : v - 1
+				);
+				throw ex;
 			}
 		}
 

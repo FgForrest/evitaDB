@@ -208,6 +208,10 @@ class SessionRegistryWarmUpAdmissionTest {
 			() -> register(registry, false, mockSession()),
 			"A catalog that has gone must fail the registration rather than half-complete it!"
 		);
+		// the registry admits again and the session count is back to zero - but that is only half of "nothing
+		// behind", and the other half is invisible from here: the per-version reader census is raised BEFORE the
+		// pin is attempted, so a failure between the two used to leave a phantom consumer on this version. The
+		// assertion for it is below, after a real session has come and gone on the same version.
 		// the point of the ordering inside `registerNewSession`: a session that was never handed to a caller is
 		// never closed by one, and on a catalog that is not transactional a single orphan would refuse every later
 		// admission for the life of the process
@@ -217,11 +221,22 @@ class SessionRegistryWarmUpAdmissionTest {
 		);
 
 		catalogGone.set(false);
+		final EvitaSession admitted = mockSession();
 		assertNotNull(
-			register(registry, false, mockSession()),
+			register(registry, false, admitted),
 			"The registry must admit a session again once the catalog is back!"
 		);
 		assertEquals(1, registry.countActiveSessions().activeSessions());
+
+		// the other half of "nothing behind". This session is the only consumer of its version, so its departure is
+		// that version's last and the catalog has to be told exactly once - which is what actually releases the
+		// version's files, history roots and conflict keys. A phantom consumer left by the failed registration
+		// above holds the count off zero, `unregisterSessionConsumingCatalogInVersion` takes its non-last-reader
+		// branch instead, and this notification never arrives at all. Asserting the notification rather than
+		// reading the census keeps the test on the consequence rather than on the bookkeeping.
+		registry.removeSession(admitted);
+		Mockito.verify(catalog, Mockito.times(1))
+			.catalogConsumersLeft(Mockito.anyLong(), Mockito.anyLong());
 	}
 
 	@Test
