@@ -475,11 +475,18 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 		}
 		// binary search over [from, to) comparing (from, to) lexicographically; the return encoding mirrors
 		// ArrayUtils.computeInsertPositionOfLongInOrderedArray exactly (empty-range ⇒ position 0, not present)
-		if (to <= from) {
+		//
+		// `to` is the caller's `peek + 1`, read BEFORE this call, while the two bound arrays are read HERE and again
+		// on every hop through `compareAt`. A reader sharing no happens-before edge with a warm-up writer can pair a
+		// count raised by a grow with the arrays as they stood before it, so the search is bounded by what both
+		// arrays can actually serve. Re-reading them later inside `compareAt` is safe under that bound because the
+		// column never shrinks an array in place - a grow republishes a longer one and a shrink only lowers `size`.
+		final int bound = Math.min(to, Math.min(this.from.length, this.to.length));
+		if (bound <= from) {
 			return new InsertionPosition(0, false);
 		}
 		int low = from;
-		int high = to - 1;
+		int high = bound - 1;
 		while (low <= high) {
 			final int mid = (low + high) >>> 1;
 			final int cmp = compareAt(mid, probeFrom, probeTo);

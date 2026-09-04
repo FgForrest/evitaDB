@@ -268,7 +268,14 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 		// the comparator is intentionally ignored: the factory only selects this column for natural-order trees, and the
 		// int order is identical to natural Integer order; the probe is unboxed once
 		final int probe = (Integer) key;
-		return computeInsertPositionOfIntInOrderedArray(probe, this.keys, from, to);
+		// `to` is the caller's `peek + 1`, read BEFORE this call; the key array is read HERE, after it. A reader
+		// sharing no happens-before edge with a warm-up writer can therefore pair a count raised by a grow with the
+		// array as it stood before that grow, and index past its end. Binding the search to the length of the very
+		// array it will index closes that whichever of the two the reader observed first - the same rule
+		// `observableLeafPeek` applies one level up, applied here because the array is not visible up there.
+		// On any consistent observer `keys.length >= peek + 1` holds and the bound returns `to` unchanged.
+		final int[] theKeys = this.keys;
+		return computeInsertPositionOfIntInOrderedArray(probe, theKeys, from, Math.min(to, theKeys.length));
 	}
 
 	@Override

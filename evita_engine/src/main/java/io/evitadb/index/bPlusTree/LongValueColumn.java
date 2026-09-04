@@ -268,7 +268,14 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 		// the comparator is intentionally ignored: the factory only selects this column for natural-order trees, and the
 		// codec is monotonic, so the long order is identical to the comparator order; the probe is boxed-encoded once
 		final long probe = this.codec.encode(key);
-		return computeInsertPositionOfLongInOrderedArray(probe, this.keys, from, to);
+		// `to` is the caller's `peek + 1`, read BEFORE this call; the key array is read HERE, after it. A reader
+		// sharing no happens-before edge with a warm-up writer can therefore pair a count raised by a grow with the
+		// array as it stood before that grow, and index past its end. Binding the search to the length of the very
+		// array it will index closes that whichever of the two the reader observed first - the same rule
+		// `observableLeafPeek` applies one level up, applied here because the array is not visible up there.
+		// On any consistent observer `keys.length >= peek + 1` holds and the bound returns `to` unchanged.
+		final long[] theKeys = this.keys;
+		return computeInsertPositionOfLongInOrderedArray(probe, theKeys, from, Math.min(to, theKeys.length));
 	}
 
 	@Override

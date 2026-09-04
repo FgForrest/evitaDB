@@ -601,8 +601,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			&& isBmpSafe(probe)) {
 			probeBytes = probe.getBytes(StandardCharsets.UTF_8);
 		}
+		// `to` is the caller's `peek + 1`, read BEFORE this call, while the blob this search decodes is read HERE. A
+		// reader sharing no happens-before edge with a warm-up writer can pair a count raised by a grow with the
+		// column as it stood before it, so the search is bounded by what the column can currently serve. This bounds
+		// the *count* only; the four-field publish this column performs - `restartOffsets`, `data`, `size` and
+		// `hasEncodedSurrogate` stored separately with no combined publish - remains a torn-snapshot hazard of its
+		// own and is deliberately untouched here (see `2026-08-31-front-coded-column-stores-wtf8`).
 		int lo = from;
-		int hi = to - 1;
+		int hi = Math.min(to, observableLiveRun()) - 1;
 		while (lo <= hi) {
 			final int mid = (lo + hi) >>> 1;
 			final int cmp;
