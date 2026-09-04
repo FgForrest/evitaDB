@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-03 10:45
+updated: 2026-09-04 07:15
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary]
+relates: [2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -520,6 +520,9 @@ proportionally larger against a smaller total, and the census charged the tempor
   warm-up flush never reaches a commit merge, so an empty page baseline surfaced on a later cold load.
 - `2026-08-10-stored-value-normalization-split` — the normalizer that rewrites a range key to the schema
   scale before it reaches the tree, which is what makes a scale-carrying range column sound.
+- `2026-09-04-millisecond-temporal-precision` — the other half of issue #1486, and what this record made
+  findable: once every column was sized to its live content, `InstantValueColumn`'s second parallel array
+  and `RangeValueColumn`'s third one were the largest remaining oddities in the family. Both are now gone.
 
 ## Timeline
 

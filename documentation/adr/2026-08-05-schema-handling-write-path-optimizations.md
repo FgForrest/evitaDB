@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-24 10:15
+updated: 2026-09-04 07:15
 status: accepted
 kind: optimization
 issues: [1390]
@@ -9,7 +9,7 @@ prs: [1395]
 areas: [evita_api/requestResponse/schema/dto, evita_api/requestResponse/data, evita_engine/index/mutation]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-10-stored-value-normalization-split]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
@@ -227,6 +227,8 @@ B remains the larger prize and should be sequenced after its exploration produce
 - `2026-08-10-stored-value-normalization-split` — same attribute-mutation write path; that record
   constrains what a mutation may do to the value itself, where this one speeds up how the schema
   around it is resolved.
+- `2026-09-04-millisecond-temporal-precision` — the same write path again, at the data-type boundary every
+  attribute mutation funnels through; it decides what precision a temporal value keeps on the way in.
 
 ## Timeline
 

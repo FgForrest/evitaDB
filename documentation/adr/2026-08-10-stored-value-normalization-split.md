@@ -1,7 +1,7 @@
 ---
 title: LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer
 date: 2026-08-10
-updated: 2026-09-03 10:45
+updated: 2026-09-04 07:15
 status: accepted
 kind: fix
 issues: [1403]
@@ -9,7 +9,7 @@ prs: [1404, 1405]
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns]
+relates: [2026-08-05-schema-handling-write-path-optimizations, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # `LocalDateTime` keeps its declared type end to end; the UTC anchoring that makes it cheap to index moves into `FilterIndex.getNormalizer`
@@ -202,11 +202,20 @@ the one most likely to be re-proposed and is the one to read this record for.
   reader covers every read path unconditionally — including any part a migration sweep does not visit — and it is
   self-healing, whereas the eager route would have to enumerate parts for a type far rarer than `String`. The two
   compose: a part re-keyed by the migration is read through this same reader first, so it is already anchored.
-- Other index kinds were checked and are **not** affected. Unique indexes select their leaf column through the same
-  `ValueColumnFactory.forKey` and keep raw values, which looks like the same trap, but a `unique` `OffsetDateTime` and
-  a `unique` `LocalDateTime` attribute each write 200 distinct values end-to-end without error — so the reading was
-  wrong and the empirical result governs. `HistogramIndex` is 2026.2-only (no `_2026_1` reader) and `SortIndex` does
-  not use `ValueColumnFactory` at all.
+- **Correction (2026-09-04).** This record originally concluded that unique indexes were checked and *not* affected:
+  they select their leaf column through the same `ValueColumnFactory.forKey` and keep raw values, "which looks like the
+  same trap, but a `unique` `OffsetDateTime` and a `unique` `LocalDateTime` attribute each write 200 distinct values
+  end-to-end without error — so the reading was wrong and the empirical result governs". **The reading was right and the
+  experiment did not reach the path.** A non-localized `unique` attribute is FOLDABLE, so its values live in the shared
+  filter tree and reach `forFilterKey`; that test never touched `forKey` at all. The reachable cases are a localized
+  attribute unique across locales, and any `uniqueGlobally` attribute, which `CatalogIndex` creates unconditionally —
+  both threw `ClassCastException` on the first upsert of a temporal value. Fixed under #1486 by moving the temporal
+  remap into `forFilterKey` alone; see
+  [2026-09-04-millisecond-temporal-precision](2026-09-04-millisecond-temporal-precision.md). The decision this record
+  documents is unaffected — only this consequence was wrong. The general lesson is worth more than the fix: an
+  empirical result governs only over the path it actually executed, and "wrote 200 values without error" is not
+  evidence about a branch the values never entered.
+- `HistogramIndex` is 2026.2-only (no `_2026_1` reader) and `SortIndex` does not use `ValueColumnFactory` at all.
 - **Invariant for the next person:** any future change to `FilterIndex.getNormalizer` for a type that has already been
   persisted is an on-disk format change, and needs a matching conversion in the BWC reader for the format that wrote
   it. The normalizer is not merely a runtime detail.
