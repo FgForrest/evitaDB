@@ -356,18 +356,36 @@ class ContainerIndexHeapSizeTest {
 		 * @return the rebuilt index
 		 */
 		@Nonnull
-		@SuppressWarnings("unchecked")
 		private static EntityAttributeIndex rebuiltFromCommittedMaps(@Nonnull EntityAttributeIndex live) {
 			return new EntityAttributeIndex(
 				ENTITY_TYPE,
-				new HashMap<>((Map<AttributeIndexKey, UniqueIndex>) readField(live, "uniqueIndex")),
-				new HashMap<>((Map<AttributeIndexKey, FilterIndex>) readField(live, "filterIndex")),
-				new HashMap<>((Map<AttributeIndexKey, UniqueIndex>) readField(live, "uniqueViewIndex")),
-				new HashMap<>((Map<AttributeIndexKey, SortIndex>) readField(live, "sortIndex")),
-				new HashMap<>((Map<AttributeIndexKey, ChainIndex>) readField(live, "chainIndex")),
-				new HashMap<>((Map<AttributeIndexKey, InvertedIndex>) readField(live, "sharedValueIndex")),
-				new HashMap<>((Map<AttributeIndexKey, RangeIndex>) readField(live, "sharedRangeIndex"))
+				familyOf(live, "uniqueIndex"),
+				familyOf(live, "filterIndex"),
+				familyOf(live, "uniqueViewIndex"),
+				familyOf(live, "sortIndex"),
+				familyOf(live, "chainIndex"),
+				familyOf(live, "sharedValueIndex"),
+				familyOf(live, "sharedRangeIndex")
 			);
+		}
+
+		/**
+		 * Copies one sub-index family out of a live index into the plain map the from-committed-maps constructor
+		 * expects. A family nothing ever wrote to is not allocated at all, and reads back here as an empty map —
+		 * which is exactly what the constructor is handed on a cold load of an index that has no such attribute.
+		 *
+		 * @param live  the index to read the family off
+		 * @param field the family's field name
+		 * @param <V>   the sub-index type held by the family
+		 * @return a detached copy of the family's entries, empty when the family is absent
+		 */
+		@Nonnull
+		@SuppressWarnings("unchecked")
+		private static <V> Map<AttributeIndexKey, V> familyOf(
+			@Nonnull EntityAttributeIndex live, @Nonnull String field
+		) {
+			final Map<AttributeIndexKey, V> family = (Map<AttributeIndexKey, V>) readField(live, field);
+			return family == null ? new HashMap<>() : new HashMap<>(family);
 		}
 
 		@SuppressWarnings("unchecked")

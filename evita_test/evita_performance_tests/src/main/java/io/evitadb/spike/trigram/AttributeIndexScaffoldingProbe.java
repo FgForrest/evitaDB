@@ -40,6 +40,7 @@ import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -116,10 +117,15 @@ public class AttributeIndexScaffoldingProbe {
 	 */
 	/**
 	 * What an entirely empty {@code AttributeIndex} reports, in bytes - identical for global, reduced and
-	 * reference-type indexes because all three allocate the same twelve maps regardless of content. Measured
-	 * directly; the shape is JOL-cross-checked by `EntityIndexHeapSizeTest`.
+	 * reference-type indexes because all three build the same shell regardless of content.
+	 *
+	 * **Measured at run time rather than pinned**, by asking a directly constructed empty index. It used to be a
+	 * literal, which made every run depend on the constant having been re-measured after the last change to the
+	 * index's field layout - and it silently stopped being 680 B the moment the sub-index maps became lazily
+	 * allocated. The shape it reports is JOL-cross-checked by `EntityIndexHeapSizeTest`.
 	 */
-	private static final long EMPTY_ATTRIBUTE_INDEX_BYTES = 680L;
+	private static final long EMPTY_ATTRIBUTE_INDEX_BYTES =
+		new EntityAttributeIndex("emptyAttributeIndexProbe").getHeapSizeInBytes();
 	/**
 	 * How long to wait for the catalog to finish its asynchronous load before giving up.
 	 */
@@ -206,9 +212,9 @@ public class AttributeIndexScaffoldingProbe {
 		System.out.println();
 		printRow("TOTAL", total);
 
-		// the decisive arithmetic: every entity index allocates the same twelve maps whatever it holds, and an EMPTY
-		// attribute index measures 680 B (EntityIndexHeapSizeTest cross-checks that shape against JOL). The floor is
-		// therefore a product of two measured quantities rather than a model of the internals
+		// the decisive arithmetic: an EMPTY attribute index is measured at startup on this very build
+		// (EntityIndexHeapSizeTest cross-checks that shape against JOL), so the floor is a product of two measured
+		// quantities rather than a model of the internals - and it moves when the index's shell does
 		final long floor = total.indexes * EMPTY_ATTRIBUTE_INDEX_BYTES;
 		final long emptyFamilySlots = total.indexes * 4L - total.usedFamilies;
 		System.out.println();

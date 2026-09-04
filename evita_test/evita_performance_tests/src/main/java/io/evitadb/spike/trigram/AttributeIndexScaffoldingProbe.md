@@ -52,9 +52,10 @@ probe prints that caveat itself rather than leaving it to a reader.
 **It does not reflect.** The sibling `TrigramReplicationCensus` reads the `protected attributeIndex`
 field reflectively and documents why; this probe does not need to, because the per-index constant is
 obtained from a directly constructed empty index rather than from a live one, and the multiplier comes
-from the public browse surface. The cost is that the constant is pinned in source rather than
-re-measured per run — if `AttributeIndex` gains or loses a field, `EMPTY_ATTRIBUTE_INDEX_BYTES` must be
-re-measured.
+from the public browse surface. That constant used to be pinned in source, which made every run depend
+on somebody having re-measured it after the last change to the index's field layout; it is now taken
+from a freshly constructed empty index at start-up, so the probe reports the floor of whatever build
+it is running against.
 
 **It does not price the fix.** Every one of those maps is a `TransactionalMap` or
 `PersistentTransactionalProducerMap` wired into the MVCC layer. Null-until-first-use means every read
@@ -75,6 +76,15 @@ java -Xmx24g -cp "${REACTOR}$(cat cp.txt)" \
 **Keep the heap under 32 GB.** At 32 GB the VM turns compressed oops off, every reference becomes 8 B,
 and the `VMLayout` line the probe prints stops matching the one the figures assume. 24 GB loads a
 3.3 GB catalog in about 25 s with room to spare.
+
+## What happened next
+
+The 680 B and the 366 MiB floor above are readings of the **eager** attribute index — the state this
+probe was written to price. The seven sub-index maps were subsequently made lazy (allocated by the
+first write to their family, and left absent by the commit merge when a family committed nothing), which
+takes an untouched attribute index to **80 B**: its own object, and nothing else. Re-running the probe
+on a build carrying that change reports the new floor rather than this one, because the constant is now
+measured rather than pinned.
 
 ## Related
 

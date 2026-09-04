@@ -42,6 +42,7 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges.Containe
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -87,6 +88,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -113,6 +115,33 @@ import static java.util.Optional.ofNullable;
  * All sub-index maps support transactional memory: under an open transaction multiple writers and readers operate on
  * their own isolated snapshot, and a writer's uncommitted changes are invisible to concurrent readers. Outside a
  * transaction changes are applied in place and the index is not safe for multiple concurrent writers.
+ *
+ * # Lazy sub-index maps
+ *
+ * All seven sub-index maps are **allocated on first write, not at construction**. A catalog carries one attribute
+ * index per entity index, and most of them never see most of the seven families: on a production e-commerce catalog
+ * (564,187 entity indexes) 64.4 % of the observable family slots were allocated and empty, and 16,104 indexes held
+ * nothing at all. Each empty family costs a map decorator plus an empty {@link java.util.HashMap} delegate, so the
+ * scaffolding alone was a floor of hundreds of megabytes before a single value was indexed.
+ *
+ * Every read therefore treats a `null` family as an absent one, and every write goes through the family's
+ * `getOrCreate…Map()`. Three properties make that safe, and none of them may be dropped:
+ *
+ * - **The fields are `volatile`.** {@link TransactionalMap} holds only final fields, but the state of a
+ *   {@link PersistentTransactionalProducerMap} is swapped between its sealed and thawed forms and is therefore NOT
+ *   final. Without the volatile write a concurrent reader could observe a published map whose backing state is still
+ *   `null`.
+ * - **Creation is double-checked under `synchronized (this)`.** Two concurrent write transactions can reach the same
+ *   index; if both built a map, the loser's diff layer would be keyed on an orphan instance while every later read
+ *   re-read the field and found the winner — losing that transaction's writes silently. Exactly one instance wins,
+ *   and nothing is written into a fresh map before it is published.
+ * - **The from-maps constructor re-nulls an empty family.** Both the commit merge and the cold load run through it,
+ *   so a family that committed nothing goes back to being absent instead of being resurrected empty for the lifetime
+ *   of the next snapshot.
+ *
+ * A first write that is later rolled back leaves an empty map behind on the pre-commit instance. That is bounded (at
+ * most seven per index, i.e. what construction used to cost unconditionally) and transient on the trunk, because the
+ * committed copy is rebuilt from the merged maps and materialises only the families that actually hold something.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -145,8 +174,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * keyed by the per-locale FILTER key). Every other unique attribute (any non-localized one, or a localized one that
 	 * is unique within locale) is folded into the shared tree and represented by a VIEW in {@link #uniqueViewIndex}.
 	 * Filter and Sort also share the {@link #sharedValueIndex} tree.
+	 *
+	 * `null` until the first standalone-unique write reaches this index — see {@link #getOrCreateUniqueIndexMap()}
+	 * and the "lazy sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> uniqueIndex;
+	@Nullable private volatile PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> uniqueIndex;
 	/**
 	 * Derived cache of {@link FilterIndex} VIEWS over {@link #sharedValueIndex} — one per filterable attribute key. The
 	 * views own no transactional state of their own (their reads/writes dispatch through the wrapped shared
@@ -161,6 +193,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * so a writer's in-flight put/remove is invisible to readers and the cache never diverges from the reader's
 	 * isolated view of {@link #sharedValueIndex}.
 	 *
+	 * `null` until the first filter write reaches this index — see {@link #getOrCreateFilterIndexMap()} and the
+	 * "lazy sub-index maps" section of the class javadoc.
+	 *
 	 * The cached views WRAP {@link InvertedIndex} instances, and a touched key receives a fresh tree instance at commit;
 	 * a carried-forward view would wrap a stale tree. So the map's transactional role is in-tx ISOLATION + committed
 	 * KEY-SET only — the VALUES are re-derived fresh over the committed shared trees in the from-maps constructor
@@ -168,7 +203,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * by {@link #getOrCreateFilterView} and dropped by {@link #removeSharedIfEmpty} is mirrored here), so the read path
 	 * resolves a committed key without ever mutating the baseline.
 	 */
-	@Nonnull private final TransactionalMap<AttributeIndexKey, FilterIndex> filterIndex;
+	@Nullable private volatile TransactionalMap<AttributeIndexKey, FilterIndex> filterIndex;
 	/**
 	 * Derived map of folded (view-mode) {@link UniqueIndex} instances over {@link #sharedValueIndex} — one per FOLDABLE
 	 * unique attribute key (any non-localized attribute, or a localized one unique within locale). Mirrors
@@ -184,33 +219,48 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * A {@link TransactionalMap} for the same reason as {@link #filterIndex}: a folded read resolves the view through the
 	 * writer's own diff layer (so read-your-writes resolve against the current shared tree) while staying invisible to
 	 * concurrent readers — proven MVCC instead of a hand-rolled overlay.
+	 *
+	 * `null` until the first folded-unique write reaches this index — see {@link #getOrCreateUniqueViewIndexMap()} and
+	 * the "lazy sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueViewIndex;
+	@Nullable private volatile TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueViewIndex;
 	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link SortIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
+	 *
+	 * `null` until the first sort write reaches this index — see {@link #getOrCreateSortIndexMap()} and the "lazy
+	 * sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndex;
+	@Nullable private volatile PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndex;
 	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link ChainIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
+	 *
+	 * `null` until the first chain (predecessor-ordering) write reaches this index — see
+	 * {@link #getOrCreateChainIndexMap()} and the "lazy sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndex;
+	@Nullable private volatile PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndex;
 	/**
 	 * OWNED shared comparator-ordered value→ValueToRecord tree, one per single FILTERABLE attribute key (keyed by the
 	 * filter {@link #createAttributeKey} shape). The {@link FilterIndex} is a non-producing view over this tree; a
 	 * both-flagged {@link SortIndex} reads its cardinality from it. This map is a {@link TransactionalLayerProducer} for
 	 * the FILTER data. The {@link UniqueIndex} is a separate standalone structure. See {@link #sharedRangeIndex} for the
 	 * sibling range structure of range-typed attributes.
+	 *
+	 * `null` until the first filter write reaches this index — see {@link #getOrCreateSharedValueIndexMap()} and the
+	 * "lazy sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> sharedValueIndex;
+	@Nullable private volatile PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> sharedValueIndex;
 	/**
 	 * OWNED sibling range structure of range-typed filterable attributes (keyed by the same filter
 	 * {@link #createAttributeKey} shape as {@link #sharedValueIndex}). Only present for attributes whose plain type is
 	 * assignable to {@link Range}. Kept beside {@link #sharedValueIndex} so the {@link FilterIndex}
 	 * view stays stateless and the range structure commits independently.
+	 *
+	 * `null` until the first write to a range-typed filterable attribute reaches this index — see
+	 * {@link #getOrCreateSharedRangeIndexMap()} and the "lazy sub-index maps" section of the class javadoc.
 	 */
-	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> sharedRangeIndex;
+	@Nullable private volatile PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> sharedRangeIndex;
 	/**
 	 * Owner-resident snapshot of the leaf-page sequences each PAGED {@link ChainIndex} holds on disk (empty for a SINGLE
 	 * / never-paged chain, absent for a key with no chain). It is (re)built from the current chains at two points, both
@@ -434,16 +484,17 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * UNIQUE, owner SORT and both FILTER axes — by supplying the family's `currentLeafPageSequences` accessor. The
 	 * returned map is a plain, non-transactional {@link java.util.HashMap} (single-writer flush use).
 	 *
-	 * @param index        the committed sub-index map (already published or restored from disk)
+	 * @param index        the committed sub-index map (already published or restored from disk), or `null` when the
+	 *                     family was never allocated — which is the same answer as an empty one, no pages on disk
 	 * @param pageAccessor yields the on-disk leaf-page sequences of one sub-index (empty when it is not paged)
 	 * @param <V>          the sub-index type
 	 * @return the per-key on-disk leaf-page snapshot, or an empty map when nothing is paged
 	 */
 	@Nonnull
 	private static <V> Map<AttributeIndexKey, int[]> snapshotLeafPages(
-		@Nonnull Map<AttributeIndexKey, V> index, @Nonnull Function<V, int[]> pageAccessor
+		@Nullable Map<AttributeIndexKey, V> index, @Nonnull Function<V, int[]> pageAccessor
 	) {
-		if (index.isEmpty()) {
+		if (index == null || index.isEmpty()) {
 			return Map.of();
 		}
 		// `forEach` rather than `entrySet()`: this runs against the LIVE sub-index maps on every flush, and an entry
@@ -607,8 +658,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Creates an empty attribute index for a fresh entity / reference index. All sub-index maps start empty and are
-	 * populated lazily as attributes are inserted.
+	 * Creates an empty attribute index for a fresh entity / reference index. **No sub-index map is allocated here**:
+	 * each of the seven stays `null` until the first write to its family, for the reasons the "lazy sub-index maps"
+	 * section of the class javadoc sets out. A freshly built index therefore costs its own object and nothing else.
 	 *
 	 * @param entityType   the entity type this index belongs to
 	 * @param referenceKey the reference discriminator when this index backs a reference-scoped index, or `null` for
@@ -617,23 +669,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	protected AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey) {
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
-		this.uniqueIndex = new PersistentTransactionalProducerMap<>(
-			CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
-		this.sortIndex = new PersistentTransactionalProducerMap<>(
-			CollectionUtils.createHashMap(32), SortIndex.class, Function.identity());
-		this.chainIndex = new PersistentTransactionalProducerMap<>(
-			CollectionUtils.createHashMap(32), ChainIndex.class, Function.identity());
-		this.sharedValueIndex = new PersistentTransactionalProducerMap<>(
-			CollectionUtils.createHashMap(32), InvertedIndex.class, Function.identity());
-		this.sharedRangeIndex = new PersistentTransactionalProducerMap<>(
-			CollectionUtils.createHashMap(32), RangeIndex.class, Function.identity());
-		// derived view caches: transactional for MVCC isolation between concurrent readers and an in-flight writer — see
-		// the field javadoc. FilterIndexView is a non-producer value (carried by reference); UniqueIndexView extends the
-		// producer UniqueIndex (its commit methods are no-ops), so it needs the producer-valued ctor to avoid the
-		// plain-value commit path's null-wrapper NPE. Both are re-derived fresh at commit regardless.
-		this.filterIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
-		this.uniqueViewIndex = new TransactionalMap<>(
-			CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+		// every sub-index map is left null - the first write to a family allocates it through its getOrCreate...Map()
+		//
 		// a fresh index has nothing on disk yet; the snapshots are rebuilt from the committed sub-indexes at the next
 		// commit / load
 		this.persistedChainLeafPages = Map.of();
@@ -673,14 +710,19 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
+		// an empty committed family is left ABSENT rather than resurrected as an empty map: this constructor runs on
+		// both the commit merge and the cold load, so it is the point at which a family that holds nothing gets to
+		// cost nothing for the whole life of the snapshot being built (see "lazy sub-index maps" on the class)
+		//
 		// the shared trees must be built FIRST: the sort views below bind directly to THIS index's committed shared trees
-		this.sharedValueIndex = new PersistentTransactionalProducerMap<>(
+		this.sharedValueIndex = sharedValueIndex.isEmpty() ? null : new PersistentTransactionalProducerMap<>(
 			sharedValueIndex, InvertedIndex.class, Function.identity());
-		this.sharedRangeIndex = new PersistentTransactionalProducerMap<>(
+		this.sharedRangeIndex = sharedRangeIndex.isEmpty() ? null : new PersistentTransactionalProducerMap<>(
 			sharedRangeIndex, RangeIndex.class, Function.identity());
-		this.uniqueIndex = new PersistentTransactionalProducerMap<>(
+		this.uniqueIndex = uniqueIndex.isEmpty() ? null : new PersistentTransactionalProducerMap<>(
 			uniqueIndex, UniqueIndex.class, Function.identity());
-		this.chainIndex = new PersistentTransactionalProducerMap<>(chainIndex, ChainIndex.class, Function.identity());
+		this.chainIndex = chainIndex.isEmpty() ?
+			null : new PersistentTransactionalProducerMap<>(chainIndex, ChainIndex.class, Function.identity());
 		// snapshot each committed PAGED sub-index's on-disk leaf pages BEFORE any mutation, so a later empty-drop of that
 		// sub-index can still reclaim its now-orphaned leaf pages (see the field javadoc). The committed
 		// sub-indexes have already published their page streams (merge-copy) or been restored from disk (cold load), so
@@ -700,18 +742,304 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// when its wrapped tree is identity-unchanged, or replaced by a fresh immutable copy (sharing the committed
 		// sorted-records façade) when the tree was replaced. Owner-mode indexes carry forward unchanged. Never mutated in
 		// place, so a carried-forward view is safe to share with the older snapshot (no isolation hazard).
-		this.sortIndex = new PersistentTransactionalProducerMap<>(
-			deriveSortViews(sharedValueIndex, sortIndex), SortIndex.class, Function.identity());
+		final Map<AttributeIndexKey, SortIndex> boundSortViews = deriveSortViews(sharedValueIndex, sortIndex);
+		this.sortIndex = boundSortViews.isEmpty() ? null : new PersistentTransactionalProducerMap<>(
+			boundSortViews, SortIndex.class, Function.identity());
 		// derive the FILTER views over the just-committed shared trees: carry each previous view forward by reference when
 		// its wrapped tree(s) are identity-unchanged (the common case — the producer-map merge keeps untouched trees
 		// identity-stable), and freshly wrap only the keys whose tree was created/replaced this commit. A view is never mutated in place, so
 		// sharing a carried-forward view with the older snapshot is safe; the invariant "no committed view wraps a stale
 		// tree" is preserved because a replaced tree always fails the identity check and is rewrapped.
-		this.filterIndex = new TransactionalMap<>(buildFilterViews(sharedValueIndex, sharedRangeIndex, filterIndex));
+		final Map<AttributeIndexKey, FilterIndex> rebuiltFilterViews = buildFilterViews(
+			sharedValueIndex, sharedRangeIndex, filterIndex);
+		this.filterIndex = rebuiltFilterViews.isEmpty() ? null : new TransactionalMap<>(rebuiltFilterViews);
 		// rebuild the folded UNIQUE views fresh over the same committed shared trees (mirrors the FILTER views); the
 		// source map's key set tells us which keys are foldable unique attributes.
-		this.uniqueViewIndex = new TransactionalMap<>(
-			buildUniqueViews(sharedValueIndex, uniqueViewIndex), UniqueIndex.class, Function.identity());
+		final Map<AttributeIndexKey, UniqueIndex> rebuiltUniqueViews = buildUniqueViews(
+			sharedValueIndex, uniqueViewIndex);
+		this.uniqueViewIndex = rebuiltUniqueViews.isEmpty() ? null : new TransactionalMap<>(
+			rebuiltUniqueViews, UniqueIndex.class, Function.identity());
+	}
+
+	/**
+	 * Returns the standalone (owner) UNIQUE sub-index map, allocating it on the first write that needs it.
+	 *
+	 * Never call this from a read path — a read resolves a missing family to "absent" through {@link #entryOf} and
+	 * friends, and materialising a map in order to look nothing up in it would give back exactly the scaffolding cost
+	 * the laziness exists to avoid. The double-checked publication is explained once on the class javadoc.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> getOrCreateUniqueIndexMap() {
+		final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> existing = this.uniqueIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.uniqueIndex == null) {
+				this.uniqueIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+			}
+			return this.uniqueIndex;
+		}
+	}
+
+	/**
+	 * Returns the SORT sub-index map, allocating it on the first write that needs it. See
+	 * {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> getOrCreateSortIndexMap() {
+		final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> existing = this.sortIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.sortIndex == null) {
+				this.sortIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32), SortIndex.class, Function.identity());
+			}
+			return this.sortIndex;
+		}
+	}
+
+	/**
+	 * Returns the CHAIN sub-index map, allocating it on the first write that needs it. See
+	 * {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> getOrCreateChainIndexMap() {
+		final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> existing = this.chainIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.chainIndex == null) {
+				this.chainIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32), ChainIndex.class, Function.identity());
+			}
+			return this.chainIndex;
+		}
+	}
+
+	/**
+	 * Returns the shared value→ValueToRecord tree map that owns the FILTER data, allocating it on the first write that
+	 * needs it. See {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> getOrCreateSharedValueIndexMap() {
+		final PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> existing = this.sharedValueIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.sharedValueIndex == null) {
+				this.sharedValueIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32), InvertedIndex.class, Function.identity());
+			}
+			return this.sharedValueIndex;
+		}
+	}
+
+	/**
+	 * Returns the sibling range-structure map of range-typed filterable attributes, allocating it on the first write
+	 * that needs it. See {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> getOrCreateSharedRangeIndexMap() {
+		final PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> existing = this.sharedRangeIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.sharedRangeIndex == null) {
+				this.sharedRangeIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32), RangeIndex.class, Function.identity());
+			}
+			return this.sharedRangeIndex;
+		}
+	}
+
+	/**
+	 * Returns the derived FILTER view cache, allocating it on the first write that needs it. Transactional for MVCC
+	 * isolation between concurrent readers and an in-flight writer — see the {@link #filterIndex} javadoc; a
+	 * {@link FilterIndexView} is a non-producer value carried by reference, so the plain-valued constructor is the
+	 * right one here. See {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private TransactionalMap<AttributeIndexKey, FilterIndex> getOrCreateFilterIndexMap() {
+		final TransactionalMap<AttributeIndexKey, FilterIndex> existing = this.filterIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.filterIndex == null) {
+				this.filterIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+			}
+			return this.filterIndex;
+		}
+	}
+
+	/**
+	 * Returns the derived folded-UNIQUE view cache, allocating it on the first write that needs it. A
+	 * {@link UniqueIndexView} extends the producer {@link UniqueIndex} (its commit methods are no-ops), so it needs the
+	 * producer-valued constructor to avoid the plain-value commit path's null-wrapper NPE. See
+	 * {@link #getOrCreateUniqueIndexMap()} for why this is a write-path-only accessor.
+	 *
+	 * @return the map, freshly created when this is the first write to the family
+	 */
+	@Nonnull
+	private TransactionalMap<AttributeIndexKey, UniqueIndex> getOrCreateUniqueViewIndexMap() {
+		final TransactionalMap<AttributeIndexKey, UniqueIndex> existing = this.uniqueViewIndex;
+		if (existing != null) {
+			return existing;
+		}
+		synchronized (this) {
+			if (this.uniqueViewIndex == null) {
+				this.uniqueViewIndex = new TransactionalMap<>(
+					CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+			}
+			return this.uniqueViewIndex;
+		}
+	}
+
+	/**
+	 * Looks `key` up in a sub-index family that may not have been allocated yet.
+	 *
+	 * An absent family and a family that simply does not hold the key are the same answer to the caller — there is no
+	 * sub-index either way — so both give back `null` rather than making every read site branch twice.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @param key    the attribute-index key to resolve
+	 * @param <V>    the sub-index type held by the family
+	 * @return the sub-index filed under `key`, or `null` when the family is absent or does not hold it
+	 */
+	@Nullable
+	private static <V> V entryOf(@Nullable Map<AttributeIndexKey, V> family, @Nonnull AttributeIndexKey key) {
+		return family == null ? null : family.get(key);
+	}
+
+	/**
+	 * Tells whether a sub-index family that may not have been allocated yet holds `key`.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @param key    the attribute-index key to test
+	 * @return true only when the family exists and holds the key
+	 */
+	private static boolean familyHoldsKey(
+		@Nullable Map<AttributeIndexKey, ?> family, @Nonnull AttributeIndexKey key
+	) {
+		return family != null && family.containsKey(key);
+	}
+
+	/**
+	 * Returns the keys of a sub-index family that may not have been allocated yet. An absent family yields
+	 * {@link Set#of()} — the JVM-wide empty set, so answering "nothing" costs nothing.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @return the family's key set, or an empty set when it is absent
+	 */
+	@Nonnull
+	private static Set<AttributeIndexKey> keysOfFamily(@Nullable Map<AttributeIndexKey, ?> family) {
+		return family == null ? Set.of() : family.keySet();
+	}
+
+	/**
+	 * Returns how many sub-indexes a family that may not have been allocated yet holds.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @return the entry count, or `0` when the family is absent
+	 */
+	private static int familySize(@Nullable Map<AttributeIndexKey, ?> family) {
+		return family == null ? 0 : family.size();
+	}
+
+	/**
+	 * Tells whether a sub-index family holds nothing — either because it was never allocated, or because everything
+	 * put into it has since been removed.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @return true when the family contributes no sub-index
+	 */
+	private static boolean familyIsEmpty(@Nullable Map<AttributeIndexKey, ?> family) {
+		return family == null || family.isEmpty();
+	}
+
+	/**
+	 * Walks a sub-index family that may not have been allocated yet, visiting nothing when it is absent.
+	 *
+	 * It is a `forEach` for the reason spelled out on {@link #collectKeys}: an `entrySet`/`keySet` asked for on a walk
+	 * that runs from a constructor or a flush leaves a view object cached on the map for the lifetime of the index.
+	 *
+	 * @param family   the sub-index map, or `null` when nothing has ever written to this family
+	 * @param consumer receives each key and its sub-index
+	 * @param <V>      the sub-index type held by the family
+	 */
+	private static <V> void forEachInFamily(
+		@Nullable Map<AttributeIndexKey, V> family, @Nonnull BiConsumer<AttributeIndexKey, V> consumer
+	) {
+		if (family != null) {
+			family.forEach(consumer);
+		}
+	}
+
+	/**
+	 * Takes `key` out of a sub-index family that may not have been allocated yet.
+	 *
+	 * @param family the sub-index map, or `null` when nothing has ever written to this family
+	 * @param key    the attribute-index key to drop
+	 * @param <V>    the sub-index type held by the family
+	 * @return the sub-index that was filed under `key`, or `null` when the family is absent or did not hold it
+	 */
+	@Nullable
+	private static <V> V removeFromFamily(
+		@Nullable Map<AttributeIndexKey, V> family, @Nonnull AttributeIndexKey key
+	) {
+		return family == null ? null : family.remove(key);
+	}
+
+	/**
+	 * Discharges the diff layer of a sub-index family that may not have been allocated yet. A family that was never
+	 * allocated cannot own a layer, so there is nothing to release for it.
+	 *
+	 * @param family             the sub-index map, or `null` when nothing has ever written to this family
+	 * @param transactionalLayer the maintainer holding this transaction's diff layers
+	 */
+	private static void removeFamilyLayer(
+		@Nullable TransactionalStateProducer<?> family, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		if (family != null) {
+			family.removeLayer(transactionalLayer);
+		}
+	}
+
+	/**
+	 * Returns the committed state of a sub-index family, discharging its diff layer on the way. An absent family has no
+	 * layer to sweep and no state to merge, so it commits to {@link Map#of()} — which the from-maps constructor then
+	 * recognises and leaves absent in the copy, instead of resurrecting an empty map on every snapshot.
+	 *
+	 * @param transactionalLayer the maintainer holding this transaction's diff layers
+	 * @param family             the sub-index map, or `null` when nothing has ever written to this family
+	 * @param <V>                the sub-index type held by the family
+	 * @return the merged committed map, or an empty map when the family is absent
+	 */
+	@Nonnull
+	private static <V> Map<AttributeIndexKey, V> committedFamilyCopy(
+		@Nonnull TransactionalLayerMaintainer transactionalLayer,
+		@Nullable TransactionalStateProducer<Map<AttributeIndexKey, V>> family
+	) {
+		return family == null ? Map.of() : transactionalLayer.getStateCopyWithCommittedChanges(family);
 	}
 
 	/**
@@ -751,7 +1079,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final AttributeIndexKey lookupKey = createUniqueAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, scope, locale, value
 		);
-		final UniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
+		final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> uniqueIndexes =
+			getOrCreateUniqueIndexMap();
+		final UniqueIndex theUniqueIndex = uniqueIndexes.computeIfAbsent(
 			lookupKey,
 			ownerKey -> {
 				final UniqueIndex newUniqueIndex = new OwnerUniqueIndex(
@@ -766,7 +1096,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 		// registerUniqueKey mutates the standalone unique index in place — declare it for the O(Δ) commit walk (the
 		// folded case writes through the shared filter tree, which the filter-insert path already marks)
-		this.uniqueIndex.markValueMutated(lookupKey);
+		uniqueIndexes.markValueMutated(lookupKey);
 		theUniqueIndex.registerUniqueKey(value, recordId);
 		return UniquenessEnforcement.BY_OWNER_INDEX;
 	}
@@ -806,14 +1136,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			locale,
 			value
 		);
-		final UniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
+		// an absent family means an absent index, which the notNull below reports as the caller's error
+		final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> uniqueIndexes = this.uniqueIndex;
+		final UniqueIndex theUniqueIndex = entryOf(uniqueIndexes, lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		// unregisterUniqueKey mutates the standalone unique index in place — declare it for the O(Δ) commit walk
-		this.uniqueIndex.markValueMutated(lookupKey);
+		uniqueIndexes.markValueMutated(lookupKey);
 		theUniqueIndex.unregisterUniqueKey(value, recordId);
 
 		if (theUniqueIndex.isEmpty()) {
-			this.uniqueIndex.remove(lookupKey);
+			uniqueIndexes.remove(lookupKey);
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 		}
@@ -1139,7 +1471,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			final ChainIndex theSortIndex = getOrCreateChainIndex(attributeKey);
 			theSortIndex.upsertPredecessor(referencedEntityPredecessor, recordId);
 		} else {
-			final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
+			final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes =
+				getOrCreateSortIndexMap();
+			final SortIndex theSortIndex = sortIndexes.computeIfAbsent(
 				attributeKey,
 				lookupKey -> {
 					// pass a parent-bound supplier: when a shared tree already exists for this key (both-flagged
@@ -1148,7 +1482,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					final SortIndex newSortIndex = SortIndex.create(
 						attributeSchema.getPlainType(), this.referenceKey, lookupKey,
 						attributeSchema.getIndexedDecimalPlaces(),
-						() -> this.sharedValueIndex.get(lookupKey)
+						() -> entryOf(this.sharedValueIndex, lookupKey)
 					);
 					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
@@ -1164,7 +1498,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			);
 			// addRecord mutates the sort index in place — declare it for the O(Δ) commit walk (a freshly created index
 			// is already in the diff's modified set; the mark is deduplicated)
-			this.sortIndex.markValueMutated(attributeKey);
+			sortIndexes.markValueMutated(attributeKey);
 			theSortIndex.addRecord(value, recordId);
 		}
 	}
@@ -1194,20 +1528,24 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 
 		if (Predecessor.class.equals(attributeSchema.getType()) || ReferencedEntityPredecessor.class.equals(
 			attributeSchema.getType())) {
-			final ChainIndex theChainIndex = this.chainIndex.get(lookupKey);
+			// an absent family means an absent index, which the notNull below reports as the caller's error
+			final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndexes = this.chainIndex;
+			final ChainIndex theChainIndex = entryOf(chainIndexes, lookupKey);
 			notNull(theChainIndex, "Chain index for attribute `" + attributeSchema.getName() + "` not found!");
 			// removePredecessor mutates the chain in place — declare it for the O(Δ) commit walk (a subsequent map-remove
 			// of an emptied chain is tracked separately as a removal)
-			this.chainIndex.markValueMutated(lookupKey);
+			chainIndexes.markValueMutated(lookupKey);
 			theChainIndex.removePredecessor(recordId);
 
 			if (theChainIndex.isEmpty()) {
-				this.chainIndex.remove(lookupKey);
+				chainIndexes.remove(lookupKey);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theChainIndex));
 			}
 		} else {
-			final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
+			// an absent family means an absent index, which the notNull below reports as the caller's error
+			final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes = this.sortIndex;
+			final SortIndex theSortIndex = entryOf(sortIndexes, lookupKey);
 			notNull(theSortIndex, "Sort index for attribute `" + attributeSchema.getName() + "` not found!");
 			// the sort index froze its BigDecimal scale at creation; refuse to derive a remove probe at a drifted schema
 			// scale (which would miss the stored key) rather than silently leave the value behind (no-op for non-BigDecimal)
@@ -1217,11 +1555,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 				attributeSchema.getName()
 			);
 			// removeRecord mutates the sort index in place — declare it for the O(Δ) commit walk
-			this.sortIndex.markValueMutated(lookupKey);
+			sortIndexes.markValueMutated(lookupKey);
 			theSortIndex.removeRecord(value, recordId);
 
 			if (theSortIndex.isEmpty()) {
-				this.sortIndex.remove(lookupKey);
+				sortIndexes.remove(lookupKey);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addRemovedItem(theSortIndex));
 			}
@@ -1252,7 +1590,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		final AttributeIndexKey attributeKey = createAttributeKey(
 			entitySchema, referenceSchema, compoundSchema, locale);
-		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
+		final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes = getOrCreateSortIndexMap();
+		final SortIndex theSortIndex = sortIndexes.computeIfAbsent(
 			attributeKey,
 			lookupKey -> {
 				// a sortable attribute compound has no shared filter twin by construction, so it is always an owner
@@ -1274,7 +1613,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			}
 		);
 		// addRecord mutates the sort index in place — declare it for the O(Δ) commit walk
-		this.sortIndex.markValueMutated(attributeKey);
+		sortIndexes.markValueMutated(attributeKey);
 		theSortIndex.addRecord(value, recordId);
 	}
 
@@ -1298,15 +1637,17 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		int recordId
 	) {
 		final AttributeIndexKey lookupKey = createAttributeKey(entitySchema, referenceSchema, compoundSchema, locale);
-		final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
+		// an absent family means an absent index, which the notNull below reports as the caller's error
+		final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes = this.sortIndex;
+		final SortIndex theSortIndex = entryOf(sortIndexes, lookupKey);
 		notNull(
 			theSortIndex, "Sort index for sortable attribute compound `" + compoundSchema.getName() + "` not found!");
 		// removeRecord mutates the sort index in place — declare it for the O(Δ) commit walk
-		this.sortIndex.markValueMutated(lookupKey);
+		sortIndexes.markValueMutated(lookupKey);
 		theSortIndex.removeRecord(value, recordId);
 
 		if (theSortIndex.isEmpty()) {
-			this.sortIndex.remove(lookupKey);
+			sortIndexes.remove(lookupKey);
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theSortIndex));
 		}
@@ -1319,20 +1660,20 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		switch (type) {
 			case UNIQUE -> {
-				this.uniqueIndex.forEach((key, index) -> consumer.accept(key));
+				forEachInFamily(this.uniqueIndex, (key, index) -> consumer.accept(key));
 				// only folded-unique views whose shared tree still exists are advertised, gated exactly as in
 				// `getUniqueIndexes()`; the `uniqueIndex` test is what keeps this walk duplicate-free where that
 				// method relied on the set it was building
-				this.uniqueViewIndex.forEach((key, index) -> {
-					if (this.sharedValueIndex.containsKey(key) && !this.uniqueIndex.containsKey(key)) {
+				forEachInFamily(this.uniqueViewIndex, (key, index) -> {
+					if (familyHoldsKey(this.sharedValueIndex, key) && !familyHoldsKey(this.uniqueIndex, key)) {
 						consumer.accept(key);
 					}
 				});
 			}
 			// transactional truth for FILTER = the shared value index key set
-			case FILTER -> this.sharedValueIndex.forEach((key, tree) -> consumer.accept(key));
-			case SORT -> this.sortIndex.forEach((key, index) -> consumer.accept(key));
-			case CHAIN -> this.chainIndex.forEach((key, index) -> consumer.accept(key));
+			case FILTER -> forEachInFamily(this.sharedValueIndex, (key, tree) -> consumer.accept(key));
+			case SORT -> forEachInFamily(this.sortIndex, (key, index) -> consumer.accept(key));
+			case CHAIN -> forEachInFamily(this.chainIndex, (key, index) -> consumer.accept(key));
 			case CARDINALITY -> throw new GenericEvitaInternalError(
 				"An attribute index holds no CARDINALITY sub-indexes - those belong to `ReducedGroupEntityIndex` " +
 					"and `ReferencedTypeEntityIndex`, which own their own cardinality maps."
@@ -1344,18 +1685,18 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	@Nonnull
 	public Set<AttributeIndexKey> getUniqueIndexes() {
 		// union of the standalone (owner) and folded (view) unique keys
-		if (this.uniqueViewIndex.isEmpty()) {
-			return this.uniqueIndex.keySet();
+		if (familyIsEmpty(this.uniqueViewIndex)) {
+			return keysOfFamily(this.uniqueIndex);
 		}
 		final Set<AttributeIndexKey> keys = CollectionUtils.createHashSet(
-			this.uniqueIndex.size() + this.uniqueViewIndex.size()
+			familySize(this.uniqueIndex) + familySize(this.uniqueViewIndex)
 		);
-		keys.addAll(this.uniqueIndex.keySet());
+		keys.addAll(keysOfFamily(this.uniqueIndex));
 		// only folded-unique views whose shared tree still exists are advertised — a stale view key (whose tree emptied
 		// and was dropped) has no slim part to write, so it must be gated here exactly as in collectKeys() and the
 		// UniqueIndexView.appendStorageParts guard, or the manifest would diverge from the live sub-index walk
-		for (final AttributeIndexKey key : this.uniqueViewIndex.keySet()) {
-			if (this.sharedValueIndex.containsKey(key)) {
+		for (final AttributeIndexKey key : keysOfFamily(this.uniqueViewIndex)) {
+			if (familyHoldsKey(this.sharedValueIndex, key)) {
 				keys.add(key);
 			}
 		}
@@ -1367,15 +1708,15 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	public UniqueIndex getUniqueIndex(@Nonnull AttributeIndexKey lookupKey) {
 		// resolve against the standalone (owner) map first, then the folded (view) map - both are keyed by the unique
 		// key, exactly as the schema-addressed overload does
-		final UniqueIndex owner = this.uniqueIndex.get(lookupKey);
-		return owner != null ? owner : this.uniqueViewIndex.get(lookupKey);
+		final UniqueIndex owner = entryOf(this.uniqueIndex, lookupKey);
+		return owner != null ? owner : entryOf(this.uniqueViewIndex, lookupKey);
 	}
 
 	@Override
 	@Nonnull
 	public Set<AttributeIndexKey> getFilterIndexes() {
 		// transactional truth = the shared value index key set
-		return this.sharedValueIndex.keySet();
+		return keysOfFamily(this.sharedValueIndex);
 	}
 
 	@Override
@@ -1397,13 +1738,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	@Override
 	@Nonnull
 	public Set<AttributeIndexKey> getSortIndexes() {
-		return this.sortIndex.keySet();
+		return keysOfFamily(this.sortIndex);
 	}
 
 	@Override
 	@Nullable
 	public SortIndex getSortIndex(@Nonnull AttributeIndexKey lookupKey) {
-		return this.sortIndex.get(lookupKey);
+		return entryOf(this.sortIndex, lookupKey);
 	}
 
 	@Override
@@ -1413,7 +1754,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale
 	) {
-		return this.sortIndex.get(createAttributeKey(referenceSchema, attributeSchema, locale));
+		return entryOf(this.sortIndex, createAttributeKey(referenceSchema, attributeSchema, locale));
 	}
 
 	@Nullable
@@ -1424,19 +1765,19 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
 		@Nullable Locale locale
 	) {
-		return this.sortIndex.get(createAttributeKey(entitySchema, referenceSchema, compoundSchema, locale));
+		return entryOf(this.sortIndex, createAttributeKey(entitySchema, referenceSchema, compoundSchema, locale));
 	}
 
 	@Nonnull
 	@Override
 	public Set<AttributeIndexKey> getChainIndexes() {
-		return this.chainIndex.keySet();
+		return keysOfFamily(this.chainIndex);
 	}
 
 	@Nullable
 	@Override
 	public ChainIndex getChainIndex(@Nonnull AttributeIndexKey lookupKey) {
-		return this.chainIndex.get(lookupKey);
+		return entryOf(this.chainIndex, lookupKey);
 	}
 
 	@Nullable
@@ -1446,7 +1787,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale
 	) {
-		return this.chainIndex.get(createAttributeKey(referenceSchema, attributeSchema, locale));
+		return entryOf(this.chainIndex, createAttributeKey(referenceSchema, attributeSchema, locale));
 	}
 
 	@Nullable
@@ -1457,14 +1798,14 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
 		@Nullable Locale locale
 	) {
-		return this.chainIndex.get(createAttributeKey(entitySchema, referenceSchema, compoundSchema, locale));
+		return entryOf(this.chainIndex, createAttributeKey(entitySchema, referenceSchema, compoundSchema, locale));
 	}
 
 	@Override
 	public boolean isAttributeIndexEmpty() {
 		// shared value index = canonical (transactional) owner of FILTER data; uniqueIndex is a standalone owner
-		return this.uniqueIndex.isEmpty() && this.sharedValueIndex.isEmpty() &&
-			this.sortIndex.isEmpty() && this.chainIndex.isEmpty();
+		return familyIsEmpty(this.uniqueIndex) && familyIsEmpty(this.sharedValueIndex) &&
+			familyIsEmpty(this.sortIndex) && familyIsEmpty(this.chainIndex);
 	}
 
 	/**
@@ -1483,6 +1824,10 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * The same reasoning covers the five `persisted*LeafPages` snapshots: they are keyed by the very instances the
 	 * sub-index maps hold, so they charge their `int[]` page sequences and a slot for the key. An empty snapshot
 	 * contributes nothing at all — it is `Map.of()`, the JVM-wide singleton, which no index owns.
+	 *
+	 * An **absent** sub-index family likewise contributes nothing, because there is nothing there: a family is not
+	 * allocated until something writes to it (see "lazy sub-index maps" on the class). Only the fourteen reference
+	 * slots of this object are charged unconditionally, and they exist whether or not the maps behind them do.
 	 *
 	 * # What the sub-indexes charge
 	 *
@@ -1503,15 +1848,28 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
 		final ToLongFunction<AttributeIndexKey> ownedKey = key -> attributeIndexKey;
 		final ToLongFunction<AttributeIndexKey> borrowedKey = key -> 0L;
+		// read each family once - a volatile field re-read mid-arithmetic could see a concurrent writer's first write
+		// materialise it, and the figure would then be half of one shape and half of another
+		final PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> uniqueIndexes = this.uniqueIndex;
+		final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes = this.sortIndex;
+		final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndexes = this.chainIndex;
+		final PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> sharedValues = this.sharedValueIndex;
+		final PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> sharedRanges = this.sharedRangeIndex;
+		final TransactionalMap<AttributeIndexKey, FilterIndex> filterViews = this.filterIndex;
+		final TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueViews = this.uniqueViewIndex;
 		// id, then the entityType / referenceKey slots, the seven sub-index maps and the five leaf-page snapshots
 		return layout.sizeOfObject(Long.BYTES + 14L * layout.referenceSize())
-			+ this.uniqueIndex.getHeapSizeInBytes(ownedKey, UniqueIndex::getHeapSizeInBytes)
-			+ this.sortIndex.getHeapSizeInBytes(ownedKey, SortIndex::getHeapSizeInBytes)
-			+ this.chainIndex.getHeapSizeInBytes(ownedKey, ChainIndex::getHeapSizeInBytes)
-			+ this.sharedValueIndex.getHeapSizeInBytes(ownedKey, InvertedIndex::getHeapSizeInBytes)
-			+ this.sharedRangeIndex.getHeapSizeInBytes(borrowedKey, RangeIndex::getHeapSizeInBytes)
-			+ this.filterIndex.getHeapSizeInBytes(borrowedKey, FilterIndex::getHeapSizeInBytes)
-			+ this.uniqueViewIndex.getHeapSizeInBytes(borrowedKey, UniqueIndex::getHeapSizeInBytes)
+			+ (uniqueIndexes == null ?
+				0L : uniqueIndexes.getHeapSizeInBytes(ownedKey, UniqueIndex::getHeapSizeInBytes))
+			+ (sortIndexes == null ? 0L : sortIndexes.getHeapSizeInBytes(ownedKey, SortIndex::getHeapSizeInBytes))
+			+ (chainIndexes == null ? 0L : chainIndexes.getHeapSizeInBytes(ownedKey, ChainIndex::getHeapSizeInBytes))
+			+ (sharedValues == null ?
+				0L : sharedValues.getHeapSizeInBytes(ownedKey, InvertedIndex::getHeapSizeInBytes))
+			+ (sharedRanges == null ?
+				0L : sharedRanges.getHeapSizeInBytes(borrowedKey, RangeIndex::getHeapSizeInBytes))
+			+ (filterViews == null ? 0L : filterViews.getHeapSizeInBytes(borrowedKey, FilterIndex::getHeapSizeInBytes))
+			+ (uniqueViews == null ?
+				0L : uniqueViews.getHeapSizeInBytes(borrowedKey, UniqueIndex::getHeapSizeInBytes))
 			+ leafPageSnapshotHeapSizeInBytes(this.persistedChainLeafPages)
 			+ leafPageSnapshotHeapSizeInBytes(this.persistedFilterInvertedLeafPages)
 			+ leafPageSnapshotHeapSizeInBytes(this.persistedFilterRangeLeafPages)
@@ -1551,16 +1909,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
 		// UNIQUE parts: standalone (owner) indexes emit a SINGLE inline root or granular PAGED leaf pages + a PAGED root,
 		// folded (view) indexes emit a slim part — both go through appendStorageParts.
-		this.uniqueIndex.forEach(
-			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		forEachInFamily(
+			this.uniqueIndex, (key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
 		);
-		this.uniqueViewIndex.forEach(
-			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		forEachInFamily(
+			this.uniqueViewIndex, (key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
 		);
 		// FILTER parts are produced from the shared tree via the rebuilt filter views (which carry attributeType + range).
 		// A small (single-leaf) index emits one inline SINGLE part; a large (multi-leaf) index emits granular PAGED leaf
 		// pages + a PAGED root — both go through appendStorageParts.
-		this.sharedValueIndex.forEach((key, tree) -> {
+		forEachInFamily(this.sharedValueIndex, (key, tree) -> {
 			final FilterIndex view = resolveFilterView(key);
 			if (view != null) {
 				view.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
@@ -1568,8 +1926,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		});
 		// SORT parts: owner mode emits its full part, view mode a slim part — both go through appendStorageParts,
 		// mirroring the UNIQUE/FILTER loops above.
-		this.sortIndex.forEach(
-			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		forEachInFamily(
+			this.sortIndex, (key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
 		);
 		// Empty-drop reclaim: a PAGED sub-index emptied and dropped from its map this commit still has its leaf pages on disk, but
 		// the dropped index's own appendStorageParts never runs again — so for each paged family diff the pre-commit
@@ -1578,29 +1936,31 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// to CHAIN, owner UNIQUE, owner SORT and both FILTER axes (shared value tree + range companion); each surviving
 		// sub-index still reclaims its own split/merge-freed pages through its appendStorageParts above.
 		emitDroppedLeafPageRemovals(
-			entityIndexPrimaryKey, this.persistedChainLeafPages, this.chainIndex::containsKey,
+			entityIndexPrimaryKey, this.persistedChainLeafPages, key -> familyHoldsKey(this.chainIndex, key),
 			AttributeIndexType.CHAIN, trappedChanges, ChainIndexLeafPageRemoval::new
 		);
 		emitDroppedLeafPageRemovals(
-			entityIndexPrimaryKey, this.persistedUniqueLeafPages, this.uniqueIndex::containsKey,
+			entityIndexPrimaryKey, this.persistedUniqueLeafPages, key -> familyHoldsKey(this.uniqueIndex, key),
 			AttributeIndexType.UNIQUE, trappedChanges, UniqueIndexLeafPageRemoval::new
 		);
 		emitDroppedLeafPageRemovals(
-			entityIndexPrimaryKey, this.persistedSortLeafPages, this.sortIndex::containsKey,
+			entityIndexPrimaryKey, this.persistedSortLeafPages, key -> familyHoldsKey(this.sortIndex, key),
 			AttributeIndexType.SORT, trappedChanges, SortIndexLeafPageRemoval::new
 		);
 		emitDroppedLeafPageRemovals(
-			entityIndexPrimaryKey, this.persistedFilterInvertedLeafPages, this.sharedValueIndex::containsKey,
+			entityIndexPrimaryKey, this.persistedFilterInvertedLeafPages,
+			key -> familyHoldsKey(this.sharedValueIndex, key),
 			AttributeIndexType.FILTER, trappedChanges, FilterIndexLeafPageRemoval::new
 		);
 		emitDroppedLeafPageRemovals(
-			entityIndexPrimaryKey, this.persistedFilterRangeLeafPages, this.sharedRangeIndex::containsKey,
+			entityIndexPrimaryKey, this.persistedFilterRangeLeafPages,
+			key -> familyHoldsKey(this.sharedRangeIndex, key),
 			AttributeIndexType.FILTER, trappedChanges, RangeIndexLeafPageRemoval::new
 		);
 		// CHAIN parts: a small (single-leaf) chain index emits one inline SINGLE part; a large (multi-leaf) index emits
 		// granular PAGED leaf pages + a PAGED root - both go through appendStorageParts, mirroring the loops above.
-		this.chainIndex.forEach(
-			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		forEachInFamily(
+			this.chainIndex, (key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
 		);
 		// refresh the empty-drop-reclaim snapshots from the surviving sub-indexes now that each has staged this commit's page set:
 		// a reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
@@ -1668,8 +2028,8 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 		// resolve against the standalone (owner) map first, then the folded (view) map - both are keyed by the unique key
 		final AttributeIndexKey lookupKey = createUniqueAttributeKey(referenceSchema, attributeSchema, scope, locale);
-		final UniqueIndex owner = this.uniqueIndex.get(lookupKey);
-		return owner != null ? owner : this.uniqueViewIndex.get(lookupKey);
+		final UniqueIndex owner = entryOf(this.uniqueIndex, lookupKey);
+		return owner != null ? owner : entryOf(this.uniqueViewIndex, lookupKey);
 	}
 
 	/**
@@ -1700,22 +2060,26 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		// UNIQUE keys: standalone (owner) keys, plus folded (view) keys that still have a live shared tree (a stale view
 		// key with no backing tree must not be announced, else the manifest would list a part that was never written)
-		this.uniqueIndex.forEach(
+		forEachInFamily(
+			this.uniqueIndex,
 			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key))
 		);
-		this.uniqueViewIndex.forEach((key, index) -> {
-			if (this.sharedValueIndex.containsKey(key)) {
+		forEachInFamily(this.uniqueViewIndex, (key, index) -> {
+			if (familyHoldsKey(this.sharedValueIndex, key)) {
 				target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key));
 			}
 		});
 		// FILTER keys: transactional truth = the shared value index key set
-		this.sharedValueIndex.forEach(
+		forEachInFamily(
+			this.sharedValueIndex,
 			(key, tree) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, key))
 		);
-		this.sortIndex.forEach(
+		forEachInFamily(
+			this.sortIndex,
 			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, key))
 		);
-		this.chainIndex.forEach(
+		forEachInFamily(
+			this.chainIndex,
 			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, key))
 		);
 	}
@@ -1729,16 +2093,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 */
 	@Override
 	public void resetDirty() {
-		this.uniqueIndex.forEach((key, index) -> index.resetDirty());
+		forEachInFamily(this.uniqueIndex, (key, index) -> index.resetDirty());
 		// reset the shared trees' dirty flags through the resolved views (transactional truth)
-		this.sharedValueIndex.forEach((key, tree) -> {
+		forEachInFamily(this.sharedValueIndex, (key, tree) -> {
 			final FilterIndex view = resolveFilterView(key);
 			if (view != null) {
 				view.resetDirty();
 			}
 		});
-		this.sortIndex.forEach((key, index) -> index.resetDirty());
-		this.chainIndex.forEach((key, index) -> index.resetDirty());
+		forEachInFamily(this.sortIndex, (key, index) -> index.resetDirty());
+		forEachInFamily(this.chainIndex, (key, index) -> index.resetDirty());
 	}
 
 	@Nullable
@@ -1749,14 +2113,15 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.uniqueIndex.removeLayer(transactionalLayer);
-		this.sortIndex.removeLayer(transactionalLayer);
-		this.chainIndex.removeLayer(transactionalLayer);
-		this.sharedValueIndex.removeLayer(transactionalLayer);
-		this.sharedRangeIndex.removeLayer(transactionalLayer);
+		// a family that was never allocated owns no diff layer, so there is nothing to discharge for it
+		removeFamilyLayer(this.uniqueIndex, transactionalLayer);
+		removeFamilyLayer(this.sortIndex, transactionalLayer);
+		removeFamilyLayer(this.chainIndex, transactionalLayer);
+		removeFamilyLayer(this.sharedValueIndex, transactionalLayer);
+		removeFamilyLayer(this.sharedRangeIndex, transactionalLayer);
 		// the derived view caches are transactional (MVCC isolation) - discharge their diff layers too
-		this.filterIndex.removeLayer(transactionalLayer);
-		this.uniqueViewIndex.removeLayer(transactionalLayer);
+		removeFamilyLayer(this.filterIndex, transactionalLayer);
+		removeFamilyLayer(this.uniqueViewIndex, transactionalLayer);
 		final AttributeIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 	}
@@ -1775,13 +2140,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final AttributeIndex attributeIndex = createCopy(
 			this.entityType,
 			this.referenceKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.filterIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueViewIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.chainIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sharedValueIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sharedRangeIndex)
+			committedFamilyCopy(transactionalLayer, this.uniqueIndex),
+			committedFamilyCopy(transactionalLayer, this.filterIndex),
+			committedFamilyCopy(transactionalLayer, this.uniqueViewIndex),
+			committedFamilyCopy(transactionalLayer, this.sortIndex),
+			committedFamilyCopy(transactionalLayer, this.chainIndex),
+			committedFamilyCopy(transactionalLayer, this.sharedValueIndex),
+			committedFamilyCopy(transactionalLayer, this.sharedRangeIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
@@ -1877,7 +2242,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// the returned view's removeRecord mutates the shared tree (and shared range) in place — declare it so the
 		// O(Δ) commit walk visits these keys and sweeps their layers
 		markFilterMutated(lookupKey, attributeSchema);
-		final InvertedIndex shared = this.sharedValueIndex.get(lookupKey);
+		final InvertedIndex shared = entryOf(this.sharedValueIndex, lookupKey);
 		notNull(shared, "Filter index for `" + attributeSchema.getName() + "` not found!");
 		// reuse the cached view when it still wraps the live shared tree, else wrap it afresh from the schema's
 		// attributeType (the cache may never have been populated for this key, e.g. the representative-reference alias path)
@@ -1912,14 +2277,14 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		FilterIndex.assertIndexedDecimalPlacesUnchanged(
 			shared.getIndexedDecimalPlaces(), indexedDecimalPlaces, lookupKey.attributeName()
 		);
-		final FilterIndex cached = this.filterIndex.get(lookupKey);
+		final FilterIndex cached = entryOf(this.filterIndex, lookupKey);
 		if (cached != null && cached.getInvertedIndex() == shared) {
 			return cached;
 		}
 		final FilterIndex rebuilt = new FilterIndexView(
-			lookupKey, shared, this.sharedRangeIndex.get(lookupKey), attributeType, indexedDecimalPlaces
+			lookupKey, shared, entryOf(this.sharedRangeIndex, lookupKey), attributeType, indexedDecimalPlaces
 		);
-		this.filterIndex.put(lookupKey, rebuilt);
+		getOrCreateFilterIndexMap().put(lookupKey, rebuilt);
 		return rebuilt;
 	}
 
@@ -1938,7 +2303,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// commit walk visits these keys and sweeps their layers (covers both reuse of an existing shared tree and a
 		// freshly created one)
 		markFilterMutated(lookupKey, attributeSchema);
-		final InvertedIndex existingShared = this.sharedValueIndex.get(lookupKey);
+		final InvertedIndex existingShared = entryOf(this.sharedValueIndex, lookupKey);
 		if (existingShared != null) {
 			// the shared tree already exists (created earlier, possibly by another record in this transaction).
 			// Reuse the cached view when it still wraps this instance; otherwise rebuild the thin view from the
@@ -1959,13 +2324,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			FilterIndex.getComparator(lookupKey, plainType),
 			indexedDecimalPlaces
 		);
-		this.sharedValueIndex.put(lookupKey, shared);
+		getOrCreateSharedValueIndexMap().put(lookupKey, shared);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(shared));
 		final RangeIndex sharedRange;
 		if (Range.class.isAssignableFrom(plainType)) {
 			sharedRange = new RangeIndex();
-			this.sharedRangeIndex.put(lookupKey, sharedRange);
+			getOrCreateSharedRangeIndexMap().put(lookupKey, sharedRange);
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addCreatedItem(sharedRange));
 		} else {
@@ -1974,7 +2339,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final FilterIndex view = new FilterIndexView(
 			lookupKey, shared, sharedRange, attributeType, indexedDecimalPlaces
 		);
-		this.filterIndex.put(lookupKey, view);
+		getOrCreateFilterIndexMap().put(lookupKey, view);
 		return view;
 	}
 
@@ -1995,11 +2360,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeIndexKey lookupKey,
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
-		this.sharedValueIndex.markValueMutated(lookupKey);
+		getOrCreateSharedValueIndexMap().markValueMutated(lookupKey);
 		final Class<?> attributeType = attributeSchema.getType();
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 		if (Range.class.isAssignableFrom(plainType)) {
-			this.sharedRangeIndex.markValueMutated(lookupKey);
+			getOrCreateSharedRangeIndexMap().markValueMutated(lookupKey);
 		}
 	}
 
@@ -2019,7 +2384,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull FilterIndex theFilterIndex
 	) {
-		this.uniqueViewIndex.computeIfAbsent(
+		getOrCreateUniqueViewIndexMap().computeIfAbsent(
 			lookupKey,
 			viewKey -> UniqueIndex.createView(this.entityType, viewKey, attributeSchema.getType(), theFilterIndex)
 		);
@@ -2033,10 +2398,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 */
 	private void removeSharedIfEmpty(@Nonnull AttributeIndexKey lookupKey, @Nonnull FilterIndex theFilterIndex) {
 		if (theFilterIndex.isEmpty()) {
-			this.filterIndex.remove(lookupKey);
-			this.uniqueViewIndex.remove(lookupKey);
-			final InvertedIndex shared = this.sharedValueIndex.remove(lookupKey);
-			final RangeIndex sharedRange = this.sharedRangeIndex.remove(lookupKey);
+			// the derived caches and the range companion are dropped only if they exist: a folded unique view is
+			// registered only for a foldable unique attribute, and a range companion only for a range-typed one, so
+			// either family can legitimately be absent on an index that holds this filter key
+			removeFromFamily(this.filterIndex, lookupKey);
+			removeFromFamily(this.uniqueViewIndex, lookupKey);
+			final InvertedIndex shared = removeFromFamily(this.sharedValueIndex, lookupKey);
+			final RangeIndex sharedRange = removeFromFamily(this.sharedRangeIndex, lookupKey);
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> {
 					if (shared != null) {
@@ -2113,11 +2481,11 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 */
 	@Nullable
 	private FilterIndex resolveFilterView(@Nonnull AttributeIndexKey key) {
-		final InvertedIndex shared = this.sharedValueIndex.get(key);
+		final InvertedIndex shared = entryOf(this.sharedValueIndex, key);
 		if (shared == null) {
 			return null;
 		}
-		final FilterIndex cached = this.filterIndex.get(key);
+		final FilterIndex cached = entryOf(this.filterIndex, key);
 		if (cached != null && cached.getInvertedIndex() == shared) {
 			return cached;
 		}
@@ -2130,7 +2498,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			() -> new GenericEvitaInternalError("No cached filter view to source attributeType for key `" + key + "`!")
 		);
 		return new FilterIndexView(
-			key, shared, this.sharedRangeIndex.get(key), cached.getAttributeType(),
+			key, shared, entryOf(this.sharedRangeIndex, key), cached.getAttributeType(),
 			cached.getIndexedDecimalPlaces()
 		);
 	}
@@ -2147,8 +2515,10 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		// the returned chain is mutated in place by the caller's upsertPredecessor — declare it so the O(Δ) commit walk
 		// visits this key and sweeps its layer (covers reuse of an existing chain; a freshly created one lands in the
 		// diff's modified set)
-		this.chainIndex.markValueMutated(attributeIndexKey);
-		return this.chainIndex.computeIfAbsent(
+		final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndexes =
+			getOrCreateChainIndexMap();
+		chainIndexes.markValueMutated(attributeIndexKey);
+		return chainIndexes.computeIfAbsent(
 			attributeIndexKey,
 			lookupKey -> {
 				final ChainIndex newSortIndex = new ChainIndex(this.referenceKey, lookupKey);
