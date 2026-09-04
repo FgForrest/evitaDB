@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -92,6 +93,11 @@ class LegacyRangeThresholdScaleSerializerTest {
 	private static final long PRICE_SUPER_2026_2_UID = 2938472615049182736L;
 	/** The serial-version-uid release 2026.2 shipped for `PriceListAndCurrencyRefIndexStoragePart`. */
 	private static final long PRICE_REF_2026_2_UID = 8461029375182640917L;
+	/**
+	 * The serial-version-uid release 2026.2 shipped for `HistogramIndexStoragePart` — introduced by `fa01ba65f`,
+	 * which `git tag --contains` places in v2026.2.0 .. v2026.2.6. It was once assumed unreleased.
+	 */
+	private static final long HISTOGRAM_2026_2_UID = 5083172946028471653L;
 
 	private static final AttributeIndexKey ATTRIBUTE_KEY = new AttributeIndexKey(null, "validity", null);
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey(
@@ -370,6 +376,76 @@ class LegacyRangeThresholdScaleSerializerTest {
 				new int[0],
 				validityIndex.getRecordsEnvelopingInclusive(INSIDE.toEpochSecond()).compute().getArray(),
 				"a second-granularity probe must no longer land inside the rescaled validity"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("histogram index — a released shape that was once assumed unreleased")
+	class HistogramPart {
+
+		@Test
+		@DisplayName("a released 2026.2 blob still opens, and reads back marked as second-granularity")
+		void shouldReadAReleasedHistogramBlob() {
+			// the regression test for a real production-catalog failure: bumping this record's uid without a reader
+			// made every released 2026.2 catalog carrying a histogram index fail to open outright with
+			// `StoredVersionNotSupportedException ... Supported backward compatible versions for this class are: none`
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_TO);
+			final HistogramIndexStoragePart legacy = new HistogramIndexStoragePart(
+				7, "priceHistogram", null, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				new RangeIndex(points(VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), 1)),
+				0
+			);
+
+			final HistogramIndexStoragePart decoded = StoragePartSerializerTestSupport.decode(
+				LegacyRangeThresholdScaleSerializerTest.this.kryo,
+				withUid(
+					StoragePartSerializerTestSupport.encodeCurrent(
+						LegacyRangeThresholdScaleSerializerTest.this.kryo, legacy
+					),
+					HISTOGRAM_2026_2_UID
+				),
+				HistogramIndexStoragePart.class
+			);
+
+			assertTrue(
+				decoded.isSecondGranularityRangeThresholds(),
+				"a blob read by a backward-compatible reader must be marked - the load path routes on this"
+			);
+			assertEquals(DateTimeRange.class, decoded.getValueType(), "the value type must survive the read");
+			// the reader hands the thresholds on untouched, exactly as the filter reader does: a range-PAGED axis
+			// keeps them in leaf-page records this serializer never sees
+			assertArrayEquals(
+				new long[]{Long.MIN_VALUE, VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), Long.MAX_VALUE},
+				thresholdsOf(decoded.getRangeIndex()),
+				"the reader must hand the thresholds on untouched"
+			);
+		}
+
+		@Test
+		@DisplayName("a part written by the current serializer reads back unmarked")
+		void shouldNotMarkACurrentHistogramBlob() {
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_TO);
+			final HistogramIndexStoragePart current = new HistogramIndexStoragePart(
+				7, "priceHistogram", null, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				new RangeIndex(points(validity.getFrom(), validity.getTo(), 1)),
+				0
+			);
+
+			final HistogramIndexStoragePart decoded = StoragePartSerializerTestSupport.roundTrip(
+				LegacyRangeThresholdScaleSerializerTest.this.kryo, current, HistogramIndexStoragePart.class
+			);
+
+			assertFalse(
+				decoded.isSecondGranularityRangeThresholds(),
+				"the current serializer writes millisecond thresholds and must never mark its output"
+			);
+			assertArrayEquals(
+				new long[]{Long.MIN_VALUE, validity.getFrom(), validity.getTo(), Long.MAX_VALUE},
+				thresholdsOf(decoded.getRangeIndex()),
+				"a current blob round-trips its thresholds verbatim"
 			);
 		}
 	}

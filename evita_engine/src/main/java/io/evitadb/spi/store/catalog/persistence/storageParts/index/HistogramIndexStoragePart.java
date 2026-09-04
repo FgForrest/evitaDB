@@ -27,6 +27,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -60,10 +61,14 @@ public class HistogramIndexStoragePart extends AbstractHistogramStoragePart {
 
 	// bumped from 5083172946028471653L when DateTimeRange moved to millisecond comparison granularity: the byte layout
 	// is unchanged, but a histogram over a DateTimeRange attribute now persists epoch-MILLISECOND range thresholds
-	// where the previous shape persisted epoch-seconds. This record has never shipped in a release, so there is
-	// nothing to be backward-compatible WITH and no reader is registered for the old uid - a stale unreleased-dev
-	// catalog therefore fails loud (and is regenerated) rather than having its thresholds read at the wrong scale,
-	// which is the same reason the previous bump on this record exists.
+	// where the previous shape persisted epoch-seconds, and nothing in an untyped `long` says which.
+	//
+	// 5083172946028471653L IS A RELEASED SHAPE - it was introduced by `fa01ba65f` and `git tag --contains` lists
+	// v2026.2.0 .. v2026.2.6 - so it is read, and rescaled, by HistogramIndexStoragePartSerializer_2026_2. Do not
+	// repeat the mistake of assuming this record never shipped: the histogram FEATURE being unreleased as a user-
+	// facing capability is not the same claim as its storage part being absent from released catalogs, and the two
+	// were conflated once already. The uid before it (7294816253748291063L) really is unreleased - `016d93255` and
+	// `fa01ba65f` both landed inside the 2026.2 development window - which is why nothing reads that one.
 	@Serial private static final long serialVersionUID = 5083172946028471654L;
 
 	/**
@@ -134,6 +139,19 @@ public class HistogramIndexStoragePart extends AbstractHistogramStoragePart {
 	 * The range leaf pages of a range-`PAGED` part, in ascending threshold order. Empty unless {@link #rangePaged}.
 	 */
 	@Getter @Nonnull private final int[] rangeLeafPageSequences;
+	/**
+	 * Read-path provenance, never persisted: `true` when this part was decoded by a backward-compatible serializer of
+	 * a format written before {@link io.evitadb.dataType.DateTimeRange} moved from second to millisecond comparison
+	 * granularity. The {@link #rangeIndex} of such a part — and, when {@link #rangePaged}, the range leaf pages listed
+	 * on it — hold epoch-**second** thresholds and must be rescaled before the index goes live.
+	 *
+	 * The twin of {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, and it works the same way: it
+	 * records **which reader produced this instance**, so the current serializer never sets it and every
+	 * backward-compatible one does. Only a range index over `DateTimeRange` is affected — a threshold is an untyped
+	 * `long` shared with every `NumberRange` subtype — so the flag is a necessary, never a sufficient, condition; the
+	 * persisted {@link #valueType} decides the rest.
+	 */
+	@Getter @Setter private boolean secondGranularityRangeThresholds;
 
 	/**
 	 * Creates a fresh `SINGLE`-shaped histogram root part whose storage part PK is not yet assigned (computed before

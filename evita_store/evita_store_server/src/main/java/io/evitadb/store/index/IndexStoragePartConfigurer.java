@@ -198,11 +198,19 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(GroupCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GroupCardinalityIndexStoragePartSerializer(this.keyCompressor), GroupCardinalityIndexStoragePart.class), index++);
 		kryo.register(
 			HistogramIndexStoragePart.class,
-			// the reference bucketed-histogram feature is unreleased (absent from every release branch), so no released
-			// catalog carries a histogram part — there is nothing to be backward-compatible with. The UID bump on
-			// HistogramIndexStoragePart makes any stale unreleased-dev catalog fail loud (and be regenerated) rather than
-			// mis-read the added frozen-scale field.
-			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class),
+			// CAUTION: the histogram FEATURE is unreleased as a user-facing capability, but its storage part is NOT
+			// absent from released catalogs — uid 5083172946028471653L was introduced by `fa01ba65f` and
+			// `git tag --contains` lists v2026.2.0 .. v2026.2.6. The two claims were conflated once, and reading that
+			// shape with the current serializer after DateTimeRange moved to millisecond comparison granularity makes
+			// every range threshold a thousand times too small — silently. Hence the reader below.
+			// The uid before it (7294816253748291063L) really is unreleased (`016d93255` and `fa01ba65f` both landed
+			// inside the 2026.2 development window), which is why nothing reads that one and a stale catalog carrying
+			// it still fails loud.
+			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(
+					5083172946028471653L,
+					new HistogramIndexStoragePartSerializer_2026_2()
+				),
 			index++
 		);
 
@@ -216,7 +224,11 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the granular FilterIndex range leaf-page record — a brand-new record type with no backward-compatible reader.
+		// the granular FilterIndex range leaf-page record. Its FORMAT has never changed, so it needs no
+		// backward-compatible reader — but the record itself IS present in released catalogs (uid introduced by
+		// `e5f57f7a0`, in v2026.2.0 .. v2026.2.6), so do not read this as "never shipped". A legacy range-PAGED
+		// filter axis is repaired at load time in AttributeIndexLoader, which reads these very pages; the scale
+		// marker is the ROOT part's uid, never a leaf page's.
 		kryo.register(
 			RangeIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new RangeIndexLeafPagePartSerializer(), RangeIndexLeafPagePart.class),
@@ -294,8 +306,11 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the granular histogram range-tree leaf-page record — a brand-new record type with no backward-compatible
-		// reader. Appended last to keep the preceding registration ids stable.
+		// the granular histogram range-tree leaf-page record. Its FORMAT has never changed, so it needs no
+		// backward-compatible reader — but the record itself IS present in released catalogs (uid introduced by
+		// `fa01ba65f`, in v2026.2.0 .. v2026.2.6). A legacy range-PAGED histogram axis is repaired at load time in
+		// HistogramIndexMapLoader, which reads these very pages; the scale marker is the ROOT part's uid.
+		// Appended last to keep the preceding registration ids stable.
 		kryo.register(
 			HistogramRangeIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new HistogramRangeIndexLeafPagePartSerializer(), HistogramRangeIndexLeafPagePart.class),
