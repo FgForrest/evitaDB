@@ -28,6 +28,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.Entry;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -3655,6 +3657,90 @@ class TransactionalLongBPlusTreeTest {
 			}
 
 			assertInternalNodeCapacity(tree.getRoot(), tree.getInternalNodeBlockSize());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Reader bounds when a leaf peek runs ahead of its arrays")
+	class TornLeafReaderBoundTest {
+
+		/**
+		 * Builds a single-leaf tree left in exactly the shape an unsynchronized reader can observe: a `peek` that
+		 * belongs to a growth whose longer arrays are not visible beside it.
+		 *
+		 * A content-sized leaf sizes both arrays to its load, so a leaf holding four entries really does own a
+		 * four-slot array and a read one slot past it really does run off the end — which is what makes the bound an
+		 * assertion rather than a formality. Before the leaf arrays followed their content this shape was
+		 * unreachable: every leaf carried a full-block array, so the same torn read landed inside it and merely
+		 * returned a stale element.
+		 *
+		 * @return a tree whose single leaf holds four live entries under a peek of four
+		 */
+		@Nonnull
+		private TransactionalLongBPlusTree<String> tornSingleLeafTree() {
+			final TransactionalLongBPlusTree<String> tree =
+				new TransactionalLongBPlusTree<>(8, 3, 3, 1, String.class);
+			for (long key = 0; key < 4; key++) {
+				tree.insert(key, "Value" + key);
+			}
+
+			//noinspection unchecked
+			final BPlusLeafTreeNode<String> leaf = (BPlusLeafTreeNode<String>) tree.getRoot();
+			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
+			assertEquals(3, leaf.getPeek(), "the fixture needs peek at the last occupied slot");
+
+			leaf.setPeek(leaf.getPeek() + 1);
+			assertEquals(4, leaf.getPeek(), "the fixture must leave peek one slot past the arrays");
+			assertEquals(4, leaf.getKeys().length, "the arrays must stay at the length they were");
+			return tree;
+		}
+
+		@Test
+		@DisplayName("the heap walk stays inside the array it read")
+		void shouldBoundTheHeapWalkWhenPeekRunsAheadOfTheArrays() {
+			// this is the reader the guard exists for: EntityCollection#describeIndex takes no snapshot and holds no
+			// transaction, and hands a live index to IndexDetailProjection for exactly this walk
+			assertTrue(tornSingleLeafTree().getHeapSizeInBytes() > 0, "the heap walk must survive the torn leaf");
+		}
+
+		@Test
+		@DisplayName("point lookup stays inside the array it read")
+		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArrays() {
+			final TransactionalLongBPlusTree<String> tree = tornSingleLeafTree();
+			for (long key = 0; key < 4; key++) {
+				assertEquals("Value" + key, tree.searchOrNull(key), "point lookup must still find every live key");
+			}
+			// past the last key, so an unbounded binary search walks up into the slot the arrays do not carry
+			assertNull(tree.searchOrNull(9L), "a lookup past the end must miss rather than run off the array");
+		}
+
+		@Test
+		@DisplayName("forward iteration stays inside the array it read")
+		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArrays() {
+			final List<String> forward = new ArrayList<>();
+			final Iterator<String> it = tornSingleLeafTree().valueIterator();
+			while (it.hasNext()) {
+				forward.add(it.next());
+			}
+			assertEquals(
+				List.of("Value0", "Value1", "Value2", "Value3"), forward,
+				"the forward walk must stop at the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("reverse iteration stays inside the array it read")
+		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArrays() {
+			final List<String> reverse = new ArrayList<>();
+			final Iterator<String> it = tornSingleLeafTree().valueReverseIterator();
+			while (it.hasNext()) {
+				reverse.add(it.next());
+			}
+			assertEquals(
+				List.of("Value3", "Value2", "Value1", "Value0"), reverse,
+				"the reverse walk must stop at the live run"
+			);
 		}
 
 	}
