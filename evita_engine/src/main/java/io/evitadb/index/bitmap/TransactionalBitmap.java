@@ -142,7 +142,10 @@ public class TransactionalBitmap
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
 				this.roaringBitmap.add(recordId);
-				this.memoizedCardinality = -1;
+				// the `contains` guard above proves this add changed the bitmap, so the memo can be carried
+				// forward exactly instead of invalidated - see `size()` for why a reader must never store it
+				final int memoized = this.memoizedCardinality;
+				this.memoizedCardinality = memoized == -1 ? -1 : memoized + 1;
 				return true;
 			} else {
 				return layer.addRecordId(recordId);
@@ -154,7 +157,7 @@ public class TransactionalBitmap
 	public void addAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordId);
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
@@ -168,7 +171,7 @@ public class TransactionalBitmap
 						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 						if (layer == null) {
 							this.roaringBitmap.add(recordId);
-							this.memoizedCardinality = -1;
+							this.memoizedCardinality = this.roaringBitmap.getCardinality();
 						} else {
 							for (int r : recordId) {
 								layer.addRecordId(r);
@@ -185,7 +188,7 @@ public class TransactionalBitmap
 	public void addAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordIds.getArray());
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
@@ -204,7 +207,7 @@ public class TransactionalBitmap
 							while (it.hasNext()) {
 								this.roaringBitmap.add(it.nextInt());
 							}
-							this.memoizedCardinality = -1;
+							this.memoizedCardinality = this.roaringBitmap.getCardinality();
 						} else {
 							layer.addRecordId(recordId);
 							while (it.hasNext()) {
@@ -227,7 +230,10 @@ public class TransactionalBitmap
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
 				this.roaringBitmap.remove(recordId);
-				this.memoizedCardinality = -1;
+				// the `contains` guard above proves this remove changed the bitmap, so the memo can be carried
+				// forward exactly instead of invalidated - see `size()` for why a reader must never store it
+				final int memoized = this.memoizedCardinality;
+				this.memoizedCardinality = memoized == -1 ? -1 : memoized - 1;
 				return true;
 			} else {
 				return layer.removeRecordId(recordId);
@@ -241,7 +247,7 @@ public class TransactionalBitmap
 			for (int recId : recordId) {
 				this.roaringBitmap.remove(recId);
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
@@ -257,7 +263,7 @@ public class TransactionalBitmap
 							for (int r : recordId) {
 								this.roaringBitmap.remove(r);
 							}
-							this.memoizedCardinality = -1;
+							this.memoizedCardinality = this.roaringBitmap.getCardinality();
 						} else {
 							for (int r : recordId) {
 								layer.removeRecordId(r);
@@ -281,7 +287,7 @@ public class TransactionalBitmap
 					this.roaringBitmap.remove(it.nextInt());
 				}
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			final OfInt it = recordIds.iterator();
@@ -300,7 +306,7 @@ public class TransactionalBitmap
 							while (it.hasNext()) {
 								this.roaringBitmap.remove(it.nextInt());
 							}
-							this.memoizedCardinality = -1;
+							this.memoizedCardinality = this.roaringBitmap.getCardinality();
 						} else {
 							layer.removeRecordId(recordId);
 							while (it.hasNext()) {
@@ -442,20 +448,26 @@ public class TransactionalBitmap
 	/**
 	 * Returns the number of record ids this bitmap holds.
 	 *
-	 * The memoized cardinality is read into a local **once** and the recomputed value is returned directly, rather
-	 * than re-reading the field after filling it. Every mutator invalidates the memo by storing the `-1` sentinel, so
-	 * a reader that tested the field, found it valid, and then read it a second time could be handed the sentinel
-	 * itself by a writer that invalidated in between - a session-free `recordCount()` over multi-record buckets was
-	 * observed answering `-1` that way. The single read cannot: whatever it observes is either a real cardinality or
-	 * the sentinel it then replaces with one it computed itself.
+	 * **This method never writes.** That is the whole contract, and it must stay that way: the memo is written only
+	 * by the thread that mutates `roaringBitmap`, never by a reader. A reader that stored its own result used to be
+	 * able to lose a writer's update entirely - compute N, be overtaken by a writer that adds a record and
+	 * invalidates, then store N over the invalidation - leaving the memo holding a **stale** count that no later
+	 * invalidation would ever correct. Unlike a torn read, that damage is durable: nothing recomputes while the memo
+	 * looks valid, and the wrong count survives into `ALIVE`, where committed instances are no longer invalidated.
+	 * It was measured answering 510 against 512 records written.
 	 *
-	 * **The answer stays advisory under a concurrent writer, exactly as it always was** - this only stops the sentinel
-	 * from escaping as if it were a count. A wider race remains and is untouched here: a reader that computes a
-	 * cardinality, is overtaken by a writer that mutates and invalidates, and only then stores its own result, leaves
-	 * the memo holding a **stale** count that no later invalidation will correct. Closing that needs a version stamp
-	 * around the memo rather than a plain field, which is a change to a type on every index's hot path and is not
-	 * made for the benefit of a monitoring read. Do not read this method as safe to call concurrently with a
-	 * non-transactional writer; read it as no longer able to answer with `-1`.
+	 * That mattered beyond a wrong answer, because the count can reach disk. `OwnerSortIndex.storagePartCardinalities`
+	 * persists `bucket.size()` into `SortIndexStoragePart`, and `buildOwnedTree` slices `sortedRecords` by those
+	 * counts on load: a stale-low count silently leaves trailing records unassigned, and a stale-high one throws out
+	 * of bounds and the catalog will not open at all.
+	 *
+	 * A `compareAndSet(-1, n)` would **not** have fixed it - the writer's own invalidation stores `-1` too, so a CAS
+	 * landing after it succeeds with the pre-mutation count. Not storing at all is what closes it. The mutators pay
+	 * for that by keeping the memo exact rather than invalidating: single-record `add`/`remove` carry it forward by
+	 * one (their `contains` guard proves the bitmap changed), and bulk mutators recompute once on the writer thread.
+	 *
+	 * The answer is still **advisory** under a concurrent non-transactional writer - `getCardinality()` raced against
+	 * a roaring mutation can return a number that was never true - but a racy number is no longer *retained*.
 	 *
 	 * @return the number of record ids in this bitmap
 	 */
@@ -464,12 +476,7 @@ public class TransactionalBitmap
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			final int memoized = this.memoizedCardinality;
-			if (memoized == -1) {
-				final int cardinality = this.roaringBitmap.getCardinality();
-				this.memoizedCardinality = cardinality;
-				return cardinality;
-			}
-			return memoized;
+			return memoized == -1 ? this.roaringBitmap.getCardinality() : memoized;
 		} else {
 			return layer.getMergedLength();
 		}
