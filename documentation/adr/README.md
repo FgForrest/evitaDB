@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-09-04 | [Size the long-keyed B+ tree's leaves to their content as well, and decline the same change for the element tree](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486 |
+| 2026-09-04 | [Size the long-keyed and element-keyed B+ tree leaves to their content, and bound every reader that made torn](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486 |
 | 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
 | 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
 | 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
