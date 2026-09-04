@@ -3484,7 +3484,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
 	 * {@link BPlusInternalTreeNode#searchIndex} rule {@link #addCursorLevels} uses, but WITHOUT capturing the cursor
 	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). It reads the transaction-aware
-	 * `getChildren()` accessor exactly like the cursor descent, so it resolves the same nodes.
+	 * `getChildren()` accessor exactly like the cursor descent, and - like that descent - bounds the child index by
+	 * the array it actually holds, so it resolves the same nodes under the same concurrency rules.
+	 *
+	 * That bound is the whole reason this loop is written across two statements instead of one. Java evaluates the
+	 * array expression **before** the index expression, so {@code getChildren()[searchIndex(key)]} captures the
+	 * children array first and only then lets {@code searchIndex} re-read `keys` and `peek` afresh - and a reader
+	 * sharing no happens-before edge with a growing writer can be handed an index that only the grown array can
+	 * serve. That is array-first/index-second: it needs no reordering at all and is a plain interleaving x86 permits,
+	 * unlike the count-first shapes that require weak-memory hardware. {@code 3d85e249a} bound seven cursor sites
+	 * against the arrays they index and missed this one, which carries every point lookup in the tree - `contains`,
+	 * cardinality, value-id, previous-record and long-payload resolution all descend through here.
+	 *
+	 * Clamping is semantically right rather than a fudge: the clamped index is the child the **pre-growth** node
+	 * would have chosen for a key past its last separator, so the descent stays correct for the snapshot it actually
+	 * read. See {@link #observableInternalPeek} for why the array is a parameter rather than something re-read.
 	 *
 	 * Measured on this family, a captured path costs ~208 B per descent against ~0 B here, so every lookup that uses
 	 * nothing but {@code cursor.leafNode()} takes this route. Structural operations (splits, deletes, consolidation,
@@ -3499,7 +3513,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		while (node instanceof BPlusInternalTreeNode<?> internal) {
 			//noinspection unchecked
 			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
-			node = internalNode.getChildren()[internalNode.searchIndex(key)];
+			// the array is captured into a local FIRST so the freshly computed index can be bound to it - see the
+			// javadoc above; on any consistent observer this clamp returns the index unchanged
+			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
+			node = children[observableInternalPeek(internalNode.searchIndex(key), children)];
 		}
 		//noinspection unchecked
 		return (BPlusLeafTreeNode<K>) node;

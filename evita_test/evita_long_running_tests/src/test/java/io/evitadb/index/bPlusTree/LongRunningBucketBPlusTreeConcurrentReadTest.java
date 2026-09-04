@@ -220,6 +220,14 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 	 */
 	private static final int MULTILEVEL_KEYS = 1_024;
 	/**
+	 * Stride between the keys the multi-level reader point-probes. Coprime with nothing in particular - it only has
+	 * to spread the probes across the whole key range, so that some descend the leftmost spine and some the
+	 * rightmost, where the writer is growing. Kept coarse deliberately: the reader has to spin fast enough to land
+	 * inside a window a few instructions wide, and probing all 1 024 keys per pass would slow it far more than the
+	 * extra coverage is worth.
+	 */
+	private static final int POINT_PROBE_STRIDE = 37;
+	/**
 	 * Number of writer / reader races in the overflow sweep. Its rounds are the cheapest of the three - the tree is
 	 * small and the work is per record rather than per key - so it runs the most of them.
 	 */
@@ -319,6 +327,8 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 						return new IllegalStateException("A session-free count answered " + counted);
 					}
 					walkAllThreeCursors(tree);
+					// the point descent - `findLeafNode` - which no cursor reaches; see the method javadoc
+					probeEveryPointLookup(tree);
 					// recurses through every internal node, charging both of its arrays and every child under them
 					tree.getHeapSizeInBytes(FREE_ELEMENT_SIZER);
 				}
@@ -441,6 +451,33 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 		walkOneCursor(tree.cursor(0));
 		// the rightmost descent plus moveToPrevLeaf
 		walkOneCursor(tree.reverseCursor());
+	}
+
+	/**
+	 * Takes every session-free **point** lookup the tree offers, so the allocation-free descent behind them is
+	 * exercised alongside the cursor descents.
+	 *
+	 * This exists because the cursors do not reach it. `TransactionalBucketBPlusTree#findLeafNode` is a separate
+	 * descent from the one {@code cursor(key)} takes - it captures no path, and it chooses each child by reading the
+	 * children array and the search index as two independent loads. That is the same array-first / count-second pair
+	 * the rest of this class sweeps for, and it went unguarded through the round of fixes that bound the seven cursor
+	 * sites precisely because no reader here ever called it. Every point API in the tree descends through it:
+	 * `contains`, `cardinalityOf`, `valueIdOf`, `getRecordsEqualTo` and `computePreviousRecord`.
+	 *
+	 * Only the int-payload APIs are taken, because the sweeps build an int tree; the long-payload sibling asserts its
+	 * way out on such a tree rather than descending. Return values are discarded on purpose - a concurrent warm-up
+	 * load makes any answer legitimately stale, and what is under test is that the descent does not throw.
+	 *
+	 * @param tree the tree to probe
+	 */
+	private static void probeEveryPointLookup(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		for (int key = 0; key < MULTILEVEL_KEYS; key += POINT_PROBE_STRIDE) {
+			tree.contains(key);
+			tree.cardinalityOf(key);
+			tree.valueIdOf(key);
+			tree.getRecordsEqualTo(key);
+			tree.computePreviousRecord(key, key * 10);
+		}
 	}
 
 	/**
