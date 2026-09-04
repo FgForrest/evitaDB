@@ -39,6 +39,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
@@ -63,14 +64,36 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The sweep asserts what the API promises: the reader may under-count by whatever the writer has not finished, and it
  * may never fail.
  *
- * ## Why the sweep stays inside ONE leaf
+ * ## Three sweeps, three structures - and why the first one stays inside ONE leaf
  *
- * The block size and the key count are equal, so no round ever splits and the tree never grows an internal node. That
- * is deliberate: an internal node grows its `children` array and raises its `peek` through the same unordered pair,
- * so a cursor holding a stale `children` array against a fresh `peek` has a torn read of its own - a **separate**
- * hazard, in different code, that this sweep is not measuring and must not be allowed to attribute to the columns.
- * Every reallocation the leaf columns perform on the way from four slots to {@value #BLOCK_SIZE} is exercised inside
- * that one leaf, which is the whole of what the bound under test covers.
+ * The hazard has three independent instances in this tree, so it gets three sweeps rather than one, each shaped to
+ * reach exactly one of them:
+ *
+ * 1. {@link #shouldNeverFailASessionFreeWalkWhileAWarmUpLoadGrowsTheColumns()} - the **leaf columns**. Its block size
+ *    and key count are equal, so no round ever splits and the tree never grows an internal node. That is deliberate:
+ *    an internal node grows its `children` array and raises its `peek` through the same unordered pair, and letting
+ *    that failure land in this sweep would let it be attributed to the columns. Every reallocation the leaf columns
+ *    perform on the way from four slots to {@value #BLOCK_SIZE} happens inside that one leaf.
+ * 2. {@link #shouldNeverFailASessionFreeWalkWhileAWarmUpLoadGrowsTheInternalNodes()} - the **internal nodes**, which
+ *    since `0551b8e06` size their `keys` and `children` arrays to the live content and grow them by the same
+ *    array-first / `peek`-second pair. It uses a small block size and enough keys to build a three-level tree, so
+ *    every internal node grows its arrays repeatedly and splits, under a reader taking all four session-free entry
+ *    points (`recordCount()`, a forward walk, a keyed walk and a reverse walk) plus the heap-size walk that recurses
+ *    through the internal nodes themselves.
+ * 3. {@link #shouldNeverFailASessionFreeWalkWhileAWarmUpLoadPromotesMultiRecordBuckets()} - the **overflow column**,
+ *    which neither of the other two ever materializes, because both write exactly one record per key and a bucket is
+ *    promoted only by its second. Only a leaf's heap-size walk indexes that column by a separately-read count.
+ *
+ * ## What sweeps 2 and 3 do NOT assert, and why
+ *
+ * Sweep 1 can bound the count it observes, because a single leaf has no parent to shift. Sweeps 2 and 3 cannot, and
+ * asserting it would make them flaky for a reason that is not a defect: a leaf split inserts the new right sibling
+ * into its parent's `children` array **in place**, and the shift that makes room transiently leaves one child
+ * pointer duplicated. A concurrent walk that crosses that instant legitimately visits one subtree twice and counts
+ * more buckets than the writer has written. That is the same advisory-read staleness the API documents, so both
+ * assert only what the API actually promises - the walk must not fail - plus a quiescent count once the writer has
+ * stopped. Sweep 2 adds a non-negativity check on the fly; sweep 3 does not even call `recordCount()`, for the
+ * separate reason its own javadoc gives.
  *
  * ## Calibration (measured, not estimated)
  *
@@ -106,6 +129,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Green side, measured on a 24-core x86_64 Linux box, OpenJDK 17.0.20, otherwise idle: all {@value #ROUNDS} rounds
  * pass, in 2.4 s on an idle box and 3.4 s under a concurrent build.
  *
+ * ## Sweeps 2 and 3 - and why only ONE of them has a counterfactual on this hardware
+ *
+ * **A green run on x86 is NOT proof that either bound is correct, and it must never be read as one.** But the two
+ * sweeps sit on opposite sides of that, and conflating them would waste the one real signal here:
+ *
+ * - **Sweep 2 is calibrated, and its counterfactual fails on x86.** With the internal-node bound absent - the engine
+ *   built from this branch's parent commit, which has `observableLeafPeek` but no `observableInternalPeek` - the
+ *   sweep failed **3 runs out of 3**, at rounds **308, 284 and 41** of the 1 000 the budget then stood at (it was
+ *   raised to {@value #MULTILEVEL_ROUNDS} afterwards, for margin), in 0.10-0.23 s,
+ *   every time with `ArrayIndexOutOfBoundsException: Index 8 out of bounds for length 8` thrown from
+ *   `ForwardBucketCursor.moveToNextLeaf` - the line that dereferences the `(children, peek)` pair the cursor stored
+ *   one call earlier. Measured on a 24-core x86_64 Linux box, OpenJDK 17. The green side passes all
+ *   {@value #MULTILEVEL_ROUNDS} rounds, 3 runs of 3.
+ *
+ *   That it fails on x86 at all is the point, and it contradicts the assumption carried over from sweep 1. Sweep 1's
+ *   reader loads the **count before the array**, and total store order forbids seeing the second store without the
+ *   first. The internal-node sites reached here load the **array before the count** - `moveToNextLeaf`,
+ *   `moveToPrevLeaf`, `addLeftmostCursorLevels`, `searchIndex` - and an array loaded before the writer's grow paired
+ *   with a `peek` loaded after the writer's increment is a plain interleaving that needs no reordering at all. So
+ *   this one really is a regression detector on ordinary hardware, not only on AArch64.
+ *
+ * - **Sweep 3 is not calibrated and cannot be on this box.** Every read it exercises - the overflow column's
+ *   `observableLiveRun()` and `bitmapAt` - loads the count first, so TSO forbids the escape here exactly as it does
+ *   in sweep 1. It is a structural demonstration: it shows the heap walk survives a live promotion load, which
+ *   nothing else exercises, and it would catch the bound being dropped altogether. Re-measure its counterfactual on
+ *   AArch64 before concluding anything about that bound from a green run here.
+ *
+ * Both sweeps' bounds are pinned deterministically in the fast loop rather than by this budget.
+ *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
@@ -129,6 +181,64 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 	 * exceed scheduling noise on a loaded box.
 	 */
 	private static final int ROUND_TIMEOUT_SECONDS = 30;
+	/**
+	 * Number of writer / reader races in the multi-level sweep. A round here builds a whole three-level tree rather
+	 * than one leaf, so it is some thirty times the work of a sweep-1 round and the count is lowered to match - but
+	 * it is still set an order of magnitude above the deepest round the counterfactual has been seen to survive
+	 * (308 of 1 000, over three runs), for the margin the class javadoc's calibration section quotes.
+	 */
+	private static final int MULTILEVEL_ROUNDS = 5_000;
+	/**
+	 * The leaf block size of the multi-level sweep - small on purpose, so a thousand keys are enough to build a tree
+	 * three levels deep and every internal node on the way grows its arrays and eventually splits.
+	 */
+	private static final int MULTILEVEL_VALUE_BLOCK_SIZE = 15;
+	/**
+	 * The internal-node block size of the multi-level sweep. The tree accepts only an **odd** value here, and one no
+	 * greater than the leaf block size, so this is the largest legal choice - which matters, because it has to sit
+	 * well above {@code ColumnSizing.MIN_PHYSICAL_LENGTH} (4), where an internal node's arrays now start. An internal
+	 * node therefore reallocates its separators 4 → 8 → 15 and its children 4 → 8 → 16 before it fills, and each of
+	 * those reallocations is one instance of the array-first / `peek`-second pair under test.
+	 */
+	private static final int MULTILEVEL_INTERNAL_BLOCK_SIZE = 15;
+	/**
+	 * Minimum occupancy of a leaf in the multi-level sweep. The tree refuses anything above
+	 * {@code ceil(blockSize / 2) - 1}, so the two minima below are computed by that rule rather than guessed - the
+	 * sweeps never delete, so the value only has to be accepted by the constructor.
+	 */
+	private static final int MULTILEVEL_MIN_VALUE_BLOCK_SIZE =
+		(int) (Math.ceil(MULTILEVEL_VALUE_BLOCK_SIZE / 2.0) - 1);
+	/**
+	 * Minimum occupancy of an internal node in the multi-level sweep, by the same rule as
+	 * {@link #MULTILEVEL_MIN_VALUE_BLOCK_SIZE}.
+	 */
+	private static final int MULTILEVEL_MIN_INTERNAL_BLOCK_SIZE =
+		(int) (Math.ceil(MULTILEVEL_INTERNAL_BLOCK_SIZE / 2.0) - 1);
+	/**
+	 * Number of keys the multi-level sweep writes per round. Enough that the tree passes through a root split into a
+	 * third level rather than merely growing one internal node.
+	 */
+	private static final int MULTILEVEL_KEYS = 1_024;
+	/**
+	 * Number of writer / reader races in the overflow sweep. Its rounds are the cheapest of the three - the tree is
+	 * small and the work is per record rather than per key - so it runs the most of them.
+	 */
+	private static final int OVERFLOW_ROUNDS = 5_000;
+	/**
+	 * Number of distinct keys the overflow sweep writes. Above {@link #MULTILEVEL_VALUE_BLOCK_SIZE} so the tree still
+	 * carries internal nodes, but small enough that every leaf holds several multi-record buckets.
+	 */
+	private static final int OVERFLOW_KEYS = 64;
+	/**
+	 * Number of records the overflow sweep writes per key. The first promotes the bucket to multi-record and
+	 * materializes the leaf's overflow column; the rest widen the bitmap the heap walk prices.
+	 */
+	private static final int OVERFLOW_RECORDS_PER_KEY = 8;
+	/**
+	 * Prices a boxed key for the heap-size walk. The walk itself is what these sweeps exercise, not its arithmetic,
+	 * so every key is free and the figure is never compared against anything.
+	 */
+	private static final ToLongFunction<Object> FREE_ELEMENT_SIZER = element -> 0L;
 
 	@Test
 	@DisplayName("A session-free walk never fails while a warm-up load grows the leaf columns underneath it")
@@ -137,11 +247,231 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 		try {
 			final Random random = new Random(42L);
 			for (int round = 0; round < ROUNDS; round++) {
-				runOneRound(readers, shuffledKeys(random));
+				runOneRound(readers, shuffledKeys(random, BLOCK_SIZE));
 			}
 		} finally {
 			readers.shutdownNow();
 		}
+	}
+
+	@Test
+	@DisplayName("A session-free walk never fails while a warm-up load grows and splits the internal nodes")
+	void shouldNeverFailASessionFreeWalkWhileAWarmUpLoadGrowsTheInternalNodes() throws Exception {
+		final ExecutorService readers = Executors.newSingleThreadExecutor(daemonFactory("bucket-tree-spine-reader"));
+		try {
+			final Random random = new Random(42L);
+			for (int round = 0; round < MULTILEVEL_ROUNDS; round++) {
+				runOneMultiLevelRound(readers, shuffledKeys(random, MULTILEVEL_KEYS), round);
+			}
+		} finally {
+			readers.shutdownNow();
+		}
+	}
+
+	@Test
+	@DisplayName("A session-free heap walk never fails while a warm-up load promotes multi-record buckets")
+	void shouldNeverFailASessionFreeWalkWhileAWarmUpLoadPromotesMultiRecordBuckets() throws Exception {
+		final ExecutorService readers = Executors.newSingleThreadExecutor(daemonFactory("bucket-tree-overflow-reader"));
+		try {
+			final Random random = new Random(42L);
+			for (int round = 0; round < OVERFLOW_ROUNDS; round++) {
+				runOneOverflowRound(readers, shuffledKeys(random, OVERFLOW_KEYS), round);
+			}
+		} finally {
+			readers.shutdownNow();
+		}
+	}
+
+	/**
+	 * Runs one writer / reader race over a tree deep enough to carry internal nodes, and asserts the reader's
+	 * outcome.
+	 *
+	 * The reader takes every session-free entry point that descends through an internal node - `recordCount()` and
+	 * its forward walk, a keyed walk (the `searchIndex` descent), a reverse walk (the rightmost descent and
+	 * `moveToPrevLeaf`) and the heap-size walk that recurses through the internal nodes themselves - so a bound
+	 * missing at any one of them surfaces here rather than only in whichever the statistics API happens to call.
+	 *
+	 * It asserts only non-negativity on the fly, for the reason the class javadoc gives: an in-place parent shift can
+	 * legitimately make a concurrent walk visit one subtree twice, so the count has no upper bound worth asserting.
+	 * `recordCount()` is safe to call here in a way it is not in the overflow sweep, because this tree writes one
+	 * record per key and so never reaches `TransactionalBitmap#size()`.
+	 *
+	 * @param readers the executor the reader runs on
+	 * @param keys    the keys this round writes, in the order it writes them
+	 * @param round   the round's index, reported on failure so a re-measured calibration can say how deep into the
+	 *                budget the escape lies
+	 */
+	private static void runOneMultiLevelRound(
+		@Nonnull ExecutorService readers,
+		@Nonnull int[] keys,
+		int round
+	) throws Exception {
+		final TransactionalBucketBPlusTree<Integer> tree = newMultiLevelTree();
+		final AtomicBoolean writing = new AtomicBoolean(true);
+		final CountDownLatch readerStarted = new CountDownLatch(1);
+
+		final Future<Throwable> reading = readers.submit(() -> {
+			readerStarted.countDown();
+			try {
+				while (writing.get()) {
+					final int counted = tree.recordCount();
+					if (counted < 0) {
+						return new IllegalStateException("A session-free count answered " + counted);
+					}
+					walkAllThreeCursors(tree);
+					// recurses through every internal node, charging both of its arrays and every child under them
+					tree.getHeapSizeInBytes(FREE_ELEMENT_SIZER);
+				}
+				return null;
+			} catch (Throwable ex) {
+				return ex;
+			}
+		});
+
+		assertTrue(
+			readerStarted.await(ROUND_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+			"The reader never started - the round would have measured nothing"
+		);
+		// the warm-up load: in place, outside any transaction, exactly as a bulk ingest writes
+		for (final int key : keys) {
+			tree.addRecord(key, key * 10);
+		}
+		writing.set(false);
+
+		assertReaderSurvived(reading, round);
+		assertEquals(
+			MULTILEVEL_KEYS, tree.recordCount(),
+			"The writer must have landed every record it wrote, whatever the reader saw on the way"
+		);
+	}
+
+	/**
+	 * Runs one writer / reader race in which the writer promotes buckets to multi-record while the reader prices the
+	 * leaves' overflow columns, and asserts the reader's outcome.
+	 *
+	 * The records are written key by key so that each key's second record promotes its bucket, materializing the
+	 * leaf's overflow column and then widening it - which is the only way this tree ever grows that column, and the
+	 * only path on which its heap walk indexes it by a separately-read count.
+	 *
+	 * **The reader deliberately never calls `recordCount()` here, and the round asserts `size()` rather than a record
+	 * total.** Summing bucket cardinalities means calling `TransactionalBitmap#size()` on a bitmap a warm-up writer
+	 * is adding to, and that memoizes: a reader that computes a cardinality, is overtaken by a writer that mutates
+	 * and invalidates, and only then stores its own answer leaves the memo permanently stale. Measured here at 510
+	 * records recorded against 512 written. That is a defect in the bitmap's memo, not in the overflow column this
+	 * sweep is about, and asserting a record total would keep re-reporting it in the wrong place - see
+	 * `TransactionalBitmap#size()`, whose javadoc records the race. The bucket count is unaffected by it.
+	 *
+	 * @param readers the executor the reader runs on
+	 * @param keys    the keys this round writes, in the order it writes them
+	 * @param round   the round's index, reported on failure - see {@link #runOneMultiLevelRound}
+	 */
+	private static void runOneOverflowRound(
+		@Nonnull ExecutorService readers,
+		@Nonnull int[] keys,
+		int round
+	) throws Exception {
+		final TransactionalBucketBPlusTree<Integer> tree = newMultiLevelTree();
+		final AtomicBoolean writing = new AtomicBoolean(true);
+		final CountDownLatch readerStarted = new CountDownLatch(1);
+
+		final Future<Throwable> reading = readers.submit(() -> {
+			readerStarted.countDown();
+			try {
+				while (writing.get()) {
+					// the leaf heap walk indexes the overflow column slot by slot to price each bitmap
+					tree.getHeapSizeInBytes(FREE_ELEMENT_SIZER);
+					// `records()` resolves every bucket through OverflowColumn.bitmapAt - which is the read under
+					// test. `recordCount()` is deliberately NOT called here; see the method javadoc
+					walkAllThreeCursors(tree);
+				}
+				return null;
+			} catch (Throwable ex) {
+				return ex;
+			}
+		});
+
+		assertTrue(
+			readerStarted.await(ROUND_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+			"The reader never started - the round would have measured nothing"
+		);
+		for (final int key : keys) {
+			for (int record = 0; record < OVERFLOW_RECORDS_PER_KEY; record++) {
+				tree.addRecord(key, key * OVERFLOW_RECORDS_PER_KEY + record);
+			}
+		}
+		writing.set(false);
+
+		assertReaderSurvived(reading, round);
+		assertEquals(
+			OVERFLOW_KEYS, tree.size(),
+			"Every key must have landed in exactly one bucket, whatever the reader saw on the way"
+		);
+	}
+
+	/**
+	 * Creates the tree both the multi-level and the overflow sweep write into: small leaves and a comfortably large
+	 * internal-node block, so a few hundred keys build a spine three levels deep whose internal nodes reallocate
+	 * their arrays several times on the way.
+	 *
+	 * @return a fresh empty tree, never NULL
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<Integer> newMultiLevelTree() {
+		return new TransactionalBucketBPlusTree<>(
+			MULTILEVEL_VALUE_BLOCK_SIZE, MULTILEVEL_MIN_VALUE_BLOCK_SIZE,
+			MULTILEVEL_INTERNAL_BLOCK_SIZE, MULTILEVEL_MIN_INTERNAL_BLOCK_SIZE,
+			Integer.class, null
+		);
+	}
+
+	/**
+	 * Drives the three session-free cursor shapes over the whole tree, touching each bucket's value and records so
+	 * the leaf columns and the overflow column are actually indexed rather than merely stepped over.
+	 *
+	 * Nothing is asserted about how many buckets the walks yield - see the class javadoc for why a concurrent count
+	 * has no upper bound worth asserting here. The walks are driven for their **failure** behaviour: whatever escapes
+	 * them propagates to the reader's own catch and is reported out of the round.
+	 *
+	 * @param tree the tree to walk
+	 */
+	private static void walkAllThreeCursors(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+		// the leftmost descent plus moveToNextLeaf
+		walkOneCursor(tree.cursor());
+		// the searchIndex descent - the same one the write path takes, reached here with no session at all
+		walkOneCursor(tree.cursor(0));
+		// the rightmost descent plus moveToPrevLeaf
+		walkOneCursor(tree.reverseCursor());
+	}
+
+	/**
+	 * Walks one cursor to exhaustion, touching every bucket it yields so the leaf's key, record and overflow columns
+	 * are all indexed.
+	 *
+	 * @param cursor the cursor to drain
+	 */
+	private static void walkOneCursor(@Nonnull BucketCursor<Integer> cursor) {
+		while (cursor.next()) {
+			cursor.value();
+			cursor.records();
+		}
+	}
+
+	/**
+	 * Collects the reader's outcome and fails the round when anything escaped it.
+	 *
+	 * @param reading the reader's pending outcome
+	 * @param round   the round's index, for the failure message
+	 */
+	private static void assertReaderSurvived(@Nonnull Future<Throwable> reading, int round) throws Exception {
+		final Throwable escaped = reading.get(ROUND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		if (escaped != null) {
+			log.error("A session-free bucket tree walk failed under a concurrent warm-up load.", escaped);
+		}
+		assertNull(
+			escaped,
+			() -> "A session-free walk must never fail while a warm-up load mutates the tree underneath it - it may " +
+				"only report a stale count. Round " + round + " failed with: " + escaped
+		);
 	}
 
 	/**
@@ -223,15 +553,17 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 	}
 
 	/**
-	 * Builds the round's keys: every value in {@code [0, BLOCK_SIZE)} exactly once, in random order, so the leaf's
-	 * inserts land at random positions and shift the live tail rather than only appending to it.
+	 * Builds the round's keys: every value in {@code [0, count)} exactly once, in random order, so the inserts land
+	 * at random positions and shift the live tail rather than only appending to it - and, in the multi-level sweep,
+	 * so leaves split all over the tree rather than only at its right edge.
 	 *
 	 * @param random the source of the shuffle
+	 * @param count  the number of keys to produce
 	 * @return the shuffled keys, never NULL
 	 */
 	@Nonnull
-	private static int[] shuffledKeys(@Nonnull Random random) {
-		final int[] keys = new int[BLOCK_SIZE];
+	private static int[] shuffledKeys(@Nonnull Random random, int count) {
+		final int[] keys = new int[count];
 		for (int i = 0; i < keys.length; i++) {
 			keys[i] = i;
 		}

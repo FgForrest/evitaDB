@@ -439,14 +439,37 @@ public class TransactionalBitmap
 		}
 	}
 
+	/**
+	 * Returns the number of record ids this bitmap holds.
+	 *
+	 * The memoized cardinality is read into a local **once** and the recomputed value is returned directly, rather
+	 * than re-reading the field after filling it. Every mutator invalidates the memo by storing the `-1` sentinel, so
+	 * a reader that tested the field, found it valid, and then read it a second time could be handed the sentinel
+	 * itself by a writer that invalidated in between - a session-free `recordCount()` over multi-record buckets was
+	 * observed answering `-1` that way. The single read cannot: whatever it observes is either a real cardinality or
+	 * the sentinel it then replaces with one it computed itself.
+	 *
+	 * **The answer stays advisory under a concurrent writer, exactly as it always was** - this only stops the sentinel
+	 * from escaping as if it were a count. A wider race remains and is untouched here: a reader that computes a
+	 * cardinality, is overtaken by a writer that mutates and invalidates, and only then stores its own result, leaves
+	 * the memo holding a **stale** count that no later invalidation will correct. Closing that needs a version stamp
+	 * around the memo rather than a plain field, which is a change to a type on every index's hot path and is not
+	 * made for the benefit of a monitoring read. Do not read this method as safe to call concurrently with a
+	 * non-transactional writer; read it as no longer able to answer with `-1`.
+	 *
+	 * @return the number of record ids in this bitmap
+	 */
 	@Override
 	public int size() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			if (this.memoizedCardinality == -1) {
-				this.memoizedCardinality = this.roaringBitmap.getCardinality();
+			final int memoized = this.memoizedCardinality;
+			if (memoized == -1) {
+				final int cardinality = this.roaringBitmap.getCardinality();
+				this.memoizedCardinality = cardinality;
+				return cardinality;
 			}
-			return this.memoizedCardinality;
+			return memoized;
 		} else {
 			return layer.getMergedLength();
 		}

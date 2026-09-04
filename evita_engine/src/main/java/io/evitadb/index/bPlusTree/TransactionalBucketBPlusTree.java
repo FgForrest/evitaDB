@@ -500,6 +500,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Recursively traverses the B+ tree to find the leaf node responsible for the specified key, populating the path
 	 * traversed with internal nodes.
 	 *
+	 * The child index and the node's `peek` are both bounded by {@link #observableInternalPeek} against the very
+	 * child array captured into the {@link CursorLevel}, because the cursor this builds is also handed to the
+	 * session-free management walk. The bound is a no-op for the structural callers — see that method.
+	 *
 	 * @param currentNode the current internal tree node being traversed; must not be null
 	 * @param key         the key for which the corresponding leaf node is to be found
 	 * @param path        a list to store the sequence of internal nodes visited; must not be null
@@ -509,9 +513,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull M key,
 		@Nonnull List<CursorLevel<M>> path
 	) {
-		final int childIndex = currentNode.searchIndex(key);
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
-		path.add(new CursorLevel<>(children, childIndex, currentNode.getPeek()));
+		final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
+		final int childIndex = Math.min(currentNode.searchIndex(key), nodePeek);
+		path.add(new CursorLevel<>(children, childIndex, nodePeek));
 		if (children[childIndex] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, key, path);
@@ -529,7 +534,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull List<CursorLevel<M>> path
 	) {
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
-		path.add(new CursorLevel<>(children, 0, currentNode.getPeek()));
+		// the captured `peek` is what the cursor later indexes `children` by, so it is bounded by that same array -
+		// this descent backs `recordCount()`, the one walk reachable with no session at all
+		path.add(new CursorLevel<>(children, 0, observableInternalPeek(currentNode.getPeek(), children)));
 		if (children[0] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
 			addLeftmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
@@ -546,8 +553,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull BPlusInternalTreeNode<M> currentNode,
 		@Nonnull List<CursorLevel<M>> path
 	) {
-		final int currentNodePeek = currentNode.getPeek();
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
+		// `peek` doubles as the index of the rightmost child here, so it MUST be bounded by the array this level
+		// captured rather than trusted on its own - the two are read independently
+		final int currentNodePeek = observableInternalPeek(currentNode.getPeek(), children);
 		path.add(new CursorLevel<>(children, currentNodePeek, currentNodePeek));
 		if (children[currentNodePeek] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
@@ -2416,6 +2425,52 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * The internal-node twin of {@link #observableLeafPeek}: the last child index a caller may address on the
+	 * `children` array **it has already read**, given the `peek` it has already read.
+	 *
+	 * **This is a concurrency bound, not a consistency check.** `children.length >= peek + 1` holds at every point a
+	 * committed internal node is observable — {@code growTo} sizes both arrays to the count the mutation will leave
+	 * behind *before* the moves that raise `peek`, every shrink lowers `peek` and leaves the arrays alone, and the
+	 * commit-merge trim builds a **new** node rather than shortening this one. So for any caller sharing a
+	 * happens-before edge with the writer — the whole write path, every descent under a transaction — this method
+	 * returns `peek` unchanged and is a pure no-op. That is exactly why it may sit on the write path too: it cannot
+	 * truncate a bound that was consistent to begin with.
+	 *
+	 * What it guards is the reader that shares no lock, no volatile and no transaction with the writer: the
+	 * management and statistics API walks the tree on a request thread, with no session and no catalog-state guard,
+	 * while a warm-up load grows the very node it is walking (see {@link #recordCount()}). Since
+	 * {@code 0551b8e06} an internal node's arrays no longer start at the block size, so that node grows by the same
+	 * two plain field stores a column does — the longer array published first, `peek` raised second — and such a
+	 * reader can pair the raised `peek` with the shorter array. Bounding by the length of the array the caller
+	 * actually holds is safe whichever of the two it observed first, which is why the array is a **parameter** here
+	 * rather than re-read inside: the answer is tied to the very array the caller will index, and no ordering
+	 * discipline is left for a later change to get wrong.
+	 *
+	 * A walk bounded this way under-reports by whatever the writer had not finished — the same staleness the
+	 * fixed-length arrays produced, and what these callers are documented to accept.
+	 *
+	 * **A green run on x86 proves nothing about this bound, and the reason differs by call site.** Where the caller
+	 * loads `peek` **before** the array — {@code addRightmostCursorLevels} — total store order forbids the
+	 * interleaving outright and the escape needs weak-memory hardware such as AArch64, exactly as on the leaf side.
+	 * Where it loads the array **first** — the two cursors' {@code moveTo*Leaf}, and {@code searchIndex} — no
+	 * reordering is required at all: a reader that loaded the array before the grow and `peek` after the increment is
+	 * a plain interleaving x86 permits, through a window a few instructions wide. Neither kind can be demonstrated by
+	 * a stress loop with any confidence, so both are guarded by construction rather than by measurement. See
+	 * {@link ValueColumn#observableLiveRun()} for the leaf side of the same argument, and
+	 * {@code LongRunningBucketBPlusTreeConcurrentReadTest} for what its sweeps do and do not establish.
+	 *
+	 * @param peek     the node's own last-occupied child index, as the caller read it
+	 * @param children the node's child array, as the caller read it — the array the bound is tied to
+	 * @return the last child index the caller may read, `-1` when it may read nothing
+	 */
+	private static <M extends Comparable<M>> int observableInternalPeek(
+		int peek,
+		@Nonnull BPlusTreeNode<M, ?>[] children
+	) {
+		return Math.min(peek, children.length - 1);
+	}
+
+	/**
 	 * A {@link BucketCursor} restricted to one leaf node, reading its columns directly (the same getters
 	 * {@link ForwardBucketCursor} reads). Used by the granular write path to materialize one leaf page at a time
 	 * without walking the whole tree.
@@ -4203,6 +4258,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Children carried over unchanged from a superseded version are charged in full: the predecessor is
 		 * garbage-in-waiting and this version becomes their sole owner.
 		 *
+		 * Like the leaf walk this recurses into, it is reachable from a request thread holding no session and no
+		 * catalog-state guard, so both counts are bounded by
+		 * {@link TransactionalBucketBPlusTree#observableInternalPeek} against the arrays this frame captured — a torn
+		 * read then under-reports rather than raising an
+		 * {@link ArrayIndexOutOfBoundsException} out of a monitoring call.
+		 *
 		 * @param elementSizer     prices one stored record payload, as in {@link ValueColumn#getHeapSizeInBytes}
 		 * @param separatorsOwned  whether the separator keys here are this tree's own boxes rather than instances its
 		 *                         leaves already hold
@@ -4212,17 +4273,24 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final VMLayout layout = VMLayout.current();
 			// id + transactionalLayer + comparator/keys/children slots + peek + pageSequence + blockSize
 			long size = layout.sizeOfObject(Long.BYTES + 1L + 3L * layout.referenceSize() + 3L * Integer.BYTES);
-			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
-			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			// both arrays are read ONCE into locals and everything below indexes those locals: this walk is reachable
+			// with no session and no catalog-state guard (see `recordCount()`), so the array a slot is charged from
+			// has to be the same array its bound came from
+			final M[] theKeys = this.keys;
+			final BPlusTreeNode<M, ?>[] theChildren = this.children;
+			size += layout.sizeOfArray(theKeys.length, layout.referenceSize());
+			size += layout.sizeOfArray(theChildren.length, layout.referenceSize());
 			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
 			// transactional layer, which is a separate node object owning separate arrays
 			// `peek` is the last occupied index, so the counts below are peek and peek+1 - and NOT clamped at zero:
 			// a node emptied by a merge carries peek == -1 with `children[0]` already nulled, and clamping would
 			// walk that slot
-			final int keyCount = this.peek;
+			final int keyCount = Math.min(
+				observableInternalPeek(this.peek, theChildren), theKeys.length
+			);
 			if (separatorsOwned) {
 				for (int i = 0; i < keyCount; i++) {
-					final M key = this.keys[i];
+					final M key = theKeys[i];
 					if (key != null) {
 						size += elementSizer.applyAsLong(key);
 					}
@@ -4230,7 +4298,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			final int childCount = keyCount + 1;
 			for (int i = 0; i < childCount; i++) {
-				final BPlusTreeNode<M, ?> child = this.children[i];
+				final BPlusTreeNode<M, ?> child = theChildren[i];
 				if (child instanceof BPlusInternalTreeNode<?> internal) {
 					size += internal.getHeapSizeInBytes(elementSizer, separatorsOwned);
 				} else if (child instanceof BPlusLeafTreeNode<?> leaf) {
@@ -4590,6 +4658,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Searches for the child index that should contain the given key.
 		 *
+		 * The separator array is read into a local and the binary search is bounded by **that** local's length, not
+		 * by `peek` alone: the two are independent reads, and since {@code 0551b8e06} the array is sized to the live
+		 * content and republished by `growTo` before `peek` is raised, so a reader with no happens-before edge to the
+		 * writer can hand the search a `peek` the array it also read cannot serve. `keys.length >= peek` holds for
+		 * every consistent observer, so the bound is a no-op on the write path and on any descent under a
+		 * transaction — see {@link TransactionalBucketBPlusTree#observableInternalPeek} for the full argument. It
+		 * costs one array-length read the search's own bounds checks already need.
+		 *
 		 * @param key the key to search for
 		 * @return the index of the child that should contain the specified key
 		 */
@@ -4597,15 +4673,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
-			if (layer == null) {
-				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
-				return insertionPosition.alreadyPresent() ?
-					insertionPosition.position() + 1 : insertionPosition.position();
-			} else {
-				final InsertionPosition insertionPosition = findKeyPosition(key, layer.keys, 0, layer.peek);
-				return insertionPosition.alreadyPresent() ?
-					insertionPosition.position() + 1 : insertionPosition.position();
-			}
+			final BPlusInternalTreeNode<M> source = layer == null ? this : layer;
+			final M[] theKeys = source.keys;
+			final InsertionPosition insertionPosition =
+				findKeyPosition(key, theKeys, 0, Math.min(source.peek, theKeys.length));
+			return insertionPosition.alreadyPresent() ?
+				insertionPosition.position() + 1 : insertionPosition.position();
 		}
 
 		/**
@@ -5363,9 +5436,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (this.overflow != null) {
 				size += this.overflow.getHeapSizeInBytes();
-				// bounded by the column's live run: every slot past it is `null` by contract, so there is nothing
-				// there for a walk to reach and nothing for the arithmetic to charge
-				final int overflowSize = this.overflow.size();
+				// bounded by the column's OBSERVABLE live run, exactly as the cursors bound themselves: every slot
+				// past the live run is `null` by contract, so there is nothing there for a walk to reach and nothing
+				// for the arithmetic to charge - and this walk reaches a request thread holding no session, so it
+				// must not trust a size the column's backing array may not yet be long enough to serve
+				final int overflowSize = this.overflow.observableLiveRun();
 				for (int i = 0; i < overflowSize; i++) {
 					final TransactionalBitmap bitmap = this.overflow.bitmapAt(i);
 					if (bitmap != null) {
@@ -7278,10 +7353,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						Assert.isPremiseValid(
 							currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
-						this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
+						final BPlusTreeNode<M, ?>[] levelChildren =
+							((BPlusInternalTreeNode<M>) currentNode).getChildren();
+						this.path[i] = levelChildren;
 						this.pathIndex[i] = 0;
-						this.pathPeeks[i] = currentNode.getPeek();
-						currentNode = this.path[i][0];
+						// the pair (array, peek) is stored here and consumed by a LATER call, so a stale peek would
+						// surface far from this line - bound it against the array it is stored beside
+						this.pathPeeks[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						currentNode = levelChildren[0];
 					}
 					this.currentIndex = 0;
 					loadCurrentLeaf();
@@ -7432,9 +7511,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
 						Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
-						this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
-						this.pathIndex[i] = currentNode.getPeek();
-						currentNode = this.path[i][this.pathIndex[i]];
+						final BPlusTreeNode<M, ?>[] levelChildren =
+							((BPlusInternalTreeNode<M>) currentNode).getChildren();
+						this.path[i] = levelChildren;
+						// `peek` is the rightmost child's index and is dereferenced on the very next line, against an
+						// array read a moment earlier - bound it by that array
+						this.pathIndex[i] = observableInternalPeek(currentNode.getPeek(), levelChildren);
+						currentNode = levelChildren[this.pathIndex[i]];
 					}
 					loadCurrentLeaf();
 					this.currentIndex = this.leafPeek;
