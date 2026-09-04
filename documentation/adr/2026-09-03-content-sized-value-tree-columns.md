@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-04 10:15
+updated: 2026-09-04 18:40
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -462,6 +462,12 @@ proportionally larger against a smaller total, and the census charged the tempor
   still hold their bucket count in a `TransactionalReference<Integer>`. That is deliberate, not an
   oversight: they exist in the thousands rather than the hundreds of thousands, so the same change there
   buys tens of kilobytes.
+  **Do not generalise this bullet past the bucket count.** It is a per-tree cost of ~56 B, and the
+  arithmetic that makes it not worth doing does not carry to structures that cost kilobytes per tree.
+  Applying it to *leaf sizing* would have been wrong by three orders of magnitude: content-sizing
+  `TransactionalLongBPlusTree`'s leaves was measured at **≈49.5 MB on the demo dataset** and is recorded
+  in `2026-09-04-long-keyed-tree-content-sizing`, which also declines the same change for
+  `TransactionalElementBPlusTree` on measured occupancy.
 - **The tree-side negative-count guard has no covering test.** It is unreachable through the public API
   — `removeRecord` for an absent key never touches the counter — and reaching it would need reflection
   or a test-only setter, both of which this project avoids. The identical invariant on the constructible
