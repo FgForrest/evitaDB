@@ -480,8 +480,10 @@ class EntityIndexHeapSizeTest {
 			"attributeIndex.uniqueViewIndex.transactionalLayerWrapper",
 			"facetIndex.dirtyIndexes",
 			"facetIndex.facetingEntities.transactionalLayerWrapper",
-			"hierarchyIndex.itemIndex.transactionalLayerWrapper",
-			"hierarchyIndex.levelIndex.transactionalLayerWrapper"
+			// both live inside the hierarchy index's lazily allocated node store; an index that never received a node
+			// has no store, and the path then resolves to nothing - which matches what the walk finds
+			"hierarchyIndex.nodeStore.itemIndex.transactionalLayerWrapper",
+			"hierarchyIndex.nodeStore.levelIndex.transactionalLayerWrapper"
 		};
 
 		@Test
