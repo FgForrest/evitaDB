@@ -209,7 +209,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 						// verify indexedPriceIds match expected
 						assertArrayEquals(
 							expectedIds,
-							committed.getIndexedPriceIds(),
+							committed.getIndexedPriceIds().getArray(),
 							"IndexedPriceIds mismatch.\n" + codeBuffer
 						);
 
@@ -449,7 +449,7 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 	@Nonnull
 	static PriceIndexSnapshot snapshot(@Nonnull PriceListAndCurrencyPriceRefIndex index) {
 		return new PriceIndexSnapshot(
-			toList(index.getIndexedPriceIds()),
+			toList(index.getIndexedPriceIds().getArray()),
 			toList(index.getIndexedPriceEntityIds().getArray()),
 			toRecordList(index.getPriceRecords())
 		);

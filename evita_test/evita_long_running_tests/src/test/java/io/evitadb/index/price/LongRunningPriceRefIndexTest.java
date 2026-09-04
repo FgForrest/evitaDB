@@ -408,7 +408,7 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 	@Nonnull
 	private static PriceIndexSnapshot leafSnapshot(@Nonnull PriceListAndCurrencyPriceRefIndex index) {
 		return new PriceIndexSnapshot(
-			toList(index.getIndexedPriceIds()),
+			toList(index.getIndexedPriceIds().getArray()),
 			toList(index.getIndexedPriceEntityIds().getArray()),
 			toRecordList(index.getPriceRecords())
 		);

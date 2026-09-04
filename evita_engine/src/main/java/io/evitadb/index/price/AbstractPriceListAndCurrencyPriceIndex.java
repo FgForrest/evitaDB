@@ -59,8 +59,6 @@ import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
-
 /**
  * Abstract base class for price list and currency price indexes. Contains shared fields and methods
  * common to both {@link PriceListAndCurrencyPriceSuperIndex} (catalog-wide, holds full data) and
@@ -144,10 +142,6 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 * Contains flags that makes the index terminated and unusable.
 	 */
 	protected final TransactionalBoolean terminated;
-	/**
-	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
-	 */
-	@Nullable protected int[] memoizedIndexedPriceIds;
 
 	/**
 	 * Creates an empty index for the given price index key.
@@ -164,7 +158,8 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 
 	/**
 	 * Creates an index from deserialized data with full price records.
-	 * Computes entity id and price id bitmaps from the price records.
+	 * Computes entity id and price id bitmaps from the price records; both scratch arrays are consumed by the bitmaps
+	 * and retained by nothing afterwards.
 	 */
 	protected AbstractPriceListAndCurrencyPriceIndex(
 		@Nonnull PriceIndexKey priceIndexKey,
@@ -187,13 +182,16 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 
 		this.indexedPriceEntityIds = new TransactionalBitmap(entityIds);
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
-		this.memoizedIndexedPriceIds = priceIds;
 	}
 
 	/**
 	 * Creates a minimal index from deserialized data with only price ids and validity.
 	 * Entity ids and price records are left uninitialized and must be set later
 	 * (e.g. during catalog attachment in {@link PriceListAndCurrencyPriceRefIndex}).
+	 *
+	 * `priceIds` is READ to seed {@link #indexedPriceIds} and then dropped - the index keeps no reference to the array
+	 * the storage part handed over, so it becomes garbage as soon as this constructor returns. This is the production
+	 * cold-load shape (reached from `PriceRefIndexLoader`) and the one that used to retain a second copy of every id.
 	 */
 	protected AbstractPriceListAndCurrencyPriceIndex(
 		@Nonnull PriceIndexKey priceIndexKey,
@@ -205,7 +203,6 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
-		this.memoizedIndexedPriceIds = priceIds;
 	}
 
 	/**
@@ -297,22 +294,25 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	}
 
 	/**
-	 * Method returns condensed bitmap of all {@link PriceRecordContract#internalPriceId()}
-	 * that can be used for the faster search for appropriate {@link PriceRecordContract} by the internal price id.
+	 * Returns the live condensed bitmap of every {@link PriceRecordContract#internalPriceId()} this index holds, used
+	 * to look a {@link PriceRecordContract} up by its internal price id.
+	 *
+	 * The bitmap itself is handed out - never a materialized `int[]` copy of it - which is what makes this method free.
+	 * It used to return an array memoized in a field alongside the bitmap, a duplicate of the same ids that both cold-load
+	 * constructors filled eagerly for a single cold defensive caller; on a production e-commerce catalog holding 283,275
+	 * price indexes over 33,806,439 indexed price references that memo cost up to about 140 MB of heap that the bitmap
+	 * already accounted for. Returning the bitmap removes both the duplicate and the per-call allocation an on-demand
+	 * `getArray()` would have replaced it with, and mirrors {@link #getIndexedPriceEntityIds()}, which has always exposed
+	 * its bitmap the same way. Callers that genuinely need an array ask the returned bitmap for one.
+	 *
+	 * The returned instance is this index's own {@link TransactionalBitmap}, so reads through it observe the transactional
+	 * overlay of the calling transaction, exactly as the array form did.
 	 */
 	@Nonnull
 	@Override
-	public int[] getIndexedPriceIds() {
+	public Bitmap getIndexedPriceIds() {
 		assertNotTerminated();
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return this.indexedPriceIds.getArray();
-		} else {
-			if (this.memoizedIndexedPriceIds == null) {
-				this.memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
-			}
-			return this.memoizedIndexedPriceIds;
-		}
+		return this.indexedPriceIds;
 	}
 
 	@Nonnull
@@ -477,9 +477,9 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	protected long getBaseHeapSizeInBytes(@Nonnull ToLongFunction<Object> priceRecordSizer, long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
 		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords
-		// /terminated/memoizedIndexedPriceIds slots, plus whatever the concrete subclass declares - the instance
-		// carries ONE header, so the whole hierarchy's fields are sized in a single call
-		long size = layout.sizeOfObject(Long.BYTES + 8L * layout.referenceSize() + ownFieldBytes);
+		// /terminated slots, plus whatever the concrete subclass declares - the instance carries ONE header, so the
+		// whole hierarchy's fields are sized in a single call
+		long size = layout.sizeOfObject(Long.BYTES + 7L * layout.referenceSize() + ownFieldBytes);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.terminated.getHeapSizeInBytes();
 		size += this.indexedPriceIds.getHeapSizeInBytes();
@@ -490,9 +490,6 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		}
 		if (this.priceRecords != null) {
 			size += this.priceRecords.getHeapSizeInBytes(priceRecordSizer);
-		}
-		if (this.memoizedIndexedPriceIds != null) {
-			size += layout.sizeOfArray(this.memoizedIndexedPriceIds.length, Integer.BYTES);
 		}
 		return size;
 	}
@@ -532,14 +529,14 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	}
 
 	/**
-	 * Marks the index as dirty and invalidates the memoized price ids cache.
-	 * Should be called after any mutation (add/remove price).
+	 * Marks the index as dirty so the next flush persists it. Must be called after any mutation (add / remove price).
+	 *
+	 * It used to also null out a memoized copy of {@link #getIndexedPriceIds()}; that memo is gone, so setting the flag
+	 * is now everything this does and the name says so. The name matches {@link io.evitadb.index.attribute.FilterIndex}'s
+	 * hook of the same purpose rather than inventing a second word for it.
 	 */
-	protected void markDirtyAndInvalidateCache() {
+	protected void markDirty() {
 		this.dirty.setToTrue();
-		if (!isTransactionAvailable()) {
-			this.memoizedIndexedPriceIds = null;
-		}
 	}
 
 	/**

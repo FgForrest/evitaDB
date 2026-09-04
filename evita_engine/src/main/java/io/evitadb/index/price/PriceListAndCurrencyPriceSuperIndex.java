@@ -232,7 +232,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 		// add price to the translation tree (keyed by internal price id)
 		this.priceRecords.insert(priceRecord);
 		// make index dirty
-		markDirtyAndInvalidateCache();
+		markDirty();
 	}
 
 	/**
@@ -259,7 +259,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 		// remove validity
 		removeValidity(validity, priceRecord.internalPriceId());
 		// make index dirty
-		markDirtyAndInvalidateCache();
+		markDirty();
 	}
 
 	@Nonnull

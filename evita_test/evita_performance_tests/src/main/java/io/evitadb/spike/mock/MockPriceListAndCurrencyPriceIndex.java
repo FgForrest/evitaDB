@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceSuperIndex;
@@ -50,7 +51,8 @@ import java.util.function.IntConsumer;
  *
  * Only {@link #getInternalPriceIdsForEntity(int)}, {@link #getPriceRecords()}, and
  * {@link #getIndexedPriceIds()} are implemented — all other methods throw
- * {@link UnsupportedOperationException}.
+ * {@link UnsupportedOperationException}. The indexed price ids are kept in a {@link BaseBitmap},
+ * which gives the ascending, de-duplicated set the real index returns.
  *
  * **Note:** This class is only used by {@link EntityIdsState}, which itself is not referenced
  * by any benchmark in {@link io.evitadb.spike.FormulaCostMeasurement}.
@@ -60,12 +62,12 @@ import java.util.function.IntConsumer;
 public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyPriceIndex<MockPriceListAndCurrencyPriceIndex> {
 	@Serial private static final long serialVersionUID = -1343396298549809991L;
 	private final transient IntObjectHashMap<int[]> priceIdsIndex;
-	private int[] priceRecordIds;
+	private final BaseBitmap priceRecordIds;
 	private PriceRecordContract[] priceRecords;
 
 	public MockPriceListAndCurrencyPriceIndex(int entityCount) {
 		this.priceIdsIndex = new IntObjectHashMap<>(entityCount);
-		this.priceRecordIds = new int[0];
+		this.priceRecordIds = new BaseBitmap();
 	}
 
 	public void recordPrice(PriceRecordContract price) {
@@ -73,7 +75,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords,
 			                                                                           PriceRecordContract.PRICE_RECORD_COMPARATOR
 		);
-		this.priceRecordIds = ArrayUtils.insertIntIntoOrderedArray(price.innerRecordId(), this.priceRecordIds);
+		this.priceRecordIds.add(price.innerRecordId());
 
 		final int entityId = price.entityPrimaryKey();
 		final int[] existingPriceIds = this.priceIdsIndex.get(entityId);
@@ -160,7 +162,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	@Nonnull
 	@Override
-	public int[] getIndexedPriceIds() {
+	public Bitmap getIndexedPriceIds() {
 		return this.priceRecordIds;
 	}
 

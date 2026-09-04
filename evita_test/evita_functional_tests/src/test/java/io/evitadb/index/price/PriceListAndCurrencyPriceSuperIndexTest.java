@@ -278,7 +278,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					);
 					assertArrayEquals(
 						new int[]{1, 2},
-						committed.getIndexedPriceIds()
+						committed.getIndexedPriceIds().getArray()
 					);
 				}
 			);
@@ -422,7 +422,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					);
 
 					// indexedPriceIds
-					assertArrayEquals(new int[]{5}, committed.getIndexedPriceIds());
+					assertArrayEquals(new int[]{5}, committed.getIndexedPriceIds().getArray());
 				}
 			);
 		}
@@ -516,47 +516,45 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		}
 
 		@Test
-		@DisplayName("addPrice invalidates memoizedIndexedPriceIds cache")
-		void shouldInvalidateMemoizedCacheOnAdd() {
+		@DisplayName("addPrice shows up in the live indexed price id bitmap")
+		void shouldReflectAnAddedPriceInTheIndexedPriceIds() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
 			tested.addPrice(createPriceRecord(1, 1, 100), null);
 
-			// read to populate cache
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1}, firstRead);
+			// the bitmap handed out is the index's own, so a reference taken before the mutation sees it afterwards -
+			// which is exactly what the deleted int[] memo could not do without being invalidated on every write
+			final Bitmap heldAcrossTheMutation = tested.getIndexedPriceIds();
+			assertArrayEquals(new int[]{1}, heldAcrossTheMutation.getArray());
 
-			// add another price -- cache should be invalidated
 			tested.addPrice(createPriceRecord(2, 2, 200), null);
 
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1, 2}, secondRead);
+			assertArrayEquals(new int[]{1, 2}, heldAcrossTheMutation.getArray());
+			assertArrayEquals(new int[]{1, 2}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
-		@DisplayName("removePrice invalidates memoizedIndexedPriceIds cache")
-		void shouldInvalidateMemoizedCacheOnRemove() {
+		@DisplayName("removePrice shows up in the live indexed price id bitmap")
+		void shouldReflectARemovedPriceInTheIndexedPriceIds() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
 			tested.addPrice(createPriceRecord(1, 1, 100), null);
 			tested.addPrice(createPriceRecord(2, 2, 200), null);
 
-			// read to populate cache
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{1, 2}, firstRead);
+			final Bitmap heldAcrossTheMutation = tested.getIndexedPriceIds();
+			assertArrayEquals(new int[]{1, 2}, heldAcrossTheMutation.getArray());
 
-			// remove a price -- cache should be invalidated
 			tested.removePrice(100, 1, null);
 
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{2}, secondRead);
+			assertArrayEquals(new int[]{2}, heldAcrossTheMutation.getArray());
+			assertArrayEquals(new int[]{2}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
 		@DisplayName(
-			"memoizedIndexedPriceIds re-populates from indexedPriceIds"
+			"a cold-loaded index hands out its own bitmap and keeps no second copy of the ids"
 		)
-		void shouldRepopulateMemoizedIndexedPriceIds() {
+		void shouldHandOutTheLiveBitmapAfterAColdLoad() {
 			final PriceRecordContract price = createPriceRecord(5, 5, 42);
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(
@@ -564,13 +562,13 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 					new PriceRecordContract[]{price}
 				);
 
-			// constructor pre-populates memoizedIndexedPriceIds
-			final int[] firstRead = tested.getIndexedPriceIds();
-			assertArrayEquals(new int[]{5}, firstRead);
+			assertArrayEquals(new int[]{5}, tested.getIndexedPriceIds().getArray());
 
-			// second read should return the same cached array
-			final int[] secondRead = tested.getIndexedPriceIds();
-			assertSame(firstRead, secondRead);
+			// every read returns the very same live structure - there is no per-call materialization, and no eagerly
+			// built int[] duplicate of the ids the bitmap already holds
+			assertSame(tested.getIndexedPriceIds(), tested.getIndexedPriceIds());
+			// an array taken off it is freshly built each time, which is what proves nothing is cached behind it
+			assertNotSame(tested.getIndexedPriceIds().getArray(), tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -1037,7 +1035,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			);
 			assertArrayEquals(
 				new int[]{10, 20},
-				tested.getIndexedPriceIds()
+				tested.getIndexedPriceIds().getArray()
 			);
 
 			// remove one price

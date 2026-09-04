@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -638,8 +639,8 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	class NonTransactionalModeTest {
 
 		@Test
-		@DisplayName("getIndexedPriceIds memo-cache path outside transaction")
-		void shouldUseMemoizedPriceIdsOutsideTransaction() {
+		@DisplayName("getIndexedPriceIds hands out the live bitmap outside a transaction")
+		void shouldHandOutTheLivePriceIdBitmapOutsideTransaction() {
 			final PriceSuperIndex tested = new PriceSuperIndex();
 			tested.addPrice(
 				null, 1, 1,
@@ -653,11 +654,12 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 				tested.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 			assertNotNull(subIndex);
 
-			// first call populates cache
-			final int[] firstCall = subIndex.getIndexedPriceIds();
-			// second call should return cached result
-			final int[] secondCall = subIndex.getIndexedPriceIds();
+			// both calls return the index's own bitmap - nothing is materialized per call, and nothing is memoized
+			// alongside it, so there is no cache to go stale and none to pay for
+			final Bitmap firstCall = subIndex.getIndexedPriceIds();
+			final Bitmap secondCall = subIndex.getIndexedPriceIds();
 			assertSame(firstCall, secondCall);
+			assertArrayEquals(new int[]{1}, firstCall.getArray());
 		}
 
 		@Test

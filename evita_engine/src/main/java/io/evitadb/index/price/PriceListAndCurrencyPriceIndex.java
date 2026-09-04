@@ -65,10 +65,14 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	Bitmap getIndexedPriceEntityIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
-	 * Returns bitmap of all indexed price ids.
+	 * Returns the bitmap of all indexed internal price ids.
+	 *
+	 * The bitmap is returned as-is rather than as a materialized `int[]`: implementations already hold one, so this
+	 * costs nothing and no caller pays for a copy it did not ask for. Callers that need an array call
+	 * {@link Bitmap#getArray()} on the result and own the cost of doing so.
 	 */
 	@Nonnull
-	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
+	Bitmap getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Materializes the price records for the passed id bitmap into an array, in ascending key order.

@@ -344,7 +344,7 @@ class LongRunningPriceSuperIndexTest implements TimeBoundedTestSupport {
 	@Nonnull
 	static PriceIndexSnapshot snapshot(@Nonnull PriceListAndCurrencyPriceSuperIndex index) {
 		return new PriceIndexSnapshot(
-			toList(index.getIndexedPriceIds()),
+			toList(index.getIndexedPriceIds().getArray()),
 			toList(index.getIndexedPriceEntityIds().getArray()),
 			toRecordList(index.getPriceRecords())
 		);

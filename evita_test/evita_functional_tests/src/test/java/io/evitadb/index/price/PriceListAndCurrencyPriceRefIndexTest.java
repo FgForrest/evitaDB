@@ -179,7 +179,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract[] priceRecords = tested.getPriceRecords();
 			assertEquals(3, priceRecords.length);
 			assertArrayEquals(new int[]{100, 200, 300}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{1, 2, 3}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{1, 2, 3}, tested.getIndexedPriceIds().getArray());
 		}
 
 		@Test
@@ -204,7 +204,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final PriceRecordContract[] priceRecords = tested.getPriceRecords();
 			assertEquals(2, priceRecords.length);
 			assertArrayEquals(new int[]{100, 300}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{1, 3}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{1, 3}, tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -241,7 +241,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{10},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(1, PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getPriceRecords().length);
 		}
@@ -303,7 +303,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{10, 20},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(
 				2,
@@ -378,7 +378,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			);
 			assertArrayEquals(
 				new int[]{20},
-				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds()
+				PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getIndexedPriceIds().getArray()
 			);
 			assertEquals(
 				1,
@@ -551,7 +551,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 			tested.removePrice(5, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{99}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds().getArray());
 		}
 	}
 
@@ -800,7 +800,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 					);
 					assertArrayEquals(
 						new int[]{10},
-						committed.getIndexedPriceIds()
+						committed.getIndexedPriceIds().getArray()
 					);
 					// original is unchanged (empty)
 					assertTrue(original.isEmpty());
