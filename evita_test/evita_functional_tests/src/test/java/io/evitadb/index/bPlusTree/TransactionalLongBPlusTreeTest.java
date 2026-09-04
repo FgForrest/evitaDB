@@ -3743,6 +3743,59 @@ class TransactionalLongBPlusTreeTest {
 			);
 		}
 
+		@Test
+		@DisplayName("a forward iterator opened from a key stays inside the array it read")
+		void shouldBoundKeyedForwardIterationWhenPeekRunsAheadOfTheArrays() {
+			// the keyed constructors are the one reader that cannot delegate to the guarded `loadCurrentLeaf()`:
+			// Java needs their start position before the `super(...)` that runs it. Left ungurded they searched a
+			// `getKeys()` bounded by a separately resolved `size()`, which on this leaf is a range of 5 over an
+			// array of 4 - `Arrays.binarySearch` range-checks that and throws before it compares anything
+			final List<String> forward = new ArrayList<>();
+			final Iterator<String> it = tornSingleLeafTree().greaterOrEqualValueIterator(2L);
+			while (it.hasNext()) {
+				forward.add(it.next());
+			}
+			assertEquals(
+				List.of("Value2", "Value3"), forward,
+				"a keyed forward walk must start at its key and stop at the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("a forward iterator opened past the last key yields nothing rather than running off the array")
+		void shouldBoundKeyedForwardIterationPastTheLastKey() {
+			// the key lands in the phantom slot the raised peek claims and the array does not carry
+			final Iterator<String> it = tornSingleLeafTree().greaterOrEqualValueIterator(9L);
+			assertFalse(it.hasNext(), "no live key is greater than 9, so the walk must be empty");
+		}
+
+		@Test
+		@DisplayName("a reverse iterator opened from a key stays inside the array it read")
+		void shouldBoundKeyedReverseIterationWhenPeekRunsAheadOfTheArrays() {
+			final List<String> reverse = new ArrayList<>();
+			final Iterator<String> it = tornSingleLeafTree().lesserOrEqualValueIterator(9L);
+			while (it.hasNext()) {
+				reverse.add(it.next());
+			}
+			assertEquals(
+				List.of("Value3", "Value2", "Value1", "Value0"), reverse,
+				"a keyed reverse walk opened past the end must fall back onto the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("a keyed entry iterator stays inside the array it read")
+		void shouldBoundKeyedEntryIterationWhenPeekRunsAheadOfTheArrays() {
+			// the entry iterators reach the same two constructors through a different subclass, so they are asserted
+			// separately rather than assumed to follow from the value iterators
+			final Iterator<Entry<String>> it = tornSingleLeafTree().greaterOrEqualEntryIterator(3L);
+			assertTrue(it.hasNext(), "the last live key must still be reachable");
+			final Entry<String> entry = it.next();
+			assertEquals(3L, entry.key(), "the keyed entry walk must start at its key");
+			assertEquals("Value3", entry.value());
+			assertFalse(it.hasNext(), "and must stop at the live run");
+		}
+
 	}
 
 }

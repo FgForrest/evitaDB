@@ -3349,6 +3349,42 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
+		/**
+		 * Resolves the insertion position of the given key in this leaf's (transaction-aware) key array. Used by the
+		 * keyed-start iterators, which need only the primitive position and present flag.
+		 *
+		 * It exists so those iterators cannot compute that position from a `getKeys()` and a `size()` resolved
+		 * independently of each other — the shape {@link #observableLeafPeek} was written to close, and the one shape
+		 * a keyed iterator could not delegate to {@code loadCurrentLeaf()}, because Java requires the position before
+		 * the {@code super(...)} that would run it. The sibling {@code TransactionalElementBPlusTree} carries a method
+		 * of the same name for the same reason.
+		 *
+		 * @param key the key to locate
+		 * @return the insertion position of the key within this leaf, bounded by the arrays it was read from
+		 */
+		@Nonnull
+		public InsertionPosition findKeyPosition(long key) {
+			final long[] theKeys;
+			final V[] theValues;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
+			if (layer == null) {
+				theKeys = this.keys;
+				theValues = this.values;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theValues = layer.values;
+				thePeek = layer.peek;
+			}
+
+			return computeInsertPositionOfLongInOrderedArray(
+				key, theKeys, 0, observableLeafPeek(thePeek, theKeys, theValues) + 1);
+		}
+
 		@Override
 		public String toString() {
 			final StringBuilder sb = new StringBuilder(64);
@@ -3723,12 +3759,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractForwardTreeIterator(@Nonnull Cursor cursor, long key) {
-			super(
-				cursor,
-				computeInsertPositionOfLongInOrderedArray(
-					key, ((LongKeyedNode) cursor.leafNode()).getKeys(), 0, cursor.leafNode().size()
-				)
-			);
+			// the leaf resolves its own key array, value array and peek together and bounds the search by them.
+			// Reading `getKeys()` and `size()` here instead would be two independent resolutions of the leaf's state,
+			// so a size raised by a growth could be paired with the shorter array that preceded it and the binary
+			// search would probe past its end
+			super(cursor, cursor.<BPlusLeafTreeNode<V>>leafNode().findKeyPosition(key));
 		}
 
 		@Override
@@ -3777,12 +3812,9 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractReverseTreeIterator(@Nonnull Cursor cursor, long key) {
-			super(
-				cursor,
-				computeInsertPositionOfLongInOrderedArray(
-					key, ((LongKeyedNode) cursor.leafNode()).getKeys(), 0, cursor.leafNode().size()
-				)
-			);
+			// see the forward sibling: the position must come from the leaf's own bounded seek, never from a
+			// `getKeys()` paired with a separately resolved `size()`
+			super(cursor, cursor.<BPlusLeafTreeNode<V>>leafNode().findKeyPosition(key));
 		}
 
 		@Override
