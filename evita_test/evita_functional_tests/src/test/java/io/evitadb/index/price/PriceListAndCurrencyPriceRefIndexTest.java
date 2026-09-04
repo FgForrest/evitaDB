@@ -59,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 
@@ -584,6 +585,18 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			final GenericEvitaInternalError exception = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.getLowestPriceRecordsForEntity(42)
+			);
+			assertTrue(exception.getMessage().contains("super price index"));
+		}
+
+		@Test
+		@DisplayName("should reject forEachLowestPriceRecordOfEntity through the inherited default")
+		void shouldRejectForEachLowestPriceRecordOfEntity() {
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> PriceListAndCurrencyPriceRefIndexTest.this.refIndex.forEachLowestPriceRecordOfEntity(
+					42, priceRecord -> fail("no price record may be handed out by a reduced index!")
+				)
 			);
 			assertTrue(exception.getMessage().contains("super price index"));
 		}

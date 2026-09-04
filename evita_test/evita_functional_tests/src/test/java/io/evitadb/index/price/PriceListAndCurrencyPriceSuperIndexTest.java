@@ -59,8 +59,10 @@ import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.List;
 import java.util.Random;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
@@ -900,6 +902,62 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			assertInstanceOf(PriceIndexContainerFormula.class, formula);
 		}
+	}
+
+	/**
+	 * Tests pinning that the allocation-free lowest-price lookup reports exactly what the array-returning one does.
+	 */
+	@Nested
+	@DisplayName("Streaming lowest-price lookup")
+	class StreamingLowestPriceLookupTest {
+
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() streams what the array form returns")
+		void shouldStreamWhatTheArrayFormReturns() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+			tested.addPrice(createPriceRecord(20, 20, 42), null);
+
+			final List<PriceRecordContract> streamed = new ArrayList<>();
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(42, streamed::add);
+
+			assertTrue(found);
+			assertArrayEquals(
+				tested.getLowestPriceRecordsForEntity(42),
+				streamed.toArray(PriceRecordContract[]::new)
+			);
+		}
+
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() streams the single price of a one-price entity")
+		void shouldStreamTheSinglePriceOfAOnePriceEntity() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+
+			final List<PriceRecordContract> streamed = new ArrayList<>();
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(42, streamed::add);
+
+			assertTrue(found);
+			assertEquals(1, streamed.size());
+			assertEquals(10, streamed.get(0).internalPriceId());
+		}
+
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() reports false and streams nothing for an unknown entity")
+		void shouldReportNothingForUnknownEntity() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(
+				999, priceRecord -> Assertions.fail("entity 999 has no price in this index!")
+			);
+
+			assertFalse(found);
+		}
+
 	}
 
 	/**

@@ -32,6 +32,7 @@ import io.evitadb.utils.VMLayout;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.function.Consumer;
 
 /**
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
@@ -39,6 +40,20 @@ import javax.annotation.concurrent.ThreadSafe;
  *
  * This implementation of {@link EntityPrices} maintains the simplest form of entity prices - it holds only single price
  * no matter whether it is {@link PriceRecord#isInnerRecordSpecific()} or not.
+ *
+ * # Why the price is a scalar and not a one-element array
+ *
+ * This is by far the most numerous {@link EntityPrices} shape: an entity normally carries exactly one price per
+ * price-list and currency combination, so a production catalog holds millions of these holders and only a handful of
+ * the richer ones. A one-element `PriceRecordContract[]` plus a one-element `int[]` cost two array headers on top of
+ * this object - three heap objects where one suffices, and the two arrays together outweigh the holder itself.
+ *
+ * The price and its {@link PriceRecordContract#internalPriceId()} are therefore stored as plain fields, and the two
+ * array-returning accessors ({@link #getLowestPriceRecords()}, {@link #getInternalPriceIds()}) build their
+ * one-element answer on demand. Callers on the query and mutation paths use the non-allocating accessors
+ * ({@link #getLowestPriceRecordCount()}, {@link #forEachLowestPriceRecord(Consumer)},
+ * {@link #getInternalPriceId(int)}) instead, so the built arrays are reached only by cold callers - assertions,
+ * diagnostics and tests.
  */
 @ThreadSafe
 class SinglePriceEntityPrices extends EntityPrices {
@@ -47,72 +62,113 @@ class SinglePriceEntityPrices extends EntityPrices {
 	public static final EntityPrices EMPTY = new SinglePriceEntityPrices(null);
 
 	/**
-	 * Contains the price.
-	 * This particular data structure keeps always array of size 0 or 1.
+	 * Contains the single price of the entity, or `null` when this holder is the empty one.
 	 */
-	@Nonnull private final PriceRecordContract[] price;
+	@Nullable private final PriceRecordContract price;
 	/**
-	 * Contains array of all price ids ({@link PriceRecordContract#internalPriceId()} connected with this entity.
-	 * This particular data structure keeps always array of size 0 or 1.
+	 * Contains {@link PriceRecordContract#internalPriceId()} of {@link #price}, or `0` when there is no price.
+	 * Held next to the price rather than read through it so that the id-keyed lookups this holder answers most often
+	 * touch a single cache line and never dereference the shared price record.
 	 */
-	@Nonnull private final int[] internalPriceId;
+	private final int internalPriceId;
 
 	SinglePriceEntityPrices(@Nullable PriceRecordContract priceRecord) {
-		this.price = priceRecord == null ? NO_PRICES : new PriceRecordContract[] {priceRecord};
-		this.internalPriceId = priceRecord == null ? NO_PRICE_IDS : new int[] {priceRecord.internalPriceId()};
+		this.price = priceRecord;
+		this.internalPriceId = priceRecord == null ? 0 : priceRecord.internalPriceId();
 	}
 
 	@Nullable
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
-		return this.price;
+		return this.price == null ? NO_PRICES : new PriceRecordContract[] {this.price};
+	}
+
+	@Override
+	public int getLowestPriceRecordCount() {
+		return this.price == null ? 0 : 1;
+	}
+
+	@Override
+	public void forEachLowestPriceRecord(@Nonnull Consumer<PriceRecordContract> priceConsumer) {
+		if (this.price != null) {
+			priceConsumer.accept(this.price);
+		}
 	}
 
 	@Override
 	public int getSize() {
-		return this.price.length;
+		return this.price == null ? 0 : 1;
 	}
 
 	@Override
 	public boolean containsPriceRecord(int priceId) {
-		return this.price.length > 0 && this.price[0].priceId() == priceId;
+		return this.price != null && this.price.priceId() == priceId;
 	}
 
 	@Override
 	public boolean containsInnerRecord(int innerRecordId) {
-		return this.price.length > 0
-			&& this.price[0].isInnerRecordSpecific()
-			&& this.price[0].innerRecordId() == innerRecordId;
+		return this.price != null
+			&& this.price.isInnerRecordSpecific()
+			&& this.price.innerRecordId() == innerRecordId;
+	}
+
+	/**
+	 * Scans the passed triples for this holder's single internal price id directly. The inherited implementation
+	 * binary-searches an `int[]` of this holder's ids, which for a single price would mean allocating a one-element
+	 * array to search it - so the scalar comparison replaces it outright.
+	 *
+	 * @param priceTriples price records to test against this entity's price, ordered by internal price id
+	 * @return true when one of the triples is this entity's price
+	 */
+	@Override
+	public boolean containsAnyOf(@Nonnull PriceRecordContract[] priceTriples) {
+		if (this.price == null) {
+			return false;
+		}
+		for (final PriceRecordContract priceTriple : priceTriples) {
+			if (priceTriple.internalPriceId() == this.internalPriceId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Nonnull
 	@Override
 	public int[] getInternalPriceIds() {
+		return this.price == null ? NO_PRICE_IDS : new int[] {this.internalPriceId};
+	}
+
+	@Override
+	public int getInternalPriceId(int index) {
+		if (index != 0 || this.price == null) {
+			throw new IndexOutOfBoundsException(
+				"Index " + index + " is out of bounds for entity prices holding " + getSize() + " price(s)!"
+			);
+		}
 		return this.internalPriceId;
 	}
 
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] getAllPrices() {
-		return this.price;
+		return this.price == null ? NO_PRICES : new PriceRecordContract[] {this.price};
 	}
 
 	@Override
 	protected boolean isInnerRecordSpecific() {
-		return this.price.length > 0 && this.price[0].isInnerRecordSpecific();
+		return this.price != null && this.price.isInnerRecordSpecific();
 	}
 
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract priceRecord) {
-		if (this.price.length == 0) {
+		if (this.price == null) {
 			return new PriceRecordContract[] {priceRecord};
+		} else if (PRICE_ID_COMPARATOR.compare(priceRecord, this.price) >= 0) {
+			return new PriceRecordContract[] {this.price, priceRecord};
 		} else {
-			if (PRICE_ID_COMPARATOR.compare(priceRecord, this.price[0]) >= 0) {
-				return new PriceRecordContract[]{this.price[0], priceRecord};
-			} else {
-				return new PriceRecordContract[]{priceRecord, this.price[0]};
-			}
+			return new PriceRecordContract[] {priceRecord, this.price};
 		}
 	}
 
@@ -120,27 +176,26 @@ class SinglePriceEntityPrices extends EntityPrices {
 	@Override
 	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract priceRecord) {
 		Assert.isTrue(
-			this.price.length > 0 && priceRecord.internalPriceId() == this.price[0].internalPriceId(),
+			this.price != null && priceRecord.internalPriceId() == this.internalPriceId,
 			"Price with id `" + priceRecord.priceId() + "` (internal id `" + priceRecord.internalPriceId() + "`) was not found!"
 		);
 		return EMPTY_PRICES;
 	}
 
 	/**
-	 * Returns the heap this wrapper occupies, in bytes — its own object and its arrays, never the price records
-	 * they point at, which the owning super index's price-record tree charges.
+	 * Returns the heap this wrapper occupies, in bytes - its own object alone, never the price record it points at,
+	 * which the owning super index's price-record tree charges.
 	 *
-	 * Here one price, so the lowest price IS that price - there is no second array to alias it.
+	 * Unlike the multi-price shapes this holder owns no array at all: the single price is a field, its internal price
+	 * id is a field, and the one-element arrays the array-returning accessors hand out belong to their callers.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the price and internalPriceId slots
-		return layout.sizeOfObject(2L * layout.referenceSize())
-			+ layout.sizeOfArray(this.price.length, layout.referenceSize())
-			+ layout.sizeOfArray(this.internalPriceId.length, Integer.BYTES);
+		// the price reference and the internalPriceId int
+		return layout.sizeOfObject((long) layout.referenceSize() + Integer.BYTES);
 	}
 
 }

@@ -146,6 +146,33 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
+	 * Streams what {@link #getLowestPriceRecordsForEntity(int)} would return to `priceConsumer`, in the very same
+	 * order, without materializing the array. Prefer this on any path that runs per entity of a result set: the
+	 * overwhelmingly common case is an entity with exactly one price here, whose holder keeps that price as a field
+	 * and would have to build a one-element array to answer the array form.
+	 *
+	 * The default implementation falls back to the array form for indexes that have no cheaper route; the super price
+	 * index, which owns the entity-to-prices mapping, overrides it with the allocation-free one.
+	 *
+	 * @param priceConsumer receives each of the entity's lowest price records, ordered by internal price id
+	 * @return true when the entity has at least one price in this index (and `priceConsumer` was therefore called),
+	 * false when it has none (and `priceConsumer` was not called at all)
+	 */
+	default boolean forEachLowestPriceRecordOfEntity(
+		int entityId,
+		@Nonnull Consumer<PriceRecordContract> priceConsumer
+	) throws PriceListAndCurrencyPriceIndexTerminated {
+		final PriceRecordContract[] lowestPriceRecords = getLowestPriceRecordsForEntity(entityId);
+		if (lowestPriceRecords == null || lowestPriceRecords.length == 0) {
+			return false;
+		}
+		for (final PriceRecordContract lowestPriceRecord : lowestPriceRecords) {
+			priceConsumer.accept(lowestPriceRecord);
+		}
+		return true;
+	}
+
+	/**
 	 * Returns array of all prices in this index ordered by price id in ascending order.
 	 */
 	@Nonnull

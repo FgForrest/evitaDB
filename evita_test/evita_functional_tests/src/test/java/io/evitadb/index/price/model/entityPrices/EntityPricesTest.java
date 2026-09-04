@@ -31,9 +31,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
@@ -659,6 +663,155 @@ class EntityPricesTest {
 				() -> EntityPrices.removePrice(two, nonExistent)
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Allocation-free accessors")
+	class AllocationFreeAccessorsTest {
+
+		@Test
+		@DisplayName("should agree with the array form on a single-price entity")
+		void shouldAgreeOnSinglePrice() {
+			assertAccessorsAgree(EntityPrices.create(createPlainPrice(5, 200, 250)));
+		}
+
+		@Test
+		@DisplayName("should agree with the array form on a multiple-price entity")
+		void shouldAgreeOnMultiplePrices() {
+			final EntityPrices multiple = EntityPrices.addPriceRecord(
+				EntityPrices.addPriceRecord(
+					EntityPrices.create(createPlainPrice(1, 300, 350)),
+					createPlainPrice(2, 100, 120)
+				),
+				createPlainPrice(3, 200, 250)
+			);
+
+			assertInstanceOf(MultiplePriceEntityPrices.class, multiple);
+			assertAccessorsAgree(multiple);
+		}
+
+		@Test
+		@DisplayName("should agree with the array form on a full-blown entity")
+		void shouldAgreeOnFullBlownPrices() {
+			final EntityPrices fullBlown = EntityPrices.addPriceRecord(
+				EntityPrices.addPriceRecord(
+					EntityPrices.create(createInnerRecordPrice(1, 10, 300, 350)),
+					createInnerRecordPrice(2, 10, 100, 120)
+				),
+				createInnerRecordPrice(3, 20, 200, 250)
+			);
+
+			assertInstanceOf(FullBlownEntityPrices.class, fullBlown);
+			assertAccessorsAgree(fullBlown);
+		}
+
+		@Test
+		@DisplayName("should agree with the array form on an empty entity")
+		void shouldAgreeOnEmpty() {
+			assertAccessorsAgree(SinglePriceEntityPrices.EMPTY);
+		}
+
+		@Test
+		@DisplayName("should reject an internal price id index outside the entity's prices")
+		void shouldRejectOutOfRangeInternalPriceIdIndex() {
+			final EntityPrices single = EntityPrices.create(createPlainPrice(5, 200, 250));
+
+			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceId(1));
+			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceId(-1));
+			assertThrows(
+				IndexOutOfBoundsException.class, () -> SinglePriceEntityPrices.EMPTY.getInternalPriceId(0)
+			);
+		}
+
+		@Test
+		@DisplayName("should hand out an array detached from the entity's own state")
+		void shouldHandOutDetachedArrays() {
+			final PriceRecordContract price = createPlainPrice(5, 200, 250);
+			final EntityPrices single = EntityPrices.create(price);
+
+			final PriceRecordContract[] lowestPrices = single.getLowestPriceRecords();
+			final int[] internalPriceIds = single.getInternalPriceIds();
+			lowestPrices[0] = createPlainPrice(9, 1, 1);
+			internalPriceIds[0] = 9;
+
+			assertEquals(5, single.getLowestPriceRecords()[0].priceId());
+			assertArrayEquals(new int[]{5}, single.getInternalPriceIds());
+			assertEquals(5, single.getInternalPriceId(0));
+		}
+
+		/**
+		 * Asserts that every allocation-free accessor reports exactly what its array-returning counterpart does.
+		 *
+		 * @param entityPrices the holder to cross-check
+		 */
+		private void assertAccessorsAgree(@Nonnull EntityPrices entityPrices) {
+			final PriceRecordContract[] lowestPriceRecords = entityPrices.getLowestPriceRecords();
+			assertNotNull(lowestPriceRecords);
+			assertEquals(lowestPriceRecords.length, entityPrices.getLowestPriceRecordCount());
+
+			final List<PriceRecordContract> streamed = new ArrayList<>(lowestPriceRecords.length);
+			entityPrices.forEachLowestPriceRecord(streamed::add);
+			assertArrayEquals(lowestPriceRecords, streamed.toArray(PriceRecordContract[]::new));
+
+			final int[] internalPriceIds = entityPrices.getInternalPriceIds();
+			assertEquals(internalPriceIds.length, entityPrices.getSize());
+			for (int i = 0; i < internalPriceIds.length; i++) {
+				assertEquals(internalPriceIds[i], entityPrices.getInternalPriceId(i));
+			}
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Heap footprint")
+	class HeapFootprintTest {
+
+		@Test
+		@DisplayName("should weigh one bare object for a single price")
+		void shouldWeighOneBareObjectForASinglePrice() {
+			final EntityPrices single = EntityPrices.create(createPlainPrice(5, 200, 250));
+
+			// the price record body belongs to the super index's price-record tree, never to this holder
+			assertMatchesMeasuredHeap(single.getHeapSizeInBytes(), single, "price");
+
+			// stated outright: a reference plus an int on a 12-byte header, padded - and no array of either kind.
+			// Before the price and its internal id became fields this was 72 bytes: the same 24-byte shell plus a
+			// one-element PriceRecordContract[] and a one-element int[] at 24 bytes each
+			final long expected = VMLayout.COMPRESSED.equals(VMLayout.current()) ? 24L : 32L;
+			assertEquals(expected, single.getHeapSizeInBytes());
+		}
+
+		@Test
+		@DisplayName("should weigh the same for an empty holder as for a filled one")
+		void shouldWeighTheSameWhenEmpty() {
+			final EntityPrices single = EntityPrices.create(createPlainPrice(5, 200, 250));
+
+			assertEquals(single.getHeapSizeInBytes(), SinglePriceEntityPrices.EMPTY.getHeapSizeInBytes());
+		}
+
+		@Test
+		@DisplayName("should shed both arrays again when a price is removed")
+		void shouldShedBothArraysWhenBackToOnePrice() {
+			final PriceRecordContract first = createPlainPrice(1, 300, 350);
+			final PriceRecordContract second = createPlainPrice(2, 100, 120);
+			final EntityPrices two = EntityPrices.addPriceRecord(EntityPrices.create(first), second);
+			assertInstanceOf(MultiplePriceEntityPrices.class, two);
+
+			final EntityPrices backToOne = EntityPrices.removePrice(two, second);
+
+			assertInstanceOf(SinglePriceEntityPrices.class, backToOne);
+			assertEquals(1, backToOne.getSize());
+			assertEquals(1, backToOne.getLowestPriceRecordCount());
+			assertEquals(1, backToOne.getInternalPriceId(0));
+			assertArrayEquals(new PriceRecordContract[]{first}, backToOne.getLowestPriceRecords());
+			assertTrue(
+				backToOne.getHeapSizeInBytes() < two.getHeapSizeInBytes(),
+				"dropping to one price must drop both arrays - " + backToOne.getHeapSizeInBytes() +
+					" vs " + two.getHeapSizeInBytes()
+			);
+			assertMatchesMeasuredHeap(backToOne.getHeapSizeInBytes(), backToOne, "price");
+		}
+
 	}
 
 	/**

@@ -229,13 +229,17 @@ public class PriceListAndCurrencyPriceRefIndex
 	 * the entity's internal price ids rather than by materializing the tree and scanning it - the
 	 * latter is O(tree size) in both time and allocation on a path that runs once per removed price.
 	 *
+	 * The ids are read one at a time through {@link EntityPrices#getInternalPriceId(int)} rather than through
+	 * {@link EntityPrices#getInternalPriceIds()}, because the single-price holder - the shape almost every entity
+	 * has - keeps its id as a plain field and would have to build a one-element array to answer the array form.
+	 *
 	 * @param entityPrices prices of the entity whose price is being removed
 	 * @return true when at least one price of the entity remains indexed here
 	 */
 	private boolean containsAnyPriceOf(@Nonnull EntityPrices entityPrices) {
-		final int[] internalPriceIds = entityPrices.getInternalPriceIds();
-		for (final int internalPriceId : internalPriceIds) {
-			if (this.priceRecords.search(internalPriceId) != null) {
+		final int priceCount = entityPrices.getSize();
+		for (int i = 0; i < priceCount; i++) {
+			if (this.priceRecords.search(entityPrices.getInternalPriceId(i)) != null) {
 				return true;
 			}
 		}
@@ -261,6 +265,10 @@ public class PriceListAndCurrencyPriceRefIndex
 	 *
 	 * Reaching this method therefore means a caller obtained the lowest-price lookup from the reduced index rather
 	 * than from the super index that backs it - a programming error, not a state to work around.
+	 *
+	 * The streaming variant {@link #forEachLowestPriceRecordOfEntity(int, java.util.function.Consumer)} is deliberately
+	 * left at its interface default, which routes through the array form below and therefore rejects the caller with
+	 * exactly the same error.
 	 */
 	@Nullable
 	@Override

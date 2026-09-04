@@ -29,6 +29,7 @@ import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.function.Consumer;
 
 /**
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
@@ -75,6 +76,18 @@ class MultiplePriceEntityPrices extends EntityPrices {
 	}
 
 	@Override
+	public int getLowestPriceRecordCount() {
+		return this.lowestPrice.length;
+	}
+
+	@Override
+	public void forEachLowestPriceRecord(@Nonnull Consumer<PriceRecordContract> priceConsumer) {
+		for (final PriceRecordContract lowestPriceRecord : this.lowestPrice) {
+			priceConsumer.accept(lowestPriceRecord);
+		}
+	}
+
+	@Override
 	public int getSize() {
 		return this.prices.length;
 	}
@@ -104,6 +117,11 @@ class MultiplePriceEntityPrices extends EntityPrices {
 	@Override
 	public int[] getInternalPriceIds() {
 		return this.internalPriceIds;
+	}
+
+	@Override
+	public int getInternalPriceId(int index) {
+		return this.internalPriceIds[index];
 	}
 
 	@Override

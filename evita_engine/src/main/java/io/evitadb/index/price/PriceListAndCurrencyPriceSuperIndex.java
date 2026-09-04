@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.of;
@@ -300,6 +301,25 @@ public class PriceListAndCurrencyPriceSuperIndex
 	public PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) {
 		assertNotTerminated();
 		return ofNullable(this.entityPrices.get(entityId)).map(EntityPrices::getLowestPriceRecords).orElse(null);
+	}
+
+	/**
+	 * Reads the entity's lowest price records straight out of its {@link EntityPrices} holder, so nothing is
+	 * allocated for an entity whose holder keeps a single price as a plain field - which is the shape of nearly every
+	 * holder in a real catalog, and this method runs once per entity of a result set.
+	 */
+	@Override
+	public boolean forEachLowestPriceRecordOfEntity(
+		int entityId,
+		@Nonnull Consumer<PriceRecordContract> priceConsumer
+	) {
+		assertNotTerminated();
+		final EntityPrices theEntityPrices = this.entityPrices.get(entityId);
+		if (theEntityPrices == null || theEntityPrices.getLowestPriceRecordCount() == 0) {
+			return false;
+		}
+		theEntityPrices.forEachLowestPriceRecord(priceConsumer);
+		return true;
 	}
 
 	@Nullable
