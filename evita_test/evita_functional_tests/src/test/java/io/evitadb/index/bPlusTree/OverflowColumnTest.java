@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -70,6 +71,18 @@ class OverflowColumnTest {
 	@Nonnull
 	private static TransactionalBitmap bitmap(int ordinal) {
 		return new TransactionalBitmap(1_000 + ordinal, 2_000 + ordinal);
+	}
+
+	/**
+	 * Builds a distinguishable sorted record array for the given ordinal - the slot shape a small bucket carries, and
+	 * the common one now that a bucket stays an array up to the promotion threshold.
+	 *
+	 * @param ordinal the ordinal to derive the array's content from
+	 * @return a three-record sorted array unique to the ordinal
+	 */
+	@Nonnull
+	private static int[] recordArray(int ordinal) {
+		return new int[]{100 + ordinal, 200 + ordinal, 300 + ordinal};
 	}
 
 	@Nested
@@ -523,6 +536,126 @@ class OverflowColumnTest {
 			for (int i = 0; i < 3; i++) {
 				assertEquals(bitmap(i), trimmed.recordsAt(i), "a trim must preserve the content at slot " + i);
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("array slots travel exactly as bitmap slots do")
+	class ArraySlots {
+
+		@Test
+		@DisplayName("a column mixing both slot shapes survives every slot move with each shape intact")
+		void shouldMoveMixedSlotShapesIntact() {
+			// the column is deliberately ignorant of the tier distinction, so the one thing worth proving is that it
+			// carries an int[] slot exactly as it carries a bitmap - by reference, without inspecting either
+			final OverflowColumn column = new OverflowColumn(BLOCK);
+			column.insertAt(0, recordArray(0));
+			column.insertAt(1, null);
+			column.insertAt(2, bitmap(2));
+
+			column.insertAt(1, recordArray(1));
+			assertArrayEquals(recordArray(0), (int[]) column.recordsAt(0));
+			assertArrayEquals(recordArray(1), (int[]) column.recordsAt(1));
+			assertNull(column.recordsAt(2));
+			assertEquals(bitmap(2), column.recordsAt(3));
+
+			column.removeAt(1);
+			assertArrayEquals(recordArray(0), (int[]) column.recordsAt(0));
+			assertNull(column.recordsAt(1));
+			assertEquals(bitmap(2), column.recordsAt(2));
+
+			column.setAt(1, recordArray(9));
+			assertArrayEquals(recordArray(9), (int[]) column.recordsAt(1));
+
+			// clearAt truncates the live run rather than blanking one slot, so both shapes past it are released
+			column.clearAt(1);
+			assertEquals(1, column.size());
+			assertArrayEquals(
+				recordArray(0), (int[]) column.recordsAt(0), "the surviving array slot must be untouched"
+			);
+			assertNull(column.recordsAt(1));
+			assertNull(column.recordsAt(2), "the truncated tail must release the bitmap slot too");
+		}
+
+		@Test
+		@DisplayName("a duplicate shares an array slot by identity and can replace it unobserved")
+		void shouldShareArraySlotsByIdentityAcrossADuplicate() {
+			// this is the array tier's half of the shallow-memento argument: an int[] slot is never written in place,
+			// so the pre-image a memento has to preserve is the REFERENCE, and sharing it is therefore safe
+			final OverflowColumn column = new OverflowColumn(BLOCK);
+			final int[] shared = recordArray(0);
+			column.insertAt(0, shared);
+			column.insertAt(1, bitmap(1));
+
+			final OverflowColumn copy = column.duplicate();
+			assertNotSame(column, copy);
+			assertSame(shared, copy.recordsAt(0), "the clone must be SHALLOW for an array slot too");
+
+			copy.setAt(0, recordArray(7));
+			assertSame(shared, column.recordsAt(0), "the source must not observe the copy's replacement");
+			assertArrayEquals(recordArray(7), (int[]) copy.recordsAt(0));
+		}
+
+		@Test
+		@DisplayName("duplicating for an insert and trimming both preserve array slots by identity")
+		void shouldPreserveArraySlotsAcrossDuplicateForInsertAndTrim() {
+			final OverflowColumn column = new OverflowColumn(BLOCK);
+			final int[] first = recordArray(0);
+			final int[] second = recordArray(1);
+			column.bulkLoad(new Object[]{first, null, second, null, bitmap(4), null, recordArray(6), null}, 8);
+			assertEquals(8, column.size());
+
+			final OverflowColumn headroom = column.duplicateForInsert();
+			assertSame(first, headroom.recordsAt(0));
+			assertSame(second, headroom.recordsAt(2));
+			assertEquals(bitmap(4), headroom.recordsAt(4));
+
+			for (int i = 7; i >= 3; i--) {
+				column.removeAt(i);
+			}
+			final OverflowColumn trimmed = column.trimmed();
+			assertSame(first, trimmed.recordsAt(0), "a trim must move an array slot by reference");
+			assertSame(second, trimmed.recordsAt(2));
+		}
+
+		@Test
+		@DisplayName("a range copy moves an array slot without leaving it aliased at its old position")
+		void shouldMoveArraySlotsWithoutAliasingThemAcrossARangeCopy() {
+			final OverflowColumn source = new OverflowColumn(BLOCK);
+			final int[] moved = recordArray(0);
+			source.insertAt(0, moved);
+			source.insertAt(1, bitmap(1));
+			source.insertAt(2, recordArray(2));
+
+			final OverflowColumn destination = new OverflowColumn(BLOCK);
+			destination.fillNulls(0, 2);
+			source.copyRangeTo(0, destination, 2, 3);
+
+			assertNull(destination.recordsAt(0));
+			assertNull(destination.recordsAt(1));
+			assertSame(moved, destination.recordsAt(2), "the slot must travel by reference, as a bitmap slot does");
+			assertEquals(bitmap(1), destination.recordsAt(3));
+			assertArrayEquals(recordArray(2), (int[]) destination.recordsAt(4));
+
+			source.clearAt(0);
+			assertNull(source.recordsAt(0), "clearing the source must not disturb the destination");
+			assertSame(moved, destination.recordsAt(2));
+		}
+
+		@Test
+		@DisplayName("a bulk load accepts a page carrying both slot shapes at once")
+		void shouldBulkLoadBothSlotShapes() {
+			// the parameter is Object[] rather than TransactionalBitmap[] precisely so a persisted page can come
+			// back in the tier its cardinality implies, which for most buckets is the array one
+			final OverflowColumn column = new OverflowColumn(BLOCK);
+			final int[] arraySlot = recordArray(0);
+
+			column.bulkLoad(new Object[]{arraySlot, null, bitmap(2)}, 3);
+
+			assertEquals(3, column.size());
+			assertSame(arraySlot, column.recordsAt(0), "a bulk load must not copy the slot it is handed");
+			assertNull(column.recordsAt(1));
+			assertEquals(bitmap(2), column.recordsAt(2));
 		}
 	}
 }

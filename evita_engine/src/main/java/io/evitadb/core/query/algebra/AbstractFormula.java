@@ -32,6 +32,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.SortedArrayBitmap;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -91,6 +93,38 @@ public abstract class AbstractFormula implements Formula {
 	 * Contains memoized value of {@link #getTransactionalIdHash()} method.
 	 */
 	private Long transactionalIdHash;
+
+	/**
+	 * Returns the token that identifies `bitmap` for cache-keying and staleness purposes, in the one place both the
+	 * key and the token set are derived from - so the two can never disagree about what a bitmap operand is.
+	 *
+	 * Three cases, in order of how much identity the bitmap carries:
+	 *
+	 * - a {@link TransactionalLayerProducer} owns a transactional id, and that id is the token;
+	 * - a {@link SortedArrayBitmap} stamped with an owner is a read-only view built per read over storage somebody
+	 *   else holds, so the token combines that owner's identity with the CONTENTS - the owner tells two structures
+	 *   holding equal record sets apart, the contents catch a change to the set;
+	 * - anything else is identified by its contents alone.
+	 *
+	 * A content hash is a legitimate token here: the cache validates a hit by comparing the HASH of the whole token
+	 * set (see {@code CacheEden}), never by resolving an individual token back to an object.
+	 *
+	 * @param bitmap       the bitmap operand to identify
+	 * @param hashFunction the hash function to fold contents with
+	 * @return the identifying token
+	 */
+	protected static long bitmapIdentityToken(@Nonnull Bitmap bitmap, @Nonnull LongHashFunction hashFunction) {
+		if (bitmap instanceof final TransactionalLayerProducer<?, ?> producer) {
+			return producer.getId();
+		}
+		if (bitmap instanceof final SortedArrayBitmap arrayView
+			&& arrayView.getOwnerId() != SortedArrayBitmap.NO_OWNER) {
+			return hashFunction.hashLongs(
+				new long[]{arrayView.getOwnerId(), bitmap.getContentHash(hashFunction)}
+			);
+		}
+		return bitmap.getContentHash(hashFunction);
+	}
 
 	/**
 	 * Initializes the fields of this formula. This method is called from the constructor and should be used to

@@ -25,7 +25,6 @@ package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SortedArrayBitmap;
 
 import javax.annotation.Nonnull;
@@ -68,21 +67,38 @@ public class ValueToRecordArray implements ValueToRecord {
 	 */
 	private final Serializable value;
 	/**
-	 * The record ids assigned to {@link #value}, sorted by {@link Integer#compareUnsigned} and distinct. Owned by the
-	 * tree leaf this flyweight projects and never written to.
+	 * The read-only view of the record ids assigned to {@link #value}.
+	 *
+	 * Deliberately the VIEW rather than the `int[]` behind it: the array is the tree leaf's own storage, and holding it
+	 * here would mean the tree had to hand a mutable reference to it across a package boundary. Holding the view keeps
+	 * the array inside the tree, and lets {@link #getRecordIds()} answer without allocating.
 	 */
-	@Nonnull private final int[] recordIds;
+	@Nonnull private final SortedArrayBitmap recordIds;
 
 	/**
-	 * Creates the flyweight over a leaf slot's record array.
+	 * Creates the flyweight over a leaf slot's record set.
 	 *
 	 * @param value     the value this bucket represents
-	 * @param recordIds the bucket's record ids, sorted by {@link Integer#compareUnsigned} and distinct; stored by
-	 *                  reference and never written to
+	 * @param recordIds the read-only view of the bucket's record ids, as the bucket cursor produced it
 	 */
-	public ValueToRecordArray(@Nonnull Serializable value, @Nonnull int... recordIds) {
+	public ValueToRecordArray(@Nonnull Serializable value, @Nonnull SortedArrayBitmap recordIds) {
 		this.value = value;
 		this.recordIds = recordIds;
+	}
+
+	/**
+	 * Creates the flyweight over record ids the CALLER owns, wrapping them in a read-only view.
+	 *
+	 * The bucket tree never uses this overload - it hands over the view its cursor already built, so that the leaf's
+	 * own array never leaves the tree. This one exists for callers that produced the ids themselves and are content to
+	 * give up ownership of the array, which the view then shares rather than copies.
+	 *
+	 * @param value     the value this bucket represents
+	 * @param recordIds the bucket's record ids, sorted by {@link Integer#compareUnsigned} and distinct; ownership
+	 *                  passes to this flyweight, so the caller must not write to the array afterwards
+	 */
+	public ValueToRecordArray(@Nonnull Serializable value, @Nonnull int... recordIds) {
+		this(value, new SortedArrayBitmap(recordIds));
 	}
 
 	@Nonnull
@@ -94,48 +110,36 @@ public class ValueToRecordArray implements ValueToRecord {
 	@Nonnull
 	@Override
 	public Bitmap getRecordIds() {
-		// a read-only view sharing the array - no copy and no roaring bitmap, which is the whole point of this type
-		return new SortedArrayBitmap(this.recordIds);
+		// the view the cursor already built - no copy, no allocation and no roaring bitmap, which is the whole point
+		// of this type
+		return this.recordIds;
 	}
 
 	@Override
 	public int size() {
-		return this.recordIds.length;
+		return this.recordIds.size();
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return this.recordIds.length == 0;
+		return this.recordIds.isEmpty();
 	}
 
 	@Override
 	public boolean recordSetEquals(@Nullable ValueToRecord other) {
-		if (other == null || other.size() != this.recordIds.length) {
+		if (other == null || other.size() != this.recordIds.size()) {
 			return false;
 		}
 		// every Bitmap implementation enumerates in the same (unsigned ascending) order, so a positional walk is
 		// representation-independent and allocates nothing
+		final OfInt thisIt = this.recordIds.iterator();
 		final OfInt otherIt = other.getRecordIds().iterator();
-		for (final int recordId : this.recordIds) {
-			if (recordId != otherIt.nextInt()) {
+		while (thisIt.hasNext()) {
+			if (thisIt.nextInt() != otherIt.nextInt()) {
 				return false;
 			}
 		}
 		return true;
-	}
-
-	@Override
-	public int recordSetHashCode() {
-		if (this.recordIds.length == 1) {
-			// the canonical single-record hash, shared with both sibling implementations so a one-record bucket hashes
-			// identically whichever tier happens to hold it
-			return 31 + this.recordIds[0];
-		}
-		// above cardinality one the canonical hash is PersistentRoaringBitmap's own, because ValueToRecordBitmap
-		// delegates to it - and the two tiers must agree, since the promote and demote thresholds differ and the same
-		// record set can therefore be found in either. This is the one operation that pays for a roaring bitmap, and
-		// it is reached only by whole-index equality/hash, never by a query.
-		return RoaringBitmapBackedBitmap.fromArray(this.recordIds).hashCode();
 	}
 
 	@Override
@@ -181,7 +185,10 @@ public class ValueToRecordArray implements ValueToRecord {
 
 	@Override
 	public String toString() {
-		return "ValueToRecordArray{value=" + this.value + ", recordIds=" + getRecordIds() + '}';
+		return "ValueToRecordArray{" +
+			"value=" + this.value +
+			", recordIds=" + this.recordIds +
+			'}';
 	}
 
 }

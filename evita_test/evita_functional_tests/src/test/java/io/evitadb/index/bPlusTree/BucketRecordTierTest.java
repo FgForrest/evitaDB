@@ -27,16 +27,20 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SortedArrayBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,13 +60,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the three-tier record-set representation of a {@link TransactionalBucketBPlusTree} bucket introduced for
- * issue #1455: a single record in the primitive column, a sorted `int[]` up to
- * {@link OverflowRecords#SMALL_BUCKET_THRESHOLD}, a {@link TransactionalBitmap} above it.
+ * Verifies the three-tier record-set representation of a {@link TransactionalBucketBPlusTree} bucket: a single record
+ * in the leaf's primitive column, a sorted `int[]` up to {@link OverflowRecords#SMALL_BUCKET_THRESHOLD}, and a
+ * {@link TransactionalBitmap} above it.
  *
  * The suite covers the boundary at which each transition happens, the MVCC isolation the array tier inherits from the
  * leaf rather than owning itself, the equality of what a query reads across all three tiers, and the heap the tier is
@@ -143,6 +148,20 @@ class BucketRecordTierTest {
 		final int[] ids = new int[count];
 		for (int i = 0; i < count; i++) {
 			ids[i] = i + 1;
+		}
+		return ids;
+	}
+
+	/**
+	 * @param from the first id, inclusive
+	 * @param to   the last id, inclusive
+	 * @return the ids `from..to`
+	 */
+	@Nonnull
+	private static int[] idsBetween(int from, int to) {
+		final int[] ids = new int[to - from + 1];
+		for (int i = 0; i < ids.length; i++) {
+			ids[i] = from + i;
 		}
 		return ids;
 	}
@@ -301,6 +320,47 @@ class BucketRecordTierTest {
 			assertTrue(before == overflowSlot(tree), "a no-op add must leave the very same array in the slot");
 			assertArrayEquals(idsUpTo(5), recordsOfValue(tree));
 		}
+
+		@ParameterizedTest(name = "a bucket of {0} records")
+		@ValueSource(ints = {
+			OverflowRecords.SMALL_BUCKET_THRESHOLD - 1,
+			OverflowRecords.SMALL_BUCKET_THRESHOLD,
+			OverflowRecords.SMALL_BUCKET_THRESHOLD + 1
+		})
+		@DisplayName("the tier a bucket lands in follows the threshold exactly, on both sides of it")
+		void shouldPickTheTierByCardinalityAroundTheThreshold(int recordCount) {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(recordCount);
+
+			final Object slot = overflowSlot(tree);
+			if (recordCount <= OverflowRecords.SMALL_BUCKET_THRESHOLD) {
+				assertEquals(
+					recordCount, assertInstanceOf(int[].class, slot, "at or below the threshold the tier is an array").length
+				);
+			} else {
+				assertInstanceOf(TransactionalBitmap.class, slot, "above the threshold the tier is a bitmap");
+			}
+			assertArrayEquals(idsUpTo(recordCount), recordsOfValue(tree), "no record may be lost by the tier choice");
+		}
+
+		@Test
+		@DisplayName("a bulk add whose union lands exactly on the threshold stays an array")
+		void shouldStayAnArrayWhenABulkAddLandsExactlyOnTheThreshold() {
+			// the counterpart of shouldPromoteToBitmapOnBulkAddCrossingThreshold: the merge compares the union size
+			// with `>`, so equality must NOT promote
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(2);
+
+			tree.addRecord(VALUE, idsBetween(3, threshold));
+
+			assertEquals(
+				threshold,
+				assertInstanceOf(
+					int[].class, overflowSlot(tree),
+					"a union of exactly " + threshold + " records must stay in the array tier"
+				).length
+			);
+			assertArrayEquals(idsUpTo(threshold), recordsOfValue(tree));
+		}
 	}
 
 	@Nested
@@ -392,6 +452,59 @@ class BucketRecordTierTest {
 			assertTrue(tree.getRecordsEqualTo(VALUE).isEmpty(), "the drained bucket must be gone");
 			assertEquals(-1, tree.enumerateLeaves().get(0).getValueIndex(VALUE));
 		}
+
+		@Test
+		@DisplayName("a bitmap bucket drained to one record returns to the primitive tier at the commit merge")
+		void shouldDemoteABitmapBucketToThePrimitiveTierAtCommit() {
+			// the commit merge reads the surviving id straight off the committed bitmap; only the array arm of the
+			// same demotion is covered by shouldDemoteArrayToSingleAtCommit
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+			assertInstanceOf(TransactionalBitmap.class, overflowSlot(tree));
+
+			inTransaction(
+				tree,
+				() -> tree.removeRecord(VALUE, idsBetween(2, threshold + 1)),
+				committed -> {
+					assertNull(overflowSlot(committed), "a one-record bucket must go back to the primitive column");
+					assertArrayEquals(new int[]{1}, recordsOfValue(committed));
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "a bitmap bucket drained to {0} records")
+		@ValueSource(ints = {
+			OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD - 1,
+			OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD,
+			OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD + 1
+		})
+		@DisplayName("the tier a drained bucket settles into follows the demotion threshold exactly")
+		void shouldPickTheTierByCardinalityAroundTheDemotionThreshold(int survivingCount) {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+
+			inTransaction(
+				tree,
+				() -> tree.removeRecord(VALUE, idsBetween(survivingCount + 1, threshold + 1)),
+				committed -> {
+					final Object slot = overflowSlot(committed);
+					if (survivingCount <= OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD) {
+						assertEquals(
+							survivingCount,
+							assertInstanceOf(
+								int[].class, slot, "at or below the demotion threshold the bucket settles into an array"
+							).length
+						);
+					} else {
+						assertInstanceOf(
+							TransactionalBitmap.class, slot,
+							"above the demotion threshold the bucket stays a bitmap - that gap is the hysteresis"
+						);
+					}
+					assertArrayEquals(idsUpTo(survivingCount), recordsOfValue(committed));
+				}
+			);
+		}
 	}
 
 	@Nested
@@ -457,6 +570,137 @@ class BucketRecordTierTest {
 
 			assertArrayEquals(idsUpTo(6), recordsOfValue(tree), "the rolled-back removal must not survive");
 		}
+
+		@Test
+		@DisplayName("a rolled-back promotion out of the array tier leaves the committed array untouched")
+		void shouldDiscardAnArrayToBitmapPromotionOnRollback() {
+			// the bitmap the promotion mints is born INSIDE the transaction, so the rollback has to drop both the
+			// slot and the transactional layer that bitmap opened
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold);
+			final Object committedSlotBefore = overflowSlot(tree);
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.addRecord(VALUE, threshold + 1);
+					assertInstanceOf(
+						TransactionalBitmap.class, overflowSlot(tree),
+						"the writing transaction must see its own promotion"
+					);
+				},
+				null
+			);
+
+			assertSame(
+				committedSlotBefore, overflowSlot(tree),
+				"the committed leaf must still point at the very array it held before the transaction"
+			);
+			assertArrayEquals(idsUpTo(threshold), recordsOfValue(tree));
+		}
+
+		@Test
+		@DisplayName("a committed promotion out of the array tier is published as a bitmap")
+		void shouldPublishAnArrayToBitmapPromotionOnCommit() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold);
+
+			inTransaction(
+				tree,
+				() -> tree.addRecord(VALUE, threshold + 1),
+				committed -> {
+					assertInstanceOf(
+						TransactionalBitmap.class, overflowSlot(committed),
+						"the committed bucket must carry the promoted bitmap"
+					);
+					assertArrayEquals(idsUpTo(threshold + 1), recordsOfValue(committed));
+					assertArrayEquals(
+						idsUpTo(threshold), recordsOfValue(tree),
+						"and the pre-commit instance must be untouched, as MVCC requires"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled-back demotion out of the bitmap tier leaves the committed bitmap untouched")
+		void shouldDiscardABitmapToArrayDemotionOnRollback() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final int demotion = OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+
+			inTransaction(tree, () -> tree.removeRecord(VALUE, idsBetween(demotion + 1, threshold + 1)), null);
+
+			assertInstanceOf(
+				TransactionalBitmap.class, overflowSlot(tree),
+				"a rolled-back drain must not demote the committed bucket"
+			);
+			assertArrayEquals(idsUpTo(threshold + 1), recordsOfValue(tree));
+		}
+
+		@Test
+		@DisplayName("a rolled-back promotion out of the primitive tier leaves no overflow slot behind")
+		void shouldDiscardASingleToArrayPromotionOnRollback() {
+			// the overflow column itself is created lazily by the promotion, so this asserts the lazily-created
+			// column did not leak onto the committed leaf
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(1);
+
+			inTransaction(tree, () -> tree.addRecord(VALUE, 2), null);
+
+			assertNull(overflowSlot(tree), "the bucket must be back in the primitive column");
+			assertArrayEquals(new int[]{1}, recordsOfValue(tree));
+		}
+
+		@Test
+		@DisplayName("a bucket that crosses the threshold and drains back inside one transaction settles by its final size")
+		void shouldSettleByFinalCardinalityWhenABucketOscillatesUpwardsFirst() {
+			// the hysteresis gap means an intermediate promotion must not decide the committed tier: only the
+			// cardinality the commit merge sees does
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final int demotion = OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold);
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.addRecord(VALUE, threshold + 1);
+					tree.removeRecord(VALUE, idsBetween(demotion + 1, threshold + 1));
+				},
+				committed -> {
+					assertEquals(
+						demotion,
+						assertInstanceOf(
+							int[].class, overflowSlot(committed),
+							"a bucket of " + demotion + " records must commit as an array whatever it passed through"
+						).length
+					);
+					assertArrayEquals(idsUpTo(demotion), recordsOfValue(committed));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a bucket that drains below the demotion threshold and grows back settles by its final size")
+		void shouldSettleByFinalCardinalityWhenABucketOscillatesDownwardsFirst() {
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final int demotion = OverflowRecords.SMALL_BUCKET_DEMOTION_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(threshold + 1);
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.removeRecord(VALUE, idsBetween(demotion + 1, threshold + 1));
+					tree.addRecord(VALUE, idsBetween(demotion + 1, threshold + 1));
+				},
+				committed -> {
+					assertInstanceOf(
+						TransactionalBitmap.class, overflowSlot(committed),
+						"a bucket back above the threshold must commit as a bitmap"
+					);
+					assertArrayEquals(idsUpTo(threshold + 1), recordsOfValue(committed));
+				}
+			);
+		}
 	}
 
 	@Nested
@@ -479,6 +723,26 @@ class BucketRecordTierTest {
 				assertFalse(records.contains(size + 1), "contains(absent) differs at size " + size);
 				assertEquals(size, tree.cardinalityOf(VALUE), "tree cardinality differs at size " + size);
 			}
+		}
+
+		@Test
+		@DisplayName("a small multi bucket answers with a read-only array view, never a TransactionalBitmap")
+		void shouldNotHandOutATransactionalBitmapForASmallBucket() {
+			final Bitmap records = treeWithBucketOfSize(3).getRecordsEqualTo(VALUE);
+
+			assertInstanceOf(
+				SortedArrayBitmap.class, records,
+				"a caster relying on the pre-tier contract would break on the majority of buckets"
+			);
+			assertThrows(
+				UnsupportedOperationException.class, () -> records.add(4),
+				"the view is over the leaf's own array and must refuse every mutation"
+			);
+			assertInstanceOf(
+				TransactionalBitmap.class,
+				treeWithBucketOfSize(OverflowRecords.SMALL_BUCKET_THRESHOLD + 1).getRecordsEqualTo(VALUE),
+				"only a bucket above the array tier answers with the live bitmap"
+			);
 		}
 
 		@Test
@@ -722,6 +986,65 @@ class BucketRecordTierTest {
 				OverflowRecords.SMALL_BUCKET_THRESHOLD + 1, tree.getRecordsEqualTo(30).size()
 			);
 		}
+
+		@Test
+		@DisplayName("a loaded bucket of exactly the threshold is an array, and one record more is a bitmap")
+		void shouldPickTheLoadedTierByCardinalityAroundTheThreshold() {
+			// a load has no prior representation to be hysteretic about, so the tier follows the cardinality
+			// directly - the threshold itself is the side no test pinned
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+
+			assertEquals(
+				threshold,
+				assertInstanceOf(
+					int[].class,
+					OverflowRecords.loadedRecordSet(new TransactionalBitmap(idsUpTo(threshold))),
+					"a persisted bucket of exactly " + threshold + " records loads into the array tier"
+				).length
+			);
+			assertInstanceOf(
+				TransactionalBitmap.class,
+				OverflowRecords.loadedRecordSet(new TransactionalBitmap(idsUpTo(threshold + 1))),
+				"one record more loads into the bitmap tier"
+			);
+		}
+
+		@Test
+		@DisplayName("a bulk-loaded page carrying a slot of a foreign shape is refused at the load")
+		void shouldRefuseAForeignOverflowSlotAtBulkLoad() {
+			final TransactionalBucketBPlusTree<Integer> foreignShape = emptyTree();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> foreignShape.bulkLoadPage(
+					new Object[]{10, 20, 30}, new long[]{0, 0, 0}, new Object[]{"not a record set", null, null}, 3
+				),
+				"a slot that is neither a sorted int[] nor a bitmap must be refused where it is loaded, not on a later read"
+			);
+
+			final int threshold = OverflowRecords.SMALL_BUCKET_THRESHOLD;
+			final TransactionalBucketBPlusTree<Integer> oversizedArray = emptyTree();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> oversizedArray.bulkLoadPage(
+					new Object[]{10}, new long[]{0}, new Object[]{idsUpTo(threshold + 1)}, 1
+				),
+				"an int[] slot above the promote threshold is a shape the write path never produces"
+			);
+
+			// the check must not be over-strict: a well-formed page still loads straight into the array tier
+			final TransactionalBucketBPlusTree<Integer> wellFormed = emptyTree();
+			wellFormed.bulkLoadPage(
+				new Object[]{10, 20}, new long[]{0, 5}, new Object[]{idsUpTo(threshold), null}, 2
+			);
+
+			final OverflowColumn column = wellFormed.enumerateLeaves().get(0).getOverflow();
+			assertNotNull(column);
+			assertEquals(threshold, assertInstanceOf(int[].class, column.recordsAt(0)).length);
+			assertNull(column.recordsAt(1), "a single-record bucket carries no slot");
+			assertArrayEquals(new int[]{5}, wellFormed.getRecordsEqualTo(20).getArray());
+		}
 	}
 
 	@Nested
@@ -779,7 +1102,7 @@ class BucketRecordTierTest {
 		@DisplayName("a slot of an unexpected shape is refused rather than mis-cast")
 		void shouldRefuseAForeignSlotShape() {
 			assertThrows(
-				io.evitadb.exception.GenericEvitaInternalError.class,
+				GenericEvitaInternalError.class,
 				() -> OverflowRecords.cardinality("not a record set")
 			);
 		}
@@ -803,6 +1126,122 @@ class BucketRecordTierTest {
 
 			assertArrayEquals(new int[]{1, 2, 3}, backing, "the wrapped array must not be reachable for writing");
 			assertArrayEquals(new int[]{1, 2, 3}, Arrays.copyOf(view.getArray(), 3));
+		}
+	}
+
+	@Nested
+	@DisplayName("Record-set edge shapes")
+	class RecordSetEdgeShapes {
+
+		@Test
+		@DisplayName("an empty record set has no signed predecessor at all")
+		void shouldAnswerNoPreviousValueForAnEmptyRecordSet() {
+			assertEquals(
+				RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE,
+				OverflowRecords.signedPreviousValue(new int[0], 5)
+			);
+			assertEquals(
+				RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE,
+				OverflowRecords.signedPreviousValue(new int[0], -5)
+			);
+		}
+
+		@Test
+		@DisplayName("a non-negative bound over an all-negative record set falls back to the greatest negative id")
+		void shouldFallBackToTheGreatestNegativeIdForANonNegativeBound() {
+			// every id is signed-smaller than the bound, so the answer is the last element under UNSIGNED ordering -
+			// the arm a record set that also holds a non-negative id can never reach
+			final int[] allNegative = {Integer.MIN_VALUE, -7, -1};
+			final PersistentRoaringBitmap reference = RoaringBitmapBackedBitmap.fromArray(allNegative);
+
+			for (final int probe : new int[]{0, 5, Integer.MAX_VALUE}) {
+				assertEquals(
+					RoaringBitmapBackedBitmap.signedPreviousValue(reference, probe),
+					OverflowRecords.signedPreviousValue(allNegative, probe),
+					"the signed predecessor of " + probe + " must not depend on the tier"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a bound below every id of an all-non-negative record set has no signed predecessor")
+		void shouldAnswerNoPreviousValueBelowAnAllNonNegativeRecordSet() {
+			final int[] allNonNegative = {5, 9};
+			final PersistentRoaringBitmap reference = RoaringBitmapBackedBitmap.fromArray(allNonNegative);
+
+			for (final int probe : new int[]{Integer.MIN_VALUE, -1, 0, 4}) {
+				assertEquals(
+					RoaringBitmapBackedBitmap.signedPreviousValue(reference, probe),
+					OverflowRecords.signedPreviousValue(allNonNegative, probe),
+					"the signed predecessor of " + probe + " must not depend on the tier"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("the same id repeated in one removal is dropped exactly once")
+		void shouldDropARepeatedIdOnlyOnce() {
+			// the survivor array is sized from the count of ids genuinely dropped, so counting a repeat twice would
+			// allocate it short and silently lose a record
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(5);
+
+			tree.removeRecord(VALUE, 3, 3, 3);
+
+			assertArrayEquals(new int[]{1, 2, 4, 5}, recordsOfValue(tree));
+			assertEquals(4, assertInstanceOf(int[].class, overflowSlot(tree)).length);
+		}
+
+		@Test
+		@DisplayName("a removal mixing a repeated id with an absent one drops only what the bucket holds")
+		void shouldIgnoreAbsentIdsAmongRepeatedOnes() {
+			final TransactionalBucketBPlusTree<Integer> tree = treeWithBucketOfSize(5);
+
+			tree.removeRecord(VALUE, 2, 2, 99, 99, 4);
+
+			assertArrayEquals(new int[]{1, 3, 5}, recordsOfValue(tree));
+			assertEquals(3, assertInstanceOf(int[].class, overflowSlot(tree)).length);
+		}
+
+		@Test
+		@DisplayName("narrowing a slot of a foreign shape to a record array is refused rather than mis-cast")
+		void shouldRefuseAForeignSlotShapeWhenNarrowingToAnArray() {
+			assertThrows(GenericEvitaInternalError.class, () -> OverflowRecords.asRecordArray("not a record set"));
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> OverflowRecords.asRecordArray(new TransactionalBitmap(1, 2, 3))
+			);
+		}
+
+		@Test
+		@DisplayName("a drained record set reads as the shared empty bitmap and costs nothing")
+		void shouldPresentADrainedRecordSetAsEmpty() {
+			// the empty array is one shared instance for the whole JVM that no leaf owns, so it must be charged to
+			// none of them
+			assertSame(EmptyBitmap.INSTANCE, OverflowRecords.asBitmapView(new int[0]));
+			assertEquals(0L, OverflowRecords.heapSizeInBytes(new int[0]));
+		}
+
+		@Test
+		@DisplayName("adding only the id a single-record bucket already holds leaves it holding just that id")
+		void shouldKeepASingleRecordBucketWhenEveryAddedIdIsTheOneItHolds() {
+			// a multi-id add on a single-record bucket takes the promote path even when the union turns out to be the
+			// one id it already had - the one reachable shape in which a live slot carries a single-element array
+			final TransactionalBucketBPlusTree<Integer> tree = emptyTree();
+			tree.addRecord(VALUE, 5);
+			assertNull(overflowSlot(tree));
+
+			inTransaction(
+				tree,
+				() -> {
+					tree.addRecord(VALUE, 5, 5);
+					assertArrayEquals(new int[]{5}, recordsOfValue(tree));
+					assertEquals(1, tree.getRecordsEqualTo(VALUE).size());
+				},
+				committed -> {
+					assertNull(overflowSlot(committed), "the commit merge must put the bucket back in the primitive tier");
+					assertArrayEquals(new int[]{5}, recordsOfValue(committed));
+				}
+			);
 		}
 	}
 

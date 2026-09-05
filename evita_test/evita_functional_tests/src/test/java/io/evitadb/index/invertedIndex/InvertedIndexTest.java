@@ -1101,6 +1101,35 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final InvertedIndex deserializedTested = kryo.readObject(new Input(bytes), InvertedIndex.class);
 			assertEquals(InvertedIndexTest.this.tested, deserializedTested);
 		}
+
+		@Test
+		@DisplayName("the inline serialization route shares the live record set of a bitmap-tier bucket")
+		void shouldShareTheLiveRecordSetOfABitmapTierBucket() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			// well above the bucket tier's array-to-bitmap threshold, so this bucket is held as a live
+			// TransactionalBitmap the serialization route should be able to read without copying
+			for (int recordId = 1; recordId <= 200; recordId++) {
+				index.addRecord(1, recordId);
+			}
+			// a small bucket the tree keeps as a sorted array, which has no live bitmap to share and must be wrapped
+			index.addRecord(2, 300, 301, 302);
+
+			final ValueToRecordBitmap[] first = index.getValueToRecordBitmap();
+			final ValueToRecordBitmap[] second = index.getValueToRecordBitmap();
+
+			assertSame(
+				first[0].getRecordIds(), second[0].getRecordIds(),
+				"a bitmap-tier bucket is held as a live TransactionalBitmap and must be handed out, not copied"
+			);
+			assertEquals(200, first[0].getRecordIds().size());
+
+			assertNotSame(
+				first[1].getRecordIds(), second[1].getRecordIds(),
+				"an array-tier bucket has no live bitmap to share and must be wrapped afresh"
+			);
+			assertArrayEquals(new int[]{300, 301, 302}, first[1].getRecordIds().getArray());
+			assertArrayEquals(new int[]{300, 301, 302}, second[1].getRecordIds().getArray());
+		}
 	}
 
 	@Nested

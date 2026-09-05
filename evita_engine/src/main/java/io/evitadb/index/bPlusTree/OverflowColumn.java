@@ -128,8 +128,8 @@ final class OverflowColumn {
 	/**
 	 * Internal constructor adopting pre-built state (duplicate / trim paths).
 	 *
-	 * @param capacity the logical capacity
-	 * @param size     the materialized slot count
+	 * @param capacity   the logical capacity
+	 * @param size       the materialized slot count
 	 * @param recordSets the backing array to adopt
 	 */
 	private OverflowColumn(int capacity, int size, @Nonnull Object[] recordSets) {
@@ -276,8 +276,9 @@ final class OverflowColumn {
 	 * **Writing past the live run materializes it**: the backing array grows, the gap is null-filled and
 	 * {@link #size()} becomes {@code index + 1}.
 	 *
-	 * @param index  the slot to overwrite
-	 * @param records the bucket's record set - a sorted `int[]` or a {@link TransactionalBitmap} - or `null` to mark the bucket single
+	 * @param index   the slot to overwrite
+	 * @param records the bucket's record set - a sorted `int[]` or a {@link TransactionalBitmap} - or `null` to mark the
+	 *                bucket single
 	 */
 	void setAt(int index, @Nullable Object records) {
 		if (index >= this.size) {
@@ -297,7 +298,7 @@ final class OverflowColumn {
 	 * **Grows the physical backing first when the live run already fills it**, so the caller never has to pre-size the
 	 * column. Only the live tail moves — {@code size() - index} slots — never the whole block.
 	 *
-	 * @param index  the insertion position
+	 * @param index   the insertion position
 	 * @param records the inserted bucket's record set, or `null` when the new bucket is single
 	 */
 	void insertAt(int index, @Nullable Object records) {
@@ -323,7 +324,7 @@ final class OverflowColumn {
 	 * slots `null`, which is what a page holding no multi bucket past that point means.
 	 *
 	 * @param recordSets the record-set references to load; only {@code recordSets[0, count)} are read
-	 * @param count   the number of live slots ({@code <= capacity()})
+	 * @param count      the number of live slots ({@code <= capacity()})
 	 */
 	void bulkLoad(@Nonnull Object[] recordSets, int count) {
 		ColumnSizing.assertLoadFitsCapacity(count, this.capacity);
@@ -339,7 +340,9 @@ final class OverflowColumn {
 	 * Removes the slot at {@code index}, shifting the live tail one slot to the left and lowering {@link #size()} by
 	 * one (the leaf clears the freed last slot via {@link #clearAt} and shrinks {@code peek} afterwards). The vacated
 	 * slot is nulled, so no record-set reference survives past the live run and a moved record set is never aliased at
-	 * two slots — an aliased bitmap would be committed, and discarded, twice by the transactional merge sweep.
+	 * two slots — the failure mode differs per tier: a leaked bitmap alias would be committed and discarded twice by
+	 * the transactional merge sweep, while a leaked array alias would masquerade as a live multi bucket at a slot that
+	 * must read `null`, breaking the single/multi discriminator.
 	 *
 	 * Removing a slot at or beyond {@link #size()} is a no-op rather than an error: that region is already `null`, and
 	 * dropping one `null` out of a run of `null`s leaves a run of `null`s.
@@ -392,8 +395,9 @@ final class OverflowColumn {
 	 * This is the "donor carries no overflow column" half of the leaf's rebalancing: the receiver has multi buckets
 	 * and the donor does not, so every donated bucket is single and its slot here must read `null`. The range cannot
 	 * simply be left alone — the receiver has just shifted its own buckets aside with a copy rather than a move, so
-	 * the vacated range still aliases the shifted-from record sets, and leaving one aliased at two slots would have
-	 * the transactional merge sweep commit and discard the same bitmap twice.
+	 * the vacated range still aliases the shifted-from record sets, and leaving one aliased at two slots hazards
+	 * either tier — a bitmap alias would be committed and discarded twice by the transactional merge sweep, and an
+	 * array alias would masquerade as a live multi bucket at a slot that must read `null`.
 	 *
 	 * **The range must start at or before the live end** ({@code dstPos <= size()}), so it either overwrites live
 	 * slots or extends the run contiguously. Every rebalancing shape satisfies that: the receiver's column is created

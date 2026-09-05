@@ -30,6 +30,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.PrimitiveIterator.OfInt;
 
 /**
  * A single "bucket" of an {@link InvertedIndex}: one {@link Comparable} {@link #getValue() value} together with the
@@ -99,7 +100,37 @@ public interface ValueToRecord
 	/**
 	 * Content-based hash of the *record set* of this bucket, consistent with {@link #recordSetEquals(ValueToRecord)}
 	 * and independent of representation.
+	 *
+	 * # Why this is a fold over the ids and not a bitmap's own hash
+	 *
+	 * The obvious implementation - delegate to {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap#hashCode()} for
+	 * the bitmap-backed buckets - is unusable here, and the reason is written on that method: it deliberately violates
+	 * the hash/equals contract, guaranteeing equal hashes only for bitmaps that agree on `hasRunCompression()`. Its
+	 * `equals`, by contrast, IS encoding-independent. Two buckets holding the same record set can therefore compare
+	 * equal and hash differently whenever their container encodings differ.
+	 *
+	 * That is not hypothetical across the bucket tiers. A record set is held as a sorted `int[]` up to the promotion
+	 * threshold and as a roaring bitmap above it, and because the demotion threshold is deliberately lower than the
+	 * promotion one, a set at a cardinality inside that hysteresis window legitimately sits in either tier. The bitmap
+	 * arm is run-optimised when read through a transactional layer while the array arm is not, so a contiguous run -
+	 * exactly the shape run compression targets - would hash two ways for one set.
+	 *
+	 * Folding `31 * result + id` over the ids removes the representation from the answer entirely. It is
+	 * {@link java.util.Arrays#hashCode(int[])}'s recurrence, so a one-element set yields `31 + id` - the canonical
+	 * single-record hash the primitive bucket and the inverted index's own single-bucket short-circuit already use,
+	 * preserved here by construction rather than by three hand-maintained special cases.
+	 *
+	 * Implementations must not override this: one definition is what makes the tiers agree.
+	 *
+	 * @return the representation-independent content hash of this bucket's record set
 	 */
-	int recordSetHashCode();
+	default int recordSetHashCode() {
+		int result = 1;
+		final OfInt recordIdIterator = getRecordIds().iterator();
+		while (recordIdIterator.hasNext()) {
+			result = 31 * result + recordIdIterator.nextInt();
+		}
+		return result;
+	}
 
 }

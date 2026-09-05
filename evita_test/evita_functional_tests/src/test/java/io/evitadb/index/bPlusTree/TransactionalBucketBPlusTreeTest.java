@@ -2314,8 +2314,15 @@ class TransactionalBucketBPlusTreeTest {
 						cardinalityBefore + 1, committedRecords.size(),
 						"The committed tree must carry the overflow-added record."
 					);
-					assertTrue(committedRecords.contains(9_999), "The added record must be present.");
-					assertTrue(committedRecords.contains(0) && committedRecords.contains(1), "No record may be lost.");
+					// the whole expected set is known - {0, 1} the bucket was born with, the filler, and the id the
+					// transaction added behind the leaf's back - so assert it exactly rather than by cardinality
+					// plus a few memberships, which a lost or duplicated filler id would slip past
+					final int[] expected = new int[3 + filler.length];
+					expected[0] = 0;
+					expected[1] = 1;
+					System.arraycopy(filler, 0, expected, 2, filler.length);
+					expected[expected.length - 1] = 9_999;
+					assertArrayEquals(expected, committedRecords.getArray(), "No record may be lost or duplicated.");
 				}
 			);
 		}

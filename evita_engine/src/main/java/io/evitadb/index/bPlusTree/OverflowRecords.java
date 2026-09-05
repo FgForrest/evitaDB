@@ -38,8 +38,8 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
- * The record set of one **multi-record** bucket of a {@link TransactionalBucketBPlusTree} leaf, in the tiered
- * representation issue #1455 measured, together with every operation the leaf performs on it.
+ * The record set of one **multi-record** bucket of a {@link TransactionalBucketBPlusTree} leaf, in the measured
+ * tiered representation described below, together with every operation the leaf performs on it.
  *
  * ## The three tiers, and why there are three
  *
@@ -89,9 +89,9 @@ public final class OverflowRecords {
 	 * {@link TransactionalBitmap}.
 	 *
 	 * This is the same number as {@link io.evitadb.index.trigram.TrigramPostings#SMALL_POSTING_THRESHOLD} and for the
-	 * same measured reason - the #258 spike located the flat `int[]`-vs-roaring knee at 128 elements, within 1.7 % of
-	 * every per-attribute optimum - but it is re-declared here rather than imported, because this package must not
-	 * depend on the trigram package (the dependency runs the other way).
+	 * same measured reason - a construction-cost sweep located the flat `int[]`-vs-roaring knee at 128 elements, within
+	 * 1.7 % of every per-attribute optimum - but it is re-declared here rather than imported, because this package
+	 * must not depend on the trigram package (the dependency runs the other way).
 	 *
 	 * On the bucket census the choice is worth ~95.9 MB against a ~96.4 MB per-bucket optimum; the alternative of 32
 	 * captures ~90.2 MB, giving up the 33..128 band for a shorter worst-case array copy on 0.2 % of buckets.
@@ -292,8 +292,26 @@ public final class OverflowRecords {
 	 */
 	@Nonnull
 	static Bitmap asBitmapView(@Nonnull Object records) {
+		return asBitmapView(records, SortedArrayBitmap.NO_OWNER);
+	}
+
+	/**
+	 * Exposes a bucket's record set as a {@link Bitmap}, stamping the array arm's view with the identity of the leaf
+	 * that owns the array.
+	 *
+	 * The stamp is what lets a consumer key a cached answer on an array-tier bucket. The view itself is built per read
+	 * and the array is a bare `int[]`, so neither carries an identity; without the owner's, two independently written
+	 * structures holding the same ids would be indistinguishable. A leaf is a fresh instance with a fresh id after
+	 * every commit that rebuilt it, so the stamp is a staleness token as well as a discriminator.
+	 *
+	 * @param records the bucket's record set (an `int[]` or a {@link TransactionalBitmap})
+	 * @param ownerId identity of the leaf owning the record set
+	 * @return the record ids as a bitmap
+	 */
+	@Nonnull
+	static Bitmap asBitmapView(@Nonnull Object records, long ownerId) {
 		if (records instanceof final int[] small) {
-			return small.length == 0 ? EmptyBitmap.INSTANCE : new SortedArrayBitmap(small);
+			return small.length == 0 ? EmptyBitmap.INSTANCE : new SortedArrayBitmap(ownerId, small);
 		}
 		return asBitmap(records);
 	}
@@ -492,6 +510,33 @@ public final class OverflowRecords {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Verifies that a pre-built slot handed to the load path carries a shape this class can hold, refusing anything
+	 * else where it enters the tree rather than at the first read of the bucket it would have corrupted.
+	 *
+	 * The slot arrives in a bare `Object[]` - an `int[]` cannot implement an interface, so the compiler enforces
+	 * nothing about it - and this check is what replaces the enforcement a typed array used to give. A `null` slot
+	 * (the single-record tier) is the caller's business and is never passed here.
+	 *
+	 * @param records the pre-built record set to validate
+	 * @param index   the slot's position in the loaded page, named in the failure so the offending slot is locatable
+	 */
+	static void assertLoadableRecordSet(@Nonnull Object records, int index) {
+		if (records instanceof final int[] small) {
+			if (small.length < 2 || small.length > SMALL_BUCKET_THRESHOLD) {
+				throw new GenericEvitaInternalError(
+					"An array slot of the overflow column holds 2 .. " + SMALL_BUCKET_THRESHOLD + " ids, but the one "
+						+ "loaded at index " + index + " holds " + small.length + "!"
+				);
+			}
+		} else if (!(records instanceof TransactionalBitmap)) {
+			throw new GenericEvitaInternalError(
+				"An overflow bucket is either a sorted int[] or a TransactionalBitmap, never a "
+					+ records.getClass().getName() + " (loaded at index " + index + ")!"
+			);
+		}
 	}
 
 	/**

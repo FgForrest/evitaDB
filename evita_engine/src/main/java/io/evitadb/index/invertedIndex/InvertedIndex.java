@@ -43,11 +43,11 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
+import io.evitadb.index.bPlusTree.OverflowRecords;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
-import io.evitadb.index.bPlusTree.OverflowRecords;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.page.PageEmission;
@@ -55,6 +55,7 @@ import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.index.bitmap.SortedArrayBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
@@ -340,13 +341,14 @@ public class InvertedIndex implements
 	 * per tier the bucket tree stores and each of them sharing the tree's own storage rather than copying it:
 	 *
 	 * - a single-record bucket becomes a compact {@link ValueToRecordPrimitive};
-	 * - a small multi-record bucket becomes a {@link ValueToRecordArray} over the leaf's sorted `int[]`, which builds
-	 *   no roaring bitmap at all;
+	 * - a small multi-record bucket becomes a {@link ValueToRecordArray} over the read-only
+	 *   {@link SortedArrayBitmap} view of the leaf's sorted ids, which builds no roaring bitmap at all;
 	 * - a large one becomes a {@link ValueToRecordBitmap} sharing the very same {@link TransactionalBitmap} instance.
 	 *
 	 * Sharing is what preserves the record-set hash/equals parity the formula cache relies on. The dispatch is on the
-	 * cursor's answer about the tier, never on cardinality - see {@link BucketCursor#recordArray()}. Valid only after a
-	 * {@link BucketCursor#next()} that returned true.
+	 * TYPE the cursor answers with, which is exactly the tier - never on cardinality, since the promote and demote
+	 * thresholds differ and a bucket at a cardinality inside that window legitimately sits in either tier. Valid only
+	 * after a {@link BucketCursor#next()} that returned true.
 	 *
 	 * @param cursor the cursor positioned at the bucket to materialize
 	 * @return the bucket as a {@link ValueToRecord} flyweight
@@ -357,12 +359,12 @@ public class InvertedIndex implements
 		if (cursor.isSingle()) {
 			return new ValueToRecordPrimitive(value, cursor.singleRecordId());
 		}
-		final int[] recordArray = cursor.recordArray();
-		if (recordArray != null) {
-			return new ValueToRecordArray(value, recordArray);
+		final Bitmap records = cursor.records();
+		if (records instanceof final SortedArrayBitmap arrayView) {
+			return new ValueToRecordArray(value, arrayView);
 		}
 		// the multi overload shares the same TransactionalBitmap instance (no copy) so record-set identity is preserved
-		return new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records());
+		return new ValueToRecordBitmap(value, (TransactionalBitmap) records);
 	}
 
 	/**
@@ -1920,8 +1922,15 @@ public class InvertedIndex implements
 			} else {
 				// the legacy whole-histogram form is always ValueToRecordBitmap, so a bitmap-tier bucket is shared live
 				// (no copy) while a small array-tier one is wrapped into a transient bitmap here - this is the
-				// serializer's read-only snapshot boundary either way
-				result.add(new ValueToRecordBitmap(value, cursor.records()));
+				// serializer's read-only snapshot boundary either way. The tier dispatch has to be written out:
+				// records() is declared Bitmap, and the Bitmap constructor overload deep-copies into a fresh
+				// TransactionalBitmap, which would freeze the live bucket bitmap on every flush
+				final Bitmap bucketRecords = cursor.records();
+				result.add(
+					bucketRecords instanceof final TransactionalBitmap live
+						? new ValueToRecordBitmap(value, live)
+						: new ValueToRecordBitmap(value, bucketRecords)
+				);
 			}
 		}
 		return result.toArray(ValueToRecordBitmap[]::new);
@@ -2598,12 +2607,19 @@ public class InvertedIndex implements
 					// a multi bucket is persisted as a ValueToRecordBitmap whichever tier holds it in memory: the wire
 					// form of a bucket is its record IDS, so the array tier changes nothing on disk and no serializer
 					// has to learn a third shape. The transient wrap is paid once per dirty leaf per flush, next to
-					// the serialization of the page itself, and never on a query
-					pageBuckets.add(
-						cursor.isSingle()
-							? new ValueToRecordPrimitive(value, cursor.singleRecordId())
-							: new ValueToRecordBitmap(value, cursor.records())
-					);
+					// the serialization of the page itself, and never on a query - and only by the array tier, which
+					// is why the dispatch below is explicit: records() is declared Bitmap, and that constructor
+					// overload deep-copies, so a bare call would wrap the bitmap tier too
+					if (cursor.isSingle()) {
+						pageBuckets.add(new ValueToRecordPrimitive(value, cursor.singleRecordId()));
+					} else {
+						final Bitmap bucketRecords = cursor.records();
+						pageBuckets.add(
+							bucketRecords instanceof final TransactionalBitmap live
+								? new ValueToRecordBitmap(value, live)
+								: new ValueToRecordBitmap(value, bucketRecords)
+						);
+					}
 					if (pageValueIds != null) {
 						pageValueIds.add(cursor.valueId());
 					}

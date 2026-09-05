@@ -90,10 +90,10 @@ public class InvertedIndexSubSet {
 	 * single-record {@link ValueToRecordPrimitive}, a small-array {@link ValueToRecordArray} or a multi-record
 	 * {@link ValueToRecordBitmap}, exactly as held by the source index. No materialization happens: a single-record
 	 * bucket stays a bare-`int` primitive and a small one stays a sorted `int[]`, each allocating its lightweight
-	 * read-only view on demand only if a consumer actually reads {@link ValueToRecord#getRecordIds()}. Consumers read this slice through the read-only
-	 * {@link ValueToRecord} surface ({@link ValueToRecord#getValue()}, {@link ValueToRecord#getRecordIds()},
-	 * {@link ValueToRecord#size()}); they key their own staleness on the leaf-page transactional ids the slice crossed,
-	 * not on per-bucket bitmap ids.
+	 * read-only view on demand only if a consumer actually reads {@link ValueToRecord#getRecordIds()}. Consumers read
+	 * this slice through the read-only {@link ValueToRecord} surface ({@link ValueToRecord#getValue()},
+	 * {@link ValueToRecord#getRecordIds()}, {@link ValueToRecord#size()}); they key their own staleness on the
+	 * leaf-page transactional ids the slice crossed, not on per-bucket bitmap ids.
 	 *
 	 * The returned array is the subset's internal, ascending-by-value backing array - it must be treated as
 	 * read-only (never reordered or mutated), which is safe because this subset is a short-lived, single-query value.

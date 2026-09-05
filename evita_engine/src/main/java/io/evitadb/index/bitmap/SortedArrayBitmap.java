@@ -59,8 +59,13 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * | method | order |
  * |---|---|
- * | {@link #iterator()}, {@link #get(int)}, {@link #getFirst()}, {@link #getLast()}, {@link #indexOf(int)}, {@link #getRange(int, int)} | **unsigned** — roaring's own enumeration |
- * | {@link #getArray()} | **signed** — matching {@link TransactionalBitmap#getArray()}, which answers through {@code toSignedArray} |
+ * | {@link #iterator()} | **unsigned** — roaring's own enumeration |
+ * | {@link #get(int)} | **unsigned** — roaring's own enumeration |
+ * | {@link #getFirst()} | **unsigned** — roaring's own enumeration |
+ * | {@link #getLast()} | **unsigned** — roaring's own enumeration |
+ * | {@link #indexOf(int)} | **unsigned** — roaring's own enumeration |
+ * | {@link #getRange(int, int)} | **unsigned** — roaring's own enumeration |
+ * | {@link #getArray()} | **signed** — matches {@link TransactionalBitmap#getArray()} (via `toSignedArray`) |
  *
  * The two coincide unless the set holds a negative record id, which sorts after every non-negative one under
  * unsigned comparison and before every one of them under signed comparison.
@@ -78,9 +83,24 @@ public class SortedArrayBitmap implements Bitmap {
 	@Serial private static final long serialVersionUID = -6027498134120056251L;
 	private static final String ERROR_READ_ONLY = "Sorted array bitmap is read only.";
 	/**
+	 * {@link #getOwnerId()} of a view over an array that no identified structure owns.
+	 */
+	public static final long NO_OWNER = 0L;
+	/**
 	 * The record ids, sorted by {@link Integer#compareUnsigned} and distinct. Never written to.
 	 */
 	@Nonnull private final int[] recordIds;
+	/**
+	 * Identity of the structure that OWNS {@link #recordIds}, or {@link #NO_OWNER} when the view was built over an
+	 * array nobody else holds.
+	 *
+	 * A view carries no identity of its own - it is created fresh on every read, so its own object identity is
+	 * worthless as a cache key. The owner's identity is not: two structures holding byte-identical record sets are
+	 * still two structures that are written to independently, and a consumer keying a cached answer on a record set
+	 * has to be able to tell them apart. Where the owner is versioned (a B+ tree leaf is a fresh instance with a
+	 * fresh id after every commit that rebuilt it), this doubles as a staleness token.
+	 */
+	private final long ownerId;
 
 	/**
 	 * Locates `recordId` in an array sorted by {@link Integer#compareUnsigned}, with the same return contract as
@@ -132,7 +152,28 @@ public class SortedArrayBitmap implements Bitmap {
 	 *                  never written to, so the caller must not write to it either
 	 */
 	public SortedArrayBitmap(@Nonnull int... recordIds) {
+		this(NO_OWNER, recordIds);
+	}
+
+	/**
+	 * Creates a read-only view over record ids owned by an identified structure.
+	 *
+	 * @param ownerId   identity of the structure that owns the array - see {@link #getOwnerId()}
+	 * @param recordIds the record ids, sorted by {@link Integer#compareUnsigned} and distinct; stored by reference and
+	 *                  never written to, so the owner must not write to it while the view is alive
+	 */
+	public SortedArrayBitmap(long ownerId, @Nonnull int... recordIds) {
+		this.ownerId = ownerId;
 		this.recordIds = recordIds;
+	}
+
+	/**
+	 * Returns the identity of the structure owning the wrapped array, or {@link #NO_OWNER} when there is none.
+	 *
+	 * @return the owner's identity, or {@link #NO_OWNER}
+	 */
+	public long getOwnerId() {
+		return this.ownerId;
 	}
 
 	@Override
@@ -246,7 +287,8 @@ public class SortedArrayBitmap implements Bitmap {
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		return layout.sizeOfObject(layout.referenceSize())
+		// the array reference and the owner id, plus the array itself
+		return layout.sizeOfObject(layout.referenceSize() + Long.BYTES)
 			+ layout.sizeOfArray(this.recordIds.length, Integer.BYTES);
 	}
 
