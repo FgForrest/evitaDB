@@ -557,7 +557,6 @@ public final class SessionRegistry {
 	 */
 	private static void closeAbandonedSession(@Nonnull EvitaSession session, @Nonnull Throwable cause) {
 		try {
-			//noinspection resource
 			session.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
 		} catch (Throwable closeFailure) {
 			cause.addSuppressed(closeFailure);

@@ -156,7 +156,7 @@ public final class ColumnSizing {
 			return currentLength;
 		}
 		final int target = Math.min(Math.max(MIN_PHYSICAL_LENGTH, nextPowerOfTwo(size)), capacity);
-		return target < currentLength ? target : currentLength;
+		return Math.min(target, currentLength);
 	}
 
 	/**

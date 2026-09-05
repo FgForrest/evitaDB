@@ -777,11 +777,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.uniqueIndex == null) {
-				this.uniqueIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+			PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex> theIndex = this.uniqueIndex;
+			if (theIndex == null) {
+				theIndex =  new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32),
+					UniqueIndex.class,
+					Function.identity()
+				);
+				this.uniqueIndex = theIndex;
 			}
-			return this.uniqueIndex;
+			return theIndex;
 		}
 	}
 
@@ -798,11 +803,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.sortIndex == null) {
-				this.sortIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32), SortIndex.class, Function.identity());
+			PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> theIndex = this.sortIndex;
+			if (theIndex == null) {
+				theIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32),
+					SortIndex.class,
+					Function.identity()
+				);
+				this.sortIndex = theIndex;
 			}
-			return this.sortIndex;
+			return theIndex;
 		}
 	}
 
@@ -819,11 +829,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.chainIndex == null) {
-				this.chainIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32), ChainIndex.class, Function.identity());
+			PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> theIndex = this.chainIndex;
+			if (theIndex == null) {
+				theIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32),
+					ChainIndex.class,
+					Function.identity()
+				);
+				this.chainIndex = theIndex;
 			}
-			return this.chainIndex;
+			return theIndex;
 		}
 	}
 
@@ -840,11 +855,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.sharedValueIndex == null) {
-				this.sharedValueIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32), InvertedIndex.class, Function.identity());
+			PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> theIndex = this.sharedValueIndex;
+			if (theIndex == null) {
+				theIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32),
+					InvertedIndex.class,
+					Function.identity()
+				);
+				this.sharedValueIndex = theIndex;
 			}
-			return this.sharedValueIndex;
+			return theIndex;
 		}
 	}
 
@@ -861,11 +881,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.sharedRangeIndex == null) {
-				this.sharedRangeIndex = new PersistentTransactionalProducerMap<>(
-					CollectionUtils.createHashMap(32), RangeIndex.class, Function.identity());
+			PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex> theIndex = this.sharedRangeIndex;
+			if (theIndex == null) {
+				theIndex = new PersistentTransactionalProducerMap<>(
+					CollectionUtils.createHashMap(32),
+					RangeIndex.class,
+					Function.identity()
+				);
+				this.sharedRangeIndex = theIndex;
 			}
-			return this.sharedRangeIndex;
+			return theIndex;
 		}
 	}
 
@@ -884,10 +909,12 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.filterIndex == null) {
-				this.filterIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+			TransactionalMap<AttributeIndexKey, FilterIndex> theIndex = this.filterIndex;
+			if (theIndex == null) {
+				theIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+				this.filterIndex = theIndex;
 			}
-			return this.filterIndex;
+			return theIndex;
 		}
 	}
 
@@ -906,11 +933,16 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			return existing;
 		}
 		synchronized (this) {
-			if (this.uniqueViewIndex == null) {
-				this.uniqueViewIndex = new TransactionalMap<>(
-					CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
+			TransactionalMap<AttributeIndexKey, UniqueIndex> theIndex = this.uniqueViewIndex;
+			if (theIndex == null) {
+				theIndex = new TransactionalMap<>(
+					CollectionUtils.createHashMap(32),
+					UniqueIndex.class,
+					Function.identity()
+				);
+				this.uniqueViewIndex = theIndex;
 			}
-			return this.uniqueViewIndex;
+			return theIndex;
 		}
 	}
 

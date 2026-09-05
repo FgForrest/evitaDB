@@ -48,7 +48,6 @@ import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
-import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
@@ -587,6 +586,7 @@ public class InvertedIndex implements
 				//noinspection unchecked
 				bornValueId = tree.addRecordReportingValueBirth(value, recordIds.getArray());
 			}
+			//noinspection NonShortCircuitBooleanExpression
 			collapsed |= bornValueId == TransactionalBucketBPlusTree.NO_CREATED_BUCKET;
 		}
 		this.buckets = tree;
@@ -660,7 +660,9 @@ public class InvertedIndex implements
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
 	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
 	 * @param perPageValueIds      the persisted value ids of each leaf page, positionally aligned with
-	 *                             `orderedPageSequences`, or `null` when the tree carries no value ids
+	 *                             `orderedPageSequences` and holding exactly one id per bucket of its page, or
+	 *                             `null` when the tree carries no value ids at all — the column is an
+	 *                             all-or-nothing property of a generation, never present on some pages only
 	 * @param highWaterPageSequence     the persisted stream high-water (largest page sequence ever allocated)
 	 * @param normalizer           the value normalizer
 	 * @param comparator           the value order
@@ -688,6 +690,22 @@ public class InvertedIndex implements
 			perPageValueIds == null || perPageValueIds.length == orderedPageSequences.length,
 			"The per-page value id columns must align with the page sequences one for one."
 		);
+		if (perPageValueIds != null) {
+			// every consumer below reads the id column as an all-or-nothing property of the generation: the collapse
+			// trims a page's column alongside its buckets, the re-sort reads it bucket by bucket, and `bulkLoadPage`
+			// hands it to the leaf whole. A page that lost its column, or carries a short one, would therefore
+			// surface as a null dereference or an out-of-bounds read deep inside the repair - naming neither the
+			// page nor the cause - so it is refused here, where both can still be reported
+			for (int i = 0; i < perPageValueIds.length; i++) {
+				final int[] pageValueIds = perPageValueIds[i];
+				Assert.isPremiseValid(
+					pageValueIds != null && pageValueIds.length == perPageBuckets[i].length,
+					"Leaf page " + orderedPageSequences[i] + " must carry exactly one value id per bucket - it holds " +
+						(pageValueIds == null ? "no id column" : pageValueIds.length + " ids") + " for " +
+						perPageBuckets[i].length + " buckets."
+				);
+			}
+		}
 		// normalize every persisted bucket value into the key space the tree is contracted on - whatever the buckets'
 		// provenance - and, on the same pass, find out whether any two of them now meet in a single key, or whether
 		// the order they were persisted in is no longer the order they compare in
@@ -703,7 +721,9 @@ public class InvertedIndex implements
 				keys[j] = key;
 				if (previousKey != null) {
 					final int comparison = comparator.compare(previousKey, key);
+					//noinspection NonShortCircuitBooleanExpression
 					collapsed |= comparison == 0;
+					//noinspection NonShortCircuitBooleanExpression
 					inverted |= comparison > 0;
 				}
 				previousKey = key;
@@ -1106,12 +1126,17 @@ public class InvertedIndex implements
 			// Re-pointing here is enough because `targetPage` is necessarily THIS page's array at this point: every
 			// surviving bucket reassigns it, and a page with no survivor never reaches this line
 			targetPage = retainedPageBuckets;
-			if (retainedValueIds != null) {
+			// one condition written as two: the retained column exists exactly when the page column does, because
+			// `fromPersistedPages` refuses a page array that carries the id column on some pages only. Testing the
+			// reference that is actually dereferenced keeps that provable at this site rather than four hundred
+			// lines away
+			if (retainedValueIds != null && pageValueIds != null) {
 				retainedValueIds[retainedPageCount] =
 					count == buckets.length ? pageValueIds : Arrays.copyOf(pageValueIds, count);
 			}
 			// a page that lost a bucket here, or absorbed one from its successor, no longer matches its persisted
 			// record; a page whose whole bucket list survived intact still does, and must keep its identity
+			//noinspection NonShortCircuitBooleanExpression
 			retainedMerged[retainedPageCount] |= count != buckets.length;
 			retainedPageCount++;
 		}
@@ -1818,7 +1843,7 @@ public class InvertedIndex implements
 	 * @param valueId         the id the insert minted for the value
 	 * @param normalizedValue the value the insert created a bucket for, already normalized
 	 */
-	private void notifyValueCreated(
+	private static void notifyValueCreated(
 		@Nonnull ValueLifecycleSink sink,
 		int valueId,
 		@Nonnull Comparable normalizedValue

@@ -1045,6 +1045,29 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Sorts the array in place by {@link Integer#compareUnsigned} - the order in which a negative id is the GREATEST
+	 * rather than the smallest. The JDK offers no unsigned primitive sort and a `Comparator` based one would box every
+	 * element, so the sign bit is flipped instead: that maps the unsigned order onto the signed one, lets
+	 * {@link Arrays#sort(int[])} run unchanged, and flipping it back is its own inverse. Two linear passes, no
+	 * allocation, and an array holding no negative value comes out byte-for-byte as a plain sort would have left it.
+	 *
+	 * Callers need this wherever an `int` record id is treated as unsigned - RoaringBitmap's container order and the
+	 * overflow record sets both are - because a signed sort puts the negatives FIRST, which is the opposite end of
+	 * the sequence from where such a consumer expects them.
+	 *
+	 * @param array the array to sort in place
+	 */
+	public static void sortUnsigned(@Nonnull int[] array) {
+		for (int i = 0; i < array.length; i++) {
+			array[i] ^= Integer.MIN_VALUE;
+		}
+		Arrays.sort(array);
+		for (int i = 0; i < array.length; i++) {
+			array[i] ^= Integer.MIN_VALUE;
+		}
+	}
+
+	/**
 	 * This method will merge all passed arrays into one. All values from all arrays will be combined one after another.
 	 * Result array is not sorted.
 	 */

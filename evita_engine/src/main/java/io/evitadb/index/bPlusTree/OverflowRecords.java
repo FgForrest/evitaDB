@@ -35,7 +35,6 @@ import io.evitadb.utils.VMLayout;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import java.util.Arrays;
 
 /**
  * The record set of one **multi-record** bucket of a {@link TransactionalBucketBPlusTree} leaf, in the measured
@@ -415,7 +414,7 @@ public final class OverflowRecords {
 	private static Object merge(@Nonnull int[] existing, @Nonnull int... added) {
 		// never sort the caller's array - `added` is a varargs argument the caller may still hold
 		final int[] candidates = added.clone();
-		sortUnsigned(candidates);
+		ArrayUtils.sortUnsigned(candidates);
 		// count the ids that are genuinely new, so the union array is allocated exactly once at its final length
 		int newCount = 0;
 		int previous = 0;
@@ -467,22 +466,6 @@ public final class OverflowRecords {
 			);
 		}
 		return union;
-	}
-
-	/**
-	 * Sorts the array by {@link Integer#compareUnsigned}. Flipping the sign bit maps the unsigned order onto the
-	 * signed one, so the JDK's primitive sort can be used unchanged, and flipping it back is its own inverse.
-	 *
-	 * @param records the array to sort in place
-	 */
-	private static void sortUnsigned(@Nonnull int[] records) {
-		for (int i = 0; i < records.length; i++) {
-			records[i] ^= Integer.MIN_VALUE;
-		}
-		Arrays.sort(records);
-		for (int i = 0; i < records.length; i++) {
-			records[i] ^= Integer.MIN_VALUE;
-		}
 	}
 
 	/**
