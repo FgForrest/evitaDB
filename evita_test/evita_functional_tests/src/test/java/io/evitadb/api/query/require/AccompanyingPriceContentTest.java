@@ -207,28 +207,6 @@ class AccompanyingPriceContentTest {
 	}
 
 	@Nested
-	@DisplayName("EntityContentRequire contract")
-	class EntityContentRequireContractTest {
-
-		@Test
-		@DisplayName("should not be combinable with other EntityContentRequire types")
-		void shouldNotBeCombinableWithOtherEntityContentRequireTypes() {
-			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
-
-			assertFalse(constraint.isCombinableWith(attributeContentAll()));
-			assertFalse(constraint.isCombinableWith(associatedDataContentAll()));
-		}
-
-		@Test
-		@DisplayName("should not be fully contained within different constraint type")
-		void shouldNotBeFullyContainedWithinDifferentConstraintType() {
-			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
-
-			assertFalse(constraint.isFullyContainedWithin(attributeContentAll()));
-		}
-	}
-
-	@Nested
 	@DisplayName("Combining")
 	class CombiningTest {
 
@@ -309,6 +287,43 @@ class AccompanyingPriceContentTest {
 		}
 
 		@Test
+		@DisplayName("should treat the no-arg constraint and the explicit default name as one price")
+		void shouldTreatNoArgConstraintAndExplicitDefaultNameAsOneKey() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent();
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent(
+				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE
+			);
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			assertSame(constraint1, constraint1.combineWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be combinable with other EntityContentRequire types")
+		void shouldNotBeCombinableWithOtherEntityContentRequireTypes() {
+			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
+
+			assertFalse(constraint.isCombinableWith(attributeContentAll()));
+			assertFalse(constraint.isCombinableWith(associatedDataContentAll()));
+		}
+
+		@Test
+		@DisplayName("should refuse to combine with a requirement of another kind")
+		void shouldRefuseToCombineWithDifferentRequirementType() {
+			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> constraint.combineWith(attributeContentAll())
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Containment")
+	class ContainmentTest {
+
+		@Test
 		@DisplayName("should be fully contained within an equal requirement")
 		void shouldBeFullyContainedWithinEqualRequirement() {
 			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
@@ -333,6 +348,14 @@ class AccompanyingPriceContentTest {
 			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
 
 			assertFalse(constraint1.isFullyContainedWithin(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained within a requirement of another kind")
+		void shouldNotBeFullyContainedWithinDifferentConstraintType() {
+			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
+
+			assertFalse(constraint.isFullyContainedWithin(attributeContentAll()));
 		}
 	}
 

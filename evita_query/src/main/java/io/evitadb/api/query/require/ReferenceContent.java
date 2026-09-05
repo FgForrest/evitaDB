@@ -921,12 +921,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 *   for all references is never contained within a name-specific one)
 	 * - this side's reference attributes, entity bodies and group entity bodies are each contained within the
 	 *   other side's
-	 * - the `filterBy`, `orderBy` and chunking constraints are **equal** on both sides — these select and shape the
-	 *   returned references rather than enriching them, so a different one is never a superset
+	 * - the other side's `filterBy` is **absent or equal** to this side's, and the same holds for the chunking
+	 *   constraint — a requirement carrying neither asks for *every* reference and is therefore the superset of one
+	 *   that filters or pages them, while two different filters (or two different pages) select unrelated subsets
+	 * - the other side's `orderBy` is **equal** to this side's, or this side carries none — an order shapes the
+	 *   sequence without dropping anything, so an unordered requirement is satisfied by an ordered one but not the
+	 *   other way round
 	 *
-	 * This relation is consumed by {@link DefaultPrefetchRequirementCollector} (and thus by
-	 * {@link EntityFetch#combineWith(EntityFetchRequire)}), where dropping a contained requirement is the intended
-	 * behaviour.
+	 * This relation is consumed by {@link DefaultPrefetchRequirementCollector}, the prefetch union, where dropping
+	 * a contained requirement is the intended behaviour because a superset is what prefetch asks for. It is
+	 * deliberately **not** consulted by {@link EntityFetch#combineWith(EntityFetchRequire)}, which merges two bodies
+	 * the client will actually receive and must therefore preserve the specific-over-default precedence.
 	 *
 	 * @param anotherRequirement another requirement to be checked for containment
 	 * @param <T> the type of the requirement which extends EntityContentRequire
@@ -982,17 +987,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			}
 			final Optional<FilterBy> thatFilterBy = referenceContent.getFilterBy();
 			final Optional<FilterBy> thisFilterBy = getFilterBy();
-			if (!Objects.equals(thisFilterBy.orElse(null), thatFilterBy.orElse(null))) {
-				return false;
-			}
-			final Optional<OrderBy> thatOrderBy = referenceContent.getOrderBy();
-			final Optional<OrderBy> thisOrderBy = getOrderBy();
-			if (!Objects.equals(thisOrderBy.orElse(null), thatOrderBy.orElse(null))) {
+			if (thatFilterBy.isPresent() && !thatFilterBy.equals(thisFilterBy)) {
 				return false;
 			}
 			final Optional<ChunkingRequireConstraint> thatChunking = referenceContent.getChunking();
 			final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
-			if (!Objects.equals(thisChunking.orElse(null), thatChunking.orElse(null))) {
+			if (thatChunking.isPresent() && !thatChunking.equals(thisChunking)) {
+				return false;
+			}
+			final Optional<OrderBy> thatOrderBy = referenceContent.getOrderBy();
+			final Optional<OrderBy> thisOrderBy = getOrderBy();
+			if (thisOrderBy.isPresent() && !thisOrderBy.equals(thatOrderBy)) {
 				return false;
 			}
 			return true;
@@ -1015,16 +1020,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 *   never lost by merging
 	 * - **reference attributes, entity body and group entity body** — the union of both sides (recursively for the
 	 *   bodies); an "all" requirement absorbs a name-specific one
-	 * - **`filterBy`, `orderBy` and chunking** — must be **equal** on both sides, where absent on both sides counts
-	 *   as equal and present-versus-absent counts as a difference. These constraints select and shape the returned
-	 *   references instead of enriching them, so there is no union that preserves both intents; a difference is
-	 *   therefore refused with {@link EvitaInvalidUsageException}, one message per differing part. All three are
-	 *   **retained** in the result.
+	 * - **`filterBy` and chunking** — kept when both sides carry an equal one, refused with
+	 *   {@link EvitaInvalidUsageException} when both sides carry a different one, and **dropped** when only one side
+	 *   carries it. A requirement that names neither asks for *every* reference and is thus the superset of the
+	 *   filtered or paged one, so the union of the two intents is the unrestricted requirement — exactly as
+	 *   `attributeContentAll()` swallows an `attributeContent("code")` written beside it. This matters beyond
+	 *   sibling requirements the client wrote together: the query planner contributes a bare `referenceContent`
+	 *   of its own whenever a reference is filtered or ordered by, and that one must not collide with the client's
+	 *   restricted requirement for the same reference.
+	 * - **`orderBy`** — kept when both sides carry an equal one or only one side carries it, refused with
+	 *   {@link EvitaInvalidUsageException} when the two differ. An order shapes the sequence without dropping any
+	 *   reference, so retaining the single order present loses neither side's intent.
 	 *
 	 * @param anotherRequirement another requirement to be combined with, must share this requirement's key
 	 * @param <T> type of the requirement to be combined with
 	 * @return a new requirement covering both this one and `anotherRequirement`
-	 * @throws EvitaInvalidUsageException when the two sides disagree on `filterBy`, `orderBy` or chunking
+	 * @throws EvitaInvalidUsageException when both sides carry a different `filterBy`, `orderBy` or chunking
 	 * @throws GenericEvitaInternalError when `anotherRequirement` is not a `referenceContent` or carries another key
 	 */
 	@Nonnull
@@ -1047,29 +1058,42 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		}
 
 		final Optional<FilterBy> thisFilterBy = getFilterBy();
-		if (!Objects.equals(thisFilterBy.orElse(null), anotherReferenceContent.getFilterBy().orElse(null))) {
+		final Optional<FilterBy> thatFilterBy = anotherReferenceContent.getFilterBy();
+		if (thisFilterBy.isPresent() && thatFilterBy.isPresent() && !thisFilterBy.equals(thatFilterBy)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot combine multiple reference content requirements with different filter constraints: " +
 					this + " and " + anotherRequirement,
 				"Cannot combine multiple reference content requirements with different filter constraints."
 			);
 		}
+		// a side carrying no filter asks for every reference and is the superset - the filter is dropped
+		final FilterBy combinedFilterBy = thisFilterBy.isPresent() && thatFilterBy.isPresent() ?
+			thisFilterBy.get() : null;
+
 		final Optional<OrderBy> thisOrderBy = getOrderBy();
-		if (!Objects.equals(thisOrderBy.orElse(null), anotherReferenceContent.getOrderBy().orElse(null))) {
+		final Optional<OrderBy> thatOrderBy = anotherReferenceContent.getOrderBy();
+		if (thisOrderBy.isPresent() && thatOrderBy.isPresent() && !thisOrderBy.equals(thatOrderBy)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot combine multiple reference content requirements with different order constraints: " +
 					this + " and " + anotherRequirement,
 				"Cannot combine multiple reference content requirements with different order constraints."
 			);
 		}
+		// an order drops no reference - the single order present is retained
+		final OrderBy combinedOrderBy = thisOrderBy.or(() -> thatOrderBy).orElse(null);
+
 		final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
-		if (!Objects.equals(thisChunking.orElse(null), anotherReferenceContent.getChunking().orElse(null))) {
+		final Optional<ChunkingRequireConstraint> thatChunking = anotherReferenceContent.getChunking();
+		if (thisChunking.isPresent() && thatChunking.isPresent() && !thisChunking.equals(thatChunking)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot combine multiple reference content requirements with different chunking constraints: " +
 					this + " and " + anotherRequirement,
 				"Cannot combine multiple reference content requirements with different chunking constraints."
 			);
 		}
+		// a side carrying no chunking asks for every reference and is the superset - the chunking is dropped
+		final ChunkingRequireConstraint combinedChunking = thisChunking.isPresent() && thatChunking.isPresent() ?
+			thisChunking.get() : null;
 
 		final ManagedReferencesBehaviour managedReferencesBehaviour =
 			getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
@@ -1093,13 +1117,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 						getGroupEntityRequirement().orElse(null),
 						anotherReferenceContent.getGroupEntityRequirement().orElse(null)
 					),
-					thisChunking.orElse(null)
+					combinedChunking
 				}
 			).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
 			Arrays.stream(
 				new Constraint<?>[]{
-					thisFilterBy.orElse(null),
-					thisOrderBy.orElse(null)
+					combinedFilterBy,
+					combinedOrderBy
 				}
 			).filter(Objects::nonNull).toArray(Constraint[]::new)
 		);

@@ -168,6 +168,9 @@ public class EvitaRequest {
 	 * `referenceContent("b", "c")`. Such a pair is not combinable (the requirements do not share a key), yet both
 	 * describe how reference `b` should be fetched, and picking either body would silently drop the other one.
 	 *
+	 * When no other requirement can be identified as the first claimant, the message names only the conflicting
+	 * requirement - an unidentified claimant must never be rendered into the message as `null`.
+	 *
 	 * @param referenceName     the reference claimed by both requirements
 	 * @param referenceContents all reference content requirements of the request, used to find the first claimant
 	 * @param conflicting       the requirement whose reference name collided with an already registered one
@@ -188,6 +191,14 @@ public class EvitaRequest {
 				firstClaimant = rc;
 				break;
 			}
+		}
+		if (firstClaimant == null) {
+			return new EvitaInvalidUsageException(
+				"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
+					"reference name sets, one of them being: " + conflicting + "; merge them into one.",
+				"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
+					"reference name sets; merge them into one."
+			);
 		}
 		return new EvitaInvalidUsageException(
 			"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
@@ -1441,9 +1452,14 @@ public class EvitaRequest {
 	 * folded by key first (see {@link EntityFetchRequire#combineDuplicateRequirements()}), so two requirements naming
 	 * the same reference can only reach this method when their reference name sets differ but overlap - and that is
 	 * refused with an {@link EvitaInvalidUsageException}, because neither of the two bodies can be preferred over the
-	 * other. Requirements carrying an instance name are collected separately into
-	 * {@link #getNamedReferenceEntityFetch()} and the instance-less catch-all into
+	 * other. A reference named twice **inside one** requirement (`referenceContent("brand", "brand")`) is not such
+	 * a conflict - the requirement claims the reference once. Requirements carrying an instance name are collected
+	 * separately into {@link #getNamedReferenceEntityFetch()} and the instance-less catch-all into
 	 * {@link #getDefaultReferenceRequirement()}.
+	 *
+	 * All three lookups are published together, once the whole query has been walked without a conflict. A refused
+	 * query therefore leaves the request untouched and raises the very same usage exception on every call, instead
+	 * of reporting an internal error over the remains of the first, aborted attempt.
 	 *
 	 * @return map of reference name to the single requirement context that applies to it
 	 * @throws EvitaInvalidUsageException when two `referenceContent` requirements with different reference name sets
@@ -1463,7 +1479,6 @@ public class EvitaRequest {
 						ReferenceContent.class,
 						SeparateEntityContentRequireContainer.class
 					);
-				this.entityReference = !referenceContent.isEmpty();
 
 				// find default requirement (no instance name, no reference names) - after the reduction performed by
 				// getEntityRequirement() there can be at most one, a second one is a programming error
@@ -1485,21 +1500,21 @@ public class EvitaRequest {
 						);
 					}
 				}
-				this.defaultReferenceRequirement = defaultReq;
-
-				// build the requirements map
+				// build the requirements maps into locals - the fields are published only once the whole loop
+				// succeeded, so a refused request reproduces the very same usage exception on every call
 				final Map<String, RequirementContext> result =
 					CollectionUtils.createHashMap(referenceContent.size());
+				Map<ReferenceContentKey, RequirementContext> namedResult = null;
 				for (final ReferenceContent rc : referenceContent) {
 					final String instanceName = rc.getInstanceName();
 					if (instanceName != null) {
 						// named reference
-						if (this.namedEntityFetchRequirements == null) {
-							this.namedEntityFetchRequirements = new TreeMap<>();
+						if (namedResult == null) {
+							namedResult = new TreeMap<>();
 						}
 						// after the reduction there can be at most one requirement per (instance, reference) key
 						final RequirementContext previouslyNamed =
-							this.namedEntityFetchRequirements.put(
+							namedResult.put(
 								new ReferenceContentKey(instanceName, rc.getReferenceName()),
 								getRequirementContext(
 									rc, rc.getAttributeContent().orElse(null)
@@ -1522,8 +1537,11 @@ public class EvitaRequest {
 							);
 							for (final String refName : refNames) {
 								// requirements sharing a reference name were folded into one unless their reference
-								// name sets merely overlap - and then neither body may win over the other
-								if (result.put(refName, ctx) != null) {
+								// name sets merely overlap - and then neither body may win over the other. A name
+								// repeated inside a single requirement claims its slot once: the context found in
+								// the map is then the very one this requirement has just stored.
+								final RequirementContext previousCtx = result.put(refName, ctx);
+								if (previousCtx != null && previousCtx != ctx) {
 									throw createOverlappingReferenceNamesException(
 										refName, referenceContent, rc
 									);
@@ -1532,6 +1550,9 @@ public class EvitaRequest {
 						}
 					}
 				}
+				this.entityReference = !referenceContent.isEmpty();
+				this.defaultReferenceRequirement = defaultReq;
+				this.namedEntityFetchRequirements = namedResult;
 				this.entityFetchRequirements = result;
 			}
 		}

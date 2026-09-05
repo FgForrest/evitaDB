@@ -55,8 +55,9 @@ import javax.annotation.Nullable;
  * operand when only one is present, or delegates to `combineWith` when both are non-null.
  *
  * Requirements are accumulated by {@link FetchRequirementCollector} / {@link DefaultPrefetchRequirementCollector}
- * during query planning, and the {@link EntityContentRequireCombiningCollector} allows the same merging logic to be
- * applied to Java streams of requirements.
+ * during query planning, which unions them and drops the ones already contained within another. The keyed fold
+ * {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])} applies the same pairwise merging
+ * logic to a flat list of requirements without consulting containment.
  *
  * All implementations must be immutable and thread-safe.
  *

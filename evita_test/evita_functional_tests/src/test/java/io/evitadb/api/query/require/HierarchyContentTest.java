@@ -181,6 +181,25 @@ class HierarchyContentTest {
 	}
 
 	@Test
+	@DisplayName("a stop constraint present on a single side only is dropped")
+	void shouldDropStopAtPresentOnSingleSideOnly() {
+		final HierarchyContent bounded = hierarchyContent(stopAt(distance(1)));
+		final HierarchyContent unbounded = hierarchyContent();
+
+		assertEquals(hierarchyContent(), bounded.combineWith(unbounded));
+		assertEquals(hierarchyContent(), unbounded.combineWith(bounded));
+	}
+
+	@Test
+	@DisplayName("an equal stop constraint present on both sides is kept")
+	void shouldKeepStopAtWhenEqualOnBothSides() {
+		final HierarchyContent first = hierarchyContent(stopAt(distance(1)));
+		final HierarchyContent second = hierarchyContent(stopAt(distance(1)));
+
+		assertEquals(hierarchyContent(stopAt(distance(1))), first.combineWith(second));
+	}
+
+	@Test
 	@DisplayName("cloneWithArguments() should return new instance, not this")
 	void shouldReturnNewInstanceFromCloneWithArguments() {
 		final HierarchyContent original = hierarchyContent(stopAt(distance(1)), entityFetch());

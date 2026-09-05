@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -133,6 +134,23 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 		return false;
 	}
 
+	/**
+	 * Merges this group fetch with another one into a single fetch requesting the union of both bodies. The merge is
+	 * the very same keyed fold that reduces duplicate requirements written side by side
+	 * ({@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}), applied to the concatenation
+	 * of both requirement lists - so a united body follows exactly the precedence a body written once would.
+	 *
+	 * Containment is deliberately **not** consulted here: a `referenceContent("brand")` is contained within a
+	 * `referenceContentAllWithAttributes()`, yet the two are resolved through different lookups (the reference-name
+	 * specific requirement wins over the default one), and dropping the specific one would silently widen the body
+	 * fetched for `brand`.
+	 *
+	 * @param anotherRequirement another group fetch to be merged in, NULL yields this very instance
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new group fetch covering both this one and `anotherRequirement`
+	 * @throws EvitaInvalidUsageException when two requirements of one kind contradict each other
+	 * @throws GenericEvitaInternalError when `anotherRequirement` is not an `entityGroupFetch`
+	 */
 	@Nonnull
 	@Override
 	public <T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement) {
@@ -142,11 +160,14 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 		}
 
 		if (anotherRequirement instanceof EntityGroupFetch anotherEntityFetch) {
-			final EntityContentRequire[] combinedContentRequirements = Stream.concat(
-					Arrays.stream(getRequirements()),
-					Arrays.stream(anotherEntityFetch.getRequirements())
-				)
-				.collect(new EntityContentRequireCombiningCollector());
+			final EntityContentRequire[] combinedContentRequirements =
+				EntityFetchRequire.combineDuplicateRequirements(
+					Stream.concat(
+							Arrays.stream(getRequirements()),
+							Arrays.stream(anotherEntityFetch.getRequirements())
+						)
+						.toArray(EntityContentRequire[]::new)
+				);
 
 			//noinspection unchecked
 			return (T) new EntityGroupFetch(combinedContentRequirements);

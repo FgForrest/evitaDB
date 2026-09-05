@@ -191,6 +191,19 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 		return false;
 	}
 
+	/**
+	 * Merges this requirement with another `hierarchyContent` into a single requirement covering both. The nested
+	 * entity bodies are united recursively, while the `stopAt` bound follows the superset rule: it is kept when both
+	 * sides agree on it, refused with an {@link EvitaInvalidUsageException} when the two sides bound the chain
+	 * differently, and **dropped** when only one side carries it - a requirement without a bound asks for the whole
+	 * parent chain, and adopting the other side's bound would silently return fewer parents than it asked for.
+	 *
+	 * @param anotherRequirement another requirement to be combined with
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new requirement covering both this one and `anotherRequirement`
+	 * @throws EvitaInvalidUsageException when both sides carry a different `stopAt` constraint
+	 * @throws GenericEvitaInternalError when `anotherRequirement` is not a `hierarchyContent`
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
@@ -204,10 +217,14 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 					"Cannot combine multiple hierarchy content requirements with stop constraint."
 				);
 			}
+			// a side carrying no stop constraint asks for the whole parent chain and is therefore the superset -
+			// the bound survives only when both sides agreed on it
+			final HierarchyStopAt combinedStopAt = thisStopAt.isPresent() && thatStopAt.isPresent() ?
+				thisStopAt.get() : null;
 			return (T) new HierarchyContent(
 				Arrays.stream(
 					new RequireConstraint[]{
-						thisStopAt.or(() -> thatStopAt).orElse(null),
+						combinedStopAt,
 						EntityFetchRequire.combineRequirements(
 							getEntityFetch().orElse(null),
 							anotherHierarchyContent.getEntityFetch().orElse(null)

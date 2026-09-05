@@ -23,17 +23,19 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
@@ -279,15 +281,98 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 	}
 
-	/**
-	 * Helper method to create an EntityFetch with given requirements.
-	 *
-	 * @param requirements the requirements to include in the EntityFetch
-	 * @return an EntityFetch instance containing the given requirements
-	 */
-	@Nonnull
-	private static EntityFetch createEntityFetch(@Nonnull EntityContentRequire... requirements) {
-		return entityFetch(requirements);
+	@Nested
+	@DisplayName("Reference content merging")
+	@Tag(REFERENCE)
+	class ReferenceContentMergingTest {
+
+		@Test
+		@DisplayName("should drop a name specific requirement contained within the one for all references")
+		void shouldDropSpecificReferenceContentContainedWithinAllReferences() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContentAll());
+			collector.addRequirementsToPrefetch(referenceContent("category"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContentAll(), requirements[0]);
+		}
+
+		@Test
+		@DisplayName("should keep a requirement for all references added after a name specific one")
+		void shouldKeepAllReferencesRequirementAddedAfterSpecificOne() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			// the union is order sensitive: a requirement for all references is not contained within a name
+			// specific one and the two do not share a key, so both survive
+			collector.addRequirementsToPrefetch(referenceContent("category"));
+			collector.addRequirementsToPrefetch(referenceContentAll());
+
+			assertEquals(2, collector.getRequirementsToPrefetch().length);
+		}
+
+		@Test
+		@DisplayName("should combine two reference contents naming the same set of references")
+		void shouldCombineTwoReferenceContentsWithIdenticalNameSets() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent("code")))
+			);
+			collector.addRequirementsToPrefetch(
+				referenceContent(new String[]{"b", "a"}, entityFetch(attributeContent("name")))
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(
+				referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent("code", "name"))),
+				requirements[0]
+			);
+		}
+
+		@Test
+		@DisplayName("should keep reference contents whose name sets merely overlap apart")
+		void shouldKeepReferenceContentsWithOverlappingNameSetsApart() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent("a", "b"));
+			collector.addRequirementsToPrefetch(referenceContent("b", "c"));
+
+			assertEquals(2, collector.getRequirementsToPrefetch().length);
+		}
+	}
+
+	@Nested
+	@DisplayName("Accompanying price merging")
+	@Tag(PRICE)
+	class AccompanyingPriceMergingTest {
+
+		@Test
+		@DisplayName("should keep accompanying prices of different names apart")
+		void shouldKeepAccompanyingPricesOfDifferentNamesApart() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "basic"));
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("b", "reference"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(2, requirements.length);
+		}
+
+		@Test
+		@DisplayName("should refuse two accompanying prices of one name computed from different price lists")
+		void shouldRefuseAccompanyingPricesOfOneNameWithDifferentPriceLists() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "basic"));
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "reference"))
+			);
+		}
 	}
 
 }

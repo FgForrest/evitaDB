@@ -311,6 +311,56 @@ class EntityFetchTest {
 
 			assertThrows(EvitaInvalidUsageException.class, () -> entityFetch1.combineWith(entityFetch2));
 		}
+
+		@Test
+		@DisplayName("should keep a name specific reference content beside the one for all references")
+		void shouldKeepNameSpecificReferenceContentBesideAllReferencesRequirement() {
+			final EntityFetch combined = entityFetch(referenceContentAllWithAttributes())
+				.combineWith(entityFetch(referenceContent("brand")));
+
+			assertEquals(2, combined.getRequirements().length);
+			assertEquals(
+				entityFetch(referenceContentAllWithAttributes(), referenceContent("brand")),
+				combined
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Duplicate requirement reduction")
+	class DuplicateRequirementReductionTest {
+
+		@Test
+		@DisplayName("a fetch without duplicates reduces to itself")
+		void shouldReturnSelfWhenNoDuplicates() {
+			final EntityFetch entityFetch = entityFetch(attributeContent("code"), priceContentAll());
+
+			assertSame(entityFetch, entityFetch.combineDuplicateRequirements());
+		}
+
+		@Test
+		@DisplayName("two requirements of one kind fold into a single fetch requirement")
+		void shouldReduceDuplicateRequirementsIntoOne() {
+			final EntityFetch entityFetch = entityFetch(attributeContent("code"), attributeContent("name"));
+
+			final EntityFetch reduced = entityFetch.combineDuplicateRequirements();
+
+			assertNotSame(entityFetch, reduced);
+			assertInstanceOf(EntityFetch.class, reduced);
+			assertEquals(entityFetch(attributeContent("code", "name")), reduced);
+		}
+
+		@Test
+		@DisplayName("two contradicting siblings are refused")
+		@Tag(REFERENCE)
+		void shouldPropagateConflictWhenSiblingsContradict() {
+			final EntityFetch entityFetch = entityFetch(
+				referenceContent("a", filterBy(attributeEquals("code", "x"))),
+				referenceContent("a", filterBy(attributeEquals("code", "y")))
+			);
+
+			assertThrows(EvitaInvalidUsageException.class, entityFetch::combineDuplicateRequirements);
+		}
 	}
 
 	@Nested

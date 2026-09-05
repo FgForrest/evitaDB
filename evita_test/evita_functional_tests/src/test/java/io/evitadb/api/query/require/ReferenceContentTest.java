@@ -45,8 +45,9 @@ import static io.evitadb.test.TestTags.REFERENCE;
 /**
  * This tests verifies basic properties of {@link ReferenceContent} query.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 202"a"
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("ReferenceContent constraint")
 @Tag(CONTRACT)
 @Tag(REQUIRE)
 @Tag(REFERENCE)
@@ -646,13 +647,13 @@ class ReferenceContentTest {
 		}
 
 		@Test
-		@DisplayName("a filter present on a single side only is refused")
-		void shouldThrowExceptionWhenFilterIsPresentOnSingleSideOnly() {
+		@DisplayName("a filter present on a single side only is dropped")
+		void shouldDropFilterPresentOnSingleSideOnly() {
 			final ReferenceContent first = referenceContent("a", filterBy(attributeEquals("code", "x")));
 			final ReferenceContent second = referenceContent("a");
 
-			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
-			assertThrows(EvitaInvalidUsageException.class, () -> second.combineWith(first));
+			assertEquals(referenceContent("a"), first.combineWith(second));
+			assertEquals(referenceContent("a"), second.combineWith(first));
 		}
 
 		@Test
@@ -665,13 +666,32 @@ class ReferenceContentTest {
 		}
 
 		@Test
+		@DisplayName("an order present on a single side only is retained")
+		void shouldKeepOrderPresentOnSingleSideOnly() {
+			final ReferenceContent first = referenceContent("a", orderBy(attributeNatural("code")));
+			final ReferenceContent second = referenceContent("a");
+
+			assertEquals(referenceContent("a", orderBy(attributeNatural("code"))), first.combineWith(second));
+			assertEquals(referenceContent("a", orderBy(attributeNatural("code"))), second.combineWith(first));
+		}
+
+		@Test
 		@DisplayName("differing chunking constraints are refused")
 		void shouldThrowExceptionWhenChunkingConstraintsDiffer() {
 			final ReferenceContent first = referenceContent("a", page(1, 20));
 			final ReferenceContent second = referenceContent("a", page(2, 20));
 
 			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
-			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(referenceContent("a")));
+		}
+
+		@Test
+		@DisplayName("chunking present on a single side only is dropped")
+		void shouldDropChunkingPresentOnSingleSideOnly() {
+			final ReferenceContent first = referenceContent("a", page(1, 20));
+			final ReferenceContent second = referenceContent("a");
+
+			assertEquals(referenceContent("a"), first.combineWith(second));
+			assertEquals(referenceContent("a"), second.combineWith(first));
 		}
 
 		@Test
@@ -710,6 +730,12 @@ class ReferenceContentTest {
 		@DisplayName("a name specific requirement is contained within one for all references")
 		void shouldBeFullyContainedWithinRequirementForAllReferences() {
 			assertTrue(referenceContent("a").isFullyContainedWithin(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("a bare requirement for all references is contained within an identical one")
+		void shouldBeFullyContainedWithinAnIdenticalRequirementForAllReferences() {
+			// this is what lets the prefetch union collapse two bare requirements for all references into one
 			assertTrue(referenceContentAll().isFullyContainedWithin(referenceContentAll()));
 		}
 
@@ -741,9 +767,18 @@ class ReferenceContentTest {
 				referenceContent("a", filterBy(attributeEquals("code", "x")))
 					.isFullyContainedWithin(referenceContent("a", filterBy(attributeEquals("code", "y"))))
 			);
-			assertFalse(
+		}
+
+		@Test
+		@DisplayName("a filtered requirement is contained within an unfiltered one")
+		void shouldBeFullyContainedWithinRequirementCarryingNoFilter() {
+			assertTrue(
 				referenceContent("a", filterBy(attributeEquals("code", "x")))
 					.isFullyContainedWithin(referenceContentAll())
+			);
+			assertFalse(
+				referenceContent("a")
+					.isFullyContainedWithin(referenceContent("a", filterBy(attributeEquals("code", "x"))))
 			);
 		}
 
@@ -753,7 +788,52 @@ class ReferenceContentTest {
 			assertFalse(
 				referenceContent("a", page(1, 20)).isFullyContainedWithin(referenceContent("a", page(2, 20)))
 			);
-			assertFalse(referenceContent("a", page(1, 20)).isFullyContainedWithin(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("a paged requirement is contained within an unchunked one")
+		void shouldBeFullyContainedWithinRequirementCarryingNoChunking() {
+			assertTrue(referenceContent("a", page(1, 20)).isFullyContainedWithin(referenceContentAll()));
+			assertFalse(referenceContent("a").isFullyContainedWithin(referenceContent("a", page(1, 20))));
+		}
+
+		@Test
+		@DisplayName("differing order constraints break containment")
+		void shouldNotBeFullyContainedWhenOrderConstraintsDiffer() {
+			assertFalse(
+				referenceContent("a", orderBy(attributeNatural("code")))
+					.isFullyContainedWithin(referenceContent("a", orderBy(attributeNatural("name"))))
+			);
+			assertFalse(
+				referenceContent("a", orderBy(attributeNatural("code")))
+					.isFullyContainedWithin(referenceContentAll())
+			);
+		}
+
+		@Test
+		@DisplayName("reference attributes outside the other side break containment")
+		void shouldNotBeFullyContainedWhenAttributeContentIsNotContained() {
+			assertFalse(
+				referenceContentWithAttributes("a", attributeContent("code"))
+					.isFullyContainedWithin(referenceContent("a"))
+			);
+			assertFalse(
+				referenceContentWithAttributes("a", attributeContent("code"))
+					.isFullyContainedWithin(referenceContentWithAttributes("a", attributeContent("name")))
+			);
+		}
+
+		@Test
+		@DisplayName("a richer group body breaks containment")
+		void shouldNotBeFullyContainedWhenGroupBodyIsNotContained() {
+			assertFalse(
+				referenceContent("a", entityGroupFetch(attributeContent("code")))
+					.isFullyContainedWithin(referenceContent("a"))
+			);
+			assertFalse(
+				referenceContent("a", entityGroupFetch(attributeContent("code")))
+					.isFullyContainedWithin(referenceContent("a", entityGroupFetch(attributeContent("name"))))
+			);
 		}
 
 		@Test

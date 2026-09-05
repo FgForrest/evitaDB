@@ -29,6 +29,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
@@ -64,7 +65,9 @@ import static io.evitadb.api.query.require.QueryPriceMode.WITHOUT_TAX;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
@@ -2249,6 +2252,7 @@ class EvitaRequestTest {
 		 */
 		@Test
 		@DisplayName("merges priceContent into richer mode")
+		@Tag(PRICE)
 		void shouldMergePriceContentIntoRicherMode() {
 			final EvitaRequest request = createRequest(
 				query(
@@ -2279,6 +2283,7 @@ class EvitaRequestTest {
 		 */
 		@Test
 		@DisplayName("merges two identical accompanyingPriceContent")
+		@Tag(PRICE)
 		void shouldMergeTwoIdenticalAccompanyingPriceContents() {
 			final EvitaRequest request = createRequest(
 				query(
@@ -2316,6 +2321,7 @@ class EvitaRequestTest {
 		 */
 		@Test
 		@DisplayName("keeps two named accompanyingPriceContent apart")
+		@Tag(PRICE)
 		void shouldKeepTwoNamedAccompanyingPriceContentsApart() {
 			final EvitaRequest request = createRequest(
 				query(
@@ -2348,6 +2354,7 @@ class EvitaRequestTest {
 		 */
 		@Test
 		@DisplayName("refuses conflicting accompanying price lists")
+		@Tag(PRICE)
 		void shouldRefuseConflictingAccompanyingPriceLists() {
 			final EvitaRequest request = createRequest(
 				query(
@@ -2408,6 +2415,7 @@ class EvitaRequestTest {
 		 */
 		@Test
 		@DisplayName("merges two hierarchyContent")
+		@Tag(HIERARCHY)
 		void shouldMergeTwoHierarchyContents() {
 			final EvitaRequest request = createRequest(
 				query(
@@ -2483,6 +2491,10 @@ class EvitaRequestTest {
 			);
 			assertTrue(
 				exception.getMessage().contains("category"),
+				exception.getMessage()
+			);
+			assertFalse(
+				exception.getMessage().contains("null"),
 				exception.getMessage()
 			);
 		}
@@ -2591,6 +2603,213 @@ class EvitaRequestTest {
 				Set.of("code", "name"),
 				derived.getEntityAttributeSet()
 			);
+		}
+		/**
+		 * Verifies the fetch is handed over untouched when a kind
+		 * repeats but nothing combines.
+		 */
+		@Test
+		@DisplayName("keeps fetch identity when a repeated kind does not combine")
+		void shouldKeepFetchIdentityWhenRepeatedKindIsNotCombinable() {
+			final EntityFetch entityFetch = entityFetch(
+				referenceContent("category"),
+				referenceContent("brand")
+			);
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(entityFetch)
+				)
+			);
+
+			assertSame(
+				entityFetch, request.getEntityRequirement()
+			);
+		}
+
+		/**
+		 * Verifies the reduction is single level - a duplicate
+		 * nested inside a referenceContent survives in the request
+		 * and is folded only when the sub-request is derived.
+		 */
+		@Test
+		@DisplayName("reduces a nested fetch only when the sub-request is derived")
+		void shouldReduceNestedFetchOnlyWhenSubRequestIsDerived() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent(
+								"category",
+								entityFetch(
+									attributeContent("code"),
+									attributeContent("name")
+								)
+							)
+						)
+					)
+				)
+			);
+
+			final RequirementContext categoryContext =
+				request.getReferenceEntityFetch().get("category");
+			assertNotNull(categoryContext);
+			final EntityFetch nestedFetch =
+				categoryContext.entityFetch();
+			assertNotNull(nestedFetch);
+			// the top level holds a single referenceContent, so no fold happens and the nested fetch is untouched
+			assertEquals(
+				2, nestedFetch.getRequirements().length
+			);
+
+			final EvitaRequest derived = request.deriveCopyWith(
+				"category", nestedFetch
+			);
+			final EntityFetch derivedFetch =
+				derived.getEntityRequirement();
+			assertNotNull(derivedFetch);
+			assertEquals(
+				1, derivedFetch.getRequirements().length
+			);
+			assertEquals(
+				Set.of("code", "name"),
+				attributeContentOf(derivedFetch)
+					.getAttributeNamesAsSet()
+			);
+		}
+
+		/**
+		 * Verifies a conflict two levels down surfaces when the
+		 * sub-request is derived, not when the request is built.
+		 */
+		@Test
+		@DisplayName("refuses conflicting nested reference filters when derived")
+		void shouldRefuseConflictingNestedReferenceFiltersWhenDerived() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent(
+								"category",
+								entityFetch(
+									referenceContent(
+										"brand",
+										filterBy(entityPrimaryKeyInSet(1))
+									),
+									referenceContent(
+										"brand",
+										filterBy(entityPrimaryKeyInSet(2))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+
+			final RequirementContext categoryContext =
+				request.getReferenceEntityFetch().get("category");
+			assertNotNull(categoryContext);
+			final EntityFetch nestedFetch =
+				categoryContext.entityFetch();
+			assertNotNull(nestedFetch);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> request.deriveCopyWith("category", nestedFetch)
+			);
+		}
+
+		/**
+		 * Verifies a reference named twice inside a single
+		 * requirement claims its slot once.
+		 */
+		@Test
+		@DisplayName("accepts a reference name repeated within one requirement")
+		void shouldAcceptReferenceNameRepeatedWithinOneRequirement() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent("brand", "brand")
+						)
+					)
+				)
+			);
+
+			final Map<String, RequirementContext> referenceEntityFetch =
+				request.getReferenceEntityFetch();
+			assertEquals(1, referenceEntityFetch.size());
+			assertNotNull(referenceEntityFetch.get("brand"));
+		}
+
+		/**
+		 * Verifies a stop constraint written on one side only does
+		 * not narrow the parent chain the other side asked for.
+		 */
+		@Test
+		@DisplayName("drops a hierarchy stop constraint present on a single side only")
+		@Tag(HIERARCHY)
+		void shouldDropHierarchyStopAtPresentOnSingleSideOnly() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							hierarchyContent(),
+							hierarchyContent(stopAt(level(2)))
+						)
+					)
+				)
+			);
+
+			final HierarchyContent hierarchyContent =
+				request.getHierarchyContent();
+			assertNotNull(hierarchyContent);
+			assertTrue(
+				hierarchyContent.getStopAt().isEmpty()
+			);
+		}
+
+		/**
+		 * Verifies a refused request fails the same way however
+		 * many times it is asked.
+		 */
+		@Test
+		@DisplayName("refuses an aborted request the same way on every call")
+		void shouldRefuseAbortedRequestTheSameWayOnEveryCall() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"alias", "category",
+								entityFetch(attributeContent("code"))
+							),
+							referenceContent("brand", "category"),
+							referenceContent("category", "parameter")
+						)
+					)
+				)
+			);
+
+			final EvitaInvalidUsageException firstAttempt = assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getReferenceEntityFetch
+			);
+			assertTrue(
+				firstAttempt.getMessage().contains("category"),
+				firstAttempt.getMessage()
+			);
+			final EvitaInvalidUsageException secondAttempt = assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getReferenceEntityFetch
+			);
+			assertEquals(firstAttempt.getMessage(), secondAttempt.getMessage());
 		}
 	}
 
