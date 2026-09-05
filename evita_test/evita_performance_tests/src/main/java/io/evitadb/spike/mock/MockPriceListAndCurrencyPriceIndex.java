@@ -75,7 +75,10 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords,
 			                                                                           PriceRecordContract.PRICE_RECORD_COMPARATOR
 		);
-		this.priceRecordIds.add(price.innerRecordId());
+		// the INTERNAL price id, which is what `getIndexedPriceIds` is contracted on - `innerRecordId()` is a
+		// hardcoded 0 on `PriceRecord`, the type `EntityIdsState` feeds in, so sourcing it there collapsed the whole
+		// set to the single id `{0}`
+		this.priceRecordIds.add(price.internalPriceId());
 
 		final int entityId = price.entityPrimaryKey();
 		final int[] existingPriceIds = this.priceIdsIndex.get(entityId);

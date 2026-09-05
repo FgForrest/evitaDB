@@ -305,9 +305,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * normalizer is idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be
 	 * normalized more than once on a probe→lookup path without a `ClassCastException`.
 	 *
-	 * **The millisecond truncation here is not redundant with `EvitaDataTypes#toSupportedType`, and neither may be
-	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API, on the
-	 * write path and on the query path alike, so what a client stores and what a client filters by agree. This one
+	 * **The millisecond truncation here is not redundant with the one `EvitaDataTypes` applies, and neither may be
+	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API — through
+	 * `toSupportedStoredTypeOrItsArray` on the write path and `toSupportedType` on the query path, two entry points
+	 * over one truncating implementation — so what a client stores and what a client filters by agree. This one
 	 * canonicalizes the *index key*, whatever its provenance — including a bucket value rehydrated from a catalog
 	 * written before millisecond truncation existed, which never passes through the API boundary at all. Together
 	 * they are what makes `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
@@ -444,8 +445,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * floors), which is what keeps the mapping monotonic.
 	 *
 	 * An already-millisecond-exact instant is returned as the very same instance rather than as an equal copy: this
-	 * runs once per indexed value on the write path, and after `EvitaDataTypes#toSupportedType` the overwhelming
-	 * majority of values are already exact.
+	 * runs once per indexed value on the write path, and after the truncation `EvitaDataTypes` applies at the API
+	 * boundary the overwhelming majority of values are already exact.
 	 *
 	 * @param instant the instant to truncate
 	 * @return the millisecond-exact instant

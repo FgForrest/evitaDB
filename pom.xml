@@ -727,7 +727,15 @@
 						the add-opens flags below cannot substitute for it, because this is not a package-access
 						restriction.
 					-->
-					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US, -Duser.language=us
+					<!--
+						The locale is pinned so that a developer box running a non-US OS locale does not flip
+						locale-sensitive assertions (collation order, decimal separators, month names). Both codes
+						had been wrong since they were introduced: `us` is not an ISO-639 language and the country
+						carried a stray comma, so the default locale resolved to `us_US,` and every lookup fell back
+						to root. That happened to behave like en-US for the operations the suite exercises, which is
+						why it went unnoticed - it was still deterministic, just not the locale anyone had asked for.
+					-->
+					<argLine>${surefireArgLine} -Xmx${surefire.maxHeapSize} -Duser.country=US -Duser.language=en
 						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
 						--add-opens java.base/java.lang.invoke=ALL-UNNAMED

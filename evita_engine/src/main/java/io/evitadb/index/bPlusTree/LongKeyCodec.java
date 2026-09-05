@@ -185,10 +185,13 @@ enum LongKeyCodec {
 	 * **This is the one codec whose bijection holds on a restricted domain rather than on the whole key type**, and
 	 * that restriction is upheld outside this class: an instant carrying sub-millisecond digits encodes to the same
 	 * `long` as its truncated twin, so `decode(encode(v)) == v` only for millisecond-exact instants. Two independent
-	 * guarantees keep the tree inside that domain — `EvitaDataTypes#toSupportedType` truncates every temporal value
-	 * entering through the API (write path *and* query path), and `FilterIndex#getNormalizer` truncates again when
-	 * building the index key, which additionally covers values of other provenance (a catalog written before
-	 * millisecond truncation existed). Neither is redundant; see `FilterIndex#getNormalizer`.
+	 * guarantees keep the tree inside that domain — `EvitaDataTypes` truncates every temporal value entering through
+	 * the API, on the write path (`toSupportedStoredTypeOrItsArray`, the entry point `UpsertAttributeMutation` uses)
+	 * and on the query path (`toSupportedType`) alike: the two are separate entry points because they disagree about
+	 * `LocalDateTime`, but both delegate to the one private implementation, and the truncation lives there. Then
+	 * `FilterIndex#getNormalizer` truncates again when building the index key, which additionally covers values of
+	 * other provenance (a catalog written before millisecond truncation existed). Neither is redundant; see
+	 * `FilterIndex#getNormalizer`.
 	 *
 	 * The domain restriction is what makes {@link Instant} — 12 bytes of state — fit a single 8-byte slot at all.
 	 */
