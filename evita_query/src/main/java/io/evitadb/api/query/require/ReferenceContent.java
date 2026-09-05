@@ -42,6 +42,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.dataType.SupportedClass;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -52,7 +53,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.require.EntityFetchRequire.combineRequirements;
 import static java.util.Optional.empty;
@@ -877,14 +879,59 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
+	/**
+	 * Two `referenceContent` requirements are combinable when they address exactly the same references, i.e. when
+	 * they share the same **key**. The key is the pair *(instance name, set of reference names)*:
+	 *
+	 * - `referenceContentAll…()` — no instance name and an empty name set (the DEFAULT key)
+	 * - `referenceContent("a", …)` / `referenceContent("a", "b", …)` — no instance name and the name set `{a}` /
+	 *   `{a, b}`; the set is compared **order-insensitively**, so `referenceContent("a","b")` and
+	 *   `referenceContent("b","a")` share one key
+	 * - a named instance (an alias created through the constructor accepting an instance name) — the instance name
+	 *   plus its name set; two aliases of one reference are therefore *not* combinable with each other
+	 *
+	 * Consequently a DEFAULT requirement is never combinable with a name-specific one: they select different
+	 * reference sets, and merging them would silently widen or narrow the result. The
+	 * {@link ManagedReferencesBehaviour} is deliberately **not** part of the key —
+	 * {@link #combineWith(EntityContentRequire)} reconciles a difference there instead of refusing the merge.
+	 *
+	 * @param anotherRequirement another requirement to be combined with
+	 * @param <T> type of the requirement to be combined with
+	 * @return true when `anotherRequirement` is a `referenceContent` carrying the same key
+	 */
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
 		return anotherRequirement instanceof ReferenceContent referenceContent &&
-			this.isSingleReference() && referenceContent.isSingleReference() &&
-			this.getReferenceName().equals(referenceContent.getReferenceName()) &&
-			this.getInstanceName() == null && referenceContent.getInstanceName() == null;
+			hasSameKeyAs(referenceContent);
 	}
 
+	/**
+	 * Returns true when everything this requirement asks for is already covered by `anotherRequirement`, so that this
+	 * one can be dropped without changing the query result. Containment is a **superset** relation and is therefore
+	 * wider than the key equality used by {@link #isCombinableWith(EntityContentRequire)} — a
+	 * `referenceContent("a")` is contained within `referenceContentAll()`, but the two are not combinable.
+	 *
+	 * All of the following must hold:
+	 *
+	 * - neither side carries an instance name — an alias is a distinct output slot in the response and can never be
+	 *   satisfied by another requirement
+	 * - both sides share the same {@link ManagedReferencesBehaviour} — `EXISTING` suppresses references to missing
+	 *   entities, so an `ANY` requirement does not satisfy an `EXISTING` one and vice versa
+	 * - the other side requests either all references, or a superset of this side's reference names (a requirement
+	 *   for all references is never contained within a name-specific one)
+	 * - this side's reference attributes, entity bodies and group entity bodies are each contained within the
+	 *   other side's
+	 * - the `filterBy`, `orderBy` and chunking constraints are **equal** on both sides — these select and shape the
+	 *   returned references rather than enriching them, so a different one is never a superset
+	 *
+	 * This relation is consumed by {@link DefaultPrefetchRequirementCollector} (and thus by
+	 * {@link EntityFetch#combineWith(EntityFetchRequire)}), where dropping a contained requirement is the intended
+	 * behaviour.
+	 *
+	 * @param anotherRequirement another requirement to be checked for containment
+	 * @param <T> the type of the requirement which extends EntityContentRequire
+	 * @return true if this requirement is fully satisfied by `anotherRequirement`
+	 */
 	@Override
 	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
 		if (this.getInstanceName() != null) {
@@ -894,9 +941,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			if (referenceContent.getInstanceName() != null) {
 				return false;
 			}
+			if (getManagedReferencesBehaviour() != referenceContent.getManagedReferencesBehaviour()) {
+				return false;
+			}
 			final String[] thatReferenceNames = referenceContent.getReferenceNames();
 			if (thatReferenceNames.length > 0) {
-				for (String referenceName : getReferenceNames()) {
+				final String[] thisReferenceNames = getReferenceNames();
+				if (thisReferenceNames.length == 0) {
+					// this requirement asks for all references, the other one only for a few of them
+					return false;
+				}
+				for (String referenceName : thisReferenceNames) {
 					if (Arrays.stream(thatReferenceNames).noneMatch(referenceName::equals)) {
 						return false;
 					}
@@ -935,130 +990,146 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			if (!Objects.equals(thisOrderBy.orElse(null), thatOrderBy.orElse(null))) {
 				return false;
 			}
+			final Optional<ChunkingRequireConstraint> thatChunking = referenceContent.getChunking();
+			final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
+			if (!Objects.equals(thisChunking.orElse(null), thatChunking.orElse(null))) {
+				return false;
+			}
+			return true;
 		}
 		return false;
 	}
 
+	/**
+	 * Merges this requirement with another one addressing the same references into a single requirement that covers
+	 * both. The caller **must** have verified {@link #isCombinableWith(EntityContentRequire)} first; combining two
+	 * requirements with different keys is a programming error and raises {@link GenericEvitaInternalError}, as does
+	 * passing a requirement that is not a `referenceContent` at all.
+	 *
+	 * The parts are reconciled as follows:
+	 *
+	 * - **instance name and reference names** — taken over from this requirement; the key equality precondition
+	 *   guarantees the other side carries the same ones
+	 * - **{@link ManagedReferencesBehaviour}** — kept when both sides agree, otherwise narrowed to
+	 *   {@link ManagedReferencesBehaviour#EXISTING}, so that a request to suppress references to missing entities is
+	 *   never lost by merging
+	 * - **reference attributes, entity body and group entity body** — the union of both sides (recursively for the
+	 *   bodies); an "all" requirement absorbs a name-specific one
+	 * - **`filterBy`, `orderBy` and chunking** — must be **equal** on both sides, where absent on both sides counts
+	 *   as equal and present-versus-absent counts as a difference. These constraints select and shape the returned
+	 *   references instead of enriching them, so there is no union that preserves both intents; a difference is
+	 *   therefore refused with {@link EvitaInvalidUsageException}, one message per differing part. All three are
+	 *   **retained** in the result.
+	 *
+	 * @param anotherRequirement another requirement to be combined with, must share this requirement's key
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new requirement covering both this one and `anotherRequirement`
+	 * @throws EvitaInvalidUsageException when the two sides disagree on `filterBy`, `orderBy` or chunking
+	 * @throws GenericEvitaInternalError when `anotherRequirement` is not a `referenceContent` or carries another key
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(
-			anotherRequirement instanceof ReferenceContent,
-			"Only References requirement can be combined with this one!"
-		);
-		if (isAllRequested()) {
-			return (T) this;
-		} else {
-			final ReferenceContent anotherReferenceContent = (ReferenceContent) anotherRequirement;
-			final String instanceName = getInstanceName();
-			Assert.isPremiseValid(
-				instanceName == null,
-				() -> "Cannot clone ReferenceContent with instance name " + instanceName + " using this method!"
+		if (!(anotherRequirement instanceof ReferenceContent anotherReferenceContent)) {
+			throw new GenericEvitaInternalError(
+				"Only reference content requirement can be combined with this one - but got: " +
+					anotherRequirement.getClass(),
+				"Only reference content requirement can be combined with this one!"
 			);
-			Assert.isPremiseValid(
-				anotherReferenceContent.getInstanceName() == null,
-				() -> "Cannot combine ReferenceContent with instance name " + anotherReferenceContent.getInstanceName() + "!"
+		}
+		if (!hasSameKeyAs(anotherReferenceContent)) {
+			throw new GenericEvitaInternalError(
+				"Only reference content requirements addressing the same references can be combined - but got: " +
+					this + " and " + anotherRequirement,
+				"Only reference content requirements addressing the same references can be combined!"
 			);
-			if (anotherReferenceContent.isAllRequested()) {
-				if (getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour()) {
-					return anotherRequirement;
-				} else {
-					return (T) new ReferenceContent(
-						ManagedReferencesBehaviour.EXISTING
-					);
-				}
-			} else {
-				final ManagedReferencesBehaviour managedReferencesBehaviour =
-				getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
-					getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
-				final String[] referenceNames = isAllRequested() || anotherReferenceContent.isAllRequested() ?
-					new String[0] :
-					Stream.concat(
-							Arrays.stream(getReferenceNames()),
-							Arrays.stream(((ReferenceContent) anotherRequirement).getReferenceNames())
-						)
-						.distinct()
-						.toArray(String[]::new);
-				final EntityFetch combinedEntityRequirement;
-				final EntityGroupFetch combinedGroupEntityRequirement;
-				final AttributeContent combinedAttributeRequirement;
-				if (referenceNames.length == 1) {
-					combinedAttributeRequirement = EntityContentRequire.combineRequirements(
+		}
+
+		final Optional<FilterBy> thisFilterBy = getFilterBy();
+		if (!Objects.equals(thisFilterBy.orElse(null), anotherReferenceContent.getFilterBy().orElse(null))) {
+			throw new EvitaInvalidUsageException(
+				"Cannot combine multiple reference content requirements with different filter constraints: " +
+					this + " and " + anotherRequirement,
+				"Cannot combine multiple reference content requirements with different filter constraints."
+			);
+		}
+		final Optional<OrderBy> thisOrderBy = getOrderBy();
+		if (!Objects.equals(thisOrderBy.orElse(null), anotherReferenceContent.getOrderBy().orElse(null))) {
+			throw new EvitaInvalidUsageException(
+				"Cannot combine multiple reference content requirements with different order constraints: " +
+					this + " and " + anotherRequirement,
+				"Cannot combine multiple reference content requirements with different order constraints."
+			);
+		}
+		final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
+		if (!Objects.equals(thisChunking.orElse(null), anotherReferenceContent.getChunking().orElse(null))) {
+			throw new EvitaInvalidUsageException(
+				"Cannot combine multiple reference content requirements with different chunking constraints: " +
+					this + " and " + anotherRequirement,
+				"Cannot combine multiple reference content requirements with different chunking constraints."
+			);
+		}
+
+		final ManagedReferencesBehaviour managedReferencesBehaviour =
+			getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
+				getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
+
+		return (T) new ReferenceContent(
+			getInstanceName(),
+			managedReferencesBehaviour,
+			getReferenceNames(),
+			Arrays.stream(
+				new RequireConstraint[]{
+					EntityContentRequire.combineRequirements(
 						getAttributeContent().orElse(null),
 						anotherReferenceContent.getAttributeContent().orElse(null)
-					);
-					combinedEntityRequirement = combineRequirements(
+					),
+					combineRequirements(
 						getEntityRequirement().orElse(null),
 						anotherReferenceContent.getEntityRequirement().orElse(null)
-					);
-					combinedGroupEntityRequirement = combineRequirements(
+					),
+					combineRequirements(
 						getGroupEntityRequirement().orElse(null),
 						anotherReferenceContent.getGroupEntityRequirement().orElse(null)
-					);
-				} else if (
-					!this.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true) ||
-						!anotherReferenceContent.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true)) {
-					throw new EvitaInvalidUsageException(
-						"Cannot combine multiple attribute content requirements: " + this + " and " + anotherRequirement,
-						"Cannot combine multiple attribute content requirements."
-					);
-				} else if (this.getFilterBy().isPresent() || anotherReferenceContent.getFilterBy().isPresent()) {
-					throw new EvitaInvalidUsageException(
-						"Cannot combine multiple filtered requirements: " + this + " and " + anotherRequirement,
-						"Cannot combine multiple filtered requirements."
-					);
-				} else if (this.getOrderBy().isPresent() || anotherReferenceContent.getOrderBy().isPresent()) {
-					throw new EvitaInvalidUsageException(
-						"Cannot combine multiple ordered requirements: " + this + " and " + anotherRequirement,
-						"Cannot combine multiple ordered requirements."
-					);
-				} else if (this.getEntityRequirement().isPresent() || anotherReferenceContent.getEntityRequirement().isPresent()) {
-					throw new EvitaInvalidUsageException(
-						"Cannot combine multiple requirements with entity fetch: " + this + " and " + anotherRequirement,
-						"Cannot combine multiple requirements with entity fetch."
-					);
-				} else if (this.getGroupEntityRequirement().isPresent() ||
-				anotherReferenceContent.getGroupEntityRequirement().isPresent()) {
-					throw new EvitaInvalidUsageException(
-						"Cannot combine multiple requirements with entity group fetch: " + this + " and " + anotherRequirement,
-						"Cannot combine multiple requirements with entity group fetch."
-					);
-				} else {
-					combinedAttributeRequirement = null;
-					combinedEntityRequirement = null;
-					combinedGroupEntityRequirement = null;
+					),
+					thisChunking.orElse(null)
 				}
-
-				return (T) new ReferenceContent(
-					null,
-					managedReferencesBehaviour,
-					referenceNames,
-					Arrays.stream(
-						new RequireConstraint[] {
-							combinedAttributeRequirement,
-							combinedEntityRequirement,
-							combinedGroupEntityRequirement
-						}
-					).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
-					Arrays.stream(
-						new Constraint<?>[]{
-							getFilterBy().orElse(null),
-							getOrderBy().orElse(null)
-						}
-					).filter(Objects::nonNull).toArray(Constraint[]::new)
-				);
-			}
-		}
+			).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
+			Arrays.stream(
+				new Constraint<?>[]{
+					thisFilterBy.orElse(null),
+					thisOrderBy.orElse(null)
+				}
+			).filter(Objects::nonNull).toArray(Constraint[]::new)
+		);
 	}
 
 	/**
-	 * Determines whether the reference content has a single reference name.
+	 * Determines whether both requirements address exactly the same references, i.e. whether they share the same key
+	 * of *(instance name, set of reference names)*. See {@link #isCombinableWith(EntityContentRequire)} for the full
+	 * description of the key.
 	 *
-	 * @return true if there is exactly one reference name, false otherwise.
+	 * @param anotherReferenceContent another reference content requirement to compare the key with
+	 * @return true if both requirements carry the same key
 	 */
-	private boolean isSingleReference() {
-		return this.getReferenceNames().length == 1;
+	private boolean hasSameKeyAs(@Nonnull ReferenceContent anotherReferenceContent) {
+		return Objects.equals(getInstanceName(), anotherReferenceContent.getInstanceName()) &&
+			getReferenceNamesAsSet().equals(anotherReferenceContent.getReferenceNamesAsSet());
+	}
+
+	/**
+	 * Returns names of references which should be loaded along with entity as an order-insensitive set. An empty set
+	 * means that all references are requested.
+	 *
+	 * @return set of reference names, empty when all references are requested
+	 */
+	@Nonnull
+	private Set<String> getReferenceNamesAsSet() {
+		return Arrays.stream(getArguments())
+			.filter(String.class::isInstance)
+			.map(String.class::cast)
+			.collect(Collectors.toSet());
 	}
 
 	/**

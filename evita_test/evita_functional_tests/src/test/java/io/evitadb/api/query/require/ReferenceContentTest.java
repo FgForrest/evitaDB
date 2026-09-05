@@ -27,10 +27,14 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+
+import javax.annotation.Nonnull;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -403,6 +407,405 @@ class ReferenceContentTest {
 				}
 			)
 		);
+	}
+
+	/**
+	 * Creates a named (aliased) reference content instance - there is no factory method for it in
+	 * {@link QueryConstraints}, so the internal constructor has to be used directly.
+	 *
+	 * @param instanceName name of the reference content instance (alias)
+	 * @param referenceNames names of the references the instance addresses
+	 * @param requirements requirements nested in the instance
+	 * @return named reference content instance
+	 */
+	@Nonnull
+	private static ReferenceContent namedReferenceContent(
+		@Nonnull String instanceName,
+		@Nonnull String[] referenceNames,
+		@Nonnull RequireConstraint... requirements
+	) {
+		return new ReferenceContent(
+			instanceName,
+			ManagedReferencesBehaviour.ANY,
+			referenceNames,
+			requirements,
+			new Constraint<?>[0]
+		);
+	}
+
+	@Nested
+	@DisplayName("Combining")
+	class CombiningTest {
+
+		@Test
+		@DisplayName("two requirements for all references share the DEFAULT key")
+		void shouldBeCombinableWhenBothRequestAllReferences() {
+			assertTrue(referenceContentAll().isCombinableWith(referenceContentAll()));
+			assertTrue(referenceContentAll().isCombinableWith(referenceContentAllWithAttributes()));
+			assertTrue(referenceContentAll(entityFetchAll()).isCombinableWith(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("two requirements for the same single reference are combinable")
+		void shouldBeCombinableWhenSingleReferenceNameIsSame() {
+			assertTrue(referenceContent("a").isCombinableWith(referenceContent("a")));
+			assertTrue(referenceContent("a", entityFetchAll()).isCombinableWith(referenceContent("a")));
+		}
+
+		@Test
+		@DisplayName("identical name sets in different order are combinable")
+		void shouldBeCombinableWhenNameSetsMatchInDifferentOrder() {
+			assertTrue(referenceContent("a", "b").isCombinableWith(referenceContent("b", "a")));
+		}
+
+		@Test
+		@DisplayName("two instances sharing an alias and a reference name are combinable")
+		void shouldBeCombinableWhenInstanceNameAndReferenceNameMatch() {
+			assertTrue(
+				namedReferenceContent("alias", new String[]{"a"})
+					.isCombinableWith(namedReferenceContent("alias", new String[]{"a"}, entityFetchAll()))
+			);
+		}
+
+		@Test
+		@DisplayName("a requirement for all references is not combinable with a name specific one")
+		void shouldNotBeCombinableWhenDefaultMeetsSpecificReference() {
+			assertFalse(referenceContentAll().isCombinableWith(referenceContent("a")));
+			assertFalse(referenceContent("a").isCombinableWith(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("requirements for different references are not combinable")
+		void shouldNotBeCombinableWhenReferenceNamesDiffer() {
+			assertFalse(referenceContent("a").isCombinableWith(referenceContent("b")));
+		}
+
+		@Test
+		@DisplayName("overlapping but different name sets are not combinable")
+		void shouldNotBeCombinableWhenNameSetsOverlapButDiffer() {
+			assertFalse(referenceContent("a", "b").isCombinableWith(referenceContent("b", "c")));
+			assertFalse(referenceContent("a", "b").isCombinableWith(referenceContent("a")));
+		}
+
+		@Test
+		@DisplayName("the same reference under two different aliases is not combinable")
+		void shouldNotBeCombinableWhenInstanceNamesDiffer() {
+			assertFalse(
+				namedReferenceContent("first", new String[]{"a"})
+					.isCombinableWith(namedReferenceContent("second", new String[]{"a"}))
+			);
+		}
+
+		@Test
+		@DisplayName("a named instance is not combinable with an unnamed requirement")
+		void shouldNotBeCombinableWhenOnlyOneSideIsNamedInstance() {
+			assertFalse(namedReferenceContent("alias", new String[]{"a"}).isCombinableWith(referenceContent("a")));
+			assertFalse(referenceContent("a").isCombinableWith(namedReferenceContent("alias", new String[]{"a"})));
+		}
+
+		@Test
+		@DisplayName("a requirement of another kind is never combinable")
+		void shouldNotBeCombinableWithDifferentRequirementType() {
+			assertFalse(referenceContent("a").isCombinableWith(attributeContentAll()));
+			assertFalse(referenceContentAll().isCombinableWith(hierarchyContent()));
+		}
+
+		@Test
+		@DisplayName("reference attributes are united")
+		void shouldCombineAttributeContentsIntoUnion() {
+			assertEquals(
+				referenceContentWithAttributes("a", attributeContent("code", "name")),
+				referenceContentWithAttributes("a", attributeContent("code"))
+					.combineWith(referenceContentWithAttributes("a", attributeContent("name")))
+			);
+		}
+
+		@Test
+		@DisplayName("a request for all reference attributes absorbs a named one")
+		void shouldLetAllAttributesAbsorbNamedAttributes() {
+			assertEquals(
+				referenceContentAllWithAttributes(),
+				referenceContentAllWithAttributes(attributeContent("code"))
+					.combineWith(referenceContentAllWithAttributes())
+			);
+		}
+
+		@Test
+		@DisplayName("nested entity bodies are united recursively")
+		void shouldCombineNestedEntityFetchBodies() {
+			assertEquals(
+				referenceContent("a", entityFetch(attributeContent("code", "name"))),
+				referenceContent("a", entityFetch(attributeContent("code")))
+					.combineWith(referenceContent("a", entityFetch(attributeContent("name"))))
+			);
+		}
+
+		@Test
+		@DisplayName("nested group entity bodies are united recursively")
+		void shouldCombineNestedEntityGroupFetchBodies() {
+			assertEquals(
+				referenceContent("a", entityGroupFetch(attributeContent("code", "name"))),
+				referenceContent("a", entityGroupFetch(attributeContent("code")))
+					.combineWith(referenceContent("a", entityGroupFetch(attributeContent("name"))))
+			);
+		}
+
+		@Test
+		@DisplayName("differing managed references behaviour narrows to EXISTING")
+		void shouldNarrowManagedReferencesBehaviourToExistingWhenBehavioursDiffer() {
+			final ReferenceContent combined = referenceContent(ManagedReferencesBehaviour.ANY, "a")
+				.combineWith(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"));
+
+			assertEquals(ManagedReferencesBehaviour.EXISTING, combined.getManagedReferencesBehaviour());
+		}
+
+		@Test
+		@DisplayName("matching managed references behaviour is kept")
+		void shouldKeepManagedReferencesBehaviourWhenBehavioursMatch() {
+			final ReferenceContent combined = referenceContent(ManagedReferencesBehaviour.EXISTING, "a")
+				.combineWith(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"));
+
+			assertEquals(ManagedReferencesBehaviour.EXISTING, combined.getManagedReferencesBehaviour());
+		}
+
+		@Test
+		@DisplayName("chunking equal on both sides is retained")
+		void shouldRetainChunkingWhenEqualOnBothSides() {
+			final ReferenceContent combined = referenceContent("a", entityFetch(attributeContent("code")), page(1, 20))
+				.combineWith(referenceContent("a", entityFetch(attributeContent("name")), page(1, 20)));
+
+			assertEquals(page(1, 20), combined.getChunking().orElse(null));
+			assertEquals(
+				referenceContent("a", entityFetch(attributeContent("code", "name")), page(1, 20)),
+				combined
+			);
+		}
+
+		@Test
+		@DisplayName("filter and order equal on both sides are retained")
+		void shouldRetainFilterAndOrderWhenEqualOnBothSides() {
+			final ReferenceContent combined = referenceContent(
+				"a", filterBy(attributeEquals("code", "x")), orderBy(attributeNatural("code")),
+				entityFetch(attributeContent("code"))
+			).combineWith(
+				referenceContent(
+					"a", filterBy(attributeEquals("code", "x")), orderBy(attributeNatural("code")),
+					entityFetch(attributeContent("name"))
+				)
+			);
+
+			assertEquals(filterBy(attributeEquals("code", "x")), combined.getFilterBy().orElse(null));
+			assertEquals(orderBy(attributeNatural("code")), combined.getOrderBy().orElse(null));
+			assertEquals(
+				referenceContent(
+					"a", filterBy(attributeEquals("code", "x")), orderBy(attributeNatural("code")),
+					entityFetch(attributeContent("code", "name"))
+				),
+				combined
+			);
+		}
+
+		@Test
+		@DisplayName("the instance name survives combining")
+		void shouldRetainInstanceNameOfCombinedRequirements() {
+			final ReferenceContent combined = namedReferenceContent(
+				"alias", new String[]{"a"}, entityFetch(attributeContent("code"))
+			).combineWith(
+				namedReferenceContent("alias", new String[]{"a"}, entityFetch(attributeContent("name")))
+			);
+
+			assertEquals("alias", combined.getInstanceName());
+			assertEquals(
+				namedReferenceContent("alias", new String[]{"a"}, entityFetch(attributeContent("code", "name"))),
+				combined
+			);
+		}
+
+		@Test
+		@DisplayName("two bare requirements for all references collapse into one")
+		void shouldCombineTwoDefaultRequirementsIntoDefaultOne() {
+			assertEquals(referenceContentAll(), referenceContentAll().combineWith(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("a bare requirement for all references does not swallow the other side's body")
+		void shouldCombineDefaultRequirementWithBodyCarryingOne() {
+			assertEquals(
+				referenceContentAll(entityFetch(attributeContent("code"))),
+				referenceContentAll().combineWith(referenceContentAll(entityFetch(attributeContent("code"))))
+			);
+		}
+
+		@Test
+		@DisplayName("differing filter constraints are refused")
+		void shouldThrowExceptionWhenFilterConstraintsDiffer() {
+			final ReferenceContent first = referenceContent("a", filterBy(attributeEquals("code", "x")));
+			final ReferenceContent second = referenceContent("a", filterBy(attributeEquals("code", "y")));
+
+			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
+		}
+
+		@Test
+		@DisplayName("a filter present on a single side only is refused")
+		void shouldThrowExceptionWhenFilterIsPresentOnSingleSideOnly() {
+			final ReferenceContent first = referenceContent("a", filterBy(attributeEquals("code", "x")));
+			final ReferenceContent second = referenceContent("a");
+
+			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
+			assertThrows(EvitaInvalidUsageException.class, () -> second.combineWith(first));
+		}
+
+		@Test
+		@DisplayName("differing order constraints are refused")
+		void shouldThrowExceptionWhenOrderConstraintsDiffer() {
+			final ReferenceContent first = referenceContent("a", orderBy(attributeNatural("code")));
+			final ReferenceContent second = referenceContent("a", orderBy(attributeNatural("name")));
+
+			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
+		}
+
+		@Test
+		@DisplayName("differing chunking constraints are refused")
+		void shouldThrowExceptionWhenChunkingConstraintsDiffer() {
+			final ReferenceContent first = referenceContent("a", page(1, 20));
+			final ReferenceContent second = referenceContent("a", page(2, 20));
+
+			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
+			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(referenceContent("a")));
+		}
+
+		@Test
+		@DisplayName("combining requirements with different keys is a programming error")
+		void shouldThrowExceptionWhenCombiningDifferentKeys() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> referenceContent("a").combineWith(referenceContent("b"))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> referenceContentAll().combineWith(referenceContent("a"))
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> namedReferenceContent("alias", new String[]{"a"}).combineWith(referenceContent("a"))
+			);
+		}
+
+		@Test
+		@DisplayName("combining with a requirement of another kind is a programming error")
+		void shouldThrowExceptionWhenCombiningWithDifferentRequirementType() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> referenceContent("a").combineWith(attributeContentAll())
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Containment")
+	class ContainmentTest {
+
+		@Test
+		@DisplayName("a name specific requirement is contained within one for all references")
+		void shouldBeFullyContainedWithinRequirementForAllReferences() {
+			assertTrue(referenceContent("a").isFullyContainedWithin(referenceContentAll()));
+			assertTrue(referenceContentAll().isFullyContainedWithin(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("names, attributes and bodies forming a subset are contained")
+		void shouldBeFullyContainedWhenNamesAndBodiesAreSubset() {
+			final ReferenceContent narrower = new ReferenceContent(
+				null,
+				ManagedReferencesBehaviour.ANY,
+				new String[]{"a"},
+				new RequireConstraint[]{entityFetch(attributeContent("code")), page(1, 20)},
+				new Constraint<?>[]{filterBy(attributeEquals("code", "x")), orderBy(attributeNatural("code"))}
+			);
+			final ReferenceContent wider = new ReferenceContent(
+				null,
+				ManagedReferencesBehaviour.ANY,
+				new String[]{"a", "b"},
+				new RequireConstraint[]{entityFetch(attributeContent("code", "name")), page(1, 20)},
+				new Constraint<?>[]{filterBy(attributeEquals("code", "x")), orderBy(attributeNatural("code"))}
+			);
+
+			assertTrue(narrower.isFullyContainedWithin(wider));
+		}
+
+		@Test
+		@DisplayName("differing filter constraints break containment")
+		void shouldNotBeFullyContainedWhenFilterConstraintsDiffer() {
+			assertFalse(
+				referenceContent("a", filterBy(attributeEquals("code", "x")))
+					.isFullyContainedWithin(referenceContent("a", filterBy(attributeEquals("code", "y"))))
+			);
+			assertFalse(
+				referenceContent("a", filterBy(attributeEquals("code", "x")))
+					.isFullyContainedWithin(referenceContentAll())
+			);
+		}
+
+		@Test
+		@DisplayName("differing chunking constraints break containment")
+		void shouldNotBeFullyContainedWhenChunkingConstraintsDiffer() {
+			assertFalse(
+				referenceContent("a", page(1, 20)).isFullyContainedWithin(referenceContent("a", page(2, 20)))
+			);
+			assertFalse(referenceContent("a", page(1, 20)).isFullyContainedWithin(referenceContentAll()));
+		}
+
+		@Test
+		@DisplayName("a named instance is never contained")
+		void shouldNotBeFullyContainedWhenThisCarriesInstanceName() {
+			assertFalse(
+				namedReferenceContent("alias", new String[]{"a"}).isFullyContainedWithin(referenceContentAll())
+			);
+		}
+
+		@Test
+		@DisplayName("nothing is ever contained within a named instance")
+		void shouldNotBeFullyContainedWhenOtherCarriesInstanceName() {
+			assertFalse(
+				referenceContent("a").isFullyContainedWithin(namedReferenceContent("alias", new String[]{"a"}))
+			);
+		}
+
+		@Test
+		@DisplayName("a richer body breaks containment")
+		void shouldNotBeFullyContainedWhenBodyIsNotContained() {
+			assertFalse(
+				referenceContent("a", entityFetch(attributeContent("code")))
+					.isFullyContainedWithin(referenceContent("a", entityFetch(attributeContent("name"))))
+			);
+			assertFalse(
+				referenceContent("a", entityFetch(attributeContent("code")))
+					.isFullyContainedWithin(referenceContent("a"))
+			);
+		}
+
+		@Test
+		@DisplayName("a requirement for all references is not contained within a name specific one")
+		void shouldNotBeFullyContainedWhenAllReferencesMeetSpecificOnes() {
+			assertFalse(referenceContentAll().isFullyContainedWithin(referenceContent("a")));
+		}
+
+		@Test
+		@DisplayName("differing managed references behaviour breaks containment")
+		void shouldNotBeFullyContainedWhenManagedReferencesBehaviourDiffers() {
+			assertFalse(
+				referenceContent(ManagedReferencesBehaviour.EXISTING, "a")
+					.isFullyContainedWithin(referenceContentAll())
+			);
+		}
+
+		@Test
+		@DisplayName("a requirement of another kind never contains a reference content")
+		void shouldNotBeFullyContainedWithinDifferentRequirementType() {
+			assertFalse(referenceContent("a").isFullyContainedWithin(attributeContentAll()));
+		}
+
 	}
 
 }
