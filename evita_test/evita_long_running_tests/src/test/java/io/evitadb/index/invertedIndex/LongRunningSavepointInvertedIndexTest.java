@@ -23,14 +23,12 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.index.invertedIndex.LongRunningInvertedIndexTest.InvertedIndexSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -44,10 +42,7 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link InvertedIndex} snapshots and restores correctly under a per-entity
@@ -64,54 +59,25 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * so the commit-time layer-sweep verification proves the restore left no dangling layer. The run is time-bounded; the
  * random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("InvertedIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 @Tag(TRANSACTION)
-class LongRunningSavepointInvertedIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointInvertedIndexTest extends AbstractSavepointFuzzTest<InvertedIndexSnapshot> {
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint inverted-index contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint inverted-index contents")
-	void shouldRollBackInvertedIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final InvertedIndexState state = new InvertedIndexState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningInvertedIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint inverted-index contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint inverted-index contents")
-	void shouldCommitInvertedIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final InvertedIndexState state = new InvertedIndexState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningInvertedIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<InvertedIndexSnapshot> newGeneration(@Nonnull Random random) {
+		return new InvertedIndexState(random);
 	}
 
 	/**
@@ -121,7 +87,7 @@ class LongRunningSavepointInvertedIndexTest implements TimeBoundedTestSupport {
 	 * is seeded outside any transaction; mutations are applied to the index (and mirrored in the model) within the
 	 * framework's transaction.
 	 */
-	private static final class InvertedIndexState {
+	private static final class InvertedIndexState implements FuzzGeneration<InvertedIndexSnapshot> {
 		private static final int MAX_VALUE = 200;
 		private static final int MAX_RECORD = 1000;
 		private static final long FORCED_VALUE = -1L;
@@ -137,6 +103,30 @@ class LongRunningSavepointInvertedIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomRecord(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public InvertedIndexSnapshot contents() {
+			return LongRunningInvertedIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

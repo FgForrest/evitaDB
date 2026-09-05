@@ -9,7 +9,7 @@ prs: [1268]
 areas: [evita_engine/index, evita_engine/store, evita_common/dataType/bPlusTree, evita_roaring_bitmap]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-03-content-sized-value-tree-columns]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-09-03-content-sized-value-tree-columns, 2026-08-26-warm-up-per-entity-mutation-atomicity]
 ---
 
 # Granular storage parts and slimmer index data structures
@@ -152,6 +152,9 @@ which is the whole reason this record exists rather than the plan folder it repl
 - **`2026-08-01-bplustree-cursor-free-insert-path`** — freed the B+ tree descent built here from its
   per-descent cursor allocation. It borrows this folder's `reports/` for its own census (see
   *Supporting material*), because it is one decision and does not warrant a directory of its own.
+- **`2026-08-26-warm-up-per-entity-mutation-atomicity`** — ports the delta-bounded undo-journal
+  savepoint strategy introduced here to the WARM_UP write path, which has no diff layers to snapshot.
+  The `O(N²)` memento cliff recorded here is what dictates its per-structure granularity rule.
 
 ## Supporting material
 

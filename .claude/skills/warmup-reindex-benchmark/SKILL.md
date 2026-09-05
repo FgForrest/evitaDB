@@ -1,7 +1,7 @@
 ---
 name: warmup-reindex-benchmark
 description: Measure how long a full catalog reindex-and-publish takes — re-upsert every entity of a real production catalog into a fresh catalog in WARM_UP mode through the gRPC driver, then transition it to ALIVE via goLive. Reports load wall-clock, per-collection and per-upsert latency distributions, and the goLive transition separately. Invoke when asked how long publishing a dataset takes, when verifying a full reindex still completes after write-path or driver changes, when comparing ingestion throughput between two builds, or when profiling the server-side write path under a realistic bulk load.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(mvn *), Bash(rtk *), Bash(java *), Bash(git *), Bash(rg *), Bash(awk *), Bash(sed *), Bash(ps *), Bash(uptime *), Bash(free *), Bash(kill *), Bash(pkill *), Bash(cd *), Bash(ls *), Bash(du *), Bash(df *), Bash(unzip *), Bash(python3 *), Bash(cp *), Bash(mkdir *), Bash(chmod *), Bash(grep *), Bash(tail *), Bash(head *), AskUserQuestion
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(mvn *), Bash(java *), Bash(git *), Bash(rg *), Bash(awk *), Bash(sed *), Bash(ps *), Bash(uptime *), Bash(free *), Bash(kill *), Bash(pkill *), Bash(cd *), Bash(ls *), Bash(du *), Bash(df *), Bash(unzip *), Bash(python3 *), Bash(cp *), Bash(mkdir *), Bash(chmod *), Bash(grep *), Bash(tail *), Bash(head *), AskUserQuestion
 ---
 
 # WARM_UP reindex + goLive benchmark

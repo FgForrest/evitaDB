@@ -640,8 +640,9 @@ nothing says what the twenty is — whereas a child carries an **introducing wor
 meaning a name: `textMatches("jacket", relaxUntil(20))` can be read aloud. A positional argument
 is therefore only fine where the parent's own name gives it context (the text in `textMatches`,
 the number in `limit`); everything else gets its own word. It is the same principle that decided
-R2 against R1 in §5.1 and by which the relaxation ADR rejects string mini-grammars à la
-`"3<90%"` — an expression whose meaning cannot be read off does not belong in the language.
+R2 against R1 in §5.1 and by which [`../README.md`](../README.md) ("Rejected outright") rejects
+string mini-grammars à la `"3<90%"` — an expression whose meaning cannot be read off does not
+belong in the language.
 
 V1 remains as a legitimate **shortened form for P1**, so that the prototype does not pay the toll
 of the full DSL surface before the core is measured. V2 (weights in the filter) remains recorded
@@ -2121,6 +2122,20 @@ each rung again (`index.cpp:4062`); we would have it as an intermediate result.
 
 What remains open: the name of the constraint, the interaction with the prefetch path and whether it goes into
 F1 at all — probably not, to be decided after the P1 measurement.
+
+Consequences for the implementation, beyond the three rules above. **Equal document frequencies need a
+deterministic tie-break** (term order will do) — the ladder is built from a frequency ordering, and where that
+ordering is not total the level choice stops being a function of index state plus query alone, which is exactly
+the property a WAL-replayed replica relies on to reach the same answer. **The floor is a trigger, not a
+target**: dropping a single term only enlarges the set, and it may overshoot N by orders of magnitude, so the
+constraint promises "at least N when it can", never "about N". **And the decision has a stated expiry** — the
+whole cost argument rests on the intersection pass leaving its intermediates behind, so if the fulltext formula
+is ever fused into one streaming operator for other reasons, the free ladder is gone and the static policy of
+the Lucene family (the `minimum_should_match` ladder, in a typed shape rather than the string grammar rejected
+above) becomes the honest fallback. That is the trigger for revisiting this decision, and the criteria that would
+detect it: relaxation adds no measurable cost to queries already above the floor, a relaxed response's facets,
+histogram, page and total count all describe the same chosen level, and a replayed WAL produces an identical
+level choice on every node.
 
 **Q17 — the scoring composition of suggest (new, from the sponsor's review, §10.1).** The default signal is
 the cardinality of the postings after intersection with the must-match filter; popularised relevance (what

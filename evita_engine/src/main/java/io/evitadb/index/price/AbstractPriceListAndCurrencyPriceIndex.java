@@ -46,6 +46,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -476,9 +477,14 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 */
 	protected long getBaseHeapSizeInBytes(@Nonnull ToLongFunction<Object> priceRecordSizer, long ownFieldBytes) {
 		final VMLayout layout = VMLayout.current();
-		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords
-		// /terminated slots, plus whatever the concrete subclass declares - the instance carries ONE header, so the
-		// whole hierarchy's fields are sized in a single call
+		// id, then the dirty/priceIndexKey/indexedPriceEntityIds/indexedPriceIds/validityIndex/priceRecords/terminated
+		// slots, plus whatever the concrete subclass declares - the instance carries ONE header, so the whole
+		// hierarchy's fields are sized in a single call.
+		//
+		// No memoized-id slot and no warm-up touch stamp: the memo this class used to hold was removed, and with it
+		// the only thing that ever claimed a first touch on this index. Every remaining field is itself a journalling
+		// participant, so the index needs no stamp of its own - which matters at this scale, where a dead long is 8
+		// bytes on each of a production catalog's hundreds of thousands of price indexes
 		long size = layout.sizeOfObject(Long.BYTES + 7L * layout.referenceSize() + ownFieldBytes);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.terminated.getHeapSizeInBytes();

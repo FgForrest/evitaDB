@@ -1817,8 +1817,11 @@ class SortIndexTest {
 		 * many records the index held (`int[65]` in the position tree, `int[64]` and `long[64]` in the value index).
 		 * The gate sits above the measurement rather than on it, because the figure follows the running VM's object
 		 * layout; it sits far below the pre-change figure, which is what makes it a regression gate at all.
+		 * Every figure here moved up by the `warmUpTouchStamp` long that per-entity warm-up rollback put on
+		 * each participating object. The gate moved with it. A genuine sizing regression is not this shape:
+		 * the smallest one is a single column back at its leaf block, which is 280 B on its own.
 		 */
-		private static final long ONE_RECORD_SORT_INDEX_GATE = 1_200L;
+		private static final long ONE_RECORD_SORT_INDEX_GATE = 1_300L;
 
 		/**
 		 * The heap gate for an EMPTY owner sort index — measured **856 B** after, against **1,656 B** before. The gate
@@ -1826,7 +1829,7 @@ class SortIndexTest {
 		 * and far below the pre-change figure. The whole 800 B is the value index's eagerly allocated root leaf, which
 		 * every sort index owns from birth whether or not it ever holds a record.
 		 */
-		private static final long EMPTY_SORT_INDEX_GATE = 900L;
+		private static final long EMPTY_SORT_INDEX_GATE = 1_000L;
 
 		@Test
 		@DisplayName("a one-record sort index stays under the content-sized gate")
@@ -1838,7 +1841,7 @@ class SortIndexTest {
 			assertTrue(
 				heap <= ONE_RECORD_SORT_INDEX_GATE,
 				"a one-record sort index must stay under " + ONE_RECORD_SORT_INDEX_GATE
-					+ " B (measured 1112 B after content sizing, 2072 B before it), was " + heap
+					+ " B (measured 1224 B after content sizing and the warm-up touch stamps, 2072 B before it), was " + heap
 			);
 		}
 
@@ -1851,7 +1854,7 @@ class SortIndexTest {
 			assertTrue(
 				heap <= EMPTY_SORT_INDEX_GATE,
 				"an empty sort index must stay under " + EMPTY_SORT_INDEX_GATE
-					+ " B (measured 856 B after content sizing, 1656 B before it), was " + heap
+					+ " B (measured 952 B after content sizing and the warm-up touch stamps, 1656 B before it), was " + heap
 			);
 		}
 

@@ -422,18 +422,24 @@ class LeafIndexHeapSizeTest {
 			// to pay for a 256-slot key column, a 256-slot record column and their headers - 3472 bytes for a single
 			// long and a single int. What is left is structure only, and every one of these bytes is accounted for:
 			//
-			//   64  the index object                     64  the leaf node
+			//   72  the index object                     72  the leaf node
 			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
-			//   40  the tree's `root` transactional       24  the record column object + 32 its four-slot int[]
-			//       reference holder and its              24  the tree's transactional dirty flag
+			//   48  the tree's `root` transactional       24  the record column object + 32 its four-slot int[]
+			//       reference holder and its              32  the tree's transactional dirty flag
 			//       AtomicReference
 			//
-			// That sums to 408, which is what both sides report. The bucket count is a plain int inside the tree's
+			// That sums to 440, which is what both sides report. The bucket count is a plain int inside the tree's
 			// own 80 bytes - it costs no holder and no box. The four-slot floor is deliberate (see ColumnSizing):
 			// the reduced value trees this sizing exists for are dominated by one to four distinct values, so a
-			// floor of four covers the common case in a single allocation and never reallocates. The 424-byte
+			// floor of four covers the common case in a single allocation and never reallocates. The 456-byte
 			// budget therefore leaves room for one more small object without leaving room for a column that has
 			// gone back to allocating its whole block.
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
 			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(Integer.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, Integer.class);
@@ -443,8 +449,8 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 424,
-				"a one-key integral index must stay within its 424 B budget - was " + measured
+				measured <= 456,
+				"a one-key integral index must stay within its 456 B budget - was " + measured
 			);
 		}
 
@@ -453,16 +459,22 @@ class LeafIndexHeapSizeTest {
 			// A temporal key is normalized to a millisecond-exact `Instant` and stored as its epoch-milli, so it takes
 			// the very same single-`long` column an integral key does and this gate has the very same composition:
 			//
-			//   64  the index object                     64  the leaf node
+			//   72  the index object                     72  the leaf node
 			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
-			//   40  the tree's `root` transactional      24  the record column object + 32 its four-slot int[]
-			//       reference holder and its             24  the tree's transactional dirty flag
+			//   48  the tree's `root` transactional      24  the record column object + 32 its four-slot int[]
+			//       reference holder and its             32  the tree's transactional dirty flag
 			//       AtomicReference
 			//
-			// 408 again, against the 440 the same shape cost while a temporal key rode a parallel `(long[], int[])`
-			// pair: the 32 bytes of a second four-slot array plus its header. The 424-byte budget is therefore the
-			// integral gate's budget verbatim, and it declines the pair — which is the whole point of stating it
-			// here rather than trusting the integral gate to stand in for this shape.
+			// 440 again, against the 472 the same shape would cost while a temporal key rode a parallel
+			// `(long[], int[])` pair: the 32 bytes of a second four-slot array plus its header. The 456-byte budget is
+			// therefore the integral gate's budget verbatim, and it declines the pair — which is the whole point of
+			// stating it here rather than trusting the integral gate to stand in for this shape.
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
 			final AttributeIndexKey key = new AttributeIndexKey(null, "published", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, OffsetDateTime.class);
@@ -474,27 +486,33 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 424,
-				"a one-key temporal index must stay within its 424 B budget - was " + measured
+				measured <= 456,
+				"a one-key temporal index must stay within its 456 B budget - was " + measured
 			);
 		}
 
 		@Test
 		void shouldKeepAOneKeyRangeIndexWithinItsSizingBudget() {
 			// The same budget for the shape the range column serves, which is the integral one plus its extra bound
-			// arrays. Every byte, against the 464 of the integral gate above:
+			// arrays. Every byte, against the 440 of the integral gate above:
 			//
-			//   64  the index object                     64  the leaf node
+			//   72  the index object                     72  the leaf node
 			//   80  the bucket tree object               40  the key column object
-			//   40  the tree's `root` transactional      96  its TWO four-slot long[] arrays, 48 each
+			//   48  the tree's `root` transactional      96  its TWO four-slot long[] arrays, 48 each
 			//       reference holder and its             24  the record column object + 32 its four-slot int[]
-			//       AtomicReference                      24  the tree's transactional dirty flag
+			//       AtomicReference                      32  the tree's transactional dirty flag
 			//
-			// That sums to 464 - the integral gate's 408 plus 56: 48 for the second bound array and 8 for the wider
+			// That sums to 496 - the integral gate's 440 plus 56: 48 for the second bound array and 8 for the wider
 			// column object holding it. Every range kind is this shape now; the date-time one used to carry a third
-			// array for its bounds' zone offsets and cost 48 bytes more. The 472-byte budget leaves room for one
+			// array for its bounds' zone offsets and cost 48 bytes more. The 504-byte budget leaves room for one
 			// more small object without leaving room for a column that has gone back to allocating its whole block
 			// - or for a third array
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
 			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
 			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
@@ -510,8 +528,8 @@ class LeafIndexHeapSizeTest {
 			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
 			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
 			assertTrue(
-				measured <= 472,
-				"a one-key range index must stay within its 472 B budget - was " + measured
+				measured <= 504,
+				"a one-key range index must stay within its 504 B budget - was " + measured
 			);
 		}
 

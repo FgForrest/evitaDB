@@ -23,14 +23,12 @@
 
 package io.evitadb.index.cardinality;
 
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.index.cardinality.LongRunningReferenceTypeCardinalityIndexTest.ReferenceCardinalitySnapshot;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -42,10 +40,7 @@ import java.util.Random;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link ReferenceTypeCardinalityIndex} — a
@@ -63,6 +58,12 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * commit-time layer-sweep verification proves the restore left no dangling layer. The run is time-bounded; the random
  * seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ReferenceTypeCardinalityIndex savepoint rollback/commit backfill (generational fuzz)")
@@ -70,48 +71,14 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 @Tag(ATTRIBUTE)
 @Tag(REFERENCE)
 @Tag(TRANSACTION)
-class LongRunningSavepointReferenceTypeCardinalityIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointReferenceTypeCardinalityIndexTest
+	extends AbstractSavepointFuzzTest<ReferenceCardinalitySnapshot> {
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint cardinality contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint cardinality contents")
-	void shouldRollBackReferenceTypeCardinalityIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final ReferenceCardinalityState state = new ReferenceCardinalityState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningReferenceTypeCardinalityIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint cardinality contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint cardinality contents")
-	void shouldCommitReferenceTypeCardinalityIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final ReferenceCardinalityState state = new ReferenceCardinalityState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningReferenceTypeCardinalityIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<ReferenceCardinalitySnapshot> newGeneration(@Nonnull Random random) {
+		return new ReferenceCardinalityState(random);
 	}
 
 	/**
@@ -120,7 +87,7 @@ class LongRunningSavepointReferenceTypeCardinalityIndexTest implements TimeBound
 	 * generated that keep the model and index in lockstep. The initial non-empty index is seeded outside any
 	 * transaction; mutations are applied to the index (and mirrored in the model) within the framework's transaction.
 	 */
-	private static final class ReferenceCardinalityState {
+	private static final class ReferenceCardinalityState implements FuzzGeneration<ReferenceCardinalitySnapshot> {
 		private static final int MAX_INDEX_PK = 20;
 		private static final int MAX_REF_PK = 10;
 
@@ -134,6 +101,30 @@ class LongRunningSavepointReferenceTypeCardinalityIndexTest implements TimeBound
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomPair(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public ReferenceCardinalitySnapshot contents() {
+			return LongRunningReferenceTypeCardinalityIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

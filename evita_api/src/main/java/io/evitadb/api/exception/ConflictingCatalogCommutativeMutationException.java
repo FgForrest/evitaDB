@@ -24,6 +24,7 @@
 package io.evitadb.api.exception;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.exception.NotMonitored;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -54,8 +55,16 @@ import java.io.Serial;
  * bugs where business logic assumptions (like "never go below zero") might be violated by
  * blindly applying deltas without validating current state.
  *
+ * **Monitoring:**
+ * The type carries its own {@link NotMonitored} marker rather than relying on the one on
+ * {@link ConflictingCatalogMutationException}. The marker is not
+ * {@link java.lang.annotation.Inherited}, and the error-monitoring agent evaluates it against the
+ * concrete runtime class, so dropping it here would put commutative conflicts back into
+ * `io_evitadb_errors_total` under their own label.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@NotMonitored
 public class ConflictingCatalogCommutativeMutationException extends ConflictingCatalogMutationException {
     @Serial
     private static final long serialVersionUID = 401973444573552277L;

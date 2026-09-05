@@ -23,13 +23,11 @@
 
 package io.evitadb.index;
 
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
+import io.evitadb.index.LongRunningHistogramIndexTest.HistogramSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,10 +40,7 @@ import java.util.Random;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link SimpleHistogramIndex} snapshots and restores correctly under a
@@ -62,6 +57,12 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * commits so the commit-time layer-sweep verification proves the restore left no dangling layer. The run is
  * time-bounded; the random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("SimpleHistogramIndex savepoint rollback/commit backfill (generational fuzz)")
@@ -69,50 +70,15 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 @Tag(MANAGEMENT)
 @Tag(HISTOGRAM)
 @Tag(TRANSACTION)
-class LongRunningSavepointHistogramIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointHistogramIndexTest extends AbstractSavepointFuzzTest<HistogramSnapshot> {
 	private static final String HISTOGRAM_NAME = "priceHistogram";
 	private static final String REFERENCE_NAME = "BRAND";
 	private static final int MAX_OPS = 10;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint histogram contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint histogram contents")
-	void shouldRollBackHistogramIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final HistogramState state = new HistogramState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningHistogramIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint histogram contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint histogram contents")
-	void shouldCommitHistogramIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final HistogramState state = new HistogramState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningHistogramIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<HistogramSnapshot> newGeneration(@Nonnull Random random) {
+		return new HistogramState(random);
 	}
 
 	/**
@@ -122,7 +88,7 @@ class LongRunningSavepointHistogramIndexTest implements TimeBoundedTestSupport {
 	 * is seeded outside any transaction; mutations are applied to the index (and mirrored in the model) within the
 	 * framework's transaction.
 	 */
-	private static final class HistogramState {
+	private static final class HistogramState implements FuzzGeneration<HistogramSnapshot> {
 		private static final int MAX_VALUE = 50;
 		private static final int MAX_OWNER = 30;
 		private static final int FORCED_VALUE = -1;
@@ -138,6 +104,30 @@ class LongRunningSavepointHistogramIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomValue(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public HistogramSnapshot contents() {
+			return LongRunningHistogramIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

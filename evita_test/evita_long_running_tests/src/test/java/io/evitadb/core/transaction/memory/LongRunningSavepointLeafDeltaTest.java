@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest.FuzzGeneration;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.array.TransactionalObjArray;
@@ -32,13 +33,9 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.set.TransactionalSet;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -53,10 +50,7 @@ import java.util.Random;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that the simple leaf data deltas snapshot and restore correctly under
@@ -74,12 +68,18 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * no-op rollback cannot pass by accident. The run is time-bounded; the random seed is echoed on failure for
  * deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Leaf-delta savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(TRANSACTION)
-class LongRunningSavepointLeafDeltaTest implements TimeBoundedTestSupport {
+class LongRunningSavepointLeafDeltaTest {
 	private static final int KEY_SPACE = 64;
 	private static final int MARKER = 100_000;
 	private static final int MAX_OPS = 8;
@@ -88,292 +88,369 @@ class LongRunningSavepointLeafDeltaTest implements TimeBoundedTestSupport {
 	// BooleanChanges (TransactionalBoolean)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalBoolean: savepoint rollback restores the pre-savepoint flag")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalBoolean: savepoint rollback restores the pre-savepoint flag")
-	void shouldRollBackBoolean(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalBoolean value = new TransactionalBoolean(random.nextBoolean());
-			assertSavepointRollbackRestores(
-				value,
-				tested -> applyRandomBooleanOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				TransactionalBoolean::isTrue,
-				// a guaranteed flip makes the in-savepoint state differ from the captured oracle
-				tested -> {
-					if (tested.isTrue()) {
-						tested.setToFalse();
-					} else {
-						tested.setToTrue();
-					}
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalBoolean")
+	class BooleanCase extends AbstractSavepointFuzzTest<Boolean> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<Boolean> newGeneration(@Nonnull Random random) {
+			return new BooleanState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalBoolean: savepoint commit keeps the in-savepoint flag")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalBoolean: savepoint commit keeps the in-savepoint flag")
-	void shouldCommitBoolean(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalBoolean value = new TransactionalBoolean(random.nextBoolean());
-			assertSavepointCommitKeeps(
-				value,
-				tested -> applyRandomBooleanOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				TransactionalBoolean::isTrue,
-				tested -> applyRandomBooleanOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalBoolean} — a boolean flag read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class BooleanState implements FuzzGeneration<Boolean> {
+		private final TransactionalBoolean value;
+
+		BooleanState(@Nonnull Random random) {
+			this.value = new TransactionalBoolean(random.nextBoolean());
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.value;
+		}
+
+		@Nonnull
+		@Override
+		public Boolean contents() {
+			return this.value.isTrue();
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomBooleanOps(this.value, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			// ONLY the guaranteed flip: with just two states, a random batch applied after it could land back on the
+			// pre-savepoint value and make the batch vacuous
+			if (this.value.isTrue()) {
+				this.value.setToFalse();
+			} else {
+				this.value.setToTrue();
+			}
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// ReferenceChanges (TransactionalReference)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalReference: savepoint rollback restores the pre-savepoint value")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalReference: savepoint rollback restores the pre-savepoint value")
-	void shouldRollBackReference(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalReference<Integer> value = new TransactionalReference<>(random.nextInt(KEY_SPACE));
-			assertSavepointRollbackRestores(
-				value,
-				tested -> applyRandomReferenceOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				TransactionalReference::get,
-				// a final marker assignment guarantees a value the baseline range cannot produce
-				tested -> {
-					applyRandomReferenceOps(tested, random, 1 + random.nextInt(MAX_OPS));
-					tested.set(MARKER);
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalReference")
+	class ReferenceCase extends AbstractSavepointFuzzTest<Integer> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<Integer> newGeneration(@Nonnull Random random) {
+			return new ReferenceState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalReference: savepoint commit keeps the in-savepoint value")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalReference: savepoint commit keeps the in-savepoint value")
-	void shouldCommitReference(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalReference<Integer> value = new TransactionalReference<>(random.nextInt(KEY_SPACE));
-			assertSavepointCommitKeeps(
-				value,
-				tested -> applyRandomReferenceOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				TransactionalReference::get,
-				tested -> applyRandomReferenceOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalReference} — a single reference slot read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class ReferenceState implements FuzzGeneration<Integer> {
+		private final TransactionalReference<Integer> value;
+
+		ReferenceState(@Nonnull Random random) {
+			this.value = new TransactionalReference<>(random.nextInt(KEY_SPACE));
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.value;
+		}
+
+		@Nonnull
+		@Override
+		public Integer contents() {
+			return this.value.get();
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomReferenceOps(this.value, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomReferenceOps(this.value, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: MARKER lies outside the random range, so nothing after it can overwrite it back
+			this.value.set(MARKER);
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// SetChanges (TransactionalSet)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalSet: savepoint rollback restores the pre-savepoint contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalSet: savepoint rollback restores the pre-savepoint contents")
-	void shouldRollBackSet(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalSet<Integer> set = newSeededSet(random);
-			assertSavepointRollbackRestores(
-				set,
-				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				HashSet::new,
-				tested -> {
-					tested.add(MARKER);
-					applyRandomSetOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalSet")
+	class SetCase extends AbstractSavepointFuzzTest<Set<Integer>> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<Set<Integer>> newGeneration(@Nonnull Random random) {
+			return new SetState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalSet: savepoint commit keeps the in-savepoint contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalSet: savepoint commit keeps the in-savepoint contents")
-	void shouldCommitSet(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalSet<Integer> set = newSeededSet(random);
-			assertSavepointCommitKeeps(
-				set,
-				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				HashSet::new,
-				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalSet} — a hash-set-backed wrapper read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class SetState implements FuzzGeneration<Set<Integer>> {
+		private final TransactionalSet<Integer> set;
+
+		SetState(@Nonnull Random random) {
+			this.set = newSeededSet(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.set;
+		}
+
+		@Nonnull
+		@Override
+		public Set<Integer> contents() {
+			return new HashSet<>(this.set);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomSetOps(this.set, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomSetOps(this.set, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker added first can be taken out again by a later removeAll / retainAll
+			this.set.add(MARKER);
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// ListChanges (TransactionalList)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalList: savepoint rollback restores the pre-savepoint contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalList: savepoint rollback restores the pre-savepoint contents")
-	void shouldRollBackList(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalList<Integer> list = newSeededList(random);
-			assertSavepointRollbackRestores(
-				list,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				ArrayList::new,
-				tested -> {
-					tested.add(MARKER);
-					applyRandomListOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalList")
+	class ListCase extends AbstractSavepointFuzzTest<List<Integer>> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+			return new ListState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalList: savepoint commit keeps the in-savepoint contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalList: savepoint commit keeps the in-savepoint contents")
-	void shouldCommitList(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalList<Integer> list = newSeededList(random);
-			assertSavepointCommitKeeps(
-				list,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				ArrayList::new,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalList} — an array-list-backed wrapper read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class ListState implements FuzzGeneration<List<Integer>> {
+		private final TransactionalList<Integer> list;
+
+		ListState(@Nonnull Random random) {
+			this.list = newSeededList(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.list;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return new ArrayList<>(this.list);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomListOps(this.list, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomListOps(this.list, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker appended first can be removed again by a later positional removal
+			this.list.add(MARKER);
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// IntArrayChanges (TransactionalIntArray)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalIntArray: savepoint rollback restores the pre-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalIntArray: savepoint rollback restores the pre-savepoint record set")
-	void shouldRollBackIntArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalIntArray array = newSeededIntArray(random);
-			assertSavepointRollbackRestores(
-				array,
-				tested -> applyRandomIntArrayOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::intArrayContents,
-				tested -> {
-					tested.add(MARKER);
-					applyRandomIntArrayOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalIntArray")
+	class IntArrayCase extends AbstractSavepointFuzzTest<List<Integer>> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+			return new IntArrayState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalIntArray: savepoint commit keeps the in-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalIntArray: savepoint commit keeps the in-savepoint record set")
-	void shouldCommitIntArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalIntArray array = newSeededIntArray(random);
-			assertSavepointCommitKeeps(
-				array,
-				tested -> applyRandomIntArrayOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::intArrayContents,
-				tested -> applyRandomIntArrayOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalIntArray} — a primitive-array wrapper read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class IntArrayState implements FuzzGeneration<List<Integer>> {
+		private final TransactionalIntArray array;
+
+		IntArrayState(@Nonnull Random random) {
+			this.array = newSeededIntArray(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.array;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return intArrayContents(this.array);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomIntArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomIntArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker added first can be removed again by a later random removal
+			this.array.add(MARKER);
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// ObjArrayChanges (TransactionalObjArray)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalObjArray: savepoint rollback restores the pre-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalObjArray: savepoint rollback restores the pre-savepoint record set")
-	void shouldRollBackObjArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalObjArray<Integer> array = newSeededObjArray(random);
-			assertSavepointRollbackRestores(
-				array,
-				tested -> applyRandomObjArrayOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::objArrayContents,
-				tested -> {
-					tested.add(MARKER);
-					applyRandomObjArrayOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalObjArray")
+	class ObjArrayCase extends AbstractSavepointFuzzTest<List<Integer>> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+			return new ObjArrayState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalObjArray: savepoint commit keeps the in-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalObjArray: savepoint commit keeps the in-savepoint record set")
-	void shouldCommitObjArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalObjArray<Integer> array = newSeededObjArray(random);
-			assertSavepointCommitKeeps(
-				array,
-				tested -> applyRandomObjArrayOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::objArrayContents,
-				tested -> applyRandomObjArrayOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalObjArray} — an object-array wrapper read back through its own
+	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
+	 */
+	private static final class ObjArrayState implements FuzzGeneration<List<Integer>> {
+		private final TransactionalObjArray<Integer> array;
+
+		ObjArrayState(@Nonnull Random random) {
+			this.array = newSeededObjArray(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.array;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return objArrayContents(this.array);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomObjArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomObjArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker added first can be removed again by a later random removal
+			this.array.add(MARKER);
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	// ComplexObjArrayChanges (TransactionalComplexObjArray)
 	// ---------------------------------------------------------------------------------------------------------------
 
-	@ParameterizedTest(name = "TransactionalComplexObjArray: savepoint rollback restores the pre-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalComplexObjArray: savepoint rollback restores the pre-savepoint record set")
-	void shouldRollBackComplexObjArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalComplexObjArray<TxInteger> array = newSeededComplexArray(random);
-			assertSavepointRollbackRestores(
-				array,
-				tested -> applyRandomComplexOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::complexArrayContents,
-				tested -> {
-					tested.add(new TxInteger(MARKER));
-					applyRandomComplexOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nested
+	@DisplayName("TransactionalComplexObjArray")
+	class ComplexObjArrayCase extends AbstractSavepointFuzzTest<List<Integer>> {
+
+		@Nonnull
+		@Override
+		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
+			return new ComplexObjArrayState(random);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalComplexObjArray: savepoint commit keeps the in-savepoint record set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalComplexObjArray: savepoint commit keeps the in-savepoint record set")
-	void shouldCommitComplexObjArray(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final TransactionalComplexObjArray<TxInteger> array = newSeededComplexArray(random);
-			assertSavepointCommitKeeps(
-				array,
-				tested -> applyRandomComplexOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointLeafDeltaTest::complexArrayContents,
-				tested -> applyRandomComplexOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	/**
+	 * One generation's fixture for {@link TransactionalComplexObjArray} — an array of transactional elements, read
+	 * back through its own public surface so the harness's mid-savepoint read goes through the same view a caller
+	 * would use.
+	 */
+	private static final class ComplexObjArrayState implements FuzzGeneration<List<Integer>> {
+		private final TransactionalComplexObjArray<TxInteger> array;
+
+		ComplexObjArrayState(@Nonnull Random random) {
+			this.array = newSeededComplexArray(random);
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.array;
+		}
+
+		@Nonnull
+		@Override
+		public List<Integer> contents() {
+			return complexArrayContents(this.array);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomComplexOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomComplexOps(this.array, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker added first can be removed again by a later random removal
+			this.array.add(new TxInteger(MARKER));
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------

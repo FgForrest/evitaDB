@@ -33,6 +33,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bitmap.Bitmap;
@@ -41,11 +43,13 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.SortedArrayBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.ValueIdAllocator;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -68,6 +72,8 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -2010,6 +2016,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	private void incrementBucketCount() {
 		final BucketCountChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			journalBucketCountIfOpen();
 			this.size++;
 		} else {
 			layer.increment();
@@ -2032,10 +2039,49 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.size > 0,
 				"The committed bucket count would go negative - a bucket was deleted that this tree never saw born."
 			);
+			journalBucketCountIfOpen();
 			this.size--;
 		} else {
 			layer.decrement();
 		}
+	}
+
+	/**
+	 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the inverse
+	 * of the bucket-count write about to happen on the delegate branch: an absolute restore of the count as it stands
+	 * now.
+	 *
+	 * **Why the count needs an inverse of its own.** Every other piece of this tree's state lives in a node that
+	 * journals its own writes, but the bucket count does not: it is a plain `int` carried beside the node graph, with
+	 * a {@link BucketCountChanges} layer standing in for it only inside a transaction. Nothing else would put it back,
+	 * and a count left one too high survives the rollback as a tree that reports buckets it does not hold — which
+	 * `recordCount()` and every emptiness check then read.
+	 *
+	 * The restore is absolute rather than a matching `--`/`++`, for the reason dev's node inverses are: replay runs in
+	 * reverse, so a run of births and deaths inside one savepoint unwinds through the exact counts it passed through.
+	 *
+	 * Must be called BEFORE the count changes. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void journalBucketCountIfOpen() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			final int previousSize = this.size;
+			savepoint.push(() -> this.size = previousSize);
+		}
+	}
+
+	/**
+	 * This tree journals every warm-up write it makes. Its NODES do so themselves — see the declaration on
+	 * {@link BPlusTreeNode}, which covers both the whole-node mementos structural code takes and the per-slot inverses
+	 * the ordinary bucket writes push. What is left to the tree itself is the scalar bucket count, which lives outside
+	 * the node graph and is journalled by {@link #journalBucketCountIfOpen()}.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	/**
@@ -2076,9 +2122,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				+ Long.BYTES + layout.referenceSize()
 		);
 		// the `root` TransactionalReference holder is the tree's own and wraps an AtomicReference; it addresses the
-		// node walked below. The bucket count needs no holder of its own - it is the plain int counted above, carried
-		// across a transaction by a BucketCountChanges layer that belongs to that transaction and is never counted here
-		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+		// node walked below, and carries the warmUpTouchStamp beside its id, so it is two longs wide before its value
+		// slot. The bucket count needs no holder of its own - it is the plain int counted above, carried across a
+		// transaction by a BucketCountChanges layer that belongs to that transaction and is never counted here
+		final long transactionalReference = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
 			+ layout.sizeOfObject(layout.referenceSize());
 		ownSize += transactionalReference;
 		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
@@ -3836,6 +3883,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	interface BPlusTreeNode<M extends Comparable<M>, N extends BPlusTreeNode<M, N>>
 		extends
 		TransactionalLayerProducer<N, N>,
+		WarmUpTouchStamped,
 		Serializable {
 
 		/**
@@ -3986,6 +4034,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param pageSequence the page sequence to assign
 		 */
 		void setPageSequence(int pageSequence);
+
+		/**
+		 * Every node of this tree journals its warm-up writes, so the declaration is made once here rather than
+		 * repeated on {@link BPlusInternalTreeNode} and {@link BPlusLeafTreeNode}. The internal nodes discharge the
+		 * obligation the same way as in the shared {@link io.evitadb.index.bPlusTree.BPlusTreeNode} family — see the
+		 * declaration there for the mechanism. The leaves discharge it with a mixture of that mechanism and
+		 * per-operation inverses; the reason and the rules are on {@link BPlusLeafTreeNode} itself.
+		 *
+		 * @return always `true` — see above
+		 */
+		@Override
+		default boolean supportsWarmUpRollback() {
+			return true;
+		}
 	}
 
 	/**
@@ -4088,6 +4150,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		BPlusTreeNode<M, BPlusInternalTreeNode<M>>,
 		Snapshotable<BPlusInternalTreeNode.BPlusInternalNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = 3382269323782408764L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -4252,9 +4326,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -4325,8 +4397,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer, boolean separatorsOwned) {
 			final VMLayout layout = VMLayout.current();
-			// id + transactionalLayer + comparator/keys/children slots + peek + pageSequence + blockSize
-			long size = layout.sizeOfObject(Long.BYTES + 1L + 3L * layout.referenceSize() + 3L * Integer.BYTES);
+			// id + warmUpTouchStamp + transactionalLayer + comparator/keys/children slots + peek + pageSequence
+			// + blockSize
+			long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 3L * layout.referenceSize() + 3L * Integer.BYTES);
 			// both arrays are read ONCE into locals and everything below indexes those locals: this walk is reachable
 			// with no session and no catalog-state guard (see `recordCount()`), so the array a slot is charged from
 			// has to be the same array its bound came from
@@ -4427,9 +4500,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode<M> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				growTo(this, this.peek + 1 + numberOfTailValues);
 				System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
@@ -4469,9 +4540,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode<M> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				growTo(this, this.peek + 1 + numberOfHeadValues);
 				final BPlusTreeNode<M, ?>[] nextNodeChildren = nextNode.getChildrenForUpdate();
@@ -4521,9 +4590,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 			final int mergePeek = previousNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				growTo(this, this.peek + mergePeek + 2);
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
@@ -4553,9 +4620,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 			final int mergePeek = nextNode.getPeek();
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				growTo(this, this.peek + mergePeek + 2);
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
@@ -4594,9 +4659,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public M[] getKeysForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -4634,9 +4697,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public BPlusTreeNode<M, ?>[] getChildrenForUpdate() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -4669,9 +4730,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				"Internal node must not be full to accommodate two leaf nodes after their split!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				growTo(this, this.peek + 2);
 				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
@@ -4743,9 +4802,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param childIndex the position of the child node to be removed from the children array
 		 */
 		public void removeChildOnIndex(int keyIndex, int childIndex) {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				removeRecordFromSameArrayOnIndex(this.keys, keyIndex);
 				this.keys[this.peek - 1] = null;
@@ -4780,9 +4837,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				"Leftmost child node does not have a key in the parent node!"
 			);
 
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.children[index] == node,
@@ -4985,9 +5040,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Decouples the node's keys and children arrays into a transaction-local copy before mutation.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -5030,12 +5083,38 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * `overflow == null || overflow[i] == null`. The leaf encapsulates the promotion/demotion of
 	 * buckets and the full MVCC scaffolding (createLayer / decouple / commit-merge / removeLayer / split / merge /
 	 * steal) across all three columns.
+	 *
+	 * **Warm-up journalling is split by operation shape, and this leaf is the only node in the family that splits it.**
+	 * The other node classes record one whole-node memento the first time a {@link WarmUpSavepoint} sees them written;
+	 * this one does that only for the operations that rearrange the columns wholesale — the steals, the merges,
+	 * {@link #setPeek}, and the `...ForUpdate` accessors that hand a raw column out. The ordinary bucket writes
+	 * ({@link #addRecord}, {@link #addLongRecord}, {@link #addRecords}, {@link #removeRecords}) push a per-operation
+	 * inverse covering just the slot they touch instead, because a memento of this leaf duplicates both columns plus a
+	 * clone of the overflow array for a write that typically reaches one or two slots: 551 ms per 100k entities and
+	 * roughly a fifth of all allocation on the flag-ON bulk-ingest profile, which is the same "cheap to capture is not
+	 * the test, cheap in TOTAL is" reasoning that made {@link TransactionalBitmap} journal per operation.
+	 *
+	 * The two granularities are mutually exclusive per leaf per savepoint and the gate is
+	 * {@link WarmUpSavepoint#isCaptured} — see {@link #journalBucketInsertionIfOpen} for the full rule and for why a
+	 * run of per-slot writes followed by a structural operation still rewinds exactly.
 	 */
 	static class BPlusLeafTreeNode<M extends Comparable<M>>
 		implements
 		BPlusTreeNode<M, BPlusLeafTreeNode<M>>,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = 1382269323782408765L;
+		/**
+		 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+		 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+		 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+		 * one of them corrupts a rollback rather than merely slowing it down.
+		 *
+		 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+		 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+		 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+		 * that never happened.
+		 */
+		@Getter @Setter private transient long warmUpTouchStamp;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
 		 * Indicates whether this instance is permitted to create and use transactional layers (see the internal node
@@ -5349,9 +5428,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
 			// steal/merge): flag the leaf so the granular write path re-emits its page
 			if (layer == null) {
@@ -5483,9 +5560,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + leafId + transactionalLayer + dirty + comparator/keys/records/overflow/valueIds slots
-			// + peek + pageSequence
-			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 5L * layout.referenceSize() + 2L * Integer.BYTES);
+			// id + warmUpTouchStamp + leafId + transactionalLayer + dirty
+			// + comparator/keys/records/overflow/valueIds slots + peek + pageSequence
+			long size = layout.sizeOfObject(3L * Long.BYTES + 2L + 5L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += this.keys.getHeapSizeInBytes(elementSizer);
 			size += this.records.getHeapSizeInBytes();
 			if (this.valueIds != null) {
@@ -5622,9 +5699,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<M> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -5691,9 +5766,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<M> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
@@ -5755,9 +5828,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<M> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -5807,9 +5878,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<M> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
 			if (layer == null) {
 				this.dirty = true;
@@ -5896,9 +5965,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable
 		public RecordColumn getValueIdsForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			// resolved through the per-operation helper, which is the same `getOrCreate`-or-null this used to inline
+			// but journals NOTHING - deliberately, because every warm-up write reached through this accessor is
+			// already covered by an inverse pushed above it: `setValueIdAt` on the mint path sits inside the bucket
+			// insertion whose inverse collapses the whole slot, id column included, and the split / merge callers
+			// take a whole-node memento first, which captures and restores `valueIds` with the other columns. A
+			// first-touch memento here would duplicate that capture on the hottest path in the tree
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.valueIds;
 			} else {
@@ -6008,9 +6081,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public ValueColumn<M> getKeyColumnForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -6028,9 +6099,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public RecordColumn getRecordsForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.records;
 			} else {
@@ -6049,9 +6118,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable
 		public OverflowColumn getOverflowForUpdate() {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
 				return this.overflow;
 			} else {
@@ -6626,9 +6693,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * existing bucket
 		 */
 		public int addRecord(@Nonnull M value, int pk) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// adding a record mutates this leaf's page: flag it for re-emission (the layer is created above regardless,
 			// so a rare no-op add over-reports at worst — never under-reports)
 			if (layer == null) {
@@ -6644,9 +6709,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final InsertionPosition insertionPosition =
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
-					addToExistingBucket(insertionPosition.position(), pk);
+					addToExistingBucket(insertionPosition.position(), value, pk);
 					return NO_NEW_BUCKET;
 				}
+				journalBucketInsertionIfOpen(value);
 				insertNewSingleBucket(insertionPosition.position(), value, pk);
 				return insertionPosition.position();
 			} else {
@@ -6667,7 +6733,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final boolean alreadyPresent = insertionPosition.alreadyPresent();
 				decoupleTransactionalArrays(!alreadyPresent);
 				if (alreadyPresent) {
-					layer.addToExistingBucket(position, pk);
+					layer.addToExistingBucket(position, value, pk);
 					return NO_NEW_BUCKET;
 				}
 				layer.insertNewSingleBucket(position, value, pk);
@@ -6687,9 +6753,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link #NO_NEW_BUCKET} is never returned)
 		 */
 		public int addLongRecord(@Nonnull M value, long payload) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// adding a record mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -6706,6 +6770,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (insertionPosition.alreadyPresent()) {
 					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
 				}
+				journalBucketInsertionIfOpen(value);
 				insertNewSingleBucket(insertionPosition.position(), value, payload);
 				return insertionPosition.position();
 			} else {
@@ -6746,9 +6811,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return true if a bucket was deleted, false when the value was absent
 		 */
 		public boolean removeLongRecord(@Nonnull M value) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// removing a record mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -6785,9 +6848,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * existing bucket
 		 */
 		public int addRecords(@Nonnull M value, @Nonnull int... pks) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// adding records mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -6802,7 +6863,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final InsertionPosition insertionPosition =
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
-					addRecordsToExistingBucket(insertionPosition.position(), pks);
+					addRecordsToExistingBucket(insertionPosition.position(), value, pks);
 					return NO_NEW_BUCKET;
 				}
 				insertNewBucket(insertionPosition.position(), value, pks);
@@ -6820,7 +6881,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final boolean alreadyPresent = insertionPosition.alreadyPresent();
 				decoupleTransactionalArrays(!alreadyPresent);
 				if (alreadyPresent) {
-					layer.addRecordsToExistingBucket(position, pks);
+					layer.addRecordsToExistingBucket(position, value, pks);
 					return NO_NEW_BUCKET;
 				}
 				layer.insertNewBucket(position, value, pks);
@@ -6838,9 +6899,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link #NO_DELETED_BUCKET} when no bucket was deleted
 		 */
 		public int removeRecords(@Nonnull M value, @Nonnull int... pks) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// removing records mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
@@ -6853,7 +6912,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (!insertionPosition.alreadyPresent()) {
 					return NO_DELETED_BUCKET;
 				}
-				return removeFromBucket(insertionPosition.position(), pks);
+				return removeFromBucket(insertionPosition.position(), value, pks);
 			} else {
 				decoupleTransactionalArrays(false);
 				final InsertionPosition insertionPosition =
@@ -6861,7 +6920,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (!insertionPosition.alreadyPresent()) {
 					return NO_DELETED_BUCKET;
 				}
-				return layer.removeFromBucket(insertionPosition.position(), pks);
+				return layer.removeFromBucket(insertionPosition.position(), value, pks);
 			}
 		}
 
@@ -6869,16 +6928,25 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Adds a single record to the existing bucket at `index`, promoting it if needed. Operates on the resolved
 		 * (decoupled) column instance (`this` is the layer or the non-transactional node).
 		 *
+		 * Two of its three arms write nothing into this leaf's columns and therefore journal nothing: the multi-bucket
+		 * arm hands the write to the bucket's own {@link TransactionalBitmap}, which journals the exact membership it
+		 * changes, and the already-the-sole-record arm is a no-op. Only the promotion writes a column, and its inverse
+		 * is pushed before the first of those writes.
+		 *
 		 * @param index the bucket index
+		 * @param value the bucket's key, by which the journalled inverse re-finds this slot at replay time
 		 * @param pk    the record id to add
 		 */
-		private void addToExistingBucket(int index, int pk) {
+		private void addToExistingBucket(int index, @Nonnull M value, int pk) {
 			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
 			if (bucketRecords != null) {
 				// multi bucket - the tier decides whether this is an in-place bitmap add or a replacement array, and
 				// the result is stored back unconditionally because the two arms answer differently
 				final Object updated = OverflowRecords.add(bucketRecords, pk);
 				if (updated != bucketRecords) {
+					// the tier answered with a DIFFERENT record set, so nothing has journalled this write: only the
+					// bitmap arm journals itself, and it is precisely the arm that answers with the same instance
+					journalBucketRecordsIfOpen(value, bucketRecords);
 					this.overflow.setAt(index, updated);
 				}
 				return;
@@ -6888,22 +6956,31 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// already the sole record - no-op, stay single
 				return;
 			}
-			// second distinct record - promote out of the primitive tier into a sorted two-element array
-			ensureOverflowColumn().setAt(index, OverflowRecords.promoteSingle(this.records.intAt(index), pk));
+			// second distinct record - promote out of the primitive tier into a sorted two-element array. The record
+			// set is built BEFORE anything is journalled or written, so the only allocation left after the inverse is
+			// in place is the lazy overflow column itself - a single assignment which either happens whole or not at all
+			final Object promoted = OverflowRecords.promoteSingle(this.records.intAt(index), pk);
+			journalBucketPromotionIfOpen(value, this.records.longAt(index));
+			ensureOverflowColumn().setAt(index, promoted);
 		}
 
 		/**
-		 * Adds multiple records to the existing bucket at `index`, promoting it if needed.
+		 * Adds multiple records to the existing bucket at `index`, promoting it if needed. Journals exactly as
+		 * {@link #addToExistingBucket(int, Comparable, int)} does — nothing on the multi and no-op arms, a demotion
+		 * inverse before the promotion's first column write.
 		 *
 		 * @param index the bucket index
+		 * @param value the bucket's key, by which the journalled inverse re-finds this slot at replay time
 		 * @param pks   the record ids to add; must be non-empty
 		 */
-		private void addRecordsToExistingBucket(int index, @Nonnull int... pks) {
+		private void addRecordsToExistingBucket(int index, @Nonnull M value, @Nonnull int... pks) {
 			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
 			if (bucketRecords != null) {
-				// multi bucket - see addToExistingBucket for why the result is stored back
+				// multi bucket - see addToExistingBucket for why the result is stored back, and why only a tier that
+				// answers with a different record set needs an inverse pushed for it here
 				final Object updated = OverflowRecords.addAll(bucketRecords, pks);
 				if (updated != bucketRecords) {
+					journalBucketRecordsIfOpen(value, bucketRecords);
 					this.overflow.setAt(index, updated);
 				}
 				return;
@@ -6913,10 +6990,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// the only id being added is the one already held - keep the compact form
 				return;
 			}
-			// promote to a record set holding the existing id plus all added ids (the tier dedupes & orders)
-			ensureOverflowColumn().setAt(
-				index, OverflowRecords.promoteSingleWithAll(this.records.intAt(index), pks)
-			);
+			// promote to a record set holding the existing id plus all added ids (the tier dedupes & orders). It is
+			// built while still detached from this leaf, so any inverse its own writes push is replayed against an
+			// instance the demotion below has already made unreachable
+			final Object promoted = OverflowRecords.promoteSingleWithAll(this.records.intAt(index), pks);
+			journalBucketPromotionIfOpen(value, this.records.longAt(index));
+			ensureOverflowColumn().setAt(index, promoted);
 		}
 
 		/**
@@ -6927,12 +7006,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * the primitive single form (see the class javadoc), so a bucket never thrashes its representation within one
 		 * transaction.
 		 *
+		 * A multi bucket that survives the removal writes nothing into this leaf's columns, so the bucket's own
+		 * {@link TransactionalBitmap} is the only thing that journals. Both arms that DELETE a bucket push their
+		 * re-insertion inverse first, and for the drained multi bucket the two pushes land in exactly the order a
+		 * rollback needs: the bitmap's own `removeAll` inverse was pushed before this leaf's, so reverse replay
+		 * re-inserts the (still empty) bucket first and only then refills it.
+		 *
 		 * @param index the bucket index
+		 * @param value the bucket's key, by which the journalled inverse re-finds this slot at replay time
 		 * @param pks   the record ids to remove; must be non-empty
 		 * @return the deleted bucket's value id (`0` when this leaf carries no id column), or
 		 * {@link #NO_DELETED_BUCKET} when the bucket survived
 		 */
-		private int removeFromBucket(int index, @Nonnull int... pks) {
+		private int removeFromBucket(int index, @Nonnull M value, @Nonnull int... pks) {
 			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
 			if (bucketRecords != null) {
 				// multi bucket - the bitmap arm mutates in place, the array arm answers with a shorter array
@@ -6940,12 +7026,28 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (OverflowRecords.cardinality(updated) == 0) {
 					// the multi bucket drained to zero - delete it (releasing a bitmap arm's layer). The id is read
 					// here, off the slot the caller's search already resolved and while the bucket is still there:
-					// once deleteBucketAt has collapsed the slot there is nothing left to read it from
-					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
+					// once deleteBucketAt has collapsed the slot there is nothing left to read it from. It is read
+					// BEFORE the journal call because the inverse needs it too - a re-inserted bucket is stamped by
+					// nothing
+					final int dyingValueId = this.valueIds == null ?
+						ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIds.intAt(index);
+					// the record slot is don't-care WHILE the bucket is multi, but the inverse still has to put its
+					// value back: a promotion inverse recorded earlier in this savepoint replays later and can demote
+					// the re-inserted bucket, at which point the slot is read again.
+					//
+					// `bucketRecords` is the record set to re-attach on BOTH tiers, for different reasons: the bitmap
+					// arm mutated it in place, so this IS the drained instance whose own inverse refills it; the array
+					// arm never touched it, so it is the full pre-removal array and re-attaching it restores the
+					// bucket outright, with no refill to wait for
+					journalBucketDeletionIfOpen(value, this.records.longAt(index), bucketRecords, dyingValueId);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
 				if (updated != bucketRecords) {
+					// a PARTIAL removal that changed the record set's identity - the array arm answers with a shorter
+					// survivor array and leaves the original untouched, so nothing has journalled this write. The
+					// bitmap arm never reaches here with a different instance: it removes in place and self-journals
+					journalBucketRecordsIfOpen(value, bucketRecords);
 					this.overflow.setAt(index, updated);
 				}
 				return NO_DELETED_BUCKET;
@@ -6954,7 +7056,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final int held = this.records.intAt(index);
 			for (final int pk : pks) {
 				if (pk == held) {
-					final int dyingValueId = this.valueIds == null ? 0 : this.valueIds.intAt(index);
+					final int dyingValueId = this.valueIds == null ?
+						ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIds.intAt(index);
+					journalBucketDeletionIfOpen(value, held, null, dyingValueId);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
@@ -6968,6 +7072,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * to `long` so the same helper serves both the `int` record-set path (an `int` pk auto-widens, then narrows back in
 		 * {@link IntRecordColumn#insertAt}) and the `long`-payload path (a packed `long` stored verbatim by
 		 * {@link LongRecordColumn#insertAt}).
+		 *
+		 * Journals nothing of its own — the callers push the inverse, because this helper also serves the REPLAY of a
+		 * journalled deletion (see {@link #journalBucketDeletionIfOpen}) and a re-insertion made during a rollback must
+		 * not record anything.
 		 *
 		 * @param position the position at which to insert the new bucket
 		 * @param value    the bucket value
@@ -6989,34 +7097,70 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
+		 * Inserts a bucket holding an ALREADY BUILT record set at `position`, shifting all three columns right by one.
+		 * The multi-bucket counterpart of {@link #insertNewSingleBucket}, and it journals nothing for the same reason:
+		 * it also serves the replay of a drained bucket's deletion, which re-attaches the very bitmap instance that was
+		 * dropped so the bitmap's own (older) inverse can refill it.
+		 *
+		 * **`payload` is a genuine parameter rather than the don't-care constant it looks like.** While the slot is
+		 * multi the record column is indeed never read, but an inverse replayed AFTER this one can demote the slot back
+		 * to single — an inverse recorded by a promotion earlier in the same savepoint does exactly that — and the
+		 * record column becomes authoritative again at that moment. A re-insertion during replay therefore has to put
+		 * back the value the slot actually carried, not a zero.
+		 *
+		 * The overflow column is resolved before the first column write, so the one allocation this method can make
+		 * cannot leave the columns half-shifted. During a replay it never allocates at all: a bucket can only have been
+		 * multi if the column already existed, and no inverse ever drops a column that existed before its own
+		 * operation.
+		 *
+		 * @param position the position at which to insert the bucket
+		 * @param value    the bucket value
+		 * @param payload  the value the record column must carry at `position` (see above)
+		 * @param bucket   the record set to attach at `position`
+		 */
+		private void insertMultiBucket(
+			int position,
+			@Nonnull M value,
+			long payload,
+			@Nonnull Object bucket
+		) {
+			// the overflow column is created covering the leaf's current buckets, and its own insert below then moves
+			// it to `peek + 2` in lockstep with the record column beside it
+			final OverflowColumn overflow = ensureOverflowColumn();
+			this.keys.insertKeyAt(position, value);
+			this.records.insertAt(position, payload);
+			overflow.insertAt(position, bucket);
+			if (this.valueIds != null) {
+				// shift the id column in lockstep with the key and record columns - the slot is left unassigned, and
+				// the caller stamps the id onto it (the forward path mints one, the deletion inverse puts the dying
+				// one back)
+				this.valueIds.insertAt(position, 0);
+			}
+			this.peek++;
+		}
+
+		/**
 		 * Inserts a new bucket at `position` holding the given records (single when one id, a multi bitmap otherwise),
-		 * shifting all three columns right by one.
+		 * shifting all three columns right by one, and journals the deletion that undoes it.
 		 *
 		 * @param position the position at which to insert the new bucket
 		 * @param value    the bucket value
 		 * @param pks      the record ids; must be non-empty
 		 */
 		private void insertNewBucket(int position, @Nonnull M value, @Nonnull int... pks) {
-			this.keys.insertKeyAt(position, value);
 			if (pks.length == 1) {
-				this.records.insertAt(position, pks[0]);
-				if (this.overflow != null) {
-					this.overflow.insertAt(position, null);
-				}
+				journalBucketInsertionIfOpen(value);
+				insertNewSingleBucket(position, value, pks[0]);
 			} else {
-				// multi bucket from the start - records[position] is don't-care. The overflow column is created
-				// covering the leaf's current buckets, and its own insert below then moves it to `peek + 2` in
-				// lockstep with the record column beside it
-				final OverflowColumn overflowColumn = ensureOverflowColumn();
-				this.records.insertAt(position, 0);
-				overflowColumn.insertAt(position, OverflowRecords.ofDistinctUnordered(pks));
+				// the record set is built before the inverse is pushed and before the first column write, so the only
+				// step left that can allocate is the lazy overflow column, which insertMultiBucket resolves first
+				final Object inserted = OverflowRecords.ofDistinctUnordered(pks);
+				journalBucketInsertionIfOpen(value);
+				// a bucket born multi has no single record behind it, so its record slot really is don't-care - unlike
+				// the replay case insertMultiBucket's javadoc describes, nothing can later demote this bucket to a
+				// single form that would read the slot back
+				insertMultiBucket(position, value, 0L, inserted);
 			}
-			if (this.valueIds != null) {
-				// shift the id column in lockstep and leave the freed slot unassigned — the tree stamps the freshly
-				// minted id onto it immediately after this call returns
-				this.valueIds.insertAt(position, 0);
-			}
-			this.peek++;
 		}
 
 		/**
@@ -7027,18 +7171,194 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param index the bucket index to delete
 		 */
 		private void deleteBucketAt(int index) {
+			// The key column goes first because it is the only one whose mutator can allocate - the dense front-coded
+			// column re-encodes its whole blob and installs it by reference - so it either completes or leaves every
+			// column untouched. Every step after it is an in-place shift of a fixed-capacity array that cannot fail
+			// once started, which is what makes a per-operation inverse a valid repair for an interrupted delete.
+			this.keys.removeKeyAt(index);
 			if (this.overflow != null) {
 				// release the discarded multi bucket's bitmap layer (no-op for a single bucket / null entry)
 				discardRemovedValueLayer(this.overflow.recordsAt(index));
 				this.overflow.removeAt(index);
 			}
-			this.keys.removeKeyAt(index);
 			this.records.removeAt(index);
 			if (this.valueIds != null) {
 				// the dead value's id is NOT given back — ids are monotonic with holes, so the slot simply collapses
 				this.valueIds.removeAt(index);
 			}
 			this.peek--;
+		}
+
+		/**
+		 * Journals, into the warm-up savepoint bracketing the current root entity mutation when one is open, the
+		 * inverse of a bucket INSERTION this leaf is about to make: a deletion of the bucket carrying `value`.
+		 *
+		 * **The gate.** Nothing is journalled once this savepoint already holds this leaf's whole-node memento (see
+		 * {@link WarmUpSavepoint#isCaptured}). That memento is an absolute restore of every column, and it was pushed
+		 * later than any inverse recorded here could have been, so reverse replay runs it LAST for this leaf and it
+		 * wins outright. The two granularities are mutually exclusive per leaf per savepoint, and that exclusivity is
+		 * what lets a leaf take per-slot inverses for a run of ordinary writes and then fall back to a whole-node
+		 * memento the moment a split, steal or merge reaches it — replay restores the leaf to its pre-structural
+		 * state first, and the older per-slot inverses then refine exactly the slots they had overwritten.
+		 *
+		 * **The inverse is key-addressed and absolute.** It re-finds the slot by `value` when it runs rather than
+		 * closing over the position, because inverses replayed before it may have shifted the columns; keys are
+		 * stable, positions are not. Finding the key ABSENT means the insertion this undoes never actually happened
+		 * (its column write threw after this entry was pushed), and the inverse is then a no-op — which is exactly
+		 * what an absolute restore of "this key was not here" has to be.
+		 *
+		 * It also restores the lazy overflow column to `null` when this operation is the one that would create it, so
+		 * a leaf that held no multi bucket before the savepoint holds no overflow ARRAY after the rollback either.
+		 *
+		 * Must be called BEFORE the first column write of the insertion. Outside a savepoint it costs one
+		 * {@link ThreadLocal} read returning `null`.
+		 *
+		 * @param value the key of the bucket about to be inserted, absent from this leaf at the time of the call
+		 */
+		private void journalBucketInsertionIfOpen(@Nonnull M value) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				final boolean overflowColumnAbsent = this.overflow == null;
+				savepoint.push(() -> {
+					final InsertionPosition position =
+						this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+					if (position.alreadyPresent()) {
+						deleteBucketAt(position.position());
+					}
+					if (overflowColumnAbsent) {
+						this.overflow = null;
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a single bucket's PROMOTION to the multi-record form: a demotion that detaches the
+		 * bitmap this operation is about to attach. The gate, the key addressing and the overflow-column restore are
+		 * the ones {@link #journalBucketInsertionIfOpen} documents.
+		 *
+		 * **The demotion rewrites the record slot rather than trusting what it finds there.** The promotion itself
+		 * never writes that slot, so the single pk is still sitting in it when the inverse is pushed — but "still
+		 * sitting in it" is a property of the residue, not of this inverse, and no residue survives every history. A
+		 * key deleted and re-created later in the savepoint has its slot rebuilt by the deletion's own inverse, which
+		 * replays BEFORE this one; the demotion would then expose whatever that re-insertion wrote. Capturing the pk
+		 * eagerly and restoring it makes this an absolute restore of both halves of the single form, which is what
+		 * {@link WarmUpSavepoint#push} requires of every inverse.
+		 *
+		 * Must be called BEFORE the overflow column is resolved, since resolving it may be the write that creates it.
+		 *
+		 * @param value   the key of the bucket about to be promoted
+		 * @param payload the single record the bucket holds, to be restored into the record column on demotion
+		 */
+		private void journalBucketPromotionIfOpen(@Nonnull M value, long payload) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				final boolean overflowColumnAbsent = this.overflow == null;
+				savepoint.push(() -> {
+					final InsertionPosition position =
+						this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+					if (position.alreadyPresent()) {
+						if (this.overflow != null) {
+							// `null` at the slot is what marks a bucket single, whichever tier the promotion attached
+							this.overflow.setAt(position.position(), null);
+						}
+						this.records.setAt(position.position(), payload);
+					}
+					if (overflowColumnAbsent) {
+						this.overflow = null;
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a multi bucket's record set being REPLACED: putting the previous record set back at
+		 * that key. The gate and the key addressing are the ones {@link #journalBucketInsertionIfOpen} documents.
+		 *
+		 * **Why this exists at all, and why it fires on only one of the two tiers.** A multi bucket holds either a
+		 * {@link TransactionalBitmap}, which journals its own writes, or a sorted `int[]`, which journals nothing
+		 * because it has no identity to journal against — {@link OverflowRecords} answers a write on it with a NEW
+		 * array and leaves the old one untouched. The caller therefore pushes this inverse exactly when the tier hands
+		 * back a different object, which is precisely the case the bitmap's self-journalling does not cover: an array
+		 * write, or a bitmap DEMOTED to an array. In the demotion case both inverses are in play and the order is what
+		 * makes it work — the bitmap pushed its own first, this one is pushed after, so reverse replay re-attaches the
+		 * bitmap before refilling it.
+		 *
+		 * The previous record set is captured by REFERENCE, which is a total restore for the array arm (the array is
+		 * immutable once replaced) and the correct handoff for the bitmap arm (whose contents its own inverses mend).
+		 *
+		 * Must be called BEFORE the slot is written.
+		 *
+		 * @param value           the key of the bucket whose record set is about to be replaced
+		 * @param previousRecords the record set currently attached at that key
+		 */
+		private void journalBucketRecordsIfOpen(@Nonnull M value, @Nonnull Object previousRecords) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final InsertionPosition position =
+						this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+					if (position.alreadyPresent() && this.overflow != null) {
+						this.overflow.setAt(position.position(), previousRecords);
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a bucket DELETION this leaf is about to make: a re-insertion of that bucket in the
+		 * form it had. The gate and the key addressing are the ones {@link #journalBucketInsertionIfOpen} documents.
+		 *
+		 * For a drained multi bucket the caller passes the very {@link TransactionalBitmap} instance being dropped and
+		 * the inverse re-attaches it EMPTY. That is correct because the bitmap journalled its own removals first, so
+		 * its inverse sits below this one and reverse replay refills the re-attached bucket right afterwards; a fresh
+		 * bitmap here would leave that refill writing into an instance no longer reachable from the leaf.
+		 *
+		 * Finding the key already PRESENT means the deletion this undoes never happened, and the inverse is a no-op.
+		 *
+		 * Must be called BEFORE {@link #deleteBucketAt}. Outside a savepoint it costs one {@link ThreadLocal} read
+		 * returning `null`.
+		 *
+		 * The value id has to be carried through explicitly, and this is the one inverse in the leaf that needs to.
+		 * Both re-insertion helpers leave the id slot they shift in unassigned, because on the FORWARD path the tree
+		 * stamps the freshly minted id onto it as the very next statement ({@code addRecordReportingValueBirth}). A
+		 * replay has no such statement after it, so without this the bucket would come back carrying
+		 * {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} — which is not merely a lost id: it is the state
+		 * {@code InvertedIndex#removeRecord} refuses as a premise violation the next time that value dies, and it
+		 * silently unlinks the value from every posting a substring accelerator holds against its old id.
+		 *
+		 * @param value   the key of the bucket about to be deleted
+		 * @param payload the value the record column carries at the bucket's slot — its lone record for a single
+		 *                bucket, and for a multi one the value a later demotion may still expose (see
+		 *                {@link #insertMultiBucket})
+		 * @param bucket  the drained record set to re-attach, or `null` when the bucket was a single one
+		 * @param valueId the id the dying bucket carried, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this
+		 *                leaf holds no id column
+		 */
+		private void journalBucketDeletionIfOpen(
+			@Nonnull M value,
+			long payload,
+			@Nullable Object bucket,
+			int valueId
+		) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final InsertionPosition position =
+						this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+					if (position.alreadyPresent()) {
+						return;
+					}
+					if (bucket == null) {
+						insertNewSingleBucket(position.position(), value, payload);
+					} else {
+						insertMultiBucket(position.position(), value, payload, bucket);
+					}
+					if (this.valueIds != null) {
+						this.valueIds.setAt(position.position(), valueId);
+					}
+				});
+			}
 		}
 
 		/**
@@ -7250,9 +7570,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param forInsert whether the mutation about to run on the layer adds a bucket
 		 */
 		private void decoupleTransactionalArrays(boolean forInsert) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getOrCreateTransactionalMemoryLayer(this)
-				: null;
+			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				if (layer.keys == this.keys) {
 					layer.keys = forInsert ? this.keys.duplicateForInsert() : this.keys.duplicate();

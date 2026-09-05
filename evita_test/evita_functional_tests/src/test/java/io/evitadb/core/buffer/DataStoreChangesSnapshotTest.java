@@ -28,8 +28,6 @@ import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
-import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import org.junit.jupiter.api.DisplayName;
@@ -69,24 +67,19 @@ class DataStoreChangesSnapshotTest {
 	 */
 	private static final StoragePart FOOTPRINT_REMOVAL = new RemovedStoragePart(EntityIndexStoragePart.class, 42L);
 
-	private final DataStoreChanges changes = new DataStoreChanges(mockPersistenceService());
+	private final DataStoreChanges changes = new DataStoreChanges(new InMemoryStoragePartPersistenceService());
 	private final EntityIndexKey indexKey = new EntityIndexKey(EntityIndexType.GLOBAL);
-
-	/**
-	 * Creates a throwaway persistence-service stub — none of its methods are exercised by the dirty-index paths under
-	 * test.
-	 *
-	 * @return a Mockito stub of the persistence service
-	 */
-	@Nonnull
-	@SuppressWarnings("unchecked")
-	private static StoragePartPersistenceService<StorageDescriptor> mockPersistenceService() {
-		return Mockito.mock(StoragePartPersistenceService.class);
-	}
 
 	/**
 	 * Creates a layer-less {@link EntityIndex} stub with the given primary key — the dirty-index maps store it purely
 	 * by reference, so no real index behavior is needed.
+	 *
+	 * **This one stays a mock deliberately**, unlike the persistence service beside it. The hooks the flush calls on a
+	 * dirty index — {@code getModifiedStorageParts}, {@code emitFootprintRemovals}, {@code notifyFlushed} — are
+	 * declared `final` on {@link EntityIndex}, so a hand-written subclass cannot neutralise them or make
+	 * {@code emitFootprintRemovals} stage {@link #FOOTPRINT_REMOVAL} on demand. It would instead run the real
+	 * implementations over a real (empty) index and emit storage parts of its own, which is exactly the state these
+	 * assertions are counting. The mock is load-bearing here, not a stateful fake in disguise.
 	 *
 	 * @param primaryKey the primary key the stub reports
 	 * @return an {@link EntityIndex} stub

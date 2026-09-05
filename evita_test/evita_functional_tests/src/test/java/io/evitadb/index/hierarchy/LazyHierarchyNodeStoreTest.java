@@ -116,16 +116,20 @@ class LazyHierarchyNodeStoreTest {
 
 	/**
 	 * What a {@link HierarchyIndex} that has never been written to must report: its own object and the dirty flag.
-	 * The object holds an id and three references — the dirty flag, the node store and the memoized all-nodes bitmap
-	 * — and those slots exist whether or not anything hangs off them.
+	 * The object holds an id, a warm-up touch stamp and three references — the dirty flag, the node store and the
+	 * memoized all-nodes bitmap — and those slots exist whether or not anything hangs off them.
+	 *
+	 * Both objects carry a `warmUpTouchStamp` long for per-entity warm-up rollback, which is why this is two longs
+	 * wider than the figure the lazy-store work first measured. That is a field the atomicity work added, not the
+	 * node store creeping back: the store itself is still absent, which is what every caller of this asserts.
 	 *
 	 * @return the expected heap size of an untouched hierarchy index in bytes
 	 */
 	private static long emptyIndexBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the index object, then the transactional boolean it always owns (an id and the flag)
-		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize())
-			+ layout.sizeOfObject(Long.BYTES + 1L);
+		// the index object, then the transactional boolean it always owns (an id, a touch stamp and the flag)
+		return layout.sizeOfObject(2L * Long.BYTES + 3L * layout.referenceSize())
+			+ layout.sizeOfObject(2L * Long.BYTES + 1L);
 	}
 
 	/**
@@ -191,11 +195,12 @@ class LazyHierarchyNodeStoreTest {
 				emptyIndexBytes(), reported,
 				"an untouched hierarchy index must weigh its object and its dirty flag, and nothing more"
 			);
-			// stated absolutely, as the production measurement was: on a 64-bit VM with compressed oops this is 56 B,
-			// where the eagerly built index measured 280 B (48 B shell + 24 B dirty + 2 x 24 B id arrays + 2 x 80 B maps)
+			// stated absolutely, as the production measurement was: on a 64-bit VM with compressed oops this is 72 B
+			// (56 B before the warm-up touch stamps landed on the index and its dirty flag), where the eagerly built
+			// index measured 280 B (48 B shell + 24 B dirty + 2 x 24 B id arrays + 2 x 80 B maps)
 			assertTrue(
-				reported <= 64,
-				"an untouched hierarchy index must stay under 64 B, where it used to be 280 B - was " + reported
+				reported <= 80,
+				"an untouched hierarchy index must stay under 80 B, where it used to be 280 B - was " + reported
 			);
 		}
 

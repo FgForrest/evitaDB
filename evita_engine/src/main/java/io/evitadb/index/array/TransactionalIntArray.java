@@ -27,11 +27,14 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,8 +65,16 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class TransactionalIntArray implements TransactionalLayerProducer<IntArrayChanges, int[]>, Serializable {
+public class TransactionalIntArray
+	implements TransactionalLayerProducer<IntArrayChanges, int[]>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 7259098757116568796L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private int[] delegate;
 
@@ -99,8 +110,8 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the delegate slot
-		final long ownSize = layout.sizeOfObject(Long.BYTES + layout.referenceSize());
+		// id + warmUpTouchStamp + the delegate slot
+		final long ownSize = layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize());
 		return this.delegate == ArrayUtils.EMPTY_INT_ARRAY ?
 			ownSize : ownSize + layout.sizeOfArray(this.delegate.length, Integer.BYTES);
 	}
@@ -135,6 +146,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public void add(int recordId) {
 		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.insertIntIntoOrderedArray(recordId, this.delegate);
 		} else {
 			layer.addRecordId(recordId);
@@ -150,6 +162,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 			final InsertionPosition insertionPosition =
 				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 			if (!insertionPosition.alreadyPresent()) {
+				recordWarmUpSavepointTouch();
 				this.delegate = ArrayUtils.insertIntIntoArrayOnIndex(
 					recordId, this.delegate, insertionPosition.position()
 				);
@@ -176,9 +189,32 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public void remove(int recordId) {
 		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.removeIntFromOrderedArray(recordId, this.delegate);
 		} else {
 			layer.removeRecordId(recordId);
+		}
+	}
+
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array to exactly the contents it held before the
+	 * mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * The pre-image is free: every write on this branch REPLACES the delegate with a freshly allocated array
+	 * ({@link ArrayUtils#insertIntIntoOrderedArray} and friends never write into the array handed to them), so the
+	 * outgoing reference already is an immutable snapshot of the pre-mutation contents and restoring it is a single
+	 * field assignment. That is also why the capture is made on the FIRST write-touch only — the reference covers the
+	 * array's entire state, so re-capturing on a later write would merely overwrite it with a mid-savepoint version.
+	 *
+	 * Must be called BEFORE the reassignment. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final int[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
 		}
 	}
 
@@ -292,6 +328,18 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	@Override
 	public IntArrayChanges createLayer() {
 		return isTransactionAvailable() ? new IntArrayChanges(this.delegate) : null;
+	}
+
+	/**
+	 * The delegate branch replaces {@link #delegate} with a freshly allocated array rather than writing into the
+	 * existing one, and {@link #recordWarmUpSavepointTouch()} captures the outgoing reference before each first write
+	 * — an absolute pre-image of the array's entire contents, restored by a single field assignment.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull

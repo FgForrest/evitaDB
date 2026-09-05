@@ -197,9 +197,12 @@ public final class OverflowRecords {
 				return small;
 			}
 			if (small.length + 1 > SMALL_BUCKET_THRESHOLD) {
-				final TransactionalBitmap promoted = new TransactionalBitmap(small);
-				promoted.add(pk);
-				return promoted;
+				// built from the FINAL id set rather than filled after construction: a fill would walk the ids one by
+				// one and push a warm-up inverse against a bitmap that is still detached from the leaf - an entry
+				// whose replay the leaf's own (later-pushed, earlier-replayed) array restore has already made moot
+				return new TransactionalBitmap(
+					ArrayUtils.insertIntIntoArrayOnIndex(pk, small, -position - 1)
+				);
 			}
 			// the insertion point is what the search encodes in its negative return
 			return ArrayUtils.insertIntIntoArrayOnIndex(pk, small, -position - 1);
@@ -431,11 +434,6 @@ public final class OverflowRecords {
 			return existing;
 		}
 		final int unionSize = existing.length + newCount;
-		if (unionSize > SMALL_BUCKET_THRESHOLD) {
-			final TransactionalBitmap promoted = new TransactionalBitmap(existing);
-			promoted.addAll(added);
-			return promoted;
-		}
 		final int[] union = new int[unionSize];
 		int left = 0;
 		int right = 0;
@@ -465,7 +463,11 @@ public final class OverflowRecords {
 				"Merged bucket record set holds " + target + " ids where " + unionSize + " were counted!"
 			);
 		}
-		return union;
+		// the tier is decided AFTER the union exists, so a promotion is built from its final id set in one step. The
+		// union array is computed either way - it costs one small allocation the promoted path used to skip - and in
+		// exchange the bitmap is never filled id by id, which inside a warm-up savepoint would walk every id and push
+		// an inverse against an instance still detached from the leaf
+		return unionSize > SMALL_BUCKET_THRESHOLD ? new TransactionalBitmap(union) : union;
 	}
 
 	/**

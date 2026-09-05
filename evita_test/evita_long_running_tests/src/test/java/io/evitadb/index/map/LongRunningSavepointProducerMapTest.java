@@ -24,15 +24,12 @@
 package io.evitadb.index.map;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
@@ -48,10 +45,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@code ProducerMapChanges} — the producer-valued
@@ -70,53 +64,26 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * proves the restore left no dangling layer. The run is time-bounded; the random seed is echoed on failure for
  * deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ProducerMap savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(TRANSACTION)
-class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
+class LongRunningSavepointProducerMapTest extends AbstractSavepointFuzzTest<ProducerMapState> {
 	private static final int KEY_SPACE = 48;
 	private static final int MARKER = 100_000;
 	private static final int MAX_OPS = 8;
 
-	@ParameterizedTest(name = "ProducerMap: savepoint rollback restores contents and the dirty-key set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("ProducerMap: savepoint rollback restores contents and the dirty-key set")
-	void shouldRollBackProducerMap(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final PersistentTransactionalProducerMap<Integer, MapValue> map = newSeededMap(random);
-			assertSavepointRollbackRestores(
-				map,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointProducerMapTest::readState,
-				tested -> {
-					// a marker put + mark guarantees both the contents and the dirty-key set change
-					tested.put(MARKER, new MapValue(MARKER));
-					tested.markValueMutated(MARKER);
-					applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "ProducerMap: savepoint commit keeps contents and the dirty-key set")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("ProducerMap: savepoint commit keeps contents and the dirty-key set")
-	void shouldCommitProducerMap(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final PersistentTransactionalProducerMap<Integer, MapValue> map = newSeededMap(random);
-			assertSavepointCommitKeeps(
-				map,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningSavepointProducerMapTest::readState,
-				tested -> applyRandomOps(tested, random, 1 + random.nextInt(MAX_OPS))
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<ProducerMapState> newGeneration(@Nonnull Random random) {
+		return new MapState(random);
 	}
 
 	/**
@@ -141,8 +108,9 @@ class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
 			// view-iterator / bulk-view ops (choices >= 3) mutate the diff layer through the entry-set / key-set views,
 			// so they require the layer to already exist; when it does not yet, fall back to the direct put/remove/mark
 			// that creates it (this is the write path the maintainer's first-touch snapshotting relies on)
-			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(map) != null;
-			switch (random.nextInt(hasLayer ? 6 : 3)) {
+			final boolean viewOpsUsable = !Transaction.isTransactionAvailable()
+				|| Transaction.getTransactionalMemoryLayerIfExists(map) != null;
+			switch (random.nextInt(viewOpsUsable ? 6 : 3)) {
 				case 0 -> map.remove(random.nextInt(KEY_SPACE));
 				case 1 -> {
 					if (!map.isEmpty()) {
@@ -252,32 +220,77 @@ class LongRunningSavepointProducerMapTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * `.equals`-comparable snapshot of the map's logical content and its producer-only dirty-key set.
-	 *
-	 * @param contents the key → value contents
-	 * @param marked   the sorted dirty (value-mutated) keys
+	 * One generation's fixture: a freshly seeded producer-valued map. The oracle pairs its contents with the
+	 * producer-only dirty-key set, which exists only in the diff layer — in WARM_UP there is none, so that half reads
+	 * empty and the contents half carries the proof.
 	 */
-	private record ProducerMapState(@Nonnull Map<Integer, MapValue> contents, @Nonnull List<Integer> marked) {
-	}
+	private static final class MapState implements FuzzGeneration<ProducerMapState> {
+		private final PersistentTransactionalProducerMap<Integer, MapValue> map;
 
-	/**
-	 * Minimal layer-less identity-merge producer used as the map value. Equality is by payload so the oracle compares
-	 * contents structurally; the value carries no transactional layer of its own.
-	 *
-	 * @param payload the value payload
-	 */
-	private record MapValue(int payload) implements VoidTransactionMemoryProducer<MapValue> {
+		MapState(@Nonnull Random random) {
+			this.map = newSeededMap(random);
+		}
 
 		@Nonnull
 		@Override
-		public MapValue createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			return this;
+		public TransactionalStateProducer<?> subject() {
+			return this.map;
+		}
+
+		@Nonnull
+		@Override
+		public ProducerMapState contents() {
+			return readState(this.map);
 		}
 
 		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			// no-op: this value holds no transactional layer of its own
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomOps(this.map, random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomOps(this.map, random, 1 + random.nextInt(MAX_OPS));
+			// applied LAST: a marker put first is a key like any other and a later random removal can drop it
+			this.map.put(MARKER, new MapValue(MARKER));
+			this.map.markValueMutated(MARKER);
 		}
 	}
 
+}
+
+/**
+ * `.equals`-comparable snapshot of a producer map's logical content and its producer-only dirty-key set.
+ *
+ * Declared at file scope rather than nested in the test class because it is that class's
+ * {@link io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest} type argument, and a class may not name its own
+ * member type in its own `extends` clause.
+ *
+ * @param contents the key → value contents
+ * @param marked   the sorted dirty (value-mutated) keys
+ */
+record ProducerMapState(
+	@Nonnull Map<Integer, MapValue> contents,
+	@Nonnull List<Integer> marked
+) {
+}
+
+/**
+ * Minimal layer-less identity-merge producer used as the map value. Equality is by payload so the oracle compares
+ * contents structurally; the value carries no transactional layer of its own.
+ *
+ * @param payload the value payload
+ */
+record MapValue(int payload) implements VoidTransactionMemoryProducer<MapValue> {
+
+	@Nonnull
+	@Override
+	public MapValue createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return this;
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// no-op: this value holds no transactional layer of its own
+	}
 }
