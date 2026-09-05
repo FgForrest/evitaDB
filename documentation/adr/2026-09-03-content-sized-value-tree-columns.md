@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-05 00:26
+updated: 2026-09-05 21:05
 status: accepted
 kind: optimization
 issues: [1486]
@@ -550,6 +550,37 @@ proportionally larger against a smaller total, and the census charged the tempor
   execution: a missing column mutator with four call sites, ten unlisted raw overflow-array moves, a
   copy-site count understated by 14, and a prescription that would have thrown on the value-id back-fill
   path.
+- **The three reachability facts the whole corruption axis rests on**, recorded because re-deriving them
+  costs a full source audit and none of them is visible from the code a given verdict is about. Every
+  "transient, not corrupting" judgement in this record depends on all three. (1) **One in-place writer** —
+  only a warm-up session mutates in place, and `SessionRegistry#addSession` admits exactly one; in ALIVE,
+  committed instances are never mutated in place. (2) **One production session-free reader** — the
+  `INDEX_CARDINALITY` statistic, `IndexCardinalityProjection#describeIndex` → `FilterIndex#size()` →
+  `InvertedIndex#getLength()` → guarded `recordCount()` → `TransactionalBitmap#size()`. It never calls
+  `findLeafNode`, never decodes a key, never touches an owner sort tree. `getConsistencyReport()` and
+  `getValueId`/`valueIdOf` have **no production callers at all** — all eight call sites of the latter are
+  tests. (3) **Persistence cannot observe a transient tear** — storage parts are popped synchronously on
+  the closing thread and the session stays registered until `commitProgress` completes, so the next writer
+  is blocked until flush IO ends. Together these mean only a *durably wrong in-memory value* can reach
+  disk, which is why the bitmap cardinality memo was the one finding that had to be fixed before merge
+  while the torn reads did not.
+- **A confident call that was wrong, recorded so it is not made again: the `DateTimeRange` saturation
+  collapse is not a key-space collapse.** It was argued during review to be the real corruption risk,
+  merely mis-ranked as LOW. It is neither. `equals`, `hashCode` and `compareTo` are all defined on the two
+  saturated longs (`DateTimeRange:77`, `:272`), so two ranges that collapse are **equal values by the
+  type's own contract** and landing in one bucket is the correct outcome, not a loss. `bulkLoadPage`'s
+  boxed check and `assertCrossLeafBoundaries`' decoded check both compare through those same longs, so
+  they cannot structurally disagree the way the sub-millisecond `Instant` case did — that needed a *lossy*
+  codec, and `LongKeyCodec#INSTANT` is the only lossy one. The round trip is stable and legacy collisions
+  merge through the comparator-based repair. Reachable only through `DateTimeRange` values, at year
+  ±292 million.
+- **`SessionRegistry#closeAbandonedSession` discards the completion it asks to wait for.** Still live.
+  The method passes `WAIT_FOR_WAL_PERSISTENCE` to `closeNow` and never observes the returned
+  `CompletionStage`, while `closeAllActiveSessionsAndSuspend` collects and joins exactly that stage. The
+  sharpest point is not the absent wait but the misleading argument: the call site reads as though it
+  waits for WAL persistence, and it does not. Deliberately left alone — it is engine session semantics on
+  an already-committed change rather than index work, and no commit in this line of work touches it.
+  Adjacent to the go-live drain gap filed as issue #1495.
 
 ## Related work
 
