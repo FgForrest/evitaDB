@@ -135,6 +135,112 @@ Same as the [`entityFetch`](#entity-fetch) but used for fetching entities that r
 
 </LS>
 
+## Two content requirements of the same kind in one entityFetch
+
+<LS to="e,j,c">
+
+Two content requirements of the same kind can easily end up next to each other in a single `entityFetch` - the query
+may be assembled from several places in your code, or you may have added a requirement next to a fetch-all shorthand
+that already contains one of the same kind. Such a pair is not an error and neither half of it is lost. The
+requirements are folded into the single requirement the query is executed with, and the rule is always the same:
+**the superset wins**.
+
+```evitaql
+entityFetch(
+    attributeContent("code"),
+    attributeContent("name")
+)
+```
+
+The query above fetches `code` **and** `name`, exactly as `attributeContent("code", "name")` would. Each kind of
+content requirement has its own notion of a superset:
+
+- [`attributeContent`](#attribute-content) and [`associatedDataContent`](#associated-data-content) unite their name
+  lists, and [`attributeContentAll`](#attribute-content-all) and
+  [`associatedDataContentAll`](#associated-data-content-all) absorb any sibling naming particular items
+- [`dataInLocales`](#data-in-locales) unites its locales, and [`dataInLocalesAll`](#data-in-locales-all) absorbs
+  a sibling naming particular locales
+- [`priceContent`](#price-content) keeps the richer of the two fetch modes and unites the additional price lists
+- [`hierarchyContent`](#hierarchy-content) unites the bodies requested for the parent entities, and a `stopAt` bound
+  present on one side only is dropped - the side carrying no bound asks for the whole parent chain, which is the
+  superset of any bounded one
+- [`referenceContent`](#reference-content) and [`accompanyingPriceContent`](#accompanying-price-content) may
+  legitimately appear several times in one `entityFetch`, so they are folded **per key** - see the two sections below
+
+<LS to="j">
+
+Because the fold always favours the superset, the fetch-all shorthands now combine with whatever you add next to
+them instead of failing. `entityFetchAllContentAnd(attributeContent("code"))` is accepted and fetches **all** the
+attributes, and `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` fetches the **whole** parent chain
+rather than one level of it - `entityFetchAllContent()` already contains `attributeContentAll()` and a bare
+`hierarchyContent()`, and both of those are the superset. Ask for a narrower body with a plain `entityFetch` rather
+than with the fetch-all shorthand.
+
+</LS>
+
+### Folding referenceContent per reference
+
+The key of a `referenceContent` is the set of references it addresses - a single reference name, the set of names it
+lists, or, when the reference is fetched under its own logical instance name, that name as well. Only requirements
+sharing a key are folded, and within one key:
+
+- the reference attributes and the nested `entityFetch` / `entityGroupFetch` bodies are united, recursively, so that
+  nothing either side asked for is lost
+- a `filterBy` or a chunking (`page` / `strip`) constraint present on **one side only** is dropped, because the side
+  carrying neither asks for *every* reference and is therefore the superset - exactly as `attributeContentAll()`
+  swallows an `attributeContent("code")` written beside it
+- an `orderBy` present on **one side only** is kept, because an order shapes the sequence of the references without
+  dropping any of them
+- a disagreement on the [managed references behaviour](#managed-references-behaviour) narrows to `EXISTING`, so
+  a request to suppress references pointing at missing entities is never lost by folding
+
+A [`referenceContentAll`](#reference-content-all) requirement and a name-specific `referenceContent("brand")` carry
+different keys and are therefore **never** folded together. Both stay in effect - the name-specific requirement
+decides how `brand` is fetched and the wildcard one remains the fallback for every other reference:
+
+```evitaql
+entityFetch(
+    referenceContentAllWithAttributes(),
+    referenceContent("brand")
+)
+```
+
+The query above fetches `brand` without its reference attributes, and every other reference with them.
+
+### Folding accompanyingPriceContent per price name
+
+The key of an [`accompanyingPriceContent`](#accompanying-price-content) is the name of the price it calculates, which
+is what makes several of them in one `entityFetch` the normal case - two requirements naming different prices
+calculate two independent prices and both survive. Two requirements naming the *same* price are folded into one when
+they list exactly the same price lists.
+
+### Requirements that cannot be reconciled
+
+Some pairs have no superset at all, and evitaDB refuses them with an exception instead of letting one of them
+silently win:
+
+- two `referenceContent` requirements for one reference carrying **different** `filterBy`, `orderBy` or chunking
+  constraints - a filter selects a subset of the references and an order sequences them, and no union of two
+  different ones preserves both intents
+- two `referenceContent` requirements whose name sets merely **overlap**, such as `referenceContent("a", "b")`
+  written next to `referenceContent("b", "c")` - they do not share a key, yet both describe how `b` should be
+  fetched; name a reference in a single requirement only, or name it identically in both so that they share a key
+- two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
+- two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
+  lists that differ only in their order - the sequence is a priority order and any merge would invent a priority
+  neither side asked for
+
+</LS>
+
+<LS to="g,r">
+
+Neither the GraphQL nor the REST API can ask for the same kind of content twice in a single entity fetch. REST takes
+the entity fetch as an object keyed by the requirement name, so a requirement can be written only once, and
+a GraphQL alias on a reference field becomes a separate named instance of that reference rather than a second
+requirement for the same one. The ambiguity the other APIs have to resolve therefore cannot arise here.
+
+</LS>
+
 <LS to="g">
 
 ## Entity content
