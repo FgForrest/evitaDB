@@ -101,6 +101,29 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public final class SessionRegistry {
 	/**
+	 * How long {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} waits for the sessions it asked to close
+	 * before it gives up and fails its own premise. It is a bound on the *deferred* case only - a session whose
+	 * method has not returned yet, whose forced close `EvitaSessionProxy` therefore postpones and which the drain
+	 * loop can only wait out.
+	 *
+	 * **CALIBRATION - `LongRunningCatalogGoLiveDrainTimeoutTest` is priced by this number.** That test
+	 * (evita_test/evita_long_running_tests, io.evitadb.core) parks a warm-up write inside the schema check and holds
+	 * it there until the go-live has failed, which is the only side-effect-free way to reach
+	 * `MakeCatalogAliveMutationOperator`'s undo. Its positive waits are 30 s.
+	 *
+	 * **Raising this bound past those 30 s blunts the test silently**: the parked write would be released while the
+	 * drain is still running, the drain would then succeed, and the whole failure path would go untested while the
+	 * test stayed green. Raising it therefore means re-pricing every positive wait in that test, and re-measuring
+	 * its counterfactuals. Lowering it, or making a forced close cheaper, cannot blunt anything - the test only gets
+	 * faster. Run it with:
+	 *
+	 * ```
+	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+	 *     -Dtest=LongRunningCatalogGoLiveDrainTimeoutTest -Dsurefire.failIfNoSpecifiedTests=false
+	 * ```
+	 */
+	private static final long DRAIN_GIVE_UP_TIMEOUT_MILLIS = 5000L;
+	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
 	private final TracingContext tracingContext;
@@ -322,8 +345,10 @@ public final class SessionRegistry {
 				CompletableFuture
 					.allOf(futures.toArray(new CompletableFuture[0]))
 					.join();
-				// wait for active sessions to be empty, but at most 5 seconds
-			} while (!this.activeSessions.isEmpty() && System.currentTimeMillis() - start < 5000);
+				// wait for active sessions to be empty, but at most `DRAIN_GIVE_UP_TIMEOUT_MILLIS` - read that
+				// constant's javadoc before changing it, it prices a long-running test
+			} while (!this.activeSessions.isEmpty()
+				&& System.currentTimeMillis() - start < DRAIN_GIVE_UP_TIMEOUT_MILLIS);
 
 			Assert.isPremiseValid(
 				this.activeSessions.isEmpty(),

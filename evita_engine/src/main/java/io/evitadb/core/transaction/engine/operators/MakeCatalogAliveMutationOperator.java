@@ -212,6 +212,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				//
 				// Idempotent against the session-driven path, which suspends this registry before applying the
 				// mutation: a second call under a standing suspension drains nothing and returns.
+				//
+				// CALIBRATION - the give-up path of this drain is swept by `LongRunningCatalogGoLiveDrainTimeoutTest`;
+				// `SessionRegistry#DRAIN_GIVE_UP_TIMEOUT_MILLIS` carries the full statement and the command.
 				sessionRegistry.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
 
 				final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
