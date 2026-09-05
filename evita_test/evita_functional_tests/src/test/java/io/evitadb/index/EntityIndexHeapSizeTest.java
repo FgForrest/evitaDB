@@ -481,7 +481,9 @@ class EntityIndexHeapSizeTest {
 			"facetIndex.dirtyIndexes",
 			"facetIndex.facetingEntities.transactionalLayerWrapper",
 			// both live inside the hierarchy index's lazily allocated node store; an index that never received a node
-			// has no store, and the path then resolves to nothing - which matches what the walk finds
+			// has no store, and the path then resolves to nothing - which matches what the walk finds. Only a
+			// scenario that places a node walks the path far enough for the missing-field guard to see the names it
+			// crosses, which is what the seeded case below is here for
 			"hierarchyIndex.nodeStore.itemIndex.transactionalLayerWrapper",
 			"hierarchyIndex.nodeStore.levelIndex.transactionalLayerWrapper"
 		};
@@ -490,6 +492,26 @@ class EntityIndexHeapSizeTest {
 		@DisplayName("an empty global index is measured exactly")
 		void shouldMatchAnEmptyGlobalIndex() {
 			final GlobalEntityIndex index = newGlobalIndex();
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, globalExclusions());
+		}
+
+		@Test
+		@DisplayName("a global index carrying a hierarchy is measured exactly")
+		void shouldMatchAGlobalIndexHoldingAHierarchy() {
+			// the only scenario in this class whose hierarchy index owns a node store, and the one that keeps the two
+			// hierarchy exclusions above doing work: while no node has ever been written the store is absent, the
+			// path resolves to nothing, and neither entry can subtract anything or guard the field names it crosses.
+			// Removing either exclusion must break this assertion - that failure is what proves them live.
+			//
+			// The node count is not arbitrary. Both maps inside the store are pre-sized to 32 slots, and a map holding
+			// fewer entries than its table has slots is charged for the table its SIZE implies rather than the one it
+			// really owns - the bounded under-report `MapHeapSize` documents. Filling past the pre-size puts charge
+			// and walk back on the same table, which is what lets this case assert an exact match
+			final GlobalEntityIndex index = newGlobalIndex();
+			index.addNode(AUTOBOX_CACHE_CEILING, null);
+			for (int i = 1; i < 40; i++) {
+				index.addNode(AUTOBOX_CACHE_CEILING + i, AUTOBOX_CACHE_CEILING);
+			}
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, globalExclusions());
 		}
 

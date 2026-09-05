@@ -719,8 +719,8 @@ class ContainerIndexHeapSizeTest {
 
 		/**
 		 * The children index sits inside the lazily allocated node store, so the path crosses it. An index that never
-		 * received a node has no store at all, and {@code excluded} then resolves the path to nothing — which is
-		 * exactly right, because the walk finds nothing there either.
+		 * received a node has no store at all, and {@link IndexHeapSizeAssertions#excluded} then resolves the path to
+		 * nothing — which is exactly right, because the walk finds nothing there either.
 		 */
 		private static final String[] EXCLUSIONS = {
 			"nodeStore.levelIndex.transactionalLayerWrapper"
