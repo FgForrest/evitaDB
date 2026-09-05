@@ -383,6 +383,41 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 		}
 
 		@Test
+		@DisplayName("the writer reads its own uncommitted price ids inside the transaction")
+		void shouldReadTheWritersOwnUncommittedPriceIdsInsideATransaction() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(
+					PRICE_INDEX_KEY, new RangeIndex(),
+					new PriceRecordContract[]{createPriceRecord(10, 10, 1)}
+				);
+
+			assertStateAfterCommit(
+				tested,
+				index -> {
+					index.addPrice(createPriceRecord(20, 20, 2), null);
+
+					// the bitmap handed out resolves the calling transaction's own overlay, so the id just written is
+					// already visible through it - an implementation answering from a committed-only snapshot would
+					// still report {10} here
+					assertArrayEquals(
+						new int[]{10, 20}, index.getIndexedPriceIds().getArray(),
+						"the writer must observe its own uncommitted price id"
+					);
+				},
+				(original, committed) -> {
+					assertArrayEquals(
+						new int[]{10}, original.getIndexedPriceIds().getArray(),
+						"the pre-commit instance keeps the ids it was loaded with"
+					);
+					assertArrayEquals(
+						new int[]{10, 20}, committed.getIndexedPriceIds().getArray(),
+						"and the committed copy agrees with what the writer saw"
+					);
+				}
+			);
+		}
+
+		@Test
 		@DisplayName(
 			"all nested fields are reflected in committed copy"
 		)

@@ -660,6 +660,19 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 			final Bitmap secondCall = subIndex.getIndexedPriceIds();
 			assertSame(firstCall, secondCall);
 			assertArrayEquals(new int[]{1}, firstCall.getArray());
+
+			tested.addPrice(
+				null, 2, 2,
+				new PriceKey(20, PRICE_LIST, CURRENCY_CZK),
+				PriceInnerRecordHandling.NONE,
+				null, null, 2000, 2420,
+				tested
+			);
+
+			// the reference taken before the write sees the write: reference identity alone would hold for a memo
+			// built once and never invalidated, which is the shape this index used to carry
+			assertArrayEquals(new int[]{1, 2}, firstCall.getArray());
+			assertArrayEquals(new int[]{1, 2}, subIndex.getIndexedPriceIds().getArray());
 		}
 
 		@Test

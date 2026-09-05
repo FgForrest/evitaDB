@@ -576,7 +576,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			tested.removePrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
 			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{20}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{20}, tested.getIndexedPriceIds().getArray());
 
 			tested.removePrice(20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
@@ -605,7 +605,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			tested.removePrice(30, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 
 			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
-			assertArrayEquals(new int[]{10, 20}, tested.getIndexedPriceIds());
+			assertArrayEquals(new int[]{10, 20}, tested.getIndexedPriceIds().getArray());
 		}
 	}
 

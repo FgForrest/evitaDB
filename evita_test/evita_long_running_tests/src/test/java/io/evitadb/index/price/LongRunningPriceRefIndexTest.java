@@ -163,10 +163,10 @@ class LongRunningPriceRefIndexTest implements TimeBoundedTestSupport {
 
 	/**
 	 * Generational proof that a **rolled-back** transaction discards every in-transaction price mutation and leaves
-	 * the base {@link PriceRefIndex} byte-for-byte intact — the atomic-rollback contract of Ref: #569. Each generation
-	 * rebuilds a fresh super + attached ref index from the (random-walking) reference model, captures a value oracle of
-	 * that base, applies a random batch of add/remove mutations inside a transaction that is then rolled back, and
-	 * asserts the base index is unchanged and no committed value was published.
+	 * the base {@link PriceRefIndex} byte-for-byte intact — the atomic-rollback contract a transaction must uphold.
+	 * Each generation rebuilds a fresh super + attached ref index from the (random-walking) reference model, captures
+	 * a value oracle of that base, applies a random batch of add/remove mutations inside a transaction that is then
+	 * rolled back, and asserts the base index is unchanged and no committed value was published.
 	 */
 	@Tag(SLOW)
 	@Tag(TRANSACTION)

@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
@@ -37,7 +38,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree.BPlusLeafTreeNode;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -1587,6 +1588,127 @@ class TransactionalElementBPlusTreeTest {
 	}
 
 	@Nested
+	@DisplayName("Leaf array follows its content")
+	class LeafArraySizingTest {
+
+		/**
+		 * The leaf block size every fixture in this class is built with. Eight is the smallest power of two that
+		 * exposes all three sizing states a leaf passes through - the empty array, the four-slot floor and the block
+		 * size itself - with room left to reach the last one without the leaf splitting.
+		 */
+		private static final int BLOCK_SIZE = 8;
+
+		/**
+		 * Returns the tree's root as a leaf, failing when a split has replaced it with an internal node. Every
+		 * assertion here is about one leaf's backing array, and silently measuring a spine root instead would make
+		 * them vacuous.
+		 *
+		 * @param tree the tree whose root leaf is wanted
+		 * @return the root leaf
+		 */
+		@Nonnull
+		private BPlusLeafTreeNode<PriceRecordContract> rootLeaf(
+			@Nonnull TransactionalElementBPlusTree<PriceRecordContract> tree
+		) {
+			final BPlusTreeNode<?> root = tree.getRoot();
+			assertInstanceOf(
+				BPlusLeafTreeNode.class, root,
+				"the fixture must stay within a single leaf - a split would leave nothing to measure"
+			);
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<PriceRecordContract>) root;
+		}
+
+		/**
+		 * Builds a tree whose single root leaf has grown its array all the way to the block size: the fifth insert
+		 * asks for more slots than the four-slot floor carries, and past half the block the growth goes straight to
+		 * the cap rather than doubling into it. Seven elements stop one short of full, so the leaf never splits and
+		 * the root stays the leaf under test.
+		 *
+		 * @return a tree whose root leaf holds seven elements on an array of length {@link #BLOCK_SIZE}
+		 */
+		@Nonnull
+		private TransactionalElementBPlusTree<PriceRecordContract> treeWithFullyGrownRootLeaf() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(BLOCK_SIZE);
+			for (int key = 0; key < BLOCK_SIZE - 1; key++) {
+				tree.insert(rec(key));
+			}
+
+			assertEquals(
+				BLOCK_SIZE, rootLeaf(tree).getValues().length, "the fixture needs an array grown to the whole block"
+			);
+			return tree;
+		}
+
+		@Test
+		@DisplayName("an empty leaf allocates no slots at all")
+		void shouldLeaveAnEmptyLeafOnAZeroLengthArray() {
+			final BPlusLeafTreeNode<PriceRecordContract> leaf = rootLeaf(treeOf(BLOCK_SIZE));
+
+			assertEquals(
+				0, leaf.getValues().length,
+				"an empty leaf must hold a zero-length array rather than allocate a block up front"
+			);
+		}
+
+		@Test
+		@DisplayName("the first insert allocates the four-slot floor rather than the whole block")
+		void shouldAllocateTheFloorOfFourOnTheFirstInsert() {
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(BLOCK_SIZE);
+
+			tree.insert(rec(0));
+
+			assertEquals(
+				4, rootLeaf(tree).getValues().length,
+				"one element must sit on the four-slot floor, neither on the block size nor on a single slot"
+			);
+		}
+
+		@Test
+		@DisplayName("commit trims the committed leaf only once the slack pays for the copy")
+		void shouldTrimTheCommittedLeafOnlyOnceTheSlackPaysForTheCopy() {
+			assertStateAfterCommit(
+				treeWithFullyGrownRootLeaf(),
+				tested -> {
+					for (int key = 2; key < BLOCK_SIZE - 1; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size(), "the transaction must leave two elements behind");
+					assertEquals(
+						4, rootLeaf(committed).getValues().length,
+						"two elements under eight slots is a wide enough gap to pay for the copy, so the committed "
+							+ "leaf must come back on the four-slot floor"
+					);
+					assertEquals(
+						BLOCK_SIZE, rootLeaf(original).getValues().length,
+						"the pre-commit tree must keep the array it had - the trim happens on the committed copy"
+					);
+				}
+			);
+
+			assertStateAfterCommit(
+				treeWithFullyGrownRootLeaf(),
+				tested -> {
+					for (int key = 4; key < BLOCK_SIZE - 1; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(4, committed.size(), "the transaction must leave four elements behind");
+					assertEquals(
+						BLOCK_SIZE, rootLeaf(committed).getValues().length,
+						"four elements under eight slots is too narrow a gap to trim - shrinking here is what would "
+							+ "make a leaf hovering around a power of two alternate grow and trim on every commit"
+					);
+				}
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Reader bounds when a leaf peek runs ahead of its array")
 	class TornLeafReaderBoundTest {
 
@@ -1671,13 +1793,41 @@ class TransactionalElementBPlusTreeTest {
 		@Test
 		@DisplayName("the keyed-start iterator stays inside the array it read")
 		void shouldBoundKeyedStartIterationWhenPeekRunsAheadOfTheArray() {
-			// exercises findKeyPosition, which resolves the iterator's starting slot inside the leaf
+			// the search for key 2 settles before it ever reaches the phantom slot, so the bound that fires here is
+			// the one in `loadCurrentLeaf` - the two tests below drive the separate `findKeyPosition` bound
 			final List<PriceRecordContract> tail = new ArrayList<>();
 			final Iterator<PriceRecordContract> it = tornSingleLeafTree().greaterOrEqualValueIterator(2);
 			while (it.hasNext()) {
 				tail.add(it.next());
 			}
 			assertEquals(List.of(rec(2), rec(3)), tail, "the keyed walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("a keyed-start iterator opened past the last key yields nothing rather than running off the array")
+		void shouldBoundKeyedStartIterationPastTheLastKey() {
+			// the key lands in the phantom slot the raised peek claims and the array does not carry, so the leaf's own
+			// `findKeyPosition` search walks into it - a bound the key-2 case above never reaches
+			final Iterator<PriceRecordContract> it = tornSingleLeafTree().greaterOrEqualValueIterator(9);
+
+			assertFalse(it.hasNext(), "no live element is keyed above 9, so the walk must be empty");
+		}
+
+		@Test
+		@DisplayName("a reverse iterator opened from a key stays inside the array it read")
+		void shouldBoundKeyedReverseIterationWhenPeekRunsAheadOfTheArray() {
+			// the reverse keyed constructor resolves its start through the same `findKeyPosition`, and reaches it
+			// through a different navigator - so it is asserted rather than assumed to follow from the forward case
+			final List<PriceRecordContract> reverse = new ArrayList<>();
+			final Iterator<PriceRecordContract> it = tornSingleLeafTree().lesserOrEqualValueIterator(9);
+			while (it.hasNext()) {
+				reverse.add(it.next());
+			}
+
+			assertEquals(
+				List.of(rec(3), rec(2), rec(1), rec(0)), reverse,
+				"a keyed reverse walk opened past the end must fall back onto the live run"
+			);
 		}
 
 		@Test

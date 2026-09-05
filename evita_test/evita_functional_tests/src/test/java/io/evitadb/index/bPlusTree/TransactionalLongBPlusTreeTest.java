@@ -3138,7 +3138,7 @@ class TransactionalLongBPlusTreeTest {
 		/**
 		 * Reassembles the supplied sound single-leaf trees into one tree with a deterministic spine: internal
 		 * block size 3 caps a parent at four children, so five leaves split into two parents. The leaves are
-		 * non-overlapping, so the Phase 1 cross-leaf validation inside the assembler passes; the assembled tree is
+		 * non-overlapping, so the pre-spine cross-leaf validation inside the assembler passes; the assembled tree is
 		 * then used to exercise the op-time boundary checks against hypothetical boundary keys.
 		 *
 		 * @param leaves the ordered, non-overlapping single-leaf trees
@@ -3662,6 +3662,174 @@ class TransactionalLongBPlusTreeTest {
 	}
 
 	@Nested
+	@DisplayName("Leaf arrays follow their content")
+	class LeafArraySizingTest {
+
+		/**
+		 * The leaf block size every fixture in this class is built with. Eight is the smallest power of two that
+		 * exposes all three sizing states a leaf passes through - the shared empty array, the four-slot floor and
+		 * the block size itself - with room left to reach the last one without the leaf splitting.
+		 */
+		private static final int BLOCK_SIZE = 8;
+
+		/**
+		 * Creates an empty tree whose leaves hold at most {@link #BLOCK_SIZE} entries, configured exactly as the
+		 * torn-leaf fixture is so both classes describe one and the same leaf shape.
+		 *
+		 * @return a fresh empty tree
+		 */
+		@Nonnull
+		private TransactionalLongBPlusTree<String> blockSizedTree() {
+			return new TransactionalLongBPlusTree<>(BLOCK_SIZE, 3, 3, 1, String.class);
+		}
+
+		/**
+		 * Returns the tree's root as a leaf, failing when a split has replaced it with an internal node. Every
+		 * assertion here is about one leaf's backing arrays, and silently measuring a spine root instead would make
+		 * them vacuous.
+		 *
+		 * @param tree the tree whose root leaf is wanted
+		 * @return the root leaf
+		 */
+		@Nonnull
+		private BPlusLeafTreeNode<String> rootLeaf(@Nonnull TransactionalLongBPlusTree<String> tree) {
+			final BPlusTreeNode<?> root = tree.getRoot();
+			assertInstanceOf(
+				BPlusLeafTreeNode.class, root,
+				"the fixture must stay within a single leaf - a split would leave nothing to measure"
+			);
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<String>) root;
+		}
+
+		/**
+		 * Builds a tree whose single root leaf has grown its arrays all the way to the block size: the fifth insert
+		 * asks for more slots than the four-slot floor carries, and past half the block the growth goes straight to
+		 * the cap rather than doubling into it. Seven entries stop one short of full, so the leaf never splits and
+		 * the root stays the leaf under test.
+		 *
+		 * @return a tree whose root leaf holds seven entries on arrays of length {@link #BLOCK_SIZE}
+		 */
+		@Nonnull
+		private TransactionalLongBPlusTree<String> treeWithFullyGrownRootLeaf() {
+			final TransactionalLongBPlusTree<String> tree = blockSizedTree();
+			for (long key = 0; key < BLOCK_SIZE - 1; key++) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final BPlusLeafTreeNode<String> leaf = rootLeaf(tree);
+			assertEquals(BLOCK_SIZE, leaf.getKeys().length, "the fixture needs arrays grown to the whole block");
+			assertEquals(BLOCK_SIZE, leaf.getValues().length, "the fixture needs arrays grown to the whole block");
+			return tree;
+		}
+
+		@Test
+		@DisplayName("an empty leaf allocates no slots at all")
+		void shouldLeaveAnEmptyLeafOnTheSharedEmptyKeyArray() {
+			final BPlusLeafTreeNode<String> leaf = rootLeaf(blockSizedTree());
+
+			assertSame(
+				ArrayUtils.EMPTY_LONG_ARRAY, leaf.getKeys(),
+				"an empty leaf must park on the shared empty key array rather than allocate a block up front"
+			);
+			assertEquals(
+				0, leaf.getValues().length,
+				"an empty leaf's value array must be zero-length - it is typed, so it cannot be a shared constant"
+			);
+		}
+
+		@Test
+		@DisplayName("the first insert allocates the four-slot floor rather than the whole block")
+		void shouldAllocateTheFloorOfFourOnTheFirstInsert() {
+			final TransactionalLongBPlusTree<String> tree = blockSizedTree();
+
+			tree.insert(0L, "Value0");
+
+			final BPlusLeafTreeNode<String> leaf = rootLeaf(tree);
+			assertEquals(
+				4, leaf.getKeys().length,
+				"one entry must sit on the four-slot floor, neither on the block size nor on a single slot"
+			);
+			assertEquals(4, leaf.getValues().length, "both arrays must be sized together");
+		}
+
+		@Test
+		@DisplayName("growth reaches the block size and stops there")
+		void shouldGrowToTheBlockSizeAndStopThere() {
+			final TransactionalLongBPlusTree<String> tree = blockSizedTree();
+			for (long key = 0; key < 4; key++) {
+				tree.insert(key, "Value" + key);
+			}
+			assertEquals(4, rootLeaf(tree).getKeys().length, "four entries still fit the floor exactly");
+
+			tree.insert(4L, "Value4");
+
+			assertEquals(
+				BLOCK_SIZE, rootLeaf(tree).getKeys().length,
+				"a fifth entry runs past half the block, so the growth goes straight to the cap"
+			);
+			assertEquals(BLOCK_SIZE, rootLeaf(tree).getValues().length, "both arrays must be grown together");
+
+			tree.insert(5L, "Value5");
+			tree.insert(6L, "Value6");
+
+			assertEquals(
+				BLOCK_SIZE, rootLeaf(tree).getKeys().length,
+				"the block size is the cap - further entries must not grow the array past the leaf they fill"
+			);
+			assertEquals(BLOCK_SIZE, rootLeaf(tree).getValues().length, "both arrays must stay at the cap together");
+		}
+
+		@Test
+		@DisplayName("commit trims the committed leaf only once the slack pays for the copy")
+		void shouldTrimTheCommittedLeafOnlyOnceTheSlackPaysForTheCopy() {
+			assertStateAfterCommit(
+				treeWithFullyGrownRootLeaf(),
+				tested -> {
+					for (long key = 2; key < BLOCK_SIZE - 1; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size(), "the transaction must leave two entries behind");
+					assertEquals(
+						4, rootLeaf(committed).getKeys().length,
+						"two entries under eight slots is a wide enough gap to pay for the copy, so the committed "
+							+ "leaf must come back on the four-slot floor"
+					);
+					assertEquals(4, rootLeaf(committed).getValues().length, "both arrays must be trimmed together");
+					assertEquals(
+						BLOCK_SIZE, rootLeaf(original).getKeys().length,
+						"the pre-commit tree must keep the arrays it had - the trim happens on the committed copy"
+					);
+				}
+			);
+
+			assertStateAfterCommit(
+				treeWithFullyGrownRootLeaf(),
+				tested -> {
+					for (long key = 4; key < BLOCK_SIZE - 1; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(4, committed.size(), "the transaction must leave four entries behind");
+					assertEquals(
+						BLOCK_SIZE, rootLeaf(committed).getKeys().length,
+						"four entries under eight slots is too narrow a gap to trim - shrinking here is what would "
+							+ "make a leaf hovering around a power of two alternate grow and trim on every commit"
+					);
+					assertEquals(
+						BLOCK_SIZE, rootLeaf(committed).getValues().length,
+						"both arrays must be left alone together"
+					);
+				}
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Reader bounds when a leaf peek runs ahead of its arrays")
 	class TornLeafReaderBoundTest {
 
@@ -3707,11 +3875,14 @@ class TransactionalLongBPlusTreeTest {
 		@Test
 		@DisplayName("point lookup stays inside the array it read")
 		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArrays() {
+			// the search is bounded by a separately resolved peek: unclamped it hands
+			// `Arrays.binarySearch(long[], int, int, long)` a `toIndex` of 5 over an array of 4, and that range check
+			// throws before the search compares anything - so every lookup below depends on the bound, not just the
+			// one that runs past the last key
 			final TransactionalLongBPlusTree<String> tree = tornSingleLeafTree();
 			for (long key = 0; key < 4; key++) {
 				assertEquals("Value" + key, tree.searchOrNull(key), "point lookup must still find every live key");
 			}
-			// past the last key, so an unbounded binary search walks up into the slot the arrays do not carry
 			assertNull(tree.searchOrNull(9L), "a lookup past the end must miss rather than run off the array");
 		}
 
@@ -3747,7 +3918,7 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("a forward iterator opened from a key stays inside the array it read")
 		void shouldBoundKeyedForwardIterationWhenPeekRunsAheadOfTheArrays() {
 			// the keyed constructors are the one reader that cannot delegate to the guarded `loadCurrentLeaf()`:
-			// Java needs their start position before the `super(...)` that runs it. Left ungurded they searched a
+			// Java needs their start position before the `super(...)` that runs it. Left unguarded they searched a
 			// `getKeys()` bounded by a separately resolved `size()`, which on this leaf is a range of 5 over an
 			// array of 4 - `Arrays.binarySearch` range-checks that and throws before it compares anything
 			final List<String> forward = new ArrayList<>();
@@ -3780,6 +3951,20 @@ class TransactionalLongBPlusTreeTest {
 			assertEquals(
 				List.of("Value3", "Value2", "Value1", "Value0"), reverse,
 				"a keyed reverse walk opened past the end must fall back onto the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("the verbose rendering stays inside the arrays it read")
+		void shouldBoundVerboseRenderingWhenPeekRunsAheadOfTheArrays() {
+			// a debugger or a log statement is exactly how a live tree gets read off a thread that never wrote to it,
+			// and an out-of-bounds thrown out of toString() breaks the diagnostics used to investigate it
+			final String rendered = tornSingleLeafTree().toString();
+
+			assertFalse(rendered.isEmpty(), "the verbose rendering must survive the torn leaf");
+			assertTrue(
+				rendered.contains("3:Value3"),
+				"and must still render the whole live run - the bound drops the phantom slot, not a live one"
 			);
 		}
 

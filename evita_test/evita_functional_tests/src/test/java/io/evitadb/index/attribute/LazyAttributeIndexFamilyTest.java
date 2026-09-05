@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
@@ -42,6 +43,7 @@ import io.evitadb.index.attribute.AttributeIndex.UniquenessEnforcement;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
@@ -51,12 +53,15 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.readField;
@@ -68,7 +73,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Pins the lazy allocation of {@link AttributeIndex}'s seven sub-index maps.
@@ -258,6 +265,49 @@ class LazyAttributeIndexFamilyTest {
 		}
 
 		@Test
+		@DisplayName("walks every index type it owns without allocating a family, and refuses the one it does not")
+		void shouldWalkEveryIndexTypeWithoutAllocatingAFamily() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+
+			for (final AttributeIndexType type : List.of(
+				AttributeIndexType.UNIQUE, AttributeIndexType.FILTER,
+				AttributeIndexType.SORT, AttributeIndexType.CHAIN
+			)) {
+				index.forEachAttributeIndexKey(
+					type, key -> fail("a fresh index holds no " + type + " sub-index, yet the walk yielded " + key)
+				);
+			}
+
+			assertOnlyFamiliesAllocated(index);
+			assertEquals(
+				emptyIndexBytes(), index.getHeapSizeInBytes(),
+				"walking an absent family must not bring it into existence"
+			);
+			// an attribute index owns no cardinality map at all - that one belongs to the reduced-group and
+			// referenced-type indexes. The walk must say so rather than yield nothing, which the caller could not
+			// tell apart from a family that is merely empty
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> index.forEachAttributeIndexKey(AttributeIndexType.CARDINALITY, key -> { }),
+				"the one index type an attribute index does not own must be refused, not silently skipped"
+			);
+		}
+
+		@Test
+		@DisplayName("costs the same and allocates nothing when it is the reference-scoped permit")
+		void shouldCostOnlyItsOwnObjectAsAReferenceScopedIndex() {
+			// the reduced indexes of a production catalog outnumber the entity ones several-fold, and they are the
+			// permit of the sealed hierarchy every other test here leaves untouched
+			final AttributeIndex index = new ReferenceAttributeIndex(ENTITY_TYPE, null);
+
+			assertOnlyFamiliesAllocated(index);
+			assertEquals(
+				emptyIndexBytes(), index.getHeapSizeInBytes(),
+				"the reference-scoped permit must weigh the same object - its referenceKey slot is already counted"
+			);
+		}
+
+		@Test
 		@DisplayName("emits no storage part and no manifest key when flushed")
 		void shouldFlushWithoutTouchingAnAbsentFamily() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
@@ -267,6 +317,28 @@ class LazyAttributeIndexFamilyTest {
 			assertEquals(0, countTrapped(changes), "an index holding nothing has nothing to write");
 
 			assertOnlyFamiliesAllocated(index);
+		}
+	}
+
+	@Nested
+	@DisplayName("An index rebuilt from empty persisted maps")
+	class ColdLoad {
+
+		@Test
+		@DisplayName("leaves every family absent")
+		void shouldLeaveEveryFamilyAbsentWhenLoadedFromEmptyMaps() {
+			// the from-maps constructor reached straight, rather than through a commit merge - this is the shape every
+			// attribute index of a reloaded catalog is built in, and the overwhelming majority of them arrive empty
+			final AttributeIndex index = new EntityAttributeIndex(
+				ENTITY_TYPE, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of()
+			);
+
+			assertTrue(index.isAttributeIndexEmpty(), "nothing was loaded, so nothing is held");
+			assertOnlyFamiliesAllocated(index);
+			assertEquals(
+				emptyIndexBytes(), index.getHeapSizeInBytes(),
+				"an index rebuilt from empty maps must weigh what a freshly constructed one weighs"
+			);
 		}
 	}
 
@@ -502,10 +574,10 @@ class LazyAttributeIndexFamilyTest {
 			final TrappedChanges changes = new TrappedChanges();
 			index.getModifiedStorageParts(1, changes);
 
-			assertTrue(
-				countTrapped(changes) >= 7,
-				"a part per sub-index at the very least - was " + countTrapped(changes)
-			);
+			// drained once: the accumulator's iterator is re-creatable today, but counting it twice in one statement
+			// would silently start reporting zero the moment a producer switched to `TrappedChanges.addIterator`
+			final int trapped = countTrapped(changes);
+			assertTrue(trapped >= 7, "a part per sub-index at the very least - was " + trapped);
 		}
 	}
 
@@ -527,17 +599,32 @@ class LazyAttributeIndexFamilyTest {
 
 	/**
 	 * Guards against the fixture drifting: every field this suite reasons about must still exist and still be one of
-	 * the sub-index families, or the reflective assertions above would silently start proving nothing.
+	 * the sub-index families, and the suite must name every family the index declares - or the reflective assertions
+	 * above would silently start proving nothing about the one they no longer cover.
 	 */
 	@Test
-	@DisplayName("the seven family fields this suite names all still exist")
+	@DisplayName("the family fields this suite names are exactly the ones the index declares")
 	void shouldStillNameEveryFamilyField() {
 		final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 		for (final String field : FAMILY_FIELDS) {
 			// readField throws when the field is gone, which is the assertion - the null is the expected value
 			assertNull(family(index, field), "`" + field + "` must be absent on a fresh index");
 		}
-		assertEquals(7, FAMILY_FIELDS.length, "the index declares seven sub-index families");
+
+		// the families are exactly the class's volatile fields: a family is published by a plain write to a nullable
+		// slot, so it has to be volatile, and nothing else on the class is. Enumerating them is what catches an
+		// EIGHTH family being added - a count against a literal proves only that the literal was not edited, and an
+		// unnamed family would sail straight through `assertOnlyFamiliesAllocated`
+		final Set<String> declared = new HashSet<>();
+		for (final Field field : AttributeIndex.class.getDeclaredFields()) {
+			if (Modifier.isVolatile(field.getModifiers())) {
+				declared.add(field.getName());
+			}
+		}
+		assertEquals(
+			declared, Set.of(FAMILY_FIELDS),
+			"every volatile field of AttributeIndex is a sub-index family and must be named by this suite"
+		);
 	}
 
 }

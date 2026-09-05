@@ -141,10 +141,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 —
 	 * which evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
 	 * {@code TransactionalLongBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each
-	 * guarded reader — the heap walk, point lookup, forward and reverse iteration — its own test, so no one of them
-	 * can be proven by another throwing first. Remove the clamp and all four throw
-	 * {@link ArrayIndexOutOfBoundsException}. This mirrors {@code TransactionalBucketBPlusTree#observableLeafPeek},
-	 * whose javadoc carries the same calibration for the column-backed sibling.
+	 * guarded reader — the heap walk, point lookup, forward and reverse iteration, and the verbose rendering a
+	 * debugger or log statement triggers — its own test, so no one of them can be proven by another throwing
+	 * first. Remove the clamp and all five throw {@link ArrayIndexOutOfBoundsException}. This mirrors
+	 * {@code TransactionalBucketBPlusTree#observableLeafPeek}, whose javadoc carries the same calibration for the
+	 * column-backed sibling.
 	 *
 	 * @param peek   the leaf's own last-occupied slot index, as the caller read it
 	 * @param keys   the leaf's key array, as the caller read it
@@ -2907,7 +2908,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			sb.append(" ".repeat(level * indentSpaces));
 			final long[] theKeys;
 			final V[] theValues;
-			final int thePeek;
+			final int rawPeek;
 
 			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -2915,12 +2916,16 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			if (layer == null) {
 				theKeys = this.keys;
 				theValues = this.values;
-				thePeek = this.peek;
+				rawPeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theValues = layer.values;
-				thePeek = layer.peek;
+				rawPeek = layer.peek;
 			}
+			// bounded like every other reader, and this one especially: a debugger or a log statement is exactly how a
+			// live tree gets read from a thread that never wrote to it, and an out-of-bounds thrown out of a toString
+			// would break the diagnostics being used to investigate
+			final int thePeek = observableLeafPeek(rawPeek, theKeys, theValues);
 
 			for (int i = 0; i <= thePeek; i++) {
 				sb.append(theKeys[i]).append(":").append(theValues[i]);
@@ -3672,8 +3677,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					layer.values[insertionPosition.position()] = value;
 					return false;
 				} else {
-						layer.ensurePhysicalLength(layer.peek + 2);
-						insertLongIntoSameArrayOnIndex(key, layer.keys, insertionPosition.position());
+					layer.ensurePhysicalLength(layer.peek + 2);
+					insertLongIntoSameArrayOnIndex(key, layer.keys, insertionPosition.position());
 					insertRecordIntoSameArrayOnIndex(value, layer.values, insertionPosition.position());
 					layer.peek++;
 					return true;

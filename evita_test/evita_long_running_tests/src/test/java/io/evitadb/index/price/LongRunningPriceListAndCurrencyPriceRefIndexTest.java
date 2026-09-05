@@ -244,11 +244,11 @@ class LongRunningPriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTes
 
 	/**
 	 * Generational proof that a **rolled-back** transaction discards every in-transaction price mutation and leaves
-	 * the base {@link PriceListAndCurrencyPriceRefIndex} byte-for-byte intact — the atomic-rollback contract of Ref:
-	 * #569. Each generation rebuilds a fresh ref index from the (random-walking) tracked-id model over a fixed super
-	 * index pool, captures a value oracle of that base, applies a random batch of add/remove mutations inside a
-	 * transaction that is then rolled back, and asserts the base index is unchanged and no committed value was
-	 * published.
+	 * the base {@link PriceListAndCurrencyPriceRefIndex} byte-for-byte intact — the atomic-rollback contract a
+	 * transaction must uphold. Each generation rebuilds a fresh ref index from the (random-walking) tracked-id model
+	 * over a fixed super index pool, captures a value oracle of that base, applies a random batch of add/remove
+	 * mutations inside a transaction that is then rolled back, and asserts the base index is unchanged and no
+	 * committed value was published.
 	 */
 	@ParameterizedTest(
 		name = "PriceListAndCurrencyPriceRefIndex rollback discards every in-transaction mutation and leaves the base intact"
