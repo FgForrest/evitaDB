@@ -46,6 +46,13 @@ import java.time.ZoneOffset;
  * Every `BigDecimal` filter part is re-keyed and re-written with the current serializer by `Migration_2026_2`, so a
  * legacy blob is only ever read for a non-`BigDecimal` part, whose correct scale is `0`.
  *
+ * Like every format that predates the millisecond move, it persisted its range thresholds at **second** granularity,
+ * so it marks each part it produces with {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}. The
+ * rescale deliberately does not happen here: a range index whose axis is `PAGED` keeps its thresholds in leaf-page
+ * records this serializer never sees, and a threshold is an untyped `long` shared by `DateTimeRange` and every
+ * `NumberRange` subtype, so only the declared attribute type can decide which parts to repair — both facts belong to
+ * the load path. See {@code AttributeIndexLoader#loadRangeIndex}.
+ *
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -56,6 +56,7 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Migration coverage for `2026.1` filter indexes built over a `LocalDateTime` attribute.
@@ -93,7 +94,18 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 	}
 
 	/**
-	 * Round-trips a part through the legacy serializer, mimicking a blob written by `2026.1`.
+	 * Round-trips a part through the legacy serializer, mimicking a blob written by `2026.1`, and asserts the read
+	 * marked the part's range-threshold provenance.
+	 *
+	 * Every format older than the millisecond change persisted its range thresholds as epoch **seconds**, and the
+	 * byte layout did not move with them - so the mark this reader sets is the only thing that tells the load path
+	 * a `DateTimeRange` index needs rescaling. Dropped, it would read every `DateTimeRange` range threshold in a
+	 * 2026.1 catalog a thousand times too small, silently and permanently. The assertion lives in the helper so
+	 * every read this class performs pins it, whatever else the test is about.
+	 *
+	 * @param attributeType the declared attribute type the legacy part carries
+	 * @param values        the bucket values the legacy part holds, one record each
+	 * @return the part as the backward-compatible reader hands it back
 	 */
 	@Nonnull
 	private FilterIndexStoragePart roundTrip(@Nonnull Class<?> attributeType, @Nonnull Serializable... values) {
@@ -110,7 +122,13 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 			this.legacySerializer.write(this.kryo, output, legacyPart);
 		}
 		try (final Input input = new Input(buffer.toByteArray())) {
-			return this.legacySerializer.read(this.kryo, input, FilterIndexStoragePart.class);
+			final FilterIndexStoragePart migrated =
+				this.legacySerializer.read(this.kryo, input, FilterIndexStoragePart.class);
+			assertTrue(
+				migrated.isSecondGranularityRangeThresholds(),
+				"a blob read by a backward-compatible reader must be marked - the load path routes the rescale on it"
+			);
+			return migrated;
 		}
 	}
 

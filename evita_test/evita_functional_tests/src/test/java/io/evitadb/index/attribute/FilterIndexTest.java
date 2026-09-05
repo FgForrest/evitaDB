@@ -1832,7 +1832,8 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("a date-time array mixing an open and a closed range at another offset leaves no threshold behind")
 		void shouldLeaveNoThresholdBehindForAMixedDateTimeArray() {
-			// this is the counterexample the `meta` word exists for, driven end to end. `addRecordDelta` consolidates
+			// this is the counterexample the offset-carrying encoding existed for, driven end to end.
+			// `addRecordDelta` consolidates
 			// the ORIGINAL objects and inserts the resulting thresholds; `removeRecordDelta` reads the ranges back out
 			// of the tree - now RECONSTRUCTED by the range column - consolidates those and removes the thresholds it
 			// gets. An encoding that dropped the closed range's zone offset would consolidate to a lower bound five
@@ -2008,6 +2009,69 @@ class FilterIndexTest {
 					.getArray(),
 				"the saturated range must survive the removal of its sibling"
 			);
+		}
+
+		@Test
+		@DisplayName("an array delta over two long ranges saturating OPPOSITE sentinels")
+		void shouldLeaveNoThresholdBehindForOppositelySaturatedLongRanges() {
+			// the sibling above stores ONE range saturating both sentinels. Two ranges saturating one sentinel each
+			// are the shape a decoder reading the sentinels independently would hand back with a null lower bound on
+			// the first and a null upper one on the second, leaving the delta's consolidation to clone a winner out
+			// of one bound from each - the (null, null) pair every `Range` implementation refuses.
+			// `NumberRange.class` is the counterfactual arm: an abstract declared type falls through to the boxed
+			// column, which hands the stored instances back and therefore never drops a precise bound
+			final LongNumberRange[] added = {LongNumberRange.between(10L, 20L)};
+			final OwnerFilterIndex rebuilding = oppositelySaturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex boxed = oppositelySaturatedLongRangeIndex(NumberRange.class);
+			final String before = thresholdsOf(rebuilding);
+			assertEquals(before, thresholdsOf(boxed), "the two arms must start from one shape");
+
+			// the boxed arm is the oracle: its consolidation sees the two precise bounds that went in, merges them
+			// back into the saturated range and the delta completes. The thresholds do not move - the saturated
+			// range already spans the added one - so what the oracle establishes is that the write succeeds at all
+			boxed.addRecordDelta(1, added);
+			assertEquals(
+				before, thresholdsOf(boxed),
+				"the saturated range already spans the added one, so no threshold may move"
+			);
+			assertArrayEquals(
+				new int[]{1}, boxed.getRecordsEqualTo(added[0]).getArray(),
+				"and the added range must be indexed for the record"
+			);
+
+			rebuilding.addRecordDelta(1, added);
+			assertEquals(
+				thresholdsOf(boxed), thresholdsOf(rebuilding), "the added delta must agree with the boxed arm");
+			assertArrayEquals(
+				new int[]{1}, rebuilding.getRecordsEqualTo(added[0]).getArray(),
+				"and the added range must be indexed for the record here too"
+			);
+
+			rebuilding.removeRecordDelta(1, added);
+			boxed.removeRecordDelta(1, added);
+			assertEquals(before, thresholdsOf(rebuilding), "the removal must retire exactly the thresholds it added");
+			assertEquals(thresholdsOf(boxed), thresholdsOf(rebuilding), "the removed delta must agree too");
+		}
+
+		/**
+		 * Builds a range index holding one record whose value set contains two overlapping ranges saturating
+		 * <strong>opposite</strong> open-bound sentinels — the shape a delta has to read back out of the tree and
+		 * consolidate. A fresh index per arm keeps a half-applied delta from colouring the next one.
+		 *
+		 * @param attributeType the declared attribute type, which decides whether the keys are rebuilt or boxed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private OwnerFilterIndex oppositelySaturatedLongRangeIndex(@Nonnull Class<?> attributeType) {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "span", null), attributeType);
+			index.addRecord(
+				1,
+				new LongNumberRange[]{
+					LongNumberRange.between(Long.MIN_VALUE, 5L), LongNumberRange.between(3L, Long.MAX_VALUE)
+				}
+			);
+			return index;
 		}
 
 		/**

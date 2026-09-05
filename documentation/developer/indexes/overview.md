@@ -161,7 +161,7 @@ new immutable snapshot of each modified index
 | `TransactionalBucketBPlusTree` | evita_engine | Columnar inverted-index bucket store (B+ tree with pluggable `ValueColumn`) |
 | `TransactionalLongBPlusTree` | evita_engine | Primitive-long-keyed B+ tree backing `RangeIndex` |
 | `TransactionalObjectBPlusTree` | evita_engine | Generic comparator-ordered B+ tree backing `OwnerSortIndex` |
-| `ValueColumn` / `ValueColumnFactory` | evita_engine | Sealed columnar key storage (`Long`/`Int`/`Instant`/`FrontCodedString`/`BoxedObject`) |
+| `ValueColumn` / `ValueColumnFactory` | evita_engine | Sealed columnar key storage (`Long`/`Int`/`Range`/`FrontCodedString`/`BoxedObject`) |
 | `CumulativeWeightBPlusTree` | evita_common | Order-statistic tree powering `SortIndexChanges` rank queries |
 | `PersistentTransactionalMap` / `PersistentTransactionalProducerMap` | evita_engine | ChampMap-backed transactional maps with `O(Δ·log N)` commit |
 

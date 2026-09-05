@@ -94,8 +94,12 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
  * - **Precision over performance:** Uses BigDecimal for floating-point to avoid precision loss
  * - **UTC normalization:** Converts LocalDateTime to OffsetDateTime at UTC to avoid timezone
  * ambiguities
- * - **Millisecond precision:** Truncates every temporal value to whole milliseconds as it enters the database, so
- * that a stored value and a query probe derived from the same instant still compare equal
+ * - **Millisecond precision:** Truncates every **scalar** temporal value (`OffsetDateTime`, `LocalDateTime`,
+ * `LocalTime`) to whole milliseconds as it enters the database, so that a stored value and a query probe derived from
+ * the same instant still compare equal. A {@link DateTimeRange} is deliberately exempt and passes through untouched:
+ * it reaches the same guarantee by *comparing* at the millisecond while keeping its bounds exactly as given, so
+ * `getPreciseFrom()` / `getPreciseTo()` hand a client back what it supplied. Truncating range bounds here would
+ * change that and buy nothing — see `DateTimeRange`'s "Comparison granularity" section
  * - **Null-safe:** Returns null unchanged rather than throwing exceptions
  * - **Flexible parsing:** Date/time converters try multiple ISO-8601 formats before failing
  * - **Array support:** All single-valued types also support array forms (e.g., Integer[])
@@ -949,6 +953,12 @@ public class EvitaDataTypes {
 	 * Arrays are deliberately reported as *not* requiring normalization - the scalar
 	 * {@link #toSupportedType(Serializable)} rejects them outright, and callers holding arrays use
 	 * {@link #toSupportedTypeOrItsArray(Serializable)}, which normalizes element by element on its own.
+	 *
+	 * A {@link DateTimeRange} is likewise reported as *not* requiring it, and that is a decision rather than an
+	 * oversight: it is a supported type that {@link #toSupportedType(Serializable)} passes through untouched, because
+	 * a range keeps its bounds exactly as given and reaches the millisecond guarantee by comparing at that
+	 * granularity instead. Normalizing one here would rewrite what `getPreciseFrom()` hands back to a client without
+	 * changing a single comparison.
 	 *
 	 * @param value the value to examine
 	 * @return `true` when the value has to be normalized before it is used

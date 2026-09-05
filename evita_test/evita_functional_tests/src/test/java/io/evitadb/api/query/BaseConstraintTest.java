@@ -26,11 +26,10 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import io.evitadb.exception.EvitaInvalidUsageException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

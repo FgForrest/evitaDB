@@ -75,7 +75,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *    that failure land in this sweep would let it be attributed to the columns. Every reallocation the leaf columns
  *    perform on the way from four slots to {@value #BLOCK_SIZE} happens inside that one leaf.
  * 2. {@link #shouldNeverFailASessionFreeWalkWhileAWarmUpLoadGrowsTheInternalNodes()} - the **internal nodes**, which
- *    since `0551b8e06` size their `keys` and `children` arrays to the live content and grow them by the same
+ *    size their `keys` and `children` arrays to the live content and grow them by the same
  *    array-first / `peek`-second pair. It uses a small block size and enough keys to build a three-level tree, so
  *    every internal node grows its arrays repeatedly and splits, under a reader taking all four session-free entry
  *    points (`recordCount()`, a forward walk, a keyed walk and a reverse walk) plus the heap-size walk that recurses

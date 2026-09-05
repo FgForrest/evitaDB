@@ -309,7 +309,7 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 	 * @param to   the upper bound, or {@code null} for an open one
 	 */
 	private static void assertFromLesserThanTo(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
-		if (!(from == null || to == null || !from.isAfter(to))) {
+		if (from != null && to != null && from.isAfter(to)) {
 			throw new EvitaInvalidUsageException("From must be before or equals to to!");
 		}
 	}

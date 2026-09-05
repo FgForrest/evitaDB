@@ -53,11 +53,41 @@ import java.util.function.Consumer;
  * This {@link Consumer} implementation takes default Kryo instance and registers additional serializers that are
  * required to (de)serialize {@link StoragePart} implementations.
  *
+ * It is also the enforcement point for the two obligations that keep an already-written catalog readable, and the
+ * place to check both before changing any index storage format.
+ *
+ * ## The registration order is a persisted contract
+ *
+ * Kryo writes the registration **id**, not the class name, so the id a type holds here is baked into every catalog
+ * ever written with it. A new record type is therefore always appended at the end, never inserted, so that every
+ * preceding id keeps the meaning it already has on disk. Reordering this method — or dropping a registration that
+ * still sits between two live ones — re-points existing bytes at the wrong class.
+ *
+ * ## Every released serial-version-uid needs a reader
+ *
+ * A `SerialVersionBasedSerializer` routes by the uid the blob carries, so a shape that ever reached a released
+ * catalog must keep a backward-compatible serializer registered for its uid here — including a shape whose byte
+ * *layout* is unchanged but whose *meaning* moved, which the layout alone cannot reveal (the epoch-second to
+ * epoch-millisecond range thresholds are the worked example).
+ *
+ * The converse is deliberate rather than an omission: a uid that only ever existed inside a development window is
+ * left **unregistered on purpose**, so a catalog written by a snapshot build fails loudly instead of being decoded by
+ * a reader that was never meant for it. Telling the two cases apart takes evidence, not memory — `git tag --contains`
+ * on the commit that introduced the uid — and getting it backwards once already produced a reader-shaped hole; the
+ * histogram registration below records that case and the check that settles it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 public class IndexStoragePartConfigurer implements Consumer<Kryo> {
+	/** Resolves the compressed keys the index parts persist instead of their full identities. */
 	private final KeyCompressor keyCompressor;
+	/**
+	 * First Kryo registration id of the index storage-part family, sitting in the block between
+	 * {@code EntityStoragePartConfigurer}'s 500 and {@code CatalogHeaderKryoConfigurer}'s 700. It is a persisted
+	 * contract like the order that follows it and must never move — and the family may not grow past 99 registrations
+	 * without first moving the neighbour it would collide with.
+	 */
 	private static final int INDEX_BASE = 600;
 
 	@Override

@@ -84,11 +84,10 @@ class ColumnSizingTest {
 
 	/**
 	 * Builds a deterministic ascending {@link DateTimeRange} for the given ordinal, used as the range column's key.
-	 * The offset varies with the ordinal so the column's `meta` array is populated rather than uniform — but **this
-	 * battery cannot see the offsets at all**: it asserts `keyAt` equality, and `DateTimeRange`'s `equals` /
-	 * `compareTo` are generated from the two comparison longs alone, so a range rebuilt at the wrong offset still
-	 * compares equal. The offsets themselves are pinned by the offset-level assertions in
-	 * {@code RangeValueColumnTest}.
+	 * The offset varies with the ordinal, which **this battery cannot see at all**: it asserts `keyAt` equality, and
+	 * `DateTimeRange`'s `equals` / `compareTo` are generated from the two comparison longs alone, so a range rebuilt
+	 * at another offset still compares equal. That the rebuilt bounds name the same instants, at UTC, is pinned by
+	 * the bound-level assertions in {@code RangeValueColumnTest}.
 	 *
 	 * @param ordinal the ordinal to derive the key from
 	 * @return an ascending, deterministic date-time range
@@ -142,9 +141,9 @@ class ColumnSizingTest {
 
 		@Test
 		void shouldObeyTheSizingContractWhenBackedByRangeBoundArrays() {
-			// the range column has TWO shapes and both have to obey the contract: a `DateTimeRange` column, which
-			// materializes the third `meta` array and therefore grows / trims / duplicates three arrays in lockstep,
-			// and a numeric one, whose `meta` stays parked on the shared empty constant for the column's whole life
+			// the range column holds exactly two `long[]` whatever it stores, but the two shapes decode a slot
+			// differently - a `DateTimeRange` column rebuilds both bounds as moments, a numeric one as the bounds'
+			// own values (at the column's scale, for big decimals) - so both are driven through the contract
 			assertValueColumnSizing(
 				capacity -> new RangeValueColumn<>(RangeKind.DATE_TIME, 0, capacity),
 				ColumnSizingTest::dateTimeRange,

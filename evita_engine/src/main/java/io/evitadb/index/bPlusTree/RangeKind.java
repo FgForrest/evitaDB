@@ -78,11 +78,12 @@ enum RangeKind {
 	 * every comparison in the engine runs on {@code getFrom()} / {@code getTo()}, and
 	 * {@code cloneWithDifferentBounds} re-encodes either form to the same long.
 	 *
-	 * It is **not** invisible to consolidation for the one range that saturates **both** sentinels: read
-	 * independently, each would decode to an open bound and the rebuilt range would carry two `null` precise
-	 * bounds, which `LongNumberRange`'s constructor refuses and {@code Range.consolidateRange} walks straight into.
-	 * That pair is therefore decoded with both bounds materialized — {@code RangeValueColumn#decodeLongRange} is
-	 * what upholds it, and re-encoding the result lands on the same two longs.
+	 * It is **not** invisible to consolidation, which clones the winner of an overlapping merge with the precise
+	 * bounds that won: a sentinel decoded back to an open bound gives it the `(null, null)` pair
+	 * `LongNumberRange`'s constructor refuses — reachable both from one range saturating both sentinels and from a
+	 * pair of ranges meeting from opposite ends. Every bound of this kind is therefore decoded **materialized**
+	 * rather than substituted; {@code RangeValueColumn#decodeLongRange} is what upholds it, and re-encoding the
+	 * result lands on the same two longs.
 	 */
 	LONG_NUMBER(LongNumberRange.class),
 

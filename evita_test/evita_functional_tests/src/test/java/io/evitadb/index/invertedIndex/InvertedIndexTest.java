@@ -1607,7 +1607,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
-		@DisplayName("a leaf merge reports the dropped page as freed (so it can be removed, not leaked) (#1)")
+		@DisplayName("a leaf merge reports the dropped page as freed (so it can be removed, not leaked)")
 		void shouldReportFreedPagesWhenLeafMergesAway() {
 			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
 			for (int i = 0; i < 1_000; i++) {
@@ -1644,7 +1644,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
-		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit (#2)")
+		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit")
 		void shouldReloadBoundaryStableAndSuppressFirstCommit() {
 			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
 			for (int i = 0; i < 1_000; i++) {
@@ -1755,7 +1755,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("a multi-leaf range index pages, and every bucket value survives the split unchanged")
 		void shouldServeAPagedRangeIndex() {
 			final InvertedIndex index = emptyDateTimeRangeIndex();
-			// well past one leaf block (256), so the tree splits repeatedly and the three arrays move in lockstep
+			// well past one leaf block (256), so the tree splits repeatedly and the two bound arrays move in lockstep
 			final int valueCount = 1_000;
 			for (int i = 0; i < valueCount; i++) {
 				index.addRecord(range(i), i);

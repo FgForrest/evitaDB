@@ -180,6 +180,13 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 	 * Reconstructs the histogram's embedded {@link OwnerFilterIndex} from its root part, reassembling any `PAGED` bucket
 	 * / range axis from its leaf pages (boundary-stable) and using the inline data for a `SINGLE` axis.
 	 *
+	 * It is also where a histogram's legacy range thresholds are rescaled from epoch seconds to epoch milliseconds —
+	 * the histogram twin of {@code AttributeIndexLoader#loadRangeIndex}, which carries the full argument for why the
+	 * repair belongs on a load path and why it must be routed by the declared attribute type rather than by the
+	 * reader's provenance alone. The `PAGED` arm is deliberately **not** boundary-stable, unlike every other axis
+	 * reassembled here; {@link RangeIndex#rescaledFromSecondGranularityPages} says why root and pages must move to the
+	 * millisecond form in one commit.
+	 *
 	 * @param part           the already-fetched histogram root part
 	 * @param referenceName  the reference name (part of the filter index identity)
 	 * @param histogramName  the histogram name (part of the page-stream identity)

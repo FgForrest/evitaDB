@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -36,9 +35,24 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexSt
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FilterIndex} from/to binary format.
+ * Backward-compatible reader for the {@link FilterIndexStoragePart} format shipped by release 2025.5 — the oldest
+ * shape still loadable, in which the part's buckets and its optional range index were both written inline, no
+ * `indexedDecimalPlaces` scale was persisted, and the attribute key may still be a plain
+ * {@code AttributesContract.AttributeKey} that {@link AttributeKeyToAttributeKeyIndexBridge} lifts into an
+ * {@link AttributeIndexKey}.
  *
- * @deprecated only for backward compatibility purposes
+ * It only reads: {@link #write} throws, because the current
+ * {@link FilterIndexStoragePartSerializer} owns every write and this shape must never be produced again.
+ *
+ * Like every format that predates the millisecond move, it persisted its range thresholds at **second** granularity,
+ * so it marks each part it produces with {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}. The
+ * rescale deliberately does not happen here: a range index whose axis is `PAGED` keeps its thresholds in leaf-page
+ * records this serializer never sees, and a threshold is an untyped `long` shared by `DateTimeRange` and every
+ * `NumberRange` subtype, so only the declared attribute type can decide which parts to repair — both facts belong to
+ * the load path. See {@code AttributeIndexLoader#loadRangeIndex}.
+ *
+ * @deprecated only for backward compatibility purposes; can be removed once no catalog written by release 2025.5 or
+ *             earlier is still in use.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2025.7", forRemoval = true)

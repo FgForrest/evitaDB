@@ -860,12 +860,23 @@ public final class SessionRegistry {
 			CollectionUtils.createConcurrentHashMap(32);
 
 		/**
-		 * Registers a session consuming catalog in the specified version.
+		 * Registers a session consuming catalog in the specified version: raises this version's reader count and pins
+		 * it against reclamation for as long as the session lives.
 		 *
-		 * @param version the version of the catalog
+		 * The two halves are not equivalent bookkeeping and the body says why - the count answers "is anyone still
+		 * here", the pin clamps the retention trim. Both are given back exactly once, and a registration that fails
+		 * after the count was raised gives it back here before rethrowing, because no later path can: an unpublished
+		 * session never reaches {@code removeSession} and therefore never reaches
+		 * {@link #unregisterSessionConsumingCatalogInVersion} either.
+		 *
+		 * @param version the version of the catalog the session will read
+		 * @param traits  the session's traits, which select the read-only or the read-write census map
+		 * @param catalog supplies the catalog to pin; it throws when the catalog has gone or is unusable
 		 * @return the lease holding that version, which the caller keeps for the session's lifetime and hands back to
 		 *         {@link #unregisterSessionConsumingCatalogInVersion} - {@link CatalogVersionPin#NONE} when the pin
 		 *         could not be taken at all
+		 * @throws RuntimeException whatever the catalog supplier throws, propagated after the census increment has
+		 *                          been given back, so the caller may abandon the session without leaking a reader
 		 */
 		@Nonnull
 		CatalogVersionPin registerSessionConsumingCatalogInVersion(

@@ -31,19 +31,29 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads {@link PriceListAndCurrencySuperIndexStoragePart} from binary format.
+ * Backward-compatible {@link Serializer} for the {@link PriceListAndCurrencyRefIndexStoragePart} format shipped by
+ * release 2026.1 — the reference-index twin of
+ * {@link PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1}.
  *
- * It reads the 2026.1 (released) binary format; retained for backward
- * compatibility only. That format wrote the price ids array as raw fixed 4-byte ints; the current serializer
- * delta-varints that (strictly ascending) array. Like the other deprecated readers its {@link #write(Kryo, Output,
- * PriceListAndCurrencyRefIndexStoragePart)} throws — this format must never be written again. The dispatcher delegates
- * writes only to the current serializer; the backward-compatible reading is validated end-to-end by the
- * backward-compatibility suite.
+ * Two things separate that format from the current one. Its price ids array was written as raw fixed 4-byte ints,
+ * where the current serializer delta-varints the (strictly ascending) array — a **layout** difference, which is why
+ * the tail is decoded here rather than delegated. And its validity thresholds were epoch **seconds** rather than the
+ * epoch **milliseconds** {@code DateTimeRange} compares at now — a difference in **meaning** that no untyped `long`
+ * carries a marker for, so the scale can only be known from the serial-version-uid that routed the read here. The
+ * index is therefore rescaled by {@link RangeIndex#rescaledFromSecondGranularity} on the way out; a price validity
+ * index is the one range structure that needs no type routing to decide that, and
+ * {@link PriceIndexHeaderSerializer#readWithSecondGranularityValidity} holds the full argument for why.
  *
+ * This serializer only reads — writes always go through the current
+ * {@link PriceListAndCurrencyRefIndexStoragePartSerializer}, and
+ * {@link #write(Kryo, Output, PriceListAndCurrencyRefIndexStoragePart)} throws to make that unmistakable: this format
+ * must never be written again. The reading itself is validated end-to-end by the backward-compatibility suite.
+ *
+ * @deprecated kept for backward compatibility; can be removed once no catalog written before `DateTimeRange` moved to
+ *             millisecond comparison granularity is still in use.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2026.2", forRemoval = true)

@@ -3101,6 +3101,24 @@ class EvitaDataTypesTest {
 					)
 				)
 			);
+			// the ARRAY arm, which is load-bearing and otherwise unasserted: the scalar `toSupportedType` rejects an
+			// array outright, so an array-valued constraint argument has to reach `toSupportedTypeOrItsArray`
+			// instead. Were this to report `true`, `BaseConstraint.convertArgumentsIfNeeded`'s second pass would
+			// throw `UnsupportedDataTypeException` on every array-valued argument - including one whose components
+			// carry nanoseconds, which is why the probe below does
+			assertFalse(
+				EvitaDataTypes.requiresNormalization(
+					new OffsetDateTime[]{
+						TRUNCATED_MOMENT.plusNanos(123_456L),
+						TRUNCATED_MOMENT.plusNanos(654_321L)
+					}
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.requiresNormalization(
+					new String[]{"code", "ean"}
+				)
+			);
 		}
 	}
 

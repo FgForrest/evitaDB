@@ -229,7 +229,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
 	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
 	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
-	 * See the ADR for issue #1458.
+	 * See `documentation/adr/2026-08-28-index-lifetime-formula-memoization.md`.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */
@@ -399,6 +399,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param value the raw attribute value (or an already-normalized one, or `null`)
 	 * @return the millisecond-exact instant, or the value unchanged when it is neither temporal type
 	 */
+	@Nullable
 	private static Serializable toMillisecondInstant(@Nullable Object value) {
 		if (value instanceof OffsetDateTime offsetDateTime) {
 			return truncateToMilliseconds(offsetDateTime.toInstant());

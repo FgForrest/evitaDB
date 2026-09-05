@@ -88,6 +88,10 @@ public record PriceEvaluationContext(
 	@Nonnull
 	@Override
 	public String toString() {
+		// `validIn` is an epoch MILLISECOND, so it decomposes into whole seconds plus a millisecond remainder;
+		// `floorDiv`/`floorMod` rather than `/` and `%` because a pre-1970 moment is negative and the truncating
+		// operators would place it one second late. The `Long.MIN_VALUE` "no validity constraint" sentinel is
+		// filtered out first, so what reaches the decomposition is always a real moment.
 		return Arrays.toString(this.targetPriceIndexes) + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +
 			LocalDateTime.ofEpochSecond(
 				Math.floorDiv(this.validIn, 1000L),

@@ -106,7 +106,7 @@ objects.
 
 ```java
 sealed interface ValueColumn<M extends Comparable<M>>
-    permits BoxedObjectColumn, LongValueColumn, InstantValueColumn, IntValueColumn, FrontCodedStringColumn
+    permits BoxedObjectColumn, LongValueColumn, IntValueColumn, RangeValueColumn, FrontCodedStringColumn
 ```
 
 A `ValueColumn` behaves like a fixed-slot array (insert / remove / `copyRangeTo` / `fillEmpty` /
@@ -115,22 +115,61 @@ A `ValueColumn` behaves like a fixed-slot array (insert / remove / `copyRangeTo`
 | Implementation | Physical storage | Routes which values |
 |----------------|------------------|---------------------|
 | `BoxedObjectColumn` | boxed `Object[]` (universal fallback) | any `Comparable` with a non-natural comparator, or types no specialized column handles |
-| `LongValueColumn` | primitive `long[]` via an order-preserving `LongKeyCodec` | integral / temporal types under natural order (`Byte`…`Long`, etc.) |
+| `LongValueColumn` | primitive `long[]` via an order-preserving `LongKeyCodec` | integral / temporal types under natural order (`Byte`…`Long`, `LocalDate`, `LocalTime`, `Instant`) |
 | `IntValueColumn` | primitive `int[]` (4 bytes) | `Integer`, and `BigDecimal` normalized to a scaled `int` |
-| `InstantValueColumn` | parallel `long[] seconds` + `int[] nanos` | `Instant` (lossless, lexicographic order == natural order) |
+| `RangeValueColumn` | two parallel `long[]`, the comparison bounds `getFrom()` / `getTo()` | all six concrete `Range` subtypes, under natural order, in a **filter** key space |
 | `FrontCodedStringColumn` | prefix-compressed variable-length `byte[]` blob + restart-offset `int[]` | every `String` (localized **and** non-localized) |
+
+Temporal keys ride a **single** `long` as epoch milliseconds, not a seconds/nanos pair: no
+sub-millisecond value ever reaches a tree key, because every scalar temporal value is truncated to
+the whole millisecond on the way into the database (`EvitaDataTypes.toSupportedType`) and a
+`DateTimeRange` compares at that granularity. The nanosecond half a lossless `Instant` column would
+need is therefore always zero, and the column that carried it no longer exists.
 
 #### Factory selection order
 
-`ValueColumnFactory.forKey(plainType, comparator)` chooses the column with this precedence:
+There are **two** entry points, and they are not interchangeable — they serve two different key
+spaces. `forFilterKey` serves the *normalized* space a filter index builds through
+`FilterIndex.getNormalizer`; `forKey` serves the *raw* space, where the tree holds values exactly as
+the caller handed them over (`OwnerUniqueIndex`, `GlobalUniqueIndex`, `ReferenceTypeCardinalityIndex`).
+
+`ValueColumnFactory.forFilterKey(plainType, comparator, indexedDecimalPlaces)`:
+
+1. **natural order** and `plainType` is one of the six `Range` subtypes → `RangeValueColumn` for that
+   kind, at the index's frozen `indexedDecimalPlaces`.
+2. else → `forKey` on the **normalized** key class (`OffsetDateTime` and `LocalDateTime` both map to
+   `Instant`; everything else keeps its own class).
+
+`ValueColumnFactory.forKey(plainType, comparator)`:
 
 1. **`String`** → `FrontCodedStringColumn` -- always, regardless of comparator (front-coding is
    orthogonal to ordering; see below).
 2. else, **natural order** (comparator is `null` or `Comparator.naturalOrder()`):
-   - `Instant` → `InstantValueColumn`
    - `BigDecimal` → `IntValueColumn` (scaled int)
    - type with a `LongKeyCodec` → `LongValueColumn`
 3. else → `BoxedObjectColumn`.
+
+`forKey` can select neither the temporal remap nor `RangeValueColumn`, and that is structural rather
+than an oversight. Its callers keep raw values, so a column that would cast every key to `Instant`
+is simply the wrong column and threw on the first write; and a `RangeValueColumn` rebuilding a
+`BigDecimalNumberRange` needs an `indexedDecimalPlaces` none of those callers has to give, so a
+`Range`-typed `unique` attribute would silently rebuild its keys at the wrong scale.
+
+#### Arrays follow the content, not the block size
+
+A column's `capacity()` is the **logical** leaf block size and never moves; its **physical** backing
+array tracks the live content. `ColumnSizing` states the policy once for the whole family: an empty
+column parks on the JVM-wide shared empty array and owns nothing, the first write allocates
+`MIN_PHYSICAL_LENGTH` (4) slots, growth doubles up to the block size, and `trimmed()` shrinks only
+once the live count has fallen to a quarter of the physical length (hysteresis, so a leaf oscillating
+around a power of two does not alternate grow and trim on every commit).
+
+That sizing is why the family carries **two** duplication methods. `duplicate()` is the faithful copy
+a savepoint memento needs; `duplicateForInsert()` is the MVCC decouple's variant, which copies a
+column whose live run exactly fills its array straight to the length the next insert would grow it
+to. A committed leaf that is exactly full is the common case rather than a corner one — both halves
+of every split are born that way, and so is every bulk-loaded page after a restart — so copying short
+and growing one statement later would pay two allocations where the old block-sized columns paid one.
 
 #### Front-coded strings are orthogonal to the comparator
 
@@ -236,8 +275,16 @@ perspective) are still swept at commit. See [stm/data-structures.md](../stm/data
 
 The in-memory structures above are independent of the on-disk catalog format:
 
-- The trees serialize through the canonical `(value, recordIds)` / range-point forms; on load the
-  index rebuilds its tree (and its leaf columns) by **ordered inserts**.
+- The trees serialize through the canonical `(value, recordIds)` / range-point forms. A `SINGLE`
+  index rebuilds its tree (and its leaf columns) by **ordered inserts** at load; a `PAGED` one
+  bulk-loads instead, each persisted leaf page becoming one leaf, so page identity survives a restart
+  and only pages that actually changed are re-emitted on the next flush.
+- **Bulk loading assumes the persisted order is still the order the keys compare in**, which a key
+  type's comparison can break across releases. `InvertedIndex.fromPersistedPages` repairs the two
+  shapes that arise — buckets that now collapse onto one key, and a legacy `DateTimeRange` ordering
+  the millisecond comparison inverts — and refuses to repair anything else, because an unexplained
+  inversion is the signature of a stale leaf-page twin, whose "repair" would resurrect deleted
+  records. Read that method's javadoc before touching either path.
 - `indexedDecimalPlaces` is persisted into three storage parts (`FilterIndexStoragePart`,
   `SortIndexStoragePart`, `HistogramIndexStoragePart`) and read back verbatim at load.
 - `SingleRecordBitmap` / `ValueToRecordPrimitive` are runtime-only compaction representations; the
@@ -249,7 +296,9 @@ The in-memory structures above are independent of the on-disk catalog format:
 
 1. **No-boxing column round-trip.** For every specialized `ValueColumn`, inserting a value and reading
    it back via `keyAt` / `asBoxedArray` must reproduce the original value (including `BigDecimal` at the
-   frozen scale, `Instant` nanos, and `String` collation order).
+   frozen scale and `String` collation order). Temporal keys round-trip only to the **millisecond**:
+   a `DateTimeRange` rebuilt from a `RangeValueColumn` comes back at UTC with its sub-millisecond
+   digits gone, which no comparison can observe and which the test must assert rather than fight.
 
 2. **Single ↔ multi compaction.** A bucket with one record must materialize as `ValueToRecordPrimitive`
    (record set backed by `SingleRecordBitmap`); adding a second distinct id must promote it to a

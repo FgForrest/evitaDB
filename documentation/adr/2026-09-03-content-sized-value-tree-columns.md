@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-04 18:40
+updated: 2026-09-05 00:26
 status: accepted
 kind: optimization
 issues: [1486]
@@ -255,12 +255,12 @@ this record prices, measured a second way.
 
 ### The range column
 
-- **`RangeValueColumn` + `RangeKind`.** Two parallel `long[]` arrays hold the comparison bounds. For
-  `DateTimeRange` only, a third `long[] meta` packs **both** bound zone offsets — from-offset in the
-  high half, to-offset in the low, `Integer.MIN_VALUE` marking an open side. Both offsets are required
-  because `Range.consolidateRange` derives an open bound's sentinel from the *surviving* bound's offset;
-  the two rejected narrower encodings are in the table above, and one of them corrupts silently. The
-  five numeric kinds park `meta` on the shared empty array and cost two arrays.
+- **`RangeValueColumn` + `RangeKind`.** Two parallel `long[]` arrays hold the comparison bounds. As this
+  landed, `DateTimeRange` carried a third `long[] meta` array packing **both** bound zone offsets, because
+  an open bound's sentinel was then derived from the *surviving* bound's offset; the two rejected narrower
+  encodings are in the table above, and one of them corrupts silently. **That third array is gone**:
+  `2026-09-04-millisecond-temporal-precision` gave every open bound one offset-independent constant, which
+  left `meta` nothing to carry. Every kind now costs exactly the two bound arrays.
 - **Selection is by exact class equality against the six concrete range types, through
   `ValueColumnFactory.forFilterKey`.** It is a second entry point rather than a widened `forKey` on
   purpose: rebuilding a `BigDecimalNumberRange` needs the index's `indexedDecimalPlaces`, and two of
@@ -272,14 +272,15 @@ this record prices, measured a second way.
   instead of using offset-sensitive `equals` plus nano-sensitive `isBefore`. It was a latent bug the
   column merely made reachable — a zero-width range whose two bounds name the same moment at two
   different offsets got in through the nanoseconds and could not be rebuilt once the column truncated
-  them away. The type's `equals`, `hashCode` and `compareTo` already derive from the two epoch-second
+  them away. The type's `equals`, `hashCode` and `compareTo` already derive from the two comparison
   longs alone, so the assertion had been stricter than the type's own notion of equality. Reversed
   bounds are still rejected.
 - **The persisted bytes of a range key change although the format does not**, because the rebuilt key is
   a faithful comparator-equal reconstruction rather than the original instance. Verify by
-  persist–reload–persist, never by byte comparison. Reconstructed bounds also lose sub-second precision,
-  the comparison long being whole seconds, and separator ownership flips to true — a range tree is the
-  one shape whose separators are freshly minted objects rather than aliases of a leaf key.
+  persist–reload–persist, never by byte comparison. Reconstructed bounds also lose whatever precision sits
+  below the comparison long's resolution — whole seconds as this landed, whole milliseconds since
+  `2026-09-04-millisecond-temporal-precision`. Separator ownership flips to true as well: a range tree is
+  the one shape whose separators are freshly minted objects rather than aliases of a leaf key.
 
 ### The bucket count on the tree's own diff layer
 
@@ -308,8 +309,8 @@ this record prices, measured a second way.
 ### Why tests here must read the representation back
 
 In this column family, equality derives from the comparison longs alone, so **equality-based assertions
-cannot see representation-level loss**. `meta` (the zone offsets) and `indexedDecimalPlaces` (the scale)
-were each invisible to the entire suite until tests were written that read the representation back: a
+cannot see representation-level loss**. `meta` (the zone offsets, since removed) and `indexedDecimalPlaces`
+(the scale) were each invisible to the entire suite until tests were written that read the representation back: a
 decoder hard-coding scale 0 passed everything, and `meta` handling could be deleted from six mutators
 with the suite still green. Two findings from this branch say what that costs in practice, and both
 constrain how anyone tests this family in future:
@@ -350,9 +351,12 @@ and a regression cannot hide inside the ceiling.
 | Fixture | Before | Now | Budget |
 |---|--:|--:|--:|
 | one-key integral inverted index | 3472 B | **408 B** | 424 B |
-| one-key `DateTimeRange` index | — | **512 B** | 528 B |
+| one-key `DateTimeRange` index | — | **512 B** † | 528 B |
 | one-key numeric-range index | — | **464 B** | 528 B |
 | the bucket tree's own object | 80 B | 80 B | — |
+
+† Superseded. Removing the `meta` array took this fixture to **456 B**; that figure and its budget are
+owned by `2026-09-04-millisecond-temporal-precision`, and the gate asserts the current one.
 
 The tree object is unchanged because a reference slot was traded for an `int`. Of the 408 B, 80 B are
 the two four-slot backing arrays and the rest is index, tree, leaf and transactional-reference structure;

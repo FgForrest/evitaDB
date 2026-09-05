@@ -31,6 +31,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.DisplayName;
@@ -74,10 +75,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the range value column: that every one of the six concrete {@link Range} subtypes round-trips through the
- * two comparison longs (plus, for {@link DateTimeRange}, the packed zone offsets), that the declared subtype is
- * reproduced exactly, that {@link ValueColumnFactory} selects the column only where it may, and — the binding
- * requirement — that {@code Range.consolidateRange} lands on the same thresholds over reconstructed ranges as it does
- * over the originals.
+ * two comparison longs the column stores, that the declared subtype is reproduced exactly, that
+ * {@link ValueColumnFactory} selects the column only where it may, and — the binding requirement — that
+ * {@code Range.consolidateRange} lands on the same thresholds over reconstructed ranges as it does over the originals.
+ *
+ * A {@link DateTimeRange} is the lossy case, and deliberately so: the two longs are epoch **milliseconds**, so a
+ * rebuilt bound comes back at UTC with its sub-millisecond digits gone and the zone offset it was written at is not
+ * recoverable. That is invisible to every comparison the index makes, which is what lets the third array the column
+ * once carried for those offsets be dropped.
  *
  * **The consolidation invariant is the point of the class, not equality.** The write path reads a record's existing
  * ranges back out of the tree, consolidates them, and asks the range index to drop exactly the thresholds an earlier
@@ -300,23 +305,31 @@ class RangeValueColumnTest {
 		}
 
 		@Test
-		@DisplayName("an explicit Long.MIN_VALUE bound is indistinguishable from an open one, and behaves the same")
-		void shouldTreatAnExplicitLongMinimumAsAnOpenBound() {
-			// the one documented ambiguity of the family: both forms encode to the same long. The substitution is
-			// invisible to the engine, which decides everything on getFrom()/getTo() and re-derives them from the
-			// precise bounds through cloneWithDifferentBounds - so the BEHAVIOUR is what has to match, not the object
+		@DisplayName("a stored Long.MIN_VALUE lower bound reads back materialized, whichever form wrote it")
+		void shouldMaterializeAStoredLongMinimumRatherThanReadItBackAsOpen() {
+			// the one documented ambiguity of the family: an explicit minimum and an open lower bound encode to the
+			// same long and cannot be told apart once stored. The column resolves it by MATERIALIZING - the sentinel
+			// reads back as the bound it names - because the alternative hands `Range.consolidateRange` a null it
+			// cannot clone. Everything the engine decides on still matches: it runs on getFrom()/getTo() and
+			// re-derives them from the precise bounds through cloneWithDifferentBounds
 			final LongNumberRange explicit = LongNumberRange.between(Long.MIN_VALUE, 42L);
+			final LongNumberRange open = LongNumberRange.to(42L);
 			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
 			column.insertKeyAt(0, explicit);
+			column.insertKeyAt(1, open);
 			final NumberRange<Long> decoded = column.keyAt(0);
 
 			assertEquals(explicit, decoded, "the two forms are equal by their comparison longs");
+			assertEquals(open, decoded, "which is why the open form is equal to the explicit one to begin with");
+			assertEquals(decoded, column.keyAt(1), "and both forms therefore rebuild to the very same range");
 			assertEquals(Long.MIN_VALUE, decoded.getFrom());
 			assertEquals(42L, decoded.getTo());
-			// the precise bound really did change form - the assertion below is what makes that a documented
-			// substitution rather than an undetected one
 			assertEquals(Long.valueOf(Long.MIN_VALUE), explicit.getPreciseFrom());
-			assertNull(decoded.getPreciseFrom(), "the explicit minimum reads back as an open bound");
+			assertEquals(
+				Long.valueOf(Long.MIN_VALUE), decoded.getPreciseFrom(),
+				"the stored sentinel must read back as the bound it names, not as a null bound"
+			);
+			assertNull(open.getPreciseFrom(), "the open form went in without a precise lower bound at all");
 
 			// and re-encoding either form through cloneWithDifferentBounds lands on the same long pair
 			final Range<Long> reclonedOriginal = explicit.cloneWithDifferentBounds(
@@ -328,21 +341,29 @@ class RangeValueColumnTest {
 		}
 
 		@Test
-		@DisplayName("an explicit Long.MAX_VALUE bound is indistinguishable from an open one, and behaves the same")
-		void shouldTreatAnExplicitLongMaximumAsAnOpenBound() {
+		@DisplayName("a stored Long.MAX_VALUE upper bound reads back materialized, whichever form wrote it")
+		void shouldMaterializeAStoredLongMaximumRatherThanReadItBackAsOpen() {
 			// the symmetric half of the ambiguity above, on the upper bound and against the other sentinel - the two
-			// bounds read their sentinel from opposite ends of the long range and neither substitution implies the
-			// other
+			// bounds read their sentinel from opposite ends of the long range and neither one's handling implies the
+			// other's
 			final LongNumberRange explicit = LongNumberRange.between(-42L, Long.MAX_VALUE);
+			final LongNumberRange open = LongNumberRange.from(-42L);
 			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
 			column.insertKeyAt(0, explicit);
+			column.insertKeyAt(1, open);
 			final NumberRange<Long> decoded = column.keyAt(0);
 
 			assertEquals(explicit, decoded, "the two forms are equal by their comparison longs");
+			assertEquals(open, decoded, "which is why the open form is equal to the explicit one to begin with");
+			assertEquals(decoded, column.keyAt(1), "and both forms therefore rebuild to the very same range");
 			assertEquals(-42L, decoded.getFrom());
 			assertEquals(Long.MAX_VALUE, decoded.getTo());
 			assertEquals(Long.valueOf(Long.MAX_VALUE), explicit.getPreciseTo());
-			assertNull(decoded.getPreciseTo(), "the explicit maximum reads back as an open bound");
+			assertEquals(
+				Long.valueOf(Long.MAX_VALUE), decoded.getPreciseTo(),
+				"the stored sentinel must read back as the bound it names, not as a null bound"
+			);
+			assertNull(open.getPreciseTo(), "the open form went in without a precise upper bound at all");
 
 			// and re-encoding either form through cloneWithDifferentBounds lands on the same long pair
 			final Range<Long> reclonedOriginal = explicit.cloneWithDifferentBounds(
@@ -510,6 +531,48 @@ class RangeValueColumnTest {
 		}
 
 		@Test
+		@DisplayName("a pre-epoch date-time range round-trips to the millisecond, epoch-straddling one included")
+		void shouldRoundTripPreEpochDateTimeRanges() {
+			// every other date-time fixture in this class sits in 2024 or 2025, so the floor semantics the bound
+			// rebuild uses to split a NEGATIVE epoch millisecond into its (second, nanosecond) pair are never
+			// exercised there. A truncating division would place these bounds up to a second late - or refuse them
+			// outright, since a negative nanosecond-of-second is not a legal argument - while still producing a
+			// self-consistent range that compares equal to itself
+			final OffsetDateTime nearlyOneSecondBeforeEpoch =
+				Instant.ofEpochMilli(-999L).atOffset(ZoneOffset.ofHours(2));
+			final OffsetDateTime oneMillisecondBeforeEpoch = Instant.ofEpochMilli(-1L).atOffset(ZoneOffset.UTC);
+			final OffsetDateTime halfASecondBeforeEpoch = Instant.ofEpochMilli(-500L).atOffset(ZoneOffset.UTC);
+			final OffsetDateTime justAfterEpoch = Instant.ofEpochMilli(250L).atOffset(ZoneOffset.UTC);
+
+			final DateTimeRange whollyBeforeEpoch =
+				DateTimeRange.between(nearlyOneSecondBeforeEpoch, oneMillisecondBeforeEpoch);
+			final DateTimeRange straddlingEpoch = DateTimeRange.between(halfASecondBeforeEpoch, justAfterEpoch);
+
+			// the comparison longs really are negative, and carry a non-zero millisecond remainder - unasserted, the
+			// whole fixture could drift after the epoch and the test would keep passing
+			assertEquals(-999L, whollyBeforeEpoch.getFrom(), "the lower bound must sit before the epoch");
+			assertEquals(-1L, whollyBeforeEpoch.getTo(), "the upper bound must sit before the epoch");
+			assertEquals(-500L, straddlingEpoch.getFrom(), "the lower bound must sit before the epoch");
+			assertEquals(250L, straddlingEpoch.getTo(), "the upper bound must sit after the epoch");
+
+			final ValueColumn<DateTimeRange> column = assertRoundTrip(
+				RangeKind.DATE_TIME, 0, List.of(whollyBeforeEpoch, straddlingEpoch)
+			);
+
+			// the rebuilt bounds name the very same instants - which equality never looks at, so only this reads them
+			assertRebuiltBoundsAt(column, 0, whollyBeforeEpoch, "pre-epoch round-trip");
+			assertRebuiltBoundsAt(column, 1, straddlingEpoch, "epoch-straddling round-trip");
+			assertEquals(
+				1_000_000, column.keyAt(0).getPreciseFrom().getNano(),
+				"a bound 999 milliseconds before the epoch rebuilds one millisecond INTO the preceding second"
+			);
+			assertEquals(
+				-1L, column.keyAt(0).getPreciseFrom().toEpochSecond(),
+				"and therefore on the second below zero, not on zero"
+			);
+		}
+
+		@Test
 		@DisplayName("a sub-millisecond bound is truncated and re-anchored at UTC, invisibly to every comparison")
 		void shouldTruncateSubSecondBoundsInvisibly() {
 			// `DateTimeRange` keeps its bounds as OffsetDateTime but derives both comparison longs as whole epoch
@@ -661,11 +724,11 @@ class RangeValueColumnTest {
 	 */
 	@Nested
 	@DisplayName("the two bound arrays travel in lockstep")
-	class MetaLockstepTest {
+	class BoundArrayLockstepTest {
 
 		@Test
-		@DisplayName("bulkLoad carries every key's packed offsets into the arrays it allocates")
-		void shouldPreserveBoundOffsetsWhenBulkLoaded() {
+		@DisplayName("bulkLoad carries every key's two bounds into the arrays it allocates")
+		void shouldPreserveBothBoundsWhenBulkLoaded() {
 			// the reload path: `InvertedIndex.fromPersistedPages` fills every leaf of a persisted index this way, so
 			// a bound array missed here is a whole catalog reloaded under the wrong keys
 			final DateTimeRange[] loaded = new DateTimeRange[6];
@@ -703,8 +766,8 @@ class RangeValueColumnTest {
 		}
 
 		@Test
-		@DisplayName("copyRangeTo carries the packed offsets across columns and through an in-place right shift")
-		void shouldPreserveBoundOffsetsWhenCopiedAndShifted() {
+		@DisplayName("copyRangeTo carries both bounds across columns and through an in-place right shift")
+		void shouldPreserveBothBoundsWhenCopiedAndShifted() {
 			final ValueColumn<DateTimeRange> source = columnOf(RangeKind.DATE_TIME, 0);
 			for (int i = 0; i < 4; i++) {
 				source.insertKeyAt(i, offsetBearingRange(i));
@@ -729,16 +792,16 @@ class RangeValueColumnTest {
 		}
 
 		@Test
-		@DisplayName("the packed offsets survive a removal, a duplicate, a truncation and a trim")
-		void shouldPreserveBoundOffsetsWhenSlotsAreDroppedDuplicatedAndTrimmed() {
+		@DisplayName("both bounds survive a removal, a duplicate, a truncation and a trim")
+		void shouldPreserveBothBoundsWhenSlotsAreDroppedDuplicatedAndTrimmed() {
 			final ValueColumn<DateTimeRange> column = columnOf(RangeKind.DATE_TIME, 0);
 			for (int i = 0; i < 8; i++) {
 				column.insertKeyAt(i, offsetBearingRange(i));
 			}
 
 			// `removeKeyAt` left-shifts the whole tail, so every surviving key changes slot and its upper bound has
-			// to change slot with it - a shift applied to two arrays out of three leaves the offsets one slot out of
-			// step, which every equality assertion in the suite reads as correct
+			// to change slot with it - a shift applied to one array and not the other leaves the upper bounds one
+			// slot out of step, assembling every surviving key out of two different slots
 			column.removeKeyAt(1);
 			assertEquals(7, column.size());
 			assertRebuiltBoundsAt(column, 0, offsetBearingRange(0), "removeKeyAt");
@@ -746,7 +809,7 @@ class RangeValueColumnTest {
 				assertRebuiltBoundsAt(column, i, offsetBearingRange(i + 1), "removeKeyAt");
 			}
 
-			// the MVCC decouple copies the backing arrays; the copy has to carry the third one too
+			// the MVCC decouple copies the backing arrays; the copy has to carry the second one too
 			final ValueColumn<DateTimeRange> copy = column.duplicate();
 			assertEquals(7, copy.size());
 			assertRebuiltBoundsAt(copy, 0, offsetBearingRange(0), "duplicate");
@@ -954,6 +1017,53 @@ class RangeValueColumnTest {
 					sibling}),
 				consolidated,
 				"the rebuilt range must consolidate exactly as the original object does"
+			);
+		}
+
+		@Test
+		@DisplayName("two rebuilt long ranges saturating OPPOSITE sentinels meet in a consolidation")
+		void shouldConsolidateTwoRebuiltLongRangesSaturatingOppositeSentinels() {
+			// the pair-of-ranges form of the ambiguity the single-range fixtures above cover: each of these two
+			// saturates ONE sentinel, so a decoder reading the sentinels independently hands the first back with a
+			// null lower bound and the second with a null upper one. `consolidateRange` merges an overlapping pair by
+			// cloning the winner with the lower bound of one and the upper bound of the other, which would then be
+			// the (null, null) pair `LongNumberRange`'s own constructor refuses - materializing both bounds on every
+			// rebuild is what keeps that clone buildable. `FilterIndex.addRecordDelta` reaches this by reading a
+			// record's existing ranges back out of the tree before consolidating them
+			final LongNumberRange lowerSaturated = LongNumberRange.between(Long.MIN_VALUE, 5L);
+			final LongNumberRange upperSaturated = LongNumberRange.between(3L, Long.MAX_VALUE);
+			assertTrue(lowerSaturated.overlaps(upperSaturated), "the two ranges must overlap to be merged at all");
+
+			final ValueColumn<NumberRange<Long>> column = columnOf(RangeKind.LONG_NUMBER, 0);
+			column.insertKeyAt(0, lowerSaturated);
+			column.insertKeyAt(1, upperSaturated);
+			final LongNumberRange[] rebuilt = {
+				(LongNumberRange) column.keyAt(0), (LongNumberRange) column.keyAt(1)
+			};
+			assertEquals(
+				Long.valueOf(Long.MIN_VALUE), rebuilt[0].getPreciseFrom(),
+				"the explicit minimum must read back as the bound it was written with, not as an open one"
+			);
+			assertEquals(
+				Long.valueOf(Long.MAX_VALUE), rebuilt[1].getPreciseTo(),
+				"the explicit maximum must read back as the bound it was written with, not as an open one"
+			);
+
+			// consolidating the ORIGINAL objects is the oracle - it yields the saturated range, which is also what
+			// the boxed column this column replaced handed back, because it returned the caller's own instances
+			final LongNumberRange[] fromOriginals =
+				Range.consolidateRange(new LongNumberRange[]{lowerSaturated, upperSaturated});
+			assertEquals(1, fromOriginals.length, "the two overlapping ranges merge into one");
+			assertEquals(Long.MIN_VALUE, fromOriginals[0].getFrom());
+			assertEquals(Long.MAX_VALUE, fromOriginals[0].getTo());
+
+			final LongNumberRange[] fromRebuilt = Range.consolidateRange(rebuilt);
+			assertEquals(1, fromRebuilt.length, "the rebuilt pair must merge into one range as the originals do");
+			assertEquals(Long.MIN_VALUE, fromRebuilt[0].getFrom());
+			assertEquals(Long.MAX_VALUE, fromRebuilt[0].getTo());
+			assertArrayEquals(
+				fromOriginals, fromRebuilt,
+				"the rebuilt pair must consolidate exactly as the original objects do"
 			);
 		}
 	}

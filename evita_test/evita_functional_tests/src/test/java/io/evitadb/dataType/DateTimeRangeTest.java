@@ -29,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -514,6 +515,82 @@ class DateTimeRangeTest {
 			assertTrue(openFrom.isWithin(moment));
 			assertTrue(openFrom.isWithin(moment.minusYears(1_000)));
 			assertFalse(openFrom.isWithin(moment.plusNanos(1_000_000L)));
+		}
+
+		@Test
+		@DisplayName("Should NOT saturate a bound sitting exactly on the representable window edge")
+		void shouldNotSaturateABoundOnTheRepresentableWindowEdge() {
+			// the sibling below proves the extremes saturate; on its own it would also pass with the window edges
+			// placed anywhere at all. These four assertions sit ON the edge and one second past it, so a `<` / `<=`
+			// slip or a mis-derived constant moves one of them
+			final OffsetDateTime atUpperEdge = OffsetDateTime.ofInstant(
+				Instant.ofEpochSecond(DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND), ZoneOffset.UTC
+			);
+			assertEquals(
+				DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND * 1000L,
+				DateTimeRange.toComparableLong(atUpperEdge).longValue(),
+				"the highest representable second is a real moment and must be multiplied, not saturated"
+			);
+			assertEquals(
+				DateTimeRange.SATURATED_TO_THRESHOLD,
+				DateTimeRange.toComparableLong(atUpperEdge.plusSeconds(1L)).longValue(),
+				"one second above it saturates"
+			);
+
+			final OffsetDateTime atLowerEdge = OffsetDateTime.ofInstant(
+				Instant.ofEpochSecond(DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND), ZoneOffset.UTC
+			);
+			assertEquals(
+				DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND * 1000L,
+				DateTimeRange.toComparableLong(atLowerEdge).longValue(),
+				"the lowest representable second is a real moment and must be multiplied, not saturated"
+			);
+			assertEquals(
+				DateTimeRange.SATURATED_FROM_THRESHOLD,
+				DateTimeRange.toComparableLong(atLowerEdge.minusSeconds(1L)).longValue(),
+				"one second below it saturates"
+			);
+
+			// and a range built from the two edges keeps them apart from the saturation sentinels
+			final DateTimeRange acrossTheWholeWindow = between(atLowerEdge, atUpperEdge);
+			assertNotEquals(DateTimeRange.SATURATED_FROM_THRESHOLD, acrossTheWholeWindow.getFrom());
+			assertNotEquals(DateTimeRange.SATURATED_TO_THRESHOLD, acrossTheWholeWindow.getTo());
+		}
+
+		@Test
+		@DisplayName("Should compare a pre-epoch bound at millisecond granularity, epoch-straddling range included")
+		void shouldComparePreEpochBoundsAtMillisecondGranularity() {
+			// nothing else in this class uses a negative epoch, so the sign handling of the ×1000 expansion and of the
+			// nanosecond remainder added on top of it is otherwise unexercised. A moment half a second before the
+			// epoch has epoch SECOND -1 and nanosecond 500 000 000, so the two halves have opposite signs and only
+			// their sum is right
+			final OffsetDateTime halfASecondBeforeEpoch = Instant.ofEpochMilli(-500L).atOffset(ZoneOffset.UTC);
+			assertEquals(-1L, halfASecondBeforeEpoch.toEpochSecond(), "the fixture must straddle a second boundary");
+			assertEquals(500_000_000, halfASecondBeforeEpoch.getNano());
+			assertEquals(
+				-500L, DateTimeRange.toComparableLong(halfASecondBeforeEpoch).longValue(),
+				"a pre-epoch moment reduces to a negative epoch millisecond"
+			);
+
+			// a range straddling the epoch orders and compares by those longs like any other
+			final OffsetDateTime justAfterEpoch = Instant.ofEpochMilli(250L).atOffset(ZoneOffset.UTC);
+			final DateTimeRange straddling = between(halfASecondBeforeEpoch, justAfterEpoch);
+			assertEquals(-500L, straddling.getFrom());
+			assertEquals(250L, straddling.getTo());
+			assertTrue(straddling.isWithin(Instant.EPOCH.atOffset(ZoneOffset.UTC)), "the epoch itself is inside");
+			assertTrue(straddling.isWithin(halfASecondBeforeEpoch), "the lower bound is inclusive");
+			assertFalse(straddling.isWithin(Instant.ofEpochMilli(-501L).atOffset(ZoneOffset.UTC)));
+			assertFalse(straddling.isWithin(Instant.ofEpochMilli(251L).atOffset(ZoneOffset.UTC)));
+
+			// and the millisecond collapse holds on the negative side too, where a truncating division would round
+			// the wrong way
+			final DateTimeRange aNanosecondLater =
+				between(halfASecondBeforeEpoch.plusNanos(1L), justAfterEpoch);
+			assertEquals(straddling, aNanosecondLater, "bounds a nanosecond apart are one range before the epoch too");
+			final DateTimeRange aMillisecondEarlier =
+				between(halfASecondBeforeEpoch.minusNanos(1_000_000L), justAfterEpoch);
+			assertEquals(-501L, aMillisecondEarlier.getFrom(), "and a whole millisecond earlier really is another one");
+			assertEquals(1, Integer.signum(straddling.compareTo(aMillisecondEarlier)), "which orders after it");
 		}
 
 		@Test

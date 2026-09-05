@@ -458,18 +458,26 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
 	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
 	 *
-	 * ## The one place a legacy threshold scale is repaired
+	 * ## Where an attribute filter index's legacy threshold scale is repaired
 	 *
 	 * A range threshold is an untyped `long`: the same {@link RangeIndex} serves `DateTimeRange` and all five
 	 * `NumberRange` subtypes, and only for `DateTimeRange` did the scale ever change (epoch seconds → epoch
 	 * milliseconds). Rescaling the wrong type would inflate a numeric range's bounds by a thousand and answer every
-	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and
-	 * this method is the only place both are known: **which reader produced the part**
+	 * `attributeInRange` over it with the wrong records — silently. Two independent facts must therefore meet, and for
+	 * a filter index this method is the only place both are known: **which reader produced the part**
 	 * ({@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}, set by every backward-compatible
 	 * serializer and by none other) and **the declared attribute type** the part persists.
 	 *
 	 * Both shapes are repaired here rather than inside the serializers, because a range-`PAGED` axis keeps its
 	 * thresholds in leaf-page records the root's serializer never reads.
+	 *
+	 * **The same repair elsewhere.** Three other structures carry second-granularity thresholds and are repaired on
+	 * their own load paths, on the same reasoning but with the type decided differently — change one and check all
+	 * four: {@code HistogramIndexMapLoader#reloadOwnerFilterIndex} for a histogram's RANGE axis (same two facts,
+	 * different part), {@code PriceIndexHeaderSerializer#readWithSecondGranularityValidity} for a price validity index
+	 * (rescaled unconditionally, because its thresholds are only ever a price validity `DateTimeRange`), and
+	 * {@code Migration_2025_6}, which must rescale eagerly rather than at load because it *rewrites* the part under
+	 * the current uid and would otherwise relabel second thresholds as millisecond ones irrecoverably.
 	 *
 	 * @param catalogVersion    the catalog version to read pages at
 	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)

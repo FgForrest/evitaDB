@@ -61,8 +61,24 @@ public class TransactionalBitmap
 	TransactionalLayerProducer<BitmapChanges, Bitmap>,
 	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
+	/**
+	 * Process-unique identity this instance is keyed by in the transactional memory layer — not a record id, and never
+	 * persisted.
+	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * The committed record ids. Outside a transaction it is mutated in place; inside one it is left untouched and the
+	 * changes accumulate in a {@link BitmapChanges} layer, which is what lets readers keep seeing the pre-transaction
+	 * state.
+	 */
 	private final PersistentRoaringBitmap roaringBitmap;
+	/**
+	 * The live cardinality of {@link #roaringBitmap}, maintained by every mutator and read - never written - by
+	 * {@link #size()}. It has no invalid state: there is nothing on the read path that would recompute one, so a
+	 * mutator added to this class must either carry the count forward itself or recompute it on its own thread -
+	 * there is no third option, and a value left here is never corrected. See {@link #size()} for the lost update
+	 * that contract exists to close and for how far a wrong count travels.
+	 */
 	private volatile int memoizedCardinality;
 
 	/**
@@ -142,10 +158,10 @@ public class TransactionalBitmap
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
 				this.roaringBitmap.add(recordId);
-				// the `contains` guard above proves this add changed the bitmap, so the memo can be carried
-				// forward exactly instead of invalidated - see `size()` for why a reader must never store it
+				// the `contains` guard above proves this add changed the bitmap, so the memo is carried forward
+				// exactly - see `size()` for why it is kept valid rather than invalidated
 				final int memoized = this.memoizedCardinality;
-				this.memoizedCardinality = memoized == -1 ? -1 : memoized + 1;
+				this.memoizedCardinality = memoized + 1;
 				return true;
 			} else {
 				return layer.addRecordId(recordId);
@@ -230,10 +246,10 @@ public class TransactionalBitmap
 			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 			if (layer == null) {
 				this.roaringBitmap.remove(recordId);
-				// the `contains` guard above proves this remove changed the bitmap, so the memo can be carried
-				// forward exactly instead of invalidated - see `size()` for why a reader must never store it
+				// the `contains` guard above proves this remove changed the bitmap, so the memo is carried forward
+				// exactly - see `size()` for why it is kept valid rather than invalidated
 				final int memoized = this.memoizedCardinality;
-				this.memoizedCardinality = memoized == -1 ? -1 : memoized - 1;
+				this.memoizedCardinality = memoized - 1;
 				return true;
 			} else {
 				return layer.removeRecordId(recordId);
@@ -448,23 +464,26 @@ public class TransactionalBitmap
 	/**
 	 * Returns the number of record ids this bitmap holds.
 	 *
-	 * **This method never writes.** That is the whole contract, and it must stay that way: the memo is written only
-	 * by the thread that mutates `roaringBitmap`, never by a reader. A reader that stored its own result used to be
-	 * able to lose a writer's update entirely - compute N, be overtaken by a writer that adds a record and
-	 * invalidates, then store N over the invalidation - leaving the memo holding a **stale** count that no later
-	 * invalidation would ever correct. Unlike a torn read, that damage is durable: nothing recomputes while the memo
-	 * looks valid, and the wrong count survives into `ALIVE`, where committed instances are no longer invalidated.
-	 * It was measured answering 510 against 512 records written.
+	 * **This method never writes, and the memo it reads is always valid.** That is the whole contract, and it must
+	 * stay that way: the memo is written only by the thread that mutates `roaringBitmap`, never by a reader, and no
+	 * mutator leaves it in a state a reader would have to repair. A reader that stored its own result used to be
+	 * able to lose a writer's update entirely - compute N, be overtaken by a writer that added a record and
+	 * invalidated the memo, then store N over that invalidation - leaving the memo holding a **stale** count that no
+	 * later invalidation would ever correct. Unlike a torn read, that damage is durable: nothing recomputed while the
+	 * memo looked valid, and the wrong count survived into `ALIVE`, where committed instances are no longer
+	 * invalidated. It was measured answering 510 against 512 records written.
 	 *
 	 * That mattered beyond a wrong answer, because the count can reach disk. `OwnerSortIndex.storagePartCardinalities`
 	 * persists `bucket.size()` into `SortIndexStoragePart`, and `buildOwnedTree` slices `sortedRecords` by those
 	 * counts on load: a stale-low count silently leaves trailing records unassigned, and a stale-high one throws out
 	 * of bounds and the catalog will not open at all.
 	 *
-	 * A `compareAndSet(-1, n)` would **not** have fixed it - the writer's own invalidation stores `-1` too, so a CAS
-	 * landing after it succeeds with the pre-mutation count. Not storing at all is what closes it. The mutators pay
-	 * for that by keeping the memo exact rather than invalidating: single-record `add`/`remove` carry it forward by
-	 * one (their `contains` guard proves the bitmap changed), and bulk mutators recompute once on the writer thread.
+	 * A `compareAndSet` against an invalidation marker would **not** have fixed it - the writer's own invalidation
+	 * stored that marker too, so a CAS landing after it succeeded with the pre-mutation count. Not storing at all is
+	 * what closes it, and the invalidated state went with it: single-record `add`/`remove` carry the memo forward by
+	 * one (their `contains` guard proves the bitmap changed), and bulk mutators recompute it once on the writer
+	 * thread. **A mutator added here must do one or the other** - a memo left holding anything but the live
+	 * cardinality is never corrected, because nothing on the read path recomputes.
 	 *
 	 * The answer is still **advisory** under a concurrent non-transactional writer - `getCardinality()` raced against
 	 * a roaring mutation can return a number that was never true - but a racy number is no longer *retained*.
@@ -475,8 +494,7 @@ public class TransactionalBitmap
 	public int size() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			final int memoized = this.memoizedCardinality;
-			return memoized == -1 ? this.roaringBitmap.getCardinality() : memoized;
+			return this.memoizedCardinality;
 		} else {
 			return layer.getMergedLength();
 		}

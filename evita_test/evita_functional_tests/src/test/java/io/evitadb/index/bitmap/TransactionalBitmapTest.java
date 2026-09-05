@@ -837,8 +837,8 @@ class TransactionalBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should invalidate memoized cardinality when removeAll(Bitmap) runs under suppressed transactional layer")
-		void shouldInvalidateMemoizedCardinalityWhenRemoveAllInSuppressedContext() {
+		@DisplayName("should re-memoize cardinality when removeAll(Bitmap) runs under suppressed transactional layer")
+		void shouldReMemoizeCardinalityWhenRemoveAllInSuppressedContext() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(10, 21);
 			final BaseBitmap toRemove = new BaseBitmap(10);
 
@@ -1087,14 +1087,14 @@ class TransactionalBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should recompute size after memoization invalidated by addAll")
-		void shouldRecomputeSizeAfterMemoizationInvalidated() {
+		@DisplayName("should report the size addAll left behind, not the one memoized before it")
+		void shouldReportTheSizeLeftBehindByAddAll() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
 
 			// initial size is memoized
 			assertEquals(3, bitmap.size());
 
-			// addAll invalidates memoizedCardinality (sets to -1)
+			// a bulk mutator recomputes the memo on the writer thread rather than leaving it behind
 			bitmap.addAll(20, 30);
 
 			// next size() call must recompute
@@ -1264,6 +1264,173 @@ class TransactionalBitmapTest {
 			assertSame(
 				firstMerged, secondMerged,
 				"No-op removeRecordId should not invalidate the memoized merged bitmap"
+			);
+		}
+	}
+
+
+	/**
+	 * Pins the invariant the memoized cardinality rests on: {@link TransactionalBitmap#size()} must equal
+	 * {@link TransactionalBitmap#getArray()}{@code .length} after every mutator shape, including the no-op arms.
+	 *
+	 * The memo is maintained incrementally - single-record {@code add}/{@code remove} carry it forward by one
+	 * (their {@code contains} guard proves the bitmap really changed) and the bulk mutators recompute it once on
+	 * the writing thread - and no reader ever writes it. Nothing recomputes the memo behind the writer's back, so
+	 * a drift of a single record introduced by any of these carries is permanent, silent, and reaches disk through
+	 * {@code SortIndexStoragePart}.
+	 *
+	 * This battery deliberately does <strong>not</strong> fail against the older implementation that recomputed the
+	 * cardinality on every read - that one was exact too, at the cost of a full recount on a hot path. It guards the
+	 * exact-carry invariant the current implementation trades for the recount, not the lost-update race the recount
+	 * introduced; that race is swept by {@code LongRunningTransactionalBitmapTest} in the long-running module.
+	 */
+	@Nested
+	@DisplayName("Memoized cardinality")
+	class MemoizedCardinalityTest {
+
+		@Test
+		@DisplayName("should stay exact through every mutator shape on a bitmap constructed empty")
+		void shouldStayExactThroughEveryMutatorShapeOnABitmapConstructedEmpty() {
+			// the no-argument constructor seeds the memo with a literal zero
+			assertMemoStaysExactThroughEveryMutatorShape(new TransactionalBitmap());
+		}
+
+		@Test
+		@DisplayName("should stay exact through every mutator shape on a bitmap constructed from record ids")
+		void shouldStayExactThroughEveryMutatorShapeOnABitmapConstructedFromRecordIds() {
+			// the varargs constructor seeds the memo from the roaring bitmap's own cardinality
+			assertMemoStaysExactThroughEveryMutatorShape(new TransactionalBitmap(1, 5, 10));
+		}
+
+		@Test
+		@DisplayName("should stay exact through every mutator shape on a bitmap copied from another bitmap")
+		void shouldStayExactThroughEveryMutatorShapeOnABitmapCopiedFromAnotherBitmap() {
+			// the copy constructor seeds the memo from the source bitmap's reported size
+			assertMemoStaysExactThroughEveryMutatorShape(new TransactionalBitmap(new BaseBitmap(1, 5, 10)));
+		}
+
+		@Test
+		@DisplayName("should answer from the diff layer while a transaction is open and leave the memo untouched")
+		void shouldAnswerFromTheDiffLayerWhileATransactionIsOpen() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
+
+			assertStateAfterCommit(
+				bitmap,
+				original -> {
+					original.add(11);
+					original.add(12);
+					original.remove(1);
+
+					assertEquals(
+						4, original.size(),
+						"while a layer exists size() must be answered by the layer, not by the memo"
+					);
+					assertEquals(original.getArray().length, original.size());
+				},
+				(original, committed) -> {
+					assertEquals(
+						3, original.size(),
+						"the discarded layer must leave the original's memo exactly as construction left it"
+					);
+					assertEquals(original.getArray().length, original.size());
+					assertEquals(4, committed.size());
+					assertEquals(committed.getArray().length, committed.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the memo exact after a rolled back transaction")
+		void shouldKeepTheMemoExactAfterARolledBackTransaction() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
+
+			assertStateAfterRollback(
+				bitmap,
+				original -> {
+					original.addAll(20, 21, 22);
+					original.removeAll(1, 5);
+
+					assertEquals(4, original.size());
+					assertEquals(original.getArray().length, original.size());
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertEquals(3, original.size());
+					assertEquals(original.getArray().length, original.size());
+				}
+			);
+
+			// the memo must still carry correctly once the rolled back layer is gone
+			assertTrue(bitmap.add(20));
+			assertEquals(4, bitmap.size());
+			assertEquals(bitmap.getArray().length, bitmap.size());
+		}
+
+		/**
+		 * Drives the supplied bitmap through every public mutator shape - including the arms that must not move
+		 * the memo at all - asserting after each step that the reported size equals both the expected count and
+		 * the length of the materialized array. The record ids used are disjoint from every fixture the callers
+		 * seed, so the same sequence is valid whichever constructor produced the bitmap.
+		 *
+		 * @param bitmap freshly constructed bitmap whose current contents form the baseline
+		 */
+		private void assertMemoStaysExactThroughEveryMutatorShape(TransactionalBitmap bitmap) {
+			final int baseline = bitmap.getArray().length;
+			assertSizeIsExact(bitmap, baseline, "construction");
+
+			assertTrue(bitmap.add(100), "id 100 must be absent from the fixture");
+			assertSizeIsExact(bitmap, baseline + 1, "add of a new id");
+
+			// the `contains` guard's no-op arm - it must not move the memo
+			assertFalse(bitmap.add(100), "re-adding a present id must be reported as a no-op");
+			assertSizeIsExact(bitmap, baseline + 1, "add of an id already present");
+
+			assertTrue(bitmap.remove(100));
+			assertSizeIsExact(bitmap, baseline, "remove of a present id");
+
+			// the mirrored no-op arm on the removal side
+			assertFalse(bitmap.remove(100), "removing an absent id must be reported as a no-op");
+			assertSizeIsExact(bitmap, baseline, "remove of an absent id");
+
+			bitmap.addAll(200, 201, 202);
+			assertSizeIsExact(bitmap, baseline + 3, "addAll(int...) of three new ids");
+
+			// overlaps two ids already present and repeats one of its own
+			bitmap.addAll(201, 202, 202, 300);
+			assertSizeIsExact(bitmap, baseline + 4, "addAll(int...) overlapping and repeating ids");
+
+			bitmap.addAll(new int[0]);
+			assertSizeIsExact(bitmap, baseline + 4, "addAll(int...) of a zero-length array");
+
+			bitmap.addAll(new BaseBitmap(300, 301));
+			assertSizeIsExact(bitmap, baseline + 5, "addAll(Bitmap) overlapping one present id");
+
+			bitmap.removeAll(900, 901);
+			assertSizeIsExact(bitmap, baseline + 5, "removeAll(int...) naming only absent ids");
+
+			bitmap.removeAll(201, 900);
+			assertSizeIsExact(bitmap, baseline + 4, "removeAll(int...) mixing a present and an absent id");
+
+			bitmap.removeAll(new BaseBitmap(202, 300, 301));
+			assertSizeIsExact(bitmap, baseline + 1, "removeAll(Bitmap)");
+
+			bitmap.removeAll(new BaseBitmap(200));
+			assertSizeIsExact(bitmap, baseline, "removeAll(Bitmap) draining back to the fixture");
+		}
+
+		/**
+		 * Asserts the bitmap reports the expected size and that the reported size agrees with the length of the
+		 * array the bitmap materializes - the memo and the underlying roaring bitmap must never disagree.
+		 *
+		 * @param bitmap   bitmap under test
+		 * @param expected the count the mutator sequence has arrived at
+		 * @param step     description of the mutator shape just applied, used in the failure message
+		 */
+		private void assertSizeIsExact(TransactionalBitmap bitmap, int expected, String step) {
+			assertEquals(expected, bitmap.size(), "size() reported the wrong count after " + step);
+			assertEquals(
+				bitmap.getArray().length, bitmap.size(),
+				"size() drifted away from the materialized array after " + step
 			);
 		}
 	}

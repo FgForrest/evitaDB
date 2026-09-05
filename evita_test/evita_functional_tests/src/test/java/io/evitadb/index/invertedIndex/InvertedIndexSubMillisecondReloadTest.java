@@ -23,6 +23,8 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.page.PageEmission;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +36,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
@@ -49,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,6 +69,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * truncates on the way in). What must hold either way: **no record may be lost, and the reload must not fail**. The
  * collapsed index is additionally expected to report itself dirty, so the next commit rewrites it in canonical form
  * and the repair is paid for exactly once.
+ *
+ * Three key shapes reach the repair, and each is driven separately because each rides a different codec through a
+ * different normalizer branch: `Instant` keys (the `OffsetDateTime` and `LocalDateTime` attribute types),
+ * `LocalTime` keys (encoded as nano-of-day), and `DateTimeRange` keys — whose move to milliseconds changed not only
+ * the resolution of the comparison but which bound decides a tie, so a persisted order can come back **reversed**
+ * rather than merely collapsed.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -96,11 +107,42 @@ class InvertedIndexSubMillisecondReloadTest {
 	private static final String VALUE_ID_CONSUMER = "sub-millisecond-reload-test";
 
 	/**
-	 * The normalizer an `OffsetDateTime` filter index is built with.
+	 * The lower `LocalTime` twin — the value a pre-truncation writer would have persisted first.
+	 */
+	private static final LocalTime LOWER_TWIN_TIME = LocalTime.of(12, 19, 26, 123_000_001);
+	/**
+	 * The upper `LocalTime` twin, still inside the same millisecond.
+	 */
+	private static final LocalTime UPPER_TWIN_TIME = LocalTime.of(12, 19, 26, 123_999_999);
+	/**
+	 * The millisecond both `LocalTime` twins collapse onto.
+	 */
+	private static final LocalTime COLLAPSE_TARGET_TIME = LocalTime.of(12, 19, 26, 123_000_000);
+	/**
+	 * A neighbouring `LocalTime` millisecond that must stay a bucket of its own.
+	 */
+	private static final LocalTime NEIGHBOUR_TIME = LocalTime.of(12, 19, 26, 124_000_000);
+
+	/**
+	 * The normalizer an `OffsetDateTime` filter index is built with — the declared type every `Instant`-keyed
+	 * fixture in this suite uses.
 	 */
 	@Nonnull
 	private static Function<Object, Serializable> normalizer() {
-		return FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+		return normalizer(OffsetDateTime.class);
+	}
+
+	/**
+	 * The normalizer a filter index over the given declared attribute type is built with. Each declared type takes a
+	 * different branch of {@link FilterIndex#getNormalizer(Class, int)} and rides a different key codec, so the
+	 * repair has to be driven through each of them rather than argued from one.
+	 *
+	 * @param declaredType the plain (non-array) declared attribute type
+	 * @return the normalizer that type's filter index is built with
+	 */
+	@Nonnull
+	private static Function<Object, Serializable> normalizer(@Nonnull Class<?> declaredType) {
+		return FilterIndex.getNormalizer(declaredType, 0);
 	}
 
 	@Nested
@@ -232,6 +274,273 @@ class InvertedIndexSubMillisecondReloadTest {
 			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(COLLAPSE_TARGET).getArray());
 			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(NEIGHBOUR).getArray());
 			assertFalse(reloaded.isDirty(), "a reload that changed nothing must not schedule a rewrite");
+		}
+	}
+
+	@Nested
+	@DisplayName("inline reload of LocalTime keys (the nano-of-day codec)")
+	class InlineLocalTimeReload {
+
+		@Test
+		@DisplayName("merges two persisted sub-millisecond LocalTime buckets into one, keeping both records")
+		void shouldMergeCollidingPersistedLocalTimeBuckets() {
+			// a `LocalTime` key rides `LongKeyCodec.LOCAL_TIME` (nano-of-day) through its own normalizer branch, so
+			// nothing the `Instant` fixtures prove carries over: the claim that legacy twins reach the same
+			// comparator-based collision repair has to be driven, not argued
+			final ValueToRecordBitmap[] persisted = {
+				new ValueToRecordBitmap(LOWER_TWIN_TIME, 1),
+				new ValueToRecordBitmap(UPPER_TWIN_TIME, 2, 3),
+				new ValueToRecordBitmap(NEIGHBOUR_TIME, 4)
+			};
+
+			final InvertedIndex reloaded = new InvertedIndex(
+				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+			);
+
+			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
+			assertArrayEquals(
+				new int[]{1, 2, 3},
+				reloaded.getRecordsEqualTo(COLLAPSE_TARGET_TIME).getArray(),
+				"every record of both twins must survive the collapse"
+			);
+			assertArrayEquals(
+				new int[]{4},
+				reloaded.getRecordsEqualTo(NEIGHBOUR_TIME).getArray(),
+				"the neighbouring millisecond must keep its own bucket"
+			);
+			assertTrue(
+				reloaded.isDirty(),
+				"a reload that collapsed two persisted buckets must ask to be rewritten in canonical form"
+			);
+		}
+
+		@Test
+		@DisplayName("keys the merged LocalTime bucket by the truncated value, not by the one that created it")
+		void shouldKeyTheMergedLocalTimeBucketByTheTruncatedValue() {
+			final ValueToRecordBitmap[] persisted = {
+				new ValueToRecordBitmap(LOWER_TWIN_TIME, 1),
+				new ValueToRecordBitmap(UPPER_TWIN_TIME, 2)
+			};
+
+			final InvertedIndex reloaded = new InvertedIndex(
+				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+			);
+
+			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
+			assertEquals(1, rehydrated.length);
+			assertEquals(
+				COLLAPSE_TARGET_TIME, rehydrated[0].getValue(),
+				"the surviving bucket must be keyed by the millisecond both twins collapse onto"
+			);
+		}
+	}
+
+	/**
+	 * A `DateTimeRange`-keyed index persisted by a release that compared at second granularity, whose persisted
+	 * bucket order the millisecond comparison **reverses** rather than merely collapses.
+	 *
+	 * The scalar temporal move is a monotone refinement — a finer key can only split a tie, never swap a pair — so
+	 * the collapse-only repair the nests above exercise is enough for it. `DateTimeRange` is different: the move
+	 * changed which bound decides a tie, because the previous encoding compared whole seconds and derived an open
+	 * bound's threshold from the *other* bound's zone offset. Two shapes reverse, and neither needs the persisted
+	 * bytes to be malformed - both were correctly ascending when they were written:
+	 *
+	 * - two closed ranges opening in the same second, ordered by their upper bound then, ordered by their
+	 *   sub-second lower bound now;
+	 * - two open-from ranges written at different zone offsets, ordered by descending offset then and by their
+	 *   upper bound now.
+	 *
+	 * The persisted values themselves carry no thresholds — `DateTimeRangeSerializer` reconstructs a range from its
+	 * two precise bounds — so both comparison longs are recomputed at the new scale on every load, and the order
+	 * the pages were written in is the only thing that is fixed.
+	 */
+	@Nested
+	@DisplayName("PAGED reload of a legacy DateTimeRange index whose persisted order the new comparison reverses")
+	class PagedLegacyRangeOrderReload {
+		/**
+		 * The moment the closed-range fixtures open in; its whole second is what the previous encoding compared them
+		 * by.
+		 */
+		private static final OffsetDateTime RANGE_BASE =
+			LocalDateTime.of(2024, 1, 1, 0, 0, 0).atOffset(ZoneOffset.UTC);
+
+		@Test
+		@DisplayName("two closed ranges opening in one second, persisted inside a single page")
+		void shouldReloadRangeBucketsWhosePersistedOrderTheMillisecondComparisonReverses() {
+			// persisted ascending on (fromSecond, toSecond): the two share a lower SECOND, so the upper bound broke
+			// the tie and the 3-second range sorted before the 5-second one. Compared in milliseconds the lower
+			// bounds no longer tie, and 900ms sorts AFTER 100ms - the pair is inverted with nothing wrong on disk
+			final DateTimeRange laterInTheSecond = DateTimeRange.between(
+				RANGE_BASE.plusNanos(900_000_000L), RANGE_BASE.plusSeconds(3)
+			);
+			final DateTimeRange earlierInTheSecond = DateTimeRange.between(
+				RANGE_BASE.plusNanos(100_000_000L), RANGE_BASE.plusSeconds(5)
+			);
+			assertTrue(
+				laterInTheSecond.compareTo(earlierInTheSecond) > 0,
+				"the fixture must be inverted under the millisecond comparison, or the test proves nothing"
+			);
+
+			final ValueToRecordBitmap[][] perPageBuckets = {
+				{
+					new ValueToRecordBitmap(laterInTheSecond, 1),
+					new ValueToRecordBitmap(earlierInTheSecond, 2)
+				},
+				{new ValueToRecordBitmap(DateTimeRange.since(RANGE_BASE.plusDays(1)), 3)}
+			};
+
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+			);
+
+			assertEquals(3, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
+			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(earlierInTheSecond).getArray());
+			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(laterInTheSecond).getArray());
+
+			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
+			assertEquals(3, rehydrated.length);
+			assertEquals(
+				earlierInTheSecond, rehydrated[0].getValue(),
+				"the reloaded tree must iterate in the order the millisecond comparison sorts the keys in"
+			);
+			assertEquals(laterInTheSecond, rehydrated[1].getValue());
+			assertEquals(DateTimeRange.since(RANGE_BASE.plusDays(1)), rehydrated[2].getValue());
+			assertTrue(
+				reloaded.isDirty(),
+				"a reload that re-sorted the persisted pages must ask to be rewritten in canonical form"
+			);
+		}
+
+		@Test
+		@DisplayName("two open-from ranges written at different offsets, persisted across a page boundary")
+		void shouldReloadRangeBucketsWhosePersistedOrderTheMillisecondComparisonReversesAcrossAPageBoundary() {
+			// this shape needs no sub-second precision at all. The previous encoding derived an open-from bound's
+			// threshold from the OTHER bound's zone offset, so `until(X)` sorted by descending offset first and by
+			// the upper bound only on a tie; both open-from bounds now sit on one offset-independent constant, and
+			// the upper bounds alone decide - which reverses this pair
+			final DateTimeRange atPositiveOffset = DateTimeRange.until(
+				LocalDateTime.of(2024, 6, 1, 0, 0).atOffset(ZoneOffset.ofHours(2))
+			);
+			final DateTimeRange atUtc = DateTimeRange.until(
+				LocalDateTime.of(2024, 1, 1, 0, 0).atOffset(ZoneOffset.UTC)
+			);
+			assertEquals(
+				atPositiveOffset.getFrom(), atUtc.getFrom(),
+				"both open-from bounds must land on the one offset-independent constant"
+			);
+			assertTrue(
+				atPositiveOffset.compareTo(atUtc) > 0,
+				"the fixture must be inverted under the millisecond comparison, or the test proves nothing"
+			);
+
+			final ValueToRecordBitmap[][] perPageBuckets = {
+				{new ValueToRecordBitmap(atPositiveOffset, 1)},
+				{new ValueToRecordBitmap(atUtc, 2)}
+			};
+
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+			);
+
+			assertEquals(2, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
+			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(atUtc).getArray());
+			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(atPositiveOffset).getArray());
+
+			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
+			assertEquals(2, rehydrated.length);
+			assertEquals(
+				atUtc, rehydrated[0].getValue(),
+				"the reloaded tree must iterate in the order the millisecond comparison sorts the keys in"
+			);
+			assertEquals(atPositiveOffset, rehydrated[1].getValue());
+			assertTrue(
+				reloaded.isDirty(),
+				"a reload that re-sorted the persisted pages must ask to be rewritten in canonical form"
+			);
+		}
+
+		@Test
+		@DisplayName("buckets that collide under the new comparison are merged while the index is re-sorted")
+		void shouldMergeCollidingBucketsWhileResortingALegacyRangeIndex() {
+			// two open-from ranges naming the SAME moment at two different zone offsets were distinct keys at second
+			// granularity - each one's open lower bound took its threshold from its own upper bound's offset - and are
+			// one key now. Reloaded together with an inverted pair they meet the re-sort, which has to merge them on
+			// the way: fresh pages carrying two equal keys are refused by the bulk load that builds them
+			final DateTimeRange atUtc = DateTimeRange.until(
+				LocalDateTime.of(2024, 3, 1, 12, 0).atOffset(ZoneOffset.UTC)
+			);
+			final DateTimeRange sameMomentAtPositiveOffset = DateTimeRange.until(
+				LocalDateTime.of(2024, 3, 1, 13, 0).atOffset(ZoneOffset.ofHours(1))
+			);
+			assertEquals(
+				atUtc, sameMomentAtPositiveOffset,
+				"the two open-from twins must be one key under the millisecond comparison"
+			);
+			final DateTimeRange laterInTheSecond = DateTimeRange.between(
+				RANGE_BASE.plusNanos(900_000_000L), RANGE_BASE.plusSeconds(3)
+			);
+			final DateTimeRange earlierInTheSecond = DateTimeRange.between(
+				RANGE_BASE.plusNanos(100_000_000L), RANGE_BASE.plusSeconds(5)
+			);
+
+			final ValueToRecordBitmap[][] perPageBuckets = {
+				{
+					new ValueToRecordBitmap(sameMomentAtPositiveOffset, 1),
+					new ValueToRecordBitmap(atUtc, 2)
+				},
+				{
+					new ValueToRecordBitmap(laterInTheSecond, 3),
+					new ValueToRecordBitmap(earlierInTheSecond, 4)
+				}
+			};
+
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+			);
+
+			assertEquals(3, reloaded.getBucketCount(), "the two twins must share one bucket, the other two keep theirs");
+			assertArrayEquals(
+				new int[]{1, 2}, reloaded.getRecordsEqualTo(atUtc).getArray(),
+				"every record of both twins must survive the merge the re-sort carried out"
+			);
+			assertArrayEquals(new int[]{4}, reloaded.getRecordsEqualTo(earlierInTheSecond).getArray());
+			assertArrayEquals(new int[]{3}, reloaded.getRecordsEqualTo(laterInTheSecond).getArray());
+
+			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
+			assertEquals(3, rehydrated.length);
+			assertEquals(atUtc, rehydrated[0].getValue());
+			assertEquals(earlierInTheSecond, rehydrated[1].getValue());
+			assertEquals(laterInTheSecond, rehydrated[2].getValue());
+			assertTrue(reloaded.isDirty(), "a reload that merged and re-sorted must ask to be rewritten");
+		}
+
+		@Test
+		@DisplayName("a legacy range index whose persisted order the new comparison preserves reloads untouched")
+		void shouldLeaveALegacyRangeIndexWhoseOrderSurvivesAlone() {
+			// the control: the same two-page shape with an order the millisecond comparison agrees with must reload
+			// boundary-stable and unflagged, so the repair the two cases above ask for cannot be a blanket rebuild
+			final DateTimeRange first = DateTimeRange.between(RANGE_BASE, RANGE_BASE.plusSeconds(3));
+			final DateTimeRange second = DateTimeRange.between(RANGE_BASE.plusSeconds(10), RANGE_BASE.plusSeconds(20));
+			final DateTimeRange third = DateTimeRange.since(RANGE_BASE.plusDays(1));
+			final ValueToRecordBitmap[][] perPageBuckets = {
+				{new ValueToRecordBitmap(first, 1), new ValueToRecordBitmap(second, 2)},
+				{new ValueToRecordBitmap(third, 3)}
+			};
+
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
+				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+			);
+
+			assertEquals(3, reloaded.getBucketCount());
+			assertTrue(reloaded.isPaged());
+			assertFalse(reloaded.isDirty(), "a reload that changed nothing must not schedule a rewrite");
+			assertArrayEquals(new int[]{1}, reloaded.getRecordsEqualTo(first).getArray());
+			assertArrayEquals(new int[]{2}, reloaded.getRecordsEqualTo(second).getArray());
+			assertArrayEquals(new int[]{3}, reloaded.getRecordsEqualTo(third).getArray());
 		}
 	}
 

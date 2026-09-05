@@ -25,6 +25,8 @@ package io.evitadb.store.index.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -33,7 +35,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -50,7 +51,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Currency;
@@ -87,6 +90,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(SERIALIZATION)
 @Tag(PRICE)
 class LegacyRangeThresholdScaleSerializerTest {
+	/**
+	 * The serial-version-uid release 2025.5 shipped for `FilterIndexStoragePart` — the oldest of the three
+	 * backward-compatible filter readers, and the only one that still finds a plain `AttributeKey` in the slot the
+	 * attribute index key now occupies.
+	 */
+	private static final long FILTER_2025_5_UID = -3363238752052021735L;
 	/** The serial-version-uid release 2026.2 shipped for `FilterIndexStoragePart`. */
 	private static final long FILTER_2026_2_UID = 3847290165472938104L;
 	/** The serial-version-uid release 2026.2 shipped for `PriceListAndCurrencySuperIndexStoragePart`. */
@@ -199,9 +208,77 @@ class LegacyRangeThresholdScaleSerializerTest {
 		return os.toByteArray();
 	}
 
+	/**
+	 * Hand-encodes the released 2025.5 `FilterIndexStoragePart` wire. It differs from the 2026.2 one in two places:
+	 * the attribute key slot holds a plain {@link AttributeKey} rather than a compressed `AttributeIndexKey` (the
+	 * reader bridges it), and the payload tail carries neither the frozen decimal-places scale nor either page-stream
+	 * metadata axis — both formats predate them. The deprecated reader's own write path throws, so the wire is
+	 * reproduced here.
+	 *
+	 * @param part the part to encode in the legacy format
+	 * @return the legacy-format bytes, uid-prefixed
+	 */
+	@Nonnull
+	private byte[] encodeLegacy2025FilterBytes(@Nonnull FilterIndexStoragePart part) {
+		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
+		try (final Output output = new Output(os, 4_096)) {
+			output.writeLong(FILTER_2025_5_UID);
+			output.writeInt(part.getEntityIndexPrimaryKey());
+			output.writeVarLong(part.getStoragePartPK(), true);
+			// the slot the current format spends on a compressed `AttributeIndexKey` held a plain `AttributeKey`
+			output.writeVarInt(this.keyCompressor.getId(new AttributeKey("validity")), true);
+			this.kryo.writeClass(output, part.getAttributeType());
+			final ValueToRecordBitmap[] points = part.getHistogramPoints();
+			output.writeInt(points.length);
+			for (final ValueToRecordBitmap point : points) {
+				this.kryo.writeObject(output, point);
+			}
+			final RangeIndex rangeIndex = part.getRangeIndex();
+			output.writeBoolean(rangeIndex != null);
+			if (rangeIndex != null) {
+				this.kryo.writeObject(output, rangeIndex);
+			}
+		}
+		return os.toByteArray();
+	}
+
 	@Nested
 	@DisplayName("attribute filter index — the reader marks provenance, the load path routes on the type")
 	class FilterPart {
+
+		@Test
+		@DisplayName("a released 2025.5 blob reads back marked as second-granularity, through the attribute key bridge")
+		void shouldMarkALegacy2025FilterBlob() {
+			// the oldest of the three backward-compatible filter readers, and the last one left unasserted. Its
+			// provenance mark is what routes the rescale, and dropping it would read every `DateTimeRange` range
+			// threshold in a 2025.5 catalog a thousand times too small - silently, and for good
+			final DateTimeRange validity = DateTimeRange.between(VALID_FROM, VALID_TO);
+			final FilterIndexStoragePart legacy = new FilterIndexStoragePart(
+				7, ATTRIBUTE_KEY, DateTimeRange.class,
+				new ValueToRecordBitmap[]{new ValueToRecordBitmap(validity, 1)},
+				new RangeIndex(points(VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), 1)),
+				3L
+			);
+
+			final FilterIndexStoragePart decoded = StoragePartSerializerTestSupport.decode(
+				LegacyRangeThresholdScaleSerializerTest.this.kryo,
+				encodeLegacy2025FilterBytes(legacy), FilterIndexStoragePart.class
+			);
+
+			assertTrue(
+				decoded.isSecondGranularityRangeThresholds(),
+				"a blob read by a backward-compatible reader must be marked - the load path routes on this"
+			);
+			assertEquals(
+				ATTRIBUTE_KEY, decoded.getAttributeIndexKey(),
+				"the plain attribute key must have been bridged into an attribute index key"
+			);
+			assertArrayEquals(
+				new long[]{Long.MIN_VALUE, VALID_FROM.toEpochSecond(), VALID_TO.toEpochSecond(), Long.MAX_VALUE},
+				thresholdsOf(decoded.getRangeIndex()),
+				"the reader must hand the thresholds on untouched"
+			);
+		}
 
 		@Test
 		@DisplayName("a released 2026.2 blob reads back marked as second-granularity")
@@ -471,14 +548,14 @@ class LegacyRangeThresholdScaleSerializerTest {
 			assertEquals(
 				DateTimeRange.OPEN_TO_THRESHOLD,
 				RangeIndex.rescaleSecondGranularityThreshold(
-					java.time.LocalDateTime.MAX.atOffset(java.time.ZoneOffset.ofHours(-18)).toEpochSecond()
+					LocalDateTime.MAX.atOffset(ZoneOffset.ofHours(-18)).toEpochSecond()
 				),
 				"the legacy open-to sentinel at the extreme offset must land on the constant"
 			);
 			assertEquals(
 				DateTimeRange.OPEN_FROM_THRESHOLD,
 				RangeIndex.rescaleSecondGranularityThreshold(
-					java.time.LocalDateTime.MIN.atOffset(java.time.ZoneOffset.ofHours(18)).toEpochSecond()
+					LocalDateTime.MIN.atOffset(ZoneOffset.ofHours(18)).toEpochSecond()
 				),
 				"and so must the legacy open-from sentinel at the other extreme"
 			);
@@ -493,15 +570,53 @@ class LegacyRangeThresholdScaleSerializerTest {
 		}
 
 		@Test
+		@DisplayName("the classification boundary itself decides between multiplying and the open-bound constant")
+		void shouldClassifyTheRepresentableWindowEdgesExactly()  {
+			// the sibling above probes a real moment at ~1.7e9 s and the legacy sentinels at ~3.16e16 s - four orders
+			// of magnitude from the cut on either side, so a `<` / `<=` slip or a wrong constant is invisible there.
+			// These four assertions sit ON the cut and one step past it
+			assertEquals(
+				DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND * 1000L,
+				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND),
+				"the lowest representable second is still a real moment and must be multiplied"
+			);
+			assertEquals(
+				DateTimeRange.OPEN_FROM_THRESHOLD,
+				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND - 1L),
+				"one second below it is an open-from bound"
+			);
+			assertEquals(
+				DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND * 1000L,
+				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND),
+				"the highest representable second is still a real moment and must be multiplied"
+			);
+			assertEquals(
+				DateTimeRange.OPEN_TO_THRESHOLD,
+				RangeIndex.rescaleSecondGranularityThreshold(DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND + 1L),
+				"one second above it is an open-to bound"
+			);
+			// and the multiplied edges really do stay inside the window rather than overflowing into the sentinels,
+			// which is the property the two constants are derived to guarantee
+			assertTrue(
+				DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND * 1000L > DateTimeRange.OPEN_FROM_THRESHOLD,
+				"the multiplied lower edge must stay above the open-from constant"
+			);
+			assertTrue(
+				DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND * 1000L + 999L < DateTimeRange.OPEN_TO_THRESHOLD,
+				"the multiplied upper edge plus its largest millisecond remainder must stay below the open-to constant"
+			);
+		}
+
+		@Test
 		@DisplayName("points that collide after the rescale are merged rather than duplicated")
 		void shouldMergeCollidingPointsOnRescale() {
 			// two open-ended ranges written at DIFFERENT zone offsets held two distinct upper thresholds, and the
 			// index's own border point held a third. All three land on `Long.MAX_VALUE` now, and a range index
 			// cannot hold one threshold twice - so the repair has to union their record sets
 			final long legacyOpenAtUtc =
-				java.time.LocalDateTime.MAX.atOffset(java.time.ZoneOffset.UTC).toEpochSecond();
+				LocalDateTime.MAX.atOffset(ZoneOffset.UTC).toEpochSecond();
 			final long legacyOpenAtPlusTwo =
-				java.time.LocalDateTime.MAX.atOffset(java.time.ZoneOffset.ofHours(2)).toEpochSecond();
+				LocalDateTime.MAX.atOffset(ZoneOffset.ofHours(2)).toEpochSecond();
 			// the sentinel written at +02:00 sorts BELOW the one written at UTC, because the same local instant is an
 			// earlier moment there - which is exactly the offset dependence the constant sentinels removed
 			assertTrue(

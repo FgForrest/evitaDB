@@ -63,7 +63,11 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_LONG_ARRAY;
  *
  * The five {@code NumberRange} subtypes need nothing beyond the two longs: an open bound is stored as the very
  * {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} sentinel their own constructors compute, so it round-trips for
- * free. {@link DateTimeRange} used to be different, and this column used to carry a third {@code long[]} packing
+ * free — for {@code LongNumberRange}, whose own bounds can reach those values, to an explicit bound rather than an
+ * open one, which is `equals` to it and re-encodes identically ({@code decodeLongRange} says why the ambiguity is
+ * resolved that way round).
+ *
+ * {@link DateTimeRange} used to be different, and this column used to carry a third {@code long[]} packing
  * both bounds' {@code ZoneOffset.getTotalSeconds()} for it. Two facts made that necessary, and **both were removed
  * by the move to millisecond comparison granularity**, which had to replace the sentinels because the old ones
  * overflow a {@code long} once multiplied by a thousand:
@@ -316,8 +320,9 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 *   constructors map a {@code null} bound to exactly the {@code Long.MIN_VALUE} / {@code Long.MAX_VALUE} sentinel
 	 *   this column reads back as "open". {@code _internalBuild} is handed both the boxed bounds and the two longs,
 	 *   so nothing is recomputed at all. {@link LongNumberRange} is the only one of the four whose bounds can reach
-	 *   those sentinels explicitly; its saturated pair is decoded with both bounds materialized, for the reason
-	 *   {@code decodeLongRange} spells out.
+	 *   those sentinels explicitly, and it therefore reads **every** bound back materialized rather than as an open
+	 *   side — the result is still {@code equals} to the open form, for the reason {@code decodeLongRange} spells
+	 *   out.
 	 * - **{@link BigDecimalNumberRange}** rebuilds each bound as {@code BigDecimal.valueOf(long,
 	 *   indexedDecimalPlaces)} — the exact inverse of the
 	 *   {@code setScale(…).scaleByPowerOfTen(…).longValueExact()} the index encoded it with — and carries
@@ -333,6 +338,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 */
 	@Nonnull
 	@Override
+	@SuppressWarnings("unchecked")
 	public M keyAt(int index) {
 		// boxing boundary - decoded exactly where the boxed leaf would have materialized the key
 		final long lower = this.from[index];
@@ -560,13 +566,20 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * Rebuilds a {@link LongNumberRange} from its two comparison longs.
 	 *
 	 * `LongNumberRange` is the one kind whose bounds span the whole `long` domain, so an **explicit** bound can
-	 * carry the very value the open-bound sentinel spends. Read independently, the saturated pair
-	 * `(Long.MIN_VALUE, Long.MAX_VALUE)` — which `between(MIN, MAX)`, `from(MIN)` and `to(MAX)` all store — would
-	 * therefore rebuild with **both** precise bounds `null`, a shape `LongNumberRange`'s own constructor refuses:
-	 * {@link io.evitadb.dataType.Range#consolidateRange} clones the winner of a merge with its two precise bounds
-	 * and would hand that constructor `(null, null)`. The saturated pair is consequently decoded with both bounds
-	 * materialized, which re-encodes to the identical two longs — so the tree, the range index and equality see
-	 * nothing move, and the result is `equals` to all three constructions above.
+	 * carry the very value the open-bound sentinel spends, and the two are indistinguishable once stored. **Both
+	 * bounds are therefore always materialized**, never substituted by `null`: a sentinel is read back as the
+	 * bound it names rather than as an open side.
+	 *
+	 * Substituting `null` for a sentinel is what {@link io.evitadb.dataType.Range#consolidateRange} cannot survive.
+	 * It clones the winner of an overlapping merge with the lower precise bound of one range and the upper precise
+	 * bound of the other, so it walks straight into the `(null, null)` pair `LongNumberRange`'s constructor
+	 * refuses — from one range saturating both sentinels, and equally from a *pair* meeting from opposite ends
+	 * (`between(MIN, 5)` with `between(3, MAX)`), which is the shape `FilterIndex`'s delta paths reach by reading a
+	 * record's ranges back out of the tree. Materializing removes both cases at once.
+	 *
+	 * Nothing else can see the difference: `toComparableLong` is the identity on a `Long` bound, so the rebuilt
+	 * range re-encodes to the identical two longs, and `NumberRange` equality derives from those longs alone — the
+	 * result is `equals` to `between(MIN, MAX)`, `from(MIN)` and `to(MAX)` alike.
 	 *
 	 * @param lower the stored lower comparison bound
 	 * @param upper the stored upper comparison bound
@@ -574,14 +587,7 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 */
 	@Nonnull
 	private static LongNumberRange decodeLongRange(long lower, long upper) {
-		if (lower == Long.MIN_VALUE && upper == Long.MAX_VALUE) {
-			return LongNumberRange._internalBuild(Long.MIN_VALUE, Long.MAX_VALUE, null, lower, upper);
-		}
-		return LongNumberRange._internalBuild(
-			lower == Long.MIN_VALUE ? null : lower,
-			upper == Long.MAX_VALUE ? null : upper,
-			null, lower, upper
-		);
+		return LongNumberRange._internalBuild(lower, upper, null, lower, upper);
 	}
 
 	/**

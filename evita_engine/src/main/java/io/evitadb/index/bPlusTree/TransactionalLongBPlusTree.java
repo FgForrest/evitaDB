@@ -695,8 +695,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Builds the shared cross-leaf boundary corruption error with the Phase 1 message style (offending boundary key,
-	 * the neighbour boundary it collides with, remediation hint). Shared by the op-time asserts and the
+	 * Builds the shared cross-leaf boundary corruption error, whose message names the offending boundary key,
+	 * the neighbour boundary it collides with and a remediation hint. Shared by the op-time asserts and the
 	 * commit-time relocate-and-validate pass, so its wording is cause-neutral (a mis-routed insertion, a
 	 * reverted transactional layer or a merge defect could all produce the overlap) and view-neutral (no WAL /
 	 * poison-pill wording — the trunk-replay path adds that when it wraps the exception).

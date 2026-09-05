@@ -88,6 +88,21 @@ import java.util.stream.Collectors;
  * This situation will lead to problems when such record is removed because on removal it removes the shared border
  * information for all ranges.
  *
+ * ## Threshold scale — a persisted-format contract
+ *
+ * A threshold is an **untyped** `long` and this index carries no record of what it measures: one and the same class
+ * serves `DateTimeRange` and all five `NumberRange` subtypes. The scale is entirely the caller's, and every threshold
+ * in one index must be derived the same way — for a `DateTimeRange` index that is a whole epoch **millisecond**
+ * ({@link DateTimeRange#toComparableLong}), for a `NumberRange` index it is the bound's own numeric value.
+ *
+ * That matters beyond the live structure, because the scale is not self-describing on disk either. What identifies a
+ * persisted index's scale is the `serialVersionUID` of the **root** storage part that owns it — never a leaf page,
+ * which holds bare thresholds and nothing that could disambiguate them. A `DateTimeRange` index is the only one whose
+ * scale ever changed (epoch seconds → epoch milliseconds); one written by a release predating that move is repaired
+ * on load by {@link #rescaledFromSecondGranularity} / {@link #rescaledFromSecondGranularityPages}, routed by the
+ * declared attribute type so a numeric index is never inflated a thousandfold. `AttributeIndexLoader#loadRangeIndex`
+ * carries the full argument and names the other three load paths that make the same repair.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
@@ -139,8 +154,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
 	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
 	 * token never changed across commits, so a cached result over a `> EXCESSIVE_HIGH_CARDINALITY`-bucket range was
-	 * never invalidated — the stale-read defect tracked as issue #37. This is a runtime-only field, regenerated on
-	 * load — it is never persisted (the persisted form carries no id).
+	 * never invalidated and a committed write went unseen by every later query that hit the cache. This is a
+	 * runtime-only field, regenerated on load — it is never persisted (the persisted form carries no id).
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -360,6 +375,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	/**
 	 * Adds new record with the interval from/to to the range. The updater mutates and returns the SAME
 	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
+	 *
+	 * Both bounds must be derived in the same scale every other threshold of this index was — normally
+	 * {@code Range#getFrom()} / {@code Range#getTo()}, which for a `DateTimeRange` is already the epoch millisecond.
+	 * See the class javadoc: nothing here can detect a bound handed over in a different scale, and a mixed-scale index
+	 * answers every query over it with the wrong records and no exception.
+	 *
+	 * @param from     the interval's lower threshold, inclusive
+	 * @param to       the interval's upper threshold, inclusive
+	 * @param recordId the record valid over that interval
 	 */
 	public void addRecord(long from, long to, int recordId) {
 		this.dirty.setToTrue();
@@ -392,6 +416,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Removes record with the interval from/to from the range. Each affected point is mutated in place; once a point
 	 * becomes obsolete (no starts, no ends) and is not a border sentinel it is deleted from the tree, which releases
 	 * its transactional layer.
+	 *
+	 * The two bounds must be the very thresholds {@link #addRecord} was called with, in the same scale — a removal at
+	 * a threshold this record never started at silently leaves the original interval in place.
+	 *
+	 * @param start    the interval's lower threshold, as it was added
+	 * @param end      the interval's upper threshold, as it was added
+	 * @param recordId the record whose interval is dropped
 	 */
 	public void removeRecord(long start, long end, int recordId) {
 		this.dirty.setToTrue();

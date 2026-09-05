@@ -35,6 +35,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -42,10 +43,10 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
-import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
@@ -67,12 +68,15 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -298,7 +302,7 @@ public class InvertedIndex implements
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
 	 * attribute's plain type and the comparator: a numeric / temporal attribute under natural order uses a primitive
-	 * `long[]` column, one of the six concrete range types uses two or three `long[]` bound columns, otherwise the
+	 * `long[]` column, one of the six concrete range types uses two parallel `long[]` bound columns, otherwise the
 	 * universal boxed column.
 	 *
 	 * The selection goes through {@link ValueColumnFactory#forFilterKey} rather than
@@ -610,6 +614,34 @@ public class InvertedIndex implements
 	 * untouched and internally consistent, so a load that is never followed by a flush simply repeats the merge. A
 	 * catalog with nothing to repair takes the fast path untouched and is not flagged dirty.
 	 *
+	 * ## When the persisted order is no longer the order the keys compare in
+	 *
+	 * A collapse is all a *monotone* key change can produce, and the temporal truncation is monotone: a finer key
+	 * can split a tie but never swap a pair. {@link DateTimeRange} is the one type whose move to milliseconds was
+	 * not — it changed which bound decides a tie. A range comparing at whole seconds derived an open lower bound's
+	 * threshold from the *other* bound's zone offset and lost every sub-second difference, so two shapes a
+	 * second-granularity release persisted in ascending order come back **descending**: two closed ranges opening in
+	 * the same second (ordered by their upper bound then, by their sub-second lower bound now), and two open-from
+	 * ranges written at different zone offsets (ordered by descending offset then, by their upper bound now).
+	 * Nothing on disk is wrong — the buckets carry their two precise bounds and the comparison is recomputed on every
+	 * load — but the order the pages were written in is fixed, and carrying it into the page build fails the
+	 * bulk-load premise when the pair sits inside one page and is reported as index corruption when it straddles a
+	 * boundary. Either way a released catalog stops opening.
+	 *
+	 * Such an index is therefore re-sorted whole by {@link #resortSecondGranularityBuckets}: every page's buckets are
+	 * flattened, sorted by the current comparison, merged where they now collide and re-chunked into pages of the
+	 * sizes they were persisted at. Every page gives up its identity, because the re-sort moved content across all of
+	 * them, and the registry is seeded from the persisted root's own page list so the first flush frees every legacy
+	 * page and writes the index back in canonical form.
+	 *
+	 * **The repair is deliberately narrow.** An inversion is otherwise the signature of a stale leaf-page twin, and
+	 * healing one silently would resurrect records that were deliberately removed — which is exactly what
+	 * `TransactionalBucketBPlusTree#assertCrossLeafBoundaries` refuses to do. So the re-sort runs only when the
+	 * persisted sequence is one a second-granularity release could actually have written:
+	 * {@link #isSecondGranularityRangeOrder} requires every key to be a `DateTimeRange` and the whole sequence to be
+	 * strictly ascending under the comparison that type used *before* it moved to milliseconds. A twin fails that
+	 * test — its pages overlap under either comparison — and reaches the corruption diagnostics untouched.
+	 *
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
 	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
@@ -643,9 +675,11 @@ public class InvertedIndex implements
 			"The per-page value id columns must align with the page sequences one for one."
 		);
 		// normalize every persisted bucket value into the key space the tree is contracted on - whatever the buckets'
-		// provenance - and, on the same pass, find out whether any two of them now meet in a single key
+		// provenance - and, on the same pass, find out whether any two of them now meet in a single key, or whether
+		// the order they were persisted in is no longer the order they compare in
 		final Object[][] normalizedKeys = new Object[orderedPageSequences.length][];
 		boolean collapsed = false;
+		boolean inverted = false;
 		Comparable previousKey = null;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
@@ -653,22 +687,33 @@ public class InvertedIndex implements
 			for (int j = 0; j < buckets.length; j++) {
 				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
 				keys[j] = key;
-				collapsed |= previousKey != null && comparator.compare(previousKey, key) == 0;
+				if (previousKey != null) {
+					final int comparison = comparator.compare(previousKey, key);
+					collapsed |= comparison == 0;
+					inverted |= comparison > 0;
+				}
 				previousKey = key;
 			}
 			normalizedKeys[i] = keys;
 		}
+		// an inversion is repaired ONLY when the persisted sequence is the one a second-granularity release would
+		// have written; every other inversion is corruption and must reach the diagnostics below untouched
+		final boolean resorted = inverted && isSecondGranularityRangeOrder(normalizedKeys);
 
 		int[] loadedPageSequences = orderedPageSequences;
 		Object[][] loadedKeys = normalizedKeys;
 		ValueToRecord[][] loadedBuckets = perPageBuckets;
 		int[][] loadedValueIds = perPageValueIds;
 		boolean[] rewrittenPages = null;
-		if (collapsed) {
-			// the rare repair path - see the "When one persisted page no longer maps onto one leaf" section above
-			final CollapsedPages repaired = collapseCollidingBuckets(
-				orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator
-			);
+		final boolean repairedOnLoad = resorted || collapsed;
+		if (repairedOnLoad) {
+			// the rare repair path - see the "When one persisted page no longer maps onto one leaf" and "When the
+			// persisted order is no longer the order the keys compare in" sections above
+			final CollapsedPages repaired = resorted
+				? resortSecondGranularityBuckets(
+					orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator)
+				: collapseCollidingBuckets(
+					orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator);
 			loadedPageSequences = repaired.pageSequences();
 			loadedKeys = repaired.keys();
 			loadedBuckets = repaired.buckets();
@@ -709,7 +754,7 @@ public class InvertedIndex implements
 			);
 		// the live-page set is the one the ROOT lists, not the one the assembled leaves carry: a page absorbed by the
 		// repair above holds no leaf any more, yet it is still on disk and the first commit has to free it
-		final PageStreamRegistry pageStreamRegistry = collapsed
+		final PageStreamRegistry pageStreamRegistry = repairedOnLoad
 			? restoredFromPersistedPageList(highWaterPageSequence, orderedPageSequences)
 			: PageStreamRegistry.restoredFrom(BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles());
 		if (rewrittenPages != null) {
@@ -718,7 +763,7 @@ public class InvertedIndex implements
 		final InvertedIndex index = new InvertedIndex(
 			plainType, tree, normalizer, comparator, indexedDecimalPlaces, pageStreamRegistry
 		);
-		if (collapsed) {
+		if (repairedOnLoad) {
 			index.dirty.setToTrue();
 		}
 		return index;
@@ -775,6 +820,167 @@ public class InvertedIndex implements
 		final PageStreamRegistry registry = new PageStreamRegistry();
 		registry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
 		return registry;
+	}
+
+	/**
+	 * Tells whether the persisted key sequence is one a release comparing {@link DateTimeRange} at **whole seconds**
+	 * could have written — which is what separates a legacy ordering from index corruption. See
+	 * {@link #fromPersistedPages}'s "When the persisted order is no longer the order the keys compare in" section for
+	 * why the two must be told apart at all.
+	 *
+	 * Two facts have to hold together. Every key must be a `DateTimeRange`: it is the only type whose comparison
+	 * changed its tie-break axis rather than merely its resolution, and therefore the only one whose persisted order
+	 * the current comparison can invert. And the whole sequence must be **strictly ascending** under the
+	 * second-granularity comparison, which is the order the writer that produced it was sorting by. A stale
+	 * leaf-page twin fails that test — its pages overlap under either comparison — as does any other corruption that
+	 * left the pages out of order, so both keep reaching the diagnostics rather than being healed away.
+	 *
+	 * @param normalizedKeys each page's bucket values, already normalized, in persisted page order
+	 * @return `true` when the sequence is a legacy second-granularity ordering and may be re-sorted
+	 */
+	private static boolean isSecondGranularityRangeOrder(@Nonnull Object[][] normalizedKeys) {
+		DateTimeRange previousRange = null;
+		for (final Object[] keys : normalizedKeys) {
+			for (final Object key : keys) {
+				if (!(key instanceof DateTimeRange range)) {
+					return false;
+				}
+				if (previousRange != null && compareAtSecondGranularity(previousRange, range) >= 0) {
+					return false;
+				}
+				previousRange = range;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Compares two ranges the way {@link DateTimeRange} did before its comparison moved to milliseconds: on the two
+	 * bounds' whole epoch seconds, lower bound first. Reconstructed from the precise bounds the buckets carry, which
+	 * is what makes the order a legacy writer sorted by recomputable on load.
+	 *
+	 * @param left  the range persisted first
+	 * @param right the range persisted next
+	 * @return the sign of the second-granularity comparison
+	 */
+	private static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+		final int lowerBoundComparison =
+			Long.compare(secondGranularityFrom(left), secondGranularityFrom(right));
+		return lowerBoundComparison != 0
+			? lowerBoundComparison
+			: Long.compare(secondGranularityTo(left), secondGranularityTo(right));
+	}
+
+	/**
+	 * The lower comparison bound a second-granularity release stored for the given range. An **open** lower bound
+	 * took no constant back then: it was derived from the upper bound's own zone offset, which is why two open-from
+	 * ranges written at different offsets sorted apart then and tie now.
+	 *
+	 * @param range the persisted range
+	 * @return the range's lower bound in whole epoch seconds
+	 */
+	private static long secondGranularityFrom(@Nonnull DateTimeRange range) {
+		final OffsetDateTime from = range.getPreciseFrom();
+		return from == null
+			? LocalDateTime.MIN.atOffset(Objects.requireNonNull(range.getPreciseTo()).getOffset()).toEpochSecond()
+			: from.toEpochSecond();
+	}
+
+	/**
+	 * The upper comparison bound a second-granularity release stored for the given range — the mirror of
+	 * {@link #secondGranularityFrom}, an open upper bound being derived from the lower bound's zone offset.
+	 *
+	 * @param range the persisted range
+	 * @return the range's upper bound in whole epoch seconds
+	 */
+	private static long secondGranularityTo(@Nonnull DateTimeRange range) {
+		final OffsetDateTime to = range.getPreciseTo();
+		return to == null
+			? LocalDateTime.MAX.atOffset(Objects.requireNonNull(range.getPreciseFrom()).getOffset()).toEpochSecond()
+			: to.toEpochSecond();
+	}
+
+	/**
+	 * Re-sorts a whole persisted index whose bucket order the current comparison inverts, and hands the result to
+	 * {@link #collapseCollidingBuckets} so buckets that now meet in one key are merged by the very code an
+	 * order-preserving reload uses. See {@link #fromPersistedPages}'s "When the persisted order is no longer the
+	 * order the keys compare in" section for when this runs and why it may not run more widely than that.
+	 *
+	 * The buckets are re-chunked into pages of the sizes they were **persisted** at, so no page can overflow a leaf:
+	 * none of them grew, and the merge that follows can only shrink them. Page identity is not preserved by the
+	 * chunking and is not meant to be — the returned pages are all flagged for rewrite, because the re-sort moved
+	 * content across every one of them and none of them still matches its record on disk.
+	 *
+	 * @param orderedPageSequences the persisted leaf-page sequences in the order the root lists them
+	 * @param normalizedKeys       each page's bucket values, already normalized, aligned with `perPageBuckets`
+	 * @param perPageBuckets       each page's persisted buckets
+	 * @param perPageValueIds      each page's persisted value ids, or `null` when the tree carries none
+	 * @param comparator           the value order
+	 * @return the re-sorted pages, their colliding buckets merged, every one flagged for rewrite
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static CollapsedPages resortSecondGranularityBuckets(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull Object[][] normalizedKeys,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		@Nonnull Comparator comparator
+	) {
+		int bucketCount = 0;
+		for (final ValueToRecord[] buckets : perPageBuckets) {
+			bucketCount += buckets.length;
+		}
+		final PersistedBucket[] flattened = new PersistedBucket[bucketCount];
+		int cursor = 0;
+		for (int i = 0; i < perPageBuckets.length; i++) {
+			final ValueToRecord[] buckets = perPageBuckets[i];
+			for (int j = 0; j < buckets.length; j++) {
+				flattened[cursor++] = new PersistedBucket(
+					(Comparable) normalizedKeys[i][j], buckets[j],
+					perPageValueIds == null ? 0 : perPageValueIds[i][j]
+				);
+			}
+		}
+		// the sort is stable, so two buckets the current comparison finds equal stay in the order they were written
+		// in - which is what lets the collapse below retire the LATER of the two, exactly as it does on a page whose
+		// order was never disturbed
+		Arrays.sort(flattened, (left, right) -> comparator.compare(left.key(), right.key()));
+
+		final Object[][] sortedKeys = new Object[orderedPageSequences.length][];
+		final ValueToRecord[][] sortedBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] sortedValueIds = perPageValueIds == null ? null : new int[orderedPageSequences.length][];
+		cursor = 0;
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final int pageSize = perPageBuckets[i].length;
+			final Object[] keys = new Object[pageSize];
+			final ValueToRecord[] buckets = new ValueToRecord[pageSize];
+			final int[] valueIds = sortedValueIds == null ? null : new int[pageSize];
+			for (int j = 0; j < pageSize; j++) {
+				final PersistedBucket persisted = flattened[cursor++];
+				keys[j] = persisted.key();
+				buckets[j] = persisted.bucket();
+				if (valueIds != null) {
+					valueIds[j] = persisted.valueId();
+				}
+			}
+			sortedKeys[i] = keys;
+			sortedBuckets[i] = buckets;
+			if (sortedValueIds != null) {
+				sortedValueIds[i] = valueIds;
+			}
+		}
+
+		final CollapsedPages collapsed = collapseCollidingBuckets(
+			orderedPageSequences, sortedKeys, sortedBuckets, sortedValueIds, comparator
+		);
+		// the collapse flags only the pages IT changed; after a re-sort every surviving page holds content that came
+		// from somewhere else and must be rewritten, so each of them gives up its identity
+		final boolean[] rewrittenPages = new boolean[collapsed.pageSequences().length];
+		Arrays.fill(rewrittenPages, true);
+		return new CollapsedPages(
+			collapsed.pageSequences(), collapsed.keys(), collapsed.buckets(), collapsed.valueIds(), rewrittenPages
+		);
 	}
 
 	/**
@@ -922,6 +1128,23 @@ public class InvertedIndex implements
 		@Nonnull ValueToRecord[][] buckets,
 		@Nullable int[][] valueIds,
 		@Nonnull boolean[] merged
+	) {
+	}
+
+	/**
+	 * One persisted bucket with everything that has to travel with it when {@link #resortSecondGranularityBuckets}
+	 * moves it to another slot: its normalized tree key and the value id it was written with.
+	 *
+	 * @param key     the bucket's value, normalized into the key space the tree is contracted on
+	 * @param bucket  the persisted bucket itself
+	 * @param valueId the id the bucket was written with, or `0` on a tree carrying no value ids — in which case the
+	 *                slot is never read
+	 */
+	@SuppressWarnings("rawtypes")
+	private record PersistedBucket(
+		@Nonnull Comparable key,
+		@Nonnull ValueToRecord bucket,
+		int valueId
 	) {
 	}
 
@@ -1136,6 +1359,13 @@ public class InvertedIndex implements
 	 * column encodes — which is what `FilterIndex#getNormalizer`'s millisecond truncation guarantees for the one
 	 * codec whose encoding is lossy. Should they ever diverge, `installValueIdMinter`'s alignment premise fails
 	 * loudly rather than mis-stamping.
+	 *
+	 * Both predicates read the persisted buckets in the order they were written and take that order to be ascending
+	 * under the current comparison — the one assumption a `DateTimeRange` index written at second granularity can
+	 * break (see {@link #fromPersistedPages}'s "When the persisted order is no longer the order the keys compare in").
+	 * An inline index of that vintage carries no value ids at all, so this cannot be reached today; were it ever
+	 * reached, a collision the re-ordering left non-adjacent would go unnoticed here and `installValueIdMinter` would
+	 * refuse the misaligned column rather than stamp the wrong id onto a value.
 	 *
 	 * @param persistedBuckets  the buckets as they were written, in ascending key order
 	 * @param persistedValueIds the ids as they were written, one per persisted bucket

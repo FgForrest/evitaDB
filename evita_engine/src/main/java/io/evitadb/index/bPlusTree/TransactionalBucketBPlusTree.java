@@ -272,7 +272,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Nullable private IntSupplier valueIdMinter;
 	/**
 	 * The next stable leaf id this tree will hand out. Monotonic, never reused, runtime-only — see
-	 * {@link BPlusLeafTreeNode#getLeafId()}. Non-transactional, and carried across the commit-merge so a committed
+	 * {@code BPlusLeafTreeNode#getLeafId()}. Non-transactional, and carried across the commit-merge so a committed
 	 * tree keeps numbering onward instead of colliding with ids its own live leaves already hold.
 	 */
 	private long nextLeafId = FIRST_LEAF_ID;
@@ -2438,8 +2438,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * What it guards is the reader that shares no lock, no volatile and no transaction with the writer: the
 	 * management and statistics API walks the tree on a request thread, with no session and no catalog-state guard,
-	 * while a warm-up load grows the very node it is walking (see {@link #recordCount()}). Since
-	 * {@code 0551b8e06} an internal node's arrays no longer start at the block size, so that node grows by the same
+	 * while a warm-up load grows the very node it is walking (see {@link #recordCount()}). An internal node's arrays
+	 * are sized to their live content rather than to the block size, so that node grows by the same
 	 * two plain field stores a column does — the longer array published first, `peek` raised second — and such a
 	 * reader can pair the raised `peek` with the shorter array. Bounding by the length of the array the caller
 	 * actually holds is safe whichever of the two it observed first, which is why the array is a **parameter** here
@@ -3492,9 +3492,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * children array first and only then lets {@code searchIndex} re-read `keys` and `peek` afresh - and a reader
 	 * sharing no happens-before edge with a growing writer can be handed an index that only the grown array can
 	 * serve. That is array-first/index-second: it needs no reordering at all and is a plain interleaving x86 permits,
-	 * unlike the count-first shapes that require weak-memory hardware. {@code 3d85e249a} bound seven cursor sites
-	 * against the arrays they index and missed this one, which carries every point lookup in the tree - `contains`,
-	 * cardinality, value-id, previous-record and long-payload resolution all descend through here.
+	 * unlike the count-first shapes that require weak-memory hardware. The bound belongs here as much as on the cursor
+	 * descents, because this one carries every point lookup in the tree - `contains`, cardinality, value-id,
+	 * previous-record and long-payload resolution all descend through here.
 	 *
 	 * Clamping is semantically right rather than a fudge: the clamped index is the child the **pre-growth** node
 	 * would have chosen for a key past its last separator, so the descent stays correct for the snapshot it actually
@@ -4676,7 +4676,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Searches for the child index that should contain the given key.
 		 *
 		 * The separator array is read into a local and the binary search is bounded by **that** local's length, not
-		 * by `peek` alone: the two are independent reads, and since {@code 0551b8e06} the array is sized to the live
+		 * by `peek` alone: the two are independent reads, and the array is sized to the live
 		 * content and republished by `growTo` before `peek` is raised, so a reader with no happens-before edge to the
 		 * writer can hand the search a `peek` the array it also read cannot serve. `keys.length >= peek` holds for
 		 * every consistent observer, so the bound is a no-op on the write path and on any descent under a
