@@ -29,6 +29,8 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -156,20 +158,96 @@ public class AccompanyingPriceContent
 		return new AccompanyingPriceContent(newArguments);
 	}
 
+	/**
+	 * Two accompanying price requirements describe the same thing only when they calculate the **same** accompanying
+	 * price, which is identified by its name. Requirements with distinct names are requested side by side on purpose -
+	 * that is the whole point of the constraint - and must never be folded into one, so they report as not combinable.
+	 *
+	 * @param anotherRequirement another requirement to be combined with
+	 * @param <T> type of the requirement to be combined with
+	 * @return true when the other requirement calculates an accompanying price of the very same name
+	 */
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
-		return anotherRequirement instanceof AccompanyingPriceContent;
+		return anotherRequirement instanceof AccompanyingPriceContent anotherAccompanyingPrice &&
+			getAccompanyingPriceKey().equals(anotherAccompanyingPrice.getAccompanyingPriceKey());
 	}
 
+	/**
+	 * Combines two requirements calculating the accompanying price of the same name.
+	 *
+	 * Because the price lists of an accompanying price form an ordered **priority** sequence - the engine takes the
+	 * first price it finds walking the sequence - two different sequences have no meaningful union: any merge would
+	 * invent a priority order neither side asked for, and would silently change the price the client gets. Two
+	 * requirements for one price name therefore have to agree on the price lists exactly, order included, and a
+	 * disagreement is refused with an {@link EvitaInvalidUsageException}.
+	 *
+	 * @param anotherRequirement another requirement to be combined with, must be an accompanying price content
+	 *                           requirement with the same accompanying price name
+	 * @param <T> type of the requirement to be combined with
+	 * @return this very instance, since equal requirements have nothing to merge
+	 * @throws GenericEvitaInternalError when the other requirement is of a different type or calculates a
+	 *                                   differently named accompanying price - both are caller bugs, since
+	 *                                   {@link #isCombinableWith(EntityContentRequire)} rejects such a pair
+	 * @throws EvitaInvalidUsageException when both requirements name the same accompanying price but disagree on the
+	 *                                    price lists to calculate it from
+	 */
 	@Nonnull
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		return anotherRequirement;
+		if (!(anotherRequirement instanceof AccompanyingPriceContent anotherAccompanyingPrice)) {
+			throw new GenericEvitaInternalError(
+				"Only accompanying price content requirement can be combined with this one - but got: " +
+					anotherRequirement.getClass(),
+				"Only accompanying price content requirement can be combined with this one!"
+			);
+		}
+		final String priceName = getAccompanyingPriceKey();
+		if (!priceName.equals(anotherAccompanyingPrice.getAccompanyingPriceKey())) {
+			throw new GenericEvitaInternalError(
+				"Only accompanying price content requirements calculating the price of the same name can be " +
+					"combined - but got: " + this + " and " + anotherRequirement + "!",
+				"Only accompanying price content requirements calculating the price of the same name can be combined!"
+			);
+		}
+		if (!Arrays.equals(getPriceLists(), anotherAccompanyingPrice.getPriceLists())) {
+			throw new EvitaInvalidUsageException(
+				"Cannot combine multiple accompanying price content requirements for price `" + priceName +
+					"` with different price lists: " + this + " and " + anotherRequirement + ".",
+				"Cannot combine multiple accompanying price content requirements for price `" + priceName +
+					"` with different price lists."
+			);
+		}
+		//noinspection unchecked
+		return (T) this;
 	}
 
+	/**
+	 * An accompanying price requirement is satisfied by another one only when that one calculates the price of the
+	 * same name from exactly the same price list sequence - anything else would compute a different price and the
+	 * requirement would not be fulfilled.
+	 *
+	 * @param anotherRequirement another requirement to be checked for containment
+	 * @param <T> the type of the requirement which extends EntityContentRequire
+	 * @return true when the other requirement calculates the very same accompanying price
+	 */
 	@Override
 	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
-		return false;
+		return anotherRequirement instanceof AccompanyingPriceContent anotherAccompanyingPrice &&
+			getAccompanyingPriceKey().equals(anotherAccompanyingPrice.getAccompanyingPriceKey()) &&
+			Arrays.equals(getPriceLists(), anotherAccompanyingPrice.getPriceLists());
+	}
+
+	/**
+	 * Returns the name identifying the accompanying price this requirement calculates - the key two requirements have
+	 * to share to describe the same price. Falls back to {@link #DEFAULT_ACCOMPANYING_PRICE} for a constraint that
+	 * carries no arguments at all.
+	 *
+	 * @return name of the calculated accompanying price, never null
+	 */
+	@Nonnull
+	private String getAccompanyingPriceKey() {
+		return getAccompanyingPriceName().orElse(DEFAULT_ACCOMPANYING_PRICE);
 	}
 
 	@Nonnull

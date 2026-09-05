@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -159,6 +160,41 @@ public class EvitaRequest {
 			result[i] = new ConditionalGap(gap.getSize(), gap.getOnPage());
 		}
 		return result;
+	}
+
+	/**
+	 * Creates the exception reported when two `referenceContent` requirements with different - but overlapping -
+	 * reference name sets both claim the same reference, e.g. `referenceContent("a", "b")` written next to
+	 * `referenceContent("b", "c")`. Such a pair is not combinable (the requirements do not share a key), yet both
+	 * describe how reference `b` should be fetched, and picking either body would silently drop the other one.
+	 *
+	 * @param referenceName     the reference claimed by both requirements
+	 * @param referenceContents all reference content requirements of the request, used to find the first claimant
+	 * @param conflicting       the requirement whose reference name collided with an already registered one
+	 * @return the exception to be thrown by the caller
+	 */
+	@Nonnull
+	private static EvitaInvalidUsageException createOverlappingReferenceNamesException(
+		@Nonnull String referenceName,
+		@Nonnull List<ReferenceContent> referenceContents,
+		@Nonnull ReferenceContent conflicting
+	) {
+		ReferenceContent firstClaimant = null;
+		for (final ReferenceContent rc : referenceContents) {
+			if (rc == conflicting || rc.getInstanceName() != null) {
+				continue;
+			}
+			if (ArrayUtils.contains(rc.getReferenceNames(), referenceName)) {
+				firstClaimant = rc;
+				break;
+			}
+		}
+		return new EvitaInvalidUsageException(
+			"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
+				"reference name sets: " + firstClaimant + " and " + conflicting + "; merge them into one.",
+			"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
+				"reference name sets; merge them into one."
+		);
 	}
 
 	/**
@@ -305,7 +341,10 @@ public class EvitaRequest {
 		@Nonnull EntityFetchRequire requirements
 	) {
 		this.requiresEntity = true;
-		this.entityRequirement = new EntityFetch(requirements.getRequirements());
+		// the fetch is reduced before it is stored and before it is written into the derived query, so that every
+		// consumer - including the nested query built below - sees at most one requirement of each kind
+		this.entityRequirement = new EntityFetch(requirements.getRequirements())
+			.combineDuplicateRequirements();
 		this.entityType = entityType;
 		this.query = entityType == null ?
 			Query.query(
@@ -638,10 +677,7 @@ public class EvitaRequest {
 	@Nullable
 	public Set<Locale> getRequiredLocales() {
 		if (this.requiredLocales == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(
-				this.query, EntityFetch.class,
-				SeparateEntityContentRequireContainer.class
-			);
+			final EntityFetch entityFetch = getEntityRequirement();
 			if (entityFetch == null) {
 				this.requiredLocales = true;
 				final Locale theLocale = getLocale();
@@ -719,8 +755,12 @@ public class EvitaRequest {
 				this.query, EntityFetch.class,
 				SeparateEntityContentRequireContainer.class
 			);
+			// the reduction is applied first - when it refuses a pair of contradicting requirements neither field is
+			// assigned and the next call re-attempts it and fails the same way instead of returning a partial answer
+			final EntityFetch reducedEntityFetch = entityFetch == null ?
+				null : entityFetch.combineDuplicateRequirements();
+			this.entityRequirement = reducedEntityFetch;
 			this.requiresEntity = entityFetch != null;
-			this.entityRequirement = entityFetch;
 		}
 		return this.requiresEntity;
 	}
@@ -730,6 +770,20 @@ public class EvitaRequest {
 	 * {@link SeparateEntityContentRequireContainer} implementations
 	 * of the same type are ignored because they relate to the
 	 * different entity context.
+	 *
+	 * The returned fetch is **reduced** - duplicate content requirements of the same kind that the client wrote side
+	 * by side are folded into a single requirement each by
+	 * {@link EntityFetchRequire#combineDuplicateRequirements()}, and irreconcilable siblings are refused with an
+	 * {@link EvitaInvalidUsageException}. {@link #getQuery()} keeps the original, unreduced query so that traffic
+	 * recording and query printing reproduce what the client actually sent.
+	 *
+	 * Because of that reduction the per-kind getters below may keep looking the requirement up with
+	 * `QueryUtils.findConstraint`, which accepts a single result only - a
+	 * `MoreThanSingleResultException` raised from one of them means the reduction did not happen or did not cover
+	 * that kind, not that the query was invalid.
+	 *
+	 * @return the reduced entity fetch requirement or NULL when the query does not fetch entity bodies
+	 * @throws EvitaInvalidUsageException when two content requirements of the same kind contradict each other
 	 */
 	@Nullable
 	public EntityFetch getEntityRequirement() {
@@ -884,10 +938,7 @@ public class EvitaRequest {
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(
-				this.query, EntityFetch.class,
-				SeparateEntityContentRequireContainer.class
-			);
+			final EntityFetch entityFetch = getEntityRequirement();
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = ArrayUtils.EMPTY_STRING_ARRAY;
@@ -1368,7 +1419,13 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns default requirements for reference content.
+	 * Returns default requirements for reference content - the context derived from the `referenceContentAll…()`
+	 * requirement that names neither an instance nor any reference. There is at most one such requirement per request:
+	 * duplicates are folded into one by {@link EntityFetchRequire#combineDuplicateRequirements()} before the map is
+	 * built. A default requirement coexisting with reference-name specific ones is not a conflict - it is the
+	 * fallback consulted by {@link #getReferenceEntityFetch()} when no specific requirement claims the reference.
+	 *
+	 * @return the default reference requirement or NULL when the query names every reference it wants explicitly
 	 */
 	@Nullable
 	public RequirementContext getDefaultReferenceRequirement() {
@@ -1377,8 +1434,20 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns requested referenced entity requirements from the input query.
+	 * Returns requested referenced entity requirements from the input query, keyed by reference name.
 	 * Allows traversing through the object relational graph in unlimited depth.
+	 *
+	 * The map holds **one requirement per reference name**: the `referenceContent` requirements of the query are
+	 * folded by key first (see {@link EntityFetchRequire#combineDuplicateRequirements()}), so two requirements naming
+	 * the same reference can only reach this method when their reference name sets differ but overlap - and that is
+	 * refused with an {@link EvitaInvalidUsageException}, because neither of the two bodies can be preferred over the
+	 * other. Requirements carrying an instance name are collected separately into
+	 * {@link #getNamedReferenceEntityFetch()} and the instance-less catch-all into
+	 * {@link #getDefaultReferenceRequirement()}.
+	 *
+	 * @return map of reference name to the single requirement context that applies to it
+	 * @throws EvitaInvalidUsageException when two `referenceContent` requirements with different reference name sets
+	 *                                    both claim the same reference
 	 */
 	@Nonnull
 	public Map<String, RequirementContext> getReferenceEntityFetch() {
@@ -1396,15 +1465,24 @@ public class EvitaRequest {
 					);
 				this.entityReference = !referenceContent.isEmpty();
 
-				// find default requirement (no instance name, no reference names)
+				// find default requirement (no instance name, no reference names) - after the reduction performed by
+				// getEntityRequirement() there can be at most one, a second one is a programming error
 				RequirementContext defaultReq = null;
+				ReferenceContent defaultRefContent = null;
 				for (final ReferenceContent rc : referenceContent) {
 					if (rc.getInstanceName() == null &&
 						ArrayUtils.isEmpty(rc.getReferenceNames())) {
+						if (defaultRefContent != null) {
+							throw new GenericEvitaInternalError(
+								"Duplicate default reference content requirement survived the requirement " +
+									"reduction: " + defaultRefContent + " and " + rc + "!",
+								"Duplicate default reference content requirement found in the query!"
+							);
+						}
+						defaultRefContent = rc;
 						defaultReq = getRequirementContext(
 							rc, rc.getAttributeContent().orElse(null)
 						);
-						break;
 					}
 				}
 				this.defaultReferenceRequirement = defaultReq;
@@ -1419,12 +1497,22 @@ public class EvitaRequest {
 						if (this.namedEntityFetchRequirements == null) {
 							this.namedEntityFetchRequirements = new TreeMap<>();
 						}
-						this.namedEntityFetchRequirements.put(
-							new ReferenceContentKey(instanceName, rc.getReferenceName()),
-							getRequirementContext(
-								rc, rc.getAttributeContent().orElse(null)
-							)
-						);
+						// after the reduction there can be at most one requirement per (instance, reference) key
+						final RequirementContext previouslyNamed =
+							this.namedEntityFetchRequirements.put(
+								new ReferenceContentKey(instanceName, rc.getReferenceName()),
+								getRequirementContext(
+									rc, rc.getAttributeContent().orElse(null)
+								)
+							);
+						if (previouslyNamed != null) {
+							throw new GenericEvitaInternalError(
+								"Duplicate reference content requirement for instance `" + instanceName +
+									"` and reference `" + rc.getReferenceName() + "` survived the requirement " +
+									"reduction: " + rc + "!",
+								"Duplicate named reference content requirement found in the query!"
+							);
+						}
 					} else {
 						// unnamed reference - add each reference name
 						final String[] refNames = rc.getReferenceNames();
@@ -1433,7 +1521,13 @@ public class EvitaRequest {
 								rc, rc.getAttributeContent().orElse(null)
 							);
 							for (final String refName : refNames) {
-								result.put(refName, ctx);
+								// requirements sharing a reference name were folded into one unless their reference
+								// name sets merely overlap - and then neither body may win over the other
+								if (result.put(refName, ctx) != null) {
+									throw createOverlappingReferenceNamesException(
+										refName, referenceContent, rc
+									);
+								}
 							}
 						}
 					}
@@ -1447,6 +1541,12 @@ public class EvitaRequest {
 	/**
 	 * Returns requested referenced entity requirements with instance name from the input query.
 	 * Allows traversing through the object relational graph in unlimited depth.
+	 *
+	 * The map holds **one requirement per (instance name, reference name) key** - requirements sharing a key are
+	 * folded into one by {@link EntityFetchRequire#combineDuplicateRequirements()} before the map is built, so two
+	 * aliases of the same reference stay two independent entries while two occurrences of one alias become one.
+	 *
+	 * @return map of the instance/reference key to the single requirement context that applies to it
 	 */
 	@Nonnull
 	public Map<ReferenceContentKey, RequirementContext> getNamedReferenceEntityFetch() {

@@ -25,6 +25,8 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -209,15 +211,6 @@ class AccompanyingPriceContentTest {
 	class EntityContentRequireContractTest {
 
 		@Test
-		@DisplayName("should be combinable with another AccompanyingPriceContent")
-		void shouldBeCombinableWithAnotherAccompanyingPriceContent() {
-			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "basic");
-
-			assertTrue(constraint1.isCombinableWith(constraint2));
-		}
-
-		@Test
 		@DisplayName("should not be combinable with other EntityContentRequire types")
 		void shouldNotBeCombinableWithOtherEntityContentRequireTypes() {
 			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
@@ -227,31 +220,119 @@ class AccompanyingPriceContentTest {
 		}
 
 		@Test
-		@DisplayName("should combine by returning the other requirement")
-		void shouldCombineByReturningTheOtherRequirement() {
-			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "basic");
-
-			final AccompanyingPriceContent combined = constraint1.combineWith(constraint2);
-
-			assertSame(constraint2, combined);
-		}
-
-		@Test
-		@DisplayName("should never be fully contained within another requirement")
-		void shouldNeverBeFullyContainedWithinAnotherRequirement() {
-			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference");
-
-			assertFalse(constraint1.isFullyContainedWithin(constraint2));
-		}
-
-		@Test
 		@DisplayName("should not be fully contained within different constraint type")
 		void shouldNotBeFullyContainedWithinDifferentConstraintType() {
 			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
 
 			assertFalse(constraint.isFullyContainedWithin(attributeContentAll()));
+		}
+	}
+
+	@Nested
+	@DisplayName("Combining")
+	class CombiningTest {
+
+		@Test
+		@DisplayName("should be combinable with the same price name and price lists")
+		void shouldBeCombinableWithSameNameAndPriceLists() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should combine equal requirements into the receiver")
+		void shouldCombineEqualRequirementsIntoTheReceiver() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+
+			assertSame(constraint1, constraint1.combineWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should be combinable with another default accompanying price")
+		void shouldBeCombinableWithAnotherDefaultAccompanyingPrice() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent();
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent();
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			assertSame(constraint1, constraint1.combineWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be combinable with a different price name")
+		void shouldNotBeCombinableWithDifferentPriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
+
+			assertFalse(constraint1.isCombinableWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should refuse to combine a different price name")
+		void shouldRefuseToCombineDifferentPriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse to combine different price lists for one price name")
+		void shouldRefuseToCombineDifferentPriceListsForOnePriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+			assertTrue(exception.getMessage().contains("myPrice"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse to combine price lists differing only in order")
+		void shouldRefuseToCombinePriceListsDifferingOnlyInOrder() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic", "reference");
+
+			// the price list sequence is a priority order, so a different order means a different price
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+		}
+
+		@Test
+		@DisplayName("should be fully contained within an equal requirement")
+		void shouldBeFullyContainedWithinEqualRequirement() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+
+			assertTrue(constraint1.isFullyContainedWithin(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained within a differently named requirement")
+		void shouldNotBeFullyContainedWithinDifferentlyNamedRequirement() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
+
+			assertFalse(constraint1.isFullyContainedWithin(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained within a requirement with other price lists")
+		void shouldNotBeFullyContainedWithinRequirementWithOtherPriceLists() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			assertFalse(constraint1.isFullyContainedWithin(constraint2));
 		}
 	}
 

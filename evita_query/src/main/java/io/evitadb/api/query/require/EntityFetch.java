@@ -162,6 +162,17 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 
 	@Nonnull
 	@Override
+	public <T extends EntityFetchRequire> T combineDuplicateRequirements() {
+		final EntityContentRequire[] requirements = getRequirements();
+		final EntityContentRequire[] reduced = EntityFetchRequire.combineDuplicateRequirements(requirements);
+		//noinspection unchecked
+		return reduced == requirements ?
+			(T) this :
+			(T) (EntityFetch) getCopyWithNewChildren(reduced, getAdditionalChildren());
+	}
+
+	@Nonnull
+	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new EntityFetch(getChildren());
 	}

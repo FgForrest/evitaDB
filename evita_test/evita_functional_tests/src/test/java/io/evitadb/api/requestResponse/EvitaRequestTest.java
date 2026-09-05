@@ -23,9 +23,22 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
+import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -35,7 +48,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
@@ -51,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * Tests for {@link EvitaRequest} verifying lazy-memoized accessor
@@ -1924,4 +1941,657 @@ class EvitaRequestTest {
 			);
 		}
 	}
+
+	@Nested
+	@DisplayName("Duplicate content requirements")
+	@Tag(REQUIRE)
+	@Tag(REFERENCE)
+	class DuplicateContentRequirementTest {
+
+		/**
+		 * Returns the single {@link AttributeContent} requirement held
+		 * directly by the passed fetch container.
+		 */
+		@Nonnull
+		private AttributeContent attributeContentOf(
+			@Nonnull EntityFetch entityFetch
+		) {
+			AttributeContent found = null;
+			for (final EntityContentRequire requirement :
+				entityFetch.getRequirements()) {
+				if (requirement instanceof AttributeContent attributeContent) {
+					assertNull(
+						found,
+						"More than one attributeContent in " + entityFetch
+					);
+					found = attributeContent;
+				}
+			}
+			assertNotNull(
+				found, "No attributeContent in " + entityFetch
+			);
+			return found;
+		}
+
+		/**
+		 * Builds a `referenceContent` carrying an instance name
+		 * (alias), the shape produced by the GraphQL API.
+		 */
+		@Nonnull
+		private ReferenceContent namedReferenceContent(
+			@Nonnull String instanceName,
+			@Nonnull String referenceName,
+			@Nonnull EntityFetch entityRequirement
+		) {
+			return new ReferenceContent(
+				instanceName,
+				ManagedReferencesBehaviour.ANY,
+				new String[]{referenceName},
+				new RequireConstraint[]{entityRequirement},
+				new Constraint<?>[0]
+			);
+		}
+
+		/**
+		 * Verifies two reference contents for one reference are
+		 * merged into a single requirement with both bodies.
+		 */
+		@Test
+		@DisplayName("merges two referenceContent of one reference")
+		void shouldMergeTwoReferenceContentsOfSameReference() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent(
+								"category",
+								entityFetch(attributeContent("code"))
+							),
+							referenceContent(
+								"category",
+								entityFetch(attributeContent("name"))
+							)
+						)
+					)
+				)
+			);
+
+			final Map<String, RequirementContext> referenceFetch =
+				request.getReferenceEntityFetch();
+			assertEquals(1, referenceFetch.size());
+			final RequirementContext categoryContext =
+				referenceFetch.get("category");
+			assertNotNull(categoryContext);
+			final EntityFetch categoryFetch =
+				categoryContext.entityFetch();
+			assertNotNull(categoryFetch);
+			assertEquals(
+				Set.of("code", "name"),
+				attributeContentOf(categoryFetch)
+					.getAttributeNamesAsSet()
+			);
+			assertNull(
+				request.getDefaultReferenceRequirement()
+			);
+		}
+
+		/**
+		 * Verifies two default reference contents collapse into a
+		 * single default requirement.
+		 */
+		@Test
+		@DisplayName("merges two referenceContentAll")
+		void shouldMergeTwoDefaultReferenceContents() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContentAll(),
+							referenceContentAll()
+						)
+					)
+				)
+			);
+
+			assertNotNull(
+				request.getDefaultReferenceRequirement()
+			);
+			assertTrue(
+				request.getReferenceEntityFetch().isEmpty()
+			);
+			assertTrue(
+				request.isRequiresEntityReferences()
+			);
+		}
+
+		/**
+		 * Verifies a default reference content and a reference
+		 * specific one stay two independent requirements.
+		 */
+		@Test
+		@DisplayName("keeps default beside name specific")
+		void shouldKeepDefaultBesideNameSpecific() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContentAll(),
+							referenceContent(
+								"category",
+								entityFetch(attributeContent("code"))
+							)
+						)
+					)
+				)
+			);
+
+			assertNotNull(
+				request.getDefaultReferenceRequirement()
+			);
+			final Map<String, RequirementContext> referenceFetch =
+				request.getReferenceEntityFetch();
+			assertEquals(1, referenceFetch.size());
+			final RequirementContext categoryContext =
+				referenceFetch.get("category");
+			assertNotNull(categoryContext);
+			final EntityFetch categoryFetch =
+				categoryContext.entityFetch();
+			assertNotNull(categoryFetch);
+			assertEquals(
+				Set.of("code"),
+				attributeContentOf(categoryFetch)
+					.getAttributeNamesAsSet()
+			);
+		}
+
+		/**
+		 * Verifies two occurrences of one reference content alias
+		 * merge into a single named requirement.
+		 */
+		@Test
+		@DisplayName("merges two occurrences of one alias")
+		void shouldMergeTwoOccurrencesOfOneAlias() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"alias", "category",
+								entityFetch(attributeContent("code"))
+							),
+							namedReferenceContent(
+								"alias", "category",
+								entityFetch(attributeContent("name"))
+							)
+						)
+					)
+				)
+			);
+
+			final Map<ReferenceContentKey, RequirementContext> namedFetch =
+				request.getNamedReferenceEntityFetch();
+			assertEquals(1, namedFetch.size());
+			final RequirementContext aliasContext = namedFetch.get(
+				new ReferenceContentKey("alias", "category")
+			);
+			assertNotNull(aliasContext);
+			final EntityFetch aliasFetch = aliasContext.entityFetch();
+			assertNotNull(aliasFetch);
+			assertEquals(
+				Set.of("code", "name"),
+				attributeContentOf(aliasFetch)
+					.getAttributeNamesAsSet()
+			);
+		}
+
+		/**
+		 * Verifies two distinct aliases of one reference stay two
+		 * independent named requirements.
+		 */
+		@Test
+		@DisplayName("keeps two distinct aliases apart")
+		void shouldKeepTwoDistinctAliasesApart() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							namedReferenceContent(
+								"first", "category",
+								entityFetch(attributeContent("code"))
+							),
+							namedReferenceContent(
+								"second", "category",
+								entityFetch(attributeContent("name"))
+							)
+						)
+					)
+				)
+			);
+
+			final Map<ReferenceContentKey, RequirementContext> namedFetch =
+				request.getNamedReferenceEntityFetch();
+			assertEquals(2, namedFetch.size());
+			assertNotNull(
+				namedFetch.get(
+					new ReferenceContentKey("first", "category")
+				)
+			);
+			assertNotNull(
+				namedFetch.get(
+					new ReferenceContentKey("second", "category")
+				)
+			);
+		}
+
+		/**
+		 * Verifies two attribute contents merge and that the "all"
+		 * variant absorbs the specific one.
+		 */
+		@Test
+		@DisplayName("merges attributeContent with all variant")
+		void shouldMergeAttributeContentWithAllVariant() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							entityFetchAllContentAnd(
+								attributeContent("code")
+							)
+						)
+					)
+				)
+			);
+
+			assertTrue(
+				request.isRequiresEntityAttributes()
+			);
+			assertTrue(
+				request.getEntityAttributeSet().isEmpty()
+			);
+		}
+
+		/**
+		 * Verifies two associated data contents merge and that the
+		 * "all" variant absorbs the specific one.
+		 */
+		@Test
+		@DisplayName("merges associatedDataContent with all variant")
+		void shouldMergeAssociatedDataContentWithAllVariant() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							associatedDataContent("labels"),
+							associatedDataContentAll()
+						)
+					)
+				)
+			);
+
+			assertTrue(
+				request.isRequiresEntityAssociatedData()
+			);
+			assertTrue(
+				request.getEntityAssociatedDataSet().isEmpty()
+			);
+		}
+
+		/**
+		 * Verifies two price contents merge into the richer fetch
+		 * mode while keeping the union of additional price lists.
+		 */
+		@Test
+		@DisplayName("merges priceContent into richer mode")
+		void shouldMergePriceContentIntoRicherMode() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							priceContent(
+								RESPECTING_FILTER, "basic"
+							),
+							priceContentAll()
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				ALL, request.getRequiresEntityPrices()
+			);
+			assertArrayEquals(
+				new String[]{"basic"},
+				request.getFetchesAdditionalPriceLists()
+			);
+		}
+
+		/**
+		 * Verifies two identical accompanying price requirements
+		 * collapse into a single calculated price.
+		 */
+		@Test
+		@DisplayName("merges two identical accompanyingPriceContent")
+		void shouldMergeTwoIdenticalAccompanyingPriceContents() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							priceContentAll(),
+							accompanyingPriceContent(
+								"reference", "a", "b"
+							),
+							accompanyingPriceContent(
+								"reference", "a", "b"
+							)
+						)
+					)
+				)
+			);
+
+			final AccompanyingPrice[] accompanyingPrices =
+				request.getAccompanyingPrices();
+			assertEquals(1, accompanyingPrices.length);
+			assertEquals(
+				"reference",
+				accompanyingPrices[0].priceName()
+			);
+			assertArrayEquals(
+				new String[]{"a", "b"},
+				accompanyingPrices[0].priceListPriority()
+			);
+		}
+
+		/**
+		 * Verifies two differently named accompanying price
+		 * requirements both survive the reduction.
+		 */
+		@Test
+		@DisplayName("keeps two named accompanyingPriceContent apart")
+		void shouldKeepTwoNamedAccompanyingPriceContentsApart() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							priceContentAll(),
+							accompanyingPriceContent("first", "a"),
+							accompanyingPriceContent("second", "b")
+						)
+					)
+				)
+			);
+
+			final AccompanyingPrice[] accompanyingPrices =
+				request.getAccompanyingPrices();
+			assertEquals(2, accompanyingPrices.length);
+			final Set<String> priceNames = new HashSet<>();
+			for (final AccompanyingPrice price : accompanyingPrices) {
+				priceNames.add(price.priceName());
+			}
+			assertEquals(
+				Set.of("first", "second"), priceNames
+			);
+		}
+
+		/**
+		 * Verifies one accompanying price requested from two
+		 * different price list sequences is refused.
+		 */
+		@Test
+		@DisplayName("refuses conflicting accompanying price lists")
+		void shouldRefuseConflictingAccompanyingPriceLists() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							priceContentAll(),
+							accompanyingPriceContent(
+								"reference", "a"
+							),
+							accompanyingPriceContent(
+								"reference", "b"
+							)
+						)
+					)
+				)
+			);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getAccompanyingPrices
+			);
+			assertTrue(
+				exception.getMessage().contains("reference"),
+				exception.getMessage()
+			);
+		}
+
+		/**
+		 * Verifies two data in locales requirements merge and that
+		 * the "all" variant absorbs the specific one.
+		 */
+		@Test
+		@DisplayName("merges dataInLocales with all variant")
+		void shouldMergeDataInLocalesWithAllVariant() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							dataInLocales(Locale.GERMAN),
+							dataInLocalesAll()
+						)
+					)
+				)
+			);
+
+			final Set<Locale> requiredLocales =
+				request.getRequiredLocales();
+			assertNotNull(requiredLocales);
+			// empty set means all locales - see DataInLocales
+			assertTrue(requiredLocales.isEmpty());
+		}
+
+		/**
+		 * Verifies two hierarchy contents merge instead of making
+		 * the parent lookup fail.
+		 */
+		@Test
+		@DisplayName("merges two hierarchyContent")
+		void shouldMergeTwoHierarchyContents() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							hierarchyContent(),
+							hierarchyContent()
+						)
+					)
+				)
+			);
+
+			assertTrue(request.isRequiresParent());
+			assertNotNull(request.getHierarchyContent());
+		}
+
+		/**
+		 * Verifies two reference contents of one reference that
+		 * disagree on the filter are refused.
+		 */
+		@Test
+		@DisplayName("refuses conflicting reference filters")
+		void shouldRefuseConflictingReferenceFilters() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent(
+								"category",
+								filterBy(entityPrimaryKeyInSet(1)),
+								entityFetch(attributeContent("code"))
+							),
+							referenceContent(
+								"category",
+								filterBy(entityPrimaryKeyInSet(2)),
+								entityFetch(attributeContent("name"))
+							)
+						)
+					)
+				)
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getEntityRequirement
+			);
+		}
+
+		/**
+		 * Verifies two reference contents whose reference name sets
+		 * overlap without being equal are refused.
+		 */
+		@Test
+		@DisplayName("refuses overlapping reference name sets")
+		void shouldRefuseOverlappingReferenceNameSets() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(
+							referenceContent("brand", "category"),
+							referenceContent("category", "parameter")
+						)
+					)
+				)
+			);
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getReferenceEntityFetch
+			);
+			assertTrue(
+				exception.getMessage().contains("category"),
+				exception.getMessage()
+			);
+		}
+
+		/**
+		 * Verifies the fetch found in the query is handed over
+		 * untouched when it holds no duplicates.
+		 */
+		@Test
+		@DisplayName("keeps fetch identity without duplicates")
+		void shouldKeepFetchIdentityWithoutDuplicates() {
+			final EntityFetch entityFetch = entityFetch(
+				attributeContent("code"),
+				referenceContent("category")
+			);
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(entityFetch)
+				)
+			);
+
+			assertSame(
+				entityFetch, request.getEntityRequirement()
+			);
+		}
+
+		/**
+		 * Verifies the reduced fetch replaces the original one while
+		 * the query itself keeps what the client sent.
+		 */
+		@Test
+		@DisplayName("reduces fetch but keeps query verbatim")
+		void shouldReduceFetchButKeepQueryVerbatim() {
+			final EntityFetch entityFetch = entityFetch(
+				attributeContent("code"),
+				attributeContent("name")
+			);
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(entityFetch)
+				)
+			);
+
+			final EntityFetch reduced =
+				request.getEntityRequirement();
+			assertNotNull(reduced);
+			assertNotSame(entityFetch, reduced);
+			assertEquals(1, reduced.getRequirements().length);
+			assertEquals(
+				Set.of("code", "name"),
+				attributeContentOf(reduced)
+					.getAttributeNamesAsSet()
+			);
+			assertTrue(
+				request.isRequiresEntityAttributes()
+			);
+			assertEquals(
+				Set.of("code", "name"),
+				request.getEntityAttributeSet()
+			);
+
+			// the query still carries the two original requirements
+			final EntityFetch fetchInQuery =
+				QueryUtils.findRequire(
+					request.getQuery(),
+					EntityFetch.class,
+					SeparateEntityContentRequireContainer.class
+				);
+			assertSame(entityFetch, fetchInQuery);
+			assertEquals(
+				2, entityFetch.getRequirements().length
+			);
+		}
+
+		/**
+		 * Verifies a derived request reduces the requirements it is
+		 * handed.
+		 */
+		@Test
+		@DisplayName("reduces requirements of a derived request")
+		void shouldReduceRequirementsOfDerivedRequest() {
+			final EvitaRequest request = createRequest(
+				query(collection("product"))
+			);
+
+			final EvitaRequest derived = request.deriveCopyWith(
+				"category",
+				entityFetch(
+					attributeContent("code"),
+					attributeContent("name")
+				)
+			);
+
+			final EntityFetch derivedFetch =
+				derived.getEntityRequirement();
+			assertNotNull(derivedFetch);
+			assertEquals(
+				1, derivedFetch.getRequirements().length
+			);
+			assertTrue(
+				derived.isRequiresEntityAttributes()
+			);
+			assertEquals(
+				Set.of("code", "name"),
+				derived.getEntityAttributeSet()
+			);
+		}
+	}
+
 }

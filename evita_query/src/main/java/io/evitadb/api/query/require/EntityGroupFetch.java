@@ -160,6 +160,17 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
+	public <T extends EntityFetchRequire> T combineDuplicateRequirements() {
+		final EntityContentRequire[] requirements = getRequirements();
+		final EntityContentRequire[] reduced = EntityFetchRequire.combineDuplicateRequirements(requirements);
+		//noinspection unchecked
+		return reduced == requirements ?
+			(T) this :
+			(T) (EntityGroupFetch) getCopyWithNewChildren(reduced, getAdditionalChildren());
+	}
+
+	@Nonnull
+	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new EntityGroupFetch(getChildren());
 	}
