@@ -69,8 +69,9 @@ import java.util.stream.Stream;
  * bodies), and inside {@link HierarchyContent} (to load bodies of parent hierarchy nodes).
  *
  * When multiple `entityFetch` requirements are combined (e.g., from different API layers), their sub-requirements are
- * merged by {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}, so the result always
- * fetches the union of requested data.
+ * merged by {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}, so the result fetches
+ * the union of the requested data — unless two of the merged sub-requirements contradict each other, in which case
+ * the merge is refused with an {@link EvitaInvalidUsageException} rather than resolved silently.
  *
  * Example — fetching selected attributes of a Brand entity:
  *
@@ -88,6 +89,40 @@ import java.util.stream.Stream;
  *     )
  * )
  * ```
+ *
+ * ## Two content requirements of the same kind in one entityFetch
+ *
+ * Several content requirements of one kind placed in a single `entityFetch` are not an error and none of them is
+ * dropped — they are folded into the one requirement the query is executed with, following the same "the superset
+ * wins" rule the individual requirements use among themselves:
+ *
+ * ```
+ * entityFetch(
+ *     attributeContent("code"),
+ *     attributeContent("name")
+ * )
+ * ```
+ *
+ * fetches `code` **and** `name`, exactly as `attributeContent("code", "name")` would.
+ *
+ * Two kinds may legitimately occur several times in one container, and they fold **per key** rather than into one
+ * requirement altogether: a {@link ReferenceContent} is keyed by the references it names (an aliased instance by its
+ * instance name as well), an {@link AccompanyingPriceContent} by the name of the price it calculates. So
+ * `referenceContent("brand")` beside `referenceContent("categories")` stays two requirements, while two
+ * `referenceContent("brand")` requirements become one. A name-specific requirement is never folded into a
+ * `referenceContentAll…()` written beside it — the specific one wins the lookup for the reference it names and the
+ * default one remains the fallback for every other reference.
+ *
+ * Two siblings that cannot be reconciled are refused with an {@link EvitaInvalidUsageException} instead of one of
+ * them silently winning: two `referenceContent` requirements for one reference carrying different `filterBy`,
+ * `orderBy` or chunking constraints, two `hierarchyContent` requirements bounding the parent chain differently, or
+ * two `accompanyingPriceContent` requirements calculating one price from different price list sequences.
+ * {@link EntityFetchRequire#combineDuplicateRequirements()} defines the fold; `EvitaRequest#getEntityRequirement()`
+ * is where it is applied to the query the client sent, once per request.
+ *
+ * The fold is **shallow** — it reconciles the direct children of the container it is called on. An `entityFetch`
+ * nested inside a {@link ReferenceContent} is reduced when the request for the referenced entity is derived, not by
+ * the outer call, so each fetch scope is reduced by the request that executes it.
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-fetch)
  *

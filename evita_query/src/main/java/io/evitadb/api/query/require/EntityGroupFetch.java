@@ -60,6 +60,10 @@ import java.util.stream.Stream;
  *
  * An empty `entityGroupFetch()` loads only the group entity body without any additional data containers.
  *
+ * Duplicate sub-requirements of one kind are folded into a single requirement by the very same rule `entityFetch`
+ * uses — see its "Two content requirements of the same kind in one entityFetch" section for the key each kind folds
+ * by and for the pairs that are refused with an {@link EvitaInvalidUsageException}.
+ *
  * Example — fetching product parameters together with their group entities:
  *
  * ```

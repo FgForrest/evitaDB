@@ -166,7 +166,34 @@ import static java.util.Optional.ofNullable;
  * ## Aliased instances
  *
  * The same reference type can appear multiple times in a single `entityFetch` under different logical names (aliases),
- * allowing different filtering/ordering configurations to be applied to the same reference type simultaneously.
+ * allowing different filtering/ordering configurations to be applied to the same reference type simultaneously. The
+ * instance name is part of the requirement's key, so two aliases of one reference stay two independent output slots
+ * while two occurrences of a single alias are folded together by the rule described next.
+ *
+ * ## Two referenceContent requirements in one entityFetch
+ *
+ * Several `referenceContent` requirements in a single `entityFetch` are not an error — the ones addressing the same
+ * references are folded into the one requirement the query is executed with. "The same references" means an equal
+ * **key**; see {@link #isCombinableWith(EntityContentRequire)} for its full definition. Within one key:
+ *
+ * - **reference attributes and the nested entity / group bodies are united**, recursively, so nothing either side
+ *   asked for is lost
+ * - **a disagreement on {@link ManagedReferencesBehaviour} narrows to {@link ManagedReferencesBehaviour#EXISTING}**,
+ *   so a request to suppress references pointing at missing entities is never lost by merging
+ * - **`filterBy` and chunking follow the superset rule** — a requirement carrying neither asks for *every*
+ *   reference, so a filter or a page present on one side only is dropped, exactly as `attributeContentAll()`
+ *   swallows an `attributeContent("code")` written beside it. Two *different* filters (or two different pages)
+ *   select unrelated subsets and are refused with an {@link EvitaInvalidUsageException}.
+ * - **`orderBy` present on one side only is kept**, because an order shapes the sequence without dropping any
+ *   reference. Two *different* orders are refused with an {@link EvitaInvalidUsageException}.
+ *
+ * A `referenceContentAll…()` and a name-specific requirement carry different keys and are therefore never merged:
+ * the specific one wins the lookup for the reference it names, the default one stays the fallback for the rest.
+ *
+ * Two requirements whose reference name sets merely **overlap** — `referenceContent("a", "b")` beside
+ * `referenceContent("b", "c")` — are neither combinable (the keys differ) nor separable (both claim `b`), and are
+ * refused when the request builds its per-reference lookup. Name a reference in one requirement only, or name it in
+ * both requirements identically so that they share a key and fold.
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
  *

@@ -23,6 +23,8 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -39,6 +41,11 @@ import javax.annotation.Nonnull;
  * their implicit requirements through this collector interface. The collector then merges compatible requirements
  * (using the {@link EntityContentRequire#isCombinableWith} / {@link EntityContentRequire#combineWith} protocol)
  * and deduplicates requirements that are fully contained within already-registered ones.
+ *
+ * A merging implementation may also **refuse**: two requirements that address the same thing but contradict each
+ * other (two `referenceContent` requirements for one reference with different `filterBy` constraints, for example)
+ * raise an {@link EvitaInvalidUsageException} out of {@link #addRequirementsToPrefetch(EntityContentRequire...)}
+ * rather than letting one of them silently win.
  *
  * The standard implementation is {@link DefaultPrefetchRequirementCollector}, which is wired into
  * `QueryPlanningContext` and `QueryPlanBuilder` so that all engine translators can access the same collector

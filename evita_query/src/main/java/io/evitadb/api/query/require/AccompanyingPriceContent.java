@@ -84,6 +84,15 @@ import java.util.Optional;
  * accompanyingPriceContentDefault()
  * ```
  *
+ * ## Two accompanyingPriceContent requirements in one entityFetch
+ *
+ * The requirement is keyed by the accompanying price **name**, which is what makes several of them in one
+ * `entityFetch` the normal case: two constraints naming different prices calculate two independent prices and both
+ * survive. Two constraints naming the *same* price are folded into one when they list exactly the same price lists,
+ * and are refused with an {@link EvitaInvalidUsageException} when they do not — including when the two lists differ
+ * only in order, because the sequence is a priority order and any merge would invent a priority neither side asked
+ * for. See {@link #combineWith(EntityContentRequire)} for the reasoning.
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

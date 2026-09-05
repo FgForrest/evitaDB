@@ -74,6 +74,12 @@ import static java.util.Optional.ofNullable;
  * cache those extracted information to avoid paying parsing costs
  * twice in single request.
  *
+ * Besides caching, the request also **normalizes** the entity fetch: the content requirements the client wrote side
+ * by side are folded once, by {@link EntityFetchRequire#combineDuplicateRequirements()}, so that every per-kind
+ * accessor below sees at most one requirement of each kind and can keep looking it up with a single-result lookup.
+ * `getQuery()` is deliberately left out of that normalization and keeps the client's query verbatim, because
+ * traffic recording and query printing have to reproduce what was actually sent.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see EvitaSessionContract#query(Query, Class)
  * @see EvitaResponse examples in super class
@@ -81,6 +87,10 @@ import static java.util.Optional.ofNullable;
 public class EvitaRequest {
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
 
+	/**
+	 * The query as the client wrote it, never the reduced form. Duplicate content requirements are folded only into
+	 * {@link #getEntityRequirement()}, so that traffic recording and query printing reproduce the original input.
+	 */
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	@Nullable private final String entityType;
@@ -341,7 +351,12 @@ public class EvitaRequest {
 	 * @param entityType   the new entity type (may be null)
 	 * @param filterBy     optional filter constraints override
 	 * @param orderBy      optional order constraints override
-	 * @param requirements the entity fetch requirements
+	 * @param requirements the entity fetch requirements; they are reduced by
+	 *                     {@link EntityFetchRequire#combineDuplicateRequirements()} before they are stored and before
+	 *                     they are written into the derived query, so the derived request is described by at most one
+	 *                     requirement of each kind
+	 * @throws EvitaInvalidUsageException when two of the passed requirements address the same thing but contradict
+	 *                                    each other
 	 */
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
@@ -683,6 +698,14 @@ public class EvitaRequest {
 	 * {@link EntityLocaleEquals} (check {@link DataInLocales} docs).
 	 * Accessor method caches the found result so that consecutive
 	 * calls of this method are pretty fast.
+	 *
+	 * The lookup runs against the **reduced** fetch returned by {@link #getEntityRequirement()}, which is what lets
+	 * a query name several `dataInLocales` requirements side by side — they are folded into one before this method
+	 * looks for it.
+	 *
+	 * @return set of locales the localized data should be materialised in, empty when every locale is requested,
+	 *         NULL when the query names neither a {@link DataInLocales} requirement nor a locale
+	 * @throws EvitaInvalidUsageException when two content requirements of the same kind contradict each other
 	 */
 	@Nullable
 	public Set<Locale> getRequiredLocales() {
@@ -758,6 +781,16 @@ public class EvitaRequest {
 
 	/**
 	 * Method will determine if at least entity body is required for main entities.
+	 *
+	 * This is the method that actually performs the reduction: on its first call it finds the `entityFetch` of the
+	 * query, folds its duplicate content requirements into one requirement per kind and memoizes the result, which
+	 * {@link #getEntityRequirement()} then merely hands out. A caller that only ever asks this question therefore
+	 * pays for the reduction, and sees its refusal, just like a caller of the requirement getter.
+	 *
+	 * @return true when the query fetches entity bodies for the main entities
+	 * @throws EvitaInvalidUsageException when two content requirements of the same kind contradict each other; the
+	 *                                    memoized fields stay unassigned in that case, so every later call re-attempts
+	 *                                    the reduction and fails the same way instead of answering from a partial state
 	 */
 	public boolean isRequiresEntity() {
 		if (this.requiresEntity == null) {
@@ -783,7 +816,7 @@ public class EvitaRequest {
 	 * The returned fetch is **reduced** - duplicate content requirements of the same kind that the client wrote side
 	 * by side are folded into a single requirement each by
 	 * {@link EntityFetchRequire#combineDuplicateRequirements()}, and irreconcilable siblings are refused with an
-	 * {@link EvitaInvalidUsageException}. {@link #getQuery()} keeps the original, unreduced query so that traffic
+	 * {@link EvitaInvalidUsageException}. `getQuery()` keeps the original, unreduced query so that traffic
 	 * recording and query printing reproduce what the client actually sent.
 	 *
 	 * Because of that reduction the per-kind getters below may keep looking the requirement up with
@@ -943,6 +976,14 @@ public class EvitaRequest {
 	 * {@link PriceContent} is present in the query. Accessor method
 	 * caches the found result so that consecutive calls of this
 	 * method are pretty fast.
+	 *
+	 * The lookup runs against the **reduced** fetch returned by {@link #getEntityRequirement()}, so a query may name
+	 * several `priceContent` requirements and several `accompanyingPriceContent` requirements for one price - they
+	 * are folded before this method looks for them.
+	 *
+	 * @return the price content mode requested for the main entities, {@link PriceContentMode#NONE} when the query
+	 *         fetches no prices at all
+	 * @throws EvitaInvalidUsageException when two content requirements of the same kind contradict each other
 	 */
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
@@ -1617,6 +1658,18 @@ public class EvitaRequest {
 	 * and entity `requirements`. The copy will share already resolved
 	 * and memoized values of this request except those that relate to
 	 * the changed entity type and requirements.
+	 *
+	 * The passed requirements are **reduced** in the copy - duplicate content requirements of the same kind are
+	 * folded into one by {@link EntityFetchRequire#combineDuplicateRequirements()}, so the derived request is
+	 * described by at most one requirement of each kind. This is where a nested fetch scope (the `entityFetch`
+	 * written inside a {@link ReferenceContent}, for instance) gets reduced, since the fold applied to the outer
+	 * container is shallow.
+	 *
+	 * @param entityType   the new entity type (may be null)
+	 * @param requirements the entity fetch requirements for the derived request
+	 * @return a new request fetching `requirements` for `entityType`
+	 * @throws EvitaInvalidUsageException when two of the passed requirements address the same thing but contradict
+	 *                                    each other
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1636,6 +1689,17 @@ public class EvitaRequest {
 	 * and entity `requirements`. The copy will share already resolved
 	 * and memoized values of this request except those that relate to
 	 * the changed entity type and requirements.
+	 *
+	 * The passed requirements are **reduced** in the copy exactly as in
+	 * {@link #deriveCopyWith(String, EntityFetchRequire)}.
+	 *
+	 * @param entityType   the new entity type (may be null)
+	 * @param filterBy     optional filter constraints override
+	 * @param orderBy      optional order constraints override
+	 * @param requirements the entity fetch requirements for the derived request
+	 * @return a new request fetching `requirements` for `entityType` under the passed filter and order
+	 * @throws EvitaInvalidUsageException when two of the passed requirements address the same thing but contradict
+	 *                                    each other
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(

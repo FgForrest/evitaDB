@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 
@@ -42,14 +43,27 @@ import java.util.LinkedHashMap;
  * **Merging logic:** Requirements are indexed internally by their runtime class. When a new requirement arrives:
  * 1. If no requirement of that class exists yet, it is stored directly.
  * 2. If the new requirement is *fully contained within* an existing requirement of the same class, it is silently
- *    discarded (the existing one already covers it).
+ *    discarded (the existing one already covers it). This is the branch that dropping a redundant requirement lives
+ *    in, and it is wider than combinability: a `referenceContent("brand")` contributed by one translator is
+ *    contained within a `referenceContentAll()` contributed by another, so only the broader one is prefetched even
+ *    though the two are not combinable.
  * 3. If the new requirement is *combinable with* an existing one of the same class (e.g., two `AttributeContent`
- *    instances that together cover a superset of attribute names), they are merged in place.
+ *    instances that together cover a superset of attribute names), they are merged in place. The merge may also be
+ *    **refused** with an {@link EvitaInvalidUsageException} when the two requirements address the same thing but
+ *    contradict each other. That matters more here than anywhere else: this collector is fed by the implicit
+ *    ordering and filtering translators as well as by the explicit `require` clause, so the conflict can arise
+ *    between requirements the client never wrote side by side.
  * 4. Otherwise the new requirement is appended as an additional entry for that class (rare, occurs for semantically
  *    incompatible instances of the same concrete type).
  *
- * This ensures that `getRequirementsToPrefetch()` always returns the minimal non-redundant set of requirements,
- * which is then used to build the actual {@link EntityFetch} passed to the entity-fetching layer.
+ * This ensures that `getRequirementsToPrefetch()` returns the minimal non-redundant set of requirements — unless
+ * a pair was refused, in which case the exception surfaces during query planning — which is then used to build the
+ * actual {@link EntityFetch} passed to the entity-fetching layer.
+ *
+ * Because the prefetch deliberately asks for a **superset** of what the query needs, dropping a contained
+ * requirement is the intended behaviour here. The keyed fold
+ * {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}, which reduces the body the
+ * client actually receives, deliberately skips the containment step for exactly that reason.
  *
  * **Lifecycle:** Not thread-safe; a single instance is used within the context of one query planning pass and
  * is not shared across threads.
@@ -115,10 +129,15 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 
 	/**
 	 * Adds the given array of {@link EntityContentRequire} requirements to the internal requirements map.
-	 * If a requirement of the same class is already present and can be combined with the new requirement,
-	 * they are combined. Otherwise, the new requirement is added to the array.
+	 *
+	 * Each requirement is matched against the ones already registered for its class, in registration order. When it
+	 * is fully contained within one of them it is dropped as redundant; otherwise, when one of them is combinable
+	 * with it, that entry is replaced by the merged requirement; otherwise the requirement is appended as a further
+	 * entry for its class.
 	 *
 	 * @param require an array of {@link EntityContentRequire} requirements to be added
+	 * @throws EvitaInvalidUsageException when a requirement addresses the same thing as an already registered one
+	 *                                    but contradicts it, so that the two cannot be merged
 	 */
 	private void addRequirementToPrefetchInternal(@Nonnull EntityContentRequire[] require) {
 		for (final EntityContentRequire theRequirement : require) {
