@@ -1,7 +1,7 @@
 ---
 title: Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap
 date: 2026-09-04
-updated: 2026-09-05 05:14
+updated: 2026-09-05 05:44
 status: accepted
 kind: optimization
 issues: [1486, 1455]
@@ -584,25 +584,27 @@ bitmap object arrays to zero. The full suite on that head: engine 17,915 tests, 
 failures; the one error is `ExportS3ServiceTest`, which needs a Docker daemon the measuring host lacks.
 
 **Ingestion regression check** — a full WARM_UP reindex of the same production catalog (432,764 entities,
-18 collections, 119,447 of them products) through the gRPC driver, target server release 2026.2.6 versus this
-branch, the same branch-built driver for both, async-profiler cpu attached to the writer, no Maven between the
-runs:
+18 collections, 119,447 of them products) through the gRPC driver, three target servers in turn — release
+2026.2.6, the branch base on dev, this branch — with the same branch-built driver, async-profiler cpu attached
+to the writer, no Maven between the runs:
 
-| | release | branch | change |
+| | release | branch base | this branch |
 |---|---:|---:|---:|
-| load wall-clock | 1,298.4 s | 991.1 s | −23.7 % |
-| goLive | 30.2 s | 29.2 s | −3.3 % |
-| product load | 1,212.0 s | 900.9 s | −25.7 % |
-| product mean upsert | 9,865.9 µs | 7,316.5 µs | −25.8 % |
+| load wall-clock | 1,298.4 s | 987.6 s | 991.1 s |
+| goLive | 30.2 s | 30.0 s | 29.2 s |
+| product load | 1,212.0 s | 900.9 s | 900.9 s |
+| product mean upsert | 9,865.9 µs | 7,320.9 µs | 7,316.5 µs |
 
-**The new layout costs ingestion nothing; it speeds it up.** Both runs exited cleanly with per-collection counts
-verified against the source and no full GC on the writer. The profile corroborates the wall clock independently:
-total samples fell 22.6 %, `HashMap.getNode` halved (16.8 % → 10.8 % of the profile) and `PriceRefIndex.addPrice`
-fell from 1,702 samples to 26, the memo removal landing where it was aimed. One frame grew,
-`AttributeMutationFanOut.lambda$apply$3` from 16 to 2,619 samples (2.3 % of the branch profile), new work on
-the branch rather than a shared-code regression, and worth a look in its own right. Caveats: one run per build,
-and the branch ran on the quieter machine (load 0.48 against 3.58 before the release run), which qualifies the
-size of the gap, not its direction; the skill puts single-run resolution near 9 %.
+**This branch is ingestion-neutral.** The 23.9 % saving between the release and the branch base belongs to the
+43 dev commits in between (the schema lookups on the reference-mutation path and `PriceRefIndex.addPrice` are
+already cheap at the base: 3,993 → 91 → 89, 3,651 → 0 → 0, 1,702 → 36 → 26 samples); the branch then adds 3.5 s,
+0.4 %, far inside the harness's ~9 % single-run resolution, with product load identical to the tenth of a
+second and 2.7 % fewer cpu samples overall. The one branch-specific movement is the `AttributeMutationFanOut`
+subtree, 8,976 → 11,588 samples against the base, a string-classification cost (`Wtf8.classify`) from the
+branch's earlier commits that is outweighed elsewhere and worth a look on its own. All three runs exited
+cleanly with per-collection counts verified and no full GC on the writer. Two earlier readings of this
+comparison — that the speed-up was the branch's, and that the memo removal showed in the profile — were wrong
+and are withdrawn; the third run is what made the attribution honest. Caveat: one run per build.
 
 ### The tree content sizing
 
