@@ -893,6 +893,25 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
+		@DisplayName("initRootNodes bootstrap is visible in the all-nodes bitmap")
+		void shouldSeeBootstrappedRootsInTheAllNodesBitmap() {
+			final HierarchyIndex index = new HierarchyIndex();
+
+			index.initRootNodes(new BaseBitmap(10, 20, 30));
+
+			// the roots themselves did arrive
+			assertArrayEquals(new int[]{10, 20, 30}, index.getRootHierarchyNodes().getArray());
+			assertEquals(3, index.getHierarchySize());
+
+			// and they must be visible through the all-nodes accessors as well - the empty bitmap the constructor
+			// memoizes goes stale the moment the bootstrap registers a root, so the bootstrap has to discard it
+			assertArrayEquals(new int[]{10, 20, 30}, index.getAllHierarchyNodes().getArray());
+			final Formula allNodesFormula = index.getAllHierarchyNodesFormula();
+			assertInstanceOf(ConstantFormula.class, allNodesFormula);
+			assertArrayEquals(new int[]{10, 20, 30}, allNodesFormula.compute().getArray());
+		}
+
+		@Test
 		@DisplayName("initRootNodes on non-empty index throws")
 		void shouldThrowWhenInitRootNodesOnNonEmptyIndex() {
 			// hierarchyIndex is already populated from setUp()
@@ -1078,6 +1097,37 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			assertArrayEquals(
 				new int[]{3, 6, 8},
 				result.getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("listHierarchyNodesFromParentIncludingItselfDownTo for a parent that is in no hierarchy")
+		void shouldNotReportAParentThatIsNotInTheIndex() {
+			final HierarchyFilteringPredicate acceptAll =
+				HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
+
+			final HierarchyIndex emptied = new HierarchyIndex();
+			emptied.addNode(1, null);
+			emptied.removeNode(1);
+
+			final HierarchyIndex neverWritten = new HierarchyIndex();
+
+			// a primary key the index does not hold is in no subtree of it, whatever the filtering predicate says
+			assertArrayEquals(
+				new int[0],
+				HierarchyIndexTest.this.hierarchyIndex
+					.listHierarchyNodesFromParentIncludingItselfDownTo(999, 1, acceptAll)
+					.getArray()
+			);
+			assertArrayEquals(
+				new int[0],
+				emptied.listHierarchyNodesFromParentIncludingItselfDownTo(999, 1, acceptAll).getArray()
+			);
+
+			// and two hierarchies that hold exactly the same nothing answer it the same way
+			assertArrayEquals(
+				new int[0],
+				neverWritten.listHierarchyNodesFromParentIncludingItselfDownTo(999, 1, acceptAll).getArray()
 			);
 		}
 

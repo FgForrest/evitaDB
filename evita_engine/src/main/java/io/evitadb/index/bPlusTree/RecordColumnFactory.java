@@ -38,18 +38,19 @@ interface RecordColumnFactory {
 	/**
 	 * The 4-byte {@code int[]} payload — the default for every record-set tree (inverted / owner-unique indexes).
 	 */
-	RecordColumnFactory INT = capacity -> new IntRecordColumn(new int[capacity]);
+	RecordColumnFactory INT = IntRecordColumn::new;
 
 	/**
 	 * The 8-byte {@code long[]} payload — for the global-unique value→entity tree whose payload is a packed
 	 * {@code (entityType, pk)} long.
 	 */
-	RecordColumnFactory LONG = capacity -> new LongRecordColumn(new long[capacity]);
+	RecordColumnFactory LONG = LongRecordColumn::new;
 
 	/**
-	 * Creates a fresh empty payload column with the given capacity (the leaf block size).
+	 * Creates a fresh empty payload column with the given **logical** capacity (the leaf block size). The column
+	 * allocates no backing storage until its first write — see {@link RecordColumn} for the logical / physical split.
 	 *
-	 * @param capacity the backing capacity (block size)
+	 * @param capacity the logical capacity (block size)
 	 * @return a fresh empty payload column of this factory's kind
 	 */
 	@Nonnull

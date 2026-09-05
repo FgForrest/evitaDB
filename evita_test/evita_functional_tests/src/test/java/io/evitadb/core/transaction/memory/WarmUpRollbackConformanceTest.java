@@ -440,10 +440,6 @@ class WarmUpRollbackConformanceTest implements EvitaTestSupport {
 				"cache read and cache invalidation gates - the cardinality map and bitmaps journal for themselves"
 			),
 			Map.entry(
-				"io/evitadb/index/price/AbstractPriceListAndCurrencyPriceIndex.java",
-				"cache read and cache invalidation gates - the indexed price ids array journals for itself"
-			),
-			Map.entry(
 				"io/evitadb/index/invertedIndex/InvertedIndex.java",
 				"premise refusals in getValueById/getRecordsOfValueIdsMatching, one cache invalidation gate in " +
 					"markValueIdDirectoryStale, and one schema-lifecycle gate in detachValueIdConsumer - the last " +

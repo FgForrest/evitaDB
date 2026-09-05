@@ -65,10 +65,14 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	Bitmap getIndexedPriceEntityIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
-	 * Returns bitmap of all indexed price ids.
+	 * Returns the bitmap of all indexed internal price ids.
+	 *
+	 * The bitmap is returned as-is rather than as a materialized `int[]`: implementations already hold one, so this
+	 * costs nothing and no caller pays for a copy it did not ask for. Callers that need an array call
+	 * {@link Bitmap#getArray()} on the result and own the cost of doing so.
 	 */
 	@Nonnull
-	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
+	Bitmap getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
 	 * Materializes the price records for the passed id bitmap into an array, in ascending key order.
@@ -140,6 +144,39 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	 */
 	@Nullable
 	PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Streams what {@link #getLowestPriceRecordsForEntity(int)} would return to `priceConsumer`, in the very same
+	 * order, without materializing the array. Prefer this on any path that runs per entity of a result set: the
+	 * overwhelmingly common case is an entity with exactly one price here, whose holder keeps that price as a field
+	 * and would have to build a one-element array to answer the array form.
+	 *
+	 * The default implementation falls back to the array form for indexes that have no cheaper route; the super price
+	 * index, which owns the entity-to-prices mapping, overrides it with the allocation-free one. The ref index leaves
+	 * it at this default, which then rejects the caller through {@link #getLowestPriceRecordsForEntity(int)} exactly
+	 * as that method documents. The only other type that inherits this default rather than overriding it is
+	 * {@code io.evitadb.spike.mock.MockPriceListAndCurrencyPriceIndex}, which lives in the performance-test module
+	 * outside the default build reactor and rejects through the same delegate - so nothing built by a default build
+	 * ever runs this default's loop body; the success path is exercised only via the super index's override.
+	 *
+	 * @param entityId      primary key of the entity whose lowest price records are wanted
+	 * @param priceConsumer receives each of the entity's lowest price records, ordered by internal price id
+	 * @return true when the entity has at least one price in this index (and `priceConsumer` was therefore called),
+	 * false when it has none (and `priceConsumer` was not called at all)
+	 */
+	default boolean forEachLowestPriceRecordOfEntity(
+		int entityId,
+		@Nonnull Consumer<PriceRecordContract> priceConsumer
+	) throws PriceListAndCurrencyPriceIndexTerminated {
+		final PriceRecordContract[] lowestPriceRecords = getLowestPriceRecordsForEntity(entityId);
+		if (lowestPriceRecords == null || lowestPriceRecords.length == 0) {
+			return false;
+		}
+		for (final PriceRecordContract lowestPriceRecord : lowestPriceRecords) {
+			priceConsumer.accept(lowestPriceRecord);
+		}
+		return true;
+	}
 
 	/**
 	 * Returns array of all prices in this index ordered by price id in ascending order.

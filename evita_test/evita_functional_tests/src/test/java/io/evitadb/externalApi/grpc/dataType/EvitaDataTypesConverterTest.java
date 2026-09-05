@@ -41,6 +41,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaValue;
 import io.evitadb.externalApi.grpc.generated.GrpcStringArray;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -57,6 +58,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -381,6 +383,91 @@ class EvitaDataTypesConverterTest {
 		assertEquals(Boolean[].class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaDataType.BOOLEAN_ARRAY));
 
 		assertEquals(ComplexDataObject.class, EvitaDataTypesConverter.toEvitaDataType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT));
+	}
+
+	@Test
+	@DisplayName("should carry a date-time range's sub-second bounds across the gRPC boundary")
+	void shouldPreserveSubSecondDateTimeRangeBounds() {
+		// the writer has always sent the sub-second component; the reader used to build each bound from the
+		// timestamp's SECONDS alone and drop it. That was invisible while a range compared at whole-second
+		// granularity - and became a real loss the moment ranges started comparing at the millisecond, because a
+		// value written through gRPC then no longer equalled the same value written through the embedded API.
+		// The probe is a fixed nano-bearing pair rather than `now()`, so it cannot pass by landing on a whole second
+		final OffsetDateTime from = OffsetDateTime.parse("2026-05-20T12:19:26.123456789Z");
+		final OffsetDateTime to = OffsetDateTime.parse("2026-05-25T18:45:01.987654321Z");
+
+		final DateTimeRange closed = DateTimeRange.between(from, to);
+		final DateTimeRange roundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(closed)
+		);
+		assertEquals(from, roundTripped.getPreciseFrom(), "the lower bound must survive to the nanosecond");
+		assertEquals(to, roundTripped.getPreciseTo(), "the upper bound must survive to the nanosecond");
+		assertEquals(closed.getFrom(), roundTripped.getFrom(), "and so must the comparison longs it derives");
+		assertEquals(closed.getTo(), roundTripped.getTo());
+		assertEquals(closed, roundTripped);
+
+		// both one-sided shapes take the same path and must not lose the surviving bound either
+		final DateTimeRange openFrom = DateTimeRange.until(to);
+		final DateTimeRange openFromRoundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(openFrom)
+		);
+		assertNull(openFromRoundTripped.getPreciseFrom(), "an absent bound must stay absent");
+		assertEquals(to, openFromRoundTripped.getPreciseTo());
+		assertEquals(openFrom, openFromRoundTripped);
+
+		final DateTimeRange openTo = DateTimeRange.since(from);
+		final DateTimeRange openToRoundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(openTo)
+		);
+		assertNull(openToRoundTripped.getPreciseTo(), "an absent bound must stay absent");
+		assertEquals(from, openToRoundTripped.getPreciseFrom());
+		assertEquals(openTo, openToRoundTripped);
+	}
+
+	@Test
+	@DisplayName("should carry a PRE-1970 date-time range's sub-second bounds across the gRPC boundary")
+	void shouldPreservePreEpochDateTimeRangeBounds() {
+		// a protobuf `Timestamp` normalizes a pre-epoch moment to a NEGATIVE `seconds` paired with a NON-NEGATIVE
+		// `nanos`, so the two fields carry opposite signs and only their sum names the moment. Every other date-time
+		// probe in this class is 2026, so that pairing is otherwise never decoded - and a rebuild that added the
+		// nanoseconds to a truncated second, or dropped them, would land up to a second away while still producing a
+		// perfectly well-formed range
+		final OffsetDateTime from = OffsetDateTime.parse("1969-12-31T23:59:58.123456789Z");
+		final OffsetDateTime to = OffsetDateTime.parse("1970-01-01T00:00:00.987654321Z");
+		assertEquals(-2L, from.toEpochSecond(), "the lower bound must sit before the epoch");
+		assertEquals(123456789, from.getNano(), "with a non-negative nanosecond field on top of it");
+
+		final DateTimeRange straddlingTheEpoch = DateTimeRange.between(from, to);
+		final DateTimeRange roundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(straddlingTheEpoch)
+		);
+
+		assertEquals(from, roundTripped.getPreciseFrom(), "the lower bound must survive to the nanosecond");
+		assertEquals(to, roundTripped.getPreciseTo(), "the upper bound must survive to the nanosecond");
+		// the comparison longs are what the index actually stores, and they must agree with the embedded-API
+		// construction of the same two moments - which is what `straddlingTheEpoch` is
+		assertEquals(-1_877L, straddlingTheEpoch.getFrom(), "a pre-epoch bound floors onto a negative millisecond");
+		assertEquals(987L, straddlingTheEpoch.getTo());
+		assertEquals(straddlingTheEpoch.getFrom(), roundTripped.getFrom());
+		assertEquals(straddlingTheEpoch.getTo(), roundTripped.getTo());
+		assertEquals(straddlingTheEpoch, roundTripped);
+
+		// the one-sided shapes take the same decode and must not lose the surviving pre-epoch bound either
+		final DateTimeRange openFrom = DateTimeRange.until(from);
+		final DateTimeRange openFromRoundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(openFrom)
+		);
+		assertNull(openFromRoundTripped.getPreciseFrom(), "an absent bound must stay absent");
+		assertEquals(from, openFromRoundTripped.getPreciseTo());
+		assertEquals(openFrom, openFromRoundTripped);
+
+		final DateTimeRange openTo = DateTimeRange.since(from);
+		final DateTimeRange openToRoundTripped = EvitaDataTypesConverter.toDateTimeRange(
+			EvitaDataTypesConverter.toGrpcDateTimeRange(openTo)
+		);
+		assertNull(openToRoundTripped.getPreciseTo(), "an absent bound must stay absent");
+		assertEquals(from, openToRoundTripped.getPreciseFrom());
+		assertEquals(openTo, openToRoundTripped);
 	}
 
 	@Test

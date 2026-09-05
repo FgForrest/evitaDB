@@ -33,6 +33,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -402,6 +406,139 @@ abstract class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			final List<? extends AttributeMutation> mutations =
 				b.buildChangeSet().toList();
 			assertTrue(mutations.isEmpty());
+		}
+	}
+
+
+	/**
+	 * The builder must hand back the value that will actually be **stored**, not the value it was handed. Both
+	 * conversions this covers are performed by {@link UpsertAttributeMutation} on the way to the engine, so before
+	 * these tests a value read off the builder differed from the one the catalog ended up holding — silently, and
+	 * only until `upsertVia(...)` was called.
+	 */
+	@Nested
+	@DisplayName("Eager normalization to the stored form")
+	class EagerNormalizationTest {
+		/**
+		 * A moment carrying six sub-millisecond digits, so an assertion on the truncated form cannot be satisfied
+		 * by simply echoing the input back.
+		 */
+		private static final OffsetDateTime NANO_PRECISE_MOMENT =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_456_789, ZoneOffset.UTC);
+		private static final OffsetDateTime TRUNCATED_MOMENT =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC);
+
+		@Test
+		@DisplayName("an OffsetDateTime is truncated to whole milliseconds when it is set")
+		void shouldTruncateAnOffsetDateTimeWhenItIsSet() {
+			final InitialAttributesBuilder<?, ?> b =
+				builder().setAttribute("moment", NANO_PRECISE_MOMENT);
+
+			assertEquals(TRUNCATED_MOMENT, b.getAttribute("moment"));
+			assertNotEquals(NANO_PRECISE_MOMENT, b.getAttribute("moment"));
+			assertEquals(TRUNCATED_MOMENT, build(b).getAttribute("moment"));
+		}
+
+		@Test
+		@DisplayName("every element of an OffsetDateTime array is truncated when it is set")
+		void shouldTruncateAnOffsetDateTimeArrayWhenItIsSet() {
+			final InitialAttributesBuilder<?, ?> b = builder().setAttribute(
+				"moments",
+				new OffsetDateTime[]{NANO_PRECISE_MOMENT, NANO_PRECISE_MOMENT.plusSeconds(1)}
+			);
+
+			assertArrayEquals(
+				new OffsetDateTime[]{TRUNCATED_MOMENT, TRUNCATED_MOMENT.plusSeconds(1)},
+				b.getAttributeArray("moments")
+			);
+		}
+
+		@Test
+		@DisplayName("a localized OffsetDateTime is truncated when it is set")
+		void shouldTruncateALocalizedOffsetDateTimeWhenItIsSet() {
+			final InitialAttributesBuilder<?, ?> b =
+				builder().setAttribute("moment", Locale.ENGLISH, NANO_PRECISE_MOMENT);
+
+			assertEquals(TRUNCATED_MOMENT, b.getAttribute("moment", Locale.ENGLISH));
+			assertNotEquals(NANO_PRECISE_MOMENT, b.getAttribute("moment", Locale.ENGLISH));
+		}
+
+		@Test
+		@DisplayName("a LocalDateTime is truncated but keeps its own type")
+		void shouldTruncateALocalDateTimeWithoutRewritingIt() {
+			// the storage-path normalization deliberately does NOT rewrite a LocalDateTime to an OffsetDateTime at
+			// UTC the way the query-path one does - an attribute declared LocalDateTime has to be able to carry one
+			final LocalDateTime probe = LocalDateTime.of(2026, 5, 20, 12, 19, 26, 123_456_789);
+			final InitialAttributesBuilder<?, ?> b = builder().setAttribute("local", probe);
+
+			assertEquals(LocalDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000), b.getAttribute("local"));
+			assertInstanceOf(LocalDateTime.class, b.getAttribute("local"));
+		}
+
+		@Test
+		@DisplayName("a LocalTime is truncated to whole milliseconds")
+		void shouldTruncateALocalTime() {
+			final InitialAttributesBuilder<?, ?> b =
+				builder().setAttribute("timeOfDay", LocalTime.of(12, 19, 26, 123_456_789));
+
+			assertEquals(LocalTime.of(12, 19, 26, 123_000_000), b.getAttribute("timeOfDay"));
+		}
+
+		@Test
+		@DisplayName("a Float becomes the BigDecimal it is stored as")
+		void shouldConvertAFloatToBigDecimalWhenItIsSet() {
+			final InitialAttributesBuilder<?, ?> b = builder().setAttribute("price", 1.5f);
+
+			assertEquals(new BigDecimal("1.5"), b.getAttribute("price"));
+			assertInstanceOf(BigDecimal.class, b.getAttribute("price"));
+			assertEquals(new BigDecimal("1.5"), build(b).getAttribute("price"));
+		}
+
+		@Test
+		@DisplayName("a Double becomes the BigDecimal it is stored as")
+		void shouldConvertADoubleToBigDecimalWhenItIsSet() {
+			final InitialAttributesBuilder<?, ?> b = builder().setAttribute("weight", 2.25d);
+
+			assertEquals(new BigDecimal("2.25"), b.getAttribute("weight"));
+			assertInstanceOf(BigDecimal.class, b.getAttribute("weight"));
+		}
+
+		@Test
+		@DisplayName("what the builder reports is exactly what the change set carries")
+		void shouldReportExactlyWhatTheChangeSetCarries() {
+			// the asymmetry itself, stated directly: before eager normalization the two sides of this comparison
+			// were the un-truncated input and the truncated stored value
+			final InitialAttributesBuilder<?, ?> b = builder()
+				.setAttribute("moment", NANO_PRECISE_MOMENT)
+				.setAttribute("price", 1.5f);
+
+			final List<? extends AttributeMutation> mutations = b.buildChangeSet().toList();
+			assertEquals(2, mutations.size());
+			for (final AttributeMutation mutation : mutations) {
+				final UpsertAttributeMutation upsert = assertInstanceOf(UpsertAttributeMutation.class, mutation);
+				assertSame(
+					b.getAttributeValue(upsert.getAttributeKey()).orElseThrow().value(),
+					upsert.getAttributeValue(),
+					"the mutation must carry the very instance the builder reports for " + upsert.getAttributeKey()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("an already-normal value is kept as the very same instance")
+		void shouldKeepAnAlreadyNormalValueIdentical() {
+			// normalization has to stay identity-preserving, otherwise the pass buildChangeSet still performs would
+			// allocate a fresh copy of every value on the way to the engine
+			final String text = "unchanged";
+			final String[] texts = {"a", "b"};
+			final InitialAttributesBuilder<?, ?> b = builder()
+				.setAttribute("text", text)
+				.setAttribute("texts", texts)
+				.setAttribute("moment", TRUNCATED_MOMENT);
+
+			assertSame(text, b.getAttribute("text"));
+			assertSame(texts, b.getAttributeArray("texts"));
+			assertSame(TRUNCATED_MOMENT, b.getAttribute("moment"));
 		}
 	}
 

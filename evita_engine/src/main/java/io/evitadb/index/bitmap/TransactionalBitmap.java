@@ -62,6 +62,10 @@ public class TransactionalBitmap
 	TransactionalLayerProducer<BitmapChanges, Bitmap>,
 	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
+	/**
+	 * Process-unique identity this instance is keyed by in the transactional memory layer — not a record id, and never
+	 * persisted.
+	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Initial capacity of the delta buffer a bulk delegate-branch write fills while a warm-up savepoint is open (see
@@ -71,7 +75,9 @@ public class TransactionalBitmap
 	private static final int INITIAL_CHANGED_ID_CAPACITY = 16;
 
 	/**
-	 * The bitmap the non-transactional (delegate) branch writes into.
+	 * The committed record ids, and the bitmap the non-transactional (delegate) branch writes into. Outside a
+	 * transaction it is mutated in place; inside one it is left untouched and the changes accumulate in a
+	 * {@link BitmapChanges} layer, which is what lets readers keep seeing the pre-transaction state.
 	 *
 	 * The field is `final` because warm-up savepoint capture is PER OPERATION: a delegate-branch write flips bits on
 	 * THIS instance and journals the inverse of exactly the bits it flipped, so a rollback replays those inverses
@@ -81,6 +87,13 @@ public class TransactionalBitmap
 	 * never observe it as `null`.
 	 */
 	private final PersistentRoaringBitmap roaringBitmap;
+	/**
+	 * The live cardinality of {@link #roaringBitmap}, maintained by every mutator and read - never written - by
+	 * {@link #size()}. It has no invalid state: there is nothing on the read path that would recompute one, so a
+	 * mutator added to this class must either carry the count forward itself or recompute it on its own thread -
+	 * there is no third option, and a value left here is never corrected. See {@link #size()} for the lost update
+	 * that contract exists to close and for how far a wrong count travels.
+	 */
 	private volatile int memoizedCardinality;
 
 	/**
@@ -200,7 +213,10 @@ public class TransactionalBitmap
 			if (layer == null) {
 				journalAdditionIfOpen(recordId);
 				this.roaringBitmap.add(recordId);
-				this.memoizedCardinality = -1;
+				// the `contains` guard above proves this add changed the bitmap, so the memo is carried forward
+				// exactly - see `size()` for why it is kept valid rather than invalidated
+				final int memoized = this.memoizedCardinality;
+				this.memoizedCardinality = memoized + 1;
 				return true;
 			} else {
 				return layer.addRecordId(recordId);
@@ -281,7 +297,10 @@ public class TransactionalBitmap
 			if (layer == null) {
 				journalRemovalIfOpen(recordId);
 				this.roaringBitmap.remove(recordId);
-				this.memoizedCardinality = -1;
+				// the `contains` guard above proves this remove changed the bitmap, so the memo is carried forward
+				// exactly - see `size()` for why it is kept valid rather than invalidated
+				final int memoized = this.memoizedCardinality;
+				this.memoizedCardinality = memoized - 1;
 				return true;
 			} else {
 				return layer.removeRecordId(recordId);
@@ -373,9 +392,11 @@ public class TransactionalBitmap
 	 * **The inverse reads {@link #roaringBitmap} at replay time** rather than closing over the instance the write went
 	 * to. Today the field is final, so the two are the same bitmap; the shape is kept deliberately anyway, because a
 	 * future change that reintroduced a reference swap would make a captured-instance inverse restore members into a
-	 * bitmap nobody reads, silently. It re-invalidates {@link #memoizedCardinality} rather than restoring a captured
-	 * value — the sentinel costs one recomputation on the next {@link #size()}, whereas a restored value would have to
-	 * be trusted to have been valid (see the accepted-residues section of the savepoint documentation).
+	 * bitmap nobody reads, silently. It RECOMPUTES {@link #memoizedCardinality} from the delegate rather than
+	 * restoring a captured value — a restored value would have to be trusted to have been valid (see the
+	 * accepted-residues section of the savepoint documentation), and this class keeps no invalid state to defer the
+	 * work into: {@link #size()} reads the memo without ever writing it, so an inverse is the last chance to make it
+	 * true again.
 	 *
 	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
 	 *
@@ -386,7 +407,7 @@ public class TransactionalBitmap
 		if (savepoint != null) {
 			savepoint.push(() -> {
 				this.roaringBitmap.remove(recordId);
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			});
 		}
 	}
@@ -407,7 +428,7 @@ public class TransactionalBitmap
 		if (savepoint != null) {
 			savepoint.push(() -> {
 				this.roaringBitmap.add(recordId);
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			});
 		}
 	}
@@ -431,7 +452,7 @@ public class TransactionalBitmap
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint == null) {
 			this.roaringBitmap.add(recordIds);
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			ChangedIds addedIds = null;
 			int journalMark = 0;
@@ -451,7 +472,7 @@ public class TransactionalBitmap
 					}
 				}
 			} finally {
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			}
 		}
 	}
@@ -477,7 +498,7 @@ public class TransactionalBitmap
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 		if (savepoint == null) {
 			this.roaringBitmap.add(recordIds.getArray());
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			final int maxAddedCount = recordIds.size();
 			ChangedIds addedIds = null;
@@ -500,7 +521,7 @@ public class TransactionalBitmap
 					}
 				}
 			} finally {
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			}
 		}
 	}
@@ -517,7 +538,7 @@ public class TransactionalBitmap
 			for (final int recordId : recordIds) {
 				this.roaringBitmap.remove(recordId);
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else {
 			ChangedIds removedIds = null;
 			int journalMark = 0;
@@ -537,7 +558,7 @@ public class TransactionalBitmap
 					}
 				}
 			} finally {
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			}
 		}
 	}
@@ -571,7 +592,7 @@ public class TransactionalBitmap
 					this.roaringBitmap.remove(it.nextInt());
 				}
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		} else if (aliasesDelegate(recordIds)) {
 			// materialized BEFORE anything is removed, so the walk reads a stable snapshot instead of the containers
 			// it is emptying; the `int[]` overload then journals it exactly as any other bulk removal
@@ -598,7 +619,7 @@ public class TransactionalBitmap
 					}
 				}
 			} finally {
-				this.memoizedCardinality = -1;
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			}
 		}
 	}
@@ -672,7 +693,7 @@ public class TransactionalBitmap
 			for (int i = 0; i < addedCount; i++) {
 				this.roaringBitmap.remove(theAddedIds[i]);
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		});
 		return savepoint.journalMark();
 	}
@@ -693,7 +714,7 @@ public class TransactionalBitmap
 			for (int i = 0; i < removedCount; i++) {
 				this.roaringBitmap.add(theRemovedIds[i]);
 			}
-			this.memoizedCardinality = -1;
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		});
 		return savepoint.journalMark();
 	}
@@ -887,13 +908,39 @@ public class TransactionalBitmap
 		}
 	}
 
+	/**
+	 * Returns the number of record ids this bitmap holds.
+	 *
+	 * **This method never writes, and the memo it reads is always valid.** That is the whole contract, and it must
+	 * stay that way: the memo is written only by the thread that mutates `roaringBitmap`, never by a reader, and no
+	 * mutator leaves it in a state a reader would have to repair. A reader that stored its own result used to be
+	 * able to lose a writer's update entirely - compute N, be overtaken by a writer that added a record and
+	 * invalidated the memo, then store N over that invalidation - leaving the memo holding a **stale** count that no
+	 * later invalidation would ever correct. Unlike a torn read, that damage is durable: nothing recomputed while the
+	 * memo looked valid, and the wrong count survived into `ALIVE`, where committed instances are no longer
+	 * invalidated. It was measured answering 510 against 512 records written.
+	 *
+	 * That mattered beyond a wrong answer, because the count can reach disk. `OwnerSortIndex.storagePartCardinalities`
+	 * persists `bucket.size()` into `SortIndexStoragePart`, and `buildOwnedTree` slices `sortedRecords` by those
+	 * counts on load: a stale-low count silently leaves trailing records unassigned, and a stale-high one throws out
+	 * of bounds and the catalog will not open at all.
+	 *
+	 * A `compareAndSet` against an invalidation marker would **not** have fixed it - the writer's own invalidation
+	 * stored that marker too, so a CAS landing after it succeeded with the pre-mutation count. Not storing at all is
+	 * what closes it, and the invalidated state went with it: single-record `add`/`remove` carry the memo forward by
+	 * one (their `contains` guard proves the bitmap changed), and bulk mutators recompute it once on the writer
+	 * thread. **A mutator added here must do one or the other** - a memo left holding anything but the live
+	 * cardinality is never corrected, because nothing on the read path recomputes.
+	 *
+	 * The answer is still **advisory** under a concurrent non-transactional writer - `getCardinality()` raced against
+	 * a roaring mutation can return a number that was never true - but a racy number is no longer *retained*.
+	 *
+	 * @return the number of record ids in this bitmap
+	 */
 	@Override
 	public int size() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			if (this.memoizedCardinality == -1) {
-				this.memoizedCardinality = this.roaringBitmap.getCardinality();
-			}
 			return this.memoizedCardinality;
 		} else {
 			return layer.getMergedLength();

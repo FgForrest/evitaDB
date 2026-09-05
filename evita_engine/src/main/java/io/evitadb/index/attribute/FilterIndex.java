@@ -73,9 +73,12 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
@@ -236,7 +239,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * 100k and 309 µs for 500k — were the hash not memoized on the bitmap itself. It is: because this field hands
 	 * out the same `BaseBitmap` instance every time, {@link Bitmap#getContentHash} computes the walk once and every
 	 * later formula reads it back. Replacing this bitmap with a per-call copy would silently reinstate that cost.
-	 * See the ADR for issue #1458.
+	 * See `documentation/adr/2026-08-28-index-lifetime-formula-memoization.md`.
 	 *
 	 * Do not turn this back into a `Formula` field.
 	 */
@@ -297,10 +300,19 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 *
 	 * `BigDecimal` values are normalized to an order-preserving scaled `int` (respecting the schema's
 	 * `indexedDecimalPlaces`) so the value tree stores them in the compact `IntValueColumn`. Temporal values
-	 * (`OffsetDateTime` and `LocalDateTime`, the latter anchored at UTC) are normalized to an `Instant` so the tree
-	 * stores them in the parallel-array `InstantValueColumn` rather than boxing them. The normalizer is
-	 * idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be normalized
-	 * more than once on a probe→lookup path without a `ClassCastException`.
+	 * (`OffsetDateTime` and `LocalDateTime`, the latter anchored at UTC) are normalized to a **millisecond-exact**
+	 * `Instant` so the tree stores them in the single-`long` `LongValueColumn` rather than boxing them. The
+	 * normalizer is idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be
+	 * normalized more than once on a probe→lookup path without a `ClassCastException`.
+	 *
+	 * **The millisecond truncation here is not redundant with the one `EvitaDataTypes` applies, and neither may be
+	 * removed in favour of the other.** That one canonicalizes every temporal value entering through the API — through
+	 * `toSupportedStoredTypeOrItsArray` on the write path and `toSupportedType` on the query path, two entry points
+	 * over one truncating implementation — so what a client stores and what a client filters by agree. This one
+	 * canonicalizes the *index key*, whatever its provenance — including a bucket value rehydrated from a catalog
+	 * written before millisecond truncation existed, which never passes through the API boundary at all. Together
+	 * they are what makes `LongKeyCodec#INSTANT` a true bijection on the domain the tree actually sees; drop either
+	 * and an instant carrying sub-millisecond digits reaches a codec that silently floors it.
 	 *
 	 * @param attributeType        type of the attribute
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values to a scaled `int`; ignored
@@ -313,17 +325,21 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		int indexedDecimalPlaces
 	) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof OffsetDateTime offsetDateTime
-				? offsetDateTime.toInstant()
-				: (Serializable) comparable;
+			return FilterIndex::toMillisecondInstant;
 		} else if (LocalDateTime.class.isAssignableFrom(attributeType)) {
-			// a local date time has no offset of its own, so it is anchored at UTC - a *constant* offset, which makes
-			// the mapping a lossless bijection AND monotonic with `LocalDateTime`'s natural order, so bucket lookup and
-			// ordered iteration are unaffected. This is purely the index encoding: the schema keeps declaring
-			// `LocalDateTime`, and the value handed back to the client comes from `AttributesStoragePart`, not here
-			return comparable -> comparable instanceof LocalDateTime localDateTime
-				? localDateTime.toInstant(ZoneOffset.UTC)
-				: (Serializable) comparable;
+			// a local date time has no offset of its own, so it is anchored at UTC - a *constant* offset, so the
+			// ANCHORING is a lossless bijection and monotonic with `LocalDateTime`'s natural order, and bucket lookup
+			// and ordered iteration are unaffected. (The millisecond truncation that follows it is deliberately lossy
+			// and applies to every temporal branch alike - see this method's javadoc.) This is purely the index
+			// encoding: the schema keeps declaring `LocalDateTime`, and the value handed back to the client comes
+			// from `AttributesStoragePart`, not here
+			return FilterIndex::toUtcAnchoredMillisecondInstant;
+		} else if (LocalTime.class.isAssignableFrom(attributeType)) {
+			// a local time keeps its declared type - `LongKeyCodec.LOCAL_TIME` already encodes it losslessly as
+			// nano-of-day - so only the millisecond truncation applies. Without this branch the type fell through to
+			// NO_NORMALIZATION while every query probe was still cut to milliseconds at the data-type boundary, so a
+			// value written before that truncation existed kept a nanosecond-exact key that no probe could ever match
+			return FilterIndex::toMillisecondLocalTime;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency
 				? new ComparableCurrency(currency)
@@ -361,6 +377,101 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			throw new EvitaInvalidUsageException(
 				"Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
 		}
+	}
+
+	/**
+	 * Cuts a {@link LocalTime} index key to whole milliseconds, leaving anything else untouched.
+	 *
+	 * Unlike the two date-time branches this performs no re-anchoring: `LocalTime` keeps its declared type all the way
+	 * to {@link io.evitadb.index.bPlusTree.LongKeyCodec#LOCAL_TIME}, which encodes nano-of-day and is injective, so the
+	 * truncation is the only thing the key needs.
+	 *
+	 * It is what makes a legacy catalog's keys reachable again. Reload runs every persisted value through this
+	 * normalizer, so two values that differed only below the millisecond now collapse onto one key and are merged by
+	 * the comparator-based collision repair before the tree's ascending checks ever see them - the same path that
+	 * already handles sub-millisecond `Instant` twins.
+	 *
+	 * @param value the value to normalize
+	 * @return the value truncated to whole milliseconds, or the value itself when it is not a `LocalTime`
+	 */
+	@Nullable
+	private static Serializable toMillisecondLocalTime(@Nullable Object value) {
+		return value instanceof LocalTime localTime ? truncateToMilliseconds(localTime) : (Serializable) value;
+	}
+
+	/**
+	 * Normalizes an `OffsetDateTime` attribute value into the millisecond-exact `Instant` the value tree keys it by.
+	 *
+	 * Accepts an `Instant` as well, and truncates that too — which is what makes the normalizer's idempotence hold
+	 * for values of *any* provenance rather than only for ones this method produced. A bucket value rehydrated from a
+	 * catalog written before millisecond truncation existed arrives here as a nano-precise `Instant`, and returning
+	 * it unchanged would push a value outside `LongKeyCodec#INSTANT`'s domain straight into the leaf column.
+	 *
+	 * @param value the raw attribute value (or an already-normalized one, or `null`)
+	 * @return the millisecond-exact instant, or the value unchanged when it is neither temporal type
+	 */
+	@Nullable
+	private static Serializable toMillisecondInstant(@Nullable Object value) {
+		if (value instanceof OffsetDateTime offsetDateTime) {
+			return truncateToMilliseconds(offsetDateTime.toInstant());
+		} else if (value instanceof Instant instant) {
+			return truncateToMilliseconds(instant);
+		} else {
+			return (Serializable) value;
+		}
+	}
+
+	/**
+	 * The `LocalDateTime` twin of {@link #toMillisecondInstant(Object)}: anchors the wall-clock value at UTC — a
+	 * *constant* offset, hence a lossless, order-preserving mapping — and truncates it to whole milliseconds.
+	 *
+	 * @param value the raw attribute value (or an already-normalized one, or `null`)
+	 * @return the millisecond-exact UTC instant, or the value unchanged when it is neither temporal type
+	 */
+	@Nullable
+	private static Serializable toUtcAnchoredMillisecondInstant(@Nullable Object value) {
+		if (value instanceof LocalDateTime localDateTime) {
+			return truncateToMilliseconds(localDateTime.toInstant(ZoneOffset.UTC));
+		} else if (value instanceof Instant instant) {
+			return truncateToMilliseconds(instant);
+		} else {
+			return (Serializable) value;
+		}
+	}
+
+	/**
+	 * Truncates an instant to whole milliseconds, discarding the sub-millisecond digits `LongKeyCodec#INSTANT` cannot
+	 * represent. Truncation is towards the millisecond *below* on both sides of the epoch (`Instant#truncatedTo`
+	 * floors), which is what keeps the mapping monotonic.
+	 *
+	 * An already-millisecond-exact instant is returned as the very same instance rather than as an equal copy: this
+	 * runs once per indexed value on the write path, and after the truncation `EvitaDataTypes` applies at the API
+	 * boundary the overwhelming majority of values are already exact.
+	 *
+	 * @param instant the instant to truncate
+	 * @return the millisecond-exact instant
+	 */
+	@Nonnull
+	private static Instant truncateToMilliseconds(@Nonnull Instant instant) {
+		return instant.getNano() % 1_000_000 == 0 ? instant : instant.truncatedTo(ChronoUnit.MILLIS);
+	}
+
+	/**
+	 * The `LocalTime` twin of {@link #truncateToMilliseconds(Instant)}: discards the sub-millisecond digits so that a
+	 * key and a query probe derived from the same wall-clock time meet.
+	 *
+	 * `LongKeyCodec#LOCAL_TIME` encodes nano-of-day and could represent the full precision, so unlike the `Instant`
+	 * branch this truncation is not forced by the codec's domain - it is what makes the index agree with the
+	 * millisecond precision every other surface already applies.
+	 *
+	 * An already-exact value is returned as the very same instance, for the same reason as its twin.
+	 *
+	 * @param value the local time to truncate
+	 * @return the millisecond-exact local time
+	 */
+	@Nonnull
+	private static LocalTime truncateToMilliseconds(@Nonnull LocalTime value) {
+		return value.getNano() % 1_000_000 == 0 ? value : value.truncatedTo(ChronoUnit.MILLIS);
 	}
 
 	/**

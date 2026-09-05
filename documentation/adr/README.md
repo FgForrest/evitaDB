@@ -33,6 +33,9 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-04 | [Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486, #1455 |
+| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
+| 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
 | 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
 | 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
 | 2026-08-31 | [Drop the netty version override instead of pinning tcnative to take netty 4.2.17](2026-08-31-netty-override-removal.md) | infrastructure | accepted | PR #1474 |

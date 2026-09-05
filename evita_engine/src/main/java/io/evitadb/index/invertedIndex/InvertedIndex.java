@@ -37,6 +37,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -44,14 +45,18 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
+import io.evitadb.index.bPlusTree.OverflowRecords;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.index.bitmap.SortedArrayBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
@@ -68,12 +73,15 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -115,11 +123,26 @@ import java.util.function.Predicate;
  * If no transaction is opened, changes are applied directly to the delegate tree. In such case the class is not thread
  * safe for multiple writers!
  *
- * The value id directory is the one piece of state a READER may write: {@link #getValueById(int)} catches the
- * warm-up path's writes up before it answers. That catch-up is single-flight and its completion is published through
- * the volatile {@link #valueIdDirectoryStale}, so concurrent readers cannot rebuild over one another; and the
- * directory itself is published as one immutable unit, so a reader already past the flag resolves through the
- * generation it read rather than through one being rebuilt around it. See {@link #refreshValueIdDirectory()}.
+ * The value id directory is the one piece of state a READER may write, and the window it is written in is **after**
+ * `goLive`, not during warm-up. A non-transactional write — a warm-up bulk load, a restore — raises the volatile
+ * {@link #valueIdDirectoryStale} flag rather than rebuilding the directory itself. The flag then *survives*
+ * `goLive`, because a catalog transition carries its index instances across by reference, and it is *consumed* by
+ * the first queries the ALIVE catalog serves. Those queries are unboundedly parallel, so it is there that the
+ * single-flight rebuild in {@link #refreshValueIdDirectory()} earns its keep: concurrent readers cannot rebuild over
+ * one another, and the directory is published as one immutable unit, so a reader already past the flag resolves
+ * through the generation it read rather than through one being rebuilt around it.
+ *
+ * Warm-up itself is single-session and single-threaded, so **no query thread races the bulk loader**. A non-ALIVE
+ * catalog admits one session at a time, and a read-write session rejects a second thread at runtime; the warm-up
+ * client is allowed to query what it has just written, but only on its own thread. The catch-up
+ * {@link #getValueById(int)} performs there is therefore a same-thread interleaving — write, query, write, query —
+ * which is required for correctness but is not a race, and the `synchronized` around the rebuild buys nothing in
+ * that setting.
+ *
+ * The one reader that genuinely is concurrent with a warm-up writer reaches the index from the **management and
+ * statistics API**, which has neither a session nor a catalog-state guard. Those paths walk leaves while a bulk load
+ * mutates them, so every such walk bounds itself by the leaf column's own live run rather than by the leaf's `peek`
+ * alone; a torn read then yields a stale count instead of an index-out-of-bounds failure on a request thread.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -201,8 +224,9 @@ public class InvertedIndex implements
 	@Nonnull @Getter private final Comparator comparator;
 	/**
 	 * The plain (non-array) declared type of the indexed attribute. It drives the leaf key-column selection
-	 * ({@link ValueColumnFactory#forKey}): an integral / temporal type under natural order stores its keys in a
-	 * primitive `long[]` column, otherwise the universal boxed column is used.
+	 * ({@link ValueColumnFactory#forFilterKey}): an integral / temporal type under natural order stores its keys in a
+	 * primitive `long[]` column, one of the six concrete `Range` subtypes stores its two comparison bounds in a pair
+	 * of `long[]` columns, otherwise the universal boxed column is used.
 	 */
 	@Nonnull private final Class<?> plainType;
 	/**
@@ -290,20 +314,29 @@ public class InvertedIndex implements
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
 	 * attribute's plain type and the comparator: a numeric / temporal attribute under natural order uses a primitive
-	 * `long[]` column, otherwise the universal boxed column.
+	 * `long[]` column, one of the six concrete range types uses two parallel `long[]` bound columns, otherwise the
+	 * universal boxed column.
 	 *
-	 * @param plainType  the plain (non-array) declared attribute type
-	 * @param comparator the value order
+	 * The selection goes through {@link ValueColumnFactory#forFilterKey} rather than
+	 * {@link ValueColumnFactory#forKey} because only a filter index carries an `indexedDecimalPlaces`, and the range
+	 * column cannot rebuild a `BigDecimalNumberRange` without one — see the two factory methods' javadoc for the
+	 * silent mis-scaling that gating prevents.
+	 *
+	 * @param plainType            the plain (non-array) declared attribute type
+	 * @param comparator           the value order
+	 * @param indexedDecimalPlaces the frozen decimal-places scale (0 for non-`BigDecimal` types)
 	 * @return the fresh empty bucket tree
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static TransactionalBucketBPlusTree createEmptyTree(
 		@Nonnull Class<?> plainType,
-		@Nonnull Comparator comparator
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
 	) {
 		// the tree is raw-keyed by Comparable.class here; the factory's wildcard return is fed in as a raw type
-		final ValueColumnFactory factory = ValueColumnFactory.forKey(plainType, comparator);
+		final ValueColumnFactory factory =
+			ValueColumnFactory.forFilterKey(plainType, comparator, indexedDecimalPlaces);
 		return new TransactionalBucketBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			Comparable.class,
@@ -313,11 +346,18 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Materializes the bucket at the cursor's CURRENT position into a transient {@link ValueToRecord} flyweight. A
-	 * single-record bucket becomes a compact {@link ValueToRecordPrimitive}; a multi-record bucket becomes a
-	 * {@link ValueToRecordBitmap} sharing the very same {@link TransactionalBitmap} instance
-	 * (no copy), which preserves the record-set hash/equals parity the formula cache relies on. Valid only after a
-	 * {@link BucketCursor#next()} that returned true.
+	 * Materializes the bucket at the cursor's CURRENT position into a transient {@link ValueToRecord} flyweight, one
+	 * per tier the bucket tree stores and each of them sharing the tree's own storage rather than copying it:
+	 *
+	 * - a single-record bucket becomes a compact {@link ValueToRecordPrimitive};
+	 * - a small multi-record bucket becomes a {@link ValueToRecordArray} over the read-only
+	 *   {@link SortedArrayBitmap} view of the leaf's sorted ids, which builds no roaring bitmap at all;
+	 * - a large one becomes a {@link ValueToRecordBitmap} sharing the very same {@link TransactionalBitmap} instance.
+	 *
+	 * Sharing is what preserves the record-set hash/equals parity the formula cache relies on. The dispatch is on the
+	 * TYPE the cursor answers with, which is exactly the tier - never on cardinality, since the promote and demote
+	 * thresholds differ and a bucket at a cardinality inside that window legitimately sits in either tier. Valid only
+	 * after a {@link BucketCursor#next()} that returned true.
 	 *
 	 * @param cursor the cursor positioned at the bucket to materialize
 	 * @return the bucket as a {@link ValueToRecord} flyweight
@@ -328,8 +368,12 @@ public class InvertedIndex implements
 		if (cursor.isSingle()) {
 			return new ValueToRecordPrimitive(value, cursor.singleRecordId());
 		}
+		final Bitmap records = cursor.records();
+		if (records instanceof final SortedArrayBitmap arrayView) {
+			return new ValueToRecordArray(value, arrayView);
+		}
 		// the multi overload shares the same TransactionalBitmap instance (no copy) so record-set identity is preserved
-		return new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records());
+		return new ValueToRecordBitmap(value, (TransactionalBitmap) records);
 	}
 
 	/**
@@ -454,7 +498,7 @@ public class InvertedIndex implements
 		int indexedDecimalPlaces
 	) {
 		this.plainType = plainType;
-		this.buckets = createEmptyTree(plainType, comparator);
+		this.buckets = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
 		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
@@ -502,8 +546,25 @@ public class InvertedIndex implements
 	 * `indexedDecimalPlaces` scale is frozen into the index as the consistency witness described on
 	 * {@link #getIndexedDecimalPlaces()}.
 	 *
+	 * ## Two persisted buckets can collapse onto one tree key
+	 *
+	 * The persisted buckets are unique by *value*, which was enough while every value type had a lossless key
+	 * encoding. It no longer is: a catalog written before temporal values were truncated to whole milliseconds can
+	 * hold two buckets whose `Instant`s differ only below the millisecond, and both now encode to the same key (see
+	 * `LongKeyCodec#INSTANT`). The replaying insert below handles that by itself — the second bucket's records simply
+	 * join the first bucket — and the index is flagged {@link #isDirty() dirty} to say it is no longer the one on
+	 * disk. The persisted form is left untouched and stays internally consistent, so each load simply repeats the
+	 * merge until the index is next written for any reason, after which it is canonical and never collides again.
+	 * A catalog with nothing to repair is left completely alone, and in particular is NOT flagged dirty.
+	 *
+	 * **The inline value id column has to be realigned to match** — it is positional over the buckets that were
+	 * written, of which the tree may now hold fewer. That is
+	 * {@link #alignPersistedValueIds(ValueToRecordBitmap[], int[], Function, Comparator)}'s job, and it is the
+	 * caller's to invoke it; skipping it fails the load outright rather than mis-stamping.
+	 *
 	 * @param plainType            the plain (non-array) declared attribute type
-	 * @param buckets              the persisted buckets (unique & monotonic by value)
+	 * @param buckets              the persisted buckets (unique by value and monotonic; see above for the one way two
+	 *                             of them can still meet in a single tree key)
 	 * @param normalizer           the value normalizer
 	 * @param comparator           the value order
 	 * @param indexedDecimalPlaces decimal-places scale the `BigDecimal` keys are encoded at (0 for other types)
@@ -516,26 +577,33 @@ public class InvertedIndex implements
 		int indexedDecimalPlaces
 	) {
 		this.plainType = plainType;
-		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator);
-		// rebuild the tree from the deserialized snapshot by inserting all buckets (values are unique & monotonic).
+		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
+		// rebuild the tree from the deserialized snapshot by inserting all buckets, normalized so the key space is the
+		// one the tree is contracted on whatever the buckets' provenance (see the class comment on getNormalizer).
 		// a single-record bucket lands as a primitive column entry, a multi-record bucket as an overflow bitmap entry,
 		// so the columnar heap win survives a reload without ever allocating a ValueToRecord wrapper.
+		boolean collapsed = false;
 		for (final ValueToRecordBitmap bucket : buckets) {
 			final Bitmap recordIds = bucket.getRecordIds();
-			final Comparable value = (Comparable) bucket.getValue();
+			final Comparable value = (Comparable) normalizer.apply(bucket.getValue());
+			// the birth-reporting variant costs nothing over the plain one and is the exact signal that this persisted
+			// bucket joined one already in the tree - i.e. that two persisted values collapsed onto a single key
+			final int bornValueId;
 			if (recordIds.size() == 1) {
 				//noinspection unchecked
-				tree.addRecord(value, recordIds.getFirst());
+				bornValueId = tree.addRecordReportingValueBirth(value, recordIds.getFirst());
 			} else {
 				//noinspection unchecked
-				tree.addRecord(value, recordIds.getArray());
+				bornValueId = tree.addRecordReportingValueBirth(value, recordIds.getArray());
 			}
+			//noinspection NonShortCircuitBooleanExpression
+			collapsed |= bornValueId == TransactionalBucketBPlusTree.NO_CREATED_BUCKET;
 		}
 		this.buckets = tree;
 		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.dirty = new TransactionalBoolean(false);
+		this.dirty = new TransactionalBoolean(collapsed);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
@@ -543,17 +611,68 @@ public class InvertedIndex implements
 	 * Rebuilds a `PAGED` inverted index from its persisted leaf pages, preserving the original leaf boundaries and page
 	 * identities. Unlike the bucket-replaying constructor, this builds one leaf per persisted page (so
 	 * in-memory leaf *i* is byte-identical to persisted page *i*), stamps each leaf with its persisted page sequence, and
-	 * restores the page-stream bookkeeping (high-water + the live-page set). Reconstruction replays the buckets through
-	 * the leaf's mutation path, which flags the freshly built leaves dirty; they are cleared afterwards because they are
-	 * exactly what is already on disk. The result is a boundary-stable reload: a subsequent no-mutation commit rewrites
-	 * nothing (every leaf is clean), and the first real mutation rewrites only genuinely-changed leaves instead of
-	 * re-paginating the whole index.
+	 * restores the page-stream bookkeeping (high-water + the live-page set). The result is a boundary-stable reload: a
+	 * subsequent no-mutation commit rewrites nothing (every leaf is clean), and the first real mutation rewrites only
+	 * genuinely-changed leaves instead of re-paginating the whole index.
+	 *
+	 * ## When one persisted page no longer maps onto one leaf
+	 *
+	 * Page identity rests on the persisted buckets mapping one-to-one onto tree keys, and a catalog written before
+	 * temporal values were truncated to whole milliseconds breaks that: two buckets whose `Instant`s differ only below
+	 * the millisecond now encode to a single key (see `LongKeyCodec#INSTANT`). Left alone that reaches
+	 * `assembleFromSingleLeafTrees` as a leaf holding two equal keys and is reported as **index corruption** — a false
+	 * alarm that stops the catalog from opening, which is why this is detected here rather than there.
+	 *
+	 * Such buckets are therefore merged before the pages are built, by
+	 * {@link #collapseCollidingBuckets(int[], Object[][], ValueToRecord[][], int[][], Comparator)}: the colliding
+	 * bucket's records join the retained one, the surviving bucket keeps its persisted value id, and the retired one's
+	 * id is simply dropped (the value it named no longer exists). Pages keep their identity — a merged page is the
+	 * same page with fewer buckets — but a page the repair CHANGED gives up its identity
+	 * ({@link #releasePageIdentityOfMergedLeaves}), because a reassembled leaf is clean and would otherwise never be
+	 * written back. The rebuilt index reports itself {@link #isDirty() dirty}, exactly as the bucket-replaying
+	 * constructor does for the same reason.
+	 *
+	 * The repair is self-healing in the passive sense the legacy `LocalDateTime` re-anchoring relies on: it costs one
+	 * merge per load until this index is next flushed, and that flush rewrites every changed page in canonical form
+	 * and frees the records they superseded — after which nothing collides any more. Until then the persisted form is
+	 * untouched and internally consistent, so a load that is never followed by a flush simply repeats the merge. A
+	 * catalog with nothing to repair takes the fast path untouched and is not flagged dirty.
+	 *
+	 * ## When the persisted order is no longer the order the keys compare in
+	 *
+	 * A collapse is all a *monotone* key change can produce, and the temporal truncation is monotone: a finer key
+	 * can split a tie but never swap a pair. {@link DateTimeRange} is the one type whose move to milliseconds was
+	 * not — it changed which bound decides a tie. A range comparing at whole seconds derived an open lower bound's
+	 * threshold from the *other* bound's zone offset and lost every sub-second difference, so two shapes a
+	 * second-granularity release persisted in ascending order come back **descending**: two closed ranges opening in
+	 * the same second (ordered by their upper bound then, by their sub-second lower bound now), and two open-from
+	 * ranges written at different zone offsets (ordered by descending offset then, by their upper bound now).
+	 * Nothing on disk is wrong — the buckets carry their two precise bounds and the comparison is recomputed on every
+	 * load — but the order the pages were written in is fixed, and carrying it into the page build fails the
+	 * bulk-load premise when the pair sits inside one page and is reported as index corruption when it straddles a
+	 * boundary. Either way a released catalog stops opening.
+	 *
+	 * Such an index is therefore re-sorted whole by {@link #resortSecondGranularityBuckets}: every page's buckets are
+	 * flattened, sorted by the current comparison, merged where they now collide and re-chunked into pages of the
+	 * sizes they were persisted at. Every page gives up its identity, because the re-sort moved content across all of
+	 * them, and the registry is seeded from the persisted root's own page list so the first flush frees every legacy
+	 * page and writes the index back in canonical form.
+	 *
+	 * **The repair is deliberately narrow.** An inversion is otherwise the signature of a stale leaf-page twin, and
+	 * healing one silently would resurrect records that were deliberately removed — which is exactly what
+	 * `TransactionalBucketBPlusTree#assertCrossLeafBoundaries` refuses to do. So the re-sort runs only when the
+	 * persisted sequence is one a second-granularity release could actually have written:
+	 * {@link #isSecondGranularityRangeOrder} requires every key to be a `DateTimeRange` and the whole sequence to be
+	 * strictly ascending under the comparison that type used *before* it moved to milliseconds. A twin fails that
+	 * test — its pages overlap under either comparison — and reaches the corruption diagnostics untouched.
 	 *
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
 	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
 	 * @param perPageValueIds      the persisted value ids of each leaf page, positionally aligned with
-	 *                             `orderedPageSequences`, or `null` when the tree carries no value ids
+	 *                             `orderedPageSequences` and holding exactly one id per bucket of its page, or
+	 *                             `null` when the tree carries no value ids at all — the column is an
+	 *                             all-or-nothing property of a generation, never present on some pages only
 	 * @param highWaterPageSequence     the persisted stream high-water (largest page sequence ever allocated)
 	 * @param normalizer           the value normalizer
 	 * @param comparator           the value order
@@ -581,45 +700,503 @@ public class InvertedIndex implements
 			perPageValueIds == null || perPageValueIds.length == orderedPageSequences.length,
 			"The per-page value id columns must align with the page sequences one for one."
 		);
-		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		if (perPageValueIds != null) {
+			// every consumer below reads the id column as an all-or-nothing property of the generation: the collapse
+			// trims a page's column alongside its buckets, the re-sort reads it bucket by bucket, and `bulkLoadPage`
+			// hands it to the leaf whole. A page that lost its column, or carries a short one, would therefore
+			// surface as a null dereference or an out-of-bounds read deep inside the repair - naming neither the
+			// page nor the cause - so it is refused here, where both can still be reported
+			for (int i = 0; i < perPageValueIds.length; i++) {
+				final int[] pageValueIds = perPageValueIds[i];
+				Assert.isPremiseValid(
+					pageValueIds != null && pageValueIds.length == perPageBuckets[i].length,
+					"Leaf page " + orderedPageSequences[i] + " must carry exactly one value id per bucket - it holds " +
+						(pageValueIds == null ? "no id column" : pageValueIds.length + " ids") + " for " +
+						perPageBuckets[i].length + " buckets."
+				);
+			}
+		}
+		// normalize every persisted bucket value into the key space the tree is contracted on - whatever the buckets'
+		// provenance - and, on the same pass, find out whether any two of them now meet in a single key, or whether
+		// the order they were persisted in is no longer the order they compare in
+		final Object[][] normalizedKeys = new Object[orderedPageSequences.length][];
+		boolean collapsed = false;
+		boolean inverted = false;
+		Comparable previousKey = null;
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final ValueToRecord[] buckets = perPageBuckets[i];
+			final Object[] keys = new Object[buckets.length];
+			for (int j = 0; j < buckets.length; j++) {
+				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
+				keys[j] = key;
+				if (previousKey != null) {
+					final int comparison = comparator.compare(previousKey, key);
+					//noinspection NonShortCircuitBooleanExpression
+					collapsed |= comparison == 0;
+					//noinspection NonShortCircuitBooleanExpression
+					inverted |= comparison > 0;
+				}
+				previousKey = key;
+			}
+			normalizedKeys[i] = keys;
+		}
+		// an inversion is repaired ONLY when the persisted sequence is the one a second-granularity release would
+		// have written; every other inversion is corruption and must reach the diagnostics below untouched
+		final boolean resorted = inverted && isSecondGranularityRangeOrder(normalizedKeys);
+
+		int[] loadedPageSequences = orderedPageSequences;
+		Object[][] loadedKeys = normalizedKeys;
+		ValueToRecord[][] loadedBuckets = perPageBuckets;
+		int[][] loadedValueIds = perPageValueIds;
+		boolean[] rewrittenPages = null;
+		final boolean repairedOnLoad = resorted || collapsed;
+		if (repairedOnLoad) {
+			// the rare repair path - see the "When one persisted page no longer maps onto one leaf" and "When the
+			// persisted order is no longer the order the keys compare in" sections above
+			final CollapsedPages repaired = resorted
+				? resortSecondGranularityBuckets(
+					orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator)
+				: collapseCollidingBuckets(
+					orderedPageSequences, normalizedKeys, perPageBuckets, perPageValueIds, comparator);
+			loadedPageSequences = repaired.pageSequences();
+			loadedKeys = repaired.keys();
+			loadedBuckets = repaired.buckets();
+			loadedValueIds = repaired.valueIds();
+			rewrittenPages = repaired.merged();
+		}
+
+		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(loadedPageSequences.length);
+		for (int i = 0; i < loadedPageSequences.length; i++) {
+			final ValueToRecord[] buckets = loadedBuckets[i];
 			// build a single-leaf tree from this page's buckets in one bulk pass — a page never exceeds a leaf's
 			// capacity, so no split — instead of `buckets.length` sequential addRecord calls, which would otherwise
 			// re-decode/re-encode a front-coded String column's whole blob per call; see bulkLoadPage's javadoc
-			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
-			final Object[] keys = new Object[buckets.length];
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator, indexedDecimalPlaces);
+			final Object[] keys = loadedKeys[i];
 			final long[] payloads = new long[buckets.length];
-			TransactionalBitmap[] overflow = null;
+			Object[] overflow = null;
 			for (int j = 0; j < buckets.length; j++) {
-				final ValueToRecord bucket = buckets[j];
-				final Bitmap recordIds = bucket.getRecordIds();
-				keys[j] = bucket.getValue();
+				final Bitmap recordIds = buckets[j].getRecordIds();
 				if (recordIds.size() == 1) {
 					payloads[j] = recordIds.getFirst();
 				} else {
 					if (overflow == null) {
-						overflow = new TransactionalBitmap[buckets.length];
+						overflow = new Object[buckets.length];
 					}
-					overflow[j] = new TransactionalBitmap(recordIds);
+					// the tier is chosen here rather than after the load, so a small bucket never builds the roaring
+					// bitmap it would only be demoted out of again
+					overflow[j] = OverflowRecords.loadedRecordSet(recordIds);
 				}
 			}
 			pageTree.bulkLoadPage(
-				keys, payloads, overflow, perPageValueIds == null ? null : perPageValueIds[i], buckets.length
+				keys, payloads, overflow, loadedValueIds == null ? null : loadedValueIds[i], buckets.length
 			);
 			pageTrees.add(pageTree);
 		}
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
-				pageTrees, orderedPageSequences, "inverted index for type `" + plainType.getName() + "`"
+			createEmptyTree(plainType, comparator, indexedDecimalPlaces).assembleFromSingleLeafTrees(
+				pageTrees, loadedPageSequences, "inverted index for type `" + plainType.getName() + "`"
 			);
-		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
-			BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
-		);
-		return new InvertedIndex(
+		// the live-page set is the one the ROOT lists, not the one the assembled leaves carry: a page absorbed by the
+		// repair above holds no leaf any more, yet it is still on disk and the first commit has to free it
+		final PageStreamRegistry pageStreamRegistry = repairedOnLoad
+			? restoredFromPersistedPageList(highWaterPageSequence, orderedPageSequences)
+			: PageStreamRegistry.restoredFrom(BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles());
+		if (rewrittenPages != null) {
+			releasePageIdentityOfMergedLeaves(tree, rewrittenPages);
+		}
+		final InvertedIndex index = new InvertedIndex(
 			plainType, tree, normalizer, comparator, indexedDecimalPlaces, pageStreamRegistry
 		);
+		if (repairedOnLoad) {
+			index.dirty.setToTrue();
+		}
+		return index;
+	}
+
+	/**
+	 * Un-stamps the page sequence of every leaf the collision repair changed, so the first flush treats it as a fresh
+	 * leaf: it allocates a new (advance-only, never reused) sequence, writes the leaf out, and frees the persisted
+	 * record the leaf no longer matches.
+	 *
+	 * **This is what makes the repair safe rather than merely correct in memory.** The reassembled leaves are clean —
+	 * a bulk-loaded page is not flagged dirty — so a merged leaf would otherwise keep its identity, never be written,
+	 * and leave the persisted page holding the un-merged buckets. That is harmless while the root still lists the same
+	 * pages (the next load simply repeats the merge), and *data loss* the moment it does not: a page absorbed in its
+	 * entirety drops out of the root's list while the records it held live only in the predecessor's in-memory leaf.
+	 *
+	 * Leaves the repair did not touch keep their identity and stay clean, so a one-bucket collision in a large index
+	 * rewrites one page rather than re-paginating the whole tree.
+	 *
+	 * @param tree           the reassembled tree, its leaves in ascending key order
+	 * @param rewrittenPages `true` at every leaf whose persisted record no longer matches it
+	 */
+	@SuppressWarnings("rawtypes")
+	private static void releasePageIdentityOfMergedLeaves(
+		@Nonnull TransactionalBucketBPlusTree tree, @Nonnull boolean[] rewrittenPages
+	) {
+		final List<LeafPageHandle> handles = tree.leafPageHandles();
+		Assert.isPremiseValid(
+			handles.size() == rewrittenPages.length,
+			"The reassembled leaves must align one for one with the repaired pages."
+		);
+		for (int i = 0; i < rewrittenPages.length; i++) {
+			if (rewrittenPages[i]) {
+				handles.get(i).setPageSequence(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE);
+			}
+		}
+	}
+
+	/**
+	 * Builds the page-stream registry from the persisted root's own page list rather than from the reassembled leaves,
+	 * and — unlike {@link PageStreamRegistry#restoredFrom} — leaves the leaves' dirty flags alone. Used only by the
+	 * collision-repair path of {@link #fromPersistedPages}, where the two lists can legitimately differ: a page whose
+	 * every bucket was absorbed by its predecessor has no leaf left, but is still a record on disk that the first
+	 * commit must free.
+	 *
+	 * @param highWaterPageSequence the persisted stream high-water
+	 * @param orderedPageSequences  the persisted root's leaf-page list, which IS the live set on disk
+	 * @return the restored page-stream registry
+	 */
+	@Nonnull
+	private static PageStreamRegistry restoredFromPersistedPageList(
+		int highWaterPageSequence, @Nonnull int[] orderedPageSequences
+	) {
+		final PageStreamRegistry registry = new PageStreamRegistry();
+		registry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
+		return registry;
+	}
+
+	/**
+	 * Tells whether the persisted key sequence is one a release comparing {@link DateTimeRange} at **whole seconds**
+	 * could have written — which is what separates a legacy ordering from index corruption. See
+	 * {@link #fromPersistedPages}'s "When the persisted order is no longer the order the keys compare in" section for
+	 * why the two must be told apart at all.
+	 *
+	 * Two facts have to hold together. Every key must be a `DateTimeRange`: it is the only type whose comparison
+	 * changed its tie-break axis rather than merely its resolution, and therefore the only one whose persisted order
+	 * the current comparison can invert. And the whole sequence must be **strictly ascending** under the
+	 * second-granularity comparison, which is the order the writer that produced it was sorting by. A stale
+	 * leaf-page twin fails that test — its pages overlap under either comparison — as does any other corruption that
+	 * left the pages out of order, so both keep reaching the diagnostics rather than being healed away.
+	 *
+	 * @param normalizedKeys each page's bucket values, already normalized, in persisted page order
+	 * @return `true` when the sequence is a legacy second-granularity ordering and may be re-sorted
+	 */
+	private static boolean isSecondGranularityRangeOrder(@Nonnull Object[][] normalizedKeys) {
+		DateTimeRange previousRange = null;
+		for (final Object[] keys : normalizedKeys) {
+			for (final Object key : keys) {
+				if (!(key instanceof DateTimeRange range)) {
+					return false;
+				}
+				if (previousRange != null && compareAtSecondGranularity(previousRange, range) >= 0) {
+					return false;
+				}
+				previousRange = range;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Compares two ranges the way {@link DateTimeRange} did before its comparison moved to milliseconds: on the two
+	 * bounds' whole epoch seconds, lower bound first. Reconstructed from the precise bounds the buckets carry, which
+	 * is what makes the order a legacy writer sorted by recomputable on load.
+	 *
+	 * @param left  the range persisted first
+	 * @param right the range persisted next
+	 * @return the sign of the second-granularity comparison
+	 */
+	private static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+		final int lowerBoundComparison =
+			Long.compare(secondGranularityFrom(left), secondGranularityFrom(right));
+		return lowerBoundComparison != 0
+			? lowerBoundComparison
+			: Long.compare(secondGranularityTo(left), secondGranularityTo(right));
+	}
+
+	/**
+	 * The lower comparison bound a second-granularity release stored for the given range. An **open** lower bound
+	 * took no constant back then: it was derived from the upper bound's own zone offset, which is why two open-from
+	 * ranges written at different offsets sorted apart then and tie now.
+	 *
+	 * @param range the persisted range
+	 * @return the range's lower bound in whole epoch seconds
+	 */
+	private static long secondGranularityFrom(@Nonnull DateTimeRange range) {
+		final OffsetDateTime from = range.getPreciseFrom();
+		return from == null
+			? LocalDateTime.MIN.atOffset(Objects.requireNonNull(range.getPreciseTo()).getOffset()).toEpochSecond()
+			: from.toEpochSecond();
+	}
+
+	/**
+	 * The upper comparison bound a second-granularity release stored for the given range — the mirror of
+	 * {@link #secondGranularityFrom}, an open upper bound being derived from the lower bound's zone offset.
+	 *
+	 * @param range the persisted range
+	 * @return the range's upper bound in whole epoch seconds
+	 */
+	private static long secondGranularityTo(@Nonnull DateTimeRange range) {
+		final OffsetDateTime to = range.getPreciseTo();
+		return to == null
+			? LocalDateTime.MAX.atOffset(Objects.requireNonNull(range.getPreciseFrom()).getOffset()).toEpochSecond()
+			: to.toEpochSecond();
+	}
+
+	/**
+	 * Re-sorts a whole persisted index whose bucket order the current comparison inverts, and hands the result to
+	 * {@link #collapseCollidingBuckets} so buckets that now meet in one key are merged by the very code an
+	 * order-preserving reload uses. See {@link #fromPersistedPages}'s "When the persisted order is no longer the
+	 * order the keys compare in" section for when this runs and why it may not run more widely than that.
+	 *
+	 * The buckets are re-chunked into pages of the sizes they were **persisted** at, so no page can overflow a leaf:
+	 * none of them grew, and the merge that follows can only shrink them. Page identity is not preserved by the
+	 * chunking and is not meant to be — the returned pages are all flagged for rewrite, because the re-sort moved
+	 * content across every one of them and none of them still matches its record on disk.
+	 *
+	 * @param orderedPageSequences the persisted leaf-page sequences in the order the root lists them
+	 * @param normalizedKeys       each page's bucket values, already normalized, aligned with `perPageBuckets`
+	 * @param perPageBuckets       each page's persisted buckets
+	 * @param perPageValueIds      each page's persisted value ids, or `null` when the tree carries none
+	 * @param comparator           the value order
+	 * @return the re-sorted pages, their colliding buckets merged, every one flagged for rewrite
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static CollapsedPages resortSecondGranularityBuckets(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull Object[][] normalizedKeys,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		@Nonnull Comparator comparator
+	) {
+		int bucketCount = 0;
+		for (final ValueToRecord[] buckets : perPageBuckets) {
+			bucketCount += buckets.length;
+		}
+		final PersistedBucket[] flattened = new PersistedBucket[bucketCount];
+		int cursor = 0;
+		for (int i = 0; i < perPageBuckets.length; i++) {
+			final ValueToRecord[] buckets = perPageBuckets[i];
+			for (int j = 0; j < buckets.length; j++) {
+				flattened[cursor++] = new PersistedBucket(
+					(Comparable) normalizedKeys[i][j], buckets[j],
+					perPageValueIds == null ? 0 : perPageValueIds[i][j]
+				);
+			}
+		}
+		// the sort is stable, so two buckets the current comparison finds equal stay in the order they were written
+		// in - which is what lets the collapse below retire the LATER of the two, exactly as it does on a page whose
+		// order was never disturbed
+		Arrays.sort(flattened, (left, right) -> comparator.compare(left.key(), right.key()));
+
+		final Object[][] sortedKeys = new Object[orderedPageSequences.length][];
+		final ValueToRecord[][] sortedBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] sortedValueIds = perPageValueIds == null ? null : new int[orderedPageSequences.length][];
+		cursor = 0;
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final int pageSize = perPageBuckets[i].length;
+			final Object[] keys = new Object[pageSize];
+			final ValueToRecord[] buckets = new ValueToRecord[pageSize];
+			final int[] valueIds = sortedValueIds == null ? null : new int[pageSize];
+			for (int j = 0; j < pageSize; j++) {
+				final PersistedBucket persisted = flattened[cursor++];
+				keys[j] = persisted.key();
+				buckets[j] = persisted.bucket();
+				if (valueIds != null) {
+					valueIds[j] = persisted.valueId();
+				}
+			}
+			sortedKeys[i] = keys;
+			sortedBuckets[i] = buckets;
+			if (sortedValueIds != null) {
+				sortedValueIds[i] = valueIds;
+			}
+		}
+
+		final CollapsedPages collapsed = collapseCollidingBuckets(
+			orderedPageSequences, sortedKeys, sortedBuckets, sortedValueIds, comparator
+		);
+		// the collapse flags only the pages IT changed; after a re-sort every surviving page holds content that came
+		// from somewhere else and must be rewritten, so each of them gives up its identity
+		final boolean[] rewrittenPages = new boolean[collapsed.pageSequences().length];
+		Arrays.fill(rewrittenPages, true);
+		return new CollapsedPages(
+			collapsed.pageSequences(), collapsed.keys(), collapsed.buckets(), collapsed.valueIds(), rewrittenPages
+		);
+	}
+
+	/**
+	 * Merges persisted buckets that collapse onto one tree key, page by page, carrying the merge across page
+	 * boundaries. See {@link #fromPersistedPages}'s "When one persisted page no longer maps onto one leaf" section for
+	 * why this exists at all.
+	 *
+	 * The merge target may sit on the **previous** page — the two colliding buckets can straddle a leaf boundary — so
+	 * this runs as a whole-index pre-pass rather than inside the page build loop, which has no way to reach back into
+	 * a page it has already turned into a leaf.
+	 *
+	 * ## The merge-target invariant
+	 *
+	 * **`targetPage` is always the very array stored in `retainedBuckets[targetRetainedPage]`, never a pre-copy
+	 * local.** A page is retained by reference when every bucket survived and as a trimmed `Arrays.copyOf` when one
+	 * did not, so the two diverge exactly on the pages that lost a bucket — and a merge written through the stale
+	 * reference is invisible to the array that is returned, bulk-loaded and persisted. The page is still flagged for
+	 * rewrite, so it is written back **without** the merge and the absorbed bucket's records are gone for good, with
+	 * no exception anywhere. The page-close site therefore re-points `targetPage` at whatever it stored.
+	 *
+	 * Only the bucket array has this hazard: `retainedKeys` and `retainedValueIds` are written **only** in the
+	 * survive branch, before the page is closed, and the merge branch never touches either (an absorbed bucket's key
+	 * is by definition equal to the retained one, and its value id is deliberately retired). Their copies are final
+	 * at close time, so nothing can write past them.
+	 *
+	 * @param orderedPageSequences the persisted leaf-page sequences in ascending key order
+	 * @param normalizedKeys       each page's bucket values, already normalized, aligned with `perPageBuckets`
+	 * @param perPageBuckets       each page's persisted buckets
+	 * @param perPageValueIds      each page's persisted value ids, or `null` when the tree carries none
+	 * @param comparator           the value order
+	 * @return the surviving pages, their surviving buckets, keys and value ids
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static CollapsedPages collapseCollidingBuckets(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull Object[][] normalizedKeys,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nullable int[][] perPageValueIds,
+		@Nonnull Comparator comparator
+	) {
+		final int[] retainedPageSequences = new int[orderedPageSequences.length];
+		final Object[][] retainedKeys = new Object[orderedPageSequences.length][];
+		final ValueToRecord[][] retainedBuckets = new ValueToRecord[orderedPageSequences.length][];
+		final int[][] retainedValueIds =
+			perPageValueIds == null ? null : new int[orderedPageSequences.length][];
+		final boolean[] retainedMerged = new boolean[orderedPageSequences.length];
+		int retainedPageCount = 0;
+		// the slot the next colliding bucket merges into, together with the page array it lives on and that page's
+		// index among the retained ones - which is the PREVIOUS page whenever the collision straddles a boundary
+		ValueToRecord[] targetPage = null;
+		int targetSlot = -1;
+		int targetRetainedPage = -1;
+		Comparable previousKey = null;
+
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final ValueToRecord[] buckets = perPageBuckets[i];
+			final Object[] keys = normalizedKeys[i];
+			final int[] valueIds = perPageValueIds == null ? null : perPageValueIds[i];
+			final ValueToRecord[] pageBuckets = new ValueToRecord[buckets.length];
+			final Object[] pageKeys = new Object[buckets.length];
+			final int[] pageValueIds = valueIds == null ? null : new int[buckets.length];
+			int count = 0;
+			for (int j = 0; j < buckets.length; j++) {
+				final Comparable key = (Comparable) keys[j];
+				final Bitmap recordIds = buckets[j].getRecordIds();
+				if (previousKey != null && comparator.compare(previousKey, key) == 0) {
+					// two persisted buckets meet in one tree key: the later one's records join the retained bucket and
+					// its value id is retired with it. The retained bucket keeps its own id, so every id still on disk
+					// either still names a live value or names none at all - never a different one
+					final ValueToRecord target = targetPage[targetSlot];
+					final BaseBitmap merged = new BaseBitmap(target.getRecordIds());
+					merged.addAll(recordIds);
+					targetPage[targetSlot] = new ValueToRecordBitmap((Serializable) key, merged);
+					if (targetRetainedPage < retainedPageCount) {
+						// the merge reached back into a page already closed above - that page gained a record and no
+						// longer matches its persisted form either, so it has to be rewritten as well
+						retainedMerged[targetRetainedPage] = true;
+					}
+					continue;
+				}
+				pageKeys[count] = key;
+				pageBuckets[count] = new ValueToRecordBitmap((Serializable) key, recordIds);
+				if (pageValueIds != null) {
+					pageValueIds[count] = valueIds[j];
+				}
+				targetPage = pageBuckets;
+				targetSlot = count;
+				targetRetainedPage = retainedPageCount;
+				count++;
+				previousKey = key;
+			}
+			if (count == 0) {
+				// every bucket of this page was absorbed by its predecessor - the page holds no leaf any more. It is
+				// still a record on disk; the registry keeps it in the live set so the first commit frees it
+				continue;
+			}
+			retainedPageSequences[retainedPageCount] = orderedPageSequences[i];
+			retainedKeys[retainedPageCount] = count == keys.length ? pageKeys : Arrays.copyOf(pageKeys, count);
+			final ValueToRecord[] retainedPageBuckets =
+				count == buckets.length ? pageBuckets : Arrays.copyOf(pageBuckets, count);
+			retainedBuckets[retainedPageCount] = retainedPageBuckets;
+			// UPHOLDS THE MERGE-TARGET INVARIANT: `targetPage` must be the array this method RETURNS, never the local
+			// one it was built in. A page that lost a bucket is retained as a trimmed COPY, and `targetPage` still
+			// pointed at the pre-copy original - so a later cross-page merge into this page's last bucket wrote into
+			// an orphan while the returned copy kept the un-merged bucket, silently dropping the absorbed records.
+			// Re-pointing here is enough because `targetPage` is necessarily THIS page's array at this point: every
+			// surviving bucket reassigns it, and a page with no survivor never reaches this line
+			targetPage = retainedPageBuckets;
+			// one condition written as two: the retained column exists exactly when the page column does, because
+			// `fromPersistedPages` refuses a page array that carries the id column on some pages only. Testing the
+			// reference that is actually dereferenced keeps that provable at this site rather than four hundred
+			// lines away
+			if (retainedValueIds != null && pageValueIds != null) {
+				retainedValueIds[retainedPageCount] =
+					count == buckets.length ? pageValueIds : Arrays.copyOf(pageValueIds, count);
+			}
+			// a page that lost a bucket here, or absorbed one from its successor, no longer matches its persisted
+			// record; a page whose whole bucket list survived intact still does, and must keep its identity
+			//noinspection NonShortCircuitBooleanExpression
+			retainedMerged[retainedPageCount] |= count != buckets.length;
+			retainedPageCount++;
+		}
+		Assert.isPremiseValid(
+			retainedPageCount > 0, "A paged inverted index must keep at least one leaf page after a bucket collapse."
+		);
+		return new CollapsedPages(
+			Arrays.copyOf(retainedPageSequences, retainedPageCount),
+			Arrays.copyOf(retainedKeys, retainedPageCount),
+			Arrays.copyOf(retainedBuckets, retainedPageCount),
+			retainedValueIds == null ? null : Arrays.copyOf(retainedValueIds, retainedPageCount),
+			Arrays.copyOf(retainedMerged, retainedPageCount)
+		);
+	}
+
+	/**
+	 * The outcome of {@link #collapseCollidingBuckets}: the persisted pages that still hold at least one bucket, with
+	 * their colliding buckets merged. All four arrays are positionally aligned.
+	 *
+	 * @param pageSequences the surviving pages' sequences, in ascending key order
+	 * @param keys          each surviving page's normalized bucket keys
+	 * @param buckets       each surviving page's buckets, colliding ones merged
+	 * @param valueIds      each surviving page's persisted value ids, or `null` when the tree carries none
+	 * @param merged        `true` at every surviving page whose bucket list the collapse actually changed — the pages
+	 *                      whose persisted record no longer matches the leaf and must be rewritten
+	 */
+	private record CollapsedPages(
+		@Nonnull int[] pageSequences,
+		@Nonnull Object[][] keys,
+		@Nonnull ValueToRecord[][] buckets,
+		@Nullable int[][] valueIds,
+		@Nonnull boolean[] merged
+	) {
+	}
+
+	/**
+	 * One persisted bucket with everything that has to travel with it when {@link #resortSecondGranularityBuckets}
+	 * moves it to another slot: its normalized tree key and the value id it was written with.
+	 *
+	 * @param key     the bucket's value, normalized into the key space the tree is contracted on
+	 * @param bucket  the persisted bucket itself
+	 * @param valueId the id the bucket was written with, or `0` on a tree carrying no value ids — in which case the
+	 *                slot is never read
+	 */
+	@SuppressWarnings("rawtypes")
+	private record PersistedBucket(
+		@Nonnull Comparable key,
+		@Nonnull ValueToRecord bucket,
+		int valueId
+	) {
 	}
 
 	/**
@@ -811,6 +1388,74 @@ public class InvertedIndex implements
 		this.valueIdDirectoryStale = false;
 		// what was just restored is by definition what is on disk, so the root needs no rewrite until the next mint
 		this.emittedNextValueId = nextValueId;
+	}
+
+	/**
+	 * Realigns a persisted **inline** value id column with the buckets an index rebuilt from those very buckets
+	 * actually holds, dropping the id of every persisted bucket that collapses onto its predecessor's tree key.
+	 *
+	 * The inline id column is positional over the buckets that were *written*; the bucket-replaying constructor can
+	 * legitimately end up with fewer (see its "Two persisted buckets can collapse onto one tree key" section), and
+	 * `TransactionalBucketBPlusTree#installValueIdMinter` refuses a column that does not align exactly — so without
+	 * this the catalog does not open at all. The `PAGED` shape needs no equivalent: its ids ride inside the pages and
+	 * are compacted with them.
+	 *
+	 * The absorbed value no longer exists, so its id is retired; every surviving bucket keeps the id it was written
+	 * with, and no id is ever handed to a different value. Stateless on purpose — an `InvertedIndex` field
+	 * remembering this would cost 8 bytes on **every** inverted index in the catalog, load-path-only state charged to
+	 * a structure this whole line of work exists to shrink.
+	 *
+	 * The collapse predicate here is adjacent-normalized-key equality, whereas the constructor reads the tree's own
+	 * "no bucket was born" signal. The two agree because the normalizer maps onto exactly the key space the leaf
+	 * column encodes — which is what `FilterIndex#getNormalizer`'s millisecond truncation guarantees for the one
+	 * codec whose encoding is lossy. Should they ever diverge, `installValueIdMinter`'s alignment premise fails
+	 * loudly rather than mis-stamping.
+	 *
+	 * Both predicates read the persisted buckets in the order they were written and take that order to be ascending
+	 * under the current comparison — the one assumption a `DateTimeRange` index written at second granularity can
+	 * break (see {@link #fromPersistedPages}'s "When the persisted order is no longer the order the keys compare in").
+	 * An inline index of that vintage carries no value ids at all, so this cannot be reached today; were it ever
+	 * reached, a collision the re-ordering left non-adjacent would go unnoticed here and `installValueIdMinter` would
+	 * refuse the misaligned column rather than stamp the wrong id onto a value.
+	 *
+	 * @param persistedBuckets  the buckets as they were written, in ascending key order
+	 * @param persistedValueIds the ids as they were written, one per persisted bucket
+	 * @param normalizer        the value normalizer of the index being restored
+	 * @param comparator        the value order of the index being restored
+	 * @return the ids of the buckets the rebuilt index holds — `persistedValueIds` itself when nothing collapsed
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public static int[] alignPersistedValueIds(
+		@Nonnull ValueToRecordBitmap[] persistedBuckets,
+		@Nonnull int[] persistedValueIds,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		Assert.isPremiseValid(
+			persistedBuckets.length == persistedValueIds.length,
+			"The persisted value id column holds " + persistedValueIds.length + " ids but the part carries "
+				+ persistedBuckets.length + " buckets - the two must align exactly."
+		);
+		int retained = 0;
+		int[] aligned = null;
+		Comparable previousKey = null;
+		for (int i = 0; i < persistedBuckets.length; i++) {
+			final Comparable key = (Comparable) normalizer.apply(persistedBuckets[i].getValue());
+			if (previousKey != null && comparator.compare(previousKey, key) == 0) {
+				if (aligned == null) {
+					// first collapse - materialize the compacted column from the prefix that survived so far
+					aligned = Arrays.copyOf(persistedValueIds, persistedValueIds.length);
+				}
+				continue;
+			}
+			if (aligned != null) {
+				aligned[retained] = persistedValueIds[i];
+			}
+			retained++;
+			previousKey = key;
+		}
+		return aligned == null ? persistedValueIds : Arrays.copyOf(aligned, retained);
 	}
 
 	/**
@@ -1044,17 +1689,22 @@ public class InvertedIndex implements
 	 *
 	 * ## If you change this method, run the stress test that guards it
 	 *
-	 * `LongRunningValueIdDirectoryConcurrencyTest` is the only thing that covers the single-flight claim above; it is
-	 * `@Disabled` and lives in `evita_test/evita_long_running_tests`, so nothing runs it for you:
+	 * `LongRunningValueIdDirectoryConcurrencyTest` is the only thing that covers the single-flight claim above. It
+	 * lives in `evita_test/evita_long_running_tests`, which only the weekly `long-running-tests` workflow reaches, so
+	 * nothing in the fast loop runs it for you:
 	 *
 	 * ```
-	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+	 *     -Dtest=LongRunningValueIdDirectoryConcurrencyTest -Dsurefire.failIfNoSpecifiedTests=false
 	 * ```
 	 *
-	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below — and that has to be
-	 * re-measured too, not merely the green run. **Making this method faster narrows the window the test races in**, so
-	 * an optimization elsewhere can leave the test passing while it has stopped proving anything; that has already
-	 * happened once. The same obligation applies to `BucketBPlusTree#rebuildValueIdDirectory`.
+	 * It carries a recorded calibration — the counterfactual is removing the `synchronized` below, built on a shadow
+	 * classpath rather than by editing this file — and that has to be re-measured too, not merely the green run.
+	 * **Changing how fast this method runs moves the window the test races in**, so an optimization elsewhere can
+	 * leave the test passing while it has stopped proving anything. That has already happened once, and the window
+	 * has since moved back the other way: re-measured on 2026-09-03 the counterfactual fails within 16 of 2000
+	 * rounds, where on 2026-08-31 it needed 267-450. The same obligation applies to
+	 * `BucketBPlusTree#rebuildValueIdDirectory`.
 	 */
 	private synchronized void refreshValueIdDirectory() {
 		if (this.valueIdDirectoryStale) {
@@ -1221,7 +1871,7 @@ public class InvertedIndex implements
 	 * @param valueId         the id the insert minted for the value
 	 * @param normalizedValue the value the insert created a bucket for, already normalized
 	 */
-	private void notifyValueCreated(
+	private static void notifyValueCreated(
 		@Nonnull ValueLifecycleSink sink,
 		int valueId,
 		@Nonnull Comparable normalizedValue
@@ -1323,8 +1973,17 @@ public class InvertedIndex implements
 			if (cursor.isSingle()) {
 				result.add(new ValueToRecordBitmap(value, cursor.singleRecordId()));
 			} else {
-				// share the live TransactionalBitmap (no copy) - this is the serializer's read-only snapshot boundary
-				result.add(new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records()));
+				// the legacy whole-histogram form is always ValueToRecordBitmap, so a bitmap-tier bucket is shared live
+				// (no copy) while a small array-tier one is wrapped into a transient bitmap here - this is the
+				// serializer's read-only snapshot boundary either way. The tier dispatch has to be written out:
+				// records() is declared Bitmap, and the Bitmap constructor overload deep-copies into a fresh
+				// TransactionalBitmap, which would freeze the live bucket bitmap on every flush
+				final Bitmap bucketRecords = cursor.records();
+				result.add(
+					bucketRecords instanceof final TransactionalBitmap live
+						? new ValueToRecordBitmap(value, live)
+						: new ValueToRecordBitmap(value, bucketRecords)
+				);
 			}
 		}
 		return result.toArray(ValueToRecordBitmap[]::new);
@@ -1999,11 +2658,22 @@ public class InvertedIndex implements
 				final CompositeIntArray pageValueIds = withValueIds ? new CompositeIntArray() : null;
 				while (cursor.next()) {
 					final Serializable value = (Serializable) cursor.value();
-					pageBuckets.add(
-						cursor.isSingle()
-							? new ValueToRecordPrimitive(value, cursor.singleRecordId())
-							: new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records())
-					);
+					// a multi bucket is persisted as a ValueToRecordBitmap whichever tier holds it in memory: the wire
+					// form of a bucket is its record IDS, so the array tier changes nothing on disk and no serializer
+					// has to learn a third shape. The transient wrap is paid once per dirty leaf per flush, next to
+					// the serialization of the page itself, and never on a query - and only by the array tier, which
+					// is why the dispatch below is explicit: records() is declared Bitmap, and that constructor
+					// overload deep-copies, so a bare call would wrap the bitmap tier too
+					if (cursor.isSingle()) {
+						pageBuckets.add(new ValueToRecordPrimitive(value, cursor.singleRecordId()));
+					} else {
+						final Bitmap bucketRecords = cursor.records();
+						pageBuckets.add(
+							bucketRecords instanceof final TransactionalBitmap live
+								? new ValueToRecordBitmap(value, live)
+								: new ValueToRecordBitmap(value, bucketRecords)
+						);
+					}
 					if (pageValueIds != null) {
 						pageValueIds.add(cursor.valueId());
 					}

@@ -192,8 +192,9 @@ class BucketBPlusTreeHeapSizeTest {
 		void shouldAddOnlyTheTreesOwnObjectOnTopOfItsNodeGraph() {
 			final TransactionalBucketBPlusTree<?> tree = buildTree(500, 1);
 
-			// the tree's own contribution is a handful of scalars, two TransactionalReference holders and their
-			// AtomicReferences - a small constant that must not scale with the data
+			// the tree's own contribution is a handful of scalars (the bucket count among them, a plain int) and the
+			// single `root` TransactionalReference holder with its AtomicReference - a small constant that must not
+			// scale with the data
 			final long own = tree.getHeapSizeInBytes(element -> 0L)
 				- tree.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertTrue(own > 0 && own < 256, "the tree's own object should be a small constant, was " + own);

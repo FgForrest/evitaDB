@@ -50,6 +50,7 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -86,6 +87,12 @@ import static java.util.Optional.ofNullable;
  * and per-session {@link ReentrantLock} for atomic operations. Registering a session and suspending the registry are
  * additionally fenced against each other by {@link #registrationGate} - see its documentation for why the two cannot
  * be left to the atomics alone.
+ *
+ * A second, narrower lock - {@link #exclusiveAdmissionLock} - guards a different invariant on the same map: a catalog
+ * that is not yet transactional (warming up, or otherwise not ALIVE) admits **at most one** session, and that rule is
+ * a check-then-act that the registration gate's *read* lock deliberately does not serialise. The two locks are always
+ * taken in the order gate-read then admission, never the reverse, and the ALIVE path never takes the second one at
+ * all.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see EvitaSessionProxy for session proxy implementation
@@ -135,6 +142,52 @@ public final class SessionRegistry {
 	 */
 	private final ReentrantReadWriteLock registrationGate;
 	/**
+	 * Serialises the admission {@link #addSession(boolean, Supplier)} performs while the catalog behind this registry
+	 * is **not** transactional, so that "there is no session yet" and "this session is in {@link #activeSessions}"
+	 * are one indivisible step.
+	 *
+	 * The invariant it protects: a catalog that does not support transactions - i.e. one that is not ALIVE, warm-up
+	 * being the ordinary case - admits at most one session, and the second caller is refused with
+	 * {@link ConcurrentInitializationException}. Everything downstream leans on it. A warm-up write mutates the
+	 * published indexes in place, outside any transaction, so the single session is the only thing that keeps a
+	 * second thread from reading a structure that is being rewritten under it.
+	 *
+	 * **Why {@link #registrationGate} does not cover this.** That gate orders registration against *suspension*, and
+	 * registration holds its READ lock - which by design lets registrations run concurrently with one another. That
+	 * is exactly what an ALIVE catalog wants, and exactly what leaves the emptiness test racy: two threads may both
+	 * find the map empty and both register. Promoting the admission to the gate's WRITE lock would serialise every
+	 * session creation, ALIVE included, and would contend with the suspension barrier that takes the same lock - a
+	 * throughput regression and a deadlock surface, for a rule that only ever applies to a state in which one session
+	 * is the maximum anyway. Hence a separate lock, taken **only** on the non-transactional path; the ALIVE path never
+	 * touches it and pays nothing.
+	 *
+	 * The caller's session supplier runs **inside** the critical section, which is what makes the check and the map
+	 * write indivisible. A competing warm-up caller therefore waits out the construction and is then refused, where
+	 * before it would have been admitted; on a state whose maximum is one session that is the correct answer arriving
+	 * a little later, not added contention. Note the consequence for suspension: concurrent non-transactional
+	 * admissions now serialise while each still holds the gate's read lock, so a suspension barrier waits for their
+	 * **sum** rather than for the longest of them. Bounded and rare by design — the state admits one session — but it
+	 * is the price the atomicity is bought with.
+	 *
+	 * **Lock order is always gate-read then admission, never the reverse, and that ordering is the invariant** — not
+	 * the absence of an interaction between the two. The gate's read lock is taken first, by
+	 * {@link #registerWhileNotSuspended(Supplier)}, and this lock is taken inside it; nothing executing under this
+	 * lock may acquire the gate, which is what keeps the pair acyclic.
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} takes the gate's write lock without ever touching
+	 * this one. A future change that lets session construction reach back into the registry would break the rule
+	 * rather than merely widen a window, and the warm-up path is where that would bite first, because construction is
+	 * the expensive part of the critical section. Nor can the retry loop in
+	 * {@link #registerWhileNotSuspended(Supplier)} multiply anything: it runs the supplier on the one attempt that
+	 * finds no suspension in effect, and that call either returns or throws, so the supplier runs **at most once**.
+	 * No registration is repeated by the retry and no catalog version pin is taken twice.
+	 *
+	 * Shared by reference with the registry {@link #withDifferentCatalogSupplier(Supplier)} builds, exactly as
+	 * {@link #activeSessions}, {@link #currentSuspension} and {@link #registrationGate} are. A fresh lock there would
+	 * leave two registries admitting into one map through two independent locks, which serialises neither against the
+	 * other and voids the guarantee entirely.
+	 */
+	private final ReentrantLock exclusiveAdmissionLock;
+	/**
 	 * This field is used to keep track of the sessions that were forcefully closed due to a suspension operation.
 	 * The information is held only for a limited time.
 	 */
@@ -170,6 +223,7 @@ public final class SessionRegistry {
 		this.activeSessions = CollectionUtils.createConcurrentHashMap(512);
 		this.currentSuspension = new AtomicReference<>(null);
 		this.registrationGate = new ReentrantReadWriteLock();
+		this.exclusiveAdmissionLock = new ReentrantLock();
 		this.sessionsFifoQueue = new ConcurrentLinkedQueue<>();
 		this.catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
 	}
@@ -181,6 +235,7 @@ public final class SessionRegistry {
 		@Nonnull Map<UUID, EvitaSessionTuple> activeSessions,
 		@Nonnull AtomicReference<InSuspension> currentSuspension,
 		@Nonnull ReentrantReadWriteLock registrationGate,
+		@Nonnull ReentrantLock exclusiveAdmissionLock,
 		@Nonnull ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue,
 		@Nonnull ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions
 	) {
@@ -190,6 +245,7 @@ public final class SessionRegistry {
 		this.activeSessions = activeSessions;
 		this.currentSuspension = currentSuspension;
 		this.registrationGate = registrationGate;
+		this.exclusiveAdmissionLock = exclusiveAdmissionLock;
 		this.sessionsFifoQueue = sessionsFifoQueue;
 		this.catalogConsumedVersions = catalogConsumedVersions;
 	}
@@ -359,7 +415,18 @@ public final class SessionRegistry {
 
 	/**
 	 * Creates and registers new session to the registry.
-	 * Method checks that there is only a single active session when catalog is in warm-up mode.
+	 *
+	 * Method checks that there is only a single active session when catalog is in warm-up mode - more precisely,
+	 * whenever the catalog does not support transactions. That check and the registration it guards are performed
+	 * together under {@link #exclusiveAdmissionLock}, because the two apart are a check-then-act that lets two
+	 * concurrent callers both find {@link #activeSessions} empty and both register. See that lock's documentation for
+	 * why the registration gate's read lock cannot stand in for it. A transactional catalog admits sessions in
+	 * parallel and does not take the admission lock at all.
+	 *
+	 * @param transactional   TRUE when the catalog behind this registry supports transactions, i.e. it is ALIVE
+	 * @param sessionSupplier constructs the session to be registered
+	 * @return the proxy wrapping the newly registered session
+	 * @throws ConcurrentInitializationException when a session is already open on a non-transactional catalog
 	 */
 	@Nonnull
 	public EvitaInternalSessionContract addSession(
@@ -367,41 +434,133 @@ public final class SessionRegistry {
 		@Nonnull Supplier<EvitaSession> sessionSupplier
 	) {
 		return registerWhileNotSuspended(() -> {
-			if (!transactional && !this.activeSessions.isEmpty()) {
-				throw new ConcurrentInitializationException(this.activeSessions.keySet().iterator().next());
+			if (transactional) {
+				return registerNewSession(sessionSupplier);
 			}
-
-			final EvitaSession newSession = sessionSupplier.get();
-			final long catalogVersion = newSession.getCatalogVersion();
-			final String catalogName = newSession.getCatalogName();
-
-			final EvitaInternalSessionContract newSessionProxy = (EvitaInternalSessionContract) Proxy.newProxyInstance(
-				EvitaInternalSessionContract.class.getClassLoader(),
-				new Class[]{EvitaInternalSessionContract.class, EvitaProxyFinalization.class},
-				new EvitaSessionProxy(newSession, this.tracingContext)
-			);
-			final EvitaSessionTuple sessionTuple = new EvitaSessionTuple(newSession, newSessionProxy);
-			sessionTuple.executeAtomically(
-				() -> {
-					this.activeSessions.put(newSession.getId(), sessionTuple);
-					this.sessionsFifoQueue.add(sessionTuple);
-					// the lease rides on the tuple rather than in a map keyed by version: two sessions holding the same
-					// version across a catalog replacement hold pins on *different* instances, and only the session
-					// that took one knows which
-					sessionTuple.versionPin().set(
-						this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-							.registerSessionConsumingCatalogInVersion(
-								catalogVersion,
-								newSession.getSessionTraits(),
-								this.catalogSupplier
-							)
-					);
-					this.sharedDataStore.addSession(sessionTuple);
+			// CALIBRATION - this critical section is swept by `LongRunningSessionRegistryWarmUpAdmissionTest`
+			// (evita_test/evita_long_running_tests, io.evitadb.core.session). Measured on a 24-core Linux box with
+			// OpenJDK 17.0.20: with the lock removed, two threads leaving one barrier were both admitted in ROUND 0
+			// on five runs out of five; with it in place all 50 000 rounds pass in ~2.8 s. The window swept is what
+			// `registerNewSession` does between the refusal check and the map write - the proxy, the opened event,
+			// the version pin - so MAKING THAT PATH CHEAPER NARROWS IT, and so does making the test's own fixture
+			// cheaper. A change here that stops the counterfactual failing has not made anything safer, it has
+			// blunted the test; re-measure and widen the sweep. Build the counterfactual by shadowing a mutated copy
+			// on the classpath rather than editing this file - the test's javadoc gives the recipe. Green side:
+			//   mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
+			//       -Dtest=LongRunningSessionRegistryWarmUpAdmissionTest -Dsurefire.failIfNoSpecifiedTests=false
+			this.exclusiveAdmissionLock.lock();
+			try {
+				// one weakly-consistent iterator rather than `isEmpty()` followed by a fresh `iterator().next()`:
+				// `removeSession` empties the map without taking this lock - deliberately, since locking it there
+				// would serialise every ALIVE session close - so a session closing between the two statements would
+				// make `next()` throw `NoSuchElementException` at a caller owed a well-defined answer. Driven off a
+				// single iterator, the worst outcome is a refusal naming a session that has just closed, which is
+				// acceptable; an internal error is not.
+				final Iterator<UUID> incumbent = this.activeSessions.keySet().iterator();
+				if (incumbent.hasNext()) {
+					throw new ConcurrentInitializationException(incumbent.next());
 				}
-			);
-
-			return newSessionProxy;
+				return registerNewSession(sessionSupplier);
+			} finally {
+				this.exclusiveAdmissionLock.unlock();
+			}
 		});
+	}
+
+	/**
+	 * Builds the session from the supplier, wraps it in its {@link EvitaSessionProxy} and publishes it into every
+	 * index the registry maintains - {@link #activeSessions}, {@link #sessionsFifoQueue}, the version census in
+	 * {@link #catalogConsumedVersions} and the shared data store.
+	 *
+	 * Extracted out of {@link #addSession(boolean, Supplier)} so that the non-transactional path can wrap the
+	 * emptiness check **and** this registration in a single critical section, while the transactional path calls it
+	 * with no extra lock held.
+	 *
+	 * **Ordering is load-bearing:** every step that can throw runs before the session becomes visible anywhere, so a
+	 * failed registration leaves no half-registered session behind. See the comment at the version pin.
+	 *
+	 * @param sessionSupplier constructs the session to be registered
+	 * @return the proxy wrapping the newly registered session
+	 */
+	@Nonnull
+	private EvitaInternalSessionContract registerNewSession(@Nonnull Supplier<EvitaSession> sessionSupplier) {
+		final EvitaSession newSession = sessionSupplier.get();
+		final long catalogVersion = newSession.getCatalogVersion();
+		final String catalogName = newSession.getCatalogName();
+
+		final EvitaInternalSessionContract newSessionProxy = (EvitaInternalSessionContract) Proxy.newProxyInstance(
+			EvitaInternalSessionContract.class.getClassLoader(),
+			new Class[]{EvitaInternalSessionContract.class, EvitaProxyFinalization.class},
+			new EvitaSessionProxy(newSession, this.tracingContext)
+		);
+		final EvitaSessionTuple sessionTuple = new EvitaSessionTuple(newSession, newSessionProxy);
+
+		// INVARIANT - nothing is published until every step that can throw has succeeded, so a failed registration
+		// leaves the registry exactly as it found it. The pin is taken first, into a local, because it is the only
+		// remaining step that can fail: the catalog supplier *throws* when the catalog has gone (a
+		// `CatalogNotFoundException`, or an unusable catalog's representative exception) and
+		// `registerSessionConsumingCatalogInVersion` only absorbs `CatalogTransitioningException`. Published first,
+		// such a throw would leave a session in `activeSessions` that no caller ever received and therefore never
+		// closes - and on a catalog that is not transactional that orphan refuses every later admission for the
+		// life of the process. Everything below is a non-throwing publication.
+		final CatalogVersionPin catalogVersionPin;
+		try {
+			catalogVersionPin =
+				this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
+					.registerSessionConsumingCatalogInVersion(
+						catalogVersion,
+						newSession.getSessionTraits(),
+						this.catalogSupplier
+					);
+		} catch (Throwable ex) {
+			// the supplier has already built the session by this point, and the caller never receives it, so nothing
+			// else will ever close it: it holds an open traffic-recording session and, on an ALIVE catalog, an open
+			// transaction. Closing it here is the same forced close `closeAllActiveSessionsAndSuspend` performs on a
+			// session it takes away from its owner. `removeSession` - which the session's termination callback
+			// reaches - starts with a `activeSessions.remove` that answers null for a session that was never
+			// published, so it returns without touching the FIFO queue or the version census
+			closeAbandonedSession(newSession, ex);
+			throw ex;
+		}
+		// PREMISE - none of the four steps below can throw. `executeAtomically` runs them under the tuple's own lock,
+		// `activeSessions.put` and `sharedDataStore.addSession` are plain map puts, `sessionsFifoQueue.add` is a
+		// queue add and the pin is a setter. If that ever stops holding, this ordering has to be revisited: a throw
+		// here leaves a half-published session the catch above cannot see.
+		sessionTuple.executeAtomically(
+			() -> {
+				this.activeSessions.put(newSession.getId(), sessionTuple);
+				this.sessionsFifoQueue.add(sessionTuple);
+				// the lease rides on the tuple rather than in a map keyed by version: two sessions holding the same
+				// version across a catalog replacement hold pins on *different* instances, and only the session
+				// that took one knows which
+				sessionTuple.versionPin().set(catalogVersionPin);
+				this.sharedDataStore.addSession(sessionTuple);
+			}
+		);
+
+		return newSessionProxy;
+	}
+
+	/**
+	 * Closes a session that was constructed but never published, after the step that would have published it threw.
+	 *
+	 * The session is fully live by the time this runs - its constructor opened a traffic-recording session and, on a
+	 * catalog that supports transactions, a transaction - and the caller never receives it, so nothing else will ever
+	 * close it. This is the same forced close {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} performs on
+	 * a session it takes away from its owner, including the commit behaviour it uses.
+	 *
+	 * **A failure to close must never replace the failure that caused it.** The registration's own exception is what
+	 * the caller asked about; anything this close throws is recorded as suppressed on it and nothing more.
+	 *
+	 * @param session the constructed but unpublished session
+	 * @param cause   the failure that abandoned the registration, which any close failure is attached to
+	 */
+	private static void closeAbandonedSession(@Nonnull EvitaSession session, @Nonnull Throwable cause) {
+		try {
+			session.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+		} catch (Throwable closeFailure) {
+			cause.addSuppressed(closeFailure);
+		}
 	}
 
 	/**
@@ -545,6 +704,9 @@ public final class SessionRegistry {
 			this.activeSessions,
 			this.currentSuspension,
 			this.registrationGate,
+			// carried by reference for the same reason the gate is: a fresh admission lock here would leave two
+			// registries admitting into one map through two independent locks, and guard nothing
+			this.exclusiveAdmissionLock,
 			this.sessionsFifoQueue,
 			this.catalogConsumedVersions
 		);
@@ -697,12 +859,23 @@ public final class SessionRegistry {
 			CollectionUtils.createConcurrentHashMap(32);
 
 		/**
-		 * Registers a session consuming catalog in the specified version.
+		 * Registers a session consuming catalog in the specified version: raises this version's reader count and pins
+		 * it against reclamation for as long as the session lives.
 		 *
-		 * @param version the version of the catalog
+		 * The two halves are not equivalent bookkeeping and the body says why - the count answers "is anyone still
+		 * here", the pin clamps the retention trim. Both are given back exactly once, and a registration that fails
+		 * after the count was raised gives it back here before rethrowing, because no later path can: an unpublished
+		 * session never reaches {@code removeSession} and therefore never reaches
+		 * {@link #unregisterSessionConsumingCatalogInVersion} either.
+		 *
+		 * @param version the version of the catalog the session will read
+		 * @param traits  the session's traits, which select the read-only or the read-write census map
+		 * @param catalog supplies the catalog to pin; it throws when the catalog has gone or is unusable
 		 * @return the lease holding that version, which the caller keeps for the session's lifetime and hands back to
 		 *         {@link #unregisterSessionConsumingCatalogInVersion} - {@link CatalogVersionPin#NONE} when the pin
 		 *         could not be taken at all
+		 * @throws RuntimeException whatever the catalog supplier throws, propagated after the census increment has
+		 *                          been given back, so the caller may abandon the session without leaking a reader
 		 */
 		@Nonnull
 		CatalogVersionPin registerSessionConsumingCatalogInVersion(
@@ -745,6 +918,23 @@ public final class SessionRegistry {
 			} catch (CatalogTransitioningException ignored) {
 				// catalog is transitioning, we cannot notify it anyway - and nothing was pinned, so nothing is owed
 				return CatalogVersionPin.NONE;
+			} catch (Throwable ex) {
+				// The count above was raised for a session that is about to be abandoned. Nothing downstream takes
+				// it back: the registration catch closes the unpublished session, and `removeSession` opens with an
+				// `activeSessions.remove` that answers null for a session no caller ever received, so it returns
+				// before reaching the census at all. Left standing, this version's reader count never falls to zero
+				// again - `unregisterSessionConsumingCatalogInVersion` keeps taking its non-last-reader branch,
+				// `catalogConsumersLeft` is never fired for it, and its files, history roots and conflict keys are
+				// retained for the life of the process. Repeated failures stack.
+				//
+				// This is the only place that knows the increment happened, so it is the only place that can undo
+				// it. The decrement mirrors the one in `unregisterSessionConsumingCatalogInVersion` exactly,
+				// including dropping the entry at one rather than leaving a zero behind.
+				targetIndex.compute(
+					version,
+					(k, v) -> v == null || v == 1 ? null : v - 1
+				);
+				throw ex;
 			}
 		}
 

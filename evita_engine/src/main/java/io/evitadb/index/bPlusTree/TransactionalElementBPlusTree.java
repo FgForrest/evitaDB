@@ -125,6 +125,49 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
+	 * The last slot index a reader may address on the `values` array **it has already read**, given the `peek` it has
+	 * already read.
+	 *
+	 * **This is a concurrency bound, not a consistency check.** For any caller sharing a happens-before edge with the
+	 * writer — the whole write path, every descent under a transaction, and the page-emission flush (thread-confined,
+	 * see {@code AbstractTransactionalBPlusTree.LeafPageHandleImpl}) — it returns `peek` unchanged and is a pure
+	 * no-op: {@link BPlusLeafTreeNode#ensurePhysicalLength} grows the array before any path advances `peek`, every
+	 * shrink lowers `peek` and leaves the array alone, and the commit-merge trim builds a **new** leaf rather than
+	 * shortening this one. The bound can never truncate a view that was consistent to begin with.
+	 *
+	 * It exists for the genuinely cross-thread reader: a query thread walking price records out of a
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} shares no transaction binding with a
+	 * warm-up thread growing the same leaf, so it can pair a freshly-read `peek` with the array that preceded the
+	 * growth which raised it.
+	 *
+	 * **This became necessary when the leaf array started following its content.** While every leaf was allocated at
+	 * the full block size and never replaced, the same torn read landed inside a fixed-length array and merely
+	 * returned a stale element; now it runs off the end. Only one array is asked here, unlike the long-keyed sibling:
+	 * this leaf holds no key array, deriving each key from its element through the extractor.
+	 *
+	 * **Not to be applied to the `peek >= values.length` corruption guard** that precedes the boundary-key reads.
+	 * That check is not asking a capacity question — it is what turns a torn pair into a typed
+	 * {@link BPlusTreeCorruptedException} naming the leaf and the slot, and clamping it would let a genuinely
+	 * corrupt leaf through to a bare {@link ArrayIndexOutOfBoundsException} instead.
+	 *
+	 * ## CALIBRATION — read this before simplifying the bound away
+	 *
+	 * A green concurrent sweep on an x86 box is **evidence about the box, not about this code**: x86's total store
+	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 —
+	 * which evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
+	 * {@code TransactionalElementBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each
+	 * guarded reader its own test, so no one of them can be proven by another throwing first. This mirrors
+	 * {@code TransactionalLongBPlusTree#observableLeafPeek} and {@code TransactionalBucketBPlusTree#observableLeafPeek}.
+	 *
+	 * @param peek   the leaf's own last-occupied slot index, as the caller read it
+	 * @param values the leaf's value array, as the caller read it
+	 * @return the last slot index the reader may address, `-1` when it may read nothing
+	 */
+	private static int observableLeafPeek(int peek, @Nonnull Object[] values) {
+		return Math.min(peek, values.length - 1);
+	}
+
+	/**
 	 * Constructor to initialize the B+ tree with default block sizes.
 	 *
 	 * @param elementType  the class of the elements stored in this tree
@@ -350,10 +393,13 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * the reload path re-assembles one in-memory leaf per persisted page. A writer race on a `@NotThreadSafe` warm-up
 	 * session can leave a frozen stale snapshot of a leaf reachable next to the page that superseded it, and a one-shot
 	 * flush persists BOTH — every subsequent reload then rebuilds a tree whose leaves overlap, silently serving corrupt
-	 * data until it crashes later with a confusing signature far from the cause. Because the paged persistence layout has
-	 * never shipped in a released version, no production catalog can carry such a twin; silently repairing one would
-	 * contradict the defensive-design rule, so any detected overlap fails fast here with full diagnostics and an operator
-	 * remediation hint.
+	 * data until it crashes later with a confusing signature far from the cause. **The paged persistence layout HAS
+	 * shipped** - it went out with the 2026.2 release line (tags `v2026.2.0` .. `v2026.2.6`), and released catalogs are
+	 * on disk in it right now, so a production catalog really can carry such a twin and staying loadable across a
+	 * restart is a live obligation rather than a theoretical one. It is still not repaired silently: nothing in the
+	 * persisted state says which of the two overlapping leaves is authoritative, so adopting the stale one would
+	 * resurrect records that were deliberately removed. Per the defensive-design rule any detected overlap therefore
+	 * fails fast here with full diagnostics and an operator remediation hint.
 	 *
 	 * @param leaves               the reassembled leaves in persisted list order
 	 * @param pageSequences        the root's ordered leaf-page sequence list, reported as overlap context on failure
@@ -883,7 +929,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	private GenericEvitaInternalError missingSplitPathError(@Nonnull BPlusLeafTreeNode<E> leaf) {
 		return new GenericEvitaInternalError(
 			"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
-				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getValues().length +
+				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.capacity() +
 				", tree block size: " + this.valueBlockSize + ")!",
 			"Leaf is full but no cursor path was captured!"
 		);
@@ -1303,21 +1349,33 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		// Move half the values into the new array of the left leaf node. Split offspring are transaction-aware (see
 		// splitNodesJoinTransactionalLayer): inside an active transaction they mutate in place, so the commit-merge
 		// rebuild (newPriceRecordTree from attachToCatalog) does not try to open a diff layer on a finalized transaction.
+		// The target array is sized to the half it receives, not to the block size: under this tree's ascending-insert
+		// contract the left half never grows again, so a block-sized allocation here would be dead capacity for life.
 		final BPlusLeafTreeNode<E> leftLeaf = new BPlusLeafTreeNode<>(
 			originValues,
-			newValueArray(this.valueBlockSize),
+			newValueArray(mid),
+			this.valueBlockSize,
 			0,
 			mid,
 			!Transaction.isTransactionAvailable(),
 			this.keyExtractor
 		);
 
-		// Move the other half to the start of the existing array of the former leaf in the right leaf node
+		// Move the other half to the start of the existing array of the former leaf in the right leaf node. That array
+		// is adopted in place deliberately: a leaf only splits when it is FULL, so it has already grown to exactly the
+		// logical capacity and the right half will refill it under ascending inserts — content-sizing it here would
+		// allocate a half-length array only to reallocate it back on the next insert. A right half that stays sparse is
+		// trimmed by the commit-merge instead.
 		final BPlusLeafTreeNode<E> rightLeaf = new BPlusLeafTreeNode<>(
 			originValues,
 			originValues,
+			this.valueBlockSize,
 			mid,
-			originValues.length,
+			// the LOGICAL capacity, which a split always finds equal to the origin's live count because a leaf only
+			// splits when it is full. It must never become a backing array's physical length: the halves are sized to
+			// their content now, so an array length taken from the wrong half would end the copied range early and the
+			// leaf's tail would vanish with no exception and no failing assert — silent data loss
+			this.valueBlockSize,
 			!Transaction.isTransactionAvailable(),
 			this.keyExtractor
 		);
@@ -1485,6 +1543,15 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		private E[] values;
 		/**
+		 * The **logical** capacity — the leaf block size this node was created with, which no mutation ever changes.
+		 * {@link #values} is sized to the live content instead and grows towards this bound, so the two numbers are
+		 * equal only in a leaf that is actually full.
+		 *
+		 * Everything asking "may one more element go in here" — {@link #isFull()}, {@link #isNearlyFull()}, the insert
+		 * premise — reads THIS. Everything indexing the array reads the array's own length.
+		 */
+		private final int capacity;
+		/**
 		 * Index of the last occupied position in the values array.
 		 */
 		private int peek;
@@ -1520,8 +1587,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			@Nonnull ToIntFunction<E> keyExtractor,
 			boolean transactionalLayer
 		) {
+			this.capacity = blockSize;
+			// an empty leaf allocates nothing — the array starts at ColumnSizing.MIN_PHYSICAL_LENGTH on the first insert
 			//noinspection unchecked
-			this.values = (E[]) Array.newInstance(elementType, blockSize);
+			this.values = (E[]) Array.newInstance(elementType, 0);
 			this.keyExtractor = keyExtractor;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
@@ -1533,6 +1602,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 *
 		 * @param originValues       the source array of values to copy from
 		 * @param values             the target array for values (may be the same as originValues)
+		 * @param capacity           the node's logical capacity — the leaf block size. The target array is NOT required
+		 *                           to match it; it may be sized to the range being copied
 		 * @param start              the start index (inclusive) in the origin array
 		 * @param end                the end index (exclusive) in the origin array
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
@@ -1541,10 +1612,13 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		public BPlusLeafTreeNode(
 			@Nonnull E[] originValues,
 			@Nonnull E[] values,
+			int capacity,
 			int start, int end,
 			boolean transactionalLayer,
 			@Nonnull ToIntFunction<E> keyExtractor
 		) {
+			ColumnSizing.assertLoadFitsCapacity(end - start, capacity);
+			this.capacity = capacity;
 			this.values = values;
 			// Copy the values from the origin array
 			System.arraycopy(originValues, start, values, 0, end - start);
@@ -1557,16 +1631,55 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			this.keyExtractor = keyExtractor;
 		}
 
+		/**
+		 * Adopts an already-populated value array as-is — the diff layer ({@link #createLayer()}) and the committed leaf
+		 * the commit-merge installs ({@link #trimmedCommittedCopy}) are both built this way.
+		 *
+		 * @param values             the value array to adopt (never copied); slots `0..peek` are occupied
+		 * @param peek               the index of the last occupied slot
+		 * @param capacity           the node's logical capacity — the leaf block size, which `values.length` may be below
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 * @param keyExtractor       the function deriving an element's ordering / identity key
+		 */
 		private BPlusLeafTreeNode(
 			@Nonnull E[] values,
 			int peek,
+			int capacity,
 			boolean transactionalLayer,
 			@Nonnull ToIntFunction<E> keyExtractor
 		) {
+			this.capacity = capacity;
 			this.values = values;
 			this.peek = peek;
 			this.transactionalLayer = transactionalLayer;
 			this.keyExtractor = keyExtractor;
+		}
+
+		/**
+		 * Returns the **logical** capacity — the leaf block size this node was created with, which no mutation ever
+		 * changes. See {@link #capacity}.
+		 *
+		 * @return the logical capacity (the leaf block size)
+		 */
+		int capacity() {
+			return this.capacity;
+		}
+
+		/**
+		 * Grows THIS node's own backing array so that the first `requiredLength` slots may be addressed, leaving the
+		 * logical {@link #capacity} untouched.
+		 *
+		 * Call it on the object whose array is about to be written — the committed node outside a transaction, the layer
+		 * inside one — and inside a transaction only after {@link #decoupleTransactionalArrays()} has given the layer an
+		 * array of its own, or the growth would copy and then abandon the shared committed array.
+		 *
+		 * @param requiredLength the number of slots the caller is about to address; never above {@link #capacity}
+		 */
+		private void ensurePhysicalLength(int requiredLength) {
+			if (requiredLength > this.values.length) {
+				this.values = Arrays.copyOf(
+					this.values, ColumnSizing.grownLength(this.values.length, requiredLength, this.capacity));
+			}
 		}
 
 		/**
@@ -1631,20 +1744,27 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
-			// id + warmUpTouchStamp + transactionalLayer + dirty + keyExtractor/values slots + peek
-			// + pageSequence. There is no key
-			// array at all - this leaf derives each key from its element through the extractor, which is one lambda
-			// shared by every node of the tree and so contributes only its slot
-			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
-			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
+			// id + warmUpTouchStamp + transactionalLayer + dirty + keyExtractor/values slots + peek + pageSequence
+			// + capacity. There is no key array at all - this leaf derives each key from its element through the
+			// extractor, which is one lambda shared by every node of the tree and so contributes only its slot
+			long size = layout.sizeOfObject(2L * Long.BYTES + 2L + 2L * layout.referenceSize() + 3L * Integer.BYTES);
+			// the value array is always privately owned - there is no JVM-wide shared empty array of an arbitrary
+			// component type to park an empty leaf on - so it is charged unconditionally, at a zero length while the
+			// leaf is empty (a real object, and one JOL sees too)
+			// read ONCE into a local and price exactly what was read: this walk is reached from a management thread
+			// with no happens-before edge to a warm-up writer, so re-reading the field per element could pair a length
+			// taken from one array with a reference taken from its successor
+			final E[] theValues = this.values;
+			size += layout.sizeOfArray(theValues.length, layout.referenceSize());
 			// the elements are exactly the case the sizer exists for: a PriceListAndCurrencyPriceRefIndex holds the
 			// very same PriceRecord instances as the super index, so it sizes this tree spine-only (sizer -> 0)
 			// while the super index, their real owner, charges the bodies
 			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
-			// transactional layer, which is a separate node object owning a separate `values` array
-			final int liveCount = this.peek + 1;
-			for (int i = 0; i < liveCount; i++) {
-				final E value = this.values[i];
+			// transactional layer, which is a separate node object owning a separate `values` array. Clamped to the
+			// array just read, because a torn reader can hold a peek the growth behind it has not published yet
+			final int bound = observableLeafPeek(this.peek, theValues);
+			for (int i = 0; i <= bound; i++) {
+				final E value = theValues[i];
 				if (value != null) {
 					size += elementSizer.applyAsLong(value);
 				}
@@ -1660,23 +1780,23 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public boolean isFull() {
 			final BPlusLeafTreeNode<E> current = currentState();
-			return current.peek == current.values.length - 1;
+			return current.peek == current.capacity - 1;
 		}
 
 		/**
 		 * Whether a single insert of a **new** key could make this leaf {@link #isFull()} — i.e. whether the caller
 		 * must capture a cursor path before mutating, so a split has one.
 		 *
-		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and the capacity from the **same** resolved state,
-		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would hold
-		 * only while every leaf array happens to be allocated at exactly that size, and nothing enforces that
-		 * coupling — a shorter array would reach {@link #isFull()} without ever tripping the guard.
+		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and {@link #capacity} from the **same** resolved
+		 * state, so the two can never disagree. Both read the LOGICAL capacity and never the backing array's length —
+		 * the array is sized to the live content and grows towards the capacity, so its length says nothing about how
+		 * many more elements this leaf may still accept.
 		 *
 		 * @return true when one more key could fill this leaf
 		 */
 		public boolean isNearlyFull() {
 			final BPlusLeafTreeNode<E> current = currentState();
-			return current.peek >= current.values.length - 2;
+			return current.peek >= current.capacity - 2;
 		}
 
 		@Override
@@ -1684,7 +1804,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			sb.append(" ".repeat(level * indentSpaces));
 			final BPlusLeafTreeNode<E> current = currentState();
 			final E[] theValues = current.values;
-			final int thePeek = current.peek;
+			// bounded like every other reader, and this one especially: a debugger or a log statement is exactly how a
+			// live tree gets read from a thread that never wrote to it, and an out-of-bounds thrown out of a toString
+			// would break the diagnostics being used to investigate
+			final int thePeek = observableLeafPeek(current.peek, theValues);
 
 			for (int i = 0; i <= thePeek; i++) {
 				sb.append(this.keyExtractor.applyAsInt(theValues[i])).append(":").append(theValues[i]);
@@ -1701,6 +1824,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
 			if (layer == null) {
 				this.dirty = true;
+				ensurePhysicalLength(this.peek + 1 + numberOfTailValues);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
 				System.arraycopy(
 					previousNode.getValues(), previousNode.size() - numberOfTailValues, this.values, 0,
@@ -1714,6 +1838,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				previousNode.decoupleTransactionalArrays();
 
 				layer.dirty = true;
+				layer.ensurePhysicalLength(layer.peek + 1 + numberOfTailValues);
 				System.arraycopy(layer.values, 0, layer.values, numberOfTailValues, layer.peek + 1);
 				System.arraycopy(
 					previousNode.getValues(), previousNode.size() - numberOfTailValues, layer.values, 0,
@@ -1736,6 +1861,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's array in place, so it must
 				// decouple it first or it would corrupt the shared committed state. getValuesForUpdate decouples a
 				// committed sibling inside a transaction and is an in-place no-op outside one.
+				ensurePhysicalLength(this.peek + 1 + numberOfHeadValues);
 				final E[] nextNodeValues = nextNode.getValuesForUpdate();
 				System.arraycopy(nextNodeValues, 0, this.values, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
@@ -1750,6 +1876,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				nextNode.decoupleTransactionalArrays();
 
 				layer.dirty = true;
+				layer.ensurePhysicalLength(layer.peek + 1 + numberOfHeadValues);
 				final E[] nextNodeValues = nextNode.getValuesForUpdate();
 				System.arraycopy(nextNodeValues, 0, layer.values, layer.peek + 1, numberOfHeadValues);
 				System.arraycopy(
@@ -1768,6 +1895,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// merging shifts this leaf's content and prepends the donor's: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
+				ensurePhysicalLength(this.peek + 1 + mergePeek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
 				System.arraycopy(previousNode.getValues(), 0, this.values, 0, mergePeek + 1);
 				this.peek += mergePeek + 1;
@@ -1778,6 +1906,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				previousNode.decoupleTransactionalArrays();
 
 				layer.dirty = true;
+				layer.ensurePhysicalLength(layer.peek + 1 + mergePeek + 1);
 				System.arraycopy(layer.values, 0, layer.values, mergePeek + 1, layer.peek + 1);
 				System.arraycopy(previousNode.getValues(), 0, layer.values, 0, mergePeek + 1);
 				layer.peek += mergePeek + 1;
@@ -1792,6 +1921,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// appending the donor's content mutates this leaf's page: flag the receiver (the donor is detached)
 			if (layer == null) {
 				this.dirty = true;
+				ensurePhysicalLength(this.peek + 1 + mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
@@ -1801,6 +1931,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				nextNode.decoupleTransactionalArrays();
 
 				layer.dirty = true;
+				layer.ensurePhysicalLength(layer.peek + 1 + mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, layer.values, layer.peek + 1, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
@@ -1851,7 +1982,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				// we need to copy them in the transactional layer, before modifying
 
 				//noinspection ArrayEquality
-				if (layer.values == this.values) {
+				if (layer.values == this.values && this.values.length > 0) {
+					// length 0 carries nothing to decouple — the first write allocates through `ensurePhysicalLength`
 					layer.values = newValueArrayLike(this.values, this.values.length);
 					System.arraycopy(this.values, 0, layer.values, 0, this.values.length);
 				}
@@ -1868,8 +2000,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nullable
 		public E getValue(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
+			// the array and the peek are two reads of two mutable fields; a cross-thread reader can hold a peek that
+			// belongs to a growth whose longer array it has not seen, so bound the search by what it actually holds
 			final E[] theValues = current.values;
-			final InsertionPosition insertionPosition = searchKey(key, theValues, current.peek);
+			final InsertionPosition insertionPosition =
+				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
 			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
@@ -1882,7 +2017,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		public int getValueIndex(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			final InsertionPosition insertionPosition = searchKey(key, current.values, current.peek);
+			final E[] theValues = current.values;
+			final InsertionPosition insertionPosition =
+				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
@@ -1896,7 +2033,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull
 		public InsertionPosition findKeyPosition(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			return searchKey(key, current.values, current.peek);
+			final E[] theValues = current.values;
+			return searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
 		}
 
 		@Override
@@ -1926,6 +2064,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			return new BPlusLeafTreeNode<>(
 				this.values,
 				this.peek,
+				this.capacity,
 				false,
 				this.keyExtractor
 			);
@@ -1995,22 +2134,12 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			final BPlusLeafTreeNode<E> result;
 			// element values are non-transactional references, so there is nothing to merge in the values themselves
 			if (layer != null) {
-				result = new BPlusLeafTreeNode<>(
-					theValues,
-					thePeek,
-					true,
-					this.keyExtractor
-				);
+				result = trimmedCommittedCopy(theValues, thePeek);
 			} else if (!this.transactionalLayer) {
 				// nodes created during splits/merges are built with transactionalLayer=false so they do
 				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
 				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
-				result = new BPlusLeafTreeNode<>(
-					theValues,
-					thePeek,
-					true,
-					this.keyExtractor
-				);
+				result = trimmedCommittedCopy(theValues, thePeek);
 			} else {
 				return this;
 			}
@@ -2019,6 +2148,31 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// allocates it fresh
 			result.pageSequence = this.pageSequence;
 			return result;
+		}
+
+		/**
+		 * Builds the committed leaf the commit-merge installs, shrinking the backing array when the live content has
+		 * fallen far enough behind it to pay for the copy ({@link ColumnSizing#trimmedLength}). This is the only place a
+		 * leaf's array ever gets smaller: the incremental paths only grow, so without it a leaf that once filled up
+		 * would hold its peak allocation for the rest of the catalog's life.
+		 *
+		 * Reached only from the branches that already build a new node. A leaf the merge leaves untouched returns itself
+		 * and must not be rebuilt merely to trim — that would allocate on every commit for every leaf.
+		 *
+		 * @param values the committed value array (the layer's, or this node's own)
+		 * @param peek   the index of the last occupied slot
+		 * @return the committed leaf, on an array trimmed to the live content where that was worth doing
+		 */
+		@Nonnull
+		private BPlusLeafTreeNode<E> trimmedCommittedCopy(@Nonnull E[] values, int peek) {
+			final int trimmed = ColumnSizing.trimmedLength(peek + 1, values.length, this.capacity);
+			return new BPlusLeafTreeNode<>(
+				trimmed < values.length ? Arrays.copyOf(values, trimmed) : values,
+				peek,
+				this.capacity,
+				true,
+				this.keyExtractor
+			);
 		}
 
 		/**
@@ -2114,7 +2268,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			if (layer == null) {
 				this.dirty = true;
 				Assert.isPremiseValid(
-					this.peek < this.values.length - 1,
+					this.peek < this.capacity - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
@@ -2125,8 +2279,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					this.values[insertionPosition.position()] = value;
 					return false;
 				} else {
-					// journalled BEFORE the write, as WarmUpSavepoint#push requires of every inverse
+					// journalled BEFORE the growth and the write, as WarmUpSavepoint#push requires of every inverse.
+					// The inverse is key-addressed, so it is unaffected by the reallocation below - and a growth that
+					// fails leaves the key absent, which makes the inverse the no-op it has to be
 					journalElementInsertionIfOpen(key);
+					ensurePhysicalLength(this.peek + 2);
 					insertRecordIntoSameArrayOnIndex(value, this.values, insertionPosition.position());
 					this.peek++;
 					return true;
@@ -2135,7 +2292,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 				decoupleTransactionalArrays();
 				layer.dirty = true;
 				Assert.isPremiseValid(
-					layer.peek < layer.values.length - 1,
+					layer.peek < layer.capacity - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
@@ -2144,6 +2301,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					layer.values[insertionPosition.position()] = value;
 					return false;
 				} else {
+					layer.ensurePhysicalLength(layer.peek + 2);
 					insertRecordIntoSameArrayOnIndex(value, layer.values, insertionPosition.position());
 					layer.peek++;
 					return true;
@@ -2226,14 +2384,25 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		/**
 		 * Internal arrays may have been still identical to the original arrays we need to copy them in the transactional
 		 * layer before modifying.
+		 *
+		 * The copy is taken at {@link ColumnSizing#headroomLength} rather than at the source's length: a committed leaf
+		 * whose array is exactly full is the common shape (both halves of every split are born that way), and the
+		 * layer's very first act is an insert, so copying short and growing one statement later would pay two
+		 * allocations where one does. An EMPTY leaf is left parked on its own zero-length array — allocating for an
+		 * insert that may never come is exactly what the content sizing exists to avoid, and the first write allocates
+		 * through {@link #ensurePhysicalLength} anyway.
 		 */
 		private void decoupleTransactionalArrays() {
 			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {
-					layer.values = newValueArrayLike(this.values, this.values.length);
-					System.arraycopy(this.values, 0, layer.values, 0, this.peek + 1);
+					final int headroom =
+						ColumnSizing.headroomLength(this.peek + 1, this.values.length, this.capacity);
+					if (headroom > 0) {
+						layer.values = newValueArrayLike(this.values, headroom);
+						System.arraycopy(this.values, 0, layer.values, 0, this.peek + 1);
+					}
 				}
 			}
 		}
@@ -2301,8 +2470,12 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			this.leafValues = leaf.getValues();
-			this.leafPeek = leaf.getPeek();
+			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
+			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
+			// index these two fields directly
+			final E[] values = leaf.getValues();
+			this.leafValues = values;
+			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
 		}
 	}
 
@@ -2353,8 +2526,12 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			this.leafValues = leaf.getValues();
-			this.leafPeek = leaf.getPeek();
+			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
+			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
+			// index these two fields directly
+			final E[] values = leaf.getValues();
+			this.leafValues = values;
+			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
 		}
 	}
 

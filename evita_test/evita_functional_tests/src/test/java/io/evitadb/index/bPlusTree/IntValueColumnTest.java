@@ -73,7 +73,7 @@ class IntValueColumnTest {
 		@Test
 		@DisplayName("round-trips Integer.MIN / MAX and negative keys preserving natural order")
 		void shouldRoundTripExtremeIntegerKeys() {
-			final ValueColumn<Integer> primitive = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new IntValueColumn<>(BLOCK_SIZE);
 			// ascending so the int[] backing stays monotone and each probe lands in its insertion slot
 			final int[] ascending = {Integer.MIN_VALUE, -1, 0, 1, 42, Integer.MAX_VALUE};
 			for (int i = 0; i < ascending.length; i++) {
@@ -95,7 +95,7 @@ class IntValueColumnTest {
 		@Test
 		@DisplayName("insert / remove / findKeyPosition / duplicate match the boxed column")
 		void shouldBehaveLikeBoxedColumn() {
-			final ValueColumn<Integer> primitive = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new IntValueColumn<>(BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 
 			// build the same ordered prefix [10, 20, 30, 40] in both columns
@@ -141,7 +141,7 @@ class IntValueColumnTest {
 		@Test
 		@DisplayName("copyRangeTo moves a key block like the boxed column")
 		void shouldCopyRangeLikeBoxedColumn() {
-			final ValueColumn<Integer> srcPrimitive = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> srcPrimitive = new IntValueColumn<>(BLOCK_SIZE);
 			final ValueColumn<Integer> srcBoxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			for (int i = 0; i < 4; i++) {
 				srcPrimitive.insertKeyAt(i, (i + 1) * 7);
@@ -165,7 +165,7 @@ class IntValueColumnTest {
 		@Test
 		@DisplayName("fillEmpty clears slots and appendKey renders the decoded key like the boxed column")
 		void shouldClearSlotsAndRenderKeyLikeBoxedColumn() {
-			final ValueColumn<Integer> primitive = new IntValueColumn<>(new int[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new IntValueColumn<>(BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			final int[] inserted = {3, 6, 9, 12};
 			for (int i = 0; i < inserted.length; i++) {

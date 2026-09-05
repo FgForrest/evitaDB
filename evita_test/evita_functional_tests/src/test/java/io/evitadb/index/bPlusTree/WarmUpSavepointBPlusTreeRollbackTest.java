@@ -1091,7 +1091,11 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 
 		@Test
 		@DisplayName("A partial removal from a bitmap bucket journals nothing in the leaf")
-		void shouldRewindAPartialMultiBucketRemovalThroughTheBitmapAlone() {
+		void shouldRewindAPartialMultiBucketRemovalOnTheArrayTier() {
+			// a three-record bucket sits in the sorted-`int[]` tier, which journals NOTHING of its own: `OverflowRecords`
+			// answers a removal with a new survivor array and leaves the original untouched, so the inverse that puts the
+			// bucket back is the leaf's `journalBucketRecordsIfOpen`. This case used to ride the bitmap's own journalling
+			// and is kept pointed at the tier it actually exercises now - see the bitmap sibling below for the other arm
 			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
 			tree.addRecord(0, 900, 901);
 			final TreeMap<Integer, List<Integer>> expected = contents(tree);
@@ -1103,8 +1107,72 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 			assertJournalledPerOperation(savepoint, leaf);
 			savepoint.rollback();
 
-			assertEquals(expected, contents(tree), "Rollback must put the removed member back into the bitmap.");
+			assertEquals(expected, contents(tree), "Rollback must put the removed member back into the array-tier bucket.");
 			assertConsistent(tree.getConsistencyReport(), "after a rolled-back partial removal");
+		}
+
+		@Test
+		@DisplayName("Rollback rewinds a partial removal from a bitmap-tier bucket")
+		void shouldRewindAPartialMultiBucketRemovalOnTheBitmapTier() {
+			// above SMALL_BUCKET_THRESHOLD the bucket is a TransactionalBitmap, which removes in place and journals
+			// its own inverse - the leaf must NOT also push one, and the record set's identity never changes
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final int[] members = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 8];
+			for (int i = 0; i < members.length; i++) {
+				members[i] = 1_000 + i;
+			}
+			tree.addRecord(0, members);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			tree.removeRecord(0, 1_005);
+			assertFalse(
+				contents(tree).get(0).contains(1_005), "self-check: the member was removed inside the savepoint"
+			);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(expected, contents(tree), "Rollback must put the removed member back into the bitmap.");
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back partial bitmap removal");
+		}
+
+		@Test
+		@DisplayName("Rollback rewinds a bucket PROMOTED across the tier boundary inside the savepoint")
+		void shouldRewindABucketPromotedAcrossTiers() {
+			// The only tier change that happens on the WRITE path is array -> bitmap: `OverflowRecords.remove` returns
+			// the bitmap instance unchanged on its own arm, and the demotion back to an array runs at the commit merge
+			// only. So this is the one case where both journalling mechanisms are live at once, and the order is what
+			// makes it work: the fresh bitmap's own inverse is pushed first (inside OverflowRecords), the leaf's
+			// array-restore after it, so reverse replay re-attaches the array first and the bitmap's inverse then runs
+			// harmlessly against an instance nothing can reach.
+			final TransactionalBucketBPlusTree<Integer> tree = newTree(6);
+			final int[] members = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD - 1];
+			for (int i = 0; i < members.length; i++) {
+				members[i] = 2_000 + i;
+			}
+			tree.addRecord(0, members);
+			assertTrue(
+				contents(tree).get(0).size() <= OverflowRecords.SMALL_BUCKET_THRESHOLD,
+				"self-check: the bucket must still be on the array tier before the savepoint opens"
+			);
+			final TreeMap<Integer, List<Integer>> expected = contents(tree);
+			final BPlusLeafTreeNode<Integer> leaf = onlyLeaf(tree);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			// one more distinct id takes the bucket past the threshold and promotes it to a bitmap
+			tree.addRecord(0, 9_999);
+			assertTrue(
+				contents(tree).get(0).contains(9_999), "self-check: the promoting record landed in the bucket"
+			);
+			assertJournalledPerOperation(savepoint, leaf);
+			savepoint.rollback();
+
+			assertEquals(
+				expected, contents(tree),
+				"Rollback must give back the pre-promotion array-tier record set, without the promoting record."
+			);
+			assertConsistent(tree.getConsistencyReport(), "after a rolled-back cross-tier promotion");
 		}
 
 		@Test

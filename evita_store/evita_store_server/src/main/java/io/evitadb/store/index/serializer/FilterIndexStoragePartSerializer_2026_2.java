@@ -44,6 +44,12 @@ import lombok.RequiredArgsConstructor;
  * {@link FilterIndexStoragePart} constructor produces: an index written before value ids existed belongs to a shared
  * value tree that carried none, and the tree it is loaded into carries none until a consumer registers.
  *
+ * It is also the reader for the last shape that persisted range thresholds at **second** granularity, so it marks
+ * every part it produces with {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}. The rescale itself
+ * cannot happen here: a range index whose axis is `PAGED` keeps its thresholds in {@code RangeIndexLeafPagePart}
+ * records this serializer never sees, and the rescale must be applied to the declared `DateTimeRange` attributes only
+ * — both of which the load path knows and this reader does not. See {@code AttributeIndexLoader#loadRangeIndex}.
+ *
  * This serializer only reads - writes always go through the current {@link FilterIndexStoragePartSerializer}.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -72,13 +78,19 @@ public class FilterIndexStoragePartSerializer_2026_2 extends Serializer<FilterIn
 		final PagedStreamMetadata bucketMetadata = payload.bucketMetadata();
 		final PagedStreamMetadata rangeMetadata = payload.rangeMetadata();
 
-		return new FilterIndexStoragePart(
+		final FilterIndexStoragePart part = new FilterIndexStoragePart(
 			entityIndexPrimaryKey, attributeKey, attributeType, payload.points(), payload.rangeIndex(),
 			payload.indexedDecimalPlaces(),
 			bucketMetadata.paged(), bucketMetadata.highWaterPageSequence(), bucketMetadata.leafPageSequences(),
 			rangeMetadata.paged(), rangeMetadata.highWaterPageSequence(), rangeMetadata.leafPageSequences(),
 			uniquePartId
 		);
+		// every FilterIndexStoragePart format older than the millisecond change persisted its range thresholds as
+		// epoch SECONDS; mark the provenance so AttributeIndexLoader can rescale the ones that belong to a
+		// `DateTimeRange` attribute (a threshold is an untyped long shared with every NumberRange subtype, so the
+		// declared attribute type - not this flag alone - decides)
+		part.setSecondGranularityRangeThresholds(true);
+		return part;
 	}
 
 }
