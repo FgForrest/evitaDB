@@ -23,19 +23,21 @@
 
 package io.evitadb.index.price.model.entityPrices;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import io.evitadb.utils.VMLayout;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
 import static org.junit.jupiter.api.Assertions.*;
@@ -637,30 +639,119 @@ class EntityPricesTest {
 			final PriceRecordContract other = createPlainPrice(99, 200, 250);
 			assertFalse(ep.containsAnyOf(new PriceRecordContract[]{other}));
 		}
+
+		/**
+		 * A one-element probe never leaves the first position of the triples, so the single price is looked for at
+		 * every position of a longer ascending array here - and the same array without it must answer false.
+		 */
+		@Test
+		@DisplayName("should find the single price wherever it sits in the probed triples")
+		void shouldMatchTheSinglePriceWhereverItSitsInTheTriples() {
+			final PriceRecordContract price = createPlainPrice(50, 100, 120);
+			final EntityPrices ep = EntityPrices.create(price);
+
+			final PriceRecordContract[] matchingTriples = new PriceRecordContract[]{
+				createPlainPrice(10, 100, 120),
+				createPlainPrice(20, 200, 250),
+				createPlainPrice(30, 300, 350),
+				createPlainPrice(40, 400, 450),
+				price
+			};
+			assertTrue(ep.containsAnyOf(matchingTriples));
+
+			final PriceRecordContract[] nonMatchingTriples = new PriceRecordContract[]{
+				createPlainPrice(10, 100, 120),
+				createPlainPrice(20, 200, 250),
+				createPlainPrice(30, 300, 350),
+				createPlainPrice(40, 400, 450),
+				createPlainPrice(60, 500, 550)
+			};
+			assertFalse(ep.containsAnyOf(nonMatchingTriples));
+		}
+
+		/**
+		 * The triples are matched by {@link PriceRecordContract#internalPriceId()}, so a triple whose internal id
+		 * happens to equal the holder's *price* id is a stranger and must not match.
+		 */
+		@Test
+		@DisplayName("should not match a triple carrying the single price's price id as its internal id")
+		void shouldNotMatchTheSinglePriceOnItsPriceId() {
+			final EntityPrices ep = EntityPrices.create(createPriceWithDistinctIds(11, 777, 200, 250));
+
+			assertFalse(ep.containsAnyOf(new PriceRecordContract[]{createPriceWithDistinctIds(777, 11, 200, 250)}));
+			assertTrue(ep.containsAnyOf(new PriceRecordContract[]{createPriceWithDistinctIds(11, 999, 200, 250)}));
+		}
 	}
 
 	@Nested
 	@DisplayName("Error handling")
 	class ErrorHandlingTest {
 
+		/**
+		 * Removing an id the entity does not own leaves the two-price holder's array at its original length, and the
+		 * `getSize() < 3` branch of {@link EntityPrices#removePrice(EntityPrices, PriceRecordContract)} demands exactly
+		 * one survivor - so the premise check, not the array arithmetic, is what surfaces the error.
+		 */
 		@Test
-		@DisplayName("should throw when removing non-existent price from single-price entity")
-		void shouldThrowWhenRemovingNonExistentPriceFromSingle() {
-			// create a two-price entity, then remove one to get SinglePriceEntityPrices
-			// from the removePrice size < 3 branch
+		@DisplayName("should throw when removing a price a two-price entity does not own")
+		void shouldThrowWhenRemovingANonExistentPriceFromATwoPriceEntity() {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(1, 100, 120));
 			final EntityPrices two = EntityPrices.addPriceRecord(
 				single, createPlainPrice(2, 200, 250)
 			);
+			assertInstanceOf(MultiplePriceEntityPrices.class, two);
 
-			// removing price id 99 (non-existent) from 2-element MultiplePriceEntityPrices
-			// goes through computePricesRemoving which returns array without the element
-			// but since price 99 is not in the array, the result still has 2 elements
-			// and Assert.isPremiseValid("Expected single result!") fails
 			final PriceRecordContract nonExistent = createPlainPrice(99, 300, 350);
-			assertThrows(
-				Exception.class,
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
 				() -> EntityPrices.removePrice(two, nonExistent)
+			);
+
+			assertTrue(
+				exception.getMessage().contains("Expected single result"),
+				"unexpected message: " + exception.getMessage()
+			);
+		}
+
+		/**
+		 * The single-price holder's removal guard compares the price being removed against the internal price id it
+		 * caches, so a record that merely shares the holder's *price* id is a foreign price and must be rejected -
+		 * while a record carrying the holder's internal id is accepted whatever its price id says.
+		 *
+		 * The guard is reached directly here because
+		 * {@link EntityPrices#removePrice(EntityPrices, PriceRecordContract)} short-circuits every holder of fewer than
+		 * two prices to the empty one and never calls it.
+		 */
+		@Test
+		@DisplayName("should reject removing a foreign price from a single-price holder")
+		void shouldRejectRemovingAForeignPriceFromASinglePriceHolder() {
+			final EntityPrices single = EntityPrices.create(createPriceWithDistinctIds(11, 777, 200, 250));
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> single.computePricesRemoving(createPriceWithDistinctIds(12, 777, 300, 350))
+			);
+			assertTrue(
+				exception.getMessage().contains("`777`") && exception.getMessage().contains("`12`"),
+				"unexpected message: " + exception.getMessage()
+			);
+
+			assertEquals(0, single.computePricesRemoving(createPriceWithDistinctIds(11, 999, 300, 350)).length);
+		}
+
+		/**
+		 * An empty holder never computes an added price:
+		 * {@link EntityPrices#addPriceRecord(EntityPrices, PriceRecordContract)} routes every empty holder to a freshly
+		 * constructed single-price one and never calls the computation. Reaching the computation with an empty holder is
+		 * therefore a programming error, and it has to surface as one rather than quietly produce a one-element array
+		 * that no correct caller asked for.
+		 */
+		@Test
+		@DisplayName("should refuse to compute an added price for an empty holder")
+		void shouldRefuseToComputeAnAddedPriceForAnEmptyHolder() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> SinglePriceEntityPrices.EMPTY.computePricesAdding(createPlainPrice(5, 200, 250))
 			);
 		}
 	}
@@ -711,21 +802,72 @@ class EntityPricesTest {
 			assertAccessorsAgree(SinglePriceEntityPrices.EMPTY);
 		}
 
+		/**
+		 * Pins that the holder answers by the price's {@link PriceRecordContract#internalPriceId()} and never by its
+		 * {@link PriceRecordContract#priceId()} - the two are the same number in every other fixture of this class,
+		 * which leaves an id-reading accessor free to read the wrong one and still look right.
+		 *
+		 * Caching {@code priceRecord.priceId()} instead of {@code priceRecord.internalPriceId()} in the single-price
+		 * holder turns this test red and nothing else in the suite.
+		 */
+		@Test
+		@DisplayName("should report the internal price id and never the price id")
+		void shouldReportTheInternalPriceIdRatherThanThePriceId() {
+			final EntityPrices single = EntityPrices.create(createPriceWithDistinctIds(11, 777, 200, 250));
+
+			assertEquals(11, single.getInternalPriceIdAt(0));
+			assertArrayEquals(new int[]{11}, single.getInternalPriceIds());
+			assertTrue(single.containsPriceRecord(777));
+			assertFalse(single.containsPriceRecord(11));
+		}
+
 		@Test
 		@DisplayName("should reject an internal price id index outside the entity's prices")
 		void shouldRejectOutOfRangeInternalPriceIdIndex() {
 			final EntityPrices single = EntityPrices.create(createPlainPrice(5, 200, 250));
 
-			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceId(1));
-			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceId(-1));
+			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceIdAt(1));
+			assertThrows(IndexOutOfBoundsException.class, () -> single.getInternalPriceIdAt(-1));
 			assertThrows(
-				IndexOutOfBoundsException.class, () -> SinglePriceEntityPrices.EMPTY.getInternalPriceId(0)
+				IndexOutOfBoundsException.class, () -> SinglePriceEntityPrices.EMPTY.getInternalPriceIdAt(0)
 			);
 		}
 
+		/**
+		 * The single-price holder rejects an out-of-range position with an explicit guard, while the two multi-price
+		 * holders index their id array raw. All three are bound by the same abstract contract, so all three are pinned
+		 * here - a multi-price holder that started clamping or wrapping instead of throwing would hand
+		 * `PriceListAndCurrencyPriceRefIndex#containsAnyPriceOf` an id of some other entity's price.
+		 */
 		@Test
-		@DisplayName("should hand out an array detached from the entity's own state")
-		void shouldHandOutDetachedArrays() {
+		@DisplayName("should reject an out-of-range internal price id index on every holder shape")
+		void shouldRejectAnOutOfRangeInternalPriceIdIndexOnEveryShape() {
+			final EntityPrices multiple = EntityPrices.addPriceRecord(
+				EntityPrices.create(createPlainPrice(1, 300, 350)),
+				createPlainPrice(2, 100, 120)
+			);
+			final EntityPrices fullBlown = EntityPrices.addPriceRecord(
+				EntityPrices.create(createInnerRecordPrice(1, 10, 300, 350)),
+				createInnerRecordPrice(2, 20, 100, 120)
+			);
+
+			assertInstanceOf(MultiplePriceEntityPrices.class, multiple);
+			assertThrows(IndexOutOfBoundsException.class, () -> multiple.getInternalPriceIdAt(multiple.getSize()));
+			assertThrows(IndexOutOfBoundsException.class, () -> multiple.getInternalPriceIdAt(-1));
+
+			assertInstanceOf(FullBlownEntityPrices.class, fullBlown);
+			assertThrows(IndexOutOfBoundsException.class, () -> fullBlown.getInternalPriceIdAt(fullBlown.getSize()));
+			assertThrows(IndexOutOfBoundsException.class, () -> fullBlown.getInternalPriceIdAt(-1));
+		}
+
+		/**
+		 * Only the single-price holder detaches: it keeps its price and id as plain fields and therefore builds a fresh
+		 * array per call. {@link MultiplePriceEntityPrices} and {@link FullBlownEntityPrices} store those arrays and
+		 * hand out the very instances they hold, so nothing here may be generalised to the whole family.
+		 */
+		@Test
+		@DisplayName("should hand out arrays detached from a single-price holder's own state")
+		void shouldHandOutArraysDetachedFromTheSinglePriceHolder() {
 			final PriceRecordContract price = createPlainPrice(5, 200, 250);
 			final EntityPrices single = EntityPrices.create(price);
 
@@ -736,7 +878,7 @@ class EntityPricesTest {
 
 			assertEquals(5, single.getLowestPriceRecords()[0].priceId());
 			assertArrayEquals(new int[]{5}, single.getInternalPriceIds());
-			assertEquals(5, single.getInternalPriceId(0));
+			assertEquals(5, single.getInternalPriceIdAt(0));
 		}
 
 		/**
@@ -753,10 +895,16 @@ class EntityPricesTest {
 			entityPrices.forEachLowestPriceRecord(streamed::add);
 			assertArrayEquals(lowestPriceRecords, streamed.toArray(PriceRecordContract[]::new));
 
+			final PriceRecordContract[] allPrices = entityPrices.getAllPrices();
+			assertEquals(entityPrices.getSize(), allPrices.length);
+
 			final int[] internalPriceIds = entityPrices.getInternalPriceIds();
 			assertEquals(internalPriceIds.length, entityPrices.getSize());
 			for (int i = 0; i < internalPriceIds.length; i++) {
-				assertEquals(internalPriceIds[i], entityPrices.getInternalPriceId(i));
+				assertEquals(internalPriceIds[i], entityPrices.getInternalPriceIdAt(i));
+				// the id at a position is the id of the price at that position - the invariant the reduced index's
+				// price-tree probe walks the holder by
+				assertEquals(allPrices[i].internalPriceId(), entityPrices.getInternalPriceIdAt(i));
 			}
 		}
 
@@ -802,7 +950,7 @@ class EntityPricesTest {
 			assertInstanceOf(SinglePriceEntityPrices.class, backToOne);
 			assertEquals(1, backToOne.getSize());
 			assertEquals(1, backToOne.getLowestPriceRecordCount());
-			assertEquals(1, backToOne.getInternalPriceId(0));
+			assertEquals(1, backToOne.getInternalPriceIdAt(0));
 			assertArrayEquals(new PriceRecordContract[]{first}, backToOne.getLowestPriceRecords());
 			assertTrue(
 				backToOne.getHeapSizeInBytes() < two.getHeapSizeInBytes(),
@@ -825,6 +973,29 @@ class EntityPricesTest {
 	@Nonnull
 	private static PriceRecordContract createPlainPrice(int priceId, int priceWithTax, int priceWithoutTax) {
 		return new PriceRecord(priceId, priceId, 1, priceWithTax, priceWithoutTax);
+	}
+
+	/**
+	 * Creates a plain {@link PriceRecord} whose internal price id differs from its price id.
+	 *
+	 * The two ids are the same in {@link #createPlainPrice(int, int, int)} and
+	 * {@link #createInnerRecordPrice(int, int, int, int)}, which makes every accessor that reads one indistinguishable
+	 * from one that reads the other. Prices built here tell the two apart.
+	 *
+	 * @param internalPriceId  the id the entity-prices holder indexes and compares its price by
+	 * @param priceId          the id the price is known by within its entity
+	 * @param priceWithTax     the price amount including tax
+	 * @param priceWithoutTax  the price amount excluding tax
+	 * @return new price record for entity primary key 1
+	 */
+	@Nonnull
+	private static PriceRecordContract createPriceWithDistinctIds(
+		int internalPriceId,
+		int priceId,
+		int priceWithTax,
+		int priceWithoutTax
+	) {
+		return new PriceRecord(internalPriceId, priceId, 1, priceWithTax, priceWithoutTax);
 	}
 
 	/**

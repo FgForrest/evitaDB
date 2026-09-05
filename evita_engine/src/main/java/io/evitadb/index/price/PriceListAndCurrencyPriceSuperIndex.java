@@ -304,9 +304,12 @@ public class PriceListAndCurrencyPriceSuperIndex
 	}
 
 	/**
-	 * Reads the entity's lowest price records straight out of its {@link EntityPrices} holder, so nothing is
-	 * allocated for an entity whose holder keeps a single price as a plain field - which is the shape of nearly every
+	 * Reads the entity's lowest price records straight out of its {@link EntityPrices} holder, so no price array is
+	 * built for an entity whose holder keeps a single price as a plain field - which is the shape of nearly every
 	 * holder in a real catalog, and this method runs once per entity of a result set.
+	 *
+	 * The array is what this saves, not every allocation on the path: the entity-keyed map is keyed by `Integer`, so
+	 * looking the holder up still boxes `entityId`.
 	 */
 	@Override
 	public boolean forEachLowestPriceRecordOfEntity(

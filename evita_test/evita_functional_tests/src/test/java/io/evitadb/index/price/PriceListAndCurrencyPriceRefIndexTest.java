@@ -340,7 +340,7 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Tests verifying the `removePrice` method including the `containsAnyOf` entity eviction logic.
+	 * Tests verifying the `removePrice` method including the `containsAnyPriceOf` entity eviction logic.
 	 */
 	@Nested
 	@DisplayName("Remove price")
@@ -553,6 +553,59 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 			tested.removePrice(5, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
 			assertArrayEquals(new int[]{99}, tested.getIndexedPriceEntityIds().getArray());
 			assertArrayEquals(new int[]{7}, tested.getIndexedPriceIds().getArray());
+		}
+
+		/**
+		 * Every other fixture here gives a price the same number for its internal price id and its price id, which
+		 * leaves an eviction walk that read price ids indistinguishable from one that reads internal ids. Here they
+		 * differ: a walk over the price ids (710, 720) would find neither in the price-record tree and would evict
+		 * entity 42 while one of its prices is still indexed.
+		 */
+		@Test
+		@DisplayName("should keep an entity whose prices remain when its price ids differ from its internal ids")
+		void shouldKeepEntityWhilePricesRemainWhenPriceIdsDifferFromInternalPriceIds() {
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 710, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 720, 42), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{10, 20}
+			);
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(10, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+			assertArrayEquals(new int[]{20}, tested.getIndexedPriceIds());
+
+			tested.removePrice(20, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{}, tested.getIndexedPriceEntityIds().getArray());
+			assertTrue(tested.isEmpty());
+		}
+
+		/**
+		 * Entity 99's only price carries the price id 20, which is another entity's internal price id - legal, because
+		 * the super index's duplicate guard is per entity. An eviction walk that probed the price-record tree with
+		 * price ids would therefore find entity 42's record and keep entity 99 indexed with nothing left in this index.
+		 */
+		@Test
+		@DisplayName("should evict a single-price entity whose price id collides with another entity's internal id")
+		void shouldEvictASinglePriceEntityWhosePriceIdCollidesWithAnotherEntitysInternalPriceId() {
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(10, 710, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(20, 720, 42), null);
+			PriceListAndCurrencyPriceRefIndexTest.this.superIndex.addPrice(createPriceRecord(30, 20, 99), null);
+
+			final PriceListAndCurrencyPriceRefIndex tested = createAttachedRefIndexFromPriceIds(
+				PriceListAndCurrencyPriceRefIndexTest.this.superIndex,
+				new int[]{10, 20, 30}
+			);
+			assertArrayEquals(new int[]{42, 99}, tested.getIndexedPriceEntityIds().getArray());
+
+			tested.removePrice(30, null, PriceListAndCurrencyPriceRefIndexTest.this.superIndex);
+
+			assertArrayEquals(new int[]{42}, tested.getIndexedPriceEntityIds().getArray());
+			assertArrayEquals(new int[]{10, 20}, tested.getIndexedPriceIds());
 		}
 	}
 

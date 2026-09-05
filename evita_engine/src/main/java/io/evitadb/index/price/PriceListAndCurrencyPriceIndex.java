@@ -152,8 +152,14 @@ public interface PriceListAndCurrencyPriceIndex<COPY> extends IndexDataStructure
 	 * and would have to build a one-element array to answer the array form.
 	 *
 	 * The default implementation falls back to the array form for indexes that have no cheaper route; the super price
-	 * index, which owns the entity-to-prices mapping, overrides it with the allocation-free one.
+	 * index, which owns the entity-to-prices mapping, overrides it with the allocation-free one. The ref index leaves
+	 * it at this default, which then rejects the caller through {@link #getLowestPriceRecordsForEntity(int)} exactly
+	 * as that method documents. The only other type that inherits this default rather than overriding it is
+	 * {@code io.evitadb.spike.mock.MockPriceListAndCurrencyPriceIndex}, which lives in the performance-test module
+	 * outside the default build reactor and rejects through the same delegate - so nothing built by a default build
+	 * ever runs this default's loop body; the success path is exercised only via the super index's override.
 	 *
+	 * @param entityId      primary key of the entity whose lowest price records are wanted
 	 * @param priceConsumer receives each of the entity's lowest price records, ordered by internal price id
 	 * @return true when the entity has at least one price in this index (and `priceConsumer` was therefore called),
 	 * false when it has none (and `priceConsumer` was not called at all)

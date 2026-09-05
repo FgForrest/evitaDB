@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price.model.entityPrices;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
@@ -52,7 +53,7 @@ import java.util.function.Consumer;
  * array-returning accessors ({@link #getLowestPriceRecords()}, {@link #getInternalPriceIds()}) build their
  * one-element answer on demand. Callers on the query and mutation paths use the non-allocating accessors
  * ({@link #getLowestPriceRecordCount()}, {@link #forEachLowestPriceRecord(Consumer)},
- * {@link #getInternalPriceId(int)}) instead, so the built arrays are reached only by cold callers - assertions,
+ * {@link #getInternalPriceIdAt(int)}) instead, so the built arrays are reached only by cold callers - assertions,
  * diagnostics and tests.
  */
 @ThreadSafe
@@ -112,27 +113,6 @@ class SinglePriceEntityPrices extends EntityPrices {
 			&& this.price.innerRecordId() == innerRecordId;
 	}
 
-	/**
-	 * Scans the passed triples for this holder's single internal price id directly. The inherited implementation
-	 * binary-searches an `int[]` of this holder's ids, which for a single price would mean allocating a one-element
-	 * array to search it - so the scalar comparison replaces it outright.
-	 *
-	 * @param priceTriples price records to test against this entity's price, ordered by internal price id
-	 * @return true when one of the triples is this entity's price
-	 */
-	@Override
-	public boolean containsAnyOf(@Nonnull PriceRecordContract[] priceTriples) {
-		if (this.price == null) {
-			return false;
-		}
-		for (final PriceRecordContract priceTriple : priceTriples) {
-			if (priceTriple.internalPriceId() == this.internalPriceId) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	@Nonnull
 	@Override
 	public int[] getInternalPriceIds() {
@@ -140,7 +120,7 @@ class SinglePriceEntityPrices extends EntityPrices {
 	}
 
 	@Override
-	public int getInternalPriceId(int index) {
+	public int getInternalPriceIdAt(int index) {
 		if (index != 0 || this.price == null) {
 			throw new IndexOutOfBoundsException(
 				"Index " + index + " is out of bounds for entity prices holding " + getSize() + " price(s)!"
@@ -160,11 +140,26 @@ class SinglePriceEntityPrices extends EntityPrices {
 		return this.price != null && this.price.isInnerRecordSpecific();
 	}
 
+	/**
+	 * Combines this holder's single price with `priceRecord` into a two-element array ordered by internal price id.
+	 *
+	 * An empty holder has nothing to combine and never reaches this method:
+	 * {@link EntityPrices#addPriceRecord(EntityPrices, PriceRecordContract)} answers an empty holder by constructing
+	 * a fresh single-price one. Arriving here without a price is therefore a programming error rather than a state to
+	 * work around.
+	 *
+	 * @param priceRecord the price being added to this entity
+	 * @return this holder's price and `priceRecord`, ascending by {@link PriceRecordContract#internalPriceId()}
+	 * @throws GenericEvitaInternalError if this holder is empty
+	 */
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract priceRecord) {
 		if (this.price == null) {
-			return new PriceRecordContract[] {priceRecord};
+			throw new GenericEvitaInternalError(
+				"An empty entity-prices holder never computes an added price - a price is added to it by " +
+					"constructing a new single-price holder!"
+			);
 		} else if (PRICE_ID_COMPARATOR.compare(priceRecord, this.price) >= 0) {
 			return new PriceRecordContract[] {this.price, priceRecord};
 		} else {

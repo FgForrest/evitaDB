@@ -43,6 +43,7 @@ import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
@@ -81,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
 
@@ -661,6 +663,37 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			);
 		}
 
+		/**
+		 * A terminated index must reject every entity-keyed lookup rather than answer it. The streaming form is the
+		 * one that matters most: it reports absence as `false`, so a guard that moved below the map lookup would turn
+		 * "this index is gone" into the indistinguishable "this entity has no prices".
+		 */
+		@Test
+		@DisplayName(
+			"terminate() followed by any entity-keyed lookup throws terminated exception"
+		)
+		void shouldThrowOnEntityLookupsAfterTermination() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+			tested.terminate();
+
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.forEachLowestPriceRecordOfEntity(
+					42, priceRecord -> fail("a terminated index must hand out no price record!")
+				)
+			);
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.getLowestPriceRecordsForEntity(42)
+			);
+			assertThrows(
+				PriceListAndCurrencyPriceIndexTerminated.class,
+				() -> tested.getInternalPriceIdsForEntity(42)
+			);
+		}
+
 		@Test
 		@DisplayName("toString() includes '(TERMINATED)' suffix after terminate")
 		void shouldIncludeTerminatedSuffixInToString() {
@@ -911,18 +944,24 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 	@DisplayName("Streaming lowest-price lookup")
 	class StreamingLowestPriceLookupTest {
 
+		/**
+		 * The entity's two prices sit in different inner-record groups, so its holder reports one lowest price per
+		 * group and the streaming loop is walked more than once. Two prices of a single group would collapse to one
+		 * lowest price and leave the loop body indistinguishable from a straight-line read.
+		 */
 		@Test
 		@DisplayName("forEachLowestPriceRecordOfEntity() streams what the array form returns")
 		void shouldStreamWhatTheArrayFormReturns() {
 			final PriceListAndCurrencyPriceSuperIndex tested =
 				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
-			tested.addPrice(createPriceRecord(10, 10, 42), null);
-			tested.addPrice(createPriceRecord(20, 20, 42), null);
+			tested.addPrice(createInnerRecordSpecificPriceRecord(10, 10, 42, 1), null);
+			tested.addPrice(createInnerRecordSpecificPriceRecord(20, 20, 42, 2), null);
 
 			final List<PriceRecordContract> streamed = new ArrayList<>();
 			final boolean found = tested.forEachLowestPriceRecordOfEntity(42, streamed::add);
 
 			assertTrue(found);
+			assertEquals(2, streamed.size());
 			assertArrayEquals(
 				tested.getLowestPriceRecordsForEntity(42),
 				streamed.toArray(PriceRecordContract[]::new)
@@ -952,12 +991,30 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			tested.addPrice(createPriceRecord(10, 10, 42), null);
 
 			final boolean found = tested.forEachLowestPriceRecordOfEntity(
-				999, priceRecord -> Assertions.fail("entity 999 has no price in this index!")
+				999, priceRecord -> fail("entity 999 has no price in this index!")
 			);
 
 			assertFalse(found);
 		}
 
+		/**
+		 * An entity that was indexed and then lost its last price must be as silent as one that was never indexed -
+		 * a holder left behind empty, or a consumer fed from one, would report prices the index no longer has.
+		 */
+		@Test
+		@DisplayName("forEachLowestPriceRecordOfEntity() reports false once the entity's last price is removed")
+		void shouldReportNothingForAnEntityWhoseLastPriceWasRemoved() {
+			final PriceListAndCurrencyPriceSuperIndex tested =
+				new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
+			tested.addPrice(createPriceRecord(10, 10, 42), null);
+			tested.removePrice(42, 10, null);
+
+			final boolean found = tested.forEachLowestPriceRecordOfEntity(
+				42, priceRecord -> fail("entity 42 lost its last price in this index!")
+			);
+
+			assertFalse(found);
+		}
 	}
 
 	/**
@@ -1156,6 +1213,27 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			internalPriceId,
 			priceId,
 			entityPrimaryKey,
+			12100,
+			10000
+		);
+	}
+
+	/**
+	 * Creates a `PriceRecordInnerRecordSpecific` belonging to the given inner record group, with the
+	 * given entityPrimaryKey and the same tax values as {@link #createPriceRecord(int, int, int)}.
+	 */
+	@Nonnull
+	private static PriceRecordContract createInnerRecordSpecificPriceRecord(
+		int internalPriceId,
+		int priceId,
+		int entityPrimaryKey,
+		int innerRecordId
+	) {
+		return new PriceRecordInnerRecordSpecific(
+			internalPriceId,
+			priceId,
+			entityPrimaryKey,
+			innerRecordId,
 			12100,
 			10000
 		);
