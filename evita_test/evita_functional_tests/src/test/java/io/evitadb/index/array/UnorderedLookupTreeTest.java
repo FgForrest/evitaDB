@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -1541,6 +1542,87 @@ class UnorderedLookupTreeTest {
 						+ lengthAfterInsert[records] + " for " + records + " records"
 				);
 			}
+		}
+
+		/**
+		 * Collects the PHYSICAL length of every leaf container's record array, in logical leaf order. Deliberately not
+		 * the record counts: what this suite has to pin is how much memory each container actually holds, which is the
+		 * only thing the whole content-sizing change is about.
+		 *
+		 * @param tree the tree to walk
+		 * @return the backing-array length of each container, left to right
+		 */
+		@Nonnull
+		private List<Integer> leafArrayLengths(@Nonnull UnorderedLookupTree tree) {
+			final List<Integer> lengths = new ArrayList<>();
+			collectLeafArrayLengths(tree.getRoot(), lengths);
+			return lengths;
+		}
+
+		/**
+		 * Recursive half of {@link #leafArrayLengths}.
+		 *
+		 * @param node    the subtree root to walk, or `null` for an empty tree
+		 * @param lengths the accumulator, appended in logical order
+		 */
+		private void collectLeafArrayLengths(@Nullable UnorderedLookupTree.Node<?> node, @Nonnull List<Integer> lengths) {
+			if (node == null) {
+				return;
+			}
+			if (node instanceof final UnorderedLookupTree.LeafNode leaf) {
+				lengths.add(leaf.getRecordIds().length);
+			} else {
+				final UnorderedLookupTree.InternalNode internal = (UnorderedLookupTree.InternalNode) node;
+				final UnorderedLookupTree.Node<?>[] children = internal.getChildren();
+				for (int i = 0; i < internal.getChildCount(); i++) {
+					collectLeafArrayLengths(children[i], lengths);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("a cold-loaded tree sizes every container to the records it was loaded with")
+		void shouldSizeColdLoadedContainersToTheirLoad() {
+			// the path a production catalog takes at start-up, and the one the footprint census measured: the loader
+			// hands the whole logical order over at once, so every container's content is known before it allocates
+			final TreeWithIndex tested = new TreeWithIndex();
+			final int[] records = new int[200];
+			for (int i = 0; i < 200; i++) {
+				records[i] = i + 1;
+			}
+			tested.bulkLoad(records);
+
+			// 200 records pack into containers of 64, 64, 64, 8 - the three full ones legitimately need the whole
+			// block, and the tail must hold 8 slots rather than the 65 it used to be allocated at
+			assertEquals(List.of(65, 65, 65, 8), leafArrayLengths(tested.tree));
+		}
+
+		@Test
+		@DisplayName("split halves are sized to the records they keep, not to the block they came from")
+		void shouldSizeSplitHalvesToTheirLiveContent() {
+			// the incremental path: 200 appends split containers repeatedly, and each split leaves two halves holding
+			// roughly half a block each. Sizing them to the block they were split out of would leave every interior
+			// container of every incrementally built tree at its full capacity - the state this whole change removes
+			final TreeWithIndex tested = new TreeWithIndex();
+			tested.addAtPosition(0, 1);
+			for (int recordId = 2; recordId <= 200; recordId++) {
+				tested.addAfter(recordId - 1, recordId);
+			}
+
+			final List<Integer> lengths = leafArrayLengths(tested.tree);
+			final int capacity = UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1;
+			for (final int length : lengths) {
+				assertTrue(
+					length <= capacity,
+					"no container may exceed its capacity, was " + length + " in " + lengths
+				);
+			}
+			// every container that a split left half-full must have given its slack back
+			final long atCapacity = lengths.stream().filter(length -> length == capacity).count();
+			assertTrue(
+				atCapacity <= 1,
+				"at most the one container still being filled may sit at its capacity, was " + lengths
+			);
 		}
 
 		@Test

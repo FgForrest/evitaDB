@@ -1760,7 +1760,6 @@ public class UnorderedLookupTree implements
 		System.arraycopy(containerRecordIds, leftCount, rightRecordIds, 0, rightCount);
 		right.setCount(rightCount);
 		container.setCount(leftCount);
-		Arrays.fill(containerRecordIds, leftCount, total, 0);
 		// partition the head mask along the same split point: right gets bits [leftCount, total) shifted down to
 		// [0, rightCount); the container keeps bits [0, leftCount). Multi-word capable (leafCapacity may exceed 64).
 		int rightHeadCount = 0;
@@ -1780,6 +1779,13 @@ public class UnorderedLookupTree implements
 				assignments.accept(movedRecordId, rightKey);
 			}
 		}
+		// both halves now hold about half the block they were split out of, and nothing downstream will ever give
+		// that slack back: the commit-merge trim needs a 4:1 gap this never reaches, and a container is never merged
+		// with a sibling the way a B+ tree leaf is. See `sizeRecordIdsToContent`. This also subsumes the blanking of
+		// the left half's tail, whose slots the resize discards outright. Done here rather than beside the copy so
+		// `rightRecordIds` above stays the array the assignment loop reads
+		right.sizeRecordIdsToContent(rightCount);
+		container.sizeRecordIdsToContent(leftCount);
 		propagateSplit(cursor, cursor.depth - 1, right, rightKey, rightCount, rightHeadCount);
 	}
 
@@ -3173,6 +3179,46 @@ public class UnorderedLookupTree implements
 				layer.ensurePhysicalLength(requiredLength);
 				return layer.recordIds;
 			}
+		}
+
+		/**
+		 * Shrinks this container's record array to hold exactly its first `count` records, discarding whatever slack
+		 * sat above them.
+		 *
+		 * This is the **split's** counterpart to the commit-merge trim, and it exists because that trim cannot do the
+		 * job. {@link ColumnSizing#trimmedLength} only fires once the live content has fallen 4:1 behind the array —
+		 * deliberate hysteresis, so a container hovering around a power of two does not alternate grow and trim on
+		 * every commit — and a split leaves each half at *half* its array, which is nowhere near that gap. Left alone,
+		 * both halves of every split keep the full block they were split out of.
+		 *
+		 * **The B+ tree family's reason for tolerating that does not apply here.** A leaf there sits above a
+		 * minimum-occupancy floor and is merged with a sibling when it falls below it, so a half-full leaf either
+		 * refills or disappears. A container in this tree has no floor at all: the delete side only ever unlinks an
+		 * EMPTY container (see {@link UnorderedLookupTree#minChildren}), so a half that stops receiving inserts keeps
+		 * its slack for the life of the catalog. On an incrementally built tree that is every interior container.
+		 *
+		 * A half that does keep filling pays one reallocation to get its block back, which is exactly the cost the
+		 * geometric growth policy is priced at.
+		 *
+		 * @param count the number of live records to keep; never above the current array length
+		 */
+		void sizeRecordIdsToContent(int count) {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final LeafNode target = layer == null ? this : layer;
+			if (count > target.recordIds.length) {
+				throw new GenericEvitaInternalError(
+					"Cannot size a container down to " + count + " records - it only holds "
+						+ target.recordIds.length + " slots!",
+					"Inconsistent lookup state!"
+				);
+			}
+			if (count == target.recordIds.length) {
+				// already exact - never allocate a copy of an array that is the right size
+				return;
+			}
+			target.recordIds = count == 0 ? EMPTY_INT_ARRAY : Arrays.copyOf(target.recordIds, count);
+			target.dirty = true;
 		}
 
 		@Override
