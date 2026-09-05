@@ -238,7 +238,7 @@ public class UnorderedLookupTree implements
 
 	/**
 	 * Creates a new empty tree with a custom logical {@link #blockSize} (internal fan-out), order-key gap,
-	 * head-awareness, per-leaf physical {@link #leafCapacity} and page participation ({@link #paged}). This is the
+	 * head-awareness, per-leaf logical {@link #leafCapacity} and page participation ({@link #paged}). This is the
 	 * decoupled constructor: `blockSize` sizes the routing spine (fan-out / min-occupancy) while `leafCapacity` sizes
 	 * the leaf containers independently, so a paged {@link io.evitadb.index.attribute.ChainIndex} tree grows page-sized
 	 * leaves ({@link #PAGE_RECORDS}) over a small fan-out.
@@ -246,7 +246,8 @@ public class UnorderedLookupTree implements
 	 * @param blockSize    internal-node fan-out / min-occupancy driver; must be in `[3, DEFAULT_BLOCK_SIZE]`
 	 * @param orderKeyGap  the order-key spacing
 	 * @param headAware    whether the tree maintains head bitmasks / head counts
-	 * @param leafCapacity physical leaf record capacity; must be `>= blockSize`
+	 * @param leafCapacity logical leaf record capacity - the container's `recordIds` array may grow to that many
+	 *                     slots but is sized to the live content until it does; must be `>= blockSize`
 	 * @param paged        whether the tree tracks per-leaf page bookkeeping and exposes the page-enumeration SPI (a
 	 *                     paged tree splits leaves at `leafCapacity`; a non-paged tree splits at `blockSize`)
 	 */
@@ -280,7 +281,7 @@ public class UnorderedLookupTree implements
 	 * @param blockSize    the logical fan-out to carry over
 	 * @param orderKeyGap  the order-key spacing to carry over
 	 * @param headAware    whether the tree maintains head bitmasks / head counts
-	 * @param leafCapacity the physical leaf record capacity to carry over
+	 * @param leafCapacity the logical leaf record capacity to carry over
 	 * @param paged        whether the tree tracks per-leaf page bookkeeping
 	 * @param root         the committed root node (or `null` for an empty tree)
 	 * @param size         the committed record count
@@ -626,7 +627,7 @@ public class UnorderedLookupTree implements
 		// Resolve the thread's transaction ONCE. `getRoot()` and `size()` read two different TransactionalReferences,
 		// and each would otherwise start with its own `CURRENT_TRANSACTION` ThreadLocal read - two per positional
 		// probe, at ~13 probes per sort-attribute insert across 40 low-cardinality attributes per entity. ThreadLocal
-		// machinery is 5.25 % of busy-thread wall on that path (issue #1332). The dispatch itself stays HERE, in the
+		// machinery is 5.25 % of busy-thread wall on that path. The dispatch itself stays HERE, in the
 		// public read method, as INV-2 of the STM rules requires (see
 		// `documentation/developer/stm/rules-and-invariants.md`) - only its duplication is removed.
 		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
@@ -927,7 +928,7 @@ public class UnorderedLookupTree implements
 	 * A green concurrent sweep on an x86 box is **evidence about the box, not about this code**: x86's total store
 	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 — which
 	 * evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
-	 * {@code UnorderedLookupTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each guarded
+	 * {@code UnorderedLookupTreeTest.TornLeafReaderBoundTest} builds the torn shapes directly and gives each guarded
 	 * reader its own test, so no one of them can be proven by another throwing first. This mirrors
 	 * {@code TransactionalLongBPlusTree#observableLeafPeek} and {@code TransactionalBucketBPlusTree#observableLeafPeek},
 	 * whose javadoc carries the same calibration for the B+ tree siblings.
@@ -1280,7 +1281,9 @@ public class UnorderedLookupTree implements
 	/**
 	 * Recursively verifies the subtree rooted at `node`: equal leaf depth (balance), non-root internal min-occupancy,
 	 * block-size bounds, per-child subtree-count augmentation, order-key separators (each separator equals the minimum
-	 * order-key of the child it borders) and global strict order-key monotonicity across containers in logical order.
+	 * order-key of the child it borders), global strict order-key monotonicity across containers in logical order, and
+	 * — since leaf containers began sizing their record-id array to their content rather than to `leafCapacity` — that
+	 * each container's array still covers its own record count.
 	 * On a head-aware tree (`headCount` non-null) it additionally verifies the per-child head-count augmentation and that
 	 * no container carries a head bit beyond its valid record slots, accumulating the subtree's head total into
 	 * `headCount`. Leaf containers are intentionally NOT checked for a minimum occupancy floor — the delete side only
@@ -1304,6 +1307,16 @@ public class UnorderedLookupTree implements
 			}
 			if (count > this.leafSplitThreshold) {
 				errors.add("Container overflow: " + count + " > leaf split threshold " + this.leafSplitThreshold + "!");
+			}
+			// the premise every reader bound, every `getRecordIdsForUpdate(int)` call site and the whole
+			// `observableLeafCount` family rest on since the containers started following their content - and the one
+			// thing nothing else here looks at, because no other check reads an array length at all
+			final int[] recordIds = leaf.getRecordIds();
+			if (recordIds.length < count) {
+				errors.add(
+					"Container record array holds " + recordIds.length + " slots, less than its record count "
+						+ count + "!"
+				);
 			}
 			final long key = leaf.getOrderKey();
 			if (lastKey[0] != Long.MIN_VALUE && key <= lastKey[0]) {
@@ -2822,7 +2835,8 @@ public class UnorderedLookupTree implements
 		private int pageSequence;
 		/**
 		 * The granular-storage change-detection flag: `true` when this leaf's page content changed since the last flush.
-		 * Set by the content mutators ({@link #setCount}, {@link #getRecordIdsForUpdate()}, {@link #getHeadMaskForUpdate()})
+		 * Set by the content mutators ({@link #setCount}, {@link #getRecordIdsForUpdate(int)},
+		 * {@link #getHeadMaskForUpdate()})
 		 * — NOT by {@link #setOrderKey} (order-keys are ephemeral, re-minted at load, so a re-space must not re-emit every
 		 * page). Transaction-aware (routed through the layer) so a change made inside a transaction is visible at flush yet
 		 * isolated from concurrent readers; the emitter clears it once the page is collected. Only consulted on a paged tree.
@@ -2863,7 +2877,10 @@ public class UnorderedLookupTree implements
 		 * @param capacity           the container's logical capacity — `leafCapacity + 1` record slots
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
-		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask, int pageSequence, boolean dirty, int capacity, boolean transactionalLayer) {
+		LeafNode(
+			long orderKey, @Nonnull int[] recordIds, int count, @Nullable long[] headMask, int pageSequence,
+			boolean dirty, int capacity, boolean transactionalLayer
+		) {
 			ColumnSizing.assertLoadFitsCapacity(count, capacity);
 			this.capacity = capacity;
 			this.orderKey = orderKey;
@@ -3015,8 +3032,7 @@ public class UnorderedLookupTree implements
 		 * layer creation. The emitter walks EVERY leaf and stamps each one not yet paged, so a leaf the transaction
 		 * never touched (which carries no layer) reaches this method routinely: a create-on-write stamp would trip the
 		 * "already committed" premise on it and abort the commit. That is exactly what happens on the first write to a
-		 * chain index restored from a legacy, non-paged `ChainIndexStoragePart` — every leaf of such a tree is fresh
-		 * (see issue #1437).
+		 * chain index restored from a legacy, non-paged `ChainIndexStoragePart` — every leaf of such a tree is fresh.
 		 *
 		 * Writing the committed baseline field in place is what the merge carries forward anyway: with no layer,
 		 * {@link #createCopyWithMergedTransactionalMemory} returns `this`. When a layer DOES exist the merge takes the

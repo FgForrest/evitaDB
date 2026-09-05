@@ -84,6 +84,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
  */
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
+@DisplayName("SortIndex")
 class SortIndexTest {
 
 	private static final Locale CZECH_LOCALE = new Locale("cs");
@@ -1805,7 +1806,6 @@ class SortIndexTest {
 		}
 	}
 
-
 	@Nested
 	@DisplayName("Content-sized footprint")
 	class ContentSizedFootprintTest {
@@ -1821,9 +1821,10 @@ class SortIndexTest {
 		private static final long ONE_RECORD_SORT_INDEX_GATE = 1_200L;
 
 		/**
-		 * The heap gate for an EMPTY owner sort index — measured **856 B** after, against **1,656 B** before, which is
-		 * the floor the design note derived for this shape. The whole 800 B is the value index's eagerly allocated
-		 * root leaf, which every sort index owns from birth whether or not it ever holds a record.
+		 * The heap gate for an EMPTY owner sort index — measured **856 B** after, against **1,656 B** before. The gate
+		 * sits above the measurement rather than on it, for the same reason {@link #ONE_RECORD_SORT_INDEX_GATE} does,
+		 * and far below the pre-change figure. The whole 800 B is the value index's eagerly allocated root leaf, which
+		 * every sort index owns from birth whether or not it ever holds a record.
 		 */
 		private static final long EMPTY_SORT_INDEX_GATE = 900L;
 

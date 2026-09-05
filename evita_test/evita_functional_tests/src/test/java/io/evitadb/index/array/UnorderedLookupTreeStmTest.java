@@ -45,6 +45,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -590,6 +591,99 @@ class UnorderedLookupTreeStmTest {
 					// the committed copy is independently addressable
 					assertEquals(1000, committed.getRecordAt(0));
 					assertEquals(1002, committed.getRecordAt(2));
+					assertConsistent(original);
+					assertConsistent(committed);
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Commit-merge trim")
+	class CommitTrimTest {
+
+		/**
+		 * Returns the one and only container of a single-container tree, failing the test when the tree has already
+		 * grown a routing spine (which would mean the fixture split when it was not supposed to).
+		 *
+		 * @param tree the tree view to reach into
+		 * @return its root container
+		 */
+		@Nonnull
+		private UnorderedLookupTree.LeafNode singleContainer(@Nonnull UnorderedLookupTree tree) {
+			final Object root = tree.getRoot();
+			assertInstanceOf(
+				UnorderedLookupTree.LeafNode.class, root,
+				"the fixture needs a single-container tree, but the root is " + root
+			);
+			return (UnorderedLookupTree.LeafNode) root;
+		}
+
+		@Test
+		@DisplayName("shrinks a container whose content has fallen far behind its array")
+		void shouldTrimTheContainerArrayOnCommitWhenTheContentFallsFarEnoughBehind() {
+			// the commit-merge is the ONLY place a container's array ever gets smaller - the incremental paths only
+			// grow, so without the trim a container that once filled up would hold its peak allocation for the rest
+			// of the catalog's life, and the steady-state half of the footprint win would not exist
+			final TreeWithIndex driver = committedTreeOfSize(33);
+			final int fullLength = singleContainer(driver.tree).getRecordIds().length;
+			assertEquals(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, fullLength,
+				"33 records past half the capacity must have taken the array straight to the capacity"
+			);
+
+			assertStateAfterCommit(
+				driver.tree,
+				tested -> {
+					// down to a quarter of the array - the 4:1 gap the trim policy requires
+					for (int i = 16; i < 33; i++) {
+						driver.remove(1000 + i);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(16, committed.size(), "seventeen of thirty-three records were removed");
+					assertEquals(
+						16, singleContainer(committed).getRecordIds().length,
+						"a container down to a quarter of its array must be trimmed to the live content"
+					);
+					assertEquals(
+						UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, singleContainer(committed).capacity(),
+						"trimming the physical array must never move the LOGICAL capacity"
+					);
+					assertEquals(
+						fullLength, singleContainer(original).getRecordIds().length,
+						"the pre-transaction view must keep the array it was committed with"
+					);
+					assertArrayEquals(expectedArrayOfSize(16), committed.getArray());
+					assertConsistent(original);
+					assertConsistent(committed);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("leaves a container alone while its slack is small")
+		void shouldNotTrimTheContainerArrayWhileTheSlackIsSmall() {
+			// the hysteresis half of the same policy: without the 4:1 gap a container hovering around a power-of-two
+			// occupancy would alternate grow and trim, paying a copy of the whole array on every single commit
+			final TreeWithIndex driver = committedTreeOfSize(33);
+			final int fullLength = singleContainer(driver.tree).getRecordIds().length;
+
+			assertStateAfterCommit(
+				driver.tree,
+				tested -> {
+					// one record above the quarter, so the gap the trim needs is not there
+					for (int i = 17; i < 33; i++) {
+						driver.remove(1000 + i);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(17, committed.size(), "sixteen of thirty-three records were removed");
+					assertEquals(
+						fullLength, singleContainer(committed).getRecordIds().length,
+						"one record over the quarter is not enough slack to pay for the copy"
+					);
+					assertArrayEquals(expectedArrayOfSize(17), committed.getArray());
 					assertConsistent(original);
 					assertConsistent(committed);
 				}

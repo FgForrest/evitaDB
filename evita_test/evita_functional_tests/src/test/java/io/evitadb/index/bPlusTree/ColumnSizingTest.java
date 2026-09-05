@@ -336,6 +336,44 @@ class ColumnSizingTest {
 		}
 
 		@Test
+		@DisplayName("an empty column is copied without anticipating a growth")
+		void shouldReturnZeroHeadroomForAnEmptyColumn() {
+			// this is the branch the shared-empty-array identity rests on: an empty column keeps its zero length,
+			// so the copy stays parked on the JVM-wide empty array instead of allocating for an insert that may
+			// never come - and the heap walk, which subtracts that array BY IDENTITY, keeps reporting nothing
+			assertEquals(0, ColumnSizing.headroomLength(0, 0, BLOCK));
+		}
+
+		@Test
+		@DisplayName("a column with spare slots is copied at the length it already has")
+		void shouldLeaveAColumnWithSpareSlotsAlone() {
+			assertEquals(8, ColumnSizing.headroomLength(3, 8, BLOCK), "five spare slots need no anticipation");
+			assertEquals(8, ColumnSizing.headroomLength(7, 8, BLOCK), "one spare slot is still a spare slot");
+		}
+
+		@Test
+		@DisplayName("an exactly-full column is copied straight to the length its next insert would need")
+		void shouldAnticipateTheNextGrowthForAnExactlyFullColumn() {
+			// both halves of every split, and every leaf reloaded from a page, are born exactly full: copying such a
+			// column at its short length and growing it one statement later costs two allocations where one would do
+			assertEquals(16, ColumnSizing.headroomLength(8, 8, BLOCK), "the copy takes the doubling with it");
+			assertEquals(8, ColumnSizing.headroomLength(4, 4, BLOCK), "the floor doubles like any other length");
+			assertEquals(
+				BLOCK, ColumnSizing.headroomLength(BLOCK / 2, BLOCK / 2, BLOCK),
+				"past half the block the anticipated growth goes straight to the block"
+			);
+		}
+
+		@Test
+		@DisplayName("a column already at the logical capacity has nothing to grow into")
+		void shouldNotGrowAColumnAlreadyAtTheLogicalCapacity() {
+			// the leaf splits before a column may hold more than its block, so anticipating a growth here would ask
+			// `grownLength` for a length it refuses outright
+			assertEquals(BLOCK, ColumnSizing.headroomLength(BLOCK, BLOCK, BLOCK));
+			assertEquals(4, ColumnSizing.headroomLength(4, 4, 4), "a block below the sizing floor is full at four");
+		}
+
+		@Test
 		@DisplayName("a bulk load larger than the logical capacity is refused by every column family")
 		void shouldRefuseABulkLoadLargerThanTheLogicalCapacity() {
 			// the incremental path carries this premise inside `grownLength`; a bulk load sizes its array straight

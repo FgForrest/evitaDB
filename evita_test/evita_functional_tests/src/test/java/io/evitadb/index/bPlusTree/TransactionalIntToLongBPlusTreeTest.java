@@ -2952,7 +2952,6 @@ class TransactionalIntToLongBPlusTreeTest {
 
 	}
 
-
 	@Nested
 	@DisplayName("Content-sized leaf arrays")
 	class ContentSizedLeafTest {
@@ -2980,6 +2979,16 @@ class TransactionalIntToLongBPlusTreeTest {
 			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) new TransactionalIntToLongBPlusTree().getRoot();
 			assertEquals(0, leaf.getKeys().length, "an empty leaf must allocate no key slots");
 			assertEquals(0, leaf.getValues().length, "an empty leaf must allocate no value slots");
+			// the heap walk subtracts the shared arrays by IDENTITY, so a private `new int[0]` would satisfy the
+			// lengths above while still costing an object header apiece and being charged for
+			assertSame(
+				ArrayUtils.EMPTY_INT_ARRAY, leaf.getKeys(),
+				"an empty leaf must park on the shared empty key array rather than mint its own"
+			);
+			assertSame(
+				ArrayUtils.EMPTY_LONG_ARRAY, leaf.getValues(),
+				"an empty leaf must park on the shared empty value array rather than mint its own"
+			);
 			assertEquals(64, leaf.capacity(), "the LOGICAL capacity must still be the default block size");
 		}
 
@@ -3059,6 +3068,127 @@ class TransactionalIntToLongBPlusTreeTest {
 			);
 			assertEquals(blockSize, lengthAfterInsert[blockSize - 1], "a nearly full leaf sits at its capacity");
 		}
+
+		@Test
+		@DisplayName("the commit-merge shrinks a leaf whose content has fallen far behind its arrays")
+		void shouldTrimTheLeafArraysOnCommitWhenTheContentFallsFarEnoughBehind() {
+			// the commit-merge is the ONLY place either array ever gets smaller - the incremental paths only grow,
+			// so without the trim a leaf that once filled up would hold its peak allocation for the rest of the
+			// catalog's life, and the steady-state half of the footprint win would not exist
+			final TransactionalIntToLongBPlusTree tree = treeWith(15);
+			final BPlusLeafTreeNode beforeCommit = (BPlusLeafTreeNode) tree.getRoot();
+			assertEquals(16, beforeCommit.getKeys().length, "the fixture needs a leaf filled to its capacity");
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int key = 0; key < 11; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					final BPlusLeafTreeNode committedLeaf = (BPlusLeafTreeNode) committed.getRoot();
+					assertEquals(4, committed.size(), "eleven of fifteen entries were deleted");
+					assertEquals(
+						4, committedLeaf.getKeys().length,
+						"a leaf down to a quarter of its arrays must be trimmed to the sizing floor"
+					);
+					assertEquals(
+						4, committedLeaf.getValues().length,
+						"both arrays must be trimmed, not just the keys"
+					);
+					assertEquals(
+						16, committedLeaf.capacity(),
+						"trimming the physical arrays must never move the LOGICAL capacity"
+					);
+
+					final BPlusLeafTreeNode originalLeaf = (BPlusLeafTreeNode) original.getRoot();
+					assertEquals(
+						16, originalLeaf.getKeys().length,
+						"the pre-transaction tree must keep the arrays it was committed with"
+					);
+					for (int key = 11; key < 15; key++) {
+						assertEquals(
+							(long) key * 10 + 1, committed.searchOrDefault(key, -1L),
+							"every surviving entry must be readable off the trimmed arrays, key " + key
+						);
+					}
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("the commit-merge leaves a leaf alone while its slack is small")
+		void shouldNotTrimTheLeafArraysWhileTheSlackIsSmall() {
+			// the hysteresis half of the same policy: without the 4:1 gap a leaf hovering around a power-of-two
+			// occupancy would alternate grow and trim, paying a copy of both arrays on every single commit
+			final TransactionalIntToLongBPlusTree tree = treeWith(15);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					for (int key = 0; key < 10; key++) {
+						tested.delete(key);
+					}
+				},
+				(original, committed) -> {
+					final BPlusLeafTreeNode committedLeaf = (BPlusLeafTreeNode) committed.getRoot();
+					assertEquals(5, committed.size(), "ten of fifteen entries were deleted");
+					assertEquals(
+						16, committedLeaf.getKeys().length,
+						"one entry over the quarter is not enough slack to pay for the copy"
+					);
+					assertEquals(
+						16, committedLeaf.getValues().length,
+						"and the value array must follow the same decision as the keys"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint restore leaves the empty leaf parked on the shared arrays")
+		void shouldKeepTheSharedEmptyArraysAcrossASavepointRestore() {
+			// the eagerly built root leaf is one per sort index and one per chain index in the catalog, and it parks on
+			// the JVM-wide empty arrays. Cloning them across a savepoint would hand each leaf two private 16 B objects
+			// that the heap walk - which subtracts the shared arrays BY IDENTITY - then charges it for
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) new TransactionalIntToLongBPlusTree().getRoot();
+			leaf.restore(leaf.snapshot());
+
+			assertSame(
+				ArrayUtils.EMPTY_INT_ARRAY, leaf.getKeys(),
+				"a restored empty leaf must still park on the shared empty key array"
+			);
+			assertSame(
+				ArrayUtils.EMPTY_LONG_ARRAY, leaf.getValues(),
+				"a restored empty leaf must still park on the shared empty value array"
+			);
+		}
+
+		@Test
+		@DisplayName("the consistency report names a leaf whose live run reaches past its arrays")
+		void shouldReportALeafWhoseLiveRunRunsPastItsArrays() {
+			// `keys.length == values.length >= peek + 1` is what the whole `observableLeafPeek` family, every
+			// `ensurePhysicalLength` call site and the split's logical `end` argument rest on - and nothing else in the
+			// verifier looks at an array length at all. A tree that broke it passed every other check and then threw,
+			// or silently truncated a read, from an unrelated path much later
+			final TransactionalIntToLongBPlusTree tree = treeWith(4);
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
+			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
+			assertEquals(
+				ConsistencyState.CONSISTENT, tree.getConsistencyReport().state(),
+				"the fixture must start sound, so the report below can only be answering the raised peek"
+			);
+
+			leaf.setPeek(leaf.getPeek() + 1);
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state());
+			assertTrue(
+				report.report().contains("key array holds 4 slots"),
+				"the report must name the array that cannot cover the leaf's live run, was:\n" + report.report()
+			);
+		}
 	}
 
 	@Nested
@@ -3115,7 +3245,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		@DisplayName("forward iteration stays inside the arrays it read")
 		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArrays() {
 			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueIterator();
-			final StringBuilder forward = new StringBuilder();
+			final StringBuilder forward = new StringBuilder(32);
 			while (it.hasNext()) {
 				forward.append(it.nextLong()).append(' ');
 			}
@@ -3126,7 +3256,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		@DisplayName("reverse iteration stays inside the arrays it read")
 		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArrays() {
 			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueReverseIterator();
-			final StringBuilder reverse = new StringBuilder();
+			final StringBuilder reverse = new StringBuilder(32);
 			while (it.hasNext()) {
 				reverse.append(it.nextLong()).append(' ');
 			}
@@ -3140,6 +3270,59 @@ class TransactionalIntToLongBPlusTreeTest {
 				"0:1, 1:11, 2:21, 3:31", tornSingleLeafTree().toString().trim(),
 				"the rendering must stop at the live run rather than index past the arrays"
 			);
+		}
+
+		@Test
+		@DisplayName("a forward iterator opened from a key stays inside the arrays it read")
+		void shouldBoundKeyedForwardIterationWhenPeekRunsAheadOfTheArrays() {
+			// the keyed constructors are the one reader that cannot delegate to the guarded `loadCurrentLeaf()`:
+			// Java needs their start position before the `super(...)` that runs it. Unbounded they would search
+			// a `getKeys()` over a range of 5 on an array of 4 - `Arrays.binarySearch` range-checks that and throws
+			// before it compares anything
+			final PrimitiveIterator.OfLong it = tornSingleLeafTree().greaterOrEqualValueIterator(2);
+			final StringBuilder forward = new StringBuilder(32);
+			while (it.hasNext()) {
+				forward.append(it.nextLong()).append(' ');
+			}
+			assertEquals(
+				"21 31 ", forward.toString(),
+				"a keyed forward walk must start at its key and stop at the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("a forward iterator opened past the last key yields nothing rather than running off the arrays")
+		void shouldBoundKeyedForwardIterationPastTheLastKey() {
+			// the key lands in the phantom slot the raised peek claims and the arrays do not carry
+			final PrimitiveIterator.OfLong it = tornSingleLeafTree().greaterOrEqualValueIterator(9);
+			assertFalse(it.hasNext(), "no live key is greater than 9, so the walk must be empty");
+		}
+
+		@Test
+		@DisplayName("a reverse iterator opened from a key stays inside the arrays it read")
+		void shouldBoundKeyedReverseIterationWhenPeekRunsAheadOfTheArrays() {
+			final PrimitiveIterator.OfLong it = tornSingleLeafTree().lesserOrEqualValueIterator(9);
+			final StringBuilder reverse = new StringBuilder(32);
+			while (it.hasNext()) {
+				reverse.append(it.nextLong()).append(' ');
+			}
+			assertEquals(
+				"31 21 11 1 ", reverse.toString(),
+				"a keyed reverse walk opened past the end must fall back onto the live run"
+			);
+		}
+
+		@Test
+		@DisplayName("a keyed entry iterator stays inside the arrays it read")
+		void shouldBoundKeyedEntryIterationWhenPeekRunsAheadOfTheArrays() {
+			// the entry iterators reach the same two constructors through a different subclass, so they are asserted
+			// separately rather than assumed to follow from the value iterators
+			final Iterator<Entry> it = tornSingleLeafTree().greaterOrEqualEntryIterator(3);
+			assertTrue(it.hasNext(), "the last live key must still be reachable");
+			final Entry entry = it.next();
+			assertEquals(3, entry.key(), "the keyed entry walk must start at its key");
+			assertEquals(31L, entry.value());
+			assertFalse(it.hasNext(), "and must stop at the live run");
 		}
 	}
 

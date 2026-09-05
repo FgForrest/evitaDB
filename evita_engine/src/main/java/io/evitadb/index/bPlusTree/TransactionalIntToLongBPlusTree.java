@@ -181,27 +181,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		return Math.min(peek, Math.min(keys.length, values.length) - 1);
 	}
 
-	/**
-	 * Computes where an iterator seeded with a key must start inside the leaf the cursor already stands on, bounding
-	 * the search by the arrays that leaf actually holds ({@link #observableLeafPeek}).
-	 *
-	 * Replaces a `getKeys()` paired with a separately-resolved `size()`: those are two independent reads of the leaf's
-	 * transactional state, so the count could name a slot the array beside it does not carry, and the binary search
-	 * would probe past its end.
-	 *
-	 * @param cursor the descent cursor standing on the leaf the iteration starts in
-	 * @param key    the key the iteration is seeded with
-	 * @return the position the navigator should start from
-	 */
-	@Nonnull
-	private static InsertionPosition seekPosition(@Nonnull Cursor cursor, int key) {
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
-		final int[] theKeys = leaf.getKeys();
-		final long[] theValues = leaf.getValues();
-		return computeInsertPositionOfIntInOrderedArray(
-			key, theKeys, 0, observableLeafPeek(leaf.getPeek(), theKeys, theValues) + 1);
-	}
-
 	@Nonnull
 	@Override
 	protected BPlusInternalTreeNode createInternalNode(
@@ -521,6 +500,68 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	@Nonnull
 	public Iterator<Entry> lesserOrEqualEntryIterator(int key) {
 		return new ReverseTreeEntryIterator(createCursor(key), key);
+	}
+
+	/**
+	 * Extends {@link AbstractIntKeyedBPlusTree#getConsistencyReport()} with a check the shared structural verifier
+	 * cannot perform: that every leaf's key and value arrays still cover its live run, the invariant the content-sized
+	 * leaf arrays introduced. Only reached when the inherited checks already passed.
+	 *
+	 * @return the inherited report, or {@link ConsistencyState#BROKEN} when a leaf's arrays trail its own peek
+	 */
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		final ConsistencyReport report = super.getConsistencyReport();
+		if (report.state() != ConsistencyState.CONSISTENT) {
+			return report;
+		}
+		try {
+			verifyLeafArraysCoverTheirContent(getRoot());
+		} catch (IllegalStateException e) {
+			return new ConsistencyReport(ConsistencyState.BROKEN, e.getMessage());
+		}
+		return report;
+	}
+
+	/**
+	 * Verifies that every leaf's key and value arrays cover its own live run - both lengths must be at least
+	 * `peek + 1`.
+	 *
+	 * Since the leaf arrays started following their content this stopped being a tautology, and it is the premise
+	 * the whole {@link #observableLeafPeek} family, every {@code ensurePhysicalLength} call site and the split's
+	 * logical `end` argument rest on. Nothing else in the shared verifier looks at an array length, so a tree that
+	 * broke it passes every structural check and only then throws - or silently truncates a read - from an
+	 * unrelated path much later.
+	 *
+	 * @param node the node to verify; the recursion descends internal nodes
+	 * @throws IllegalStateException when a leaf's arrays cannot cover its live run
+	 */
+	private static void verifyLeafArraysCoverTheirContent(@Nonnull BPlusTreeNode<?> node) {
+		if (node instanceof final BPlusInternalTreeNode internalNode) {
+			final BPlusTreeNode<?>[] children = internalNode.getChildren();
+			final int childCount = internalNode.size();
+			for (int i = 0; i < childCount; i++) {
+				verifyLeafArraysCoverTheirContent(children[i]);
+			}
+		} else if (node instanceof final BPlusLeafTreeNode leaf) {
+			final int liveRun = leaf.getPeek() + 1;
+			final int[] theKeys = leaf.getKeys();
+			final long[] theValues = leaf.getValues();
+			if (theKeys.length < liveRun) {
+				throw new IllegalStateException(
+					"Leaf node key array holds " + theKeys.length + " slots, less than its live run of " + liveRun + "!"
+				);
+			}
+			if (theValues.length < liveRun) {
+				throw new IllegalStateException(
+					"Leaf node value array holds " + theValues.length + " slots, less than its live run of "
+						+ liveRun + "!"
+				);
+			}
+		} else {
+			throw new GenericEvitaInternalError("Unknown node type: " + node);
+		}
 	}
 
 	@Override
@@ -1293,6 +1334,31 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
+		/**
+		 * Resolves the insertion position of the given key in this leaf's (transaction-aware) key array. Used by the
+		 * keyed-start iterators, which need only the primitive position and present flag.
+		 *
+		 * It exists so those iterators cannot compute that position from a `getKeys()` and a `getPeek()` resolved
+		 * independently of each other - the shape {@link #observableLeafPeek} was written to close, and the one shape
+		 * a keyed iterator could not delegate to {@code loadCurrentLeaf()}, because Java requires the position before
+		 * the {@code super(...)} that would run it. Resolving the transactional layer once through
+		 * {@link #currentState()} is what makes the three fields it bounds against belong to one another.
+		 *
+		 * @param key the key to locate
+		 * @return the insertion position of the key within this leaf, bounded by the arrays it was read from
+		 */
+		@Nonnull
+		public InsertionPosition findKeyPosition(int key) {
+			final BPlusLeafTreeNode current = currentState();
+			final int[] theKeys = current.keys;
+			// the value array is read and bounded against even though only the keys are searched: the position this
+			// returns is a slot number every caller then addresses on the values, so handing back one the values
+			// cannot carry would only move the out-of-bounds to the caller
+			final long[] theValues = current.values;
+			return computeInsertPositionOfIntInOrderedArray(
+				key, theKeys, 0, observableLeafPeek(current.peek, theKeys, theValues) + 1);
+		}
+
 		@Override
 		public String toString() {
 			final StringBuilder sb = new StringBuilder(64);
@@ -1319,24 +1385,36 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * and value arrays are cloned (the keys and values are primitive value types) so that a later mutation, or a
 		 * repeated {@link #restore}, cannot corrupt the memento.
 		 *
+		 * A zero-length array is carried through as-is rather than cloned: it can hold no element, so no mutation can
+		 * reach it and the reusability contract above is unaffected - while cloning it would take the never-written
+		 * leaf of an empty tree (one per sort index and one per chain index in the catalog) off the shared empty
+		 * arrays and hand it two private objects the heap walk then charges it for.
+		 *
 		 * @return an independent snapshot of this leaf's two arrays and peek
 		 */
 		@Nonnull
 		@Override
 		public BPlusLeafNodeMemento snapshot() {
-			return new BPlusLeafNodeMemento(this.keys.clone(), this.values.clone(), this.peek);
+			return new BPlusLeafNodeMemento(
+				this.keys.length == 0 ? this.keys : this.keys.clone(),
+				this.values.length == 0 ? this.values : this.values.clone(),
+				this.peek
+			);
 		}
 
 		/**
 		 * Restores the array state captured by {@link #snapshot}. Fresh clones of the memento's arrays are installed so
-		 * the memento stays reusable for a repeated restore.
+		 * the memento stays reusable for a repeated restore - except for a zero-length array, which is shared for the
+		 * reason {@link #snapshot} gives.
 		 *
 		 * @param memento the state previously captured by {@link #snapshot}
 		 */
 		@Override
 		public void restore(@Nonnull BPlusLeafNodeMemento memento) {
-			this.keys = memento.keys().clone();
-			this.values = memento.values().clone();
+			final int[] mementoKeys = memento.keys();
+			final long[] mementoValues = memento.values();
+			this.keys = mementoKeys.length == 0 ? mementoKeys : mementoKeys.clone();
+			this.values = mementoValues.length == 0 ? mementoValues : mementoValues.clone();
 			this.peek = memento.peek();
 		}
 
@@ -1577,7 +1655,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractForwardTreeIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, seekPosition(cursor, key));
+			super(cursor, cursor.<BPlusLeafTreeNode>leafNode().findKeyPosition(key));
 		}
 
 		@Override
@@ -1623,7 +1701,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractReverseTreeIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, seekPosition(cursor, key));
+			super(cursor, cursor.<BPlusLeafTreeNode>leafNode().findKeyPosition(key));
 		}
 
 		@Override

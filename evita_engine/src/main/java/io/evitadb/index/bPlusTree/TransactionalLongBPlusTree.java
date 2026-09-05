@@ -3361,8 +3361,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * It exists so those iterators cannot compute that position from a `getKeys()` and a `size()` resolved
 		 * independently of each other — the shape {@link #observableLeafPeek} was written to close, and the one shape
 		 * a keyed iterator could not delegate to {@code loadCurrentLeaf()}, because Java requires the position before
-		 * the {@code super(...)} that would run it. The sibling {@code TransactionalElementBPlusTree} carries a method
-		 * of the same name for the same reason.
+		 * the {@code super(...)} that would run it. The siblings {@code TransactionalElementBPlusTree} and
+		 * {@code TransactionalIntToLongBPlusTree} carry a method of the same name for the same reason.
 		 *
 		 * @param key the key to locate
 		 * @return the insertion position of the key within this leaf, bounded by the arrays it was read from

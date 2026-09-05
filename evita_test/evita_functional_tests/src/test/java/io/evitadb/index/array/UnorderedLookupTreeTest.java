@@ -30,6 +30,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.ColumnSizing;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1010,8 +1011,10 @@ class UnorderedLookupTreeTest {
 	class PagingTest {
 
 		/**
-		 * Builds a paged, head-aware tree with the given leaf capacity (physical leaf array = leafCapacity + 1). The
-		 * internal fan-out is kept at `min(DEFAULT_BLOCK_SIZE, leafCapacity)` so tiny-leaf trees stay valid.
+		 * Builds a paged, head-aware tree with the given leaf capacity — `leafCapacity + 1` is the containers'
+		 * **logical** slot capacity (the `+1` hosts the transient pre-split overflow record); their record arrays
+		 * follow the live content and only grow towards it. The internal fan-out is kept at
+		 * `min(DEFAULT_BLOCK_SIZE, leafCapacity)` so tiny-leaf trees stay valid.
 		 */
 		@Nonnull
 		private static TreeWithIndex pagedTree(int leafCapacity) {
@@ -1193,6 +1196,12 @@ class UnorderedLookupTreeTest {
 				0, sortLeaf.getRecordIds().length,
 				"an empty SortIndex leaf must allocate no record slots at all"
 			);
+			// the heap walk subtracts the shared array by IDENTITY, so a private `new int[0]` would satisfy the
+			// length above while still costing an object header and being charged for
+			assertSame(
+				ArrayUtils.EMPTY_INT_ARRAY, sortLeaf.getRecordIds(),
+				"an empty leaf must park on the shared empty array rather than mint its own"
+			);
 			assertNull(sortLeaf.getHeadMask(), "SortIndex leaves allocate no head-mask array (null - zero cost)");
 			final int maskWords = (UnorderedLookupTree.PAGE_RECORDS + 1 + 63) / 64;
 			final UnorderedLookupTree.LeafNode chainLeaf =
@@ -1202,6 +1211,10 @@ class UnorderedLookupTreeTest {
 				0, chainLeaf.getRecordIds().length,
 				"an empty ChainIndex leaf must allocate no record slots either - this is the 4,120 B that goes away"
 			);
+			assertSame(
+				ArrayUtils.EMPTY_INT_ARRAY, chainLeaf.getRecordIds(),
+				"and it must park on the same shared empty array"
+			);
 			assertEquals(maskWords, chainLeaf.getHeadMask().length, "paged head-aware leaves carry a multi-word mask");
 			// the non-paged, non-head-aware tree rejects every page-SPI call (the SPI is gated behind `paged`)
 			final UnorderedLookupTree sortIndexStyle = new UnorderedLookupTree();
@@ -1209,6 +1222,36 @@ class UnorderedLookupTreeTest {
 			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::collectChangedPages);
 			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::livePageSequences);
 			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::forgetPageStream);
+		}
+
+		@Test
+		@DisplayName("a container reloaded from a page is sized to that page and grows on its first insert")
+		void shouldGrowAReloadedContainerOnItsFirstInsert() {
+			// the reload sizes each container straight to its page rather than to the leaf capacity, on the premise
+			// that the first insert reaching it grows it back through `getRecordIdsForUpdate`. Nothing else exercises
+			// that premise: the only other test of this entry point asserts corruption detection and never writes to
+			// a reloaded container
+			final TreeWithIndex tested = pagedTree(16);
+			tested.tree.assembleFromLeafPages(
+				List.of(new UnorderedLookupTree.LeafPageInput(0, new int[]{11, 22, 33, 44}, new long[]{0L})),
+				tested
+			);
+
+			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
+			assertEquals(
+				4, leaf.getRecordIds().length,
+				"a reloaded container must be sized to its page, not to the leaf capacity"
+			);
+			assertEquals(17, leaf.capacity(), "the LOGICAL capacity must still be leafCapacity + 1");
+
+			// the write the sizing leans on: without the growth this indexes slot 4 of a four-slot array
+			tested.addAfter(44, 55);
+
+			assertTrue(
+				leaf.getRecordIds().length > 4,
+				"the first insert must grow the reloaded container's array beyond the page it was sized to"
+			);
+			assertConsistentWithOracle(tested, List.of(11, 22, 33, 44, 55));
 		}
 	}
 
@@ -1399,7 +1442,6 @@ class UnorderedLookupTreeTest {
 		}
 	}
 
-
 	@Nested
 	@DisplayName("Content-sized leaf containers")
 	class ContentSizedLeafTest {
@@ -1537,6 +1579,31 @@ class UnorderedLookupTreeTest {
 
 			assertConsistentWithOracle(tested, oracle);
 		}
+
+		@Test
+		@DisplayName("the consistency report names a container whose count runs past its array")
+		void shouldReportAContainerWhoseCountRunsPastItsArray() {
+			// `recordIds.length >= count` is what every reader bound, every `getRecordIdsForUpdate(int)` call site and
+			// the whole `observableLeafCount` family rest on - and nothing else in the verifier reads an array length
+			// at all. A tree that broke it passed every structural check and then threw, or returned a phantom record
+			// id, from an unrelated read path much later
+			final TreeWithIndex tested = new TreeWithIndex(
+				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP));
+			tested.bulkLoad(new int[]{11, 22, 33, 44});
+
+			final UnorderedLookupTree.LeafNode leaf = singleLeaf(tested.tree);
+			assertEquals(4, leaf.getRecordIds().length, "the fixture needs a container sized exactly to its load");
+			assertConsistent(tested);
+
+			leaf.setCount(leaf.getCount() + 1);
+
+			final ConsistencyReport report = tested.tree.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state());
+			assertTrue(
+				report.report().contains("Container record array holds 4 slots"),
+				"the report must name the array that cannot cover its container's count, was:\n" + report.report()
+			);
+		}
 	}
 
 	@Nested
@@ -1635,6 +1702,106 @@ class UnorderedLookupTreeTest {
 			assertArrayEquals(
 				new int[]{11, 22, 33, 44}, handles.get(0).recordIds(),
 				"the page must carry the live run, never a padded zero record id"
+			);
+		}
+
+		@Test
+		@DisplayName("the container rendering stays inside the array it read")
+		void shouldBoundTheContainerRenderingWhenTheCountRunsAheadOfTheArray() {
+			// a rendering that throws is worst exactly where it is used - inside a consistency report or an error
+			// message ABOUT the very state that is broken, which is then swallowed by the failure it was describing
+			assertEquals(
+				"[11, 22, 33, 44]", tornSingleContainerTree().tree.getRoot().toString(),
+				"the rendering must stop at the live run rather than index past the array"
+			);
+		}
+
+		/**
+		 * Builds a two-container tree whose PARENT augmentation runs ahead of the container array below it — the
+		 * shape the positional descent's own bound names, and the one the single-container fixture cannot produce.
+		 *
+		 * `getRecordAt` rejects `position >= size()` first, with the very same exception type and message the array
+		 * bound raises, so a test built on the single-container fixture (whose `size()` stays at four) would pass with
+		 * the bound deleted. Raising a child count instead leaves `size()` untouched and routes a position the tree
+		 * still considers live into a slot the container's array does not carry.
+		 *
+		 * @return a tree of two four-record containers whose first child count claims five
+		 */
+		@Nonnull
+		private TreeWithIndex tornChildCountTree() {
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
+			tested.bulkLoad(new int[]{11, 22, 33, 44, 55, 66, 77, 88});
+
+			final Object root = tested.tree.getRoot();
+			assertInstanceOf(
+				UnorderedLookupTree.InternalNode.class, root,
+				"the fixture needs a routing spine over two containers, but the root is " + root
+			);
+			final UnorderedLookupTree.InternalNode internal = (UnorderedLookupTree.InternalNode) root;
+			assertEquals(2, internal.getChildCount(), "the fixture needs exactly two containers");
+			assertEquals(4, internal.getCounts()[0], "the fixture needs the first container packed to four records");
+			assertEquals(4, internal.getCounts()[1], "the fixture needs the second container packed to four records");
+			assertEquals(8, tested.tree.size(), "the fixture must hold all eight records");
+
+			internal.getCountsForUpdate()[0] = 5;
+			assertEquals(8, tested.tree.size(), "the tree's own size must stay at the eight records it holds");
+			return tested;
+		}
+
+		@Test
+		@DisplayName("the positional descent stays inside the array it lands on")
+		void shouldBoundThePositionalDescentWhenAChildCountRunsAheadOfTheArray() {
+			final TreeWithIndex tested = tornChildCountTree();
+
+			// every position the first container genuinely carries still resolves - so a bound that over-truncated
+			// would fail here rather than pass by refusing everything
+			assertEquals(11, tested.tree.getRecordAt(0));
+			assertEquals(22, tested.tree.getRecordAt(1));
+			assertEquals(33, tested.tree.getRecordAt(2));
+			assertEquals(44, tested.tree.getRecordAt(3));
+
+			// position 4 is the phantom slot the raised child count claims and the four-slot array does not carry
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tested.tree.getRecordAt(4),
+				"the phantom slot must answer with the method's own out-of-bounds contract, not an "
+					+ "ArrayIndexOutOfBoundsException out of the middle of a descent"
+			);
+
+			// the phantom count shifts every later position by one; the point here is only that the descent keeps
+			// landing inside the second container's array rather than running past it
+			assertEquals(55, tested.tree.getRecordAt(5));
+			assertEquals(66, tested.tree.getRecordAt(6));
+			assertEquals(77, tested.tree.getRecordAt(7));
+		}
+
+		@Test
+		@DisplayName("the head select stays inside the array it read")
+		void shouldBoundTheHeadSelectWhenAMaskBitRunsAheadOfTheArray() {
+			// the head mask is the ONE array in a container that is never content-sized - it stays `leafCapacity + 1`
+			// bits wide - so a reader can pair a mask bit with the shorter record array that preceded the growth
+			// which opened its slot
+			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
+			tested.bulkLoadWithHeads(new int[]{11, 22, 33, 44}, new int[]{0, 1, 2, 3});
+
+			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
+			assertEquals(4, leaf.getRecordIds().length, "the fixture needs a container sized exactly to its load");
+			leaf.getHeadMaskForUpdate()[0] |= 1L << 4;
+
+			// every rank the array genuinely carries still resolves to its true (position, record id) pair
+			final int[] expectedRecordIds = {11, 22, 33, 44};
+			for (int rank = 1; rank <= 4; rank++) {
+				final long packed = tested.tree.selectHead(rank);
+				assertEquals(rank - 1, (int) (packed >> 32), "head rank " + rank + " must keep its position");
+				assertEquals(expectedRecordIds[rank - 1], (int) packed, "head rank " + rank + " must keep its record");
+			}
+
+			// the fifth bit names a slot the record array does not carry
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tested.tree.selectHead(5),
+				"a mask bit past the record array must answer with the method's own not-found contract, not an "
+					+ "ArrayIndexOutOfBoundsException"
 			);
 		}
 	}

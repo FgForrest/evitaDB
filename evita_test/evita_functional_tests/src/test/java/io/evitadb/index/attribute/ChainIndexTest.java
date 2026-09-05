@@ -2868,7 +2868,6 @@ class ChainIndexTest {
 		}
 	}
 
-
 	@Nested
 	@DisplayName("Content-sized footprint")
 	class ContentSizedFootprintTest {
