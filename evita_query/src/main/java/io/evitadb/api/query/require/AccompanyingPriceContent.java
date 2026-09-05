@@ -170,7 +170,7 @@ public class AccompanyingPriceContent
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
 		return anotherRequirement instanceof AccompanyingPriceContent anotherAccompanyingPrice &&
-			getAccompanyingPriceKey().equals(anotherAccompanyingPrice.getAccompanyingPriceKey());
+			getAccompanyingPriceNameOrDefault().equals(anotherAccompanyingPrice.getAccompanyingPriceNameOrDefault());
 	}
 
 	/**
@@ -202,8 +202,8 @@ public class AccompanyingPriceContent
 				"Only accompanying price content requirement can be combined with this one!"
 			);
 		}
-		final String priceName = getAccompanyingPriceKey();
-		if (!priceName.equals(anotherAccompanyingPrice.getAccompanyingPriceKey())) {
+		final String priceName = getAccompanyingPriceNameOrDefault();
+		if (!priceName.equals(anotherAccompanyingPrice.getAccompanyingPriceNameOrDefault())) {
 			throw new GenericEvitaInternalError(
 				"Only accompanying price content requirements calculating the price of the same name can be " +
 					"combined - but got: " + this + " and " + anotherRequirement + "!",
@@ -211,11 +211,11 @@ public class AccompanyingPriceContent
 			);
 		}
 		if (!Arrays.equals(getPriceLists(), anotherAccompanyingPrice.getPriceLists())) {
+			final String reason = "Cannot combine multiple accompanying price content requirements for price `" +
+				priceName + "` with different price lists";
 			throw new EvitaInvalidUsageException(
-				"Cannot combine multiple accompanying price content requirements for price `" + priceName +
-					"` with different price lists: " + this + " and " + anotherRequirement + ".",
-				"Cannot combine multiple accompanying price content requirements for price `" + priceName +
-					"` with different price lists."
+				reason + ": " + this + " and " + anotherRequirement + ".",
+				reason + "."
 			);
 		}
 		//noinspection unchecked
@@ -234,7 +234,7 @@ public class AccompanyingPriceContent
 	@Override
 	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
 		return anotherRequirement instanceof AccompanyingPriceContent anotherAccompanyingPrice &&
-			getAccompanyingPriceKey().equals(anotherAccompanyingPrice.getAccompanyingPriceKey()) &&
+			getAccompanyingPriceNameOrDefault().equals(anotherAccompanyingPrice.getAccompanyingPriceNameOrDefault()) &&
 			Arrays.equals(getPriceLists(), anotherAccompanyingPrice.getPriceLists());
 	}
 
@@ -246,7 +246,7 @@ public class AccompanyingPriceContent
 	 * @return name of the calculated accompanying price, never null
 	 */
 	@Nonnull
-	private String getAccompanyingPriceKey() {
+	private String getAccompanyingPriceNameOrDefault() {
 		return getAccompanyingPriceName().orElse(DEFAULT_ACCOMPANYING_PRICE);
 	}
 

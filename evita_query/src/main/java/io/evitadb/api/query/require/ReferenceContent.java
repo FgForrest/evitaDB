@@ -45,16 +45,17 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.require.EntityFetchRequire.combineRequirements;
 import static java.util.Optional.empty;
@@ -1059,38 +1060,20 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 		final Optional<FilterBy> thisFilterBy = getFilterBy();
 		final Optional<FilterBy> thatFilterBy = anotherReferenceContent.getFilterBy();
-		if (thisFilterBy.isPresent() && thatFilterBy.isPresent() && !thisFilterBy.equals(thatFilterBy)) {
-			throw new EvitaInvalidUsageException(
-				"Cannot combine multiple reference content requirements with different filter constraints: " +
-					this + " and " + anotherRequirement,
-				"Cannot combine multiple reference content requirements with different filter constraints."
-			);
-		}
+		assertConstraintsCompatible("filter", thisFilterBy, thatFilterBy, anotherReferenceContent);
 		// a side carrying no filter asks for every reference and is the superset - the filter is dropped
 		final FilterBy combinedFilterBy = thisFilterBy.isPresent() && thatFilterBy.isPresent() ?
 			thisFilterBy.get() : null;
 
 		final Optional<OrderBy> thisOrderBy = getOrderBy();
 		final Optional<OrderBy> thatOrderBy = anotherReferenceContent.getOrderBy();
-		if (thisOrderBy.isPresent() && thatOrderBy.isPresent() && !thisOrderBy.equals(thatOrderBy)) {
-			throw new EvitaInvalidUsageException(
-				"Cannot combine multiple reference content requirements with different order constraints: " +
-					this + " and " + anotherRequirement,
-				"Cannot combine multiple reference content requirements with different order constraints."
-			);
-		}
+		assertConstraintsCompatible("order", thisOrderBy, thatOrderBy, anotherReferenceContent);
 		// an order drops no reference - the single order present is retained
 		final OrderBy combinedOrderBy = thisOrderBy.or(() -> thatOrderBy).orElse(null);
 
 		final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
 		final Optional<ChunkingRequireConstraint> thatChunking = anotherReferenceContent.getChunking();
-		if (thisChunking.isPresent() && thatChunking.isPresent() && !thisChunking.equals(thatChunking)) {
-			throw new EvitaInvalidUsageException(
-				"Cannot combine multiple reference content requirements with different chunking constraints: " +
-					this + " and " + anotherRequirement,
-				"Cannot combine multiple reference content requirements with different chunking constraints."
-			);
-		}
+		assertConstraintsCompatible("chunking", thisChunking, thatChunking, anotherReferenceContent);
 		// a side carrying no chunking asks for every reference and is the superset - the chunking is dropped
 		final ChunkingRequireConstraint combinedChunking = thisChunking.isPresent() && thatChunking.isPresent() ?
 			thisChunking.get() : null;
@@ -1130,6 +1113,33 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	/**
+	 * Verifies that a sub-constraint carried by **both** merged requirements is the very same one on both sides.
+	 * A sub-constraint present on a single side only passes, because {@link #combineWith(EntityContentRequire)}
+	 * reconciles that case on its own - either by dropping the restriction or by retaining the only one present.
+	 *
+	 * @param constraintName     name of the reconciled sub-constraint as it appears in the refusal message
+	 * @param thisConstraint     the sub-constraint carried by this requirement, empty when it carries none
+	 * @param anotherConstraint  the sub-constraint carried by the other requirement, empty when it carries none
+	 * @param anotherRequirement the other requirement, rendered into the refusal message
+	 * @throws EvitaInvalidUsageException when both sides carry the sub-constraint and the two differ
+	 */
+	private void assertConstraintsCompatible(
+		@Nonnull String constraintName,
+		@Nonnull Optional<? extends Constraint<?>> thisConstraint,
+		@Nonnull Optional<? extends Constraint<?>> anotherConstraint,
+		@Nonnull ReferenceContent anotherRequirement
+	) {
+		if (thisConstraint.isPresent() && anotherConstraint.isPresent() && !thisConstraint.equals(anotherConstraint)) {
+			final String reason = "Cannot combine multiple reference content requirements with different " +
+				constraintName + " constraints";
+			throw new EvitaInvalidUsageException(
+				reason + ": " + this + " and " + anotherRequirement,
+				reason + "."
+			);
+		}
+	}
+
+	/**
 	 * Determines whether both requirements address exactly the same references, i.e. whether they share the same key
 	 * of *(instance name, set of reference names)*. See {@link #isCombinableWith(EntityContentRequire)} for the full
 	 * description of the key.
@@ -1150,10 +1160,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	private Set<String> getReferenceNamesAsSet() {
-		return Arrays.stream(getArguments())
-			.filter(String.class::isInstance)
-			.map(String.class::cast)
-			.collect(Collectors.toSet());
+		final String[] referenceNames = getReferenceNames();
+		final Set<String> result = CollectionUtils.createHashSet(referenceNames.length);
+		Collections.addAll(result, referenceNames);
+		return result;
 	}
 
 	/**

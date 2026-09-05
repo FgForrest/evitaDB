@@ -415,20 +415,20 @@ class ReferenceContentTest {
 	 * {@link QueryConstraints}, so the internal constructor has to be used directly.
 	 *
 	 * @param instanceName name of the reference content instance (alias)
-	 * @param referenceNames names of the references the instance addresses
+	 * @param referenceName name of the reference the instance addresses
 	 * @param requirements requirements nested in the instance
 	 * @return named reference content instance
 	 */
 	@Nonnull
 	private static ReferenceContent namedReferenceContent(
 		@Nonnull String instanceName,
-		@Nonnull String[] referenceNames,
+		@Nonnull String referenceName,
 		@Nonnull RequireConstraint... requirements
 	) {
 		return new ReferenceContent(
 			instanceName,
 			ManagedReferencesBehaviour.ANY,
-			referenceNames,
+			new String[]{referenceName},
 			requirements,
 			new Constraint<?>[0]
 		);
@@ -463,8 +463,8 @@ class ReferenceContentTest {
 		@DisplayName("two instances sharing an alias and a reference name are combinable")
 		void shouldBeCombinableWhenInstanceNameAndReferenceNameMatch() {
 			assertTrue(
-				namedReferenceContent("alias", new String[]{"a"})
-					.isCombinableWith(namedReferenceContent("alias", new String[]{"a"}, entityFetchAll()))
+				namedReferenceContent("alias", "a")
+					.isCombinableWith(namedReferenceContent("alias", "a", entityFetchAll()))
 			);
 		}
 
@@ -492,16 +492,16 @@ class ReferenceContentTest {
 		@DisplayName("the same reference under two different aliases is not combinable")
 		void shouldNotBeCombinableWhenInstanceNamesDiffer() {
 			assertFalse(
-				namedReferenceContent("first", new String[]{"a"})
-					.isCombinableWith(namedReferenceContent("second", new String[]{"a"}))
+				namedReferenceContent("first", "a")
+					.isCombinableWith(namedReferenceContent("second", "a"))
 			);
 		}
 
 		@Test
 		@DisplayName("a named instance is not combinable with an unnamed requirement")
 		void shouldNotBeCombinableWhenOnlyOneSideIsNamedInstance() {
-			assertFalse(namedReferenceContent("alias", new String[]{"a"}).isCombinableWith(referenceContent("a")));
-			assertFalse(referenceContent("a").isCombinableWith(namedReferenceContent("alias", new String[]{"a"})));
+			assertFalse(namedReferenceContent("alias", "a").isCombinableWith(referenceContent("a")));
+			assertFalse(referenceContent("a").isCombinableWith(namedReferenceContent("alias", "a")));
 		}
 
 		@Test
@@ -610,14 +610,14 @@ class ReferenceContentTest {
 		@DisplayName("the instance name survives combining")
 		void shouldRetainInstanceNameOfCombinedRequirements() {
 			final ReferenceContent combined = namedReferenceContent(
-				"alias", new String[]{"a"}, entityFetch(attributeContent("code"))
+				"alias", "a", entityFetch(attributeContent("code"))
 			).combineWith(
-				namedReferenceContent("alias", new String[]{"a"}, entityFetch(attributeContent("name")))
+				namedReferenceContent("alias", "a", entityFetch(attributeContent("name")))
 			);
 
 			assertEquals("alias", combined.getInstanceName());
 			assertEquals(
-				namedReferenceContent("alias", new String[]{"a"}, entityFetch(attributeContent("code", "name"))),
+				namedReferenceContent("alias", "a", entityFetch(attributeContent("code", "name"))),
 				combined
 			);
 		}
@@ -707,7 +707,7 @@ class ReferenceContentTest {
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> namedReferenceContent("alias", new String[]{"a"}).combineWith(referenceContent("a"))
+				() -> namedReferenceContent("alias", "a").combineWith(referenceContent("a"))
 			);
 		}
 
@@ -840,7 +840,7 @@ class ReferenceContentTest {
 		@DisplayName("a named instance is never contained")
 		void shouldNotBeFullyContainedWhenThisCarriesInstanceName() {
 			assertFalse(
-				namedReferenceContent("alias", new String[]{"a"}).isFullyContainedWithin(referenceContentAll())
+				namedReferenceContent("alias", "a").isFullyContainedWithin(referenceContentAll())
 			);
 		}
 
@@ -848,7 +848,7 @@ class ReferenceContentTest {
 		@DisplayName("nothing is ever contained within a named instance")
 		void shouldNotBeFullyContainedWhenOtherCarriesInstanceName() {
 			assertFalse(
-				referenceContent("a").isFullyContainedWithin(namedReferenceContent("alias", new String[]{"a"}))
+				referenceContent("a").isFullyContainedWithin(namedReferenceContent("alias", "a"))
 			);
 		}
 

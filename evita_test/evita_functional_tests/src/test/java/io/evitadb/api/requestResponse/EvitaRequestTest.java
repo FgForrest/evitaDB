@@ -1952,6 +1952,22 @@ class EvitaRequestTest {
 	class DuplicateContentRequirementTest {
 
 		/**
+		 * Builds a request fetching the passed content requirements
+		 * from the `product` collection.
+		 */
+		@Nonnull
+		private EvitaRequest createFetchRequest(
+			@Nonnull EntityContentRequire... requirements
+		) {
+			return createRequest(
+				query(
+					collection("product"),
+					require(entityFetch(requirements))
+				)
+			);
+		}
+
+		/**
 		 * Returns the single {@link AttributeContent} requirement held
 		 * directly by the passed fetch container.
 		 */
@@ -2002,21 +2018,14 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges two referenceContent of one reference")
 		void shouldMergeTwoReferenceContentsOfSameReference() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent(
-								"category",
-								entityFetch(attributeContent("code"))
-							),
-							referenceContent(
-								"category",
-								entityFetch(attributeContent("name"))
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent(
+					"category",
+					entityFetch(attributeContent("code"))
+				),
+				referenceContent(
+					"category",
+					entityFetch(attributeContent("name"))
 				)
 			);
 
@@ -2046,16 +2055,9 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges two referenceContentAll")
 		void shouldMergeTwoDefaultReferenceContents() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContentAll(),
-							referenceContentAll()
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				referenceContentAll(),
+				referenceContentAll()
 			);
 
 			assertNotNull(
@@ -2076,18 +2078,11 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("keeps default beside name specific")
 		void shouldKeepDefaultBesideNameSpecific() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContentAll(),
-							referenceContent(
-								"category",
-								entityFetch(attributeContent("code"))
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				referenceContentAll(),
+				referenceContent(
+					"category",
+					entityFetch(attributeContent("code"))
 				)
 			);
 
@@ -2117,21 +2112,14 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges two occurrences of one alias")
 		void shouldMergeTwoOccurrencesOfOneAlias() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							namedReferenceContent(
-								"alias", "category",
-								entityFetch(attributeContent("code"))
-							),
-							namedReferenceContent(
-								"alias", "category",
-								entityFetch(attributeContent("name"))
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				namedReferenceContent(
+					"alias", "category",
+					entityFetch(attributeContent("code"))
+				),
+				namedReferenceContent(
+					"alias", "category",
+					entityFetch(attributeContent("name"))
 				)
 			);
 
@@ -2158,21 +2146,14 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("keeps two distinct aliases apart")
 		void shouldKeepTwoDistinctAliasesApart() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							namedReferenceContent(
-								"first", "category",
-								entityFetch(attributeContent("code"))
-							),
-							namedReferenceContent(
-								"second", "category",
-								entityFetch(attributeContent("name"))
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				namedReferenceContent(
+					"first", "category",
+					entityFetch(attributeContent("code"))
+				),
+				namedReferenceContent(
+					"second", "category",
+					entityFetch(attributeContent("name"))
 				)
 			);
 
@@ -2198,16 +2179,9 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges attributeContent with all variant")
 		void shouldMergeAttributeContentWithAllVariant() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							entityFetchAllContentAnd(
-								attributeContent("code")
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				entityFetchAllContentAnd(
+					attributeContent("code")
 				)
 			);
 
@@ -2226,16 +2200,9 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges associatedDataContent with all variant")
 		void shouldMergeAssociatedDataContentWithAllVariant() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							associatedDataContent("labels"),
-							associatedDataContentAll()
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				associatedDataContent("labels"),
+				associatedDataContentAll()
 			);
 
 			assertTrue(
@@ -2254,18 +2221,11 @@ class EvitaRequestTest {
 		@DisplayName("merges priceContent into richer mode")
 		@Tag(PRICE)
 		void shouldMergePriceContentIntoRicherMode() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							priceContent(
-								RESPECTING_FILTER, "basic"
-							),
-							priceContentAll()
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				priceContent(
+					RESPECTING_FILTER, "basic"
+				),
+				priceContentAll()
 			);
 
 			assertEquals(
@@ -2285,20 +2245,13 @@ class EvitaRequestTest {
 		@DisplayName("merges two identical accompanyingPriceContent")
 		@Tag(PRICE)
 		void shouldMergeTwoIdenticalAccompanyingPriceContents() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							priceContentAll(),
-							accompanyingPriceContent(
-								"reference", "a", "b"
-							),
-							accompanyingPriceContent(
-								"reference", "a", "b"
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				priceContentAll(),
+				accompanyingPriceContent(
+					"reference", "a", "b"
+				),
+				accompanyingPriceContent(
+					"reference", "a", "b"
 				)
 			);
 
@@ -2323,17 +2276,10 @@ class EvitaRequestTest {
 		@DisplayName("keeps two named accompanyingPriceContent apart")
 		@Tag(PRICE)
 		void shouldKeepTwoNamedAccompanyingPriceContentsApart() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							priceContentAll(),
-							accompanyingPriceContent("first", "a"),
-							accompanyingPriceContent("second", "b")
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				priceContentAll(),
+				accompanyingPriceContent("first", "a"),
+				accompanyingPriceContent("second", "b")
 			);
 
 			final AccompanyingPrice[] accompanyingPrices =
@@ -2356,20 +2302,13 @@ class EvitaRequestTest {
 		@DisplayName("refuses conflicting accompanying price lists")
 		@Tag(PRICE)
 		void shouldRefuseConflictingAccompanyingPriceLists() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							priceContentAll(),
-							accompanyingPriceContent(
-								"reference", "a"
-							),
-							accompanyingPriceContent(
-								"reference", "b"
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				priceContentAll(),
+				accompanyingPriceContent(
+					"reference", "a"
+				),
+				accompanyingPriceContent(
+					"reference", "b"
 				)
 			);
 
@@ -2390,16 +2329,9 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("merges dataInLocales with all variant")
 		void shouldMergeDataInLocalesWithAllVariant() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							dataInLocales(Locale.GERMAN),
-							dataInLocalesAll()
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				dataInLocales(Locale.GERMAN),
+				dataInLocalesAll()
 			);
 
 			final Set<Locale> requiredLocales =
@@ -2417,16 +2349,9 @@ class EvitaRequestTest {
 		@DisplayName("merges two hierarchyContent")
 		@Tag(HIERARCHY)
 		void shouldMergeTwoHierarchyContents() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							hierarchyContent(),
-							hierarchyContent()
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				hierarchyContent(),
+				hierarchyContent()
 			);
 
 			assertTrue(request.isRequiresParent());
@@ -2440,23 +2365,16 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("refuses conflicting reference filters")
 		void shouldRefuseConflictingReferenceFilters() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent(
-								"category",
-								filterBy(entityPrimaryKeyInSet(1)),
-								entityFetch(attributeContent("code"))
-							),
-							referenceContent(
-								"category",
-								filterBy(entityPrimaryKeyInSet(2)),
-								entityFetch(attributeContent("name"))
-							)
-						)
-					)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent(
+					"category",
+					filterBy(entityPrimaryKeyInSet(1)),
+					entityFetch(attributeContent("code"))
+				),
+				referenceContent(
+					"category",
+					filterBy(entityPrimaryKeyInSet(2)),
+					entityFetch(attributeContent("name"))
 				)
 			);
 
@@ -2473,16 +2391,9 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("refuses overlapping reference name sets")
 		void shouldRefuseOverlappingReferenceNameSets() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent("brand", "category"),
-							referenceContent("category", "parameter")
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent("brand", "category"),
+				referenceContent("category", "parameter")
 			);
 
 			final EvitaInvalidUsageException exception = assertThrows(
@@ -2635,19 +2546,12 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("reduces a nested fetch only when the sub-request is derived")
 		void shouldReduceNestedFetchOnlyWhenSubRequestIsDerived() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent(
-								"category",
-								entityFetch(
-									attributeContent("code"),
-									attributeContent("name")
-								)
-							)
-						)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent(
+					"category",
+					entityFetch(
+						attributeContent("code"),
+						attributeContent("name")
 					)
 				)
 			);
@@ -2686,24 +2590,17 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("refuses conflicting nested reference filters when derived")
 		void shouldRefuseConflictingNestedReferenceFiltersWhenDerived() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent(
-								"category",
-								entityFetch(
-									referenceContent(
-										"brand",
-										filterBy(entityPrimaryKeyInSet(1))
-									),
-									referenceContent(
-										"brand",
-										filterBy(entityPrimaryKeyInSet(2))
-									)
-								)
-							)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent(
+					"category",
+					entityFetch(
+						referenceContent(
+							"brand",
+							filterBy(entityPrimaryKeyInSet(1))
+						),
+						referenceContent(
+							"brand",
+							filterBy(entityPrimaryKeyInSet(2))
 						)
 					)
 				)
@@ -2729,15 +2626,8 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("accepts a reference name repeated within one requirement")
 		void shouldAcceptReferenceNameRepeatedWithinOneRequirement() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							referenceContent("brand", "brand")
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				referenceContent("brand", "brand")
 			);
 
 			final Map<String, RequirementContext> referenceEntityFetch =
@@ -2754,16 +2644,9 @@ class EvitaRequestTest {
 		@DisplayName("drops a hierarchy stop constraint present on a single side only")
 		@Tag(HIERARCHY)
 		void shouldDropHierarchyStopAtPresentOnSingleSideOnly() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							hierarchyContent(),
-							hierarchyContent(stopAt(level(2)))
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				hierarchyContent(),
+				hierarchyContent(stopAt(level(2)))
 			);
 
 			final HierarchyContent hierarchyContent =
@@ -2781,20 +2664,13 @@ class EvitaRequestTest {
 		@Test
 		@DisplayName("refuses an aborted request the same way on every call")
 		void shouldRefuseAbortedRequestTheSameWayOnEveryCall() {
-			final EvitaRequest request = createRequest(
-				query(
-					collection("product"),
-					require(
-						entityFetch(
-							namedReferenceContent(
-								"alias", "category",
-								entityFetch(attributeContent("code"))
-							),
-							referenceContent("brand", "category"),
-							referenceContent("category", "parameter")
-						)
-					)
-				)
+			final EvitaRequest request = createFetchRequest(
+				namedReferenceContent(
+					"alias", "category",
+					entityFetch(attributeContent("code"))
+				),
+				referenceContent("brand", "category"),
+				referenceContent("category", "parameter")
 			);
 
 			final EvitaInvalidUsageException firstAttempt = assertThrows(

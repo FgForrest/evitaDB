@@ -192,19 +192,18 @@ public class EvitaRequest {
 				break;
 			}
 		}
+		final String reason = "Reference `" + referenceName + "` is requested by two referenceContent requirements " +
+			"with different reference name sets";
+		final String publicMessage = reason + "; merge them into one.";
 		if (firstClaimant == null) {
 			return new EvitaInvalidUsageException(
-				"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
-					"reference name sets, one of them being: " + conflicting + "; merge them into one.",
-				"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
-					"reference name sets; merge them into one."
+				reason + ", one of them being: " + conflicting + "; merge them into one.",
+				publicMessage
 			);
 		}
 		return new EvitaInvalidUsageException(
-			"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
-				"reference name sets: " + firstClaimant + " and " + conflicting + "; merge them into one.",
-			"Reference `" + referenceName + "` is requested by two referenceContent requirements with different " +
-				"reference name sets; merge them into one."
+			reason + ": " + firstClaimant + " and " + conflicting + "; merge them into one.",
+			publicMessage
 		);
 	}
 
@@ -768,9 +767,8 @@ public class EvitaRequest {
 			);
 			// the reduction is applied first - when it refuses a pair of contradicting requirements neither field is
 			// assigned and the next call re-attempts it and fails the same way instead of returning a partial answer
-			final EntityFetch reducedEntityFetch = entityFetch == null ?
+			this.entityRequirement = entityFetch == null ?
 				null : entityFetch.combineDuplicateRequirements();
-			this.entityRequirement = reducedEntityFetch;
 			this.requiresEntity = entityFetch != null;
 		}
 		return this.requiresEntity;
