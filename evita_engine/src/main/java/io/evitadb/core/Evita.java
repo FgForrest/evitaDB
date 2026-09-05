@@ -1908,14 +1908,28 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
+		// a transitional placeholder must answer BEFORE the registry gets a say: the operators that quiesce
+		// a catalog - go-live, deactivation, drop - install the placeholder first and suspend the registry
+		// with REJECT second, and the registry's answer to a rejected request is InstanceTerminatedException,
+		// which tells the client the catalog is gone. For a catalog that is merely going live the contract is
+		// CatalogGoingLiveException (its own javadoc, and the "Catalog States" section of EvitaSessionContract),
+		// and CatalogTransitioningException for a catalog being deactivated or dropped.
+		//
+		// Only the PLACEHOLDER answer is decided here, never the not-found one: a rename publishes the target
+		// name's POSTPONE-suspended registry before its commit lands, and a session request arriving in that
+		// window has to wait the suspension out and then succeed, not be refused CatalogNotFoundException ahead
+		// of the registry
+		final CatalogContract catalogContract = getCatalogInstance(sessionTraits.catalogName()).orElse(null);
+		if (catalogContract instanceof UnusableCatalog unusableCatalog) {
+			throw unusableCatalog.getRepresentativeException();
+		}
+		// the registry's own catalog supplier keeps the same check too - a placeholder may be installed between
+		// this line and the supplier running
 		final SessionRegistry catalogSessionRegistry = this.catalogSessionRegistries.computeIfAbsent(
 			sessionTraits.catalogName(),
 			__ -> {
-				// we need first to verify whether the catalog exists and is not corrupted
-				final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
-				if (catalogContract instanceof UnusableCatalog unusableCatalog) {
-					throw unusableCatalog.getRepresentativeException();
-				}
+				// a name that names no catalog must get no registry - see `Evita#suspendCatalogSessions`
+				getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 				return createSessionNewRegistry(sessionTraits);
 			}
 		);

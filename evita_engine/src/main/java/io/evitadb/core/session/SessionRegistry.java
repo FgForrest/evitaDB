@@ -354,10 +354,10 @@ public final class SessionRegistry {
 	 * **A weakly consistent read**, and it is meant for callers that need to know a quiesce has *been published*
 	 * rather than callers deciding what to do about one - the answer can change the instant it is returned, and
 	 * everything that must act on a suspension reads it again under the gate that owns it
-	 * ({@link #handleSuspension(Supplier)}, {@link #registerWhileNotSuspended(Supplier)}). The intended use is the
-	 * drain in `MakeCatalogAliveMutationOperator` and the tests around it, which need to wait for the suspension
-	 * published by {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} before asserting how the catalog
-	 * answers a session request.
+	 * ({@link #handleSuspension(Supplier)}, {@link #registerWhileNotSuspended(Supplier)}). The intended callers are
+	 * the tests - and any future caller of the same shape - that need to wait for the suspension published by
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} before asserting how the catalog answers
+	 * a session request.
 	 *
 	 * @return true when a suspension is standing on this registry
 	 */

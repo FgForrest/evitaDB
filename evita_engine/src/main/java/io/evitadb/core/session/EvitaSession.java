@@ -451,6 +451,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				!theCatalog.supportsTransaction(),
 				"Catalog went live already and is currently in transactional mode!"
 			);
+			// This session closes ITSELF before the operator's drain runs, and it must: the drain defers a forced
+			// close until the running method returns, and the running method is this one, waiting on the drain -
+			// a five-second stall ending in a failed go-live
+			// (see MakeCatalogAliveMutationOperator, and EvitaSessionProxy's `executeWhenMethodIsNotRunning`).
+			// The suspension taken below is otherwise redundant with the one the operator takes - the operator's
+			// call finds this one standing, drains nothing and returns. It stays so that this session is recorded
+			// as forcefully closed by the go-live (the id is added by hand, because the drain no longer sees the
+			// session it would have recorded), which `Evita#wasSessionForcefullyClosedForCatalog` reports to a
+			// client whose session vanished. The operator lifts this suspension on success and on failure alike.
 			if (isActive()) {
 				executeTerminationSteps(null, theCatalog);
 				this.closedFuture = CompletableFuture.completedFuture(
