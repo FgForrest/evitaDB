@@ -28,6 +28,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -344,6 +345,24 @@ public final class SessionRegistry {
 			return of(suspensionInformation);
 		}
 		return ofNullable(this.lastSuspensionInfo.get());
+	}
+
+	/**
+	 * Tells whether a quiesce is currently published on this registry, i.e. whether session creation is being
+	 * postponed or refused right now.
+	 *
+	 * **A weakly consistent read**, and it is meant for callers that need to know a quiesce has *been published*
+	 * rather than callers deciding what to do about one - the answer can change the instant it is returned, and
+	 * everything that must act on a suspension reads it again under the gate that owns it
+	 * ({@link #handleSuspension(Supplier)}, {@link #registerWhileNotSuspended(Supplier)}). The intended use is the
+	 * drain in `MakeCatalogAliveMutationOperator` and the tests around it, which need to wait for the suspension
+	 * published by {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} before asserting how the catalog
+	 * answers a session request.
+	 *
+	 * @return true when a suspension is standing on this registry
+	 */
+	public boolean isSuspended() {
+		return this.currentSuspension.get() != null;
 	}
 
 	/**
@@ -997,8 +1016,16 @@ public final class SessionRegistry {
 									.orElse(minimalActiveVersion)
 						);
 					}
-				} catch (CatalogTransitioningException ignored) {
+				} catch (CatalogTransitioningException | CatalogGoingLiveException ignored) {
 					// catalog is transitioning, we cannot notify it anyway
+					//
+					// `CatalogGoingLiveException` is named separately because it is NOT a
+					// `CatalogTransitioningException`: the go-live operator installs its own placeholder, whose
+					// representative exception this supplier throws while the transition runs, and a session drained
+					// by that operator would otherwise fail its termination callback here - losing the proxy
+					// finalization below it and logging an error for an entirely orderly close. There is nothing to
+					// reclaim either way: the warm-up instance being superseded has no version consumers left, and
+					// the alive instance starts its own version count.
 				}
 			}
 		}
