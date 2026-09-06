@@ -40,8 +40,10 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.session.SessionRegistry;
+import io.evitadb.core.transaction.engine.operators.MakeCatalogAliveMutationOperator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -57,12 +59,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -71,8 +75,8 @@ import static io.evitadb.test.TestTags.SESSION;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,15 +84,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Verifies that the engine-level go-live ({@link Evita#makeCatalogAlive(String)}) drains the session that is
- * already open on a warm-up catalog before the warm-up flush runs, so that no write can land on the superseded
- * {@link io.evitadb.core.catalog.Catalog} instance - the defect of issue #1495.
+ * already open on a warm-up catalog before {@code Catalog#goLive()} publishes the ALIVE bootstrap record, so that
+ * no write can land on the superseded {@link io.evitadb.core.catalog.Catalog} instance - the defect of issue
+ * #1495. Draining ahead of the warm-up flush as well is the operator's preference, not the property under test.
  *
  * Driven against a real {@link Evita}: the behaviour under test is the interaction of the mutation operator, the
  * engine state, the session registry and the session proxy's deferred close, and a double for any of them would
  * test the double.
  *
- * The failure path of the same operator - a drain that gives up - needs more than the drain's five-second bound
- * and lives in {@code LongRunningCatalogGoLiveDrainTimeoutTest}.
+ * The failure path of the same operator - a drain that gives up - costs the whole of
+ * {@code SessionRegistry#DRAIN_GIVE_UP_TIMEOUT_MILLIS} in wall-clock time and lives in
+ * {@code LongRunningCatalogGoLiveDrainTimeoutTest}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -99,13 +105,24 @@ import static org.junit.jupiter.api.Assertions.fail;
 class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	private static final String CATALOG = "goLiveDrainCatalog";
 	/**
-	 * Loggers a forcefully closed warm-up session reports through. The termination callback's failure is swallowed
+	 * Loggers a successful go-live has to stay silent on, and they cover two different silences.
+	 *
+	 * The first two carry the forced close of a warm-up session: its termination callback's failure is swallowed
 	 * into the close future, so the log is the only place it is observable.
+	 *
+	 * The other two carry the transition's own bookkeeping, every step of which is best-effort and locally caught -
+	 * {@link MakeCatalogAliveMutationOperator}'s progress-reporting, live-view and change-capture blocks on the
+	 * success path, its restore-failure block on the undo path, and {@link Catalog}'s post-publication block in
+	 * {@code goLive()}. None of those is observable to any other assertion in this class: a go-live that quietly
+	 * took one of them still reports success, still leaves the catalog ALIVE and still counts the brand.
 	 */
-	private static final Class<?>[] CAPTURED_LOGGER_CLASSES = {EvitaSession.class, CommitProgressRecord.class};
+	private static final List<Class<?>> CAPTURED_LOGGER_CLASSES = List.of(
+		EvitaSession.class, CommitProgressRecord.class, MakeCatalogAliveMutationOperator.class, Catalog.class
+	);
 	/**
-	 * How many session attempts test three makes once the suspension is provably standing. A handful is enough - the
-	 * answer is decided by the same branch every time; the loop only guards against a lucky first attempt.
+	 * How many session attempts {@link #shouldRefuseNewSessionWithGoingLiveExceptionWhileDraining()} makes once the
+	 * suspension is provably standing. A handful is enough - the answer is decided by the same branch every time;
+	 * the loop only guards against a lucky first attempt.
 	 */
 	private static final int REFUSAL_ATTEMPTS = 20;
 	/**
@@ -118,6 +135,12 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	 * tell this test's log output from that of the classes running beside it.
 	 */
 	private static final String FIXTURE_THREAD_PREFIX = "goLiveDrain-";
+	/**
+	 * Bound of every positive wait in this class, mirroring {@code LongRunningCatalogGoLiveDrainTimeoutTest}.
+	 * Generous on purpose - it costs nothing on a passing run and still fails a genuine hang. The one wait it does
+	 * NOT govern is the negative one in the second test, which is short precisely because it cannot fail spuriously.
+	 */
+	private static final long POSITIVE_WAIT_SECONDS = 30;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -163,6 +186,7 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	@DisplayName("closes an idle incumbent warm-up session before going live and keeps what it wrote")
 	void shouldCloseIdleIncumbentWarmUpSessionBeforeGoingLive() throws Throwable {
 		final EvitaSessionContract incumbent = this.evita.createReadWriteSession(CATALOG);
+		final UUID incumbentId = incumbent.getId();
 		incumbent.upsertEntity(incumbent.createNewEntity(Entities.BRAND, 1));
 		// deliberately left open - this is the incumbent the engine-level go-live has to deal with
 
@@ -170,6 +194,14 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 		assertNoErrorLoggedDuring(() -> this.evita.makeCatalogAlive(CATALOG));
 
 		assertFalse(incumbent.isActive(), "the go-live must have closed the incumbent session");
+		// the drain has to RECORD the close, not merely perform it: this is the whole of the answer a client whose
+		// session vanished mid-request receives (`EvitaSessionService` reads it through
+		// `Evita#wasSessionForcefullyClosedForCatalog`), and it is what tells them the server took the session
+		// away rather than that they closed it themselves
+		assertTrue(
+			this.evita.wasSessionForcefullyClosedForCatalog(CATALOG, incumbentId),
+			"the drain must have recorded the incumbent as forcefully closed"
+		);
 		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(CATALOG).orElseThrow());
 		// a write through the superseded session must be refused, never silently applied to a dead instance
 		assertThrows(
@@ -192,7 +224,9 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 				final Future<EntityReferenceContract> write = this.executor.submit(
 					() -> incumbent.upsertEntity(parkedUpsert(1, writeEntered, releaseWrite))
 				);
-				assertTrue(writeEntered.await(30, SECONDS), "the write never reached the collection");
+				assertTrue(
+					writeEntered.await(POSITIVE_WAIT_SECONDS, SECONDS), "the write never reached the collection"
+				);
 
 				final CompletableFuture<Void> goLive = CompletableFuture.runAsync(
 					() -> this.evita.makeCatalogAlive(CATALOG), this.executor
@@ -205,8 +239,11 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 				assertThrows(TimeoutException.class, () -> goLive.get(250, MILLISECONDS));
 
 				releaseWrite.countDown();
-				assertNotNull(write.get(30, SECONDS), "the write must complete on the still-current warm-up catalog");
-				goLive.get(30, SECONDS);
+				assertNotNull(
+					write.get(POSITIVE_WAIT_SECONDS, SECONDS),
+					"the write must complete on the still-current warm-up catalog"
+				);
+				goLive.get(POSITIVE_WAIT_SECONDS, SECONDS);
 
 				assertFalse(incumbent.isActive(), "the drain must have closed the incumbent once its method returned");
 				assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(CATALOG).orElseThrow());
@@ -242,11 +279,12 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 		final Future<EntityReferenceContract> write = this.executor.submit(
 			() -> incumbent.upsertEntity(parkedUpsert(1, writeEntered, releaseWrite))
 		);
-		assertTrue(writeEntered.await(30, SECONDS));
+		assertTrue(writeEntered.await(POSITIVE_WAIT_SECONDS, SECONDS));
 		final CompletableFuture<Void> goLive = CompletableFuture.runAsync(
 			() -> this.evita.makeCatalogAlive(CATALOG), this.executor
 		);
 		awaitCatalogState(CatalogState.GOING_ALIVE);
+		final SessionRegistry registry;
 		try {
 			// Gated, because the placeholder alone does not prove the state this test is about: the operator installs
 			// it and suspends the registry a moment later, and an attempt made in that gap answers
@@ -259,15 +297,81 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 			// Waiting on the incumbent's `isActive()` would observe the same ordering one step later, but polling a
 			// proxied method drives the session's non-volatile `nestLevel` from a second thread while the writer
 			// thread owns it - a data race the test would be introducing on production state.
-			awaitSuspensionPublished();
+			registry = awaitSuspensionPublished();
 			for (int attempt = 0; attempt < REFUSAL_ATTEMPTS; attempt++) {
 				assertThrows(CatalogGoingLiveException.class, () -> this.evita.createReadOnlySession(CATALOG));
 			}
 		} finally {
 			releaseWrite.countDown();
 		}
-		write.get(30, SECONDS);
-		goLive.get(30, SECONDS);
+		write.get(POSITIVE_WAIT_SECONDS, SECONDS);
+		goLive.get(POSITIVE_WAIT_SECONDS, SECONDS);
+
+		// The success path's `finally { resumeOperations }` named rather than implied. Until this assertion existed
+		// it was proved only by a `brandCount()` in a *different* test not throwing - an unnamed side assertion a
+		// future edit to that test would silently remove. Asserted on the very instance the suspension was observed
+		// on, because a rename or replace hands one registry to another name and a name-keyed lookup can answer
+		// about a different one.
+		assertFalse(registry.isSuspended(), "a successful go-live must lift the suspension it took");
+	}
+
+	@Test
+	@DisplayName("records the session-driven go-live's own session as forcefully closed and lifts its suspension")
+	void shouldRecordSessionDrivenGoLiveAsForcedClose() throws Throwable {
+		final EvitaSessionContract session = this.evita.createReadWriteSession(CATALOG);
+		final UUID sessionId = session.getId();
+		session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+
+		// the session-driven route closes ITSELF before the operator's drain runs, so the drain never sees the
+		// session it would otherwise have recorded - which is why `EvitaSession#goLiveAndCloseWithProgress` adds the
+		// id by hand
+		assertNoErrorLoggedDuring(session::goLiveAndClose);
+
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(CATALOG).orElseThrow());
+		// The only assertion standing behind the otherwise redundant suspension that method takes: the operator's
+		// own drain finds it standing, drains nothing and returns, so without this the call is provably dead weight
+		// to a reader and the next cleanup deletes it.
+		assertTrue(
+			this.evita.wasSessionForcefullyClosedForCatalog(CATALOG, sessionId),
+			"a session that took its own catalog live must be recorded as forcefully closed by the go-live"
+		);
+		// the suspension that method publishes is lifted by the operator, on this path as on the engine-level one
+		assertFalse(
+			this.evita.getCatalogSessionRegistry(CATALOG).orElseThrow().isSuspended(),
+			"the session-driven go-live must not leave the registry it suspended standing"
+		);
+		assertEquals(1, brandCount(), "the write the closing session flushed must be in the alive catalog");
+	}
+
+	@Test
+	@DisplayName("goes live on a catalog nobody has a session on, installing the registry the transition needs")
+	void shouldGoLiveOnCatalogWithNoSessionRegistry() throws Throwable {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+			}
+		);
+		// A registry is installed lazily, by the first session opened against the name, and nothing removes one
+		// afterwards - so an engine that has served a session for this catalog can never reach the operator's
+		// install branch again. Restarting is what makes the premise below true.
+		reopenEvita();
+		assertTrue(
+			this.evita.getCatalogSessionRegistry(CATALOG).isEmpty(),
+			"premise: a freshly reloaded catalog must have no registry, or the install branch is not the one taken"
+		);
+
+		assertNoErrorLoggedDuring(() -> this.evita.makeCatalogAlive(CATALOG));
+
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(CATALOG).orElseThrow());
+		// The registry the operator installed is one it created itself, suspended and then has to resume. A
+		// regression leaving it suspended would wedge this catalog's name for the life of the process with nothing
+		// else failing - the go-live itself reports success either way.
+		assertFalse(
+			this.evita.getCatalogSessionRegistry(CATALOG).orElseThrow().isSuspended(),
+			"the registry the operator installed for a catalog with none must not be left suspended"
+		);
+		assertEquals(1, brandCount(), "a session must be admitted again through the freshly installed registry");
 	}
 
 	/**
@@ -297,7 +401,9 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 			) {
 				entered.countDown();
 				try {
-					assertTrue(release.await(30, SECONDS), "the parked write was never released");
+					assertTrue(
+						release.await(POSITIVE_WAIT_SECONDS, SECONDS), "the parked write was never released"
+					);
 				} catch (InterruptedException ex) {
 					Thread.currentThread().interrupt();
 					throw new IllegalStateException(ex);
@@ -331,29 +437,38 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs the action with an ERROR-level log capture attached to the loggers a forcefully closed warm-up session
-	 * reports through, and fails when the action left any error entry behind.
+	 * Runs the action with an ERROR-level log capture attached to {@link #CAPTURED_LOGGER_CLASSES}, and fails when
+	 * the action left any error entry behind.
 	 *
-	 * A drained session's termination callback failure never reaches the caller - the drain discards the close
-	 * future's exception on purpose - so an orderly forced close that is quietly failing is invisible to every
-	 * assertion about the go-live itself. Reading the log is what makes it visible.
+	 * Neither of the two silences it polices reaches the caller. A drained session's termination callback failure
+	 * is discarded by the drain along with the close future's exception, on purpose; and every step of the
+	 * transition's own post-commit bookkeeping is best-effort and locally caught, because the go-live is durable by
+	 * then and must not be undone by its own reporting. Both are therefore invisible to every assertion about the
+	 * go-live itself, and reading the log is what makes them visible.
 	 *
 	 * @param action the go-live sequence to run under the capture
 	 * @throws Throwable whatever the action throws
 	 */
 	private static void assertNoErrorLoggedDuring(@Nonnull Executable action) throws Throwable {
-		// Test classes run concurrently inside one surefire fork (`junit-platform.properties`) and these two loggers
-		// are process-wide, so an unfiltered capture would blame this drain for an error another class's session
-		// logged in the same second. TWO filters, because neither covers the case alone:
+		// Test classes run concurrently inside one surefire fork (`junit-platform.properties`) and these loggers are
+		// process-wide, so an unfiltered capture would blame this drain for an error another class's session logged
+		// in the same second. THREE filters, because no one of them covers the case alone:
 		//
 		// - **by thread**, which catches an error reported on the thread that drove the go-live: the calling thread
-		//   in test one, where `makeCatalogAlive` is synchronous, and a fixture thread in test two;
+		//   in `shouldCloseIdleIncumbentWarmUpSessionBeforeGoingLive`, where `makeCatalogAlive` is synchronous, and
+		//   a fixture thread in `shouldWaitForInFlightWarmUpWriteBeforeGoingLive`;
 		// - **by throwable**, which catches the error this test is actually about wherever it is reported. A warm-up
 		//   close dispatches its flush to the transaction executor, and the termination callback that logs runs when
 		//   the commit progress completes - so completion can land on an `Evita-transaction-N` worker that the thread
 		//   filter rejects. It appears to run inline today because a one-entity flush is already complete when the
 		//   composition is chained, and that is a race rather than an invariant: on a busier box the thread filter
 		//   alone would silently stop catching anything.
+		// - **by catalog name**, which catches the transition's own post-commit bookkeeping. That block runs in the
+		//   `ProgressingFuture` completion lambda on an `Evita-transaction-N` worker, so the thread filter rejects
+		//   it, and its throwable is whatever the notification failed with rather than a `CatalogGoingLiveException`,
+		//   so the throwable filter rejects it too. Every one of those messages names the catalog, and this test's
+		//   catalog name occurs nowhere else in the repository, so the branch cannot pick up a neighbouring class
+		//   in the shared fork either.
 		//
 		// The throwable branch stays specific to `CatalogGoingLiveException`, so it cannot pick up a neighbouring
 		// class: no other functional test takes a catalog live with a session still open on it.
@@ -368,12 +483,13 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 				final String threadName = eventObject.getThreadName();
 				if (callingThreadName.equals(threadName)
 					|| threadName.startsWith(FIXTURE_THREAD_PREFIX)
-					|| carriesGoingLiveFailure(eventObject)) {
+					|| carriesGoingLiveFailure(eventObject)
+					|| eventObject.getFormattedMessage().contains(CATALOG)) {
 					errors.add(eventObject);
 				}
 			}
 		};
-		final List<Logger> capturedLoggers = new ArrayList<>(CAPTURED_LOGGER_CLASSES.length);
+		final List<Logger> capturedLoggers = new ArrayList<>(CAPTURED_LOGGER_CLASSES.size());
 		for (Class<?> loggingClass : CAPTURED_LOGGER_CLASSES) {
 			// asserted rather than assumed: an assumption here would abort the whole test method, silently erasing
 			// the drain, the surviving write and the ALIVE transition along with the log check
@@ -396,7 +512,7 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 		if (!errors.isEmpty()) {
 			final ILoggingEvent firstError = errors.get(0);
 			fail(
-				"the drain logged an error while closing the incumbent: " + firstError.getFormattedMessage() +
+				"the go-live logged an error - the drain or its own bookkeeping: " + firstError.getFormattedMessage() +
 					(firstError.getThrowableProxy() == null ?
 						"" : " / " + firstError.getThrowableProxy().getClassName())
 			);
@@ -423,32 +539,49 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Spins until the go-live's drain has published its suspension on the catalog's registry, bounded at 30 s.
+	 * Spins until the go-live's drain has published its suspension on the catalog's registry, bounded at
+	 * {@value #POSITIVE_WAIT_SECONDS} seconds.
 	 *
 	 * The registry exists by the time this is called - the incumbent session created it - and
 	 * {@link SessionRegistry#isSuspended()} flips on the compare-and-set that opens
 	 * {@link SessionRegistry#closeAllActiveSessionsAndSuspend}, which is the earliest moment from which a session
 	 * request is guaranteed to meet a standing REJECT suspension.
+	 *
+	 * @return the registry the suspension was observed on, so that the caller asserting the resume asserts it on
+	 *         the same instance rather than on whatever answers to the name later
 	 */
-	private void awaitSuspensionPublished() {
+	@Nonnull
+	private SessionRegistry awaitSuspensionPublished() {
 		final SessionRegistry registry = this.evita.getCatalogSessionRegistry(CATALOG).orElseThrow();
-		final long deadline = System.nanoTime() + SECONDS.toNanos(30);
-		while (!registry.isSuspended()) {
-			assertTrue(System.nanoTime() < deadline, "the drain never published its suspension");
-			Thread.onSpinWait();
-		}
+		awaitUntil(registry::isSuspended, "the drain never published its suspension");
+		return registry;
 	}
 
 	/**
-	 * Spins until the catalog reports the given state, bounded at 30 s. A positive wait with no latch to hang on:
-	 * the state is an atomic read of the engine state, so the spin sees it the moment the updater publishes it.
+	 * Spins until the catalog reports the given state, bounded at {@value #POSITIVE_WAIT_SECONDS} seconds. A
+	 * positive wait with no latch to hang on: the state is an atomic read of the engine state, so the spin sees it
+	 * the moment the updater publishes it.
 	 *
 	 * @param expected state the catalog has to reach
 	 */
 	private void awaitCatalogState(@Nonnull CatalogState expected) {
-		final long deadline = System.nanoTime() + SECONDS.toNanos(30);
-		while (this.evita.getCatalogState(CATALOG).orElseThrow() != expected) {
-			assertTrue(System.nanoTime() < deadline, "catalog never reached " + expected);
+		awaitUntil(
+			() -> this.evita.getCatalogState(CATALOG).orElseThrow() == expected,
+			"catalog never reached " + expected
+		);
+	}
+
+	/**
+	 * Spins until the condition holds, bounded at {@value #POSITIVE_WAIT_SECONDS} seconds. The condition is checked
+	 * before the deadline is, so a condition that is already true never fails on an exhausted bound.
+	 *
+	 * @param condition the state the caller is waiting for
+	 * @param message   what to report when it never arrives
+	 */
+	private static void awaitUntil(@Nonnull BooleanSupplier condition, @Nonnull String message) {
+		final long deadline = System.nanoTime() + SECONDS.toNanos(POSITIVE_WAIT_SECONDS);
+		while (!condition.getAsBoolean()) {
+			assertTrue(System.nanoTime() < deadline, message);
 			Thread.onSpinWait();
 		}
 	}
