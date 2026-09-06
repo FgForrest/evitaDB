@@ -108,6 +108,14 @@ not a refusal, it is a coin flip. `priceHistogram` was decided inside a branch t
 query filters on price, so the same duplicated pair threw for a price-filtered query and returned silently for
 an attribute-filtered one. It now lives in `PriceHistogramTranslator`, which runs for every requirement.
 
+**Prefer keying over refusing, when the consumer can name what it wants.** A refusal is the answer only when
+two requirements genuinely compete for one slot. If the slot exists merely because the value was stored globally,
+key it and the competition disappears: `QueryPlanningContext` used to hold one hierarchy-roots formula per query
+and aborted on the second `hierarchyWithin`, so a union of two subtrees was an internal error; the roots are now
+keyed by the constraint, and the requirement phase asks for the roots of the constraint it decided to describe.
+Nothing had to be refused, and a cross-reference leak — statistics of one reference reading another's roots —
+disappeared with the shared slot. Reach for a refusal only once keying is impossible.
+
 **Refuse where the ambiguity is consumed, not where it is written.** Two hierarchy filters in one query are a
 perfectly ordinary disjunction; they are only ambiguous for the code that has to pick *one* of them to seed
 hierarchy statistics. So the refusal sits in `EvitaRequest#getHierarchyWithin`, whose only production callers are
@@ -122,11 +130,13 @@ Each of these was looked at and left alone. Do not "fix" one without reading its
   accepts a single `ChunkingRequireConstraint` and the `@Creator` marks `uniqueChildren = true`, so neither
   the fluent API nor the EvitaQL parser can produce a `page` + `strip` pair inside one `referenceContent`.
 - **GraphQL refuses a repeated `hierarchyOf...` for one reference; the engine allows it.** The engine's
-  behaviour is deliberate and tested — `EvitaArchivingTest` merges a `LIVE` and an `ARCHIVED`
-  `hierarchyOfReference(CATEGORY, …)` into one result container — while
-  `HierarchyOfResolver` throws *"Duplicate hierarchies for single reference."* **The two surfaces disagree
-  about whether the pattern is legal at all.** This is an open question, not a rule: it needs a decision, and
-  whichever way it goes, one of the two sides changes.
+  behaviour is deliberate and tested — `EvitaArchivingTest#shouldGenerateResultsInOverMultipleScopes` merges a
+  `LIVE` and an `ARCHIVED` `hierarchyOfReference(CATEGORY, …)` into one result container, and two
+  `hierarchyOfSelf` with different output names return both — while `HierarchyOfResolver` folds the selection
+  set into a map keyed by reference name and throws *"Duplicate hierarchies for single reference."* on any
+  collision, for both spellings. **The two surfaces disagree about whether the pattern is legal at all.** This
+  is an open question, not a rule: it needs a decision, and whichever way it goes, one of the two sides
+  changes.
 
 ## Checking
 

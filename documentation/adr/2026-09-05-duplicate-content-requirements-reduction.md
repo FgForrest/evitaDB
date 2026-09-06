@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 15:00
+updated: 2026-09-06 15:35
 status: accepted
 kind: fix
 issues: [1493]
@@ -10,6 +10,7 @@ areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/
   evita_api/src/main/java/io/evitadb/api/requestResponse,
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer,
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/hierarchyStatistics,
+  evita_engine/src/main/java/io/evitadb/core/query/filter/translator/hierarchy,
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram,
   evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/requestResponse,
   .claude/rules/constraint-resolution.md]
@@ -448,26 +449,62 @@ filter/order/chunking comparisons in that method can only be exercised through `
 on a nested body. The method was left as it is; whether those clauses still earn their keep is worth a look the next
 time someone touches it.
 
-**Three things were found and deliberately not fixed here.** Each needs a decision that is wider than this issue:
+### A hierarchy constraint outside a conjunction, and the two crashes behind it
 
-- **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.** The
-  engine merges the repetitions into one result container and `EvitaArchivingTest` pins that as supported;
-  `HierarchyOfResolver` refuses the same shape with *"Duplicate hierarchies for single reference."* Whichever way
-  this is settled, one of the two surfaces changes.
-- **`hierarchyWithin(<reference>, …)` nested inside `or` crashes the filter planner** with a bare
-  `NullPointerException` at `filter/translator/hierarchy/AbstractHierarchyTranslator.java:148`, surfaced as
-  `GenericEvitaInternalError: … null`. `FilterByVisitor#findTargetIndexSet` matches the precomputed target indexes
-  by constraint *identity*, and a hierarchy constraint nested in `or` is not among them; the fallback branch then
-  requires a reference schema that the processing scope carries only inside `referenceHaving`. Pre-existing and
-  entirely unrelated to duplicates — it was hit only because the first draft of a test wrote an ambiguous filter
-  with `or`. A plausible fix is to derive both schemas from `filterByVisitor.getSchema()` and the constraint's own
-  reference name, which the method already resolves and discards; whether the resulting formula is semantically
-  right needs checking against the reference implementation in the hierarchy suites.
-- **`QueryPlanningContext#setRootHierarchyNodesFormula` is a set-once premise assert**, and
-  `HierarchyWithinTranslator` calls it once per translated `hierarchyWithin` — so two `hierarchyWithin` in one
-  query appear to raise `GenericEvitaInternalError`, on this reading including two naming *different* references.
-  That would be loud with the wrong type and an unhelpful message. **This is a code reading, not a measurement**:
-  the shape was not built, because the test dataset has only one hierarchical reference.
+Two pre-existing defects, unrelated to duplicate requirements, were found because the first draft of the
+duplicate-hierarchy-filter test wrote its ambiguous filter with `or`. Both are fixed here rather than filed
+separately, because between them they made every `hierarchyWithin(<reference>, …)` outside a conjunction
+unusable — the constraint is legal, parses, plans, and then aborts with an internal error.
+
+**`IndexSelectionVisitor` descends only through conjunctions.** It walks `And`, `FilterBy`, `FilterInScope` and
+`ReferenceHaving`, so a hierarchy constraint nested in `or` or `not` is never registered as a target index
+option and `FilterByVisitor#findTargetIndexSet` returns NULL for it. That is by design — an `or` branch is not a
+restriction the whole query can be narrowed to — and it puts the constraint on
+`AbstractHierarchyTranslator#createFormulaForReferencingEntities`'s *computed* branch, which is where both
+defects lived.
+
+1. **The computed branch took its schemas from the processing scope.** The processing scope carries a reference
+   schema only inside `referenceHaving`; at the top level it is NULL, so `Objects.requireNonNull` threw a bare
+   `NullPointerException` surfaced as `GenericEvitaInternalError: … null`. Both schemas now come from the queried
+   schema and the reference the constraint itself names — which the method already resolved on the line above and
+   threw away, and which is exactly what `IndexSelectionVisitor#addHierarchyIndexOption` feeds to the same
+   `getReducedEntityIndexes` call, so the two branches build the same formula. Even had the reference schema been
+   present, taking it from a `referenceHaving` scope would have addressed the wrong reference.
+2. **`QueryPlanningContext#setRootHierarchyNodesFormula` was a write-once premise**, and
+   `HierarchyWithinTranslator` calls it for every constraint it translates — so once the first defect was out of
+   the way, a union of two subtrees aborted with *"The hierarchy filtering formula can be set only once!"*. The
+   roots are now recorded **per constraint**, and the requirement phase asks for the roots of the constraint it
+   decided to describe — the one `EvitaRequest#getHierarchyWithin` resolved for that target. Nothing is refused:
+   the filter keeps all of its constraints, and the statistics read exactly the hierarchy they are about. Two
+   further consequences fall out of the keying: statistics of one reference no longer observe the roots of a
+   `hierarchyWithin` aimed at a *different* reference, which the single shared slot used to hand them; and a
+   constraint translated once per scope index no longer collides with itself, the first formula recorded winning
+   in line with the first-applicable-scope precedence the translation already uses.
+
+Asking for statistics over the genuinely ambiguous filter still fails loudly at planning, through the refusal
+for two different hierarchy filters at one target — `shouldRefuseHierarchyStatisticsWithTwoHierarchyFiltersJoinedByOr`
+pins that the premise no longer beats it to it.
+
+The third finding of the same reading is settled by the same change: the set-once premise did fire for two
+`hierarchyWithin` naming *different* references, and the keying removes that as a side effect. Only the
+cross-reference case remains untested, because the test datasets carry a single hierarchical reference.
+
+**One thing was found and deliberately not fixed here**, because it needs a decision wider than this issue:
+
+- **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.**
+  Measured on both sides. The engine returns both:
+  `hierarchyOfSelf(fromRoot("megaMenu", stopAt(distance(1))))` beside
+  `hierarchyOfSelf(fromRoot("sideMenu", stopAt(distance(1))))` yields five nodes under each name, and
+  `EvitaArchivingTest#shouldGenerateResultsInOverMultipleScopes` pins the reference form of the same shape —
+  `inScope(LIVE, hierarchyOfReference(CATEGORY, children("liveMenu", …)))` beside
+  `inScope(ARCHIVED, hierarchyOfReference(CATEGORY, children("archiveMenu", …)))`. Both GraphQL spellings of
+  those two queries fail with HTTP 200 and
+  `errors: [{ message: "Duplicate hierarchies for single reference." }]` from `HierarchyOfResolver`, which folds
+  the selection set into a map keyed by reference name and throws on any collision. The scoped shape needs field
+  aliases (`live:` / `archived:`) to get that far at all, since two unaliased `inScope` selections with different
+  arguments are refused by GraphQL's own field-merging validation first. Whichever way this is settled, one of
+  the two surfaces changes: either GraphQL grows a per-output-name key and stops refusing, or the engine starts
+  refusing and `EvitaArchivingTest` changes with it.
 
 ## Related work
 
