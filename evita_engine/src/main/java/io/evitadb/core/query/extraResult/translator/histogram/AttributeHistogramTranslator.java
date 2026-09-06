@@ -72,6 +72,16 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 
 		// get scopes the histogram will be created from
 		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		// `AttributeHistogramProducer` keys its requests by attribute name alone, so two requirements naming one
+		// attribute may only ever widen the same index set - which holds because the indexes below are resolved
+		// outside any reference scope, exactly like the attribute schema itself. A reference-scoped context would
+		// resolve a different index under the very same name and the producer would silently union the two;
+		// `attributeHistogram` never reaches one, because a reference summary hands its histogram children to
+		// `ReferenceHistogramStatisticsTranslator` instead of dispatching them here
+		Assert.isPremiseValid(
+			processingScope.getReferenceSchema().isEmpty(),
+			"Attribute histogram must not be planned within a reference scope!"
+		);
 		final Set<Scope> scopes = processingScope.getScopes();
 
 		// get all indexes that should be used for query execution

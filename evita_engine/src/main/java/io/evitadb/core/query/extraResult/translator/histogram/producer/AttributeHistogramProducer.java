@@ -358,7 +358,10 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 				);
 			}
 			// the requirements agree, so the repeat only widens the set of indexes the histogram is computed from -
-			// which is how one attribute requested in two scopes reaches here
+			// which is how one attribute requested in two scopes reaches here. Widening is only sound because every
+			// request for one attribute name resolved its indexes the same way; `AttributeHistogramTranslator`
+			// asserts that premise by refusing to plan a histogram inside a reference scope, which is the one thing
+			// that would resolve a different index under the very same name
 			if (!alreadyRegistered.attributeIndexes().containsAll(attributeIndexes)) {
 				final List<FilterIndex> mergedIndexes = new ArrayList<>(alreadyRegistered.attributeIndexes());
 				for (final FilterIndex attributeIndex : attributeIndexes) {

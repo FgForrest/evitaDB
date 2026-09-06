@@ -179,7 +179,11 @@ import static java.util.Optional.ofNullable;
  * - **reference attributes and the nested entity / group bodies are united**, recursively, so nothing either side
  *   asked for is lost
  * - **a disagreement on {@link ManagedReferencesBehaviour} narrows to {@link ManagedReferencesBehaviour#EXISTING}**,
- *   so a request to suppress references pointing at missing entities is never lost by merging
+ *   so a request to suppress references pointing at missing entities is never lost by merging. It is not refused
+ *   the way a one-sided `filterBy` is, because the constraint cannot tell a *stated* `ANY` from an unstated one:
+ *   {@link #getManagedReferencesBehaviour()} answers `ANY` when the argument is absent, so refusing the pair would
+ *   refuse every sibling that simply said nothing about the behaviour. A silent side deferring to the side that
+ *   states a value is the same asymmetry `orderBy` gets
  * - **`filterBy` and chunking must agree, or be absent on both sides** — the two siblings share one output slot,
  *   so a filter or a page carried by only one of them has no union: dropping it would return references the client
  *   asked to exclude, honouring it would hide references the unrestricted sibling asked for. Both cases — one-sided
@@ -975,10 +979,15 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * which plan the planner picked. The client's own `EXISTING` is untouched: it travels in his `EvitaRequest` and is
 	 * applied by the reference fetcher that builds the response.
 	 *
-	 * The projection is **shallow on purpose**. A `referenceContent` nested inside this one's `entityFetch` keeps
-	 * its own restrictions, because only top-level requirements are contributed by the query planner: two nested
-	 * siblings that disagree were both written by the client, and refusing them is exactly the client-facing rule
-	 * {@link #combineWith(EntityContentRequire)} is there to apply.
+	 * The projection is **shallow**. A `referenceContent` nested inside this one's `entityFetch` keeps its own
+	 * restrictions, which is enough for the collision the strip was written for: every requirement the query planner
+	 * contributes on the client's behalf enters the union at the top level, so it never meets a nested one. It is
+	 * not enough for the rarer pair the union is also fed by — when a requirement written inside the query's own
+	 * `entityFetch` and one written inside a `hierarchyOfSelf` computer's `entityFetch` are merged here, their nested
+	 * bodies are folded by {@link EntityFetchRequire#combineRequirements(EntityFetchRequire, EntityFetchRequire)}
+	 * along with them, so two nested restrictions describing two separate output slots can still be refused.
+	 * Deepening the strip is the fix if that ever bites; until then the shallow form is preferred because it keeps
+	 * the widening as small as the collision requires.
 	 *
 	 * @return this requirement without its `filterBy`, `orderBy`, chunking and managed references behaviour, or this
 	 *         very instance when it carries none of them
@@ -1184,24 +1193,27 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			);
 		}
 
-		final Optional<FilterBy> thisFilterBy = getFilterBy();
-		final Optional<FilterBy> thatFilterBy = anotherReferenceContent.getFilterBy();
+		final FilterBy thisFilterBy = getFilterBy().orElse(null);
+		final FilterBy thatFilterBy = anotherReferenceContent.getFilterBy().orElse(null);
 		assertRestrictionsIdentical("filter", thisFilterBy, thatFilterBy, anotherReferenceContent);
 		// both sides carry the very same filter or neither carries one - anything else was refused above
-		final FilterBy combinedFilterBy = thisFilterBy.orElse(null);
+		final FilterBy combinedFilterBy = thisFilterBy;
 
-		final Optional<OrderBy> thisOrderBy = getOrderBy();
-		final Optional<OrderBy> thatOrderBy = anotherReferenceContent.getOrderBy();
+		final OrderBy thisOrderBy = getOrderBy().orElse(null);
+		final OrderBy thatOrderBy = anotherReferenceContent.getOrderBy().orElse(null);
 		assertOrdersCompatible(thisOrderBy, thatOrderBy, anotherReferenceContent);
 		// an order drops no reference - the single order present is retained
-		final OrderBy combinedOrderBy = thisOrderBy.or(() -> thatOrderBy).orElse(null);
+		final OrderBy combinedOrderBy = thisOrderBy != null ? thisOrderBy : thatOrderBy;
 
-		final Optional<ChunkingRequireConstraint> thisChunking = getChunking();
-		final Optional<ChunkingRequireConstraint> thatChunking = anotherReferenceContent.getChunking();
+		final ChunkingRequireConstraint thisChunking = getChunking().orElse(null);
+		final ChunkingRequireConstraint thatChunking = anotherReferenceContent.getChunking().orElse(null);
 		assertRestrictionsIdentical("chunking", thisChunking, thatChunking, anotherReferenceContent);
 		// both sides carry the very same chunking or neither carries one - anything else was refused above
-		final ChunkingRequireConstraint combinedChunking = thisChunking.orElse(null);
+		final ChunkingRequireConstraint combinedChunking = thisChunking;
 
+		// `ANY` is what an absent argument reads as, so a difference here is a silent sibling meeting a stated one
+		// rather than two competing claims - it is resolved like a one-sided `orderBy`, not refused like a
+		// one-sided `filterBy`
 		final ManagedReferencesBehaviour managedReferencesBehaviour =
 			getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
 				getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
@@ -1244,21 +1256,21 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * the unrestricted side asked for may be chosen on the client's behalf.
 	 *
 	 * @param constraintName     name of the restriction as it appears in the refusal message
-	 * @param thisConstraint     the restriction carried by this requirement, empty when it carries none
-	 * @param anotherConstraint  the restriction carried by the other requirement, empty when it carries none
+	 * @param thisConstraint     the restriction carried by this requirement, `null` when it carries none
+	 * @param anotherConstraint  the restriction carried by the other requirement, `null` when it carries none
 	 * @param anotherRequirement the other requirement, rendered into the refusal message
 	 * @throws EvitaInvalidUsageException when the two restrictions differ, or when only one side carries one
 	 */
 	private void assertRestrictionsIdentical(
 		@Nonnull String constraintName,
-		@Nonnull Optional<? extends Constraint<?>> thisConstraint,
-		@Nonnull Optional<? extends Constraint<?>> anotherConstraint,
+		@Nullable Constraint<?> thisConstraint,
+		@Nullable Constraint<?> anotherConstraint,
 		@Nonnull ReferenceContent anotherRequirement
 	) {
-		if (thisConstraint.equals(anotherConstraint)) {
+		if (Objects.equals(thisConstraint, anotherConstraint)) {
 			return;
 		}
-		final String reason = thisConstraint.isPresent() && anotherConstraint.isPresent() ?
+		final String reason = thisConstraint != null && anotherConstraint != null ?
 			"Cannot combine multiple reference content requirements with different " + constraintName +
 				" constraints" :
 			"Cannot combine multiple reference content requirements when only one of them declares a " +
@@ -1275,17 +1287,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * without dropping any of them, so {@link #combineWith(EntityContentRequire)} retains the only order present
 	 * and loses neither side's intent.
 	 *
-	 * @param thisOrderBy        the order carried by this requirement, empty when it carries none
-	 * @param anotherOrderBy     the order carried by the other requirement, empty when it carries none
+	 * @param thisOrderBy        the order carried by this requirement, `null` when it carries none
+	 * @param anotherOrderBy     the order carried by the other requirement, `null` when it carries none
 	 * @param anotherRequirement the other requirement, rendered into the refusal message
 	 * @throws EvitaInvalidUsageException when both sides carry an order and the two differ
 	 */
 	private void assertOrdersCompatible(
-		@Nonnull Optional<OrderBy> thisOrderBy,
-		@Nonnull Optional<OrderBy> anotherOrderBy,
+		@Nullable OrderBy thisOrderBy,
+		@Nullable OrderBy anotherOrderBy,
 		@Nonnull ReferenceContent anotherRequirement
 	) {
-		if (thisOrderBy.isPresent() && anotherOrderBy.isPresent() && !thisOrderBy.equals(anotherOrderBy)) {
+		if (thisOrderBy != null && anotherOrderBy != null && !thisOrderBy.equals(anotherOrderBy)) {
 			final String reason = "Cannot combine multiple reference content requirements with different order " +
 				"constraints";
 			throw new EvitaInvalidUsageException(

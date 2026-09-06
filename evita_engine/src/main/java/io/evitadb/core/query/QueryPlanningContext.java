@@ -288,8 +288,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
-	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
-	 * to mark the group id involved in special relation handling.
+	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
+	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
+	 * relation handling.
 	 *
 	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
 	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
@@ -1879,11 +1880,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
-	 * the {@link #facetRelationTuples} key.
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()}, {@link FacetRelationType} and
+	 * {@link FacetGroupRelationLevel} into one object used as the {@link #facetRelationTuples} key. The level is
+	 * part of the key because the two levels are orthogonal and each carries its own filter, so a predicate
+	 * memoized for one must never be reused to answer the other.
 	 *
 	 * @param referenceName name of the reference the facet group belongs to
 	 * @param relation      relation type the memoized predicate decides about
+	 * @param level         the {@link FacetGroupRelationLevel} the relation was asked about (within group vs.
+	 *                      between groups)
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,

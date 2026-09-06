@@ -260,12 +260,6 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Registers default settings for facet summary in terms of entity richness (both group and facet) and also
-	 * a default type of statistics depth. These settings will be used for all facet references that are not explicitly
-	 * configured by {@link #requireReferenceReferenceSummary(ReferenceSchemaContract, FacetStatisticsDepth,
-	 * IntPredicate, IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}.
-	 */
-	/**
 	 * Refuses a second, disagreeing declaration of the all-references summary. Both spellings of the constraint -
 	 * `referenceSummary` and the deprecated `facetSummary` - route here, but each spelling owns its own producer
 	 * instance, so a disagreement can only come from two constraints of the very same kind. An identical repeat is
@@ -307,6 +301,25 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		this.referenceDeclarations.put(referenceName, declaration);
 	}
 
+	/**
+	 * Registers the settings of the all-references summary constraint - the entity richness of both the facets and
+	 * their groups, the predicates and sorters that shape them, and the statistics depth. They apply to every
+	 * reference that no reference-specific constraint claimed through
+	 * {@link #requireReferenceReferenceSummary(ReferenceSchemaContract, FacetStatisticsDepth, IntPredicate,
+	 * IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}; a reference that did
+	 * get its own constraint takes **all** of its settings from that one and inherits nothing from here.
+	 *
+	 * The predicates and sorters arrive as functions of the reference schema, because one declaration has to serve
+	 * every reference the summary ends up covering, and each of them resolves its own instance.
+	 *
+	 * @param facetStatisticsDepth      depth of the statistics computed for each facet
+	 * @param facetPredicate            resolves the predicate narrowing the facets of a reference, null when none
+	 * @param groupPredicate            resolves the predicate narrowing the facet groups of a reference, null when none
+	 * @param facetSorter               resolves the sorter ordering the facets of a reference, null when none
+	 * @param groupSorter               resolves the sorter ordering the facet groups of a reference, null when none
+	 * @param facetEntityRequirement    body to fetch for each facet entity, null when only the primary key is wanted
+	 * @param groupEntityRequirement    body to fetch for each group entity, null when only the primary key is wanted
+	 */
 	public void requireDefaultReferenceSummary(
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth,
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> facetPredicate,
