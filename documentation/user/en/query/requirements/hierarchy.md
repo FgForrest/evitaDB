@@ -182,6 +182,11 @@ The hierarchy of self can still be combined with [`hierarchyOfReference`](#hiera
 is a hierarchical entity that is also connected to another hierarchical entity. Such situations are rather sporadic in
 reality.
 
+The `hierarchyOfSelf` can be repeated in a single query when you need several menu components. All repetitions
+contribute their output names to a single hierarchy container in the response, and that container carries a single
+order: a repetition that states no `orderConstraint` keeps the order declared beside it, and two repetitions stating
+different ones are rejected. State the same `orderConstraint` on each of them, or state it on one only.
+
 </LS>
 <LS to="g">
 
@@ -275,6 +280,11 @@ reality.
 
 The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 settings for different reference types.
+
+Repetitions naming the **same** reference are allowed as well and their output names are merged into that reference's
+single hierarchy container. As with [`hierarchyOfSelf`](#hierarchy-of-self), the container carries a single order:
+a repetition that states no `orderConstraint` keeps the order declared beside it, and two repetitions stating
+different ones are rejected.
 
 </LS>
 <LS to="g">

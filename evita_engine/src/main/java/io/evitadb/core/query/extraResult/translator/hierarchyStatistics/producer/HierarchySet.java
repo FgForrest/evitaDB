@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -30,6 +31,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -64,6 +66,15 @@ public class HierarchySet {
 	 */
 	@Nullable
 	private NestedContextSorter sorter;
+	/**
+	 * Contains the `orderBy` constraint the {@link #sorter} was built from. Sibling `hierarchyOfSelf` /
+	 * `hierarchyOfReference` constraints aimed at the same target all contribute their output names to this single
+	 * set, which carries exactly one order - the remembered constraint is what allows a second, contradicting order
+	 * to be recognized instead of silently replacing the first one.
+	 */
+	@Nullable
+	@Getter
+	private OrderBy orderConstraint;
 
 	/**
 	 * Adds all {@link LevelInfo#entity()} primary keys to the `writer` traversing them recursively so that all entities
@@ -110,9 +121,15 @@ public class HierarchySet {
 	}
 
 	/**
-	 * Initializes the {@link #sorter} field.
+	 * Initializes the {@link #sorter} field along with the {@link #orderConstraint} it was built from. The order is
+	 * only ever set from a constraint that declares one - a sibling constraint that declares none leaves the order
+	 * already in effect untouched.
+	 *
+	 * @param orderConstraint the `orderBy` constraint the `sorter` was built from
+	 * @param sorter          sorter built from the `orderConstraint`
 	 */
-	public void setSorter(@Nullable NestedContextSorter sorter) {
+	public void setSorter(@Nonnull OrderBy orderConstraint, @Nonnull NestedContextSorter sorter) {
+		this.orderConstraint = orderConstraint;
 		this.sorter = sorter;
 	}
 

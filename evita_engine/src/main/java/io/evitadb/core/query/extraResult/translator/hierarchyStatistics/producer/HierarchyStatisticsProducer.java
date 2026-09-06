@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.HierarchyOfReference;
@@ -60,6 +61,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -150,7 +152,10 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 *                                               with particular hierarchical entity
 	 * @param behaviour                              controls whether items with {@link LevelInfo#queriedEntityCount()} equal to zero should be excluded
 	 * @param hierarchyFilterPredicateProducer       lambda that creates a {@link HierarchyFilteringPredicate} based respecting the statistics base
-	 * @param sorter                                 sorter for sorting {@link LevelInfo}
+	 * @param orderBy                                the `orderBy` constraint the `sorter` was built from, `null`
+	 *                                               when the constraint declares none
+	 * @param sorter                                 sorter for sorting {@link LevelInfo}, `null` exactly when
+	 *                                               `orderBy` is `null`
 	 * @param interpretationLambda                   lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
 	 */
 	public void interpret(
@@ -164,6 +169,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull IntObjBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
+		@Nullable OrderBy orderBy,
 		@Nullable NestedContextSorter sorter,
 		@Nonnull Runnable interpretationLambda
 	) {
@@ -184,15 +190,50 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 				)
 			);
 			interpretationLambda.run();
-			if (referenceSchema == null) {
-				ofNullable(this.selfHierarchyRequest)
-					.ifPresent(it -> it.setSorter(sorter));
-			} else {
-				ofNullable(this.hierarchyRequests.get(referenceSchema.getName()))
-					.ifPresent(it -> it.setSorter(sorter));
+			// a constraint that declares no order of its own leaves the order declared by a sibling constraint in
+			// effect - the siblings feed a single `HierarchySet` and overwriting it with nothing would retroactively
+			// re-sort the output names the sibling registered
+			if (orderBy != null) {
+				final HierarchySet hierarchySet = referenceSchema == null ?
+					this.selfHierarchyRequest : this.hierarchyRequests.get(referenceSchema.getName());
+				if (hierarchySet != null) {
+					assertOrderNotContradicted(hierarchySet, referenceSchema, orderBy);
+					// safe: `createSorter` never returns null, so a declared order always carries its sorter
+					hierarchySet.setSorter(orderBy, Objects.requireNonNull(sorter));
+				}
 			}
 		} finally {
 			this.context.set(null);
+		}
+	}
+
+	/**
+	 * Verifies that the hierarchy of a single target is not ordered by two contradicting `orderBy` constraints.
+	 * Sibling {@link HierarchyOfSelf} / {@link HierarchyOfReference} constraints aimed at the same target contribute
+	 * their output names to one shared {@link HierarchySet}, and that set carries exactly one order - so a second,
+	 * different order would silently re-sort the results of the first constraint as well.
+	 *
+	 * @param hierarchySet    the shared container the sibling constraints contribute to
+	 * @param referenceSchema the reference the hierarchy is computed for, `null` for the queried entity itself
+	 * @param orderBy         the order declared by the constraint being interpreted
+	 * @throws EvitaInvalidUsageException when a different order has already been declared for the same target
+	 */
+	private static void assertOrderNotContradicted(
+		@Nonnull HierarchySet hierarchySet,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderBy orderBy
+	) {
+		final OrderBy alreadyDeclared = hierarchySet.getOrderConstraint();
+		if (alreadyDeclared != null && !alreadyDeclared.equals(orderBy)) {
+			final String reason = "Hierarchy statistics of " +
+				(referenceSchema == null ?
+					"the queried entity itself" : "reference `" + referenceSchema.getName() + "`") +
+				" are ordered by two different `orderBy` constraints - all `hierarchyOf" +
+				(referenceSchema == null ? "Self" : "Reference") + "` constraints aimed at a single target share " +
+				"a single order, so state the same one on each of them";
+			throw new EvitaInvalidUsageException(
+				reason + ": " + alreadyDeclared + " and " + orderBy + ".", reason + "."
+			);
 		}
 	}
 

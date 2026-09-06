@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -82,6 +83,8 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HIERARCHY;
 
@@ -2735,6 +2738,55 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
 				assertNotNull(statistics);
 				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse two hierarchyOfReference constraints ordering the same reference differently")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseTwoHierarchyOfReferenceConstraintsWithDifferentOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityLocaleEquals(CZECH_LOCALE),
+									hierarchyWithinRoot(Entities.CATEGORY)
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+									fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("ordered by two different `orderBy` constraints"),
+					exception.getMessage()
+				);
+				assertTrue(
+					exception.getMessage().contains(Entities.CATEGORY),
+					exception.getMessage()
+				);
 
 				return null;
 			}
