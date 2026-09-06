@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 15:05
+updated: 2026-09-06 15:00
 status: accepted
 kind: fix
 issues: [1493]
@@ -357,10 +357,18 @@ path and the prefetch path — `ReferenceSummaryFetchOverrideTest` for the summa
 for the histogram path, and the "Richer copy keeps what an earlier fetch made visible" group of
 `ReferenceContractSerializablePredicateTest` for the enrichment merge.
 
-A full functional-module run on the final tree executed 23,363 tests with 0 failures; the single error is
+A full functional-module run on the final tree executed **23,402 tests with 0 failures**; the single error is
 `ExportS3ServiceTest`, which needs a Docker daemon. The run used a fixed parallelism of 8 and a 12 GB fork heap,
 because the default dynamic parallelism exhausts the fork heap on a 24-core box and loses roughly 950 tests to an
-engine-level `OutOfMemoryError`.
+engine-level `OutOfMemoryError`. (The run before the last two commits reported the same 23,402 with two failures:
+two REST tests asserting HTTP 500 for a repeated hierarchy output name, which is a client error and now yields 400.)
+
+**The `full` profile has to be compiled separately, and `clean` is not optional.** `evita_test/evita_performance_tests`
+and `evita_external_api_grpc/client_all_in_one` are outside the default reactor, so a green
+`mvn clean install` proves nothing about them: the per-attribute `AttributeHistogramRequest` broke
+`BucketsRecordState` and the whole reactor stayed green over a module that did not compile at all. Worse, a plain
+`mvn -P full … test-compile` on that module answered `Nothing to compile - all classes are up to date` and
+`BUILD SUCCESS`. Only `mvn -o -P full -pl <those two modules> clean test-compile` is a real check.
 
 ## Consequences & open follow-ups
 
