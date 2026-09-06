@@ -27,14 +27,11 @@ import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.api.query.require.AccompanyingPriceContent;
-import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -95,7 +92,6 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -270,10 +266,11 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Registers specific settings for facets of certain reference with passed `referenceName` that will
-	 * extend / override the default settings set in
+	 * Registers the settings of a reference-specific summary constraint for the passed `referenceSchema`. They
+	 * **completely replace** the default settings registered by
 	 * {@link #requireDefaultReferenceSummary(FacetStatisticsDepth, Function, Function, Function, Function,
-	 * EntityFetch, EntityGroupFetch)}, should there be any.
+	 * EntityFetch, EntityGroupFetch)} for that one reference - nothing is inherited from them, so the constraint
+	 * has to define all of its own requirements. See {@link #resolveReferenceRequest} for the rule.
 	 */
 	public void requireReferenceReferenceSummary(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -432,96 +429,87 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			);
 			final Formula histogramBaseline = relaxedBaseline == EmptyFormula.INSTANCE
 				? null : relaxedBaseline;
+			// resolve the request governing each reference that carries histograms exactly once, so the facet
+			// sorter, the group entity fetcher and the group predicate the accumulator asks for can never disagree
+			// about which constraint governs the reference - that drift is what made a histogram-only group come
+			// back bare while the same reference at depth COUNTS carried the generic summary's attributes
+			final Map<String, ReferenceSummaryRequest> histogramReferenceRequests = createHashMap(
+				this.histogramRequests.size()
+			);
+			for (final Entry<String, List<HistogramRequest>> histogramEntry : this.histogramRequests.entrySet()) {
+				final ReferenceSummaryRequest referenceRequest = resolveHistogramReferenceRequest(
+					histogramEntry.getKey(), histogramEntry.getValue()
+				);
+				if (referenceRequest != null) {
+					histogramReferenceRequests.put(histogramEntry.getKey(), referenceRequest);
+				}
+			}
 			statisticsByReferenceName = ReferenceHistogramAccumulator.injectHistograms(
 				statisticsByReferenceName,
 				this.histogramRequests,
 				histogramBaseline,
 				context,
 				resultAdapter,
-				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
 					.map(ReferenceSummaryRequest::facetSorter)
 					.orElse(null),
-				referenceName -> resolveGroupEntityFetcher(referenceName, context),
-				this::resolveGroupPredicate
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
+					.map(referenceRequest -> referenceRequest.getGroupEntityFetcher(
+						context, referenceRequest.referenceSchema()
+					))
+					.orElse(null),
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
+					.map(ReferenceSummaryRequest::groupPredicate)
+					.orElse(null)
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
 	}
 
 	/**
-	 * Resolves the batched group-entity fetcher for the histogram accumulator. Reuses the
-	 * fetcher cached on the explicit {@link ReferenceSummaryRequest} when one was registered
-	 * for the reference; otherwise falls back to {@link #defaultRequest}, mirroring the
-	 * specific-or-default merge {@link #resolveReferenceRequest} performs in phase 1. The
-	 * fallback is what keeps the all-references {@code referenceSummary(...)} form aligned
-	 * with the per-reference form — without it, histogram-only synthetic groups would be
-	 * emitted as bare {@link EntityReference}s and downstream consumers (notably the GraphQL
-	 * `groupEntity { attributes { ... } }` path) would ClassCast on `AttributesContract`.
-	 * Returns {@code null} only when neither request is available or the reference schema
-	 * cannot be located (e.g. deprecated FacetSummary adapter path).
+	 * Resolves the {@link ReferenceSummaryRequest} governing a reference that carries histograms, applying the very
+	 * rule {@link #resolveReferenceRequest} applies on the facet path: a reference-specific summary constraint
+	 * governs the reference it names **entirely**, and the generic constraint governs every reference that has no
+	 * specific one. Nothing is inherited across that boundary - neither the group entity fetch nor the `filterGroupBy`
+	 * predicate nor the facet order - so the histogram-only groups synthesized at
+	 * {@link FacetStatisticsDepth#NONE} and the facet-emitted groups of the same reference at
+	 * {@link FacetStatisticsDepth#COUNTS} always describe the same entities.
+	 *
+	 * @param referenceName     name of the reference the accumulator is about to compute histograms for
+	 * @param requests          histogram requests registered for that reference; their schema is the only place this
+	 *                          producer keeps the reference schema of a reference no specific constraint named
+	 * @return the governing request, NULL when the reference is governed by neither a specific nor a generic
+	 *         constraint (e.g. the deprecated `FacetSummary` adapter path, which registers no default request)
 	 */
 	@Nullable
-	private Function<int[], EntityClassifier[]> resolveGroupEntityFetcher(
+	private ReferenceSummaryRequest resolveHistogramReferenceRequest(
 		@Nonnull String referenceName,
-		@Nonnull QueryExecutionContext context
+		@Nonnull List<HistogramRequest> requests
 	) {
 		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
 		if (specific != null) {
-			return specific.getGroupEntityFetcher(context, specific.referenceSchema());
+			return specific;
 		}
-		if (this.defaultRequest == null) {
+		if (this.defaultRequest == null || requests.isEmpty()) {
 			return null;
 		}
-		// histogramRequests is the only place this producer keeps the reference schema for
-		// references not registered in referenceSummaryRequests — and it is guaranteed to
-		// carry an entry for `referenceName` because the accumulator only reaches this
-		// resolver while iterating its own keys.
-		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
-		if (requests == null || requests.isEmpty()) {
-			return null;
-		}
-		final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
-		return buildFromDefault(referenceSchema, new AtomicInteger())
-			.getGroupEntityFetcher(context, referenceSchema);
+		return buildFromDefault(requests.get(0).referenceSchema(), new AtomicInteger());
 	}
 
 	/**
-	 * Resolves the `filterGroupBy` predicate for the histogram accumulator, mirroring the
-	 * specific-or-default merge {@link #resolveGroupEntityFetcher} performs. Returns the predicate
-	 * cached on the explicit {@link ReferenceSummaryRequest} when one was registered for the
-	 * reference; otherwise derives it per-schema from {@link #defaultRequest}, the same fallback
-	 * {@link #mergeSpecificWithDefault} and {@link #buildFromDefault} apply during phase 1. This is
-	 * what lets the histogram path drop groups the caller did not select — the facet path already
-	 * applies this predicate in {@code accumulator()}. Returns {@code null} when no `filterGroupBy`
-	 * is in effect for the reference (no group filtering — every group passes).
-	 */
-	@Nullable
-	private IntPredicate resolveGroupPredicate(@Nonnull String referenceName) {
-		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
-		if (specific != null) {
-			if (specific.groupPredicate() != null) {
-				return specific.groupPredicate();
-			}
-			return this.defaultRequest == null
-				? null
-				: applyToSchema(this.defaultRequest.groupPredicate(), specific.referenceSchema());
-		}
-		if (this.defaultRequest == null) {
-			return null;
-		}
-		// histogramRequests is the only place this producer keeps the reference schema for
-		// references not registered in referenceSummaryRequests — guaranteed to carry an entry
-		// because the accumulator only reaches this resolver while iterating its own keys.
-		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
-		if (requests == null || requests.isEmpty()) {
-			return null;
-		}
-		return applyToSchema(this.defaultRequest.groupPredicate(), requests.get(0).referenceSchema());
-	}
-
-	/**
-	 * Resolves the effective {@link ReferenceSummaryRequest} for a given reference schema by merging the
-	 * explicit per-reference request (if registered) with the {@link #defaultRequest} fallback.
+	 * Resolves the {@link ReferenceSummaryRequest} governing the passed reference schema.
+	 *
+	 * A reference-specific summary constraint - `referenceSummaryOfReference` / `facetSummaryOfReference` - governs
+	 * the reference it names **entirely**: it must define all of its own requirements and inherits nothing from
+	 * a generic `referenceSummary` / `facetSummary` written beside it, which is what the class javadoc of
+	 * {@link ReferenceSummary} and {@link io.evitadb.api.query.require.FacetSummary} has always promised. The generic
+	 * constraint keeps governing every reference that has no specific constraint of its own, and
+	 * {@link #buildFromDefault(ReferenceSchemaContract, AtomicInteger)} derives its per-schema request for them.
+	 *
+	 * @param referenceSchema schema of the reference the summary is being computed for
+	 * @param counter         running order counter for the requests derived from the generic constraint
+	 * @return the governing request; never NULL, because the caller only reaches this method for references either
+	 *         constraint covers
 	 */
 	@Nonnull
 	private ReferenceSummaryRequest resolveReferenceRequest(
@@ -531,255 +519,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(
 			referenceSchema.getName()
 		);
-		if (specific != null) {
-			return this.defaultRequest == null ? specific : mergeSpecificWithDefault(specific);
-		}
-		return buildFromDefault(referenceSchema, counter);
-	}
-
-	/**
-	 * Overlays the reference-specific request onto {@link #defaultRequest}: the entity fetches are overlaid one
-	 * over the other, and the per-schema predicates/sorters derived from the default are used whenever the specific
-	 * request does not supply its own.
-	 *
-	 * The entity fetches are combined by {@link #overlayFetch(EntityFetch, EntityFetch)} rather than by
-	 * {@link EntityFetch#combineWith(EntityFetchRequire)}. The whole-fetch union would lose the reference-specific
-	 * request's own nested selectors: a `referenceContent` filter or page carried by the specific fetch alone is
-	 * *dropped* by the union's superset rule, and two different ones are *refused* - even though the specific fetch
-	 * is the only one the client wrote for that reference. The overlay leaves those keyed requirements to the
-	 * specific fetch and unites everything else, exactly as the union always did.
-	 */
-	@Nonnull
-	private ReferenceSummaryRequest mergeSpecificWithDefault(
-		@Nonnull ReferenceSummaryRequest specific
-	) {
-		// caller in resolveReferenceRequest guards against null defaultRequest; pin the invariant here
-		final DefaultReferenceSummaryRequest fallback = Objects.requireNonNull(this.defaultRequest);
-		final ReferenceSchemaContract schema = specific.referenceSchema();
-
-		// overlay entity-fetch requirements: the specific request wins every kind it mentions, the default one
-		// contributes the kinds it does not
-		final EntityFetch combinedFacetEntityRequirement = overlayFetch(
-			specific.facetEntityRequirement(), fallback.facetEntityRequirement()
-		);
-		final EntityGroupFetch combinedGroupEntityRequirement = overlayFetch(
-			specific.groupEntityRequirement(), fallback.groupEntityRequirement()
-		);
-
-		final IntPredicate facetPredicate = specific.facetPredicate() != null
-			? specific.facetPredicate()
-			: applyToSchema(fallback.facetPredicate(), schema);
-		final IntPredicate groupPredicate = specific.groupPredicate() != null
-			? specific.groupPredicate()
-			: applyToSchema(fallback.groupPredicate(), schema);
-		final NestedContextSorter facetSorter = specific.facetSorter() != null
-			? specific.facetSorter()
-			: applyToSchema(fallback.facetSorter(), schema);
-		final NestedContextSorter groupSorter = specific.groupSorter() != null
-			? specific.groupSorter()
-			: applyToSchema(fallback.groupSorter(), schema);
-
-		return new ReferenceSummaryRequest(
-			specific.order(),
-			schema,
-			facetPredicate,
-			groupPredicate,
-			facetSorter,
-			groupSorter,
-			combinedFacetEntityRequirement,
-			combinedGroupEntityRequirement,
-			specific.facetStatisticsDepth()
-		);
-	}
-
-	/**
-	 * Overlays the facet entity fetch of a reference-specific summary onto the generic one, following the rule of
-	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Returns the single fetch present
-	 * when the other one is missing - there is nothing to overlay then.
-	 *
-	 * @param specific fetch written on the reference-specific summary constraint, NULL when it carries none
-	 * @param fallback fetch written on the generic summary constraint, NULL when it carries none
-	 * @return the overlaid fetch, NULL only when neither side carries one
-	 */
-	@Nullable
-	private static EntityFetch overlayFetch(@Nullable EntityFetch specific, @Nullable EntityFetch fallback) {
-		if (specific == null || fallback == null) {
-			return specific == null ? fallback : specific;
-		}
-		return new EntityFetch(overlayKeyedRequirements(specific, fallback));
-	}
-
-	/**
-	 * Overlays the group entity fetch of a reference-specific summary onto the generic one, following the rule of
-	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Returns the single fetch present
-	 * when the other one is missing - there is nothing to overlay then.
-	 *
-	 * @param specific group fetch written on the reference-specific summary constraint, NULL when it carries none
-	 * @param fallback group fetch written on the generic summary constraint, NULL when it carries none
-	 * @return the overlaid group fetch, NULL only when neither side carries one
-	 */
-	@Nullable
-	private static EntityGroupFetch overlayFetch(
-		@Nullable EntityGroupFetch specific,
-		@Nullable EntityGroupFetch fallback
-	) {
-		if (specific == null || fallback == null) {
-			return specific == null ? fallback : specific;
-		}
-		return new EntityGroupFetch(overlayKeyedRequirements(specific, fallback));
-	}
-
-	/**
-	 * Computes the content requirements of the generic fetch overlaid by the reference-specific one. The specific
-	 * fetch's requirements come first and every requirement of the generic fetch is then reconciled with the
-	 * counterpart the specific fetch holds for it - the requirement of the very same class that accepts it through
-	 * {@link EntityContentRequire#isCombinableWith(EntityContentRequire)}:
-	 *
-	 * - **no counterpart** - the generic requirement is added, so a kind the specific fetch does not mention is
-	 *   still inherited from the generic summary; this is what lets a caller define common defaults once
-	 * - **a counterpart of a keyed kind** ({@link ReferenceContent}, {@link AccompanyingPriceContent}) - the
-	 *   specific requirement is kept untouched and the generic one is discarded, because the union has no form
-	 *   that preserves the specific fetch's own `filterBy`, `orderBy`, chunking or price-list sequence: a
-	 *   restriction present on one side only is dropped as the superset, and two different ones are refused
-	 * - **any other counterpart** - the two are united through
-	 *   {@link EntityContentRequire#combineWith(EntityContentRequire)}, which is the behaviour the summary has
-	 *   always had for attributes, associated data, prices, locales and the parent chain, none of which can lose or
-	 *   refuse anything by being united
-	 *
-	 * An **unnamed** {@link ReferenceContent} - one that carries no instance name - is not reconciled by that
-	 * whole-key rule at all, because a key holds a whole *set* of reference names and two sets that merely overlap
-	 * would slip past it: an inherited `referenceContent("a", "b")` is folded onto `a` by the nested request later
-	 * and takes the specific fetch's `filterBy` for `a` down with it. Such a requirement is therefore overlaid
-	 * **per reference name**, which is the granularity the nested request resolves at:
-	 *
-	 * - the specific fetch holding an unnamed catch-all (`referenceContentAll…()`) governs every reference, so no
-	 *   unnamed generic `referenceContent` is inherited beside it
-	 * - a generic catch-all is inherited whenever the specific fetch holds none - the nested request keeps it as
-	 *   the fallback for the references the specific fetch does not name
-	 * - a generic name-specific requirement is projected onto each name it lists
-	 *   ({@link ReferenceContent#forReferenceName(String)}) and only the projections addressing a name no unnamed
-	 *   specific `referenceContent` lists are inherited
-	 *
-	 * A `referenceContent` carrying an instance name is a separate output slot of its own and keeps the whole-key
-	 * rule, as does {@link AccompanyingPriceContent}, whose key is a single price name rather than a set.
-	 *
-	 * The narrowing is therefore confined to the kinds a union would damage. Note that {@link ReferenceSummary} and
-	 * {@link io.evitadb.api.query.require.FacetSummary} class javadoc describe a *wider* override - the
-	 * reference-specific constraint "completely overriding" the generic one, with nothing merged - which the code
-	 * has never implemented and this method deliberately does not introduce.
-	 *
-	 * @param specific fetch written on the reference-specific summary constraint
-	 * @param fallback fetch written on the generic summary constraint
-	 * @return the requirements of the overlaid fetch, in specific-first order
-	 */
-	@Nonnull
-	private static EntityContentRequire[] overlayKeyedRequirements(
-		@Nonnull EntityFetchRequire specific,
-		@Nonnull EntityFetchRequire fallback
-	) {
-		final EntityContentRequire[] specificRequirements = specific.getRequirements();
-		final EntityContentRequire[] fallbackRequirements = fallback.getRequirements();
-		final List<EntityContentRequire> overlaid = new ArrayList<>(
-			specificRequirements.length + fallbackRequirements.length
-		);
-		Collections.addAll(overlaid, specificRequirements);
-		final Set<String> specificReferenceNames = createHashSet(specificRequirements.length);
-		boolean specificCatchAll = false;
-		for (final EntityContentRequire specificRequirement : specificRequirements) {
-			if (specificRequirement instanceof ReferenceContent referenceContent &&
-				referenceContent.getInstanceName() == null) {
-				if (referenceContent.isAllRequested()) {
-					specificCatchAll = true;
-				} else {
-					Collections.addAll(specificReferenceNames, referenceContent.getReferenceNames());
-				}
-			}
-		}
-		for (final EntityContentRequire fallbackRequirement : fallbackRequirements) {
-			if (fallbackRequirement instanceof ReferenceContent fallbackReferenceContent &&
-				fallbackReferenceContent.getInstanceName() == null) {
-				inheritReferenceContent(
-					fallbackReferenceContent, specificCatchAll, specificReferenceNames, overlaid
-				);
-				continue;
-			}
-			int counterpartIndex = -1;
-			// only the leading positions hold the specific fetch's requirements - a generic requirement appended
-			// below is not a counterpart of another generic one
-			for (int i = 0; i < specificRequirements.length; i++) {
-				final EntityContentRequire specificRequirement = overlaid.get(i);
-				if (specificRequirement.getClass().equals(fallbackRequirement.getClass()) &&
-					specificRequirement.isCombinableWith(fallbackRequirement)) {
-					counterpartIndex = i;
-					break;
-				}
-			}
-			if (counterpartIndex < 0) {
-				overlaid.add(fallbackRequirement);
-			} else if (!isKeyedRequirement(fallbackRequirement)) {
-				overlaid.set(
-					counterpartIndex,
-					overlaid.get(counterpartIndex).combineWith(fallbackRequirement)
-				);
-			}
-		}
-		return overlaid.toArray(EntityContentRequire[]::new);
-	}
-
-	/**
-	 * Adds the parts of an unnamed generic `referenceContent` the reference-specific fetch leaves uncovered to the
-	 * overlaid requirements, following the per-reference-name rule described by
-	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Nothing is added when the specific
-	 * fetch already governs the references in question - that is the whole point of the overlay, and it is what
-	 * keeps the specific fetch's own `filterBy`, `orderBy` and chunking out of the nested request's per-name fold.
-	 *
-	 * @param fallbackRequirement    unnamed `referenceContent` written on the generic summary constraint
-	 * @param specificCatchAll       TRUE when the specific fetch holds an unnamed `referenceContentAll…()`
-	 * @param specificReferenceNames names listed by the unnamed name-specific `referenceContent` requirements of
-	 *                               the specific fetch
-	 * @param overlaid               requirements of the overlaid fetch the inherited projections are appended to
-	 */
-	private static void inheritReferenceContent(
-		@Nonnull ReferenceContent fallbackRequirement,
-		boolean specificCatchAll,
-		@Nonnull Set<String> specificReferenceNames,
-		@Nonnull List<EntityContentRequire> overlaid
-	) {
-		if (specificCatchAll) {
-			// the specific catch-all describes every reference of the summary - nothing is left for the generic
-			// requirement to contribute
-			return;
-		}
-		if (fallbackRequirement.isAllRequested()) {
-			// a generic catch-all stays the fallback for the references the specific fetch does not name; the
-			// nested request resolves the name-specific requirements before it
-			overlaid.add(fallbackRequirement);
-			return;
-		}
-		for (final String referenceName : fallbackRequirement.getReferenceNames()) {
-			if (!specificReferenceNames.contains(referenceName)) {
-				overlaid.add(fallbackRequirement.forReferenceName(referenceName));
-			}
-		}
-	}
-
-	/**
-	 * Returns TRUE for the content requirement kinds that may legitimately occur several times in one fetch
-	 * container and therefore carry a key of their own - a {@link ReferenceContent} keyed by the references it
-	 * names, an {@link AccompanyingPriceContent} keyed by the price it calculates. These are the kinds whose union
-	 * can lose a restriction or refuse outright, which is why
-	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)} leaves them to the
-	 * reference-specific fetch instead of uniting them.
-	 *
-	 * Of the two kinds only an **instance-named** {@link ReferenceContent} reaches this classification: an unnamed
-	 * one is overlaid per reference name by {@link #inheritReferenceContent(ReferenceContent, boolean, Set, List)}
-	 * before the whole-key counterpart search runs.
-	 *
-	 * @param requirement requirement to classify
-	 * @return TRUE when the requirement is of a keyed kind
-	 */
-	private static boolean isKeyedRequirement(@Nonnull EntityContentRequire requirement) {
-		return requirement instanceof ReferenceContent || requirement instanceof AccompanyingPriceContent;
+		return specific == null ? buildFromDefault(referenceSchema, counter) : specific;
 	}
 
 	/**
@@ -808,7 +548,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 
 	/**
 	 * Applies a nullable per-schema resolver to the given schema, returning `null` when the resolver is
-	 * absent. Lets the merge/build helpers express predicate and sorter fallbacks uniformly.
+	 * absent. Lets {@link #buildFromDefault(ReferenceSchemaContract, AtomicInteger)} express the predicate and
+	 * sorter derivation from the generic constraint uniformly.
 	 */
 	@Nullable
 	private static <R> R applyToSchema(

@@ -109,9 +109,13 @@ import java.util.Optional;
  * ## Interaction with ReferenceSummaryOfReference
  *
  * A generic `referenceSummary` can coexist in the same `require()` container with one or more
- * {@link ReferenceSummaryOfReference} constraints. When both are present, `referenceSummaryOfReference` **completely overrides**
- * all constraints from the generic `referenceSummary` for that particular reference — the constraints are not merged. This
- * pattern lets you define common defaults once and specialize only the references that need different behaviour.
+ * {@link ReferenceSummaryOfReference} constraints. When both are present, `referenceSummaryOfReference` **completely
+ * overrides** all constraints from the generic `referenceSummary` for that particular reference — the constraints are
+ * not merged. A `referenceSummaryOfReference` therefore **must define all of its own requirements**: neither the entity
+ * fetch, nor the group entity fetch, nor the filters or the ordering written on the generic constraint reach the
+ * reference it names. The generic constraint keeps governing every reference that has no
+ * `referenceSummaryOfReference` of its own, which is what lets you define common defaults once and specialize only the
+ * references that need different behaviour.
  *
  * ## Performance note
  *

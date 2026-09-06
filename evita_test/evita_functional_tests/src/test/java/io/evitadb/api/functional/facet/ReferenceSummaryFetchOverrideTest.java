@@ -26,16 +26,20 @@ package io.evitadb.api.functional.facet;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
@@ -50,6 +54,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -62,51 +68,51 @@ import static io.evitadb.test.TestTags.REQUIRE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Verifies how the entity fetch of a reference-specific summary is combined with the entity fetch of the generic
- * summary written beside it. The two are **overlaid**: a requirement of a keyed kind - a `referenceContent` for one
- * reference, an `accompanyingPriceContent` for one price - is taken from the reference-specific fetch alone, while
- * every other kind is united exactly as it always was.
+ * Verifies that a reference-specific summary constraint - `referenceSummaryOfReference` /
+ * `facetSummaryOfReference` - governs the reference it names **entirely**. It must define all of its own
+ * requirements: nothing at all is inherited from a generic `referenceSummary` / `facetSummary` written beside it,
+ * neither for the facet entity fetch nor for the group entity fetch. The generic constraint keeps governing every
+ * reference that has no specific constraint of its own.
  *
- * The narrowing is confined to the keyed kinds because uniting those is what damages the specific fetch, in both
- * directions:
+ * That is the rule the class javadoc of `ReferenceSummary` and `FacetSummary` has always stated. The producer used
+ * to overlay the two fetches instead, so a reference-specific summary silently picked up the generic summary's
+ * attributes, locales and nested references; these tests pin the override the documentation promises.
  *
- * - a nested `referenceContent` filter carried by the **specific** fetch alone would be dropped by the union's
- *   superset rule, widening the graph the client receives
- * - two **different** nested filters would make the union refuse the query outright, although the client wrote only
- *   one of them for the reference the specific summary describes
+ * The three groups of tests are:
  *
- * Two tests pin what the overlay leaves alone: a kind the specific fetch does not mention at all is still inherited
- * from the generic one, and two requirements of an unkeyed kind are still united, so defining common defaults once
- * and specializing a single reference keeps working.
- *
- * The last three tests pin the granularity: an unnamed `referenceContent` is overlaid **per reference name**, not per
- * whole name set. A generic requirement addressing two references beside a specific one addressing a single one of
- * them keeps the specific fetch's `filterBy` for the shared name and still contributes the other name, a generic
- * requirement is not inherited at all beside a specific `referenceContentAll…()`, and two filters disagreeing on the
- * shared name are reconciled by the specific one winning rather than by refusing the query.
+ * - **nothing is inherited** - an attribute, a locale, a nested reference name or a group fetch written on the
+ *   generic summary alone does not reach the reference the specific summary names, while it keeps applying to
+ *   every other faceted reference
+ * - **the specific fetch's own selectors survive** - the nested `referenceContent` `filterBy`, `orderBy` and page
+ *   the specific summary carries reach the fetch untouched, which a union of the two fetches would have dropped as
+ *   the superset or refused outright when the two disagreed
+ * - **the generic summary still governs the rest** - every assertion checks the un-named reference too
  *
  * The tests drive `referenceSummary` / `referenceSummaryOfReference`; the deprecated `facetSummary` pair reaches the
  * very same code through `FacetSummaryOfReferenceTranslator`, which delegates to
  * `ReferenceSummaryOfReferenceTranslator`.
  *
- * Fixture: a product whose `brands` and `categories` references are both faceted, where each brand and each category
- * carries the same `tags` reference. That shared reference name is what lets one generic summary describe a nested
- * fetch valid for every faceted reference, while the specific summary describes it differently for `brands` alone.
+ * Fixture: a product whose `brands` and `categories` references are both faceted and both grouped, where each brand
+ * and each category carries the same `tags` and `labels` references. Those shared reference names are what let one
+ * generic summary describe a nested fetch valid for every faceted reference, while the specific summary describes
+ * it differently for `brands` alone.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Reference summary overlays the specific entity fetch onto the generic one")
+@DisplayName("Reference summary of a reference overrides the generic summary completely")
 @Tag(CONTRACT)
 @Tag(FACET)
 @Tag(REFERENCE)
 @Tag(REQUIRE)
-class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
+class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
 	private static final String ENTITY_CATEGORY = "category";
+	private static final String ENTITY_GROUP = "group";
 	private static final String ENTITY_TAG = "tag";
 	private static final String ENTITY_LABEL = "label";
 
@@ -121,6 +127,8 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	private static final int PRODUCT_PK = 100;
 	private static final int BRAND_PK = 1;
 	private static final int CATEGORY_PK = 10;
+	private static final int BRAND_GROUP_PK = 1;
+	private static final int CATEGORY_GROUP_PK = 2;
 	private static final int[] TAG_PKS = {1, 2, 3, 4};
 	/**
 	 * Primary keys of the `label` entities. They deliberately mirror {@link #TAG_PKS}, so that one
@@ -133,10 +141,11 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	private Evita evita;
 
 	/**
-	 * Defines a product whose `brands` and `categories` references are faceted, and gives both the brand and the
-	 * category entity the same `tags` and `labels` references, so that a single generic summary can describe
-	 * a nested fetch that is valid for either of them. Two nested references are what makes a generic requirement
-	 * addressing a *set* of names - and therefore only partially overlapping a reference-specific one - expressible.
+	 * Defines a product whose `brands` and `categories` references are faceted and grouped by the same `group`
+	 * entity type, and gives both the brand and the category entity the same `tags` and `labels` references, so
+	 * that a single generic summary can describe a nested fetch that is valid for either of them. Two nested
+	 * references are what makes a generic requirement addressing a *set* of names - and therefore only partially
+	 * overlapping a reference-specific one - expressible.
 	 *
 	 * @param session session to define the schema in
 	 */
@@ -147,6 +156,12 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 
 		session.defineEntitySchema(ENTITY_LABEL)
 			.withoutGeneratedPrimaryKey()
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_GROUP)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute(ATTRIBUTE_CODE, String.class)
+			.withAttribute(ATTRIBUTE_NAME, String.class)
 			.updateVia(session);
 
 		session.defineEntitySchema(ENTITY_BRAND)
@@ -181,19 +196,24 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 			.withoutGeneratedPrimaryKey()
 			.withReferenceToEntity(
 				REF_BRANDS, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					.faceted()
+					.withGroupTypeRelatedToEntity(ENTITY_GROUP)
 			)
 			.withReferenceToEntity(
 				REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					.faceted()
+					.withGroupTypeRelatedToEntity(ENTITY_GROUP)
 			)
 			.updateVia(session);
 	}
 
 	/**
-	 * Seeds four tags, four labels, one brand and one category carrying all of them, and a single product
-	 * referencing both. Every facet entity therefore holds the same four `tags` and four `labels` references, so
-	 * a filter applied to them is visible as the exact subset that comes back.
+	 * Seeds four tags, four labels, two groups, one brand and one category carrying all tags and labels, and
+	 * a single product referencing both facet entities, each in a group of its own. Every facet entity therefore
+	 * holds the same four `tags` and four `labels` references, so a filter applied to them is visible as the exact
+	 * subset that comes back.
 	 *
 	 * @param session session to seed the data in
 	 */
@@ -204,6 +224,15 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 		for (final int labelPk : LABEL_PKS) {
 			session.createNewEntity(ENTITY_LABEL, labelPk).upsertVia(session);
 		}
+
+		session.createNewEntity(ENTITY_GROUP, BRAND_GROUP_PK)
+			.setAttribute(ATTRIBUTE_CODE, "group-" + BRAND_GROUP_PK)
+			.setAttribute(ATTRIBUTE_NAME, "Group " + BRAND_GROUP_PK)
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_GROUP, CATEGORY_GROUP_PK)
+			.setAttribute(ATTRIBUTE_CODE, "group-" + CATEGORY_GROUP_PK)
+			.setAttribute(ATTRIBUTE_NAME, "Group " + CATEGORY_GROUP_PK)
+			.upsertVia(session);
 
 		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
 			.setAttribute(ATTRIBUTE_CODE, "brand-" + BRAND_PK)
@@ -232,8 +261,8 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 			.upsertVia(session);
 
 		session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
-			.setReference(REF_BRANDS, BRAND_PK)
-			.setReference(REF_CATEGORIES, CATEGORY_PK)
+			.setReference(REF_BRANDS, BRAND_PK, whichIs -> whichIs.setGroup(ENTITY_GROUP, BRAND_GROUP_PK))
+			.setReference(REF_CATEGORIES, CATEGORY_PK, whichIs -> whichIs.setGroup(ENTITY_GROUP, CATEGORY_GROUP_PK))
 			.upsertVia(session);
 	}
 
@@ -293,6 +322,30 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the primary keys the single facet entity of the passed reference carries under the passed nested
+	 * reference name, in the order the fetch produced them. Unlike {@link #nestedPksOfSingleFacet} this keeps the
+	 * ordering and the paging the nested requirement asked for observable.
+	 *
+	 * @param summary             summary returned by the query
+	 * @param referenceName       name of the faceted reference whose only facet entity is examined
+	 * @param nestedReferenceName name of the reference read from that facet entity
+	 * @return primary keys of the nested references fetched with that facet entity, in fetch order
+	 */
+	@Nonnull
+	private static List<Integer> orderedNestedPksOfSingleFacet(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName,
+		@Nonnull String nestedReferenceName
+	) {
+		final SealedEntity facetEntity = singleFacetEntity(summary, referenceName);
+		final List<Integer> referencedPks = new ArrayList<>(8);
+		for (final ReferenceContract nestedReference : facetEntity.getReferences(nestedReferenceName)) {
+			referencedPks.add(nestedReference.getReferencedPrimaryKey());
+		}
+		return referencedPks;
+	}
+
+	/**
 	 * Returns the body of the only facet entity the summary holds for the passed reference, failing the test when
 	 * the summary holds no facet or when the facet body was not fetched at all.
 	 *
@@ -305,24 +358,87 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 		@Nonnull ReferenceSummary summary,
 		@Nonnull String referenceName
 	) {
+		return assertInstanceOf(
+			SealedEntity.class,
+			singleFacetClassifier(summary, referenceName),
+			"The body of the `" + referenceName + "` facet entity was not fetched!"
+		);
+	}
+
+	/**
+	 * Returns the classifier the summary holds for the only facet of the passed reference - a bare
+	 * {@link EntityReference} when no entity fetch governs the reference, the fetched body otherwise.
+	 *
+	 * @param summary       summary returned by the query
+	 * @param referenceName name of the faceted reference whose only facet classifier is returned
+	 * @return the classifier of that facet
+	 */
+	@Nonnull
+	private static EntityClassifier singleFacetClassifier(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName
+	) {
 		for (final ReferenceGroupStatistics group : summary.getReferenceStatistics()) {
 			if (!referenceName.equals(group.getReferenceName())) {
 				continue;
 			}
 			for (final FacetStatistics facet : group.getFacetStatistics()) {
-				return assertInstanceOf(
-					SealedEntity.class,
-					facet.getFacetEntity(),
-					"The body of the `" + referenceName + "` facet entity was not fetched!"
-				);
+				return facet.getFacetEntity();
 			}
 		}
 		throw new AssertionError("Summary holds no facet for reference `" + referenceName + "`!");
 	}
 
+	/**
+	 * Returns the group entity the summary holds for the only group of the passed reference.
+	 *
+	 * @param summary       summary returned by the query
+	 * @param referenceName name of the faceted reference whose only group entity is returned
+	 * @return the classifier of that group
+	 */
+	@Nonnull
+	private static EntityClassifier singleGroupClassifier(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName
+	) {
+		for (final ReferenceGroupStatistics group : summary.getReferenceStatistics()) {
+			if (!referenceName.equals(group.getReferenceName())) {
+				continue;
+			}
+			final EntityClassifier groupEntity = group.getGroupEntity();
+			assertNotNull(groupEntity, "Summary holds no group entity for reference `" + referenceName + "`!");
+			return groupEntity;
+		}
+		throw new AssertionError("Summary holds no group for reference `" + referenceName + "`!");
+	}
+
+	/**
+	 * Asserts that the single facet entity of the passed reference did not fetch the passed nested reference at
+	 * all - reading it raises {@link ContextMissingException}, which is how the engine reports a reference the
+	 * request never asked for.
+	 *
+	 * @param summary             summary returned by the query
+	 * @param referenceName       name of the faceted reference whose only facet entity is examined
+	 * @param nestedReferenceName name of the reference expected not to have been fetched
+	 * @param message             assertion message
+	 */
+	private static void assertNestedReferenceNotFetched(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName,
+		@Nonnull String nestedReferenceName,
+		@Nonnull String message
+	) {
+		final SealedEntity facetEntity = singleFacetEntity(summary, referenceName);
+		assertThrows(
+			ContextMissingException.class,
+			() -> facetEntity.getReferences(nestedReferenceName),
+			message
+		);
+	}
+
 	@BeforeEach
 	void setUp() {
-		this.paths = createTestPaths("ReferenceSummaryFetchOverlayTest");
+		this.paths = createTestPaths("ReferenceSummaryFetchOverrideTest");
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
@@ -338,8 +454,9 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The nested filter written only on the reference-specific summary must survive - uniting it with the generic
-	 * fetch, which asks for every tag, would drop it as the superset and hand the client references it excluded.
+	 * The nested filter written on the reference-specific summary is the only requirement governing the reference
+	 * it names - the generic summary's unfiltered `referenceContent` does not widen it, and keeps applying to every
+	 * other faceted reference.
 	 */
 	@Test
 	@DisplayName("should keep the nested filter of the specific summary beside an unfiltered generic one")
@@ -388,7 +505,7 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Two different nested filters are not a conflict here: the reference-specific summary is the only one that
+	 * Two different nested filters are not a conflict: the reference-specific summary is the only one that
 	 * describes the reference it names, so its filter simply wins and the generic one keeps applying to every other
 	 * faceted reference. Uniting the two fetches would refuse the query instead.
 	 */
@@ -444,13 +561,65 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The overlay is not a replacement: a content requirement of a kind the specific fetch does not mention at all
-	 * is still contributed by the generic one, which is what lets a caller define common defaults once and
-	 * specialize a single reference.
+	 * The nested `orderBy` and page written on the reference-specific summary reach the fetch untouched. Uniting
+	 * the two fetches has no form that preserves them - a one-sided restriction is dropped as the superset - which
+	 * is why the reference-specific fetch has to be the only one governing the reference it names.
 	 */
 	@Test
-	@DisplayName("should inherit the generic requirements the specific summary does not mention")
-	void shouldInheritGenericRequirementsTheSpecificSummaryDoesNotMention() {
+	@DisplayName("should keep the nested order and page of the specific summary")
+	void shouldKeepNestedOrderAndPageOfSpecificSummary() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							referenceSummary(
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(referenceContent(REF_TAGS))
+							),
+							referenceSummaryOfReference(
+								REF_BRANDS,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(
+									referenceContent(
+										REF_TAGS,
+										orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+										page(1, 2)
+									)
+								)
+							)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertEquals(
+					List.of(TAG_PKS[3], TAG_PKS[2]),
+					orderedNestedPksOfSingleFacet(summary, REF_BRANDS, REF_TAGS),
+					"The order or the page of the reference-specific summary was lost!"
+				);
+				assertEquals(
+					Set.of(TAG_PKS[0], TAG_PKS[1], TAG_PKS[2], TAG_PKS[3]),
+					tagPksOfSingleFacet(summary, REF_CATEGORIES),
+					"The generic summary stopped applying to the references it was written for!"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The override is total: a content requirement of a kind the specific fetch does not mention at all is **not**
+	 * contributed by the generic one either. A reference-specific summary has to define all of its own
+	 * requirements.
+	 */
+	@Test
+	@DisplayName("should not inherit the generic requirements the specific summary does not mention")
+	void shouldNotInheritGenericRequirementsTheSpecificSummaryDoesNotMention() {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -479,10 +648,16 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 					tagPksOfSingleFacet(summary, REF_BRANDS),
 					"The requirement written on the reference-specific summary was lost!"
 				);
+				final SealedEntity brandFacet = singleFacetEntity(summary, REF_BRANDS);
+				assertThrows(
+					ContextMissingException.class,
+					brandFacet::getAttributeNames,
+					"The requirement the specific summary does not mention was inherited from the generic one!"
+				);
 				assertEquals(
-					"brand-" + BRAND_PK,
-					singleFacetEntity(summary, REF_BRANDS).getAttribute(ATTRIBUTE_CODE),
-					"The requirement the specific summary does not mention was not inherited from the generic one!"
+					"category-" + CATEGORY_PK,
+					singleFacetEntity(summary, REF_CATEGORIES).getAttribute(ATTRIBUTE_CODE),
+					"The generic summary stopped applying to the references it was written for!"
 				);
 				return null;
 			}
@@ -490,13 +665,13 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The overlay narrows nothing outside the keyed kinds: an `attributeContent` written on both summaries is still
-	 * united, so the facet entity carries the generic summary's attribute as well as its own, while the nested
-	 * `referenceContent` the specific summary filters stays the specific summary's alone.
+	 * Two requirements of the very same kind are not united either: the attribute of the generic summary does not
+	 * reach the reference the specific summary names, although uniting `attributeContent` can lose nothing. The
+	 * override is about the whole constraint rather than about the kinds a union would damage.
 	 */
 	@Test
-	@DisplayName("should unite the attributes of both summaries while the keyed requirement stays specific")
-	void shouldUniteAttributesOfBothSummariesWhileKeyedRequirementStaysSpecific() {
+	@DisplayName("should not unite the attributes of both summaries")
+	void shouldNotUniteAttributesOfBothSummaries() {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -533,14 +708,19 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 					"The attribute the reference-specific summary asked for was lost!"
 				);
 				assertEquals(
-					"brand-" + BRAND_PK,
-					brandFacet.getAttribute(ATTRIBUTE_CODE),
-					"The attribute of the generic summary is no longer united with the specific one!"
+					Set.of(ATTRIBUTE_NAME),
+					brandFacet.getAttributeNames(),
+					"The attribute of the generic summary was united with the specific one!"
 				);
 				assertEquals(
 					Set.of(TAG_PKS[2]),
 					tagPksOfSingleFacet(summary, REF_BRANDS),
 					"The generic summary widened the nested references of the specific one!"
+				);
+				assertEquals(
+					Set.of(ATTRIBUTE_CODE),
+					singleFacetEntity(summary, REF_CATEGORIES).getAttributeNames(),
+					"The generic summary stopped applying to the references it was written for!"
 				);
 				return null;
 			}
@@ -549,14 +729,12 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 
 	/**
 	 * The generic summary addresses two references at once while the reference-specific one addresses a single one
-	 * of them: the shared name keeps the specific fetch's filter, and the name the specific fetch never mentions is
-	 * still contributed by the generic requirement. Comparing whole reference-name sets would let the generic
-	 * requirement through untouched, and the nested request would then fold it onto the shared name and drop the
-	 * specific filter as the superset.
+	 * of them: the shared name keeps the specific fetch's filter and the name the specific fetch never mentions is
+	 * not fetched at all, because nothing of the generic summary reaches the reference it names.
 	 */
 	@Test
-	@DisplayName("should keep the specific filter while inheriting the names it does not address")
-	void shouldKeepSpecificFilterWhileInheritingNamesItDoesNotAddress() {
+	@DisplayName("should not inherit the nested names the specific requirement does not address")
+	void shouldNotInheritNestedNamesTheSpecificRequirementDoesNotAddress() {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -590,10 +768,9 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 					tagPksOfSingleFacet(summary, REF_BRANDS),
 					"The generic requirement widened the nested references of the specific one!"
 				);
-				assertEquals(
-					Set.of(LABEL_PKS[0], LABEL_PKS[1], LABEL_PKS[2], LABEL_PKS[3]),
-					labelPksOfSingleFacet(summary, REF_BRANDS),
-					"The name the specific fetch does not address was not inherited from the generic one!"
+				assertNestedReferenceNotFetched(
+					summary, REF_BRANDS, REF_LABELS,
+					"The name the specific fetch does not address was inherited from the generic one!"
 				);
 				assertEquals(
 					Set.of(TAG_PKS[0], TAG_PKS[1], TAG_PKS[2], TAG_PKS[3]),
@@ -611,9 +788,9 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * A `referenceContentAll…()` on the reference-specific summary describes every reference of the facet entity, so
-	 * no `referenceContent` of the generic summary is inherited beside it - not even one addressing a name the
-	 * specific fetch does not spell out, because the catch-all already covers that name too.
+	 * A `referenceContentAll…()` on the reference-specific summary describes every reference of the facet entity,
+	 * and no `referenceContent` of the generic summary is inherited beside it - as none is inherited beside any
+	 * other specific requirement.
 	 */
 	@Test
 	@DisplayName("should not inherit a generic requirement beside a specific catch-all")
@@ -668,9 +845,9 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 
 	/**
 	 * Two filters disagreeing on the reference both requirements address are not a conflict: the reference-specific
-	 * summary is the only one written for the reference it names, so its filter wins, while the generic filter keeps
-	 * applying to the name only the generic requirement addresses. Letting the generic requirement through whole
-	 * would make the nested request refuse the query outright.
+	 * summary is the only one written for the reference it names, so its filter wins, and the name only the generic
+	 * requirement addresses is not fetched for that reference at all. The generic filter keeps governing every
+	 * other faceted reference, both names included.
 	 */
 	@Test
 	@DisplayName("should prefer the specific filter over a conflicting generic one on the shared name")
@@ -713,10 +890,9 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 					tagPksOfSingleFacet(summary, REF_BRANDS),
 					"The filter of the reference-specific summary did not win on the shared name!"
 				);
-				assertEquals(
-					Set.of(LABEL_PKS[0]),
-					labelPksOfSingleFacet(summary, REF_BRANDS),
-					"The generic filter was lost on the name only the generic requirement addresses!"
+				assertNestedReferenceNotFetched(
+					summary, REF_BRANDS, REF_LABELS,
+					"The name only the generic requirement addresses was inherited by the specific summary!"
 				);
 				assertEquals(
 					Set.of(TAG_PKS[0]),
@@ -726,6 +902,122 @@ class ReferenceSummaryFetchOverlayTest implements EvitaTestSupport {
 				assertEquals(
 					Set.of(LABEL_PKS[0]),
 					labelPksOfSingleFacet(summary, REF_CATEGORIES),
+					"The generic summary stopped applying to the references it was written for!"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * A reference-specific summary carrying no entity fetch at all comes back as bare entity references - both for
+	 * the facets and for their groups - although the generic summary beside it asks for attributes of each. The
+	 * generic summary keeps enriching every other faceted reference.
+	 */
+	@Test
+	@DisplayName("should return bare entity references for a specific summary carrying no fetch")
+	void shouldReturnBareEntityReferencesForSpecificSummaryCarryingNoFetch() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							referenceSummary(
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								entityGroupFetch(attributeContent(ATTRIBUTE_CODE))
+							),
+							referenceSummaryOfReference(REF_BRANDS, FacetStatisticsDepth.COUNTS)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertInstanceOf(
+					EntityReference.class, singleFacetClassifier(summary, REF_BRANDS),
+					"The facet entity fetch of the generic summary was inherited by the specific one!"
+				);
+				assertInstanceOf(
+					EntityReference.class, singleGroupClassifier(summary, REF_BRANDS),
+					"The group entity fetch of the generic summary was inherited by the specific one!"
+				);
+				assertEquals(
+					"category-" + CATEGORY_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_CATEGORIES),
+						"The generic summary stopped applying to the references it was written for!"
+					).getAttribute(ATTRIBUTE_CODE),
+					"The generic summary stopped applying to the references it was written for!"
+				);
+				assertEquals(
+					"group-" + CATEGORY_GROUP_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleGroupClassifier(summary, REF_CATEGORIES),
+						"The generic summary stopped applying to the references it was written for!"
+					).getAttribute(ATTRIBUTE_CODE),
+					"The generic summary stopped applying to the references it was written for!"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * An empty `entityGroupFetch()` on the reference-specific summary fetches the group body and nothing else - the
+	 * attribute the generic summary's own `entityGroupFetch` asks for is not inherited into it.
+	 */
+	@Test
+	@DisplayName("should not inherit the group attributes of the generic summary into an empty group fetch")
+	void shouldNotInheritGroupAttributesOfGenericSummaryIntoEmptyGroupFetch() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							referenceSummary(
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								entityGroupFetch(attributeContent(ATTRIBUTE_CODE))
+							),
+							referenceSummaryOfReference(
+								REF_BRANDS,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_NAME)),
+								entityGroupFetch()
+							)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertEquals(
+					Set.of(ATTRIBUTE_NAME),
+					singleFacetEntity(summary, REF_BRANDS).getAttributeNames(),
+					"The facet attribute of the generic summary was inherited by the specific one!"
+				);
+				final SealedEntity brandGroup = assertInstanceOf(
+					SealedEntity.class, singleGroupClassifier(summary, REF_BRANDS),
+					"The empty group fetch of the specific summary did not fetch the group body!"
+				);
+				assertThrows(
+					ContextMissingException.class,
+					brandGroup::getAttributeNames,
+					"The group attribute of the generic summary was inherited by the specific one!"
+				);
+				assertEquals(
+					Set.of(ATTRIBUTE_CODE),
+					assertInstanceOf(
+						SealedEntity.class, singleGroupClassifier(summary, REF_CATEGORIES),
+						"The generic summary stopped applying to the references it was written for!"
+					).getAttributeNames(),
 					"The generic summary stopped applying to the references it was written for!"
 				);
 				return null;

@@ -108,9 +108,13 @@ import java.util.Optional;
  * ## Interaction with FacetSummaryOfReference
  *
  * A generic `facetSummary` can coexist in the same `require()` container with one or more
- * {@link FacetSummaryOfReference} constraints. When both are present, `facetSummaryOfReference` **completely overrides**
- * all constraints from the generic `facetSummary` for that particular reference — the constraints are not merged. This
- * pattern lets you define common defaults once and specialize only the references that need different behaviour.
+ * {@link FacetSummaryOfReference} constraints. When both are present, `facetSummaryOfReference` **completely
+ * overrides** all constraints from the generic `facetSummary` for that particular reference — the constraints are not
+ * merged. A `facetSummaryOfReference` therefore **must define all of its own requirements**: neither the entity fetch,
+ * nor the group entity fetch, nor the filters or the ordering written on the generic constraint reach the reference it
+ * names. The generic constraint keeps governing every reference that has no `facetSummaryOfReference` of its own,
+ * which is what lets you define common defaults once and specialize only the references that need different
+ * behaviour.
  *
  * ## Performance note
  *

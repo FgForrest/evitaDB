@@ -51,9 +51,11 @@ import java.util.Optional;
 /**
  * The `referenceSummaryOfReference` requirement triggers the calculation of the reference summary for a **single named
  * reference**, overriding all corresponding constraints that would otherwise come from a generic {@link ReferenceSummary}
- * present in the same `require()` container. When both constraints appear together, the generic `referenceSummary` defines
- * the baseline for every faceted reference, while each `referenceSummaryOfReference` **completely replaces** that baseline
- * for the reference it targets — the constraints are never merged.
+ * present in the same `require()` container. When both constraints appear together, the generic `referenceSummary`
+ * defines the baseline for every faceted reference, while each `referenceSummaryOfReference` **completely replaces**
+ * that baseline for the reference it targets — the constraints are never merged, so this constraint has to define all
+ * of its own requirements. Nothing written on the generic `referenceSummary` — no entity fetch, no group entity fetch,
+ * no filter and no ordering — reaches the reference this constraint names.
  *
  * This constraint can also stand alone (without a generic `referenceSummary`) when you only want statistics for a single
  * specific reference.
@@ -128,7 +130,8 @@ import java.util.Optional;
  * ```
  *
  * In this example all faceted references use `COUNTS` with a basic name fetch, except `parameterValues` which uses
- * `IMPACT`, applies its own filters and ordering, and loads additional attributes.
+ * `IMPACT`, applies its own filters and ordering, and defines its own entity fetches — it inherits nothing from the
+ * generic constraint, which is why it repeats `name` in its own `entityFetch`.
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
  *

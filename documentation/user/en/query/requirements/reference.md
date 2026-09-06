@@ -177,7 +177,8 @@ filtering scope as the main result (excluding the [`userFilter`](../filtering/be
 covers every reference whose schema marks it as `faceted`. Per-reference overrides — different fetch / filter /
 ordering settings or different histogram requirements — can be supplied with
 [`referenceSummaryOfReference`](#reference-summary-of-reference); the per-reference constraint **completely
-replaces** the matching configuration from a generic `referenceSummary` rather than merging with it.
+replaces** the generic `referenceSummary` for the reference it names rather than merging with it, so it has to
+define all of its own requirements. The generic constraint keeps governing every other faceted reference.
 
 </LS>
 
@@ -721,9 +722,13 @@ referenceSummaryOfReference(
 The <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummaryOfReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummaryOfReference.cs</SourceClass></LS>
 requirement either stands alone (when only one reference needs a summary) or coexists with a generic
 [`referenceSummary`](#reference-summary) to **override its baseline for that single reference**. The override is
-total: every constraint on the per-reference variant replaces the matching constraint from the generic one — they
-are never merged. This pattern lets you keep a one-line generic baseline and customise only the references that
-need it.
+total: nothing written on the generic constraint — no `entityFetch`, no `entityGroupFetch`, no `filterBy` /
+`filterGroupBy` and no `orderBy` / `orderGroupBy` — reaches the reference the per-reference variant names, so that
+variant has to define all of its own requirements. Anything it omits is simply not computed for that reference: a
+`referenceSummaryOfReference` carrying no `entityFetch` returns bare entity references even when the generic
+`referenceSummary` beside it asks for attributes. The generic constraint keeps governing every reference that has
+no per-reference variant, which is what lets you keep a one-line generic baseline and customise only the references
+that need it.
 
 Let's display the reference summary for products in the *e-readers* category, but compute it only for the `brand`
 and `parameterValues` references. Options inside `brand` should be ordered alphabetically by name; options inside
