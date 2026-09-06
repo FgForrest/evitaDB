@@ -3842,7 +3842,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				}
 				"""
 		)
-			.executeAndExpectServerErrorAndThen();
+			// the collision is a client authoring mistake, refused during planning - it used to surface as a
+			// server error only once both hierarchies had been computed
+			.executeAndExpectBadRequestAndThen()
+			.body("message", containsString("`megaMenu` is requested twice"));
 	}
 
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
@@ -4288,7 +4291,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				}
 				"""
 		)
-			.executeAndExpectServerErrorAndThen();
+			// the collision is a client authoring mistake, refused during planning - it used to surface as a
+			// server error only once both hierarchies had been computed
+			.executeAndExpectBadRequestAndThen()
+			.body("message", containsString("`megaMenu` is requested twice"));
 	}
 
 	@Test
