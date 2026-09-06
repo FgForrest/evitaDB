@@ -1905,6 +1905,23 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
+	 *
+	 * **A transitional placeholder answers before the session registry gets a say.** A catalog that is going live,
+	 * being deactivated or being dropped is represented in the engine state by an {@link UnusableCatalog}, and this
+	 * method throws that placeholder's representative exception ahead of consulting the registry - left to the
+	 * registry, a REJECT suspension would answer {@link InstanceTerminatedException} and tell the client the catalog
+	 * is gone. Only the placeholder answer is decided here: a name that names **no** catalog is deliberately still
+	 * left to the registry, so a request arriving inside a rename's POSTPONE window waits the suspension out and
+	 * then succeeds rather than being refused {@link CatalogNotFoundException} ahead of it.
+	 *
+	 * @param sessionTraits the catalog to open the session on, and the flags the session is created with
+	 * @return the created session together with its commit progress record
+	 * @throws CatalogGoingLiveException     when the catalog is going live right now
+	 * @throws CatalogTransitioningException when the catalog is being deactivated or dropped
+	 * @throws CatalogNotFoundException      when the name names no catalog
+	 * @throws InstanceTerminatedException   when the registry is suspended because the catalog is being terminated
+	 * @throws io.evitadb.core.exception.SessionBusyException when a postponing suspension did not finish in time
+	 * @throws ReadOnlyException             when a read-write session is requested on a read-only engine or catalog
 	 */
 	@Nonnull
 	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
