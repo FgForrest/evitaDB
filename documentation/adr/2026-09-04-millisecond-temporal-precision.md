@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-09-04 11:45
+updated: 2026-09-05 21:05
 status: accepted
 kind: feature
 issues: [1486]
@@ -271,6 +271,40 @@ catalog a test reads was written by the current writer.
 - **Eight comments in `IndexStoragePartConfigurer` still say "a brand-new record type with no
   backward-compatible reader" where they mean "format unchanged".** Reported, not rewritten — they are
   harmless as written but will mislead the next person to audit uids.
+- **Temporal schema *defaults* are still neither truncated nor range-checked.** Still live, and the one
+  remaining hole in the "stated once, enforced at the boundary" claim this record makes.
+  `EvitaDataTypes#toTargetType` returns an already-correctly-typed value at its first line, so
+  `withDefaultValue(OffsetDateTime.MAX)` is accepted in silence and then throws on the first unrelated
+  entity upsert that applies the default. Sites: `ModifyAttributeSchemaDefaultValueMutation` (111, 208,
+  247), `AbstractAttributeSchemaBuilder:125`, and schema *construction* itself at `AttributeSchema:541` —
+  the last easy to miss, being neither a mutation nor a builder. It reaches gRPC through the converter.
+  **The fix carries a compatibility dimension**: `mutate` re-runs on WAL replay, so range-checking
+  unconditionally would make a previously accepted schema refuse to load. Three options, none yet chosen —
+  (a) truncate and range-check everywhere, accepting the replay risk; (b) truncate always but range-check
+  only newly supplied values; (c) leave it, and document that a default is validated when first applied.
+  (b) is the standing lean.
+- **`MAX_SUPPORTED_EPOCH_SECOND` contradicts the limit this record documents.** It is
+  `Long.MAX_VALUE / 1000 - 1` (`EvitaDataTypes:161`), so `Instant.ofEpochMilli(Long.MAX_VALUE)` is
+  rejected although it is exactly representable as epoch milliseconds. Write and query reject alike, so
+  there is no probe-versus-stored asymmetry and nothing can be silently wrong — but the wording here, and
+  the exception message at `:1154`, both promise a millisecond limit the check does not implement.
+- **`InitialAttributesBuilder#mutateAttribute` keeps the read-back mismatch that `f2db956ca` fixed for
+  `setAttribute`.** At `:287` a value entering through a custom `AttributeMutation` is not normalized on
+  accept, so a read-back taken before `upsertVia` can differ from what would be stored. Reaching it needs
+  a hand-written mutation, which is why it outlived the sweep that fixed its sibling.
+- **Associated data bypasses truncation entirely, and that is a decision rather than an oversight.**
+  `UpsertAssociatedDataMutation` (52, 54) and `ComplexDataObjectConverter:124` never truncate. Associated
+  data is never indexed, so there is no probe-versus-stored mismatch to create and nothing here can go
+  silently wrong; the price is that "temporal precision is millisecond" is not true of associated data.
+  Recorded so the inconsistency is not later mistaken for a site that was missed.
+- **Hypotheses that were checked and found harmless**, listed so they are not re-proposed: reload
+  cross-page aliasing (fixed by `f9bb05c02`); page identity and fully absorbed pages; value-id compaction,
+  where survivors keep their original ids; the unnecessary-repair path, where `collapsed` stays false and
+  the index is never marked dirty; the `forKey`/`forFilterKey` split, whose production callers are
+  correctly separated (`InvertedIndex:323` versus `UniqueIndexBPlusTreeSupport:151`) — the unique-index
+  gap above is a legacy canonicalization problem, **not** a key-class routing error; and WAL replay and
+  reflected-reference defaults, both of which rebuild an `UpsertAttributeMutation` and therefore do reach
+  normalization.
 
 ## Related work
 
