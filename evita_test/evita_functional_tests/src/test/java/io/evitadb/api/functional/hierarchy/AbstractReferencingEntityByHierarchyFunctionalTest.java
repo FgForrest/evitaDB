@@ -105,6 +105,35 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
+	/**
+	 * Returns true when the entity references any of the passed categories or any of their descendants - the reference
+	 * implementation of what `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(...))` is expected to match.
+	 */
+	private static boolean isInAnyOfCategorySubtrees(
+		@Nonnull SealedEntity entity,
+		@Nonnull one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
+		int... categoryIds
+	) {
+		return entity
+			.getReferences(Entities.CATEGORY)
+			.stream()
+			.anyMatch(category -> {
+				final String categoryId = String.valueOf(category.getReferenceKey().primaryKey());
+				for (int examinedCategoryId : categoryIds) {
+					final String examinedCategory = String.valueOf(examinedCategoryId);
+					// is either the category itself
+					if (Objects.equals(categoryId, examinedCategory) ||
+						// or has it among its parents
+						categoryHierarchy.getParentItems(categoryId)
+							.stream()
+							.anyMatch(it -> Objects.equals(it.getCode(), examinedCategory))) {
+						return true;
+					}
+				}
+				return false;
+			});
+	}
+
 	@Nonnull
 	private static CardinalityProvider computeCardinalities(
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
@@ -652,6 +681,72 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 									.stream()
 									.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(7)));
 						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products in selected category subtree combined by or with another condition")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInCategorySubtreeOredWithAnotherCondition(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							or(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+								entityPrimaryKeyInSet(1, 2, 3)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> Set.of(1, 2, 3).contains(sealedEntity.getPrimaryKey()) ||
+						isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products outside the selected category subtree")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsOutsideCategorySubtree(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)))
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7),
 					result.getRecordData()
 				);
 				return null;

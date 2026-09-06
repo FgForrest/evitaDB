@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -117,6 +118,12 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * Method creates a formula producing primary keys that are part of the requested `hierarchyWithinConstraint`.
 	 * It favorites the already resolved target index set connected with the constraint, but if such is missing it
 	 * computes the set using provided `hierarchyNodesFormulaSupplier`.
+	 *
+	 * The target index set is missing whenever the constraint was not visited by
+	 * {@link io.evitadb.core.query.indexSelection.IndexSelectionVisitor} - it descends only through conjunctions, so
+	 * a hierarchy constraint nested in `or` or `not` always lands on the computed branch. Both branches must produce
+	 * the same formula, which is why the computed one resolves the reduced indexes exactly the way the index
+	 * selection does: from the queried entity schema and the reference the constraint itself names.
 	 */
 	@Nonnull
 	protected static Formula createFormulaForReferencingEntities(
@@ -125,14 +132,14 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		@Nonnull Supplier<Formula> hierarchyNodesFormulaSupplier
 	) {
 		final String referenceName = hierarchyWithinConstraint.getReferenceName().orElseThrow();
-		Assert.notNull(
-			filterByVisitor.getSchema().getReferenceOrThrowException(referenceName),
-			"Reference name validation (will never be printed)."
-		);
+		// the constraint names its own reference, and the queried schema is the one that has to declare it - the
+		// processing scope carries a reference schema only inside `referenceHaving`, which is neither this reference
+		// nor a requirement of this constraint
+		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
-			final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final Set<Scope> scopes = processingScope.getScopes();
 			Assert.isTrue(
@@ -144,9 +151,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
 					.flatMap(
 						hierarchyNodeId -> filterByVisitor.getReferencedEntityIndexes(
-							Objects.requireNonNull(processingScope.getEntitySchema()),
-							Objects.requireNonNull(processingScope.getReferenceSchema()),
-							hierarchyNodeId
+							entitySchema, referenceSchema, hierarchyNodeId
 						)
 					)
 					.filter(Objects::nonNull)
