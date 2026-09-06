@@ -274,6 +274,59 @@ class AccompanyingPriceContentTest {
 		}
 
 		@Test
+		@DisplayName("should refuse to combine a deferred price list sequence with an explicit one")
+		void shouldRefuseToCombineDeferredPriceListsWithExplicitOnes() {
+			final AccompanyingPriceContent deferring = new AccompanyingPriceContent();
+			final AccompanyingPriceContent explicit = new AccompanyingPriceContent(
+				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "reference"
+			);
+
+			// they address one price and so are combinable - the disagreement surfaces only when they are combined
+			assertTrue(deferring.isCombinableWith(explicit));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> deferring.combineWith(explicit)
+			);
+			assertTrue(
+				exception.getMessage().contains("defaultAccompanyingPriceLists"),
+				"the message must point at the deferral, not merely report unequal price lists: " +
+					exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a deferred and an explicit price list sequence in either order")
+		void shouldRefuseToCombineExplicitPriceListsWithDeferredOnes() {
+			final AccompanyingPriceContent explicit = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent deferring = new AccompanyingPriceContent("myPrice");
+
+			assertTrue(explicit.isCombinableWith(deferring));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> explicit.combineWith(deferring)
+			);
+			assertTrue(
+				exception.getMessage().contains("defaultAccompanyingPriceLists"),
+				exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should name both price list sequences when two explicit ones disagree")
+		void shouldNameBothPriceListSequencesInTheRefusal() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+			// the first argument is the price name, not a price list - the message has to tell them apart
+			assertTrue(exception.getMessage().contains("[reference]"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("[basic]"), exception.getMessage());
+		}
+
+		@Test
 		@DisplayName("should refuse to combine price lists differing only in order")
 		void shouldRefuseToCombinePriceListsDifferingOnlyInOrder() {
 			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");

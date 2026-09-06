@@ -232,6 +232,31 @@ is what makes several of them in one `entityFetch` the normal case - two require
 calculate two independent prices and both survive. Two requirements naming the *same* price are folded into one when
 they list exactly the same price lists.
 
+A requirement carrying **no** price lists does not ask for an empty sequence - it defers to the query level
+[`defaultAccompanyingPriceLists`](price.md#default-accompanying-price-lists). Requesting one price name once in that
+form and once with its own price lists is refused, and deliberately so even when the default currently resolves to
+exactly the same price lists:
+
+```evitaql
+require(
+    defaultAccompanyingPriceLists("reference"),
+    entityFetch(
+        priceContentRespectingFilter(),
+        accompanyingPriceContentDefault(),                 // price `default` from the query level default
+        accompanyingPriceContent("default", "reference")   // price `default` from `reference`
+    )
+)
+```
+
+The two agree today. They stop agreeing the moment either the default or the explicit sequence changes - and price
+lists are typically assembled from variables, so that change is a routine edit somewhere else in the code. Nothing
+in the query would show the reader that the two requirements had drifted apart, so the pair is refused while the
+disagreement is still hypothetical. State the price lists on both requirements, or defer on both.
+
+Note that the first argument of `accompanyingPriceContent` is the **name** the price is labelled with in the result,
+not a price list: `accompanyingPriceContent("default", "reference")` calculates the price named `default` from the
+single price list `reference`.
+
 ### Requirements that cannot be reconciled
 
 Some pairs have no superset at all, and evitaDB refuses them with an exception instead of letting one of them
@@ -247,7 +272,8 @@ silently win:
 - two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
 - two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
   lists that differ only in their order - the sequence is a priority order and any merge would invent a priority
-  neither side asked for
+  neither side asked for - and equally when one of them names its price lists while the other defers them to
+  `defaultAccompanyingPriceLists`
 
 </LS>
 

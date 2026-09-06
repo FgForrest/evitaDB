@@ -93,6 +93,14 @@ import java.util.Optional;
  * only in order, because the sequence is a priority order and any merge would invent a priority neither side asked
  * for. See {@link #combineWith(EntityContentRequire)} for the reasoning.
  *
+ * The two *spellings* must not be mixed either: one price name may not be requested once in the deferring form
+ * (`accompanyingPriceContentDefault()`, or any form carrying no price lists) and once with its own price lists.
+ * Such a pair is refused even when {@link DefaultAccompanyingPriceLists} currently resolves to exactly the price
+ * lists the other constraint names. The price lists are typically assembled from variables, so an agreement that
+ * holds today turns into a contradiction the moment either side changes — and it would be a contradiction nobody
+ * writing the query could see. Requesting one price twice is what opens that window; stating the price lists on
+ * both requirements, or deferring on both, closes it.
+ *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -191,6 +199,12 @@ public class AccompanyingPriceContent
 	 * requirements for one price name therefore have to agree on the price lists exactly, order included, and a
 	 * disagreement is refused with an {@link EvitaInvalidUsageException}.
 	 *
+	 * A requirement carrying **no** price lists is not a requirement for an empty sequence - it defers to the query
+	 * level {@link DefaultAccompanyingPriceLists}, which this constraint cannot see. One price name requested once in
+	 * that form and once with explicit price lists is therefore refused as well, and deliberately so even when the two
+	 * would resolve alike: the equality would be a coincidence of the current default, not something either side
+	 * asked for, and the next change to either one would turn it into a silent disagreement.
+	 *
 	 * @param anotherRequirement another requirement to be combined with, must be an accompanying price content
 	 *                           requirement with the same accompanying price name
 	 * @param <T> type of the requirement to be combined with
@@ -199,7 +213,8 @@ public class AccompanyingPriceContent
 	 *                                   differently named accompanying price - both are caller bugs, since
 	 *                                   {@link #isCombinableWith(EntityContentRequire)} rejects such a pair
 	 * @throws EvitaInvalidUsageException when both requirements name the same accompanying price but disagree on the
-	 *                                    price lists to calculate it from
+	 *                                    price lists to calculate it from, or when one of them defers its price lists
+	 *                                    to {@link DefaultAccompanyingPriceLists} while the other names its own
 	 */
 	@Nonnull
 	@Override
@@ -219,9 +234,23 @@ public class AccompanyingPriceContent
 				"Only accompanying price content requirements calculating the price of the same name can be combined!"
 			);
 		}
-		if (!Arrays.equals(getPriceLists(), anotherAccompanyingPrice.getPriceLists())) {
+		final String[] thisPriceLists = getPriceLists();
+		final String[] anotherPriceLists = anotherAccompanyingPrice.getPriceLists();
+		// an empty sequence does not mean "no price lists" - it defers to the query level
+		// `defaultAccompanyingPriceLists`, whose value neither constraint can see from here
+		if ((thisPriceLists.length == 0) != (anotherPriceLists.length == 0)) {
+			final String reason = "Accompanying price `" + priceName + "` is requested both with price lists of its " +
+				"own and with the price lists deferred to `defaultAccompanyingPriceLists` - state the price lists on " +
+				"both requirements, or defer on both";
+			throw new EvitaInvalidUsageException(
+				reason + ": " + this + " and " + anotherRequirement + ".",
+				reason + "."
+			);
+		}
+		if (!Arrays.equals(thisPriceLists, anotherPriceLists)) {
 			final String reason = "Cannot combine multiple accompanying price content requirements for price `" +
-				priceName + "` with different price lists";
+				priceName + "` with different price lists (" + Arrays.toString(thisPriceLists) + " and " +
+				Arrays.toString(anotherPriceLists) + ")";
 			throw new EvitaInvalidUsageException(
 				reason + ": " + this + " and " + anotherRequirement + ".",
 				reason + "."
