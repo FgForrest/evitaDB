@@ -154,7 +154,7 @@ public interface EntityContentRequire extends RequireConstraint {
 	 * wrong, because the response is re-derived from the client's own `EvitaRequest` afterwards. The default
 	 * implementation hands the receiver back unchanged, which is correct for every requirement whose whole content
 	 * *is* a description of what to load; {@link ReferenceContent#forPrefetch()} overrides it to drop its `filterBy`,
-	 * `orderBy` and chunking constraints.
+	 * `orderBy` and chunking constraints, and {@link HierarchyContent#forPrefetch()} to drop its `stopAt` bound.
 	 *
 	 * Applied by {@link DefaultPrefetchRequirementCollector} to every requirement entering the prefetch union, and by
 	 * nobody else — the fold that shapes the body the client receives must see the requirement as he wrote it.

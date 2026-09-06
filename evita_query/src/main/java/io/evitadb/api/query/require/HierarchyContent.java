@@ -172,6 +172,43 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 		return new HierarchyContent(children);
 	}
 
+	/**
+	 * Drops the {@link HierarchyStopAt} bound, keeping the nested {@link EntityFetch} that describes the parent
+	 * bodies.
+	 *
+	 * The bound is an **output projection**: it decides how many ancestors of the returned entity reach the response,
+	 * and it says nothing about what has to be loaded to answer the query — the whole parent chain is materialised
+	 * from the entity's hierarchy placement either way. A prefetch requirement is a lower bound ("load at least
+	 * this"), so dropping it is a widening that can never make an answer wrong, and the client never observes it:
+	 * the prefetched entity is narrowed back down from his own `EvitaRequest`, whose `hierarchyContent` carries the
+	 * bound he actually wrote.
+	 *
+	 * Without the strip the bound would reach the prefetch union and be answered by
+	 * {@link #combineWith(EntityContentRequire)}, which refuses two differing bounds — and the union is fed from
+	 * unrelated parts of one plan, so the two bounds need not describe one output slot at all. A `hierarchyContent`
+	 * in the query's own `entityFetch` bounds the parent chain of the returned entities, while a `hierarchyContent`
+	 * written inside a `hierarchyOfSelf` computer bounds the parent chain of the hierarchy node bodies; both are
+	 * honoured in the response, each materialised from its own derived request, and only the "load at least this"
+	 * union saw them as a contradiction.
+	 *
+	 * The projection is **shallow**, exactly as {@link ReferenceContent#forPrefetch()} is: a requirement nested
+	 * inside this one's {@link EntityFetch} keeps its own restrictions.
+	 *
+	 * @return this requirement without its `stopAt` bound, or this very instance when it carries none
+	 */
+	@Nonnull
+	@Override
+	public HierarchyContent forPrefetch() {
+		if (getStopAt().isEmpty()) {
+			return this;
+		}
+		return new HierarchyContent(
+			Arrays.stream(getChildren())
+				.filter(it -> !(it instanceof HierarchyStopAt))
+				.toArray(RequireConstraint[]::new)
+		);
+	}
+
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
 		return anotherRequirement instanceof HierarchyContent;

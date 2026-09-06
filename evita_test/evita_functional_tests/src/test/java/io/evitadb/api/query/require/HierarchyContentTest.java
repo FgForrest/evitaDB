@@ -200,6 +200,25 @@ class HierarchyContentTest {
 	}
 
 	@Test
+	@DisplayName("the stop constraint is dropped for the prefetch, the parent bodies are not")
+	void shouldDropStopAtForPrefetch() {
+		final HierarchyContent bounded = hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent("code")));
+
+		final HierarchyContent prefetched = bounded.forPrefetch();
+
+		assertTrue(prefetched.getStopAt().isEmpty());
+		assertEquals(hierarchyContent(entityFetch(attributeContent("code"))), prefetched);
+	}
+
+	@Test
+	@DisplayName("a requirement carrying no stop constraint is handed back unchanged")
+	void shouldReturnSameInstanceWhenNoStopAtIsCarried() {
+		final HierarchyContent unbounded = hierarchyContent(entityFetch(attributeContent("code")));
+
+		assertSame(unbounded, unbounded.forPrefetch());
+	}
+
+	@Test
 	@DisplayName("cloneWithArguments() should return new instance, not this")
 	void shouldReturnNewInstanceFromCloneWithArguments() {
 		final HierarchyContent original = hierarchyContent(stopAt(distance(1)), entityFetch());

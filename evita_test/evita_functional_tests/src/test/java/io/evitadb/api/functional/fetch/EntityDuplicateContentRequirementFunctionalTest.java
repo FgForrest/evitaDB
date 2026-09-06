@@ -38,10 +38,12 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
@@ -63,6 +65,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
@@ -341,6 +345,79 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 			.max(Comparator.comparingInt(HierarchyItem::getLevel))
 			.orElseThrow();
 		return Integer.parseInt(theChild.getCode());
+	}
+
+	/**
+	 * Counts how many ancestors the passed entity carries in its fetched parent chain.
+	 *
+	 * @param entity entity whose parent chain is to be measured
+	 * @return number of ancestors present on the entity, zero when the chain was not fetched or the entity is a root
+	 */
+	private static int countParentChain(@Nonnull EntityClassifierWithParent entity) {
+		int chainLength = 0;
+		Optional<EntityClassifierWithParent> parent = entity.getParentEntity();
+		while (parent.isPresent()) {
+			chainLength++;
+			parent = parent.get().getParentEntity();
+		}
+		return chainLength;
+	}
+
+	/**
+	 * Finds the root of the sub-tree the passed category belongs to.
+	 *
+	 * @param categoryHierarchy  hierarchy of the categories in the dataset
+	 * @param categoryPrimaryKey primary key of the category whose root is looked up
+	 * @return the root item of the category's sub-tree
+	 */
+	@Nonnull
+	private static HierarchyItem findRootOfCategory(@Nonnull Hierarchy categoryHierarchy, int categoryPrimaryKey) {
+		final String categoryCode = String.valueOf(categoryPrimaryKey);
+		return categoryHierarchy.getRootItems()
+			.stream()
+			.filter(
+				it -> it.getCode().equals(categoryCode) ||
+					categoryHierarchy.getAllChildItems(it.getCode())
+						.stream()
+						.anyMatch(child -> child.getCode().equals(categoryCode))
+			)
+			.findFirst()
+			.orElseThrow();
+	}
+
+	/**
+	 * Asserts that every hierarchy node body in the passed sub-tree carries exactly the ancestors its own
+	 * `hierarchyContent` bound allows - the whole chain up to the root while the node is shallower than the bound,
+	 * and precisely `maxChainLength` ancestors below that.
+	 *
+	 * @param levels         hierarchy nodes of one level, together with their sub-trees
+	 * @param level          one-based level the passed nodes sit at
+	 * @param maxChainLength number of ancestors the nodes' `stopAt` bound allows
+	 * @return the longest parent chain observed in the sub-tree, so the caller can verify the bound was reached
+	 */
+	private static int assertHierarchyNodeParentChainsBounded(
+		@Nonnull List<LevelInfo> levels,
+		int level,
+		int maxChainLength
+	) {
+		int deepestChain = 0;
+		for (final LevelInfo levelInfo : levels) {
+			final int chainLength = countParentChain((EntityClassifierWithParent) levelInfo.entity());
+			assertEquals(
+				Math.min(level - 1, maxChainLength),
+				chainLength,
+				"The bound of the hierarchy node bodies was not honoured - the widened prefetch leaked into the " +
+					"extra result!"
+			);
+			deepestChain = Math.max(
+				deepestChain,
+				Math.max(
+					chainLength,
+					assertHierarchyNodeParentChainsBounded(levelInfo.children(), level + 1, maxChainLength)
+				)
+			);
+		}
+		return deepestChain;
 	}
 
 	@Nested
@@ -1299,6 +1376,79 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 							.getParentEntity()
 							.orElseThrow()
 							.getPrimaryKey()
+					);
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The two `hierarchyContent` requirements of this query fill two different output slots - the parent chain of
+		 * the returned entities, and the parent chain of the hierarchy node bodies a `hierarchyOfSelf` computer
+		 * fetches - and both reach the one query-wide prefetch union. They are not in contradiction: each slot is
+		 * materialised from its own derived request, so the union only has to load the wider of the two chains. The
+		 * bounds are therefore dropped before the union sees them, and each slot still gets exactly the chain its own
+		 * requirement asked for.
+		 */
+		@DisplayName("Parent chains of the entity and of the hierarchy nodes should be bounded separately")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(HIERARCHY)
+		@Test
+		void shouldBoundEntityAndHierarchyNodeParentChainsSeparately(Evita evita, Hierarchy categoryHierarchy) {
+			final int theChildPrimaryKey = findDeepestCategoryPrimaryKey(categoryHierarchy);
+			final HierarchyItem theRoot = findRootOfCategory(categoryHierarchy, theChildPrimaryKey);
+			// the deepest node the menu can reach decides how sharply the node bound can be observed at all
+			final int deepestLevelInSubtree = categoryHierarchy.getAllChildItems(theRoot.getCode())
+				.stream()
+				.mapToInt(HierarchyItem::getLevel)
+				.max()
+				.orElse(theRoot.getLevel());
+			final int expectedDeepestNodeChain = Math.min(deepestLevelInSubtree - 1, 2);
+			assertTrue(
+				expectedDeepestNodeChain > 1,
+				"The category tree is too shallow to tell the two bounds apart, the test would prove nothing!"
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								hierarchyWithinSelf(entityPrimaryKeyInSet(Integer.parseInt(theRoot.getCode())))
+							),
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.PREFER_PREFETCHING),
+								entityFetch(
+									hierarchyContent(stopAt(distance(1)))
+								),
+								hierarchyOfSelf(
+									fromRoot("menu", entityFetch(hierarchyContent(stopAt(distance(2)))))
+								)
+							)
+						)
+					);
+
+					final SealedEntity theChild = response.getRecordData()
+						.stream()
+						.filter(it -> Objects.equals(theChildPrimaryKey, it.getPrimaryKey()))
+						.findFirst()
+						.orElseThrow();
+					assertEquals(
+						1, countParentChain(theChild),
+						"The bound of the entity body was not honoured - the widened prefetch leaked into the response!"
+					);
+
+					final List<LevelInfo> menu = response.getExtraResult(
+						io.evitadb.api.requestResponse.extraResult.Hierarchy.class
+					).getSelfHierarchy("menu");
+					assertFalse(menu.isEmpty());
+					assertEquals(
+						expectedDeepestNodeChain,
+						assertHierarchyNodeParentChainsBounded(menu, 1, 2),
+						"The hierarchy node bodies never reached their own bound, the test would prove nothing!"
 					);
 					return null;
 				}

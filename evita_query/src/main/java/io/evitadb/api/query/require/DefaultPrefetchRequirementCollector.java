@@ -50,12 +50,15 @@ import java.util.LinkedHashMap;
  *
  * The widening is what makes the two rules coexist. Every requirement entering this collector is first admitted
  * through {@link EntityContentRequire#forPrefetch()}, which strips the output projections — for a
- * {@link ReferenceContent} its `filterBy`, `orderBy` and chunking constraints. That matters because this collector
- * is fed from two unrelated sources: the client's own `entityFetch`, and the requirements the query planner invents
- * on his behalf (a bare `referenceContent` for a reference named by `referenceHaving`, a
+ * {@link ReferenceContent} its `filterBy`, `orderBy` and chunking constraints, for a {@link HierarchyContent} its
+ * `stopAt` bound. That matters because this collector is fed from unrelated sources: the client's own `entityFetch`,
+ * the `entityFetch` written inside a `hierarchyOfSelf` / `hierarchyOfReference` computer, and the requirements the
+ * query planner invents on his behalf (a bare `referenceContent` for a reference named by `referenceHaving`, a
  * `referenceContentWithAttributes` carrying the sort attribute for a reference ordered by). Without the strip, an
  * ordinary query filtering its `referenceContent` while ordering by the same reference would meet the client-facing
- * refusal here, during planning, for a conflict the client never wrote.
+ * refusal here, during planning, for a conflict the client never wrote — and so would a query bounding the parent
+ * chain of the returned entities differently from the parent chain of its hierarchy node bodies, two output slots
+ * that are materialised separately and never contradict each other.
  *
  * The client never observes the widened requirement. The prefetched entity is narrowed back down from his own
  * `EvitaRequest`: `EntityCollection#limitEntityInternal` builds fresh predicates from it, and the reference filter,

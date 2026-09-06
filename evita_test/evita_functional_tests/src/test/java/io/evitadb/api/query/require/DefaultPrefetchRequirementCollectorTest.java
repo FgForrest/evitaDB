@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
@@ -214,17 +215,71 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 
 		@Test
-		@DisplayName("should add multiple non-combinable requirements of same type")
-		void shouldAddMultipleNonCombinableRequirementsOfSameType() {
+		@DisplayName("should combine two data in locales requirements into one")
+		void shouldCombineTwoDataInLocalesRequirementsIntoOne() {
 			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
 
-			// DataInLocales requirements are combinable, but let's use them to test the array expansion
 			collector.addRequirementsToPrefetch(dataInLocales(Locale.ENGLISH));
 			collector.addRequirementsToPrefetch(dataInLocales(new Locale("cs")));
 
 			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
 			assertEquals(1, requirements.length);
 			assertInstanceOf(DataInLocales.class, requirements[0]);
+		}
+
+		@Test
+		@DisplayName("should not bound the parent chain the union loads")
+		@Tag(HIERARCHY)
+		void shouldNotBoundTheParentChainTheUnionLoads() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			// the client's own entityFetch, and the entityFetch written inside a hierarchyOfSelf computer
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(1))));
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(2))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertInstanceOf(HierarchyContent.class, requirements[0]);
+			assertTrue(
+				((HierarchyContent) requirements[0]).getStopAt().isEmpty(),
+				"The prefetch union bounded the parent chain - the two bounds describe two separate output slots, " +
+					"each materialised from its own derived request!"
+			);
+		}
+
+		@Test
+		@DisplayName("should not bound the parent chain whichever order the requirements arrive in")
+		@Tag(HIERARCHY)
+		void shouldNotBoundTheParentChainWhicheverOrderTheRequirementsArriveIn() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(2))));
+			collector.addRequirementsToPrefetch(hierarchyContent(stopAt(distance(1))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertTrue(((HierarchyContent) requirements[0]).getStopAt().isEmpty());
+		}
+
+		@Test
+		@DisplayName("should keep the parent bodies a bounded hierarchy content asks for")
+		@Tag(HIERARCHY)
+		void shouldKeepTheParentBodiesABoundedHierarchyContentAsksFor() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent("code")))
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			final HierarchyContent hierarchyContent = (HierarchyContent) requirements[0];
+			assertTrue(hierarchyContent.getStopAt().isEmpty());
+			assertEquals(
+				entityFetch(attributeContent("code")),
+				hierarchyContent.getEntityFetch().orElseThrow(),
+				"The strip dropped the parent bodies along with the bound!"
+			);
 		}
 	}
 
@@ -513,8 +568,8 @@ class DefaultPrefetchRequirementCollectorTest {
 	}
 
 	@Nested
-	@DisplayName("Nested requirements")
-	class NestedRequirementTest {
+	@DisplayName("Contained requirements")
+	class ContainedRequirementTest {
 
 		@Test
 		@DisplayName("should keep the wider price content whichever of the two arrived first")
