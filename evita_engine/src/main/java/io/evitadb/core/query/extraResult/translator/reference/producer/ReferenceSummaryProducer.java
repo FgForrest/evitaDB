@@ -25,6 +25,10 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -183,6 +187,20 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	@Nullable
 	private DefaultReferenceSummaryRequest defaultRequest;
 	/**
+	 * The raw settings the all-references summary constraint declared, kept so that a second constraint of the
+	 * same kind can be compared against it rather than silently replacing it. See
+	 * {@link #assertDefaultSummaryNotRedeclared(SummaryDeclaration)}.
+	 */
+	@Nullable
+	private SummaryDeclaration defaultDeclaration;
+	/**
+	 * The raw settings each reference-specific summary constraint declared, keyed by reference name, for the same
+	 * reason as {@link #defaultDeclaration}. See
+	 * {@link #assertReferenceSummaryNotRedeclared(String, SummaryDeclaration)}.
+	 */
+	@Nonnull
+	private final Map<String, SummaryDeclaration> referenceDeclarations = createHashMap(8);
+	/**
 	 * Adapter that wraps the intermediate statistics map into the concrete extra-result DTO.
 	 * Picked by the translator — {@link FacetSummaryAdapter} for the deprecated
 	 * {@link io.evitadb.api.query.require.FacetSummary} /
@@ -247,6 +265,48 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * configured by {@link #requireReferenceReferenceSummary(ReferenceSchemaContract, FacetStatisticsDepth,
 	 * IntPredicate, IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}.
 	 */
+	/**
+	 * Refuses a second, disagreeing declaration of the all-references summary. Both spellings of the constraint -
+	 * `referenceSummary` and the deprecated `facetSummary` - route here, but each spelling owns its own producer
+	 * instance, so a disagreement can only come from two constraints of the very same kind. An identical repeat is
+	 * folded away; anything else would decide the answer by the order the constraints happen to be written in.
+	 *
+	 * @param declaration the settings the constraint being translated declares
+	 * @throws EvitaInvalidUsageException when a different set of settings was already declared
+	 */
+	public void assertDefaultSummaryNotRedeclared(@Nonnull SummaryDeclaration declaration) {
+		if (this.defaultDeclaration != null && !this.defaultDeclaration.equals(declaration)) {
+			final String reason = "Summary of all references is requested twice with different settings - " +
+				"the two constraints disagree on " + this.defaultDeclaration.describeDifference(declaration) +
+				", and a single result can carry only one of them";
+			throw new EvitaInvalidUsageException(reason + ".", reason + ".");
+		}
+		this.defaultDeclaration = declaration;
+	}
+
+	/**
+	 * Refuses a second, disagreeing declaration of the summary of one named reference. See
+	 * {@link #assertDefaultSummaryNotRedeclared(SummaryDeclaration)} - the rule and the reasoning are the same,
+	 * applied per reference name.
+	 *
+	 * @param referenceName the reference the summary is declared for
+	 * @param declaration   the settings the constraint being translated declares
+	 * @throws EvitaInvalidUsageException when a different set of settings was already declared for that reference
+	 */
+	public void assertReferenceSummaryNotRedeclared(
+		@Nonnull String referenceName,
+		@Nonnull SummaryDeclaration declaration
+	) {
+		final SummaryDeclaration alreadyDeclared = this.referenceDeclarations.get(referenceName);
+		if (alreadyDeclared != null && !alreadyDeclared.equals(declaration)) {
+			final String reason = "Summary of reference `" + referenceName + "` is requested twice with different " +
+				"settings - the two constraints disagree on " + alreadyDeclared.describeDifference(declaration) +
+				", and a single result can carry only one of them";
+			throw new EvitaInvalidUsageException(reason + ".", reason + ".");
+		}
+		this.referenceDeclarations.put(referenceName, declaration);
+	}
+
 	public void requireDefaultReferenceSummary(
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth,
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> facetPredicate,
@@ -1423,6 +1483,68 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to
 	) {
+	}
+
+	/**
+	 * The settings a single summary constraint declares, in the shape they were written in. It exists purely so
+	 * that two constraints aimed at one target can be compared: the built request carries predicates and sorters,
+	 * which are lambdas and never equal even when two constraints are identical.
+	 *
+	 * @param statisticsDepth            requested depth of the computed statistics
+	 * @param referenceEntityRequirement body of the referenced entity, `null` when only references are returned
+	 * @param groupEntityRequirement     body of the group entity, `null` when only group references are returned
+	 * @param filterBy                   filter narrowing the individual references, `null` when none was declared
+	 * @param filterGroupBy              filter narrowing the reference groups, `null` when none was declared
+	 * @param orderBy                    order of the individual references, `null` when none was declared
+	 * @param orderGroupBy               order of the reference groups, `null` when none was declared
+	 */
+	public record SummaryDeclaration(
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable EntityFetch referenceEntityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy orderGroupBy
+	) {
+
+		/**
+		 * Names the parts on which this declaration and the passed one disagree, so that the refusal can say what
+		 * the client has to reconcile instead of merely that something differs.
+		 *
+		 * @param another the competing declaration
+		 * @return a human readable enumeration of the differing parts
+		 */
+		@Nonnull
+		public String describeDifference(@Nonnull SummaryDeclaration another) {
+			final StringBuilder result = new StringBuilder(128);
+			appendDifference(result, "statistics depth", this.statisticsDepth, another.statisticsDepth);
+			appendDifference(result, "entity body", this.referenceEntityRequirement, another.referenceEntityRequirement);
+			appendDifference(result, "group entity body", this.groupEntityRequirement, another.groupEntityRequirement);
+			appendDifference(result, "filterBy", this.filterBy, another.filterBy);
+			appendDifference(result, "filterGroupBy", this.filterGroupBy, another.filterGroupBy);
+			appendDifference(result, "orderBy", this.orderBy, another.orderBy);
+			appendDifference(result, "orderGroupBy", this.orderGroupBy, another.orderGroupBy);
+			return result.toString();
+		}
+
+		/**
+		 * Appends `<name> (<first> and <second>)` to the builder when the two values differ.
+		 */
+		private static void appendDifference(
+			@Nonnull StringBuilder result,
+			@Nonnull String name,
+			@Nullable Object first,
+			@Nullable Object second
+		) {
+			if (!Objects.equals(first, second)) {
+				if (!result.isEmpty()) {
+					result.append(", ");
+				}
+				result.append(name).append(" (").append(first).append(" and ").append(second).append(')');
+			}
+		}
+
 	}
 
 }

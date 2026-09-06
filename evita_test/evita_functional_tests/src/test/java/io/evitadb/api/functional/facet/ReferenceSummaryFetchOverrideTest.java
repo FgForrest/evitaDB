@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -69,6 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that a reference-specific summary constraint - `referenceSummaryOfReference` /
@@ -451,6 +453,112 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanupTestPaths(this.paths);
+	}
+
+	/**
+	 * Two all-references summary constraints that disagree used to be resolved by whichever one the extra result
+	 * planner visited last - the registration simply overwrote the previous settings.
+	 */
+	@Test
+	@DisplayName("should refuse two generic summaries with different settings")
+	void shouldRefuseTwoGenericSummariesWithDifferentSettings() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummary(FacetStatisticsDepth.COUNTS),
+								referenceSummary(FacetStatisticsDepth.IMPACT)
+							)
+						),
+						EntityReferenceContract.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("Summary of all references is requested twice"),
+					exception.getMessage()
+				);
+				assertTrue(exception.getMessage().contains("statistics depth"), exception.getMessage());
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The same rule per reference name - two `referenceSummaryOfReference` constraints aimed at one reference used
+	 * to overwrite each other's entry in the producer's map.
+	 */
+	@Test
+	@DisplayName("should refuse two specific summaries of one reference with different settings")
+	void shouldRefuseTwoSpecificSummariesOfOneReferenceWithDifferentSettings() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryOfReference(
+									REF_BRANDS, FacetStatisticsDepth.COUNTS,
+									entityFetch(attributeContent(ATTRIBUTE_CODE))
+								),
+								referenceSummaryOfReference(
+									REF_BRANDS, FacetStatisticsDepth.COUNTS,
+									entityFetch(attributeContent(ATTRIBUTE_NAME))
+								)
+							)
+						),
+						EntityReferenceContract.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("Summary of reference `" + REF_BRANDS + "` is requested twice"),
+					exception.getMessage()
+				);
+				assertTrue(exception.getMessage().contains("entity body"), exception.getMessage());
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * An identical repeat carries no contradiction and is folded away - refusing it would reject a query assembled
+	 * from two helper methods that happen to ask for exactly the same thing.
+	 */
+	@Test
+	@DisplayName("should fold two identical summaries of one reference")
+	void shouldFoldTwoIdenticalSummariesOfOneReference() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							referenceSummaryOfReference(REF_BRANDS, FacetStatisticsDepth.COUNTS),
+							referenceSummaryOfReference(REF_BRANDS, FacetStatisticsDepth.COUNTS)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertTrue(
+					summary.getReferenceStatistics()
+						.stream()
+						.anyMatch(it -> REF_BRANDS.equals(it.getReferenceName())),
+					"The folded summary returned no statistics for `" + REF_BRANDS + "`!"
+				);
+				return null;
+			}
+		);
 	}
 
 	/**
