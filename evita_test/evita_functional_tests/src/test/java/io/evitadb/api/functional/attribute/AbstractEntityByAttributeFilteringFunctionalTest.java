@@ -5243,6 +5243,88 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should honour the bucket count of each attribute histogram requirement")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnAttributeHistogramsWithTheirOwnBucketCounts(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(),
+							// two requirements carrying two different bucket counts - one producer serves them
+							// both, so the second must not inherit the first requirement's count
+							attributeHistogram(20, ATTRIBUTE_QUANTITY),
+							attributeHistogram(3, ATTRIBUTE_PRIORITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
+				assertNotNull(histogramPacket);
+
+				final HistogramContract quantity = histogramPacket.getHistogram(ATTRIBUTE_QUANTITY);
+				final HistogramContract priority = histogramPacket.getHistogram(ATTRIBUTE_PRIORITY);
+				assertNotNull(quantity);
+				assertNotNull(priority);
+
+				assertTrue(
+					priority.getBuckets().length <= 3,
+					"Priority histogram asked for 3 buckets but got " + priority.getBuckets().length +
+						" - it inherited the bucket count of the other requirement."
+				);
+				assertTrue(
+					quantity.getBuckets().length > 3,
+					"Quantity histogram asked for 20 buckets but got only " + quantity.getBuckets().length +
+						" - the test cannot tell the two counts apart on this data set."
+				);
+				assertTrue(quantity.getBuckets().length <= 20);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse one attribute histogram requested with two different bucket counts")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRefuseOneAttributeHistogramWithTwoBucketCounts(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// one attribute occupies one slot in the result, so the two requirements below have no answer that
+				// satisfies both - and silently serving one of them is what this refusal replaces
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeIsNotNull(ATTRIBUTE_ALIAS)
+							),
+							require(
+								page(1, Integer.MAX_VALUE),
+								entityFetch(),
+								attributeHistogram(20, ATTRIBUTE_QUANTITY),
+								attributeHistogram(3, ATTRIBUTE_QUANTITY)
+							)
+						),
+						SealedEntity.class
+					)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return attribute histogram with attribute between")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

@@ -82,11 +82,10 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			// retrieve attribute schema for requested attribute
 			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, scopes, attributeName);
 
-			// if there was no producer ready, create new one
+			// if there was no producer ready, create new one - one producer serves every attribute histogram in the
+			// query, so the bucket count and the behaviour travel with the attribute rather than with the producer
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
-					bucketCount,
-					behavior,
 					extraResultPlanner.getFilteringFormula()
 				);
 			}
@@ -103,6 +102,8 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			// no need to forward the per-attribute formula set collected from the user filter tree anymore
 			attributeHistogramProducer.addAttributeHistogramRequest(
 				attributeSchema,
+				bucketCount,
+				behavior,
 				FilterIndex.getComparator(
 					AttributeIndex.createAttributeKey(
 						referenceSchema,

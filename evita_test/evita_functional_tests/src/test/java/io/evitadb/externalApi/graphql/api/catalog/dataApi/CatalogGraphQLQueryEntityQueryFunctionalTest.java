@@ -5417,6 +5417,56 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should honour the requested bucket count of each attribute histogram")
+	void shouldReturnAttributeHistogramsWithTheirOwnBucketCounts(GraphQLTester tester) {
+		// the resolver emits one `attributeHistogram` requirement per attribute, and one producer serves them all -
+		// the bucket count therefore has to travel with the attribute rather than with the producer
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             buckets(requestedCount: 20) {
+					                                 threshold
+					                             }
+					                         }
+					                         priority {
+					                             buckets(requestedCount: 3) {
+					                                 threshold
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_PRIORITY) + ".buckets",
+				hasSize(lessThanOrEqualTo(3))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY) + ".buckets",
+				hasSize(greaterThan(3))
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram in specific scope")
 	void shouldReturnAttributeHistogramInSpecificScope(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
