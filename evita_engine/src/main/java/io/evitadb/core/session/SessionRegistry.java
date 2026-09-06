@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -80,7 +81,8 @@ import static java.util.Optional.ofNullable;
  * ## Responsibilities
  *
  * - **Session Lifecycle**: Creates, registers, and removes sessions
- * - **Suspension Handling**: Supports catalog rename/replace by suspending session creation
+ * - **Suspension Handling**: Quiesces the catalog for every lifecycle operation that needs it - rename, replace,
+ *   go-live, deactivation, drop - by suspending session creation and draining the sessions already open
  * - **Version Tracking**: Tracks which catalog versions are consumed by active sessions
  * - **Thread Safety**: All operations are thread-safe using concurrent data structures
  *
@@ -110,21 +112,23 @@ public final class SessionRegistry {
 	 * whatever is left of this budget rather than indefinitely. Expiry is not a partial success - the drain's
 	 * premise then reports the sessions still standing and throws.
 	 *
-	 * **CALIBRATION - `LongRunningCatalogGoLiveDrainTimeoutTest` is priced by this number.** That test
-	 * (evita_test/evita_long_running_tests, io.evitadb.core) parks a warm-up write inside the schema check and holds
-	 * it there until the go-live has failed, which is the only side-effect-free way to reach
-	 * `MakeCatalogAliveMutationOperator`'s undo. Its positive waits are 30 s.
+	 * **CALIBRATION - TWO long-running tests are priced by this number, one per arm.**
 	 *
-	 * **Raising this bound past those 30 s blunts the test silently**: the parked write would be released while the
-	 * drain is still running, the drain would then succeed, and the whole failure path would go untested while the
-	 * test stayed green. Raising it therefore means re-pricing every positive wait in that test, and re-measuring
-	 * its counterfactuals. Lowering it, or making a forced close cheaper, cannot blunt anything - the test only gets
-	 * faster. Run it with:
+	 * - `LongRunningCatalogGoLiveDrainTimeoutTest` (evita_test/evita_long_running_tests, io.evitadb.core) covers the
+	 *   DEFERRED arm: it parks a warm-up write inside the schema check and holds it there until the go-live has
+	 *   failed, which is the only side-effect-free way to reach `MakeCatalogAliveMutationOperator`'s undo. Its
+	 *   positive waits are 30 s.
+	 * - `LongRunningSessionRegistryDrainTimeoutTest` (same module, io.evitadb.core.session) covers the arm the
+	 *   bounded wait below was actually written for - a close that has already STARTED and never completes - which
+	 *   the test above never enters, because its `futures` collection stays empty and `allOf` of nothing is
+	 *   complete before it is awaited. It drives a mocked session whose close future is never completed, and both
+	 *   of its timing bounds are fractions of this constant, mirrored in its own `DRAIN_GIVE_UP_BUDGET_MILLIS`.
 	 *
-	 * ```
-	 * mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning \
-	 *     -Dtest=LongRunningCatalogGoLiveDrainTimeoutTest -Dsurefire.failIfNoSpecifiedTests=false
-	 * ```
+	 * **Raising this bound past those 30 s blunts the first test silently**: the parked write would be released
+	 * while the drain is still running, the drain would then succeed, and the whole failure path would go untested
+	 * while the test stayed green. It also re-prices the second, whose upper bound is that same 30 s. Raising it
+	 * therefore means re-pricing every positive wait in both. Lowering it, or making a forced close cheaper, cannot
+	 * blunt anything - the tests only get faster.
 	 */
 	private static final long DRAIN_GIVE_UP_TIMEOUT_MILLIS = 5000L;
 	/**
@@ -135,6 +139,24 @@ public final class SessionRegistry {
 	 */
 	private static final long DRAIN_GIVE_UP_TIMEOUT_NANOS =
 		TimeUnit.MILLISECONDS.toNanos(DRAIN_GIVE_UP_TIMEOUT_MILLIS);
+	/**
+	 * How long the drain parks between two passes over the still-active sessions.
+	 *
+	 * **It exists because one arm of the drain has nothing to wait on.** When every close is postponed - the
+	 * session's method has not returned, so `EvitaSessionProxy` runs the close lambda later and on the session's own
+	 * thread - the pass collects no future at all, and awaiting an empty {@link CompletableFuture#allOf} returns
+	 * immediately. Without this park the loop would then re-scan for whatever is left of
+	 * {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} at full processor occupancy, on a thread that
+	 * `MakeCatalogAliveMutationOperator` holds `EngineTransactionManager#engineStateLock` on: a hung incumbent would
+	 * cost a pegged core and push every concurrent engine mutation towards its own lock timeout.
+	 *
+	 * Ten milliseconds, because it decides only the pass RATE, never the end-to-end bound: the park is clamped to
+	 * what is left of the budget, so the drain still gives up at the same moment, and a session that leaves in the
+	 * meantime is noticed at most this late. Priced by `LongRunningSessionRegistryDrainTimeoutTest` (0.86 % of the
+	 * budget spent on a processor, against 99.3 % without it, threshold 10 %) - raising it materially blunts that
+	 * measurement rather than breaking it.
+	 */
+	private static final long DRAIN_PASS_PARK_NANOS = TimeUnit.MILLISECONDS.toNanos(10L);
 	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
@@ -297,8 +319,39 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * Method closes and removes all active sessions from the registry.
-	 * All changes are rolled back.
+	 * Publishes a suspension on this registry and then forcibly closes and removes every session still active on
+	 * it, so that the caller ends up with a catalog nobody holds a session on. The suspension is published
+	 * **first** and the drain runs behind it, so a session request arriving in between is postponed or refused by
+	 * `suspendOperation` instead of joining the set this call has to wait out.
+	 *
+	 * **Only an open transaction is rolled back, and nothing else is discarded.** A session with a transaction
+	 * open is marked rollback-only; the close itself is
+	 * {@link EvitaSessionContract#closeNow(CommitBehavior)} with {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE},
+	 * so a **warm-up** session's writes are flushed and kept - a warm-up close performs its own flush. That is the
+	 * property the engine-level go-live turns on (issue #1495): draining an incumbent warm-up session hands its
+	 * writes to the flush rather than stranding them on an instance the ALIVE bootstrap record is about to
+	 * supersede - see `MakeCatalogAliveMutationOperator`.
+	 *
+	 * The drain is bounded end to end by {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS}, covering both a session whose
+	 * method has not returned yet and a forced close that has already started; expiry is a failure rather than a
+	 * partial success.
+	 *
+	 * @param suspendOperation how session requests arriving while the suspension stands are treated -
+	 *                         {@link SuspendOperation#POSTPONE} makes them wait it out,
+	 *                         {@link SuspendOperation#REJECT} answers {@link InstanceTerminatedException}
+	 * @return the census of the sessions this call closed by force; or, when a suspension was **already standing**
+	 *         - in which case this call drains nothing and returns at once - the census of the call that published
+	 *         that one, which is empty when there is none to hand back ({@link #clearTemporaryInformation()}
+	 *         discards it once it is five minutes old, and the publishing call may not have recorded it yet). Both
+	 *         go-live routes depend on that second branch for idempotence:
+	 *         `EvitaSession#goLiveAndCloseWithProgress` suspends this registry before applying the mutation, and
+	 *         `MakeCatalogAliveMutationOperator` calls this again inside it.
+	 * @throws GenericEvitaInternalError when the sessions have not left within
+	 *                                   {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} - thrown **with the suspension
+	 *                                   already published**, so lifting it belongs to the caller and a caller with
+	 *                                   no undo leaves the registry refusing sessions for the life of the process
+	 *                                   (issue #1497). The close futures are deliberately not cancelled, so this
+	 *                                   method can also return - by throwing - with a forced close still in flight.
 	 */
 	@Nonnull
 	public Optional<SuspensionInformation> closeAllActiveSessionsAndSuspend(
@@ -384,7 +437,7 @@ public final class SessionRegistry {
 					CompletableFuture
 						.allOf(futures.toArray(new CompletableFuture[0]))
 						.get(remainingNanos, TimeUnit.NANOSECONDS);
-				} catch (TimeoutException ex) {
+				} catch (TimeoutException ignored) {
 					// budget spent; the loop condition ends the drain and the premise below reports why
 				} catch (InterruptedException ex) {
 					// never swallowed: the flag is restored so whoever owns this thread still learns of it, and the
@@ -401,8 +454,20 @@ public final class SessionRegistry {
 					// null guard covers the one shape that would otherwise double-wrap.
 					throw new CompletionException(ex.getCause() == null ? ex : ex.getCause());
 				}
-				// wait for active sessions to be empty, but at most `DRAIN_GIVE_UP_TIMEOUT_MILLIS` - read that
-				// constant's javadoc before changing it, it prices a long-running test
+				// Between passes the drain WAITS rather than spins - see `DRAIN_PASS_PARK_NANOS`. Only when
+				// somebody is still standing: a drain that has emptied the map is about to leave the loop, and
+				// must not pay a park to do it. Clamped to what is left of the budget, so the end-to-end bound
+				// below is the same one it was without the park.
+				if (!this.activeSessions.isEmpty()) {
+					LockSupport.parkNanos(
+						Math.min(
+							Math.max(0L, DRAIN_GIVE_UP_TIMEOUT_NANOS - (System.nanoTime() - start)),
+							DRAIN_PASS_PARK_NANOS
+						)
+					);
+				}
+				// `DRAIN_GIVE_UP_TIMEOUT_MILLIS` is the human-readable spelling of the bound below - read its javadoc
+				// before changing it, it prices two long-running tests
 			} while (!this.activeSessions.isEmpty()
 				&& System.nanoTime() - start < DRAIN_GIVE_UP_TIMEOUT_NANOS);
 
@@ -448,6 +513,10 @@ public final class SessionRegistry {
 
 	/**
 	 * Method resumes operations on this registry - i.e. creating new sessions.
+	 *
+	 * **A no-op when no suspension stands**, which is what makes it safe to call unconditionally and safe to call
+	 * twice: an operator's undo lifts whatever its own drain may or may not have published without first having to
+	 * work out which, and a second lift arriving from a path that already resumed changes nothing.
 	 */
 	public void resumeOperations() {
 		final InSuspension inSuspension = this.currentSuspension.getAndSet(null);

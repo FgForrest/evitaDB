@@ -50,6 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -72,6 +73,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (evita_test/evita_functional_tests, io.evitadb.core). This class is here and not there for one reason: making the
  * drain fail costs the drain's own bound in wall-clock time, and that bound is hard-coded.
  *
+ * **It enters one arm of the drain, the DEFERRED one.** The incumbent's method has not returned, so
+ * `EvitaSessionProxy` postpones its forced close, no close future is ever collected, and the drain can do nothing
+ * but spin its budget out. The other arm - a forced close that has already STARTED and whose completion never
+ * arrives, which is what the drain's bounded wait was written for - is never entered here at all; it is covered by
+ * `LongRunningSessionRegistryDrainTimeoutTest` (same module, io.evitadb.core.session), which drives the registry
+ * directly. Restoring the unbounded `join()` therefore leaves this class green.
+ *
  * **Why this failure seam and no other.** The operator can also fail in `Catalog#flush()` and in `Catalog#goLive()`,
  * but neither is a usable seam for a fast test: a forced flush failure runs `markUnpublishable` and races its own
  * scheduled deactivation, so the assertions about the restored catalog can pass vacuously against a catalog that
@@ -82,8 +90,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * - The bound is `SessionRegistry#DRAIN_GIVE_UP_TIMEOUT_MILLIS`, five seconds: the drain's `do/while` gives every
  *   incumbent that long to leave and then fails the premise `Some of the sessions didn't clean themselves` as a
- *   {@link GenericEvitaInternalError}. That constant's javadoc carries the other half of this statement, for
- *   whoever edits the bound without reading this file.
+ *   {@link GenericEvitaInternalError}. That constant's javadoc prices **both** arms and names the test that covers
+ *   each, for whoever edits the bound without reading this file.
  * - The test parks a warm-up write inside `EntityUpsertMutation#verifyOrEvolveSchema` and holds it there until the
  *   go-live has already failed. The drain therefore always sees a session whose method has not returned, its forced
  *   close is deferred by `EvitaSessionProxy`, and the loop can only time out. There is no race to lose: the parked
@@ -288,11 +296,7 @@ class LongRunningCatalogGoLiveDrainTimeoutTest implements EvitaTestSupport {
 		// reports a session in that window as ACTIVE. Asking here costs a handful of calls, on this thread alone,
 		// with the writer thread long finished; spinning on it from a thread that shares the session with a running
 		// method would instead drive the session's `nestLevel` concurrently, which is production state.
-		final long deadline = System.nanoTime() + SECONDS.toNanos(POSITIVE_WAIT_SECONDS);
-		while (incumbent.isActive()) {
-			assertTrue(System.nanoTime() < deadline, "the incumbent never reported itself closed");
-			Thread.onSpinWait();
-		}
+		awaitUntil(() -> !incumbent.isActive(), "the incumbent never reported itself closed");
 	}
 
 	/**
@@ -309,9 +313,20 @@ class LongRunningCatalogGoLiveDrainTimeoutTest implements EvitaTestSupport {
 	 */
 	private void awaitNoActiveSessions(@Nonnull String reason) {
 		final SessionRegistry registry = this.evita.getCatalogSessionRegistry(CATALOG).orElseThrow();
+		awaitUntil(() -> registry.countActiveSessions().activeSessions() == 0, reason);
+	}
+
+	/**
+	 * Spins until the condition holds, bounded at {@value #POSITIVE_WAIT_SECONDS} seconds. The condition is checked
+	 * before the deadline is, so a condition that is already true never fails on an exhausted bound.
+	 *
+	 * @param condition the state the caller is waiting for
+	 * @param message   what to report when it never arrives
+	 */
+	private static void awaitUntil(@Nonnull BooleanSupplier condition, @Nonnull String message) {
 		final long deadline = System.nanoTime() + SECONDS.toNanos(POSITIVE_WAIT_SECONDS);
-		while (registry.countActiveSessions().activeSessions() > 0) {
-			assertTrue(System.nanoTime() < deadline, reason);
+		while (!condition.getAsBoolean()) {
+			assertTrue(System.nanoTime() < deadline, message);
 			Thread.onSpinWait();
 		}
 	}
