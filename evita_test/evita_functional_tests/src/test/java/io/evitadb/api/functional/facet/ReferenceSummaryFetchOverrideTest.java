@@ -26,6 +26,7 @@ package io.evitadb.api.functional.facet;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
@@ -40,6 +41,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
@@ -540,6 +542,89 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 					assertInstanceOf(
 						SealedEntity.class, singleFacetClassifier(summary, REF_BRANDS)
 					).getAttribute(ATTRIBUTE_BRAND_ONLY)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The override rule holds for the deprecated spelling as well: a `facetSummaryOfReference` claims the
+	 * reference it names away from the generic `facetSummary` written beside it, so the generic requirements are
+	 * not validated against that reference either.
+	 */
+	@Test
+	@DisplayName("should not validate the generic facet summary fetch against an overridden reference")
+	void shouldNotValidateGenericFacetSummaryFetchAgainstOverriddenReference() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							facetSummary(
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_BRAND_ONLY))
+							),
+							facetSummaryOfReference(
+								REF_CATEGORIES, FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE))
+							)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final FacetSummary summary = result.getExtraResult(FacetSummary.class);
+				assertNotNull(summary);
+				assertEquals(
+					"brand-only-" + BRAND_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_BRANDS)
+					).getAttribute(ATTRIBUTE_BRAND_ONLY)
+				);
+				assertEquals(
+					"category-" + CATEGORY_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_CATEGORIES)
+					).getAttribute(ATTRIBUTE_CODE)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The two spellings own separate producers, and neither overrides the other: a reference claimed by a
+	 * `referenceSummaryOfReference` is still described by a generic `facetSummary`, so the generic requirements
+	 * keep being validated against it. Answering the override question by matching both constraint classes at
+	 * once would let this invalid fetch through.
+	 */
+	@Test
+	@DisplayName("should still validate the generic facet summary against a reference claimed by the other spelling")
+	void shouldStillValidateGenericFacetSummaryAgainstReferenceClaimedByTheOtherSpelling() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								facetSummary(
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(attributeContent(ATTRIBUTE_BRAND_ONLY))
+								),
+								referenceSummaryOfReference(
+									REF_CATEGORIES, FacetStatisticsDepth.COUNTS,
+									entityFetch(attributeContent(ATTRIBUTE_CODE))
+								)
+							)
+						),
+						EntityReferenceContract.class
+					)
 				);
 				return null;
 			}

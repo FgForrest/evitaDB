@@ -2963,6 +2963,75 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 		);
 	}
 
+	@DisplayName("Should keep the order declared by a sibling hierarchyOfReference constraint")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldKeepOrderDeclaredBySiblingHierarchyOfReferenceConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> alone = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final EvitaResponse<EntityReference> withSibling = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy aloneStatistics = alone.getExtraResult(Hierarchy.class);
+				final Hierarchy siblingStatistics = withSibling.getExtraResult(Hierarchy.class);
+				assertNotNull(aloneStatistics);
+				assertNotNull(siblingStatistics);
+				// an order shapes the result, the absence of one is no competing claim about it - so the sibling
+				// that declares none defers rather than wiping the order declared beside it
+				assertEquals(
+					aloneStatistics.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"),
+					siblingStatistics.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should refuse two hierarchyOfReference constraints ordering the same reference differently")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test

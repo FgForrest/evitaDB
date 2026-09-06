@@ -5325,6 +5325,101 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should accept two identical attribute histogram requirements")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldAcceptTwoIdenticalAttributeHistogramRequirements(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the two agree, so the repeat is redundant rather than contradictory - one producer serves both
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final EvitaResponse<SealedEntity> reference = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
+				assertNotNull(histogramPacket);
+				assertEquals(
+					1, histogramPacket.getHistograms().size(),
+					"The repeated requirement produced a second histogram instead of being folded into the first!"
+				);
+				assertEquals(
+					reference.getExtraResult(AttributeHistogram.class).getHistogram(ATTRIBUTE_QUANTITY),
+					histogramPacket.getHistogram(ATTRIBUTE_QUANTITY)
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should widen the attribute set of an agreeing histogram requirement")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldWidenTheAttributeSetOfAgreeingHistogramRequirements(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the already registered attribute agrees on the bucket count, so the second requirement adds the
+				// attribute it names rather than replacing what the first one asked for
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY, ATTRIBUTE_PRIORITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
+				assertNotNull(histogramPacket);
+
+				final HistogramContract quantity = histogramPacket.getHistogram(ATTRIBUTE_QUANTITY);
+				final HistogramContract priority = histogramPacket.getHistogram(ATTRIBUTE_PRIORITY);
+				assertNotNull(quantity);
+				assertNotNull(priority);
+				assertTrue(quantity.getBuckets().length <= 20);
+				assertTrue(priority.getBuckets().length <= 20);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return attribute histogram with attribute between")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

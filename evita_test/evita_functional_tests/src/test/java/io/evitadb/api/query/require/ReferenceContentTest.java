@@ -819,6 +819,88 @@ class ReferenceContentTest {
 	}
 
 	@Nested
+	@DisplayName("Projection onto a single reference name")
+	class SingleReferenceProjectionTest {
+
+		@Test
+		@DisplayName("a requirement already naming one reference is handed back unchanged")
+		void shouldReturnSameInstanceWhenAlreadyNamingOneReference() {
+			final ReferenceContent singleName = referenceContent("a", entityFetch(attributeContent("code")));
+
+			assertSame(singleName, singleName.forReferenceName("a"));
+		}
+
+		@Test
+		@DisplayName("a multi name requirement is projected onto the one name asked for")
+		void shouldProjectMultiNameRequirementOntoOneName() {
+			final ReferenceContent multiName = referenceContent(
+				new String[]{"a", "b"},
+				entityFetch(attributeContent("code")),
+				entityGroupFetch(attributeContent("name"))
+			);
+
+			final ReferenceContent projected = multiName.forReferenceName("b");
+
+			assertArrayEquals(new String[]{"b"}, projected.getReferenceNames());
+			assertEquals(
+				entityFetch(attributeContent("code")),
+				projected.getEntityRequirement().orElseThrow()
+			);
+			assertEquals(
+				entityGroupFetch(attributeContent("name")),
+				projected.getGroupEntityRequirement().orElseThrow()
+			);
+		}
+
+		@Test
+		@DisplayName("the restrictions and the alias survive the projection")
+		void shouldKeepRestrictionsAndInstanceNameOnProjection() {
+			final ReferenceContent restricted = new ReferenceContent(
+				"alias",
+				ManagedReferencesBehaviour.EXISTING,
+				new String[]{"a", "b"},
+				new RequireConstraint[]{
+					attributeContent("code"),
+					page(1, 20)
+				},
+				new Constraint<?>[]{
+					filterBy(attributeEquals("code", "x")),
+					orderBy(attributeNatural("code"))
+				}
+			);
+
+			final ReferenceContent projected = restricted.forReferenceName("a");
+
+			// this is the whole contrast with `forPrefetch()`, which strips exactly these three - a projection onto
+			// one name still describes what the client asked to be RETURNED for that name
+			assertEquals(filterBy(attributeEquals("code", "x")), projected.getFilterBy().orElseThrow());
+			assertEquals(orderBy(attributeNatural("code")), projected.getOrderBy().orElseThrow());
+			assertEquals(page(1, 20), projected.getChunking().orElseThrow());
+			assertEquals("alias", projected.getInstanceName());
+			assertEquals(ManagedReferencesBehaviour.EXISTING, projected.getManagedReferencesBehaviour());
+			assertEquals(attributeContent("code"), projected.getAttributeContent().orElseThrow());
+			assertArrayEquals(new String[]{"a"}, projected.getReferenceNames());
+		}
+
+		@Test
+		@DisplayName("a name the requirement does not list is a programming error")
+		void shouldRefuseProjectionOntoUnlistedReferenceName() {
+			final ReferenceContent multiName = referenceContent("a", "b");
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> multiName.forReferenceName("c")
+			);
+			// the catch-all lists no name at all, so it describes no single reference either
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> referenceContentAll().forReferenceName("a")
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Containment")
 	class ContainmentTest {
 

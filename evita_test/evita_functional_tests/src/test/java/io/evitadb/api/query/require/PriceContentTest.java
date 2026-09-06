@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -153,6 +154,7 @@ class PriceContentTest {
 	}
 
 	@Test
+	@DisplayName("a requirement fetching no prices does not combine with one that fetches them")
 	void shouldRefuseToCombineNoPricesWithFetchedPrices() {
 		// `NONE` is not the narrowest of three widths - it is the opposite instruction, so widening it to the other
 		// mode would answer a client who asked for no prices with prices

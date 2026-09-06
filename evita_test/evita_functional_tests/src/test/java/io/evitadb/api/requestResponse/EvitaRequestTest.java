@@ -1521,6 +1521,122 @@ class EvitaRequestTest {
 				() -> request.getFacetGroupConjunction("brand", WITH_DIFFERENT_GROUPS)
 			);
 		}
+
+		/**
+		 * Verifies negation is honoured at either level - the
+		 * single deliberate exception to the orthogonality of
+		 * the two relation levels.
+		 */
+		@Test
+		@DisplayName("returns negation declared at either level")
+		void shouldReturnNegationDeclaredAtEitherLevel() {
+			final EvitaRequest betweenGroups = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsNegation(
+							"brand",
+							WITH_DIFFERENT_GROUPS,
+							filterBy(entityPrimaryKeyInSet(1))
+						)
+					)
+				)
+			);
+
+			// by De Morgan's laws negating each facet and combining with AND is the same set as negating the
+			// group's own disjunction, so the level the constraint states does not change the answer
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(1)),
+				betweenGroups.getFacetGroupNegation("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
+					.orElseThrow()
+					.filterBy()
+			);
+
+			final EvitaRequest insideGroup = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsNegation(
+							"brand",
+							WITH_DIFFERENT_FACETS_IN_GROUP,
+							filterBy(entityPrimaryKeyInSet(2))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(2)),
+				insideGroup.getFacetGroupNegation("brand", WITH_DIFFERENT_GROUPS)
+					.orElseThrow()
+					.filterBy()
+			);
+		}
+
+		/**
+		 * Verifies exclusivity declared at one level does not
+		 * leak into the other one.
+		 */
+		@Test
+		@DisplayName("keeps the two exclusivity levels apart")
+		void shouldKeepExclusivityRelationLevelsApart() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsExclusivity(
+							"brand",
+							WITH_DIFFERENT_GROUPS
+						)
+					)
+				)
+			);
+
+			assertTrue(
+				request
+					.getFacetGroupExclusivity("brand", WITH_DIFFERENT_GROUPS)
+					.isPresent()
+			);
+			assertTrue(
+				request
+					.getFacetGroupExclusivity("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
+					.isEmpty(),
+				"an exclusivity declared between groups must not decide the relation inside a group"
+			);
+		}
+
+		/**
+		 * Verifies the level a disjunction without an explicit
+		 * one defaults to.
+		 */
+		@Test
+		@DisplayName("a disjunction without a level is found between groups only")
+		void shouldFindLevellessDisjunctionBetweenGroups() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsDisjunction(
+							"brand",
+							filterBy(entityPrimaryKeyInSet(1))
+						)
+					)
+				)
+			);
+
+			// disjunction is already the system default inside a group, so this constraint has to point at the
+			// other level to alter anything - the opposite default from every other `facetGroups*` constraint
+			assertTrue(
+				request
+					.getFacetGroupDisjunction("brand", WITH_DIFFERENT_GROUPS)
+					.isPresent()
+			);
+			assertTrue(
+				request
+					.getFacetGroupDisjunction("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
+					.isEmpty()
+			);
+		}
 	}
 
 	@Nested
@@ -1942,6 +2058,47 @@ class EvitaRequestTest {
 			assertEquals(
 				request.getAlignedNow(),
 				copy.getAlignedNow()
+			);
+		}
+
+		/**
+		 * Verifies facet group exclusivity travels into the
+		 * derived request just as the other three relations do.
+		 */
+		@Test
+		@DisplayName("propagates facet group exclusivity")
+		void shouldPropagateFacetGroupExclusivityToDerivedRequest() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						entityFetch(),
+						facetGroupsExclusivity(
+							"brand",
+							WITH_DIFFERENT_GROUPS,
+							filterBy(entityPrimaryKeyInSet(1))
+						)
+					)
+				)
+			);
+
+			// the derived query carries only the entity fetch, so the settings can reach the copy through the
+			// memoized field alone - reading it here is what fills that field in on the parent
+			assertTrue(
+				request.getFacetGroupExclusivity("brand", WITH_DIFFERENT_GROUPS).isPresent()
+			);
+
+			final EvitaRequest copy =
+				request.deriveCopyWith(
+					"brand",
+					entityFetch()
+				);
+
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(1)),
+				copy.getFacetGroupExclusivity("brand", WITH_DIFFERENT_GROUPS)
+					.orElseThrow()
+					.filterBy()
 			);
 		}
 	}
