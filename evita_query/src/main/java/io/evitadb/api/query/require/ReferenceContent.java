@@ -967,23 +967,32 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * The widened requirement is never observed by the client: the prefetched entity is narrowed back down from his
 	 * own `EvitaRequest`, whose reference filter, order and chunking are read from the query he actually sent.
 	 *
+	 * {@link ManagedReferencesBehaviour#EXISTING} is stripped for the same reason, and it is the one that is easy to
+	 * miss: suppressing references whose target entity does not exist is a projection too, and the prefetch loads the
+	 * body a *filter* is then evaluated against. Left in place it would narrow the union - `EXISTING` beats `ANY` in
+	 * {@link #combineWith(EntityContentRequire)} - and a `referenceHaving` answered from the prefetched body would
+	 * stop seeing dangling references the index still holds, so the same query would answer differently depending on
+	 * which plan the planner picked. The client's own `EXISTING` is untouched: it travels in his `EvitaRequest` and is
+	 * applied by the reference fetcher that builds the response.
+	 *
 	 * The projection is **shallow on purpose**. A `referenceContent` nested inside this one's `entityFetch` keeps
 	 * its own restrictions, because only top-level requirements are contributed by the query planner: two nested
 	 * siblings that disagree were both written by the client, and refusing them is exactly the client-facing rule
 	 * {@link #combineWith(EntityContentRequire)} is there to apply.
 	 *
-	 * @return this requirement without its `filterBy`, `orderBy` and chunking constraints, or this very instance
-	 *         when it carries none of them
+	 * @return this requirement without its `filterBy`, `orderBy`, chunking and managed references behaviour, or this
+	 *         very instance when it carries none of them
 	 */
 	@Nonnull
 	@Override
 	public ReferenceContent forPrefetch() {
-		if (getFilterBy().isEmpty() && getOrderBy().isEmpty() && getChunking().isEmpty()) {
+		if (getFilterBy().isEmpty() && getOrderBy().isEmpty() && getChunking().isEmpty() &&
+			getManagedReferencesBehaviour() == ManagedReferencesBehaviour.ANY) {
 			return this;
 		}
 		return new ReferenceContent(
 			getInstanceName(),
-			getManagedReferencesBehaviour(),
+			ManagedReferencesBehaviour.ANY,
 			getReferenceNames(),
 			Arrays.stream(getChildren())
 				.filter(it -> !(it instanceof ChunkingRequireConstraint))

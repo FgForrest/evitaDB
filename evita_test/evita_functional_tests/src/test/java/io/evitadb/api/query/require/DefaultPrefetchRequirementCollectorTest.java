@@ -178,6 +178,42 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 
 		@Test
+		@DisplayName("should not narrow the union to existing managed references")
+		void shouldNotNarrowTheUnionToExistingManagedReferences() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			// what `ReferenceHavingTranslator` contributes on the client's behalf, and what the client wrote
+			collector.addRequirementsToPrefetch(referenceContent("brand"));
+			collector.addRequirementsToPrefetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertInstanceOf(ReferenceContent.class, requirements[0]);
+			assertEquals(
+				ManagedReferencesBehaviour.ANY,
+				((ReferenceContent) requirements[0]).getManagedReferencesBehaviour(),
+				"The prefetch union narrowed what is loaded - a filter answered from the prefetched body would " +
+					"stop seeing dangling references the index still holds!"
+			);
+		}
+
+		@Test
+		@DisplayName("should not narrow the union whichever order the requirements arrive in")
+		void shouldNotNarrowTheUnionWhicheverOrderTheRequirementsArriveIn() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "brand"));
+			collector.addRequirementsToPrefetch(referenceContent("brand"));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(
+				ManagedReferencesBehaviour.ANY,
+				((ReferenceContent) requirements[0]).getManagedReferencesBehaviour()
+			);
+		}
+
+		@Test
 		@DisplayName("should add multiple non-combinable requirements of same type")
 		void shouldAddMultipleNonCombinableRequirementsOfSameType() {
 			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
