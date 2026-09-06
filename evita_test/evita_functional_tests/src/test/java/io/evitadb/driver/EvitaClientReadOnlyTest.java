@@ -61,6 +61,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -1339,6 +1340,92 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 		assertNotNull(referenceSummary);
 		assertFalse(referenceSummary.getReferenceStatistics().isEmpty());
+	}
+
+	/**
+	 * Tests that the client resolves the output names of every `hierarchyOfReference` constraint in the query, not
+	 * only of the first one naming the reference. Repeating the constraint for a single reference is a supported
+	 * pattern - the results merge into one container in the response - so the driver has to look for the output name
+	 * across all of them.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("get hierarchies of two constraints naming a single reference")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetHierarchiesOfTwoConstraintsNamingSingleReference(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("megaMenu", entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("sideMenu")
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy);
+		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
+		assertNotNull(categoryHierarchy);
+		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
+		assertFalse(categoryHierarchy.get("sideMenu").isEmpty());
+		// each output name is deserialized with the `entityFetch` of the constraint that declared it - `megaMenu`
+		// asked for a body with attributes, `sideMenu` asked for nothing but the reference
+		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").get(0).entity();
+		assertInstanceOf(SealedEntity.class, megaMenuEntity);
+		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
+		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").get(0).entity());
+	}
+
+	/**
+	 * Tests the same output name resolution for `hierarchyOfSelf`, whose repetitions all feed the single `self`
+	 * container of the response.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("get self hierarchies of two constraints")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetSelfHierarchiesOfTwoConstraints(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.CATEGORY),
+						require(
+							page(1, 0),
+							hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent(ATTRIBUTE_CODE)))),
+							hierarchyOfSelf(fromRoot("sideMenu"))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy);
+		assertFalse(hierarchy.getSelfHierarchy("megaMenu").isEmpty());
+		assertFalse(hierarchy.getSelfHierarchy("sideMenu").isEmpty());
+		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").get(0).entity();
+		assertInstanceOf(SealedEntity.class, megaMenuEntity);
+		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
+		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").get(0).entity());
 	}
 
 	/**
