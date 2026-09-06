@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 17:55
+updated: 2026-09-06 18:55
 status: accepted
 kind: fix
 issues: [1493]
@@ -13,6 +13,7 @@ areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/
   evita_engine/src/main/java/io/evitadb/core/query/filter/translator/hierarchy,
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram,
   evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/requestResponse,
+  evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/api/catalog,
   .claude/rules/constraint-resolution.md]
 supersedes: []
 superseded-by: []
@@ -551,22 +552,30 @@ whose only product is an error message, and closing the gap would mean a data-in
 the require tree ahead of index selection: a new planning phase, not a patch. Revisit only if a query is ever
 found that returns a *wrong* answer rather than an empty one through this path.
 
-**One thing was found and deliberately not fixed here**, because it needs a decision wider than this issue:
+**GraphQL stopped refusing a repeated `hierarchyOf...` for one target.** The engine has always returned both —
+`hierarchyOfSelf(fromRoot("megaMenu", stopAt(distance(1))))` beside
+`hierarchyOfSelf(fromRoot("sideMenu", stopAt(distance(1))))` yields five nodes under each name, and
+`EvitaArchivingTest#shouldGenerateResultsInOverMultipleScopes` pins the reference form,
+`inScope(LIVE, hierarchyOfReference(CATEGORY, children("liveMenu", …)))` beside its `ARCHIVED` twin — while both
+GraphQL spellings failed with HTTP 200 and
+`errors: [{ message: "Duplicate hierarchies for single reference." }]`, because `HierarchyOfResolver#resolve`
+folded the selection set into a `Collectors.toMap` keyed by reference name. Everything below that fold was already
+keyed by output name: `HierarchyDataFetcher` returns the merged container and `SpecificHierarchyDataFetcher` looks
+each hierarchy up by the name its own field asked for. The resolver now emits one constraint per selection and
+leaves the decision to `HierarchyStatisticsProducer#assertOutputNameFree`, which refuses a genuinely repeated
+output name and names it. The resolver keeps its own duplicate-output-name refusal *within* one selection.
 
-- **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.**
-  Measured on both sides. The engine returns both:
-  `hierarchyOfSelf(fromRoot("megaMenu", stopAt(distance(1))))` beside
-  `hierarchyOfSelf(fromRoot("sideMenu", stopAt(distance(1))))` yields five nodes under each name, and
-  `EvitaArchivingTest#shouldGenerateResultsInOverMultipleScopes` pins the reference form of the same shape —
-  `inScope(LIVE, hierarchyOfReference(CATEGORY, children("liveMenu", …)))` beside
-  `inScope(ARCHIVED, hierarchyOfReference(CATEGORY, children("archiveMenu", …)))`. Both GraphQL spellings of
-  those two queries fail with HTTP 200 and
-  `errors: [{ message: "Duplicate hierarchies for single reference." }]` from `HierarchyOfResolver`, which folds
-  the selection set into a map keyed by reference name and throws on any collision. The scoped shape needs field
-  aliases (`live:` / `archived:`) to get that far at all, since two unaliased `inScope` selections with different
-  arguments are refused by GraphQL's own field-merging validation first. Whichever way this is settled, one of
-  the two surfaces changes: either GraphQL grows a per-output-name key and stops refusing, or the engine starts
-  refusing and `EvitaArchivingTest` changes with it.
+**Rejected because** — merging the selections into a single constraint per target was the alternative, and it
+cannot express the case the fold was blocking: `inScope` wraps the whole constraint, so a scoped selection and an
+unscoped one for the same reference have no single constraint to merge into.
+
+Two tests that looked like coverage for the removed refusal were passing for the wrong reason: both
+`shouldNotReturnMultipleSelfHierarchiesWithSameOutputName` and
+`shouldNotReturnMultipleSelfHierarchiesWithReferencedOutputName` wrote `otherHierarchy { … }` without an alias
+colon, which is not a field of `ExtraResults` at all, so GraphQL validation rejected the document before the
+resolver ever ran. Repaired to `otherHierarchy: hierarchy` and tightened to assert the error names the colliding
+output name, they now exercise the engine refusal; with the fold reinstated they fail with
+`Expected: a string containing "megaMenu"  Actual: Duplicate hierarchies for single reference.`
 
 ## Related work
 

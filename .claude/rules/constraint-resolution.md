@@ -115,12 +115,13 @@ the answer no longer depends on which of the two arrived first.
 | 2 | `HierarchyStatisticsProducer#assertOutputNameFree` | one hierarchy output name claimed twice |
 | 2 | `EntityFetchRequireResolver` (GraphQL) | one accompanying price name selected two ways |
 | 2 | `AttributeHistogramResolver` (GraphQL) | one attribute's histogram selected with two bucket counts |
+| 2 | `HierarchyOfResolver` (GraphQL) | one output name inside a single hierarchy selection |
 | 3 | `EntityContentRequire#forPrefetch` | what a requirement looks like once it is only about loading |
 | 3 | `ReferenceContent#forPrefetch` | strips `filterBy`, `orderBy`, chunking, `ManagedReferencesBehaviour` |
 | 3 | `HierarchyContent#forPrefetch` | strips `stopAt` |
 | 3 | `DefaultPrefetchRequirementCollector` | the widening union, order-independent in both directions |
 
-## Two things that decide *where* a refusal goes
+## What decides *where* a refusal goes
 
 **Put it on a path the planner always walks.** A refusal placed where the code only runs under some queries is
 not a refusal, it is a coin flip. `priceHistogram` was decided inside a branch that only executes when the
@@ -156,6 +157,16 @@ hierarchy statistics. So the refusal sits in `EvitaRequest#getHierarchyWithin`, 
 extra-result planning — the filter keeps working, and only asking for statistics over an ambiguous restriction
 fails. Refusing at the point of writing would have cost filtering expressiveness and bought nothing.
 
+**A protocol layer must not invent a refusal the engine does not have.** `HierarchyOfResolver` folded the GraphQL
+extra-results selection set into a map keyed by reference name and threw *"Duplicate hierarchies for single
+reference."* on any collision, so two `hierarchy` selections aimed at one target were refused at the surface even
+though the engine merges them into a single result container indexed by output name — and separate selections are
+the only way to ask for one target's hierarchy in two scopes, because `inScope` wraps the whole selection.
+Everything below the fold was already output-name keyed: `HierarchyDataFetcher` hands back the merged container and
+`SpecificHierarchyDataFetcher` looks each hierarchy up by its own output name. The resolver now emits one constraint
+per selection and lets `HierarchyStatisticsProducer#assertOutputNameFree` decide. Its own refusal *within* a single
+selection is kept, because it catches the same mistake one layer earlier, before a query is built.
+
 ## Deliberately not enforced
 
 Each of these was looked at and left alone. Do not "fix" one without reading its reason.
@@ -171,14 +182,6 @@ Each of these was looked at and left alone. Do not "fix" one without reading its
 - **`ReferenceContent#getChunking()` takes `findFirst()` over its children.** Unreachable: every constructor
   accepts a single `ChunkingRequireConstraint` and the `@Creator` marks `uniqueChildren = true`, so neither
   the fluent API nor the EvitaQL parser can produce a `page` + `strip` pair inside one `referenceContent`.
-- **GraphQL refuses a repeated `hierarchyOf...` for one reference; the engine allows it.** The engine's
-  behaviour is deliberate and tested — `EvitaArchivingTest#shouldGenerateResultsInOverMultipleScopes` merges a
-  `LIVE` and an `ARCHIVED` `hierarchyOfReference(CATEGORY, …)` into one result container, and two
-  `hierarchyOfSelf` with different output names return both — while `HierarchyOfResolver` folds the selection
-  set into a map keyed by reference name and throws *"Duplicate hierarchies for single reference."* on any
-  collision, for both spellings. **The two surfaces disagree about whether the pattern is legal at all.** This
-  is an open question, not a rule: it needs a decision, and whichever way it goes, one of the two sides
-  changes.
 
 ## Checking
 
