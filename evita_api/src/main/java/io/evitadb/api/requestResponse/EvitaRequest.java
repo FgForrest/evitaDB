@@ -1411,8 +1411,12 @@ public class EvitaRequest {
 	 */
 	public boolean isPriceHistogramRequested() {
 		if (this.priceHistogramRequested == null) {
+			// `findRequires` rather than `findRequire`: a duplicated requirement is decided by
+			// `PriceHistogramTranslator`, which runs whatever the query filters on, and the single-result lookup
+			// used here would have thrown `MoreThanSingleResultException` first - but only for queries that carry
+			// a price filter, since this accessor is reached from the price filter translators alone
 			this.priceHistogramRequested =
-				QueryUtils.findRequire(this.query, PriceHistogram.class) != null;
+				!QueryUtils.findRequires(this.query, PriceHistogram.class).isEmpty();
 		}
 		return this.priceHistogramRequested;
 	}
