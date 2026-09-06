@@ -920,10 +920,16 @@ facetGroupsDisjunction(
     </dd>
     <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
     <dd>
-        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>**Default: `WITH_DIFFERENT_GROUPS`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
         a particular level (within the same reference group, or to options in different reference groups /
         references).</p>
+        <p>This is the one constraint of the four whose default is `WITH_DIFFERENT_GROUPS`, and it defaults there
+        for the same reason the others default to `WITH_DIFFERENT_FACETS_IN_GROUP`: a constraint defaults to the
+        level at which it changes something. Disjunction is already the
+        [system default](#default-reference-calculation-rules) *within* a group, so at that level the constraint
+        does nothing unless [`facetCalculationRules`](#facet-calculation-rules) has changed the within-group
+        default first — which is a legitimate use, just not the common one.</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1032,6 +1038,12 @@ As long as the other argument stays at the system default, it doesn't matter whe
 within the same reference group or between different groups: by [De Morgan's
 laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the same (`!a && !b` is equivalent to
 `!(a || b)`).
+
+Because the two are equivalent, evitaDB honours a `facetGroupsNegation` at **both** levels regardless of which one
+you wrote, so the level you pick cannot change the answer. This is the single exception to the rule that the two
+levels are orthogonal, and it exists only because negation is the one relation for which they provably are not.
+If [`facetCalculationRules`](#facet-calculation-rules) moves the other level away from its system default the
+equivalence no longer holds, and a query that changes the defaults should state the level it means.
 
 </Note>
 

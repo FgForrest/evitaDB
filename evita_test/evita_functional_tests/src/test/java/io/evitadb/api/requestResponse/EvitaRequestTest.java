@@ -57,6 +57,8 @@ import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static io.evitadb.api.query.require.DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS;
@@ -1306,7 +1308,7 @@ class EvitaRequestTest {
 
 			assertTrue(
 				request
-					.getFacetGroupConjunction("brand")
+					.getFacetGroupConjunction("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
 					.isEmpty()
 			);
 		}
@@ -1328,7 +1330,7 @@ class EvitaRequestTest {
 
 			assertTrue(
 				request
-					.getFacetGroupConjunction("brand")
+					.getFacetGroupConjunction("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
 					.isPresent()
 			);
 		}
@@ -1346,7 +1348,7 @@ class EvitaRequestTest {
 
 			assertTrue(
 				request
-					.getFacetGroupDisjunction("brand")
+					.getFacetGroupDisjunction("brand", WITH_DIFFERENT_GROUPS)
 					.isEmpty()
 			);
 		}
@@ -1372,7 +1374,7 @@ class EvitaRequestTest {
 
 			assertTrue(
 				request
-					.getFacetGroupDisjunction("category")
+					.getFacetGroupDisjunction("category", WITH_DIFFERENT_GROUPS)
 					.isPresent()
 			);
 		}
@@ -1389,8 +1391,109 @@ class EvitaRequestTest {
 
 			assertTrue(
 				request
-					.getFacetGroupNegation("brand")
+					.getFacetGroupNegation("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
 					.isEmpty()
+			);
+		}
+
+		/**
+		 * Verifies a relation declared at one level does not
+		 * leak into the other one.
+		 */
+		@Test
+		@DisplayName("keeps the two relation levels apart")
+		void shouldKeepRelationLevelsApart() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsConjunction(
+							"brand",
+							WITH_DIFFERENT_GROUPS
+						)
+					)
+				)
+			);
+
+			assertTrue(
+				request
+					.getFacetGroupConjunction("brand", WITH_DIFFERENT_GROUPS)
+					.isPresent()
+			);
+			assertTrue(
+				request
+					.getFacetGroupConjunction("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
+					.isEmpty(),
+				"a conjunction declared between groups must not decide the relation inside a group"
+			);
+		}
+
+		/**
+		 * Verifies both levels may be addressed at once.
+		 */
+		@Test
+		@DisplayName("carries both levels of one reference")
+		void shouldCarryBothLevelsOfOneReference() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsConjunction(
+							"brand",
+							WITH_DIFFERENT_FACETS_IN_GROUP,
+							filterBy(entityPrimaryKeyInSet(1))
+						),
+						facetGroupsConjunction(
+							"brand",
+							WITH_DIFFERENT_GROUPS,
+							filterBy(entityPrimaryKeyInSet(2))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(1)),
+				request.getFacetGroupConjunction("brand", WITH_DIFFERENT_FACETS_IN_GROUP)
+					.orElseThrow()
+					.filterBy()
+			);
+			assertEquals(
+				filterBy(entityPrimaryKeyInSet(2)),
+				request.getFacetGroupConjunction("brand", WITH_DIFFERENT_GROUPS)
+					.orElseThrow()
+					.filterBy()
+			);
+		}
+
+		/**
+		 * Verifies two contradicting constraints at one
+		 * level are refused.
+		 */
+		@Test
+		@DisplayName("refuses two group filters at one level")
+		void shouldRefuseTwoGroupFiltersAtOneLevel() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(
+						facetGroupsConjunction(
+							"brand",
+							WITH_DIFFERENT_GROUPS,
+							filterBy(entityPrimaryKeyInSet(1))
+						),
+						facetGroupsConjunction(
+							"brand",
+							WITH_DIFFERENT_GROUPS,
+							filterBy(entityPrimaryKeyInSet(2))
+						)
+					)
+				)
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> request.getFacetGroupConjunction("brand", WITH_DIFFERENT_GROUPS)
 			);
 		}
 	}

@@ -1634,12 +1634,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull BiFunction<EvitaRequest, String, Optional<FacetFilterBy>> facetSettingsRetriever
+		@Nonnull FacetSettingsRetriever facetSettingsRetriever
 		) {
 		final String referenceName = referenceSchema.getName();
 		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
 			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
-		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(this.evitaRequest, referenceName);
+		// the settings are read for the level being asked about - a relation declared between groups must not
+		// decide the relation between the facets inside one group, and vice versa
+		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(
+			this.evitaRequest, referenceName, level
+		);
 		if (facetSettings.isEmpty()) {
 			return theDefault == relationType;
 		} else {
@@ -1651,7 +1655,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				} else {
 					final boolean requestedExplicitly = getFacetRelationTuples()
 						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, relationType),
+							new FacetRelationTuple(referenceName, relationType, level),
 							refName -> {
 								final String referencedGroupType = referenceSchema.getReferencedGroupType();
 								Assert.isTrue(
@@ -1833,8 +1837,35 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
-		@Nonnull FacetRelationType relation
+		@Nonnull FacetRelationType relation,
+		@Nonnull FacetGroupRelationLevel level
 	) {
+
+	}
+
+	/**
+	 * Pulls the settings of one facet relation type for a reference at a particular
+	 * {@link FacetGroupRelationLevel} out of the request. This is what binds the shared
+	 * {@link #isFacetGroupRelationType} implementation to one of the four relations; the level is part of the lookup
+	 * because the two levels are orthogonal and carry their own settings.
+	 */
+	@FunctionalInterface
+	private interface FacetSettingsRetriever {
+
+		/**
+		 * Returns the settings declared for the given reference at the given level.
+		 *
+		 * @param request       request to read the settings from
+		 * @param referenceName name of the reference the facets belong to
+		 * @param level         level the relation is being asked about
+		 * @return the settings, empty when the query declared none for that reference at that level
+		 */
+		@Nonnull
+		Optional<FacetFilterBy> apply(
+			@Nonnull EvitaRequest request,
+			@Nonnull String referenceName,
+			@Nonnull FacetGroupRelationLevel level
+		);
 
 	}
 

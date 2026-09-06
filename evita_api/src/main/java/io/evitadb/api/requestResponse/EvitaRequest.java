@@ -61,6 +61,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -132,10 +133,10 @@ public class EvitaRequest {
 	@Nullable private EvitaRequest.ResultForm resultForm;
 	@Nullable private FacetRelationType defaultFacetRelationType;
 	@Nullable private FacetRelationType defaultGroupRelationType;
-	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
-	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
-	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
-	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
+	@Nullable private Map<FacetGroupRelationKey, FacetFilterBy> facetGroupConjunction;
+	@Nullable private Map<FacetGroupRelationKey, FacetFilterBy> facetGroupDisjunction;
+	@Nullable private Map<FacetGroupRelationKey, FacetFilterBy> facetGroupNegation;
+	@Nullable private Map<FacetGroupRelationKey, FacetFilterBy> facetGroupExclusivity;
 	@Nullable private Boolean queryTelemetryRequested;
 	@Nullable private Boolean queryTelemetryPlanRequested;
 	@Nullable private Boolean priceHistogramRequested;
@@ -286,6 +287,7 @@ public class EvitaRequest {
 		this.facetGroupConjunction = evitaRequest.facetGroupConjunction;
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
+		this.facetGroupExclusivity = evitaRequest.facetGroupExclusivity;
 		this.requiresEntity = evitaRequest.requiresEntity;
 		this.requiresParent = evitaRequest.requiresParent;
 		this.parentContent = evitaRequest.parentContent;
@@ -481,6 +483,7 @@ public class EvitaRequest {
 		this.facetGroupConjunction = evitaRequest.facetGroupConjunction;
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
+		this.facetGroupExclusivity = evitaRequest.facetGroupExclusivity;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 
@@ -1223,23 +1226,24 @@ public class EvitaRequest {
 	 * Returns filter by representing group entity primary keys of
 	 * `referenceName` facets, that are requested to be joined by
 	 * conjunction (AND) instead of default disjunction (OR).
+	 *
+	 * The settings are keyed by the reference name **and** the {@link FacetGroupRelationLevel} the constraint
+	 * declared, because the two levels are orthogonal - a relation asked for between groups says nothing about
+	 * the relation between the facets inside one group.
+	 *
+	 * @param referenceName name of the reference the facets belong to
+	 * @param level         level the relation is being asked about
+	 * @return the settings declared for that reference at that level, empty when none were
 	 */
 	@Nonnull
-	public Optional<FacetFilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupConjunction(
+		@Nonnull String referenceName,
+		@Nonnull FacetGroupRelationLevel level
+	) {
 		if (this.facetGroupConjunction == null) {
-			this.facetGroupConjunction = new HashMap<>();
-			QueryUtils.findRequires(this.query, FacetGroupsConjunction.class)
-				.forEach(it -> {
-					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupConjunction.put(
-						reqReferenceName,
-						new FacetFilterBy(
-							it.getFacetGroups().orElse(null)
-						)
-					);
-				});
+			this.facetGroupConjunction = collectFacetGroupSettings(FacetGroupsConjunction.class);
 		}
-		return ofNullable(this.facetGroupConjunction.get(referenceName));
+		return ofNullable(this.facetGroupConjunction.get(new FacetGroupRelationKey(referenceName, level)));
 	}
 
 	/**
@@ -1247,69 +1251,126 @@ public class EvitaRequest {
 	 * `referenceName` facets, that are requested to be joined with
 	 * other facet groups by disjunction (OR) instead of default
 	 * conjunction (AND).
+	 *
+	 * The settings are keyed by the reference name **and** the {@link FacetGroupRelationLevel} the constraint
+	 * declared, because the two levels are orthogonal - a relation asked for between groups says nothing about
+	 * the relation between the facets inside one group.
+	 *
+	 * @param referenceName name of the reference the facets belong to
+	 * @param level         level the relation is being asked about
+	 * @return the settings declared for that reference at that level, empty when none were
 	 */
 	@Nonnull
-	public Optional<FacetFilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupDisjunction(
+		@Nonnull String referenceName,
+		@Nonnull FacetGroupRelationLevel level
+	) {
 		if (this.facetGroupDisjunction == null) {
-			this.facetGroupDisjunction = new HashMap<>();
-			QueryUtils.findRequires(this.query, FacetGroupsDisjunction.class)
-				.forEach(it -> {
-					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupDisjunction.put(
-						reqReferenceName,
-						new FacetFilterBy(
-							it.getFacetGroups().orElse(null)
-						)
-					);
-				});
+			this.facetGroupDisjunction = collectFacetGroupSettings(FacetGroupsDisjunction.class);
 		}
-		return ofNullable(this.facetGroupDisjunction.get(referenceName));
+		return ofNullable(this.facetGroupDisjunction.get(new FacetGroupRelationKey(referenceName, level)));
 	}
 
 	/**
 	 * Returns filter by representing group entity primary keys of
 	 * `referenceName` facets, that are requested to be joined by
 	 * negation (AND NOT) instead of default disjunction (OR).
+	 *
+	 * Negation is the one relation whose level does not change the outcome, and it is therefore honoured at
+	 * **either** level: by De Morgan's laws negating each facet and combining the results with AND (`!a && !b`)
+	 * is the same set as negating the group's own disjunction (`!(a || b)`). A constraint declared at one level is
+	 * consequently returned for the other one too, so that the engine reaches the same answer whichever level the
+	 * code path asking happens to be deciding. The equivalence holds while the *other* relation stays at its
+	 * system default; {@link io.evitadb.api.query.require.FacetCalculationRules} can break it, and a query that
+	 * changes the defaults has to state the level it means.
+	 *
+	 * The three other relations are keyed by reference name **and** level, because for them the two levels are
+	 * genuinely orthogonal.
+	 *
+	 * @param referenceName name of the reference the facets belong to
+	 * @param level         level the relation is being asked about
+	 * @return the settings declared for that reference at either level, empty when none were
 	 */
 	@Nonnull
-	public Optional<FacetFilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupNegation(
+		@Nonnull String referenceName,
+		@Nonnull FacetGroupRelationLevel level
+	) {
 		if (this.facetGroupNegation == null) {
-			this.facetGroupNegation = new HashMap<>();
-			QueryUtils.findRequires(this.query, FacetGroupsNegation.class)
-				.forEach(it -> {
-					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupNegation.put(
-						reqReferenceName,
-						new FacetFilterBy(
-							it.getFacetGroups().orElse(null)
-						)
-					);
-				});
+			this.facetGroupNegation = collectFacetGroupSettings(FacetGroupsNegation.class);
 		}
-		return ofNullable(this.facetGroupNegation.get(referenceName));
+		final FacetFilterBy declaredAtTheLevel = this.facetGroupNegation.get(
+			new FacetGroupRelationKey(referenceName, level)
+		);
+		if (declaredAtTheLevel != null) {
+			return of(declaredAtTheLevel);
+		}
+		final FacetGroupRelationLevel otherLevel =
+			level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+				FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS :
+				FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+		return ofNullable(this.facetGroupNegation.get(new FacetGroupRelationKey(referenceName, otherLevel)));
 	}
 
 	/**
 	 * Returns filter by representing group entity primary keys of
 	 * `referenceName` facets, that are requested to be calculated in
 	 * exclusive fashion (no other facet from same group is selected).
+	 *
+	 * The settings are keyed by the reference name **and** the {@link FacetGroupRelationLevel} the constraint
+	 * declared, because the two levels are orthogonal - a relation asked for between groups says nothing about
+	 * the relation between the facets inside one group.
+	 *
+	 * @param referenceName name of the reference the facets belong to
+	 * @param level         level the relation is being asked about
+	 * @return the settings declared for that reference at that level, empty when none were
 	 */
 	@Nonnull
-	public Optional<FacetFilterBy> getFacetGroupExclusivity(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupExclusivity(
+		@Nonnull String referenceName,
+		@Nonnull FacetGroupRelationLevel level
+	) {
 		if (this.facetGroupExclusivity == null) {
-			this.facetGroupExclusivity = new HashMap<>();
-			QueryUtils.findRequires(this.query, FacetGroupsExclusivity.class)
-				.forEach(it -> {
-					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupExclusivity.put(
-						reqReferenceName,
-						new FacetFilterBy(
-							it.getFacetGroups().orElse(null)
-						)
-					);
-				});
+			this.facetGroupExclusivity = collectFacetGroupSettings(FacetGroupsExclusivity.class);
 		}
-		return ofNullable(this.facetGroupExclusivity.get(referenceName));
+		return ofNullable(this.facetGroupExclusivity.get(new FacetGroupRelationKey(referenceName, level)));
+	}
+
+	/**
+	 * Collects the facet group relation settings of one relation type out of the query, keyed by the reference name
+	 * and the level the constraint declared.
+	 *
+	 * Two constraints of one relation type may address one reference as long as they aim at different levels - that
+	 * is what the levels are for. Two aiming at the same level contradict each other, because only one filter can
+	 * decide which groups the relation applies to, and are refused rather than resolved by whichever the query
+	 * happened to list last.
+	 *
+	 * @param constraintType the relation constraint class to collect
+	 * @return settings of that relation type, keyed by reference name and level
+	 * @throws EvitaInvalidUsageException when one reference is addressed twice at one level with different filters
+	 */
+	@Nonnull
+	private Map<FacetGroupRelationKey, FacetFilterBy> collectFacetGroupSettings(
+		@Nonnull Class<? extends FacetGroupsConstraint> constraintType
+	) {
+		final Map<FacetGroupRelationKey, FacetFilterBy> result = new HashMap<>();
+		for (final FacetGroupsConstraint constraint : QueryUtils.findRequires(this.query, constraintType)) {
+			final FacetGroupRelationKey key = new FacetGroupRelationKey(
+				constraint.getReferenceName(), constraint.getFacetGroupRelationLevel()
+			);
+			final FacetFilterBy settings = new FacetFilterBy(constraint.getFacetGroups().orElse(null));
+			final FacetFilterBy alreadyPresent = result.putIfAbsent(key, settings);
+			if (alreadyPresent != null && !Objects.equals(alreadyPresent.filterBy(), settings.filterBy())) {
+				final String reason = "Facet groups of reference `" + key.referenceName() + "` are addressed twice " +
+					"by `" + constraintType.getSimpleName() + "` at level `" + key.level() + "` with different " +
+					"group filters - state one filter for that level, or aim the second constraint at the other level";
+				throw new EvitaInvalidUsageException(
+					reason + ": " + alreadyPresent.filterBy() + " and " + settings.filterBy() + ".",
+					reason + "."
+				);
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -1909,6 +1970,21 @@ public class EvitaRequest {
 	 */
 	public record FacetFilterBy(
 		@Nullable FilterBy filterBy
+	) {
+
+	}
+
+	/**
+	 * Identifies the facet group relation settings of one reference at one {@link FacetGroupRelationLevel}. The two
+	 * levels are orthogonal - a relation declared between groups says nothing about the relation between the facets
+	 * inside a single group - so the level is part of the key rather than something the settings are read without.
+	 *
+	 * @param referenceName name of the reference whose facets the relation applies to
+	 * @param level         level the relation was declared at
+	 */
+	public record FacetGroupRelationKey(
+		@Nonnull String referenceName,
+		@Nonnull FacetGroupRelationLevel level
 	) {
 
 	}

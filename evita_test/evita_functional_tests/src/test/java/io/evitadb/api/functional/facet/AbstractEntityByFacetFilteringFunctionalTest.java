@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetRelationType;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -1173,6 +1174,71 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				return null;
 			}
+		);
+	}
+
+	@DisplayName("Should return the same products whichever level a negation is declared at")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnSameProductsForNegationDeclaredAtEitherLevel(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Set<Integer> groups = getGroupsWithGaps(originalProductEntities);
+				final Integer[] parameters = getParametersInGroups(originalProductEntities, groups);
+				final Integer[] groupIds = groups.toArray(new Integer[0]);
+
+				// negating each facet and combining with AND is the same set as negating the group's own
+				// disjunction - `!a && !b` is `!(a || b)` - so the declared level cannot change the answer
+				final EvitaResponse<EntityReference> withinGroup = session.query(
+					negationQuery(parameters, groupIds, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP),
+					EntityReference.class
+				);
+				final EvitaResponse<EntityReference> betweenGroups = session.query(
+					negationQuery(parameters, groupIds, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS),
+					EntityReference.class
+				);
+
+				assertEquals(betweenGroups.getTotalRecordCount(), withinGroup.getTotalRecordCount());
+				assertFalse(withinGroup.getRecordData().isEmpty());
+				assertEquals(
+					betweenGroups.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					withinGroup.getRecordData().stream().map(EntityReference::getPrimaryKey).toList()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query used by {@link #shouldReturnSameProductsForNegationDeclaredAtEitherLevel} - the selected
+	 * parameter facets with their groups negated at the requested relation level.
+	 *
+	 * @param parameters facet primary keys to select in the user filter
+	 * @param groupIds   primary keys of the groups the negation applies to
+	 * @param level      level the negation is declared at
+	 * @return the query to execute
+	 */
+	@Nonnull
+	private static Query negationQuery(
+		@Nonnull Integer[] parameters,
+		@Nonnull Integer[] groupIds,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				userFilter(
+					facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(parameters))
+				)
+			),
+			require(
+				page(1, Integer.MAX_VALUE),
+				facetGroupsNegation(Entities.PARAMETER, level, filterBy(entityPrimaryKeyInSet(groupIds)))
+			)
 		);
 	}
 
