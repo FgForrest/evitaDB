@@ -64,8 +64,15 @@ never in contradiction, because neither is a projection: a `filterBy` on one of 
 not what has to be in memory. So the union takes the superset and never refuses.
 
 That is what `EntityContentRequire#forPrefetch()` is for: it strips the output-shaping parts (`filterBy`,
-`orderBy`, chunking) before a requirement enters the union, so no output restriction can reach the collector
-and be mistaken for a contradiction there.
+`orderBy`, chunking, and `ManagedReferencesBehaviour`) before a requirement enters the union, so no output
+restriction can reach the collector and be mistaken for a contradiction there — or, worse, *narrow* it.
+
+`ManagedReferencesBehaviour` is the one that is easy to miss, and it was missed once: `EXISTING` beats `ANY`
+in `combineWith`, so a client's `referenceContent(EXISTING, "brand")` used to narrow the bare
+`referenceContent("brand")` the planner contributes for a filtered reference. Suppressing references whose
+target entity does not exist is a projection like the other three, and the prefetched body is what a
+`referenceHaving` is then evaluated against — leaving it in made the same query answer differently depending
+on which plan the planner picked.
 
 **This exemption is invisible in the code unless you go looking for it**, which is the trap. The collector and
 the client-facing fold both call `isCombinableWith` / `combineWith`, so a change that makes `combineWith`
@@ -90,6 +97,8 @@ the answer no longer depends on which of the two arrived first.
 | 2 | `AccompanyingPriceContent#combineWith` | price-list sequence, explicit vs deferred, for one price name |
 | 2 | `HierarchyContent#combineWith` | `stopAt` and the parent-chain requirement |
 | 2 | `EvitaRequest#collectFacetGroupSettings` | one reference + relation level, two different filters |
+| 2 | `ReferenceSummaryProducer#assertDefaultSummaryNotRedeclared` | two all-references summaries of one spelling |
+| 2 | `ReferenceSummaryProducer#assertReferenceSummaryNotRedeclared` | two summaries of one named reference |
 | 2 | `EvitaRequest#initPagination` | `page` beside `strip` |
 | 2 | `EvitaRequest#getHierarchyWithin` | two different hierarchy filters, *when statistics are requested* |
 | 2 | `AttributeHistogramProducer#addAttributeHistogramRequest` | bucket count and behaviour, per attribute |
@@ -107,6 +116,17 @@ the answer no longer depends on which of the two arrived first.
 not a refusal, it is a coin flip. `priceHistogram` was decided inside a branch that only executes when the
 query filters on price, so the same duplicated pair threw for a price-filtered query and returned silently for
 an attribute-filtered one. It now lives in `PriceHistogramTranslator`, which runs for every requirement.
+
+> **The extra result phase is not such a path when the data is empty.** `QueryPlanner#planQuery` returns
+> `QueryPlanBuilder.empty(context)` as soon as `IndexSelectionResult#isEmpty()`, before any extra result
+> producer is created — so every refusal that lives in an extra result translator is skipped for a query whose
+> index selection came out empty. Measured: `hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …),
+> fromRoot("megaMenu", …))` is refused under `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns
+> an empty result under `entityPrimaryKeyInSet(999999)`. This predates the rules and applies equally to the
+> schema-validation refusals `EvitaArchivingTest` asserts (`ReferenceNotFacetedException`,
+> `AttributeNotFilterableException`, `HierarchyNotIndexedException`), so the query never answers *wrongly* —
+> it merely starts failing once data appears. Closing it means a data-independent validation pass over the
+> require tree ahead of index selection, which is a design decision nobody has taken yet.
 
 **Prefer keying over refusing, when the consumer can name what it wants.** A refusal is the answer only when
 two requirements genuinely compete for one slot. If the slot exists merely because the value was stored globally,
@@ -126,6 +146,14 @@ fails. Refusing at the point of writing would have cost filtering expressiveness
 
 Each of these was looked at and left alone. Do not "fix" one without reading its reason.
 
+- **`getFacetGroupNegation` answers at either relation level.** Negation declared at one level is returned for
+  the other one too, because by De Morgan's laws negating each facet and combining with AND is the same set as
+  negating the group's own disjunction. `facetGroupsNegation(referenceName, filterBy)` — the common form —
+  states no level at all, so exact-level matching would silently drop the negation whenever the engine asks at
+  the other one. The equivalence holds only while the *other* relation keeps its system default;
+  `FacetCalculationRules` can break it. **Revisit trigger:** the first non-default `FacetCalculationRules` that
+  makes within-group combination anything but OR. The fix then is to require an explicit level and refuse the
+  bare form, not to remove the fallback.
 - **`ReferenceContent#getChunking()` takes `findFirst()` over its children.** Unreachable: every constructor
   accepts a single `ChunkingRequireConstraint` and the `@Creator` marks `uniqueChildren = true`, so neither
   the fluent API nor the EvitaQL parser can produce a `page` + `strip` pair inside one `referenceContent`.

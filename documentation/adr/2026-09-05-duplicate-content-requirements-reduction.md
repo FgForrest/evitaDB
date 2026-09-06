@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 15:35
+updated: 2026-09-06 16:15
 status: accepted
 kind: fix
 issues: [1493]
@@ -489,7 +489,38 @@ The third finding of the same reading is settled by the same change: the set-onc
 `hierarchyWithin` naming *different* references, and the keying removes that as a side effect. Only the
 cross-reference case remains untested, because the test datasets carry a single hierarchical reference.
 
-**One thing was found and deliberately not fixed here**, because it needs a decision wider than this issue:
+### What the adversarial review of the finished branch found
+
+A challenge review of the whole branch raised six blockers. Four were confirmed by reproduction and fixed;
+each is a commit with its reproduction quoted. One was declined, one is recorded below.
+
+| Finding | Verdict |
+|---|---|
+| the hierarchy node visibility predicate is still a single write-once slot | **fixed** — keyed per constraint, the sibling of the roots |
+| `forPrefetch()` keeps `ManagedReferencesBehaviour`, so `EXISTING` narrows the union | **fixed** — stripped, it is a projection like the other three |
+| the generic summary's fetch is validated against references a specific summary claims | **fixed** — overridden names asked of the result adapter |
+| repeated summary constraints silently last-win | **fixed** — refused per target, identical repeats still folded |
+| `getFacetGroupNegation` answers at either relation level | **declined** — see below |
+| the empty-index shortcut skips every extra result refusal | **recorded** — see below |
+
+**The negation level fallback is deliberate.** Negation declared at one level is returned for the other, because
+the two are De Morgan equivalents; the review is right that a non-default `FacetCalculationRules` can break the
+equivalence, and the javadoc says so. It is kept because `facetGroupsNegation(referenceName, filterBy)` — the
+common form — states no level at all, so exact-level matching would silently drop the negation whenever the
+engine asks at the other one, which is a worse failure than the hypothetical one. Revisit when the first
+non-default rule set makes within-group combination anything but OR; the fix then is to refuse the bare form,
+not to remove the fallback.
+
+**Two things were found and deliberately not fixed here**, because each needs a decision wider than this issue:
+
+- **Every refusal that lives in an extra result translator is skipped when the index selection comes out
+  empty.** `QueryPlanner#planQuery` returns `QueryPlanBuilder.empty(context)` before any producer is created.
+  Measured: `hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …), fromRoot("megaMenu", …))` is refused under
+  `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns an empty result under
+  `entityPrimaryKeyInSet(999999)`. The behaviour predates this work and applies equally to the schema
+  validation refusals `EvitaArchivingTest` asserts, so no query answers *wrongly* — one merely starts failing
+  once data appears. Closing it means a data-independent validation pass over the require tree ahead of index
+  selection, and that is a new planning phase, not a patch.
 
 - **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.**
   Measured on both sides. The engine returns both:
