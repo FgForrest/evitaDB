@@ -775,8 +775,8 @@ class ReferenceContentTest {
 		}
 
 		@Test
-		@DisplayName("the alias, the managed references behaviour and the reference names survive the projection")
-		void shouldKeepKeyAndManagedReferencesBehaviourForPrefetch() {
+		@DisplayName("the alias and the reference names survive the projection, the behaviour does not")
+		void shouldKeepKeyButDropManagedReferencesBehaviourForPrefetch() {
 			final ReferenceContent restricted = new ReferenceContent(
 				"alias",
 				ManagedReferencesBehaviour.EXISTING,
@@ -787,10 +787,25 @@ class ReferenceContentTest {
 
 			final ReferenceContent prefetched = restricted.forPrefetch();
 
+			// the key is what the union folds by, so it has to survive
 			assertEquals("alias", prefetched.getInstanceName());
-			assertEquals(ManagedReferencesBehaviour.EXISTING, prefetched.getManagedReferencesBehaviour());
 			assertArrayEquals(new String[]{"a", "b"}, prefetched.getReferenceNames());
+			// `EXISTING` suppresses references whose target does not exist - a projection like the filter, and one
+			// that would narrow the union rather than widen it
+			assertEquals(ManagedReferencesBehaviour.ANY, prefetched.getManagedReferencesBehaviour());
 			assertTrue(prefetched.getFilterBy().isEmpty());
+		}
+
+		@Test
+		@DisplayName("the managed references behaviour alone is enough to make the projection differ")
+		void shouldProjectManagedReferencesBehaviourOfOtherwiseUnrestrictedRequirement() {
+			final ReferenceContent existingOnly = referenceContent(ManagedReferencesBehaviour.EXISTING, "a");
+
+			final ReferenceContent prefetched = existingOnly.forPrefetch();
+
+			assertNotSame(existingOnly, prefetched);
+			assertEquals(ManagedReferencesBehaviour.ANY, prefetched.getManagedReferencesBehaviour());
+			assertArrayEquals(new String[]{"a"}, prefetched.getReferenceNames());
 		}
 
 		@Test
