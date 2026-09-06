@@ -3047,6 +3047,35 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for page combined with strip")
+	void shouldReturnErrorForPageCombinedWithStrip(RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				             {
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 20
+				             		},
+				             		"strip": {
+				             			"offset": 2,
+				             			"limit": 3
+				             		}
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(400)
+			.body(
+				"message",
+				containsString("cannot combine `page` and `strip`")
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram")
 	void shouldReturnAttributeHistogram(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityClassifier> response = queryEntities(

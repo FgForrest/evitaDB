@@ -510,6 +510,31 @@ class EvitaRequestTest {
 		}
 
 		/**
+		 * Verifies that a query stating both `page` and `strip` is refused rather than silently resolved to `page`.
+		 */
+		@Test
+		@DisplayName("refuses page combined with strip")
+		void shouldRefusePageCombinedWithStrip() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(page(1, 20), strip(0, 20))
+				)
+			);
+
+			// pagination is resolved lazily, on the first getter every execution path calls
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				request::getResultForm
+			);
+
+			assertTrue(
+				exception.getMessage().contains("cannot combine `page` and `strip`"),
+				exception.getMessage()
+			);
+		}
+
+		/**
 		 * Verifies empty conditional gaps by default.
 		 */
 		@Test

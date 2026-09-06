@@ -234,6 +234,9 @@ strip(
 
 </LS>
 
+A query may state either `page` or `strip`, never both - each of them selects a different form of the returned data
+chunk, so there is no combined answer to give. A query stating both is rejected.
+
 The `strip`
 <LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) requirement</LS>
 <LS to="g">approach</LS>

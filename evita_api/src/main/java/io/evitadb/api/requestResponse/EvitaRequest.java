@@ -1806,6 +1806,8 @@ public class EvitaRequest {
 	 * Internal method that consults input query and initializes pagination information.
 	 * If there is no pagination in the input query, first page with
 	 * size of 20 records is used as default.
+	 *
+	 * @throws EvitaInvalidUsageException when the query carries both `page` and `strip`
 	 */
 	private void initPagination() {
 		final Optional<Page> page = ofNullable(
@@ -1820,6 +1822,15 @@ public class EvitaRequest {
 				SeparateEntityContentRequireContainer.class
 			)
 		);
+		if (page.isPresent() && strip.isPresent()) {
+			// the two are irreconcilable by construction - each of them selects a different `ResultForm`, so there is
+			// no combined answer to give and picking either one silently discards what the query asked for
+			final String reason = "Query cannot combine `page` and `strip` - each of them selects a different form " +
+				"of the result, so exactly one of them may be present";
+			throw new EvitaInvalidUsageException(
+				reason + ": " + page.get() + " and " + strip.get() + ".", reason + "."
+			);
+		}
 		if (page.isPresent()) {
 			final Page thePage = page.get();
 			this.limit = thePage.getPageSize();
