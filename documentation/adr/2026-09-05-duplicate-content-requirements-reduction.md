@@ -1,12 +1,13 @@
 ---
 title: Fold duplicate content requirements once per request; refuse only the pairs that have no superset
 date: 2026-09-05
-updated: 2026-09-06 00:26
+updated: 2026-09-06 01:30
 status: accepted
 kind: fix
 issues: [1493]
 prs: []
-areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_api/src/main/java/io/evitadb/api/requestResponse]
+areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_api/src/main/java/io/evitadb/api/requestResponse,
+  evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer]
 supersedes: []
 superseded-by: []
 relates: []
@@ -30,12 +31,13 @@ a query assembled from several helpers, or an `entityFetchAllContentAnd(attribut
 at the engine with two requirements of one kind side by side. The three ways evitaDB then reacted were all wrong in
 different directions, and the worst of them was silent.
 
-The constraint that made this non-obvious is that the same `combineWith` protocol serves **three** callers, not one:
-the request-level reduction added here, the query planner's prefetch union
-(`DefaultPrefetchRequirementCollector`), and the facet summary's extension of a default fetch with a
-reference-specific one (`ReferenceSummaryProducer`). The last two unite requirements written in *unrelated* parts of
-one query — `ReferenceHavingTranslator` adds a bare `referenceContent(<name>)` for every filtered reference and
-`ReferenceOrderByVisitor` adds one carrying attributes — so a rule chosen for the user-authored case is immediately
+The constraint that made this non-obvious is that the same `combineWith` protocol serves **several** callers, not
+one: the request-level reduction added here, the query planner's prefetch union
+(`DefaultPrefetchRequirementCollector`), and — until the adversarial review moved it onto an overlay of its own —
+the summary's extension of a generic fetch with a reference-specific one (`ReferenceSummaryProducer`). The latter
+two unite requirements written in *unrelated* parts of one query — `ReferenceHavingTranslator` adds a bare
+`referenceContent(<name>)` for every filtered reference and `ReferenceOrderByVisitor` adds one carrying attributes
+— so a rule chosen for the user-authored case is immediately
 also a rule about queries no user wrote as a duplicate at all. That is what defeated the first, stricter design (see
 Option E).
 
@@ -120,8 +122,8 @@ issue is about.
 - **Pros:** no query can lose a filter it asked for; the refusal message is unambiguous.
 - **Cons:** "one side carries nothing" is not a disagreement about *which* references, it is a request for all of
   them.
-- **Rejected because:** the quality gate found that the same `combineWith` serves the prefetch union and the facet
-  summary merge, where `referenceHaving` and reference ordering inject a bare `referenceContent(<name>)`. Under
+- **Rejected because:** the quality gate found that the same `combineWith` serves the prefetch union, where
+  `referenceHaving` and reference ordering inject a bare `referenceContent(<name>)`. Under
   strict equality a perfectly valid query that filters or pages that same reference in its own `referenceContent` was
   refused as a conflict, and the old code had only been hiding this by silently keeping the receiver's filter. Two
   modes — strict at request level, superset for the prefetch — were considered and declined as API growth that would
@@ -156,7 +158,7 @@ Per-kind rules the fold applies:
 | `priceContent` | richer fetch mode, price lists united | never |
 | `hierarchyContent` | bodies united, one-sided `stopAt` dropped | two different `stopAt` |
 | `referenceContent`, same key | attributes and bodies united | different filter, order or page |
-| `referenceContent`, overlapping keys | never combined | both claiming one reference |
+| `referenceContent`, overlapping keys | folded per shared reference name | the shared name's filter, order or page |
 | `accompanyingPriceContent`, one name | equal price lists collapse | different price lists |
 
 Two details the table cannot hold. Reference attributes and nested bodies are united **recursively**, so a nested
@@ -177,8 +179,7 @@ sides. `EntityContentRequireCombiningCollector` had no other caller and was dele
 `DefaultPrefetchRequirementCollector` keeps its containment check — a superset is exactly what prefetch wants.
 
 For Option E to win again, `referenceHaving` and reference ordering would have to stop injecting bare
-`referenceContent` requirements into the prefetch union, and the facet summary would have to stop extending a default
-fetch with a reference-specific one. Both are load-bearing today.
+`referenceContent` requirements into the prefetch union. That injection is load-bearing today.
 
 ## Key technical details
 
@@ -206,10 +207,19 @@ fetch with a reference-specific one. Both are load-bearing today.
   it is called on. An `entityFetch` nested inside a `referenceContent` is reduced when the request for the referenced
   entity is derived, so each fetch scope is reduced by the request that executes it, not by its parent.
 - **Duplicate-key internal errors in `getReferenceEntityFetch()`.** A second default requirement, or a named-instance
-  key already present in the map, is impossible after the reduction and raises `GenericEvitaInternalError`. Two
-  requirements with different but *overlapping* reference name sets both claiming one reference — `referenceContent`
-  of `("a", "b")` beside one of `("b", "c")` — is a genuine usage error and raises `EvitaInvalidUsageException`
-  naming the reference; a name repeated *inside* one requirement is not a conflict.
+  key already present in the map, is impossible after the reduction and raises `GenericEvitaInternalError`.
+- **Overlapping name sets are folded per name, not refused.** `referenceContent("a", "b")` beside
+  `referenceContent("b", "c")` share no key, so the request projects each requirement onto every name it lists
+  (`ReferenceContent#forReferenceName`) and folds the projections per name through the ordinary `combineWith`. Only a
+  genuine disagreement inside the shared name still refuses. A name repeated *inside* one requirement folds with
+  itself and claims the reference once.
+- **The summary overlay is the union everywhere the union is safe.** `ReferenceSummaryProducer#mergeSpecificWithDefault`
+  overlays the reference-specific entity and group fetches onto the generic ones instead of calling
+  `EntityFetch#combineWith` on the whole fetch. Per requirement of the generic fetch: no `isCombinableWith`
+  counterpart in the specific fetch — inherited; a counterpart of a **keyed** kind (`referenceContent`,
+  `accompanyingPriceContent`) — the specific one is kept and the generic one discarded; any other counterpart —
+  the two are united, as they always were. Only the keyed kinds are narrowed, because only their union can drop a
+  restriction the specific fetch alone carries or refuse two different ones.
 - **Where a refusal actually fires.** For a query the planner prefetches, the constraint-level `combineWith` runs
   first, inside `DefaultPrefetchRequirementCollector`, when `EntityFetchTranslator` hands the raw requirements to the
   prefetch union - so a same-key conflict is refused there, before `EvitaRequest` folds the fetch. The end-to-end
@@ -232,12 +242,15 @@ red, then restored):
 | request-level reduction | 437 | 13 red / 8 red on two disabled paths |
 | quality gate fixes | 780 | 5 bugs red → green |
 | end-to-end: Java API, EvitaQL text, driver over gRPC | 444 | 14 red without the fold, 5 without the visibility fix |
+| overlapping name sets + summary overlay | 1015 | 7 red without the per-name fold, 2 red without the overlay |
 
 Test classes: `ReferenceContentTest`, `EntityFetchTest`, `EntityGroupFetchTest`, `EntityFetchRequireTest`,
 `AccompanyingPriceContentTest`, `HierarchyContentTest`, `DefaultPrefetchRequirementCollectorTest`, the "Duplicate
 content requirements" group of `EvitaRequestTest`, the prefetch-shape assertions added to
-`EntityReferenceFetchFunctionalTest` and `EntityReferencePaginationFunctionalTest`, and the end-to-end
-`EntityDuplicateContentRequirementFunctionalTest`.
+`EntityReferenceFetchFunctionalTest` and `EntityReferencePaginationFunctionalTest`, the end-to-end
+`EntityDuplicateContentRequirementFunctionalTest` - whose "Requirements contributed by the query planner" group
+forces prefetching with `debug(PREFER_PREFETCHING)` so the planner-generated overlap is actually built - and
+`ReferenceSummaryFetchOverlayTest` for the summary overlay.
 
 A full functional-module run on the final tree executed 23,329 tests with 0 failures; the single error is
 `ExportS3ServiceTest`, which needs a Docker daemon. (An earlier sweep on the quality-gate tree, 23,297 tests, also had
@@ -257,6 +270,32 @@ User-visible behaviour changes, all of them in queries that previously failed or
 - the prefetch union no longer drops all but the last `accompanyingPriceContent` when several name different prices
 - `entityFetchAllContentAnd(hierarchyContent(stopAt(...)))` now fetches the **whole** parent chain, because the bare
   `hierarchyContent()` inside the shorthand is the superset
+- two `referenceContent` requirements whose reference name sets **overlap** are folded per shared name instead of
+  being refused; the shared reference is fetched with the union of both bodies
+- a reference-specific summary constraint now keeps its own nested `referenceContent` filter, order or page instead
+  of losing it to the generic summary's superset or failing when the two differ
+
+**The overlapping-name refusal was replaced after the adversarial review.** The first version of this work refused
+two `referenceContent` requirements claiming one reference through different name sets, on the grounds that neither
+body could be preferred. The review showed the shape needs no user-authored duplicate at all:
+`ReferenceHavingTranslator` and `ReferenceOrderByVisitor` add a bare `referenceContent(<name>)` beside a client's
+`referenceContent(<name>, <other>, ...)`, the keys differ so both survive, and the request derived from that pair
+refused a query the very same engine accepted whenever the planner chose the index path instead. Projecting each
+requirement onto the names it lists and folding per name removes the asymmetry and is also the more faithful reading
+of "combine, refuse only genuine conflicts".
+
+**The summary overlay is confined to the keyed kinds.** A wider overlay was written first - the specific fetch
+winning every kind it mentions - and declined: it also turned the long-standing union of `attributeContent` into an
+override, a facet-summary behaviour change outside this issue, and
+`AbstractEntityByFacetFilteringFunctionalTest#shouldReturnFacetSummaryForEntireSetWithComplexEntityRequirements`
+(with its `referenceSummary` twin) documents that union as intended. The shipped rule therefore narrows only
+`referenceContent` and `accompanyingPriceContent`, whose union has no form that preserves the specific fetch's own
+`filterBy`, `orderBy`, chunking or price-list sequence; everything else is united exactly as before, and that
+maintainer test is untouched.
+
+`ReferenceSummary` and `FacetSummary` class javadoc still say a reference-specific constraint "completely overrides"
+the generic one and is "not merged". The code has never implemented that wider override and this change does not
+introduce it; the discrepancy predates the branch and the two javadocs were left as they are.
 
 **Fixed in passing - the catch-all-beside-named shape hid the catch-all references.** The end-to-end specificity guard
 (`referenceContentAllWithAttributes()` beside a bare `referenceContent` for one reference) exposed a defect older than
@@ -268,8 +307,8 @@ only (`isReferenceCovered`, `getRequestedReferenceNames`) and the decorator asks
 behaviour; every existing construction of that predicate passed a null default.
 
 **Owed to the maintainer — one judgement call to confirm.** Dropping a one-sided `filterBy` or page is the point
-where this work reversed its own plan (Option E above). It is the right rule for the prefetch and facet unions, and
-it matches the `hierarchyContent` precedent, but at request level it means a user-authored
+where this work reversed its own plan (Option E above). It is the right rule for the prefetch union, and it matches
+the `hierarchyContent` precedent, but at request level it means a user-authored
 `referenceContent(<name>, filterBy(...))` beside a bare `referenceContent(<name>)` widens rather than refuses. The
 alternative is two modes, which was declined for the reasons in Option E. This should be confirmed before the branch
 merges.

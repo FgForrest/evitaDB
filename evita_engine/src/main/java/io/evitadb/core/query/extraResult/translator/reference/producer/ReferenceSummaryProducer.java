@@ -27,11 +27,14 @@ import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -534,9 +537,16 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Overlays the reference-specific request onto {@link #defaultRequest}, combining entity fetches and
-	 * falling back to per-schema predicates/sorters derived from the default whenever the specific request
-	 * does not supply its own.
+	 * Overlays the reference-specific request onto {@link #defaultRequest}: the entity fetches are overlaid one
+	 * over the other, and the per-schema predicates/sorters derived from the default are used whenever the specific
+	 * request does not supply its own.
+	 *
+	 * The entity fetches are combined by {@link #overlayFetch(EntityFetch, EntityFetch)} rather than by
+	 * {@link EntityFetch#combineWith(EntityFetchRequire)}. The whole-fetch union would lose the reference-specific
+	 * request's own nested selectors: a `referenceContent` filter or page carried by the specific fetch alone is
+	 * *dropped* by the union's superset rule, and two different ones are *refused* - even though the specific fetch
+	 * is the only one the client wrote for that reference. The overlay leaves those keyed requirements to the
+	 * specific fetch and unites everything else, exactly as the union always did.
 	 */
 	@Nonnull
 	private ReferenceSummaryRequest mergeSpecificWithDefault(
@@ -546,13 +556,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final DefaultReferenceSummaryRequest fallback = Objects.requireNonNull(this.defaultRequest);
 		final ReferenceSchemaContract schema = specific.referenceSchema();
 
-		// combine entity-fetch requirements: specific extends default when both exist, else use default's
-		final EntityFetch combinedFacetEntityRequirement = specific.facetEntityRequirement() == null
-			? fallback.facetEntityRequirement()
-			: specific.facetEntityRequirement().combineWith(fallback.facetEntityRequirement());
-		final EntityGroupFetch combinedGroupEntityRequirement = specific.groupEntityRequirement() == null
-			? fallback.groupEntityRequirement()
-			: specific.groupEntityRequirement().combineWith(fallback.groupEntityRequirement());
+		// overlay entity-fetch requirements: the specific request wins every kind it mentions, the default one
+		// contributes the kinds it does not
+		final EntityFetch combinedFacetEntityRequirement = overlayFetch(
+			specific.facetEntityRequirement(), fallback.facetEntityRequirement()
+		);
+		final EntityGroupFetch combinedGroupEntityRequirement = overlayFetch(
+			specific.groupEntityRequirement(), fallback.groupEntityRequirement()
+		);
 
 		final IntPredicate facetPredicate = specific.facetPredicate() != null
 			? specific.facetPredicate()
@@ -578,6 +589,119 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			combinedGroupEntityRequirement,
 			specific.facetStatisticsDepth()
 		);
+	}
+
+	/**
+	 * Overlays the facet entity fetch of a reference-specific summary onto the generic one, following the rule of
+	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Returns the single fetch present
+	 * when the other one is missing - there is nothing to overlay then.
+	 *
+	 * @param specific fetch written on the reference-specific summary constraint, NULL when it carries none
+	 * @param fallback fetch written on the generic summary constraint, NULL when it carries none
+	 * @return the overlaid fetch, NULL only when neither side carries one
+	 */
+	@Nullable
+	private static EntityFetch overlayFetch(@Nullable EntityFetch specific, @Nullable EntityFetch fallback) {
+		if (specific == null || fallback == null) {
+			return specific == null ? fallback : specific;
+		}
+		return new EntityFetch(overlayKeyedRequirements(specific, fallback));
+	}
+
+	/**
+	 * Overlays the group entity fetch of a reference-specific summary onto the generic one, following the rule of
+	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Returns the single fetch present
+	 * when the other one is missing - there is nothing to overlay then.
+	 *
+	 * @param specific group fetch written on the reference-specific summary constraint, NULL when it carries none
+	 * @param fallback group fetch written on the generic summary constraint, NULL when it carries none
+	 * @return the overlaid group fetch, NULL only when neither side carries one
+	 */
+	@Nullable
+	private static EntityGroupFetch overlayFetch(
+		@Nullable EntityGroupFetch specific,
+		@Nullable EntityGroupFetch fallback
+	) {
+		if (specific == null || fallback == null) {
+			return specific == null ? fallback : specific;
+		}
+		return new EntityGroupFetch(overlayKeyedRequirements(specific, fallback));
+	}
+
+	/**
+	 * Computes the content requirements of the generic fetch overlaid by the reference-specific one. The specific
+	 * fetch's requirements come first and every requirement of the generic fetch is then reconciled with the
+	 * counterpart the specific fetch holds for it - the requirement of the very same class that accepts it through
+	 * {@link EntityContentRequire#isCombinableWith(EntityContentRequire)}:
+	 *
+	 * - **no counterpart** - the generic requirement is added, so a kind the specific fetch does not mention is
+	 *   still inherited from the generic summary; this is what lets a caller define common defaults once
+	 * - **a counterpart of a keyed kind** ({@link ReferenceContent}, {@link AccompanyingPriceContent}) - the
+	 *   specific requirement is kept untouched and the generic one is discarded, because the union has no form
+	 *   that preserves the specific fetch's own `filterBy`, `orderBy`, chunking or price-list sequence: a
+	 *   restriction present on one side only is dropped as the superset, and two different ones are refused
+	 * - **any other counterpart** - the two are united through
+	 *   {@link EntityContentRequire#combineWith(EntityContentRequire)}, which is the behaviour the summary has
+	 *   always had for attributes, associated data, prices, locales and the parent chain, none of which can lose or
+	 *   refuse anything by being united
+	 *
+	 * The narrowing is therefore confined to the kinds a union would damage. Note that {@link ReferenceSummary} and
+	 * {@link io.evitadb.api.query.require.FacetSummary} class javadoc describe a *wider* override - the
+	 * reference-specific constraint "completely overriding" the generic one, with nothing merged - which the code
+	 * has never implemented and this method deliberately does not introduce.
+	 *
+	 * @param specific fetch written on the reference-specific summary constraint
+	 * @param fallback fetch written on the generic summary constraint
+	 * @return the requirements of the overlaid fetch, in specific-first order
+	 */
+	@Nonnull
+	private static EntityContentRequire[] overlayKeyedRequirements(
+		@Nonnull EntityFetchRequire specific,
+		@Nonnull EntityFetchRequire fallback
+	) {
+		final EntityContentRequire[] specificRequirements = specific.getRequirements();
+		final EntityContentRequire[] fallbackRequirements = fallback.getRequirements();
+		final List<EntityContentRequire> overlaid = new ArrayList<>(
+			specificRequirements.length + fallbackRequirements.length
+		);
+		Collections.addAll(overlaid, specificRequirements);
+		for (final EntityContentRequire fallbackRequirement : fallbackRequirements) {
+			int counterpartIndex = -1;
+			// only the leading positions hold the specific fetch's requirements - a generic requirement appended
+			// below is not a counterpart of another generic one
+			for (int i = 0; i < specificRequirements.length; i++) {
+				final EntityContentRequire specificRequirement = overlaid.get(i);
+				if (specificRequirement.getClass().equals(fallbackRequirement.getClass()) &&
+					specificRequirement.isCombinableWith(fallbackRequirement)) {
+					counterpartIndex = i;
+					break;
+				}
+			}
+			if (counterpartIndex < 0) {
+				overlaid.add(fallbackRequirement);
+			} else if (!isKeyedRequirement(fallbackRequirement)) {
+				overlaid.set(
+					counterpartIndex,
+					overlaid.get(counterpartIndex).combineWith(fallbackRequirement)
+				);
+			}
+		}
+		return overlaid.toArray(EntityContentRequire[]::new);
+	}
+
+	/**
+	 * Returns TRUE for the content requirement kinds that may legitimately occur several times in one fetch
+	 * container and therefore carry a key of their own - a {@link ReferenceContent} keyed by the references it
+	 * names, an {@link AccompanyingPriceContent} keyed by the price it calculates. These are the kinds whose union
+	 * can lose a restriction or refuse outright, which is why
+	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)} leaves them to the
+	 * reference-specific fetch instead of uniting them.
+	 *
+	 * @param requirement requirement to classify
+	 * @return TRUE when the requirement is of a keyed kind
+	 */
+	private static boolean isKeyedRequirement(@Nonnull EntityContentRequire requirement) {
+		return requirement instanceof ReferenceContent || requirement instanceof AccompanyingPriceContent;
 	}
 
 	/**

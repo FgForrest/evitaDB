@@ -173,51 +173,6 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Creates the exception reported when two `referenceContent` requirements with different - but overlapping -
-	 * reference name sets both claim the same reference, e.g. `referenceContent("a", "b")` written next to
-	 * `referenceContent("b", "c")`. Such a pair is not combinable (the requirements do not share a key), yet both
-	 * describe how reference `b` should be fetched, and picking either body would silently drop the other one.
-	 *
-	 * When no other requirement can be identified as the first claimant, the message names only the conflicting
-	 * requirement - an unidentified claimant must never be rendered into the message as `null`.
-	 *
-	 * @param referenceName     the reference claimed by both requirements
-	 * @param referenceContents all reference content requirements of the request, used to find the first claimant
-	 * @param conflicting       the requirement whose reference name collided with an already registered one
-	 * @return the exception to be thrown by the caller
-	 */
-	@Nonnull
-	private static EvitaInvalidUsageException createOverlappingReferenceNamesException(
-		@Nonnull String referenceName,
-		@Nonnull List<ReferenceContent> referenceContents,
-		@Nonnull ReferenceContent conflicting
-	) {
-		ReferenceContent firstClaimant = null;
-		for (final ReferenceContent rc : referenceContents) {
-			if (rc == conflicting || rc.getInstanceName() != null) {
-				continue;
-			}
-			if (ArrayUtils.contains(rc.getReferenceNames(), referenceName)) {
-				firstClaimant = rc;
-				break;
-			}
-		}
-		final String reason = "Reference `" + referenceName + "` is requested by two referenceContent requirements " +
-			"with different reference name sets";
-		final String publicMessage = reason + "; merge them into one.";
-		if (firstClaimant == null) {
-			return new EvitaInvalidUsageException(
-				reason + ", one of them being: " + conflicting + "; merge them into one.",
-				publicMessage
-			);
-		}
-		return new EvitaInvalidUsageException(
-			reason + ": " + firstClaimant + " and " + conflicting + "; merge them into one.",
-			publicMessage
-		);
-	}
-
-	/**
 	 * Parses the requirement context from the passed
 	 * {@link ReferenceContent} and {@link AttributeContent}.
 	 */
@@ -1487,22 +1442,27 @@ public class EvitaRequest {
 	 * Returns requested referenced entity requirements from the input query, keyed by reference name.
 	 * Allows traversing through the object relational graph in unlimited depth.
 	 *
-	 * The map holds **one requirement per reference name**: the `referenceContent` requirements of the query are
-	 * folded by key first (see {@link EntityFetchRequire#combineDuplicateRequirements()}), so two requirements naming
-	 * the same reference can only reach this method when their reference name sets differ but overlap - and that is
-	 * refused with an {@link EvitaInvalidUsageException}, because neither of the two bodies can be preferred over the
-	 * other. A reference named twice **inside one** requirement (`referenceContent("brand", "brand")`) is not such
-	 * a conflict - the requirement claims the reference once. Requirements carrying an instance name are collected
-	 * separately into {@link #getNamedReferenceEntityFetch()} and the instance-less catch-all into
-	 * {@link #getDefaultReferenceRequirement()}.
+	 * The map holds **one requirement per reference name**. The `referenceContent` requirements of the query are
+	 * folded by key first (see {@link EntityFetchRequire#combineDuplicateRequirements()}), which leaves at most one
+	 * requirement per *(instance name, name set)* key; requirements whose name sets merely **overlap** survive that
+	 * fold as separate requirements and are reconciled here: each one is projected onto every name it lists
+	 * ({@link ReferenceContent#forReferenceName(String)}) and the projections sharing a name are folded into one
+	 * through {@link ReferenceContent#combineWith(EntityContentRequire)}. So `referenceContent("a", "b")` written
+	 * beside `referenceContent("b", "c")` fetches `b` with the union of both bodies, and only a genuine
+	 * disagreement inside a shared name - two different `filterBy`, `orderBy` or chunking constraints - is refused
+	 * with an {@link EvitaInvalidUsageException}. A reference named twice **inside one** requirement
+	 * (`referenceContent("brand", "brand")`) folds with itself and claims the reference once.
+	 *
+	 * Requirements carrying an instance name are collected separately into {@link #getNamedReferenceEntityFetch()}
+	 * and the instance-less catch-all into {@link #getDefaultReferenceRequirement()}.
 	 *
 	 * All three lookups are published together, once the whole query has been walked without a conflict. A refused
 	 * query therefore leaves the request untouched and raises the very same usage exception on every call, instead
 	 * of reporting an internal error over the remains of the first, aborted attempt.
 	 *
 	 * @return map of reference name to the single requirement context that applies to it
-	 * @throws EvitaInvalidUsageException when two `referenceContent` requirements with different reference name sets
-	 *                                    both claim the same reference
+	 * @throws EvitaInvalidUsageException when two `referenceContent` requirements claiming one reference disagree on
+	 *                                    the `filterBy`, `orderBy` or chunking constraint applied to it
 	 */
 	@Nonnull
 	public Map<String, RequirementContext> getReferenceEntityFetch() {
@@ -1541,8 +1501,8 @@ public class EvitaRequest {
 				}
 				// build the requirements maps into locals - the fields are published only once the whole loop
 				// succeeded, so a refused request reproduces the very same usage exception on every call
-				final Map<String, RequirementContext> result =
-					CollectionUtils.createHashMap(referenceContent.size());
+				final Map<String, ReferenceContent> foldedPerName =
+					CollectionUtils.createLinkedHashMap(referenceContent.size());
 				Map<ReferenceContentKey, RequirementContext> namedResult = null;
 				for (final ReferenceContent rc : referenceContent) {
 					final String instanceName = rc.getInstanceName();
@@ -1568,26 +1528,28 @@ public class EvitaRequest {
 							);
 						}
 					} else {
-						// unnamed reference - add each reference name
-						final String[] refNames = rc.getReferenceNames();
-						if (refNames.length > 0) {
-							final RequirementContext ctx = getRequirementContext(
-								rc, rc.getAttributeContent().orElse(null)
+						// unnamed reference - project the requirement onto each name it lists and fold the
+						// projections sharing a name, so that requirements with overlapping name sets contribute
+						// to the shared reference instead of one of them silently winning it. A name repeated
+						// inside a single requirement folds with itself and claims the reference once.
+						for (final String refName : rc.getReferenceNames()) {
+							final ReferenceContent projection = rc.forReferenceName(refName);
+							final ReferenceContent alreadyFolded = foldedPerName.get(refName);
+							foldedPerName.put(
+								refName,
+								alreadyFolded == null ? projection : alreadyFolded.combineWith(projection)
 							);
-							for (final String refName : refNames) {
-								// requirements sharing a reference name were folded into one unless their reference
-								// name sets merely overlap - and then neither body may win over the other. A name
-								// repeated inside a single requirement claims its slot once: the context found in
-								// the map is then the very one this requirement has just stored.
-								final RequirementContext previousCtx = result.put(refName, ctx);
-								if (previousCtx != null && previousCtx != ctx) {
-									throw createOverlappingReferenceNamesException(
-										refName, referenceContent, rc
-									);
-								}
-							}
 						}
 					}
+				}
+				final Map<String, RequirementContext> result =
+					CollectionUtils.createHashMap(foldedPerName.size());
+				for (final Map.Entry<String, ReferenceContent> entry : foldedPerName.entrySet()) {
+					final ReferenceContent folded = entry.getValue();
+					result.put(
+						entry.getKey(),
+						getRequirementContext(folded, folded.getAttributeContent().orElse(null))
+					);
 				}
 				this.entityReference = !referenceContent.isEmpty();
 				this.defaultReferenceRequirement = defaultReq;

@@ -24,11 +24,18 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.parser.DefaultQueryParser;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -69,6 +76,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_EUR;
@@ -150,6 +158,55 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 					it -> it.getReferences(referenceName).size()
 				)
 			);
+	}
+
+	/**
+	 * Asserts that the product carries at least one reference of the passed name and that the body of every
+	 * referenced entity was fetched with its `code` attribute. This is what a `referenceContent` naming several
+	 * references and carrying a nested `entityFetch` has to deliver for each of the names it lists.
+	 *
+	 * @param product       product whose references are examined
+	 * @param referenceName name of the reference whose referenced bodies are examined
+	 */
+	private static void assertReferencedEntitiesCarryCode(
+		@Nonnull SealedEntity product,
+		@Nonnull String referenceName
+	) {
+		final Collection<ReferenceContract> references = product.getReferences(referenceName);
+		assertFalse(
+			references.isEmpty(),
+			"Product " + product.getPrimaryKey() + " lost its `" + referenceName + "` references!"
+		);
+		for (final ReferenceContract reference : references) {
+			assertNotNull(
+				reference.getReferencedEntity().orElseThrow().getAttribute(ATTRIBUTE_CODE),
+				"The body requested for `" + referenceName + "` was not fetched!"
+			);
+		}
+	}
+
+	/**
+	 * Returns a `referenceContent` naming several references and filtering all of them. The fluent factories do not
+	 * offer this shape - a filter is only meaningful for one reference at a time - so it is built through the
+	 * constructor the GraphQL layer uses for cloning; it is the shortest way to make two requirements with
+	 * overlapping name sets disagree about the reference they share.
+	 *
+	 * @param filterBy       filter applied to every reference the requirement names
+	 * @param referenceNames names of the references the requirement addresses
+	 * @return the requirement addressing all the passed references with the passed filter
+	 */
+	@Nonnull
+	private static ReferenceContent filteredReferenceContent(
+		@Nonnull FilterBy filterBy,
+		@Nonnull String... referenceNames
+	) {
+		return new ReferenceContent(
+			null,
+			ManagedReferencesBehaviour.ANY,
+			referenceNames,
+			new RequireConstraint[0],
+			new Constraint<?>[]{filterBy}
+		);
 	}
 
 	/**
@@ -510,6 +567,210 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 							parameters.stream().allMatch(AttributesAvailabilityChecker::attributesAvailable),
 							"The catch-all requirement stopped applying to the references it was not written for!"
 						);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Two requirements whose reference name sets overlap without being equal do not share a key, yet both
+		 * describe how the shared reference should be fetched. The request projects each of them onto every name it
+		 * lists and folds the projections per name, so the shared reference carries both bodies while the references
+		 * named by a single requirement keep theirs.
+		 */
+		@DisplayName("Reference named by both siblings should carry both bodies")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldFetchBothBodiesWhenReferenceNameSetsOverlap(Evita evita, List<SealedEntity> originalProducts) {
+			final Integer[] products = getRequestedIdsByPredicate(
+				originalProducts,
+				it -> !it.getReferences(Entities.BRAND).isEmpty() &&
+					!it.getReferences(Entities.CATEGORY).isEmpty() &&
+					!it.getReferences(Entities.PARAMETER).isEmpty() &&
+					it.getLocales().contains(LOCALE_CZECH)
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityPrimaryKeyInSet(products),
+									entityLocaleEquals(LOCALE_CZECH)
+								)
+							),
+							require(
+								page(1, 4),
+								entityFetch(
+									referenceContent(
+										new String[]{Entities.BRAND, Entities.CATEGORY},
+										entityFetch(attributeContent(ATTRIBUTE_CODE))
+									),
+									referenceContent(
+										new String[]{Entities.CATEGORY, Entities.PARAMETER},
+										entityFetch(attributeContent(ATTRIBUTE_NAME))
+									)
+								)
+							)
+						)
+					);
+
+					assertFalse(response.getRecordData().isEmpty());
+					for (final SealedEntity product : response.getRecordData()) {
+						for (final ReferenceContract category : product.getReferences(Entities.CATEGORY)) {
+							final SealedEntity categoryEntity = category.getReferencedEntity().orElseThrow();
+							assertNotNull(
+								categoryEntity.getAttribute(ATTRIBUTE_CODE),
+								"The body of the first requirement was dropped for the shared reference!"
+							);
+							assertNotNull(
+								categoryEntity.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH),
+								"The body of the second requirement was dropped for the shared reference!"
+							);
+						}
+						for (final ReferenceContract brand : product.getReferences(Entities.BRAND)) {
+							final SealedEntity brandEntity = brand.getReferencedEntity().orElseThrow();
+							assertNotNull(brandEntity.getAttribute(ATTRIBUTE_CODE));
+							assertThrows(
+								ContextMissingException.class,
+								() -> brandEntity.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH),
+								"The body of the other requirement widened the reference it does not name!"
+							);
+						}
+						for (final ReferenceContract parameter : product.getReferences(Entities.PARAMETER)) {
+							final SealedEntity parameterEntity = parameter.getReferencedEntity().orElseThrow();
+							assertNotNull(parameterEntity.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH));
+							assertThrows(
+								ContextMissingException.class,
+								() -> parameterEntity.getAttribute(ATTRIBUTE_CODE),
+								"The body of the other requirement widened the reference it does not name!"
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Requirements contributed by the query planner")
+	@Tag(REFERENCE)
+	class PlannerGeneratedRequirements {
+
+		/**
+		 * `referenceHaving` makes the planner contribute a bare `referenceContent` of the filtered reference to the
+		 * prefetch union, so a client requirement naming that reference together with another one meets a sibling it
+		 * never wrote. The pair has to be folded per reference name; refusing it would make the query succeed or fail
+		 * depending on whether the planner chose to prefetch.
+		 */
+		@DisplayName("Filtered reference should be fetched beside a sibling reference when prefetching is forced")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldFetchMultiNameReferenceContentBesideReferenceHavingWhenPrefetching(
+			Evita evita,
+			List<SealedEntity> originalProducts
+		) {
+			final Integer[] products = getRequestedIdsByPredicate(
+				originalProducts,
+				it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.BRAND).isEmpty()
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityPrimaryKeyInSet(products),
+									referenceHaving(
+										Entities.CATEGORY,
+										entityPrimaryKeyInSet(1, 2, 3, 4, 5)
+									)
+								)
+							),
+							require(
+								debug(DebugMode.PREFER_PREFETCHING),
+								page(1, 4),
+								entityFetch(
+									referenceContent(
+										new String[]{Entities.CATEGORY, Entities.BRAND},
+										entityFetch(attributeContent(ATTRIBUTE_CODE))
+									)
+								)
+							)
+						)
+					);
+
+					assertFalse(response.getRecordData().isEmpty());
+					for (final SealedEntity product : response.getRecordData()) {
+						assertReferencedEntitiesCarryCode(product, Entities.CATEGORY);
+						assertReferencedEntitiesCarryCode(product, Entities.BRAND);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * Ordering by a reference property makes the planner contribute a `referenceContent` of the ordered reference
+		 * carrying the sort attribute, which reaches the prefetch union beside the client's multi-name requirement -
+		 * the same shape as the filtered one above, produced by the sort translator instead of the filter one.
+		 */
+		@DisplayName("Ordered reference should be fetched beside a sibling reference when prefetching is forced")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldFetchMultiNameReferenceContentBesideReferenceOrderingWhenPrefetching(
+			Evita evita,
+			List<SealedEntity> originalProducts
+		) {
+			final Integer[] products = getRequestedIdsByPredicate(
+				originalProducts,
+				it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.BRAND).isEmpty()
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(products)
+							),
+							orderBy(
+								referenceProperty(
+									Entities.CATEGORY,
+									attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
+								)
+							),
+							require(
+								debug(DebugMode.PREFER_PREFETCHING),
+								page(1, 4),
+								entityFetch(
+									referenceContent(
+										new String[]{Entities.CATEGORY, Entities.BRAND},
+										entityFetch(attributeContent(ATTRIBUTE_CODE))
+									)
+								)
+							)
+						)
+					);
+
+					assertFalse(response.getRecordData().isEmpty());
+					for (final SealedEntity product : response.getRecordData()) {
+						assertReferencedEntitiesCarryCode(product, Entities.CATEGORY);
+						assertReferencedEntitiesCarryCode(product, Entities.BRAND);
 					}
 					return null;
 				}
@@ -997,14 +1258,14 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 		}
 
 		/**
-		 * Two requirements whose reference name sets overlap without being equal do not share a key and cannot be
-		 * merged, yet both describe how the shared reference should be fetched - the request refuses the pair naming
-		 * the reference they both claim.
+		 * Two requirements whose reference name sets overlap are folded per reference name, so their disagreements
+		 * are judged per name too - two different filters applied to the reference they share have no union and are
+		 * refused, exactly as they would be if both requirements named that reference alone.
 		 */
-		@DisplayName("Should throw exception when reference name sets of two siblings overlap")
+		@DisplayName("Should throw exception when siblings filter their shared reference differently")
 		@UseDataSet(HUNDRED_PRODUCTS)
 		@Test
-		void shouldThrowExceptionWhenReferenceNameSetsOverlap(Evita evita) {
+		void shouldThrowExceptionWhenOverlappingSiblingsFilterSharedReferenceDifferently(Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -1015,14 +1276,23 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 								collection(Entities.PRODUCT),
 								require(
 									entityFetch(
-										referenceContent(Entities.BRAND, Entities.CATEGORY),
-										referenceContent(Entities.CATEGORY, Entities.PARAMETER)
+										filteredReferenceContent(
+											filterBy(entityPrimaryKeyInSet(1)),
+											Entities.BRAND, Entities.CATEGORY
+										),
+										filteredReferenceContent(
+											filterBy(entityPrimaryKeyInSet(2)),
+											Entities.CATEGORY, Entities.PARAMETER
+										)
 									)
 								)
 							)
 						)
 					);
-					assertTrue(exception.getMessage().contains(Entities.CATEGORY), exception.getMessage());
+					assertTrue(
+						exception.getMessage().contains("different filter constraints"),
+						exception.getMessage()
+					);
 					assertFalse(exception.getMessage().contains("null"), exception.getMessage());
 					return null;
 				}

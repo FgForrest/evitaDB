@@ -191,9 +191,11 @@ import static java.util.Optional.ofNullable;
  * the specific one wins the lookup for the reference it names, the default one stays the fallback for the rest.
  *
  * Two requirements whose reference name sets merely **overlap** — `referenceContent("a", "b")` beside
- * `referenceContent("b", "c")` — are neither combinable (the keys differ) nor separable (both claim `b`), and are
- * refused when the request builds its per-reference lookup. Name a reference in one requirement only, or name it in
- * both requirements identically so that they share a key and fold.
+ * `referenceContent("b", "c")` — carry different keys and are therefore not combinable as they stand. They are still
+ * reconciled: when the request builds its per-reference lookup it projects every requirement onto each name it lists
+ * ({@link #forReferenceName(String)}) and folds the projections per name, so `b` is fetched with the union of both
+ * bodies while `a` and `c` keep theirs. Only a genuine disagreement inside the shared name — two different
+ * `filterBy`, `orderBy` or chunking constraints — is refused.
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
  *
@@ -904,6 +906,43 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			getReferenceNames(),
 			children,
 			additionalChildren
+		);
+	}
+
+	/**
+	 * Returns this requirement projected onto a single one of the references it names - a `referenceContent`
+	 * addressing `referenceName` alone and carrying the very same {@link ManagedReferencesBehaviour}, reference
+	 * attributes, entity and group bodies, `filterBy`, `orderBy` and chunking constraint.
+	 *
+	 * The projection is what makes two requirements with different - but overlapping - reference name sets
+	 * reconcilable: `referenceContent("a", "b")` and `referenceContent("b", "c")` share no key and cannot be merged
+	 * as they stand, while their projections onto `b` share the key `{b}` and fold through
+	 * {@link #combineWith(EntityContentRequire)} like any other pair of siblings addressing one reference. This is
+	 * how `EvitaRequest#getReferenceEntityFetch()` builds its per-reference lookup.
+	 *
+	 * The receiver is handed back unchanged when it already names `referenceName` and nothing else, so projecting
+	 * the (overwhelmingly common) single-name requirement allocates nothing.
+	 *
+	 * @param referenceName name of the reference to project this requirement onto; must be one of the names this
+	 *                      requirement lists, since a requirement carries no description of any other reference
+	 * @return this very instance when it names `referenceName` alone, a new single-name requirement otherwise
+	 */
+	@Nonnull
+	public ReferenceContent forReferenceName(@Nonnull String referenceName) {
+		final String[] referenceNames = getReferenceNames();
+		Assert.isPremiseValid(
+			ArrayUtils.contains(referenceNames, referenceName),
+			() -> "Reference `" + referenceName + "` is not named by requirement: " + this + "!"
+		);
+		if (referenceNames.length == 1) {
+			return this;
+		}
+		return new ReferenceContent(
+			getInstanceName(),
+			getManagedReferencesBehaviour(),
+			new String[]{referenceName},
+			getChildren(),
+			getAdditionalChildren()
 		);
 	}
 

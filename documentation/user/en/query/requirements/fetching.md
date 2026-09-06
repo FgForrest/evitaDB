@@ -194,6 +194,11 @@ sharing a key are folded, and within one key:
 - a disagreement on the [managed references behaviour](#managed-references-behaviour) narrows to `EXISTING`, so
   a request to suppress references pointing at missing entities is never lost by folding
 
+A reference named by several requirements with **different** name sets - `referenceContent("a", "b")` written next to
+`referenceContent("b", "c")` - is folded per name: each requirement is projected onto every name it lists and the
+projections sharing a name are folded by the rules above, so `b` is fetched with the union of both bodies while `a`
+and `c` keep theirs.
+
 A [`referenceContentAll`](#reference-content-all) requirement and a name-specific `referenceContent("brand")` carry
 different keys and are therefore **never** folded together. Both stay in effect - the name-specific requirement
 decides how `brand` is fetched and the wildcard one remains the fallback for every other reference:
@@ -222,9 +227,6 @@ silently win:
 - two `referenceContent` requirements for one reference carrying **different** `filterBy`, `orderBy` or chunking
   constraints - a filter selects a subset of the references and an order sequences them, and no union of two
   different ones preserves both intents
-- two `referenceContent` requirements whose name sets merely **overlap**, such as `referenceContent("a", "b")`
-  written next to `referenceContent("b", "c")` - they do not share a key, yet both describe how `b` should be
-  fetched; name a reference in a single requirement only, or name it identically in both so that they share a key
 - two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
 - two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
   lists that differ only in their order - the sequence is a priority order and any merge would invent a priority

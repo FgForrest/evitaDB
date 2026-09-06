@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -2012,6 +2013,26 @@ class EvitaRequestTest {
 		}
 
 		/**
+		 * Returns a `referenceContent` naming several references and
+		 * filtering all of them - a shape the fluent factories do not
+		 * offer, because a filter is only meaningful for one
+		 * reference at a time.
+		 */
+		@Nonnull
+		private ReferenceContent filteredReferenceContent(
+			@Nonnull FilterBy filterBy,
+			@Nonnull String... referenceNames
+		) {
+			return new ReferenceContent(
+				null,
+				ManagedReferencesBehaviour.ANY,
+				referenceNames,
+				new RequireConstraint[0],
+				new Constraint<?>[]{filterBy}
+			);
+		}
+
+		/**
 		 * Verifies two reference contents for one reference are
 		 * merged into a single requirement with both bodies.
 		 */
@@ -2386,14 +2407,64 @@ class EvitaRequestTest {
 
 		/**
 		 * Verifies two reference contents whose reference name sets
-		 * overlap without being equal are refused.
+		 * overlap without being equal are folded per reference name,
+		 * so that the shared reference carries both bodies and the
+		 * exclusive ones keep their own.
 		 */
 		@Test
-		@DisplayName("refuses overlapping reference name sets")
-		void shouldRefuseOverlappingReferenceNameSets() {
+		@DisplayName("unites overlapping reference name sets per name")
+		void shouldUniteOverlappingReferenceNameSetsPerName() {
 			final EvitaRequest request = createFetchRequest(
-				referenceContent("brand", "category"),
-				referenceContent("category", "parameter")
+				referenceContent(
+					new String[]{"brand", "category"},
+					entityFetch(attributeContent("code"))
+				),
+				referenceContent(
+					new String[]{"category", "parameter"},
+					entityFetch(attributeContent("name"))
+				)
+			);
+
+			final Map<String, RequirementContext> referenceFetch =
+				request.getReferenceEntityFetch();
+			assertEquals(3, referenceFetch.size());
+			assertEquals(
+				Set.of("code"),
+				attributeContentOf(
+					referenceFetch.get("brand").entityFetch()
+				).getAttributeNamesAsSet()
+			);
+			assertEquals(
+				Set.of("code", "name"),
+				attributeContentOf(
+					referenceFetch.get("category").entityFetch()
+				).getAttributeNamesAsSet()
+			);
+			assertEquals(
+				Set.of("name"),
+				attributeContentOf(
+					referenceFetch.get("parameter").entityFetch()
+				).getAttributeNamesAsSet()
+			);
+		}
+
+		/**
+		 * Verifies two reference contents whose reference name sets
+		 * overlap are still refused when they disagree on the filter
+		 * applied to the reference they share.
+		 */
+		@Test
+		@DisplayName("refuses conflicting filters on an overlapping name")
+		void shouldRefuseConflictingFilterOnOverlappingReferenceName() {
+			final EvitaRequest request = createFetchRequest(
+				filteredReferenceContent(
+					filterBy(entityPrimaryKeyInSet(1)),
+					"brand", "category"
+				),
+				filteredReferenceContent(
+					filterBy(entityPrimaryKeyInSet(2)),
+					"category", "parameter"
+				)
 			);
 
 			final EvitaInvalidUsageException exception = assertThrows(
@@ -2401,11 +2472,8 @@ class EvitaRequestTest {
 				request::getReferenceEntityFetch
 			);
 			assertTrue(
-				exception.getMessage().contains("category"),
 				exception.getMessage()
-			);
-			assertFalse(
-				exception.getMessage().contains("null"),
+					.contains("different filter constraints"),
 				exception.getMessage()
 			);
 		}
@@ -2669,8 +2737,14 @@ class EvitaRequestTest {
 					"alias", "category",
 					entityFetch(attributeContent("code"))
 				),
-				referenceContent("brand", "category"),
-				referenceContent("category", "parameter")
+				filteredReferenceContent(
+					filterBy(entityPrimaryKeyInSet(1)),
+					"brand", "category"
+				),
+				filteredReferenceContent(
+					filterBy(entityPrimaryKeyInSet(2)),
+					"category", "parameter"
+				)
 			);
 
 			final EvitaInvalidUsageException firstAttempt = assertThrows(
@@ -2678,7 +2752,8 @@ class EvitaRequestTest {
 				request::getReferenceEntityFetch
 			);
 			assertTrue(
-				firstAttempt.getMessage().contains("category"),
+				firstAttempt.getMessage()
+					.contains("different filter constraints"),
 				firstAttempt.getMessage()
 			);
 			final EvitaInvalidUsageException secondAttempt = assertThrows(
