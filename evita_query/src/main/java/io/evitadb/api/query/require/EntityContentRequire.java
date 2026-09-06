@@ -64,12 +64,17 @@ import javax.annotation.Nullable;
  * The static factory method `combineRequirements(T, T)` provides null-safe combination: it returns the non-null
  * operand when only one is present, or delegates to `combineWith` when both are non-null.
  *
- * The protocol has two consumers with deliberately different appetites. Requirements are accumulated by
- * {@link FetchRequirementCollector} / {@link DefaultPrefetchRequirementCollector} during query planning, which
- * unions them and drops the ones already contained within another — a superset is exactly what a prefetch wants.
- * The keyed fold {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])} applies the same
- * pairwise merging to duplicate requirements the client wrote side by side, and deliberately skips the containment
- * step, because the body the client receives has to preserve the specific-over-default precedence.
+ * The protocol has two consumers with deliberately different appetites, and the difference is the reason
+ * `forPrefetch()` exists:
+ *
+ * - {@link FetchRequirementCollector} / {@link DefaultPrefetchRequirementCollector} accumulates during query
+ *   planning what must be **loaded at least**. It unions requirements, drops the ones already contained within
+ *   another, and admits every requirement through {@link #forPrefetch()} so that no output restriction ever reaches
+ *   it — a superset is exactly what a prefetch wants, and widening it can never make an answer wrong
+ * - {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])} folds the duplicate
+ *   requirements the client wrote side by side into what he must receive **exactly**. It deliberately skips the
+ *   containment step, because the body the client receives has to preserve the specific-over-default precedence,
+ *   and it refuses a pair that disagrees rather than widening it
  *
  * All implementations must be immutable and thread-safe.
  *
@@ -124,9 +129,12 @@ public interface EntityContentRequire extends RequireConstraint {
 	 * accepted as a programming error.
 	 *
 	 * A pair sharing the key may still turn out irreconcilable, and the merge is then refused instead of being
-	 * resolved silently: two `referenceContent` requirements for one reference carrying different `filterBy`,
-	 * `orderBy` or chunking constraints, two `hierarchyContent` requirements bounding the parent chain differently,
-	 * or two `accompanyingPriceContent` requirements calculating one price from different price list sequences.
+	 * resolved silently: two `referenceContent` requirements for one reference disagreeing about the `filterBy` or
+	 * the chunking constraint — the case where only one of them carries it included, since a restriction dropped
+	 * that way would silently return references the client asked to exclude — two `referenceContent` requirements
+	 * carrying two different `orderBy` constraints, two `hierarchyContent` requirements bounding the parent chain
+	 * differently, or two `accompanyingPriceContent` requirements calculating one price from different price list
+	 * sequences.
 	 *
 	 * @param anotherRequirement another requirement to be combined with
 	 * @param <T> type of the requirement to be combined with
@@ -137,6 +145,26 @@ public interface EntityContentRequire extends RequireConstraint {
 	 */
 	@Nonnull
 	<T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement);
+
+	/**
+	 * Returns this requirement as it matters for **prefetching** — stripped of everything that merely projects the
+	 * loaded data into the response and therefore says nothing about what has to be loaded to answer the query.
+	 *
+	 * A prefetch requirement is a lower bound: it says "load at least this". Widening it can never make an answer
+	 * wrong, because the response is re-derived from the client's own `EvitaRequest` afterwards. The default
+	 * implementation hands the receiver back unchanged, which is correct for every requirement whose whole content
+	 * *is* a description of what to load; {@link ReferenceContent#forPrefetch()} overrides it to drop its `filterBy`,
+	 * `orderBy` and chunking constraints.
+	 *
+	 * Applied by {@link DefaultPrefetchRequirementCollector} to every requirement entering the prefetch union, and by
+	 * nobody else — the fold that shapes the body the client receives must see the requirement as he wrote it.
+	 *
+	 * @return this requirement without its output restrictions, or this very instance when it carries none
+	 */
+	@Nonnull
+	default EntityContentRequire forPrefetch() {
+		return this;
+	}
 
 	/**
 	 * Determines if the current requirement is fully contained within the provided requirement. Contained means that

@@ -106,14 +106,20 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	 * collapsing the specific one into the default would silently widen the body fetched for `category`.
 	 *
 	 * Two siblings of the same kind that cannot be reconciled (two `referenceContent` requirements for the same
-	 * reference with different `filterBy` constraints, two `hierarchyContent` requirements with different `stopAt`
-	 * constraints, two `accompanyingPriceContent` requirements for one price name with different price lists, ...)
-	 * make `combineWith` throw an {@link EvitaInvalidUsageException} - that is the intended way for such a conflict to
-	 * surface, and this method lets it propagate.
+	 * reference disagreeing about the `filterBy` or the chunking constraint - whether the two differ or only one side
+	 * carries it at all - or carrying two different `orderBy` constraints, two `hierarchyContent` requirements with
+	 * different `stopAt` constraints, two `accompanyingPriceContent` requirements for one price name with different
+	 * price lists, ...) make `combineWith` throw an {@link EvitaInvalidUsageException} - that is the intended way for
+	 * such a conflict to surface, and this method lets it propagate.
 	 *
-	 * This is **not** the prefetch union computed by `DefaultPrefetchRequirementCollector` (and applied by
-	 * {@link #combineWith(EntityFetchRequire)}), which merges requirements coming from unrelated sources and does
-	 * drop the requirements contained within another one.
+	 * This fold says **return exactly this**, and refusing is what that costs: the requirements it reduces are the
+	 * ones the client wrote, and picking one of two contradicting intents on his behalf would silently change what
+	 * comes back. Its counterpart {@link DefaultPrefetchRequirementCollector} says **load at least this** and may
+	 * therefore widen freely - it merges requirements coming from unrelated sources (the client's `entityFetch` and
+	 * the ones the query planner invents), drops the requirements contained within another one, and admits every
+	 * requirement through {@link EntityContentRequire#forPrefetch()}, which strips the output projections a prefetch
+	 * has no opinion about. That widened set is never what the client receives; the response is re-derived from his
+	 * own `EvitaRequest`.
 	 *
 	 * @param requirements requirements to reduce, never null
 	 * @return the very same array instance when there was nothing to combine, a new shorter array otherwise

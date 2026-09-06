@@ -40,6 +40,28 @@ import java.util.LinkedHashMap;
  * clause (via the single-argument constructor), or created empty and populated solely through implicit requirements
  * contributed by ordering and filtering translators.
  *
+ * **"At least this", not "exactly this".** This collector answers a different question from the fold that shapes
+ * the response, and the two rules are deliberately not the same one:
+ *
+ * - this collector says **load at least this**. It may widen freely — a superset is always a correct answer to it,
+ *   because loading a reference nobody projects costs work and nothing else.
+ * - {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])} says **return exactly this**,
+ *   and therefore refuses a pair of client requirements that disagree instead of widening it.
+ *
+ * The widening is what makes the two rules coexist. Every requirement entering this collector is first admitted
+ * through {@link EntityContentRequire#forPrefetch()}, which strips the output projections — for a
+ * {@link ReferenceContent} its `filterBy`, `orderBy` and chunking constraints. That matters because this collector
+ * is fed from two unrelated sources: the client's own `entityFetch`, and the requirements the query planner invents
+ * on his behalf (a bare `referenceContent` for a reference named by `referenceHaving`, a
+ * `referenceContentWithAttributes` carrying the sort attribute for a reference ordered by). Without the strip, an
+ * ordinary query filtering its `referenceContent` while ordering by the same reference would meet the client-facing
+ * refusal here, during planning, for a conflict the client never wrote.
+ *
+ * The client never observes the widened requirement. The prefetched entity is narrowed back down from his own
+ * `EvitaRequest`: `EntityCollection#limitEntityInternal` builds fresh predicates from it, and the reference filter,
+ * order and page come from `EvitaRequest#getReferenceEntityFetch()` and `ServerChunkTransformerAccessor`, both
+ * reading the query he actually sent. The prefetch path and the index path therefore return the identical body.
+ *
  * **Merging logic:** Requirements are indexed internally by their runtime class. When a new requirement arrives:
  * 1. If no requirement of that class exists yet, it is stored directly.
  * 2. If the new requirement is *fully contained within* an existing requirement of the same class, it is silently
@@ -48,22 +70,15 @@ import java.util.LinkedHashMap;
  *    contained within a `referenceContentAll()` contributed by another, so only the broader one is prefetched even
  *    though the two are not combinable.
  * 3. If the new requirement is *combinable with* an existing one of the same class (e.g., two `AttributeContent`
- *    instances that together cover a superset of attribute names), they are merged in place. The merge may also be
- *    **refused** with an {@link EvitaInvalidUsageException} when the two requirements address the same thing but
- *    contradict each other. That matters more here than anywhere else: this collector is fed by the implicit
- *    ordering and filtering translators as well as by the explicit `require` clause, so the conflict can arise
- *    between requirements the client never wrote side by side.
+ *    instances that together cover a superset of attribute names), they are merged in place. The merge may still be
+ *    **refused** with an {@link EvitaInvalidUsageException} for a disagreement the strip does not cover — two
+ *    `accompanyingPriceContent` requirements computing one price from different price lists, say.
  * 4. Otherwise the new requirement is appended as an additional entry for that class (rare, occurs for semantically
  *    incompatible instances of the same concrete type).
  *
  * This ensures that `getRequirementsToPrefetch()` returns the minimal non-redundant set of requirements — unless
  * a pair was refused, in which case the exception surfaces during query planning — which is then used to build the
  * actual {@link EntityFetch} passed to the entity-fetching layer.
- *
- * Because the prefetch deliberately asks for a **superset** of what the query needs, dropping a contained
- * requirement is the intended behaviour here. The keyed fold
- * {@link EntityFetchRequire#combineDuplicateRequirements(EntityContentRequire[])}, which reduces the body the
- * client actually receives, deliberately skips the containment step for exactly that reason.
  *
  * **Lifecycle:** Not thread-safe; a single instance is used within the context of one query planning pass and
  * is not shared across threads.
@@ -128,19 +143,25 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	}
 
 	/**
-	 * Adds the given array of {@link EntityContentRequire} requirements to the internal requirements map.
+	 * Adds the given array of {@link EntityContentRequire} requirements to the internal requirements map. This is the
+	 * single door into the map — both the seeding constructor and
+	 * {@link #addRequirementsToPrefetch(EntityContentRequire...)} come through here.
 	 *
-	 * Each requirement is matched against the ones already registered for its class, in registration order. When it
-	 * is fully contained within one of them it is dropped as redundant; otherwise, when one of them is combinable
-	 * with it, that entry is replaced by the merged requirement; otherwise the requirement is appended as a further
-	 * entry for its class.
+	 * Every requirement is first admitted through {@link EntityContentRequire#forPrefetch()}, which drops the output
+	 * projections that say nothing about what has to be loaded, so that no restriction the client wrote ever reaches
+	 * the union and collides with a requirement the query planner contributed. It is then matched against the ones
+	 * already registered for its class, in registration order. When it is fully contained within one of them it is
+	 * dropped as redundant; otherwise, when one of them is combinable with it, that entry is replaced by the merged
+	 * requirement; otherwise the requirement is appended as a further entry for its class.
 	 *
 	 * @param require an array of {@link EntityContentRequire} requirements to be added
 	 * @throws EvitaInvalidUsageException when a requirement addresses the same thing as an already registered one
 	 *                                    but contradicts it, so that the two cannot be merged
 	 */
 	private void addRequirementToPrefetchInternal(@Nonnull EntityContentRequire[] require) {
-		for (final EntityContentRequire theRequirement : require) {
+		for (final EntityContentRequire originalRequirement : require) {
+			// the prefetch asks what must be loaded, never how the loaded data is projected into the response
+			final EntityContentRequire theRequirement = originalRequirement.forPrefetch();
 			this.requirements.compute(
 				theRequirement.getClass(),
 				(aClass, existing) -> {

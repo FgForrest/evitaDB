@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -341,6 +342,104 @@ class DefaultPrefetchRequirementCollectorTest {
 			collector.addRequirementsToPrefetch(referenceContent("b", "c"));
 
 			assertEquals(2, collector.getRequirementsToPrefetch().length);
+		}
+
+		/**
+		 * The prefetch asks what must be **loaded**, and a filter, an order and a page only decide how the loaded
+		 * references are projected into the response. They are therefore stripped at the door, both from the
+		 * requirements the constructor seeds and from the ones added later.
+		 */
+		@Test
+		@DisplayName("should strip the filter, the order and the chunking of an entering requirement")
+		void shouldStripOutputRestrictionsOfEnteringRequirement() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector(
+				entityFetch(
+					referenceContent(
+						"a",
+						filterBy(entityPrimaryKeyInSet(5)),
+						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+						entityFetch(attributeContent("code")),
+						page(1, 1)
+					)
+				)
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a", entityFetch(attributeContent("code"))), requirements[0]);
+		}
+
+		/**
+		 * The pair the client-facing fold refuses - one sibling filtering the reference, the other one not - is
+		 * exactly the pair the query planner produces on its own whenever a filtered reference is also named by
+		 * `referenceHaving`. The collector must accept it, and it does because neither side reaches the merge
+		 * carrying a filter.
+		 */
+		@Test
+		@DisplayName("should accept a one sided filter the client facing fold refuses")
+		void shouldAcceptOneSidedFilterRefusedByClientFacingFold() {
+			final ReferenceContent filtered = referenceContent("a", filterBy(entityPrimaryKeyInSet(5)));
+			final ReferenceContent bare = referenceContent("a");
+
+			// the very same pair, judged by the rule that shapes the response, has no union
+			assertThrows(EvitaInvalidUsageException.class, () -> filtered.combineWith(bare));
+
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+			collector.addRequirementsToPrefetch(filtered);
+			collector.addRequirementsToPrefetch(bare);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a"), requirements[0]);
+		}
+
+		/**
+		 * The shape the query planner actually builds: the client's filtered `referenceContent` meets the
+		 * `referenceContentWithAttributes` the sort translator contributes for the very same reference. Both enter
+		 * unrestricted, so the merge unites their bodies instead of refusing them.
+		 */
+		@Test
+		@DisplayName("should unite a filtered client requirement with the planner's sort attribute requirement")
+		void shouldUniteFilteredClientRequirementWithPlannerSortAttributeRequirement() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(
+				new ReferenceContent("a", attributeContent("priority"))
+			);
+			collector.addRequirementsToPrefetch(
+				referenceContent(
+					"a",
+					filterBy(entityPrimaryKeyInSet(5)),
+					entityFetch(attributeContent("code"))
+				)
+			);
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			final ReferenceContent merged = (ReferenceContent) requirements[0];
+			assertTrue(merged.getFilterBy().isEmpty());
+			assertArrayEquals(
+				new String[]{"priority"},
+				merged.getAttributeContent().orElseThrow().getAttributeNames()
+			);
+			assertEquals(entityFetch(attributeContent("code")), merged.getEntityRequirement().orElseThrow());
+		}
+
+		/**
+		 * Two different filters are no longer a disagreement once both are stripped - the prefetch loads every
+		 * reference of that name and lets the response projection pick the slice each requirement asked for.
+		 */
+		@Test
+		@DisplayName("should accept two differently filtered requirements for one reference")
+		void shouldAcceptTwoDifferentlyFilteredRequirementsForOneReference() {
+			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
+
+			collector.addRequirementsToPrefetch(referenceContent("a", filterBy(entityPrimaryKeyInSet(1, 2))));
+			collector.addRequirementsToPrefetch(referenceContent("a", filterBy(entityPrimaryKeyInSet(3, 4))));
+
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContent("a"), requirements[0]);
 		}
 	}
 

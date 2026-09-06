@@ -142,8 +142,9 @@ Same as the [`entityFetch`](#entity-fetch) but used for fetching entities that r
 Two content requirements of the same kind can easily end up next to each other in a single `entityFetch` - the query
 may be assembled from several places in your code, or you may have added a requirement next to a fetch-all shorthand
 that already contains one of the same kind. Such a pair is not an error and neither half of it is lost. The
-requirements are folded into the single requirement the query is executed with, and the rule is always the same:
-**the superset wins**.
+requirements are folded into the single requirement the query is executed with, and wherever the two have a superset
+the rule is the same: **the superset wins**. Where they have none - two different selections of the same references,
+say - evitaDB refuses the query instead of silently picking one; the cases are listed at the end of this section.
 
 ```evitaql
 entityFetch(
@@ -186,11 +187,14 @@ sharing a key are folded, and within one key:
 
 - the reference attributes and the nested `entityFetch` / `entityGroupFetch` bodies are united, recursively, so that
   nothing either side asked for is lost
-- a `filterBy` or a chunking (`page` / `strip`) constraint present on **one side only** is dropped, because the side
-  carrying neither asks for *every* reference and is therefore the superset - exactly as `attributeContentAll()`
-  swallows an `attributeContent("code")` written beside it
-- an `orderBy` present on **one side only** is kept, because an order shapes the sequence of the references without
-  dropping any of them
+- a `filterBy` or a chunking (`page` / `strip`) constraint has to be **the same on both sides, or absent from both**.
+  The two requirements share a single output slot, and a restriction only one of them carries has no superset:
+  dropping it would return the references the restricting side asked to exclude, honouring it would hide the ones the
+  unrestricted side asked for. Both readings change what comes back, so evitaDB refuses the pair instead of picking
+  one for you - write the restriction on both sides, or on neither
+- an `orderBy` present on **one side only** is kept. This is the single exception to the rule above, and it is safe
+  for one reason: an order shapes the sequence of the references without dropping any of them, so keeping the only
+  order present hides nothing from either side
 - a disagreement on the [managed references behaviour](#managed-references-behaviour) narrows to `EXISTING`, so
   a request to suppress references pointing at missing entities is never lost by folding
 
@@ -198,6 +202,15 @@ A reference named by several requirements with **different** name sets - `refere
 `referenceContent("b", "c")` - is folded per name: each requirement is projected onto every name it lists and the
 projections sharing a name are folded by the rules above, so `b` is fetched with the union of both bodies while `a`
 and `c` keep theirs.
+
+These rules govern the requirements **you** write. Internally the engine may load *more* references than your query
+projects - evaluating a [`referenceHaving`](../filtering/references.md#reference-having) filter or an ordering by
+a [reference property](../ordering/reference.md) in memory needs the reference records themselves, so the query
+planner adds a requirement of its own for that reference, without your filter, order or page. That widening is
+invisible: whatever the engine loaded, the response is assembled from the requirements you wrote, so the references
+you get back - and their order and page - are exactly the ones your query asked for. A `referenceContent` that
+filters or pages the very reference a `referenceHaving` or an ordering also names is therefore perfectly ordinary,
+and is never refused as a disagreement with the requirement the planner added.
 
 A [`referenceContentAll`](#reference-content-all) requirement and a name-specific `referenceContent("brand")` carry
 different keys and are therefore **never** folded together. Both stay in effect - the name-specific requirement
@@ -224,9 +237,13 @@ they list exactly the same price lists.
 Some pairs have no superset at all, and evitaDB refuses them with an exception instead of letting one of them
 silently win:
 
-- two `referenceContent` requirements for one reference carrying **different** `filterBy`, `orderBy` or chunking
-  constraints - a filter selects a subset of the references and an order sequences them, and no union of two
-  different ones preserves both intents
+- two `referenceContent` requirements for one reference disagreeing about the `filterBy` or the chunking constraint -
+  whether the two carry a **different** one or only one of them carries it at all. A filter and a page each select
+  a subset of the references, and no union of two different selections - "everything" included - preserves both
+  intents
+- two `referenceContent` requirements for one reference carrying **different** `orderBy` constraints. An order
+  sequences the references rather than selecting them, so an order carried by a single side is kept rather than
+  refused; only two genuinely different orders contradict each other
 - two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
 - two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
   lists that differ only in their order - the sequence is a priority order and any merge would invent a priority

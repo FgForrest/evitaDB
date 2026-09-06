@@ -647,13 +647,21 @@ class ReferenceContentTest {
 		}
 
 		@Test
-		@DisplayName("a filter present on a single side only is dropped")
-		void shouldDropFilterPresentOnSingleSideOnly() {
+		@DisplayName("a filter present on a single side only is refused")
+		void shouldRefuseFilterPresentOnSingleSideOnly() {
 			final ReferenceContent first = referenceContent("a", filterBy(attributeEquals("code", "x")));
 			final ReferenceContent second = referenceContent("a");
 
-			assertEquals(referenceContent("a"), first.combineWith(second));
-			assertEquals(referenceContent("a"), second.combineWith(first));
+			// dropping the filter would return references the filtering side excluded, honouring it would hide
+			// the ones the bare side asked for - neither may be picked on the client's behalf
+			assertTrue(
+				assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second))
+					.getMessage().contains("only one of them declares a filter constraint")
+			);
+			assertTrue(
+				assertThrows(EvitaInvalidUsageException.class, () -> second.combineWith(first))
+					.getMessage().contains("only one of them declares a filter constraint")
+			);
 		}
 
 		@Test
@@ -665,6 +673,10 @@ class ReferenceContentTest {
 			assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second));
 		}
 
+		/**
+		 * The single deliberate asymmetry against the rule the two tests above assert: an order removes no
+		 * reference, so keeping the only one present hides nothing from either side.
+		 */
 		@Test
 		@DisplayName("an order present on a single side only is retained")
 		void shouldKeepOrderPresentOnSingleSideOnly() {
@@ -685,13 +697,19 @@ class ReferenceContentTest {
 		}
 
 		@Test
-		@DisplayName("chunking present on a single side only is dropped")
-		void shouldDropChunkingPresentOnSingleSideOnly() {
+		@DisplayName("chunking present on a single side only is refused")
+		void shouldRefuseChunkingPresentOnSingleSideOnly() {
 			final ReferenceContent first = referenceContent("a", page(1, 20));
 			final ReferenceContent second = referenceContent("a");
 
-			assertEquals(referenceContent("a"), first.combineWith(second));
-			assertEquals(referenceContent("a"), second.combineWith(first));
+			assertTrue(
+				assertThrows(EvitaInvalidUsageException.class, () -> first.combineWith(second))
+					.getMessage().contains("only one of them declares a chunking constraint")
+			);
+			assertTrue(
+				assertThrows(EvitaInvalidUsageException.class, () -> second.combineWith(first))
+					.getMessage().contains("only one of them declares a chunking constraint")
+			);
 		}
 
 		@Test
@@ -718,6 +736,69 @@ class ReferenceContentTest {
 				GenericEvitaInternalError.class,
 				() -> referenceContent("a").combineWith(attributeContentAll())
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Prefetch projection")
+	class PrefetchProjectionTest {
+
+		@Test
+		@DisplayName("the filter, the order and the chunking are dropped for the prefetch")
+		void shouldDropOutputRestrictionsForPrefetch() {
+			final ReferenceContent restricted = referenceContent(
+				"a",
+				filterBy(attributeEquals("code", "x")),
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContent("code")),
+				page(1, 20)
+			);
+
+			final ReferenceContent prefetched = restricted.forPrefetch();
+
+			assertTrue(prefetched.getFilterBy().isEmpty());
+			assertTrue(prefetched.getOrderBy().isEmpty());
+			assertTrue(prefetched.getChunking().isEmpty());
+			assertEquals(
+				referenceContent("a", entityFetch(attributeContent("code"))),
+				prefetched
+			);
+		}
+
+		@Test
+		@DisplayName("a requirement carrying no restriction is handed back unchanged")
+		void shouldReturnSameInstanceWhenNoRestrictionIsCarried() {
+			final ReferenceContent unrestricted = referenceContent("a", entityFetch(attributeContent("code")));
+
+			assertSame(unrestricted, unrestricted.forPrefetch());
+		}
+
+		@Test
+		@DisplayName("the alias, the managed references behaviour and the reference names survive the projection")
+		void shouldKeepKeyAndManagedReferencesBehaviourForPrefetch() {
+			final ReferenceContent restricted = new ReferenceContent(
+				"alias",
+				ManagedReferencesBehaviour.EXISTING,
+				new String[]{"a", "b"},
+				new RequireConstraint[0],
+				new Constraint<?>[]{filterBy(attributeEquals("code", "x"))}
+			);
+
+			final ReferenceContent prefetched = restricted.forPrefetch();
+
+			assertEquals("alias", prefetched.getInstanceName());
+			assertEquals(ManagedReferencesBehaviour.EXISTING, prefetched.getManagedReferencesBehaviour());
+			assertArrayEquals(new String[]{"a", "b"}, prefetched.getReferenceNames());
+			assertTrue(prefetched.getFilterBy().isEmpty());
+		}
+
+		@Test
+		@DisplayName("a requirement of another kind projects onto itself")
+		void shouldReturnSameInstanceForOtherRequirementKinds() {
+			final AttributeContent attributeContent = attributeContent("code");
+
+			assertSame(attributeContent, attributeContent.forPrefetch());
 		}
 
 	}

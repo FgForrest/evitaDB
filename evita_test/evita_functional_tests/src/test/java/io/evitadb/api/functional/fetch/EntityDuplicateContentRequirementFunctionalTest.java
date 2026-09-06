@@ -99,12 +99,17 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * - **union** — siblings addressing the same thing are merged, and the entity carries everything either of them
  *   asked for
- * - **superset** — a restriction (`filterBy`, chunking) carried by only one sibling is dropped, because the sibling
- *   carrying none asks for every reference
  * - **specificity** — a requirement naming a reference and the catch-all requirement for every reference are *not*
  *   merged, so the reference-specific body keeps winning over the default one
  * - **refusal** — siblings that address the same thing but cannot be reconciled raise an
- *   {@link EvitaInvalidUsageException} naming the part they disagree on
+ *   {@link EvitaInvalidUsageException} naming the part they disagree on. A restriction (`filterBy`, chunking)
+ *   carried by only one of them counts as a disagreement, because the pair fills a single output slot and neither
+ *   returning what the restricting side excluded nor hiding what the unrestricted side asked for may be chosen on
+ *   the client's behalf. An `orderBy` is the one exception — it removes no reference, so the only order present is
+ *   kept
+ * - **widening** — the requirements the query planner contributes on the client's behalf join a *prefetch* union
+ *   that strips those restrictions, so an ordinary query filtering a reference it also orders by is planned rather
+ *   than refused, and still returns exactly the references the client projected
  *
  * This class is also the single home for the refusal cases, both for the Java API and for the EvitaQL text surface.
  *
@@ -161,6 +166,38 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 	}
 
 	/**
+	 * Returns the primary keys of the references of the passed name each returned product carries, in the order they
+	 * were delivered. Comparing two such maps is how a test asserts that two execution paths returned the very same
+	 * reference projection - the same references, in the same order, for the same products.
+	 *
+	 * @param session       session to execute the query in
+	 * @param theQuery      query to execute
+	 * @param referenceName name of the reference whose primary keys are collected
+	 * @return map of product primary key to the primary keys of its references of the passed name
+	 */
+	@Nonnull
+	private static Map<Integer, List<Integer>> collectReferencedPrimaryKeys(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Query theQuery,
+		@Nonnull String referenceName
+	) {
+		final EvitaResponse<SealedEntity> response = session.querySealedEntity(theQuery);
+
+		assertFalse(response.getRecordData().isEmpty(), "No product matched the query, the test would prove nothing!");
+		return response.getRecordData()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(referenceName)
+						.stream()
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.toList()
+				)
+			);
+	}
+
+	/**
 	 * Asserts that the product carries at least one reference of the passed name and that the body of every
 	 * referenced entity was fetched with its `code` attribute. This is what a `referenceContent` naming several
 	 * references and carrying a nested `entityFetch` has to deliver for each of the names it lists.
@@ -206,6 +243,87 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 			referenceNames,
 			new RequireConstraint[0],
 			new Constraint<?>[]{filterBy}
+		);
+	}
+
+	/**
+	 * Returns the primary key of a category referenced by a product that carries more than one of them. Filtering or
+	 * paging that reference therefore has something to remove, which is what makes an assertion about the projected
+	 * references meaningful.
+	 *
+	 * @param originalProducts products the dataset was generated with
+	 * @return primary key of a category referenced by a product carrying several categories
+	 */
+	private static int findCategoryOfProductWithManyCategories(@Nonnull List<SealedEntity> originalProducts) {
+		return findEntityByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.CATEGORY).size() > 1
+		).getReferences(Entities.CATEGORY)
+			.iterator()
+			.next()
+			.getReferencedPrimaryKey();
+	}
+
+	/**
+	 * Returns the primary keys of the products that carry several categories and reference the passed one among
+	 * them, so that a `referenceContent` filtered down to that single category returns exactly one reference for
+	 * each of them.
+	 *
+	 * @param originalProducts    products the dataset was generated with
+	 * @param categoryPrimaryKey  primary key of the category the products have to reference
+	 * @return primary keys of the matching products
+	 */
+	@Nonnull
+	private static Integer[] getProductsReferencingCategory(
+		@Nonnull List<SealedEntity> originalProducts,
+		int categoryPrimaryKey
+	) {
+		return getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.CATEGORY).size() > 1 &&
+				it.getReferences(Entities.CATEGORY)
+					.stream()
+					.anyMatch(ref -> ref.getReferencedPrimaryKey() == categoryPrimaryKey)
+		);
+	}
+
+	/**
+	 * Returns a query fetching the passed products ordered by their `categoryPriority` reference attribute - the
+	 * ordering that makes the query planner contribute a `referenceContent` of the `CATEGORY` reference of its own -
+	 * with the passed content requirement in the `entityFetch`.
+	 *
+	 * @param primaryKeys      primary keys of the products to fetch
+	 * @param requirement      the reference content requirement the client wrote
+	 * @param preferPrefetching when true, the query asks the planner to prefer the prefetch path over the index one
+	 * @return the assembled query
+	 */
+	@Nonnull
+	private static Query orderedByCategoryPriority(
+		@Nonnull Integer[] primaryKeys,
+		@Nonnull ReferenceContent requirement,
+		boolean preferPrefetching
+	) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(primaryKeys)
+			),
+			orderBy(
+				referenceProperty(
+					Entities.CATEGORY,
+					attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
+				)
+			),
+			preferPrefetching ?
+				require(
+					debug(DebugMode.PREFER_PREFETCHING),
+					page(1, Integer.MAX_VALUE),
+					entityFetch(requirement)
+				) :
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch(requirement)
+				)
 		);
 	}
 
@@ -289,13 +407,14 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 		}
 
 		/**
-		 * A sibling carrying no filter asks for every reference and is therefore the superset of the filtered one, so
-		 * the pair fetches all references of that name.
+		 * The two siblings fill one output slot, and a filter only one of them carries has no union: dropping it
+		 * would return the references the filtering sibling excluded, honouring it would hide the ones the bare
+		 * sibling asked for. The query is refused so that the client says which one he meant.
 		 */
-		@DisplayName("All references should be fetched when only one sibling filters them")
+		@DisplayName("Should throw exception when only one sibling filters the references")
 		@UseDataSet(HUNDRED_PRODUCTS)
 		@Test
-		void shouldFetchAllReferencesWhenOnlyOneSiblingFiltersThem(Evita evita, List<SealedEntity> originalProducts) {
+		void shouldThrowExceptionWhenOnlyOneSiblingFiltersThem(Evita evita, List<SealedEntity> originalProducts) {
 			final Integer[] productsWithCategories = getRequestedIdsByPredicate(
 				originalProducts,
 				it -> it.getReferences(Entities.CATEGORY).size() > 1
@@ -311,23 +430,20 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					final Map<Integer, Integer> unrestricted = countReferencesPerProduct(
-						session, productsWithCategories, Entities.CATEGORY,
-						referenceContent(Entities.CATEGORY)
-					);
-					final Map<Integer, Integer> united = countReferencesPerProduct(
-						session, productsWithCategories, Entities.CATEGORY,
-						referenceContent(Entities.CATEGORY),
-						referenceContent(
-							Entities.CATEGORY,
-							filterBy(entityPrimaryKeyInSet(someCategoryPrimaryKey))
+					final EvitaInvalidUsageException exception = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> countReferencesPerProduct(
+							session, productsWithCategories, Entities.CATEGORY,
+							referenceContent(Entities.CATEGORY),
+							referenceContent(
+								Entities.CATEGORY,
+								filterBy(entityPrimaryKeyInSet(someCategoryPrimaryKey))
+							)
 						)
 					);
-
-					assertEquals(unrestricted, united, "The filter of a single sibling narrowed the result!");
 					assertTrue(
-						unrestricted.values().stream().anyMatch(it -> it > 1),
-						"No product carries more than one category, the test would prove nothing!"
+						exception.getMessage().contains("only one of them declares a filter constraint"),
+						exception.getMessage()
 					);
 					return null;
 				}
@@ -335,13 +451,13 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 		}
 
 		/**
-		 * Chunking follows the very same superset rule as the filter - a sibling carrying no page asks for every
-		 * reference, so the page is dropped.
+		 * Chunking follows the very same rule as the filter - a page carried by a single sibling drops references
+		 * the other sibling asked for, so the pair is refused rather than silently reconciled.
 		 */
-		@DisplayName("All references should be fetched when only one sibling pages them")
+		@DisplayName("Should throw exception when only one sibling pages the references")
 		@UseDataSet(HUNDRED_PRODUCTS)
 		@Test
-		void shouldFetchAllReferencesWhenOnlyOneSiblingPagesThem(Evita evita, List<SealedEntity> originalProducts) {
+		void shouldThrowExceptionWhenOnlyOneSiblingPagesThem(Evita evita, List<SealedEntity> originalProducts) {
 			final Integer[] productsWithCategories = getRequestedIdsByPredicate(
 				originalProducts,
 				it -> it.getReferences(Entities.CATEGORY).size() > 1
@@ -350,20 +466,17 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					final Map<Integer, Integer> unrestricted = countReferencesPerProduct(
-						session, productsWithCategories, Entities.CATEGORY,
-						referenceContent(Entities.CATEGORY)
+					final EvitaInvalidUsageException exception = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> countReferencesPerProduct(
+							session, productsWithCategories, Entities.CATEGORY,
+							referenceContent(Entities.CATEGORY),
+							referenceContent(Entities.CATEGORY, page(1, 1))
+						)
 					);
-					final Map<Integer, Integer> united = countReferencesPerProduct(
-						session, productsWithCategories, Entities.CATEGORY,
-						referenceContent(Entities.CATEGORY),
-						referenceContent(Entities.CATEGORY, page(1, 1))
-					);
-
-					assertEquals(unrestricted, united, "The page of a single sibling truncated the result!");
 					assertTrue(
-						unrestricted.values().stream().anyMatch(it -> it > 1),
-						"No product carries more than one category, the test would prove nothing!"
+						exception.getMessage().contains("only one of them declares a chunking constraint"),
+						exception.getMessage()
 					);
 					return null;
 				}
@@ -371,8 +484,9 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 		}
 
 		/**
-		 * An order drops no reference, so the only order present is retained rather than dropped - the pair returns
-		 * every reference, in the order the single ordered sibling asked for.
+		 * An order drops no reference, so the only order present is retained rather than refused - the pair returns
+		 * every reference, in the order the single ordered sibling asked for. This is the single deliberate
+		 * exception to the rule the two refusals above assert.
 		 */
 		@DisplayName("Order of a single sibling should shape all fetched references")
 		@UseDataSet(HUNDRED_PRODUCTS)
@@ -772,6 +886,188 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 						assertReferencedEntitiesCarryCode(product, Entities.CATEGORY);
 						assertReferencedEntitiesCarryCode(product, Entities.BRAND);
 					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The shape that made the strict client rule and the query planner collide: the client filters the very
+		 * reference he orders by, so the bare `referenceContentWithAttributes` the sort translator contributes for
+		 * `categoryPriority` meets his filtered `referenceContent` for the same reference. Judged by the
+		 * client-facing rule the pair has no union and the query would be refused during *planning* - on the index
+		 * path as much as on the prefetch one, for a conflict the client never wrote. The prefetch union strips both
+		 * sides' restrictions instead, so the query plans, and the response still carries only the filtered
+		 * references.
+		 */
+		@DisplayName("Filtered reference should be fetched when the same reference is ordered by")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldFetchFilteredReferenceWhenTheSameReferenceIsOrderedBy(
+			Evita evita,
+			List<SealedEntity> originalProducts
+		) {
+			final int someCategoryPrimaryKey = findCategoryOfProductWithManyCategories(originalProducts);
+			final Integer[] products = getProductsReferencingCategory(originalProducts, someCategoryPrimaryKey);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						orderedByCategoryPriority(
+							products,
+							referenceContent(
+								Entities.CATEGORY,
+								filterBy(entityPrimaryKeyInSet(someCategoryPrimaryKey)),
+								entityFetch(attributeContent(ATTRIBUTE_CODE))
+							),
+							false
+						)
+					);
+
+					assertFalse(response.getRecordData().isEmpty());
+					for (final SealedEntity product : response.getRecordData()) {
+						assertEquals(
+							List.of(someCategoryPrimaryKey),
+							product.getReferences(Entities.CATEGORY)
+								.stream()
+								.map(ReferenceContract::getReferencedPrimaryKey)
+								.toList(),
+							"The client's filter was lost for product " + product.getPrimaryKey() + "!"
+						);
+						assertReferencedEntitiesCarryCode(product, Entities.CATEGORY);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The chunking half of the shape above - the client pages the reference he orders by. The page is an output
+		 * projection just like the filter, so it neither reaches the prefetch union nor survives it, and the
+		 * response still carries exactly the single reference the page asked for.
+		 */
+		@DisplayName("Paged reference should be fetched when the same reference is ordered by")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldFetchPagedReferenceWhenTheSameReferenceIsOrderedBy(
+			Evita evita,
+			List<SealedEntity> originalProducts
+		) {
+			final Integer[] products = getRequestedIdsByPredicate(
+				originalProducts,
+				it -> it.getReferences(Entities.CATEGORY).size() > 1
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+						orderedByCategoryPriority(
+							products,
+							referenceContent(
+								Entities.CATEGORY,
+								null,
+								null,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								page(1, 1)
+							),
+							false
+						)
+					);
+
+					assertFalse(response.getRecordData().isEmpty());
+					for (final SealedEntity product : response.getRecordData()) {
+						assertEquals(
+							1, product.getReferences(Entities.CATEGORY).size(),
+							"The client's page was lost for product " + product.getPrimaryKey() + "!"
+						);
+						assertReferencedEntitiesCarryCode(product, Entities.CATEGORY);
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The guarantee the whole widening rests on: the requirement the prefetch union loads is broader than the
+		 * one the client wrote, and he must never see the difference. The prefetched entity is narrowed back down
+		 * from his own `EvitaRequest` - `EntityCollection#limitEntityInternal` rebuilds the predicates from it and
+		 * the reference filter, order and page come from the query he actually sent - so the very same query, run
+		 * once over the index path and once with prefetching forced, has to deliver the identical references.
+		 */
+		@DisplayName("Widened prefetch requirement should never be exposed to the client")
+		@UseDataSet(HUNDRED_PRODUCTS)
+		@Tag(ATTRIBUTE)
+		@Test
+		void shouldNeverExposeTheWidenedPrefetchRequirementToTheClient(
+			Evita evita,
+			List<SealedEntity> originalProducts
+		) {
+			final int someCategoryPrimaryKey = findCategoryOfProductWithManyCategories(originalProducts);
+			final Integer[] filteredProducts = getProductsReferencingCategory(
+				originalProducts, someCategoryPrimaryKey
+			);
+			final Integer[] pagedProducts = getRequestedIdsByPredicate(
+				originalProducts,
+				it -> it.getReferences(Entities.CATEGORY).size() > 1
+			);
+			final ReferenceContent filteredRequirement = referenceContent(
+				Entities.CATEGORY,
+				filterBy(entityPrimaryKeyInSet(someCategoryPrimaryKey)),
+				entityFetch(attributeContent(ATTRIBUTE_CODE))
+			);
+			final ReferenceContent pagedRequirement = referenceContent(
+				Entities.CATEGORY,
+				null,
+				null,
+				entityFetch(attributeContent(ATTRIBUTE_CODE)),
+				page(1, 1)
+			);
+
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Map<Integer, List<Integer>> filteredOverIndex = collectReferencedPrimaryKeys(
+						session,
+						orderedByCategoryPriority(filteredProducts, filteredRequirement, false),
+						Entities.CATEGORY
+					);
+					final Map<Integer, List<Integer>> filteredOverPrefetch = collectReferencedPrimaryKeys(
+						session,
+						orderedByCategoryPriority(filteredProducts, filteredRequirement, true),
+						Entities.CATEGORY
+					);
+					assertEquals(
+						filteredOverIndex, filteredOverPrefetch,
+						"The prefetch path returned other references than the index path!"
+					);
+					assertTrue(
+						filteredOverIndex.values().stream()
+							.allMatch(it -> it.equals(List.of(someCategoryPrimaryKey))),
+						"Neither path honoured the client's filter, the test would prove nothing!"
+					);
+
+					final Map<Integer, List<Integer>> pagedOverIndex = collectReferencedPrimaryKeys(
+						session,
+						orderedByCategoryPriority(pagedProducts, pagedRequirement, false),
+						Entities.CATEGORY
+					);
+					final Map<Integer, List<Integer>> pagedOverPrefetch = collectReferencedPrimaryKeys(
+						session,
+						orderedByCategoryPriority(pagedProducts, pagedRequirement, true),
+						Entities.CATEGORY
+					);
+					assertEquals(
+						pagedOverIndex, pagedOverPrefetch,
+						"The prefetch path returned other references than the index path!"
+					);
+					assertTrue(
+						pagedOverIndex.values().stream().allMatch(it -> it.size() == 1),
+						"Neither path honoured the client's page, the test would prove nothing!"
+					);
 					return null;
 				}
 			);
