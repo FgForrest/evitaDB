@@ -1,7 +1,7 @@
 ---
 title: The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain
 date: 2026-09-06
-updated: 2026-09-06 13:05
+updated: 2026-09-06 18:05
 status: accepted
 kind: fix
 issues: [1495]
@@ -53,6 +53,13 @@ registry instance it suspended.
   storage rather than being discarded. The operator can carry an undo, which the session-driven path never had.
 - **Cons:** the drain runs while `engineStateLock` is held, so a pathological close delays every other engine
   mutation — which is what forced the drain's wait to be bounded end to end (see *Key technical details*).
+  **That lock is engine-wide, not per catalog**: one `EngineTransactionManager` per `Evita`
+  (`Evita.java:564`), so the delay is paid by catalog lifecycle mutations on *every* catalog in the engine.
+  What bounds the cost is what contends for it — only engine-level mutations (create, drop, rename,
+  deactivate, go-live) take that lock at all, never queries, entity writes or session creation — and the
+  budget they wait against: `transactionTimeoutInMilliseconds`, 300 s by default, sixty times the drain's
+  worst case. An engine configured with a timeout near or below five seconds would turn this delay into a
+  `TransactionTimedOutException` on an unrelated catalog, and is the shape to watch for.
 
 ### Option B — drain inside the completion lambda, as deactivation does (declined)
 
@@ -80,7 +87,9 @@ flush and worth not depending on a forced close's own flush — but it is not th
 reader must not re-derive a guarantee from the placement that the placement does not carry.
 
 Option B becomes worth revisiting if holding `engineStateLock` across the drain ever shows up as a real
-availability problem; the bounded wait and the park between passes were added to make that unlikely.
+availability problem; the bounded wait and the park between passes were added to make that unlikely, and the
+engine-wide scope of that lock is stated in Option A's cons so the trigger is judged against the right blast
+radius rather than a per-catalog one.
 
 ### The invariant we got wrong, and how it was settled
 
