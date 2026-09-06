@@ -2981,6 +2981,45 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should refuse two hierarchy requirements sharing a single output name")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldRefuseTwoHierarchyRequirementsSharingOutputName(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								and(
+									entityLocaleEquals(CZECH_LOCALE),
+									hierarchyWithinRootSelf()
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfSelf(
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1))),
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("`megaMenu` is requested twice"),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return children for all categories until level three on different filter base")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest

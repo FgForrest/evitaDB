@@ -247,17 +247,48 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull AbstractHierarchyStatisticsComputer computer
 	) {
 		final HierarchyProducerContext ctx = getContext(constraintName);
+		final HierarchySet hierarchySet;
 		if (ctx.referenceSchema() == null) {
 			if (this.selfHierarchyRequest == null) {
 				this.selfHierarchyRequest = new HierarchySet();
 			}
-			this.selfHierarchyRequest.addComputer(outputName, computer);
+			hierarchySet = this.selfHierarchyRequest;
 		} else {
-			this.hierarchyRequests.computeIfAbsent(
-					ctx.referenceSchema().getName(),
-					s -> new HierarchySet()
-				)
-				.addComputer(outputName, computer);
+			hierarchySet = this.hierarchyRequests.computeIfAbsent(
+				ctx.referenceSchema().getName(),
+				s -> new HierarchySet()
+			);
+		}
+		assertOutputNameFree(hierarchySet, ctx.referenceSchema(), outputName);
+		hierarchySet.addComputer(outputName, computer);
+	}
+
+	/**
+	 * Verifies that `outputName` is not already claimed within the hierarchy of a single target. Every
+	 * `hierarchyOf...` constraint aimed at one target contributes to a single result map indexed by output name, so
+	 * a repeated name has no result of its own to point at.
+	 *
+	 * Without this check the collision surfaces only once both hierarchies have been fully computed, as an internal
+	 * `IllegalStateException` raised by the `Collectors.toMap` in {@link HierarchySet#createStatistics} - whose
+	 * message interpolates both computed trees.
+	 *
+	 * @param hierarchySet    the container the output names of a single target are registered in
+	 * @param referenceSchema the reference the hierarchy is computed for, `null` for the queried entity itself
+	 * @param outputName      the label the result of the computer being registered would be indexed by
+	 * @throws EvitaInvalidUsageException when the name is already claimed within the same target
+	 */
+	private static void assertOutputNameFree(
+		@Nonnull HierarchySet hierarchySet,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull String outputName
+	) {
+		if (hierarchySet.containsOutputName(outputName)) {
+			final String reason = "Hierarchy output name `" + outputName + "` is requested twice for " +
+				(referenceSchema == null ?
+					"the queried entity's own hierarchy" :
+					"the hierarchy of reference `" + referenceSchema.getName() + "`") +
+				" - each hierarchy result is indexed by its output name, so the names have to differ";
+			throw new EvitaInvalidUsageException(reason + ".");
 		}
 	}
 

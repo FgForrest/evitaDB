@@ -141,6 +141,21 @@ public class HierarchySet {
 	}
 
 	/**
+	 * Returns true when a computer producing the result labeled `outputName` is already registered in this set.
+	 *
+	 * @param outputName the label the result of a computer is indexed by
+	 * @return true when the name is already claimed
+	 */
+	public boolean containsOutputName(@Nonnull String outputName) {
+		for (NamedComputer namedComputer : this.computers) {
+			if (outputName.equals(namedComputer.outputName())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Invokes all the registered {@link #computers} and registers their result to the output result map.
 	 * If the {@link #sorter} is defined, it uses it to sort all lists in the result map.
 	 */
