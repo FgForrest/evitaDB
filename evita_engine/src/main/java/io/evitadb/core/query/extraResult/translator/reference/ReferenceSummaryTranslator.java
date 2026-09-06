@@ -225,6 +225,32 @@ public class ReferenceSummaryTranslator
 	}
 
 	/**
+	 * Resolves the reference schemas a nested `referenceContent` addresses. A single requirement may list several
+	 * reference names at once - the multi-name form the GraphQL API and the query language both allow - and each of
+	 * them has to be declared by the schema of the entity the summary fetches.
+	 *
+	 * @param referenceContent nested requirement naming at least one reference
+	 * @param referencedSchema schema of the entity the summary fetches the references from
+	 * @return schemas of the references the requirement addresses, in the order it lists them
+	 * @throws ReferenceNotFoundException when the schema declares no reference of one of the listed names
+	 */
+	@Nonnull
+	private static Collection<ReferenceSchemaContract> resolveNestedReferenceSchemas(
+		@Nonnull ReferenceContent referenceContent,
+		@Nonnull EntitySchemaContract referencedSchema
+	) {
+		final String[] nestedReferenceNames = referenceContent.getReferenceNames();
+		final List<ReferenceSchemaContract> nestedReferenceSchemas = new ArrayList<>(nestedReferenceNames.length);
+		for (final String nestedReferenceName : nestedReferenceNames) {
+			nestedReferenceSchemas.add(
+				referencedSchema.getReference(nestedReferenceName)
+					.orElseThrow(() -> new ReferenceNotFoundException(nestedReferenceName, referencedSchema))
+			);
+		}
+		return nestedReferenceSchemas;
+	}
+
+	/**
 	 * Verify the fetch requirement for a given referenced type.
 	 *
 	 * @param entitySchema       the entity schema
@@ -269,16 +295,14 @@ public class ReferenceSummaryTranslator
 									         associatedDataContent, referencedSchema, extraResultPlanner
 								         );
 							         } else if (require instanceof ReferenceContent referenceContent) {
+								         // a `referenceContent` may address several references at once, and every name it
+								         // lists has to be declared by the referenced entity's schema
 								         final Collection<ReferenceSchemaContract> referencedEntityReferenceSchemas =
 									         referenceContent.isAllRequested()
 										         ?
 										         referencedSchema.getReferences().values()
 										         :
-											         List.of(
-												         referencedSchema.getReference(referenceContent.getReferenceName())
-												         .orElseThrow(() -> new ReferenceNotFoundException(
-													         referenceContent.getReferenceName(), referencedSchema))
-											         );
+											         resolveNestedReferenceSchemas(referenceContent, referencedSchema);
 								         for (ReferenceSchemaContract referencedEntityReferenceSchema : referencedEntityReferenceSchemas) {
 									         referenceContent.getAttributeContent()
 										         .ifPresent(it -> AttributeContentTranslator.verifyAttributes(

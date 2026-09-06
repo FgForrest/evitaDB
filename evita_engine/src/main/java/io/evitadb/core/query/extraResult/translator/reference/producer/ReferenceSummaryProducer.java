@@ -95,6 +95,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -645,6 +646,23 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 *   always had for attributes, associated data, prices, locales and the parent chain, none of which can lose or
 	 *   refuse anything by being united
 	 *
+	 * An **unnamed** {@link ReferenceContent} - one that carries no instance name - is not reconciled by that
+	 * whole-key rule at all, because a key holds a whole *set* of reference names and two sets that merely overlap
+	 * would slip past it: an inherited `referenceContent("a", "b")` is folded onto `a` by the nested request later
+	 * and takes the specific fetch's `filterBy` for `a` down with it. Such a requirement is therefore overlaid
+	 * **per reference name**, which is the granularity the nested request resolves at:
+	 *
+	 * - the specific fetch holding an unnamed catch-all (`referenceContentAll…()`) governs every reference, so no
+	 *   unnamed generic `referenceContent` is inherited beside it
+	 * - a generic catch-all is inherited whenever the specific fetch holds none - the nested request keeps it as
+	 *   the fallback for the references the specific fetch does not name
+	 * - a generic name-specific requirement is projected onto each name it lists
+	 *   ({@link ReferenceContent#forReferenceName(String)}) and only the projections addressing a name no unnamed
+	 *   specific `referenceContent` lists are inherited
+	 *
+	 * A `referenceContent` carrying an instance name is a separate output slot of its own and keeps the whole-key
+	 * rule, as does {@link AccompanyingPriceContent}, whose key is a single price name rather than a set.
+	 *
 	 * The narrowing is therefore confined to the kinds a union would damage. Note that {@link ReferenceSummary} and
 	 * {@link io.evitadb.api.query.require.FacetSummary} class javadoc describe a *wider* override - the
 	 * reference-specific constraint "completely overriding" the generic one, with nothing merged - which the code
@@ -665,7 +683,26 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			specificRequirements.length + fallbackRequirements.length
 		);
 		Collections.addAll(overlaid, specificRequirements);
+		final Set<String> specificReferenceNames = createHashSet(specificRequirements.length);
+		boolean specificCatchAll = false;
+		for (final EntityContentRequire specificRequirement : specificRequirements) {
+			if (specificRequirement instanceof ReferenceContent referenceContent &&
+				referenceContent.getInstanceName() == null) {
+				if (referenceContent.isAllRequested()) {
+					specificCatchAll = true;
+				} else {
+					Collections.addAll(specificReferenceNames, referenceContent.getReferenceNames());
+				}
+			}
+		}
 		for (final EntityContentRequire fallbackRequirement : fallbackRequirements) {
+			if (fallbackRequirement instanceof ReferenceContent fallbackReferenceContent &&
+				fallbackReferenceContent.getInstanceName() == null) {
+				inheritReferenceContent(
+					fallbackReferenceContent, specificCatchAll, specificReferenceNames, overlaid
+				);
+				continue;
+			}
 			int counterpartIndex = -1;
 			// only the leading positions hold the specific fetch's requirements - a generic requirement appended
 			// below is not a counterpart of another generic one
@@ -690,12 +727,53 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
+	 * Adds the parts of an unnamed generic `referenceContent` the reference-specific fetch leaves uncovered to the
+	 * overlaid requirements, following the per-reference-name rule described by
+	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)}. Nothing is added when the specific
+	 * fetch already governs the references in question - that is the whole point of the overlay, and it is what
+	 * keeps the specific fetch's own `filterBy`, `orderBy` and chunking out of the nested request's per-name fold.
+	 *
+	 * @param fallbackRequirement    unnamed `referenceContent` written on the generic summary constraint
+	 * @param specificCatchAll       TRUE when the specific fetch holds an unnamed `referenceContentAll…()`
+	 * @param specificReferenceNames names listed by the unnamed name-specific `referenceContent` requirements of
+	 *                               the specific fetch
+	 * @param overlaid               requirements of the overlaid fetch the inherited projections are appended to
+	 */
+	private static void inheritReferenceContent(
+		@Nonnull ReferenceContent fallbackRequirement,
+		boolean specificCatchAll,
+		@Nonnull Set<String> specificReferenceNames,
+		@Nonnull List<EntityContentRequire> overlaid
+	) {
+		if (specificCatchAll) {
+			// the specific catch-all describes every reference of the summary - nothing is left for the generic
+			// requirement to contribute
+			return;
+		}
+		if (fallbackRequirement.isAllRequested()) {
+			// a generic catch-all stays the fallback for the references the specific fetch does not name; the
+			// nested request resolves the name-specific requirements before it
+			overlaid.add(fallbackRequirement);
+			return;
+		}
+		for (final String referenceName : fallbackRequirement.getReferenceNames()) {
+			if (!specificReferenceNames.contains(referenceName)) {
+				overlaid.add(fallbackRequirement.forReferenceName(referenceName));
+			}
+		}
+	}
+
+	/**
 	 * Returns TRUE for the content requirement kinds that may legitimately occur several times in one fetch
 	 * container and therefore carry a key of their own - a {@link ReferenceContent} keyed by the references it
 	 * names, an {@link AccompanyingPriceContent} keyed by the price it calculates. These are the kinds whose union
 	 * can lose a restriction or refuse outright, which is why
 	 * {@link #overlayKeyedRequirements(EntityFetchRequire, EntityFetchRequire)} leaves them to the
 	 * reference-specific fetch instead of uniting them.
+	 *
+	 * Of the two kinds only an **instance-named** {@link ReferenceContent} reaches this classification: an unnamed
+	 * one is overlaid per reference name by {@link #inheritReferenceContent(ReferenceContent, boolean, Set, List)}
+	 * before the whole-key counterpart search runs.
 	 *
 	 * @param requirement requirement to classify
 	 * @return TRUE when the requirement is of a keyed kind

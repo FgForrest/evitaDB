@@ -402,6 +402,10 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Creates a richer copy of the current `ReferenceContractSerializablePredicate` instance
 	 * by combining its existing state with the details from the provided `EvitaRequest`.
 	 *
+	 * The result is **monotonic**: nothing either side made visible may become invisible on the copy. Reference
+	 * names are therefore not merely unioned - each side's catch-all requirement is folded into the names only the
+	 * other side lists, see {@link #combineReferencedEntities(EvitaRequest)}.
+	 *
 	 * @param evitaRequest the `EvitaRequest` containing additional requirements and state to merge into the new instance.
 	 * @return a new `ReferenceContractSerializablePredicate` instance that combines the state from the current instance
 	 * with the requirements from the provided `EvitaRequest`.
@@ -507,6 +511,15 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Combines and merges referenced entity attribute requests from the provided EvitaRequest.
 	 *
+	 * A reference one side names specifically and the other side covers only by its catch-all requirement is merged
+	 * with **that side's default**, not with nothing: the catch-all is the requirement the reference was fetched
+	 * from there, so its attributes are already on the entity and dropping them would make
+	 * {@link #createRicherCopyWith(EvitaRequest)} hide what an earlier fetch had made visible. Seeding the merged
+	 * map from the two per-name maps alone creates an entry narrower than the default the merged predicate keeps,
+	 * and {@link #getAttributePredicate(String)} prefers that entry over the default - which is exactly how
+	 * `referenceContentAllWithAttributes()` followed by a bare `referenceContent(<name>)` used to lose the
+	 * attributes of the named reference. The merged default itself is left to the caller.
+	 *
 	 * @param evitaRequest the EvitaRequest containing the reference entity fetch requirements.
 	 * @return a map of combined AttributeRequests for referenced entities.
 	 */
@@ -517,11 +530,24 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		if (!this.requiresEntityReferences) {
 			requiredReferences = getReferenceSet(evitaRequest);
 		} else if (evitaRequest.isRequiresEntityReferences()) {
+			final AttributeRequest newDefaultAttributeRequest =
+				ofNullable(evitaRequest.getDefaultReferenceRequirement())
+					.map(RequirementContext::attributeRequest)
+					.orElse(null);
 			requiredReferences = new HashMap<>(this.referenceSet.size() + referenceEntityFetch.size());
-			requiredReferences.putAll(this.referenceSet);
+			for (Entry<String, AttributeRequest> existingEntry : this.referenceSet.entrySet()) {
+				final String referenceName = existingEntry.getKey();
+				requiredReferences.put(
+					referenceName,
+					referenceEntityFetch.containsKey(referenceName) ?
+						existingEntry.getValue() :
+						mergeAttributeRequests(existingEntry.getValue(), newDefaultAttributeRequest)
+				);
+			}
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
 				final String referenceName = newEntry.getKey();
-				final AttributeRequest existingAttributeRequest = requiredReferences.get(referenceName);
+				final AttributeRequest existingAttributeRequest = this.referenceSet.containsKey(referenceName) ?
+					this.referenceSet.get(referenceName) : this.defaultAttributeRequest;
 				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
 				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(
 					existingAttributeRequest, newAttributeRequest

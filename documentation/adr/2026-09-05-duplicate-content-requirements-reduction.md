@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request; refuse only the pairs that have no superset
 date: 2026-09-05
-updated: 2026-09-06 01:32
+updated: 2026-09-06 02:12
 status: accepted
 kind: fix
 issues: [1493]
@@ -220,6 +220,15 @@ For Option E to win again, `referenceHaving` and reference ordering would have t
   `accompanyingPriceContent`) — the specific one is kept and the generic one discarded; any other counterpart —
   the two are united, as they always were. Only the keyed kinds are narrowed, because only their union can drop a
   restriction the specific fetch alone carries or refuse two different ones.
+- **The summary overlay is per reference name for an unnamed `referenceContent`.** That requirement's key is a whole
+  *set* of names, so a generic `referenceContent("a", "b")` shares no key with a specific
+  `referenceContent("a", filterBy(...))` and would be inherited whole - the nested request then folds both onto `a`
+  and drops the specific filter as the superset, or refuses two differing ones. The producer therefore overlays an
+  unnamed `referenceContent` name by name: nothing is inherited beside a specific `referenceContentAll...()`,
+  a generic catch-all is inherited when the specific fetch holds none, and a generic name-specific requirement is
+  inherited only as the projections (`ReferenceContent#forReferenceName`) addressing names no unnamed specific
+  requirement lists. An instance-named `referenceContent` is a separate output slot and keeps the whole-key rule,
+  as does `accompanyingPriceContent`, whose key is a single price name.
 - **Where a refusal actually fires.** For a query the planner prefetches, the constraint-level `combineWith` runs
   first, inside `DefaultPrefetchRequirementCollector`, when `EntityFetchTranslator` hands the raw requirements to the
   prefetch union - so a same-key conflict is refused there, before `EvitaRequest` folds the fetch. The end-to-end
@@ -243,6 +252,7 @@ red, then restored):
 | quality gate fixes | 780 | 5 bugs red → green |
 | end-to-end: Java API, EvitaQL text, driver over gRPC | 444 | 14 red without the fold, 5 without the visibility fix |
 | overlapping name sets + summary overlay | 1015 | 7 red without the per-name fold, 2 red without the overlay |
+| overlay per reference name + enrichment monotonicity | 490 | 3 red without the overlay, 3 red without the fold |
 
 Test classes: `ReferenceContentTest`, `EntityFetchTest`, `EntityGroupFetchTest`, `EntityFetchRequireTest`,
 `AccompanyingPriceContentTest`, `HierarchyContentTest`, `DefaultPrefetchRequirementCollectorTest`, the "Duplicate
@@ -250,7 +260,9 @@ content requirements" group of `EvitaRequestTest`, the prefetch-shape assertions
 `EntityReferenceFetchFunctionalTest` and `EntityReferencePaginationFunctionalTest`, the end-to-end
 `EntityDuplicateContentRequirementFunctionalTest` - whose "Requirements contributed by the query planner" group
 forces prefetching with `debug(PREFER_PREFETCHING)` so the planner-generated overlap is actually built - and
-`ReferenceSummaryFetchOverlayTest` for the summary overlay.
+`ReferenceSummaryFetchOverlayTest` for the summary overlay and its per-reference-name granularity, and the
+"Richer copy keeps what an earlier fetch made visible" group of `ReferenceContractSerializablePredicateTest`
+for the enrichment merge.
 
 A full functional-module run on the final tree executed 23,337 tests with 0 failures; the single error is
 `ExportS3ServiceTest`, which needs a Docker daemon. (An earlier sweep on the quality-gate tree, 23,297 tests, also had
@@ -274,6 +286,12 @@ User-visible behaviour changes, all of them in queries that previously failed or
   being refused; the shared reference is fetched with the union of both bodies
 - a reference-specific summary constraint now keeps its own nested `referenceContent` filter, order or page instead
   of losing it to the generic summary's superset or failing when the two differ
+- an enrichment (`ReferenceContractSerializablePredicate#createRicherCopyWith`) no longer hides reference attributes
+  an earlier fetch had already made visible: each side's catch-all requirement is folded into the reference names
+  only the other side names, so a bare `referenceContent(<name>)` after a `referenceContentAllWithAttributes()`
+  keeps that reference's attributes
+- a nested `referenceContent` naming several references at once inside a summary's `entityFetch` is accepted instead
+  of being refused with "There are multiple reference names, cannot return single name."
 
 **The overlapping-name refusal was replaced after the adversarial review.** The first version of this work refused
 two `referenceContent` requirements claiming one reference through different name sets, on the grounds that neither
@@ -305,6 +323,21 @@ requirement. The engine fetched the catch-all references, the predicate hid them
 and once admitted the decorator never built their chunk, so they came back empty. The rule now lives in the predicate
 only (`isReferenceCovered`, `getRequestedReferenceNames`) and the decorator asks it. No test asserted the old
 behaviour; every existing construction of that predicate passed a null default.
+
+**Fixed in passing - a multi-name nested `referenceContent` inside a summary fetch was refused.**
+`ReferenceSummaryTranslator#verifyFetch` resolved the nested requirement's schema through
+`ReferenceContent#getReferenceName()`, which throws for any requirement listing more than one name, so
+`entityFetch(referenceContent("a", "b"))` written on a `referenceSummary` failed as a usage error although the very
+same fetch works everywhere else. The verifier now resolves every name the requirement lists. The defect predates
+this branch; it is fixed here because the per-name overlay above is unobservable end to end without it.
+
+**Declined for this branch, pre-existing - the histogram-only group fetch bypasses the summary merge.**
+`ReferenceSummaryProducer#resolveGroupEntityFetcher` builds the group-entity fetcher straight from the registered
+reference-specific `ReferenceSummaryRequest` whenever one exists, without running `mergeSpecificWithDefault` first.
+A group-fetch requirement carried by the generic summary alone is therefore omitted for the histogram-only groups the
+producer synthesizes at facet statistics depth `NONE`, and those groups can come back as bare entity references. The
+resolver is untouched by this branch (`git diff dev...HEAD` on that file does not reach it), and repairing it needs
+its own coverage over the histogram path, so it is recorded here for the maintainer to schedule rather than fixed.
 
 **Owed to the maintainer — one judgement call to confirm.** Dropping a one-sided `filterBy` or page is the point
 where this work reversed its own plan (Option E above). It is the right rule for the prefetch union, and it matches

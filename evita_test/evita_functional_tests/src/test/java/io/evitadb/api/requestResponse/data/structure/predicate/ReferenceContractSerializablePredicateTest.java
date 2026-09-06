@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -1328,6 +1329,186 @@ class ReferenceContractSerializablePredicateTest {
 				richerCopy.getAttributePredicate(COVERED_BY_DEFAULT)
 					.getReferenceAttributes().attributeSet()
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Richer copy keeps what an earlier fetch made visible")
+	class EnrichmentMonotonicityTest {
+
+		private static final String NAMED_REFERENCE = "A";
+		private static final String OTHER_REFERENCE = "C";
+
+		/**
+		 * Builds the request an enrichment is driven by.
+		 *
+		 * @param defaultRequirement   requirement covering every reference the per-name map does not name, NULL when
+		 *                             the request carries no catch-all `referenceContent`
+		 * @param referenceEntityFetch requirements the request names specifically
+		 * @return the mocked request
+		 */
+		@Nonnull
+		private EvitaRequest createEnrichingRequest(
+			@Nullable RequirementContext defaultRequirement,
+			@Nonnull Map<String, RequirementContext> referenceEntityFetch
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.isRequiresEntityReferences())
+				.thenReturn(true);
+			Mockito.when(evitaRequest.getReferenceEntityFetch())
+				.thenReturn(referenceEntityFetch);
+			Mockito.when(evitaRequest.getImplicitLocale())
+				.thenReturn(null);
+			Mockito.when(evitaRequest.getRequiredLocales())
+				.thenReturn(Collections.emptySet());
+			Mockito.when(evitaRequest.getDefaultReferenceRequirement())
+				.thenReturn(defaultRequirement);
+			return evitaRequest;
+		}
+
+		/**
+		 * Returns the requirement a bare `referenceContent(<name>)` produces - the reference is fetched, none of its
+		 * attributes are.
+		 *
+		 * @return the requirement asking for no reference attribute
+		 */
+		@Nonnull
+		private RequirementContext createBareRequirementContext() {
+			return new RequirementContext(
+				ManagedReferencesBehaviour.ANY,
+				null, null, null, null, null,
+				NoTransformer.INSTANCE
+			);
+		}
+
+		@Test
+		@DisplayName("bare named reference does not hide the attributes of a catch-all with all of them")
+		void shouldKeepAllAttributesOfCatchAllWhenEnrichedWithBareNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(),
+					createRequirementContext().attributeRequest(),
+					true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(NAMED_REFERENCE, createBareRequirementContext())
+					)
+				);
+
+			assertTrue(
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().isRequiresEntityAttributes()
+			);
+		}
+
+		@Test
+		@DisplayName("bare named reference does not hide the attributes of a catch-all")
+		void shouldKeepCatchAllAttributesWhenEnrichedWithBareNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Collections.emptyMap(),
+					createRequirementContext("F").attributeRequest(),
+					true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(NAMED_REFERENCE, createBareRequirementContext())
+					)
+				);
+
+			assertEquals(
+				Set.of("F"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("catch-all of the enriching request reaches the reference named earlier")
+		void shouldGiveNewCatchAllAttributesToPreviouslyNamedReference() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						createRequirementContext("F"),
+						Collections.emptyMap()
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E", "F"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("catch-all without attributes takes none away from the reference named earlier")
+		void shouldKeepNamedAttributesWhenCatchAllWithoutAttributesArrives() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						createBareRequirementContext(),
+						Collections.emptyMap()
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+		}
+
+		@Test
+		@DisplayName("enrichment naming references only keeps behaving as it did")
+		void shouldLeaveSpecificOnlyEnrichmentUnchanged() {
+			final ReferenceContractSerializablePredicate predicate =
+				new ReferenceContractSerializablePredicate(
+					Map.of(NAMED_REFERENCE, createRequirementContext("D", "E").attributeRequest()),
+					null, true, null, Collections.emptySet()
+				);
+
+			final ReferenceContractSerializablePredicate richerCopy =
+				predicate.createRicherCopyWith(
+					createEnrichingRequest(
+						null,
+						Map.of(
+							NAMED_REFERENCE, createRequirementContext("X"),
+							OTHER_REFERENCE, createRequirementContext("Y")
+						)
+					)
+				);
+
+			assertEquals(
+				Set.of("D", "E", "X"),
+				richerCopy.getAttributePredicate(NAMED_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+			assertEquals(
+				Set.of("Y"),
+				richerCopy.getAttributePredicate(OTHER_REFERENCE)
+					.getReferenceAttributes().attributeSet()
+			);
+			assertFalse(richerCopy.wasFetched("Z"));
 		}
 	}
 }
