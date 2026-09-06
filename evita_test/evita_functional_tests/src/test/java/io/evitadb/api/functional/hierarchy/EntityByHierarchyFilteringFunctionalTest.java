@@ -2917,6 +2917,70 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should refuse self hierarchy statistics restricted by two different hierarchy filters")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldRefuseSelfHierarchyStatisticsWithTwoDifferentHierarchyFilters(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1)),
+								hierarchyWithinRootSelf()
+							),
+							require(
+								page(1, 0),
+								hierarchyOfSelf(
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should allow two different hierarchy filters when no hierarchy statistics are requested")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldAllowTwoDifferentHierarchyFiltersWithoutStatistics(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// only the statistics are ambiguous - the filter itself is a perfectly ordinary disjunction and
+				// the planner translates both of its branches
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(entityPrimaryKeyInSet(1)),
+							hierarchyWithinRootSelf()
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+
+				assertTrue(result.getTotalRecordCount() > 0);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return children for all categories until level three on different filter base")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest

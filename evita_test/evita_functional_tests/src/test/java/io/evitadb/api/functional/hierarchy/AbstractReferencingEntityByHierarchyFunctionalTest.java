@@ -2793,6 +2793,47 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 		);
 	}
 
+	@DisplayName("Should refuse reference hierarchy statistics restricted by two different hierarchy filters")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseReferenceHierarchyStatisticsWithTwoDifferentHierarchyFilters(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1)),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
+				);
+				assertTrue(
+					exception.getMessage().contains(Entities.CATEGORY),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return children for all categories until level three on different filter base")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@ParameterizedTest

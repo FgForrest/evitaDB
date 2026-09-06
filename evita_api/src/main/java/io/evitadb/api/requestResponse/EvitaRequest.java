@@ -125,7 +125,7 @@ public class EvitaRequest {
 	@Nullable private AccompanyingPrice[] accompanyingPrices;
 	@Nullable private Integer start;
 	@Nullable private ConditionalGap[] conditionalGaps;
-	@Nullable private Map<String, HierarchyFilterConstraint> hierarchyWithin;
+	@Nullable private Map<String, List<HierarchyFilterConstraint>> hierarchyWithin;
 	@Nullable private Boolean requiredWithinHierarchy;
 	@Nullable private Boolean requiresHierarchyStatistics;
 	@Nullable private Boolean requiresHierarchyParents;
@@ -1660,7 +1660,15 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns {@link HierarchyWithin} query
+	 * Returns the {@link HierarchyWithin} query restricting the hierarchy of `referenceName`, or `null` when the
+	 * query restricts none. The result seeds the computation of hierarchy statistics, which can be based on exactly
+	 * one hierarchy filter - a query that restricts one hierarchy by two contradicting constraints is therefore
+	 * refused here rather than described by statistics matching only one of them. Note that the filter itself stays
+	 * legal: only asking for the statistics of an ambiguously restricted hierarchy is not.
+	 *
+	 * @param referenceName the reference whose hierarchy filter is looked up, `null` for the queried entity itself
+	 * @return the single hierarchy filter aimed at that target, or `null` when there is none
+	 * @throws EvitaInvalidUsageException when the query restricts the target's hierarchy by two different constraints
 	 */
 	@Nullable
 	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
@@ -1673,11 +1681,37 @@ public class EvitaRequest {
 						this.query.getFilterBy(),
 						HierarchyFilterConstraint.class
 					)
-					.forEach(it -> this.hierarchyWithin.put(it.getReferenceName().orElse(null), it));
+					.forEach(
+						it -> this.hierarchyWithin
+							.computeIfAbsent(it.getReferenceName().orElse(null), s -> new ArrayList<>(2))
+							.add(it)
+					);
 			}
 			this.requiredWithinHierarchy = true;
 		}
-		return this.hierarchyWithin == null ? null : this.hierarchyWithin.get(referenceName);
+		final List<HierarchyFilterConstraint> constraints = this.hierarchyWithin == null ?
+			null : this.hierarchyWithin.get(referenceName);
+		if (constraints == null || constraints.isEmpty()) {
+			return null;
+		}
+		final HierarchyFilterConstraint theConstraint = constraints.get(0);
+		for (int i = 1; i < constraints.size(); i++) {
+			final HierarchyFilterConstraint anotherConstraint = constraints.get(i);
+			if (!theConstraint.equals(anotherConstraint)) {
+				// the statistics of a single hierarchy are computed from exactly one hierarchy filter, while the
+				// filter planner translates every one of them - returning either would make the extra result
+				// disagree with the record set it is supposed to describe
+				final String reason = "Statistics of " +
+					(referenceName == null ?
+						"the queried entity's own hierarchy" : "the hierarchy of reference `" + referenceName + "`") +
+					" are requested while the query restricts that hierarchy by two different constraints - " +
+					"the statistics can be computed from only one of them";
+				throw new EvitaInvalidUsageException(
+					reason + ": " + theConstraint + " and " + anotherConstraint + ".", reason + "."
+				);
+			}
+		}
+		return theConstraint;
 	}
 
 	/**
