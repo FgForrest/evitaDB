@@ -74,6 +74,14 @@ target entity does not exist is a projection like the other three, and the prefe
 `referenceHaving` is then evaluated against — leaving it in made the same query answer differently depending
 on which plan the planner picked.
 
+**`forPrefetch()` is not one method — every requirement kind that carries an output bound needs its own
+override.** `HierarchyContent` had none, so its `stopAt` reached the union and `combineWith` refused two
+different bounds. The pair that collides there does not even describe one output slot: a `hierarchyContent` in
+the query's `entityFetch` bounds the parent chain of the *returned entities*, while one written inside a
+`hierarchyOfSelf` computer bounds the parent chain of the *hierarchy node bodies*, and both are honoured in the
+response from their own derived requests. When a new requirement kind gains a bound, ask what the union should
+see before asking what `combineWith` should do.
+
 **This exemption is invisible in the code unless you go looking for it**, which is the trap. The collector and
 the client-facing fold both call `isCombinableWith` / `combineWith`, so a change that makes `combineWith`
 stricter silently makes the *union* stricter too, and a valid query that never contained a contradiction
@@ -108,6 +116,8 @@ the answer no longer depends on which of the two arrived first.
 | 2 | `EntityFetchRequireResolver` (GraphQL) | one accompanying price name selected two ways |
 | 2 | `AttributeHistogramResolver` (GraphQL) | one attribute's histogram selected with two bucket counts |
 | 3 | `EntityContentRequire#forPrefetch` | what a requirement looks like once it is only about loading |
+| 3 | `ReferenceContent#forPrefetch` | strips `filterBy`, `orderBy`, chunking, `ManagedReferencesBehaviour` |
+| 3 | `HierarchyContent#forPrefetch` | strips `stopAt` |
 | 3 | `DefaultPrefetchRequirementCollector` | the widening union, order-independent in both directions |
 
 ## Two things that decide *where* a refusal goes
@@ -117,16 +127,20 @@ not a refusal, it is a coin flip. `priceHistogram` was decided inside a branch t
 query filters on price, so the same duplicated pair threw for a price-filtered query and returned silently for
 an attribute-filtered one. It now lives in `PriceHistogramTranslator`, which runs for every requirement.
 
-> **The extra result phase is not such a path when the data is empty.** `QueryPlanner#planQuery` returns
-> `QueryPlanBuilder.empty(context)` as soon as `IndexSelectionResult#isEmpty()`, before any extra result
-> producer is created — so every refusal that lives in an extra result translator is skipped for a query whose
-> index selection came out empty. Measured: `hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …),
-> fromRoot("megaMenu", …))` is refused under `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns
-> an empty result under `entityPrimaryKeyInSet(999999)`. This predates the rules and applies equally to the
-> schema-validation refusals `EvitaArchivingTest` asserts (`ReferenceNotFacetedException`,
-> `AttributeNotFilterableException`, `HierarchyNotIndexedException`), so the query never answers *wrongly* —
-> it merely starts failing once data appears. Closing it means a data-independent validation pass over the
-> require tree ahead of index selection, which is a design decision nobody has taken yet.
+> **The extra result phase is deliberately not such a path when the data is empty, and that is settled.**
+> `QueryPlanner#planQuery` returns `QueryPlanBuilder.empty(context)` as soon as
+> `IndexSelectionResult#isEmpty()`, before any extra result producer is created — so every refusal that lives
+> in an extra result translator is skipped for a query whose index selection came out empty. Measured:
+> `hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …), fromRoot("megaMenu", …))` is refused under
+> `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns an empty result under
+> `entityPrimaryKeyInSet(999999)`.
+>
+> **Do not "fix" this.** The early stop predates the rules and applies equally to the schema-validation
+> refusals `EvitaArchivingTest` asserts (`ReferenceNotFacetedException`, `AttributeNotFilterableException`,
+> `HierarchyNotIndexedException`), so no query ever answers *wrongly* — one merely starts failing once data
+> appears. The shortcut is kept on purpose: a filter that produces nothing must not pay for a validation pass
+> whose only product is an error message. Closing the inconsistency would mean a data-independent validation
+> phase over the require tree ahead of index selection, and that price is not worth the consistency.
 
 **Prefer keying over refusing, when the consumer can name what it wants.** A refusal is the answer only when
 two requirements genuinely compete for one slot. If the slot exists merely because the value was stored globally,

@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 16:15
+updated: 2026-09-06 17:55
 status: accepted
 kind: fix
 issues: [1493]
@@ -489,6 +489,32 @@ The third finding of the same reading is settled by the same change: the set-onc
 `hierarchyWithin` naming *different* references, and the keying removes that as a side effect. Only the
 cross-reference case remains untested, because the test datasets carry a single hierarchical reference.
 
+### What the code quality pipeline found afterwards
+
+A four-agent pass over the finished branch (tests, latent defects, style, javadoc) added one behavioural fix
+and closed five coverage gaps.
+
+**`HierarchyContent` never got a `forPrefetch()` override**, so its `stopAt` reached the prefetch union, where
+`isFullyContainedWithin` returns `false` on any bound and the fallback `combineWith` refuses two differing
+ones. The colliding pair does not describe one output slot at all: a `hierarchyContent` in the query's own
+`entityFetch` bounds the parent chain of the returned entities, while one inside a `hierarchyOfSelf` computer
+bounds the parent chain of the hierarchy node bodies — both are honoured in the response, each materialised
+from its own derived request, and only the "load at least this" union saw a contradiction. The override strips
+the bound; an end-to-end test proves the widened union leaks into neither response.
+
+The coverage gaps were the more useful half. The sharpest: `FinderVisitorTest` asserted only that the message
+contains `"2"`, which the *old* message satisfied too — so the commit that made
+`MoreThanSingleResultException` name the offending constraints would have survived a full revert with the suite
+green. Also uncovered were `ReferenceContent#forReferenceName`, `EvitaRequest#getFacetGroupExclusivity` (called
+by no test in the repository), `FacetSummaryAdapter#collectReferenceSpecificNames`, and the *agreement* branch
+of `AttributeHistogramProducer#addAttributeHistogramRequest`.
+
+Two style items: `ReferenceContent`'s two new private helpers declared `Optional` as **parameters**, which the
+project forbids outright, and `requireDefaultReferenceSummary` lost its javadoc to an insertion. One finding was
+declined on inspection — `combineWith` narrowing `ManagedReferencesBehaviour` is not the one-sided `filterBy`
+case, because `getManagedReferencesBehaviour()` answers `ANY` for an absent argument, so refusing the pair would
+refuse every sibling that merely said nothing.
+
 ### What the adversarial review of the finished branch found
 
 A challenge review of the whole branch raised six blockers. Four were confirmed by reproduction and fixed;
@@ -501,7 +527,7 @@ each is a commit with its reproduction quoted. One was declined, one is recorded
 | the generic summary's fetch is validated against references a specific summary claims | **fixed** — overridden names asked of the result adapter |
 | repeated summary constraints silently last-win | **fixed** — refused per target, identical repeats still folded |
 | `getFacetGroupNegation` answers at either relation level | **declined** — see below |
-| the empty-index shortcut skips every extra result refusal | **recorded** — see below |
+| the empty-index shortcut skips every extra result refusal | **declined** — see below |
 
 **The negation level fallback is deliberate.** Negation declared at one level is returned for the other, because
 the two are De Morgan equivalents; the review is right that a non-default `FacetCalculationRules` can break the
@@ -511,16 +537,21 @@ engine asks at the other one, which is a worse failure than the hypothetical one
 non-default rule set makes within-group combination anything but OR; the fix then is to refuse the bare form,
 not to remove the fallback.
 
-**Two things were found and deliberately not fixed here**, because each needs a decision wider than this issue:
+**The empty-index shortcut stays as it is, deliberately.** Every refusal that lives in an extra result
+translator is skipped when the index selection comes out empty, because `QueryPlanner#planQuery` returns
+`QueryPlanBuilder.empty(context)` before any producer is created. Measured:
+`hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …), fromRoot("megaMenu", …))` is refused under
+`hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns an empty result under
+`entityPrimaryKeyInSet(999999)`.
 
-- **Every refusal that lives in an extra result translator is skipped when the index selection comes out
-  empty.** `QueryPlanner#planQuery` returns `QueryPlanBuilder.empty(context)` before any producer is created.
-  Measured: `hierarchyOfReference(CATEGORY, fromRoot("megaMenu", …), fromRoot("megaMenu", …))` is refused under
-  `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(1))` and returns an empty result under
-  `entityPrimaryKeyInSet(999999)`. The behaviour predates this work and applies equally to the schema
-  validation refusals `EvitaArchivingTest` asserts, so no query answers *wrongly* — one merely starts failing
-  once data appears. Closing it means a data-independent validation pass over the require tree ahead of index
-  selection, and that is a new planning phase, not a patch.
+**Rejected because** the fix costs more than the inconsistency. The early stop predates this work and applies
+equally to the schema validation refusals `EvitaArchivingTest` asserts, so no query answers *wrongly* — one
+merely starts failing once data appears. A filter that produces nothing must not pay for a validation pass
+whose only product is an error message, and closing the gap would mean a data-independent validation phase over
+the require tree ahead of index selection: a new planning phase, not a patch. Revisit only if a query is ever
+found that returns a *wrong* answer rather than an empty one through this path.
+
+**One thing was found and deliberately not fixed here**, because it needs a decision wider than this issue:
 
 - **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.**
   Measured on both sides. The engine returns both:
