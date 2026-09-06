@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-05 23:35
+updated: 2026-09-06 13:10
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-09-06-go-live-session-drain, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -542,10 +542,13 @@ proportionally larger against a smaller total, and the census charged the tempor
   lost" — understated it: measured on the unfixed build, the racing write returned normally, the running
   ALIVE catalog served that entity from index objects it carries by reference, and a reload of the same
   storage did not have it. That is an in-memory catalog disagreeing with its own published state, not a
-  plain lost write. The operator now owns the catalog's `SessionRegistry`, drains it with `REJECT`
-  synchronously before the warm-up flush pops the trapped changes, and lifts the suspension and restores
-  the warm-up catalog behind its name when the go-live fails; `Evita#createSessionInternal` consults the
-  transitional placeholder before the registry, so a client racing the transition still gets
+  plain lost write. The operator now owns the catalog's `SessionRegistry` and drains it with
+  `REJECT` before `Catalog#goLive()` publishes the ALIVE bootstrap record - that publication, not the warm-up
+  flush's pop, is the safety boundary, established by measurement and recorded in
+  `2026-09-06-go-live-session-drain`. Running the drain ahead of the flush as well is a deliberate preference.
+  The operator lifts the suspension and restores the warm-up catalog behind its name when the go-live
+  fails; `Evita#createSessionInternal` consults the transitional placeholder before the registry, so a
+  client racing the transition still gets
   `CatalogGoingLiveException`.
 - **The site inventory needed a second sweep, and that is the process lesson.** One reading of a
   6,000-line region produced four classes of omission, two of which would have thrown on first
