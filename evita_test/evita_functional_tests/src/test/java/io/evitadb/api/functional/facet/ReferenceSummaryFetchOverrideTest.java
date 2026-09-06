@@ -125,6 +125,7 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_BRAND_ONLY = "brandOnly";
 
 	private static final int PRODUCT_PK = 100;
 	private static final int BRAND_PK = 1;
@@ -170,6 +171,9 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 			.withoutGeneratedPrimaryKey()
 			.withAttribute(ATTRIBUTE_CODE, String.class)
 			.withAttribute(ATTRIBUTE_NAME, String.class)
+			// declared on the brand alone - a heterogeneous schema is what makes a generic requirement that is
+			// valid for one faceted reference and invalid for another expressible
+			.withAttribute(ATTRIBUTE_BRAND_ONLY, String.class)
 			.withReferenceToEntity(
 				REF_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.indexedForFilteringAndPartitioning()
@@ -239,6 +243,7 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 		session.createNewEntity(ENTITY_BRAND, BRAND_PK)
 			.setAttribute(ATTRIBUTE_CODE, "brand-" + BRAND_PK)
 			.setAttribute(ATTRIBUTE_NAME, "Brand " + BRAND_PK)
+			.setAttribute(ATTRIBUTE_BRAND_ONLY, "brand-only-" + BRAND_PK)
 			.setReference(REF_TAGS, TAG_PKS[0])
 			.setReference(REF_TAGS, TAG_PKS[1])
 			.setReference(REF_TAGS, TAG_PKS[2])
@@ -453,6 +458,92 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanupTestPaths(this.paths);
+	}
+
+	/**
+	 * The generic summary does not describe a reference that a reference-specific summary claims, so its
+	 * requirements must not be validated against that reference's schema either. A fetch valid only for the
+	 * references the generic form actually governs used to be refused because the overridden reference's target
+	 * schema does not declare the attribute.
+	 */
+	@Test
+	@DisplayName("should not validate the generic summary fetch against an overridden reference")
+	void shouldNotValidateGenericSummaryFetchAgainstOverriddenReference() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							// `brandOnly` is declared by the brand alone - and the brand is the only reference this
+							// constraint still describes
+							referenceSummary(
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_BRAND_ONLY))
+							),
+							referenceSummaryOfReference(
+								REF_CATEGORIES, FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE))
+							)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertEquals(
+					"brand-only-" + BRAND_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_BRANDS)
+					).getAttribute(ATTRIBUTE_BRAND_ONLY)
+				);
+				assertEquals(
+					"category-" + CATEGORY_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_CATEGORIES)
+					).getAttribute(ATTRIBUTE_CODE)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * The counterpart of the rule above: a reference-specific summary is validated against its own reference only,
+	 * never against the other faceted references of the queried entity.
+	 */
+	@Test
+	@DisplayName("should validate the specific summary fetch against its own reference only")
+	void shouldValidateSpecificSummaryFetchAgainstItsOwnReferenceOnly() {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReferenceContract> result = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						require(
+							referenceSummaryOfReference(
+								REF_BRANDS, FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_BRAND_ONLY))
+							)
+						)
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				assertEquals(
+					"brand-only-" + BRAND_PK,
+					assertInstanceOf(
+						SealedEntity.class, singleFacetClassifier(summary, REF_BRANDS)
+					).getAttribute(ATTRIBUTE_BRAND_ONLY)
+				);
+				return null;
+			}
+		);
 	}
 
 	/**

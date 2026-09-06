@@ -177,12 +177,19 @@ public class ReferenceSummaryTranslator
 			facetIndexes, resultAdapter, extraResultPlanner
 		);
 
+		// the references a reference-specific summary of the same spelling claims are not described by this
+		// constraint, so they take no part in validating its requirements - see `collectReferenceSpecificNames`
+		final Set<String> referencesDescribedBySpecificSummary = resultAdapter.collectReferenceSpecificNames(
+			extraResultPlanner.getEvitaRequest().getQuery().getRequire()
+		);
+
 		final EntityFetch facetEntityRequirement = referenceEntityRequirement != null ?
 			verifyFetch(
 				entitySchema,
 				referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() ?
 					referenceSchema.getReferencedEntityType() : null,
 				referenceEntityRequirement,
+				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
 			null;
@@ -193,6 +200,7 @@ public class ReferenceSummaryTranslator
 				                   ? referenceSchema.getReferencedGroupType()
 					: null,
 				groupEntityRequirement,
+				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
 			null;
@@ -274,11 +282,16 @@ public class ReferenceSummaryTranslator
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Function<ReferenceSchemaContract, String> referencedType,
 		@Nonnull T requirement,
+		@Nonnull Set<String> referencesDescribedBySpecificSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		entitySchema.getReferences()
 			.values()
 			.stream()
+			// a reference claimed by a reference-specific summary is not described by this generic one at all, so
+			// its requirements must not be validated against that reference's schema either - a fetch that is valid
+			// only for the references the generic form actually governs would otherwise be refused
+			.filter(referenceSchema -> !referencesDescribedBySpecificSummary.contains(referenceSchema.getName()))
 			.filter(
 				referenceSchema -> extraResultPlanner
 					.getEvitaRequest()
