@@ -734,18 +734,37 @@ public class EngineTransactionManager implements Closeable {
 				onProgressCompletion = progress -> onCompletion.run();
 			}
 
-			return new ProgressRecord<>(
-				engineMutationOperator.getOperationName(engineMutation),
-				progressObserver == null ? Functions.noOpIntConsumer() : progressObserver,
-				engineMutationOperator.applyMutation(
-					transactionId, engineMutation, this.evita,
-					this::updateEngineStateBeforeEngineMutation,
-					this::updateEngineStateAfterEngineMutation
-				),
-				onProgressExecution,
-				onProgressCompletion,
-				ProgressingFuture.unrejectableExecutor(this.engineExecutor)
+			// Hoisted out of the constructor call below, and the operation name with it so the evaluation order
+			// is the one the arguments used to give. What the local buys is the `catch`: an operator that has
+			// already taken a placeholder and suspended a session registry hangs its compensation on this
+			// future's `onFailure`, and until the future is handed to the executor nothing else can reach it.
+			final String operationName = engineMutationOperator.getOperationName(engineMutation);
+			final ProgressingFuture<T> operatorFuture = engineMutationOperator.applyMutation(
+				transactionId, engineMutation, this.evita,
+				this::updateEngineStateBeforeEngineMutation,
+				this::updateEngineStateAfterEngineMutation
 			);
+			try {
+				return new ProgressRecord<>(
+					operationName,
+					progressObserver == null ? Functions.noOpIntConsumer() : progressObserver,
+					operatorFuture,
+					onProgressExecution,
+					onProgressCompletion,
+					ProgressingFuture.unrejectableExecutor(this.engineExecutor)
+				);
+			} catch (Throwable ex) {
+				// `ProgressRecord`'s constructor ends by submitting the future to the executor, so it can throw -
+				// realistically a `RejectedExecutionException` from an engine executor that is shutting down,
+				// which `unrejectableExecutor` exempts from the queue limit but not from a shutdown. The operator
+				// has already returned by then, so its own `catch` cannot see this. Without the completion below
+				// the future would never be executed, never complete, and therefore never run `undoOperations` -
+				// leaving a catalog behind its transition placeholder with a suspended registry for the life of
+				// the process. `completeExceptionally` is the route every operator already hangs its undo on, and
+				// it absorbs a failing undo itself. Rethrown unchanged: the caller still failed.
+				operatorFuture.completeExceptionally(ex);
+				throw ex;
+			}
 		}
 	}
 
