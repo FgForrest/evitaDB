@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request; refuse only the pairs that have no superset
 date: 2026-09-05
-updated: 2026-09-06 00:22
+updated: 2026-09-06 00:26
 status: accepted
 kind: fix
 issues: [1493]
@@ -239,9 +239,10 @@ content requirements" group of `EvitaRequestTest`, the prefetch-shape assertions
 `EntityReferenceFetchFunctionalTest` and `EntityReferencePaginationFunctionalTest`, and the end-to-end
 `EntityDuplicateContentRequirementFunctionalTest`.
 
-A full functional-module sweep on the quality-gate tree ran 23,297 tests with 0 failures. The three errors were
-environmental and green on isolated reruns: `ExportS3ServiceTest` with no Docker available, and two dataset setups
-that ran out of heap or lost their transport inside a parallel fork.
+A full functional-module run on the final tree executed 23,329 tests with 0 failures; the single error is
+`ExportS3ServiceTest`, which needs a Docker daemon. (An earlier sweep on the quality-gate tree, 23,297 tests, also had
+0 failures; its two extra errors were dataset setups starved of heap in a fork running 24 classes concurrently and
+were green on isolated reruns. The final run used a fixed parallelism of 8 and a 12 GB fork heap.)
 
 ## Consequences & open follow-ups
 
