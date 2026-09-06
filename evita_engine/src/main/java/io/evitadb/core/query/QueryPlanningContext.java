@@ -33,6 +33,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -272,11 +273,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Getter
 	private HierarchyFilteringPredicate hierarchyHavingPredicate;
 	/**
-	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
-	 * the query result to be reused in other query evaluation phases (require). Shares the write-once contract of
-	 * {@link #hierarchyHavingPredicate} and is read through {@link #getRootHierarchyNodes()}.
+	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
+	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
+	 * computed. Keyed by the constraint itself, because a single query may legitimately carry several of them -
+	 * two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
+	 * hierarchy must never observe the roots of another. Read through
+	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}.
 	 */
-	private Formula rootHierarchyNodesFormula;
+	@Nullable
+	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
@@ -1501,15 +1507,24 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 
 	/**
-	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase. Can be called
-	 * only once per context - two different root sets within one query would mean the filter and the hierarchy
-	 * statistics disagree about what the hierarchy is.
+	 * Sets resolved hierarchy root nodes formula of a single hierarchy filter constraint, to be shared among the
+	 * filter and the requirement phase.
 	 *
+	 * The first formula recorded for a constraint wins. A constraint is translated once per scope index and the
+	 * translation deliberately lets the first applicable scope take precedence (LIVE before ARCHIVED), so the roots
+	 * have to follow the same precedence rather than being overwritten by a later scope.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
 	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
-	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
-		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
-		this.rootHierarchyNodesFormula = rootHierarchyNodesFormula;
+	public void setRootHierarchyNodesFormula(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Formula rootHierarchyNodesFormula
+	) {
+		if (this.rootHierarchyNodesFormula == null) {
+			this.rootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
+		}
+		this.rootHierarchyNodesFormula.putIfAbsent(hierarchyFilterConstraint, rootHierarchyNodesFormula);
 	}
 
 	/**
@@ -1690,13 +1705,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns primary key of all root hierarchy nodes that cover the requested hierarchy.
+	 * Returns primary keys of all root hierarchy nodes that cover the hierarchy requested by the passed constraint.
 	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the roots always belong to that very hierarchy. A NULL
+	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
+	 * bitmap, which the producers read as "the index roots".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
 	 * @return bitmap of root hierarchy nodes
 	 */
 	@Nonnull
-	public Bitmap getRootHierarchyNodes() {
+	public Bitmap getRootHierarchyNodes(@Nullable HierarchyFilterConstraint hierarchyFilterConstraint) {
 		return ofNullable(this.rootHierarchyNodesFormula)
+			.map(it -> hierarchyFilterConstraint == null ? null : it.get(hierarchyFilterConstraint))
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}

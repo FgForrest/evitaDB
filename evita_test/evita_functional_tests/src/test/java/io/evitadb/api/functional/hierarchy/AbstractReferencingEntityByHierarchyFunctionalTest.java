@@ -723,6 +723,40 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 		);
 	}
 
+	@DisplayName("Should return products in either of two selected category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInEitherOfTwoCategorySubtrees(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							or(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7, 2),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products outside the selected category subtree")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
@@ -748,6 +782,41 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 					originalProductEntities,
 					sealedEntity -> !isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7),
 					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse hierarchy statistics restricted by two hierarchy filters joined by or")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseHierarchyStatisticsWithTwoHierarchyFiltersJoinedByOr(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								or(
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(Entities.CATEGORY, fromRoot("megaMenu", stopAt(level(1))))
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
 				);
 				return null;
 			}

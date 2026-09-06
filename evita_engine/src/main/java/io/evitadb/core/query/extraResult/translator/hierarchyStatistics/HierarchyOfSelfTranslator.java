@@ -109,7 +109,7 @@ public class HierarchyOfSelfTranslator
 
 			// the request is simple - we use global index of current entity
 			hierarchyStatisticsProducer.interpret(
-				extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
+				() -> extraResultPlanner.getQueryContext().getRootHierarchyNodes(hierarchyWithin),
 				queriedSchema,
 				null,
 				extraResultPlanner.getAttributeSchemaAccessor(),
