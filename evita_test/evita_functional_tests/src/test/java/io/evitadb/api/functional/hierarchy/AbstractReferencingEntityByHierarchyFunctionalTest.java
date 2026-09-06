@@ -24,7 +24,9 @@
 package io.evitadb.api.functional.hierarchy;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.functional.hierarchy.EntityByHierarchyFilteringFunctionalTest.TestHierarchyPredicate;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -84,6 +86,7 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HIERARCHY;
@@ -104,6 +107,28 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
+
+	/**
+	 * Runs a product query restricted by the passed filtering constraint and returns the matching primary keys.
+	 */
+	@Nonnull
+	private static Set<Integer> queryProductPrimaryKeys(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint filter
+	) {
+		return session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(filter),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			)
+			.getRecordData()
+			.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+	}
 
 	/**
 	 * Returns true when the entity references any of the passed categories or any of their descendants - the reference
@@ -818,6 +843,36 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
 					exception.getMessage()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return the union of two differently excluded category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnUnionOfTwoDifferentlyExcludedCategorySubtrees(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// each branch declares its own `excluding` filter - the two node visibility predicates differ
+				final FilterConstraint firstBranch = hierarchyWithin(
+					Entities.CATEGORY, entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(2))
+				);
+				final FilterConstraint secondBranch = hierarchyWithin(
+					Entities.CATEGORY, entityPrimaryKeyInSet(6), excluding(entityPrimaryKeyInSet(7))
+				);
+
+				final Set<Integer> first = queryProductPrimaryKeys(session, firstBranch);
+				final Set<Integer> second = queryProductPrimaryKeys(session, secondBranch);
+				final Set<Integer> both = queryProductPrimaryKeys(session, or(firstBranch, secondBranch));
+
+				assertFalse(first.isEmpty(), "the first branch must match something for the test to mean anything");
+				assertFalse(second.isEmpty(), "the second branch must match something for the test to mean anything");
+
+				final Set<Integer> expected = new HashSet<>(first);
+				expected.addAll(second);
+				assertEquals(expected, both);
 				return null;
 			}
 		);

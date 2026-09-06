@@ -263,15 +263,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private EntitySchema entitySchema;
 	/**
-	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be included/excluded from traversal.
+	 * Contains the {@link HierarchyFilteringPredicate} of each translated hierarchy filter constraint, keeping
+	 * information about which hierarchy nodes that constraint includes or excludes from traversal.
 	 *
 	 * It is resolved by the filtering phase and handed over to the requirement phase, so that hierarchy statistics
-	 * observe exactly the same node visibility as the filter did. It can be set only once per context - see
-	 * {@link #setHierarchyHavingPredicate(HierarchyFilteringPredicate)}.
+	 * observe exactly the same node visibility as the filter did. Keyed by the constraint for the same reason as
+	 * {@link #rootHierarchyNodesFormula} - a query may carry several hierarchy filters and the statistics of one
+	 * hierarchy must never observe the visibility another one declared. Read through
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, HierarchyFilteringPredicate)}.
 	 */
-	@Getter
-	private HierarchyFilteringPredicate hierarchyHavingPredicate;
+	@Nullable
+	private Map<HierarchyFilterConstraint, HierarchyFilteringPredicate> hierarchyHavingPredicate;
 	/**
 	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
 	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
@@ -1528,18 +1531,43 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase. Setting
-	 * it repeatedly is tolerated as long as the predicate is equal to the one already stored - the same constraint
-	 * may legitimately be resolved by more than one translator - but a *different* predicate is rejected.
+	 * Sets resolved hierarchy having/exclusion predicate of a single hierarchy filter constraint, to be shared among
+	 * the filter and the requirement phase.
 	 *
-	 * @param hierarchyHavingPredicate predicate deciding which hierarchy nodes are traversable
+	 * The first predicate recorded for a constraint wins, for the same reason as in
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}: a constraint is translated once per
+	 * scope index and the first applicable scope takes precedence.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility was resolved
+	 * @param hierarchyHavingPredicate  predicate deciding which hierarchy nodes are traversable
 	 */
-	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(
-			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
-			"The hierarchy exclusion predicate can be set only once!"
-		);
-		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
+	public void setHierarchyHavingPredicate(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate
+	) {
+		if (this.hierarchyHavingPredicate == null) {
+			this.hierarchyHavingPredicate = CollectionUtils.createHashMap(4);
+		}
+		this.hierarchyHavingPredicate.putIfAbsent(hierarchyFilterConstraint, hierarchyHavingPredicate);
+	}
+
+	/**
+	 * Returns the node visibility predicate declared by the passed hierarchy filter constraint.
+	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the visibility always belongs to that very hierarchy.
+	 * A NULL constraint, and a constraint that declares no `having` / `havingAnyChild` / `excluding` filter, both
+	 * yield NULL, which the computers read as "every node is traversable".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility is asked for, may be NULL
+	 * @return the predicate declared by that constraint, or NULL when it declared none
+	 */
+	@Nullable
+	public HierarchyFilteringPredicate getHierarchyHavingPredicate(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint
+	) {
+		return this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null ?
+			null : this.hierarchyHavingPredicate.get(hierarchyFilterConstraint);
 	}
 
 	/**

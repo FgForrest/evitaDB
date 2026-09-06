@@ -174,6 +174,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		return createFormulaFromHierarchyIndex(
 			nodeIds,
 			createAndStoreHavingPredicate(
+				hierarchyWithin,
 				nodeIds,
 				queryContext,
 				scopesToLookup,

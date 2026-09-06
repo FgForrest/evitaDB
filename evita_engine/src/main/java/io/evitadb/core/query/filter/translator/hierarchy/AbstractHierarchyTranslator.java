@@ -69,11 +69,13 @@ import static io.evitadb.api.query.QueryConstraints.*;
 public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
 
 	/**
-	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to {@link QueryPlanningContext}
-	 * for later use.
+	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to
+	 * {@link QueryPlanningContext} for later use, under the constraint that declared it - the requirement phase
+	 * asks for the visibility of the hierarchy it describes, never for whatever a sibling constraint declared.
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
 		@Nullable int[] parentPks,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Set<Scope> requestedScopes,
@@ -109,7 +111,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				referenceSchema
 			);
 
-			queryContext.setHierarchyHavingPredicate(predicate);
+			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, predicate);
 			return predicate;
 		}
 	}
