@@ -50,17 +50,19 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -102,9 +104,11 @@ import static java.util.Optional.ofNullable;
 public final class SessionRegistry {
 	/**
 	 * How long {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} waits for the sessions it asked to close
-	 * before it gives up and fails its own premise. It is a bound on the *deferred* case only - a session whose
-	 * method has not returned yet, whose forced close `EvitaSessionProxy` therefore postpones and which the drain
-	 * loop can only wait out.
+	 * before it gives up and fails its own premise. It bounds the drain **end to end**, and both of the cases it
+	 * has to cover: a session whose method has not returned yet, whose forced close `EvitaSessionProxy` postpones
+	 * and which the loop can only wait out; and a close that has already started, whose completion is awaited for
+	 * whatever is left of this budget rather than indefinitely. Expiry is not a partial success - the drain's
+	 * premise then reports the sessions still standing and throws.
 	 *
 	 * **CALIBRATION - `LongRunningCatalogGoLiveDrainTimeoutTest` is priced by this number.** That test
 	 * (evita_test/evita_long_running_tests, io.evitadb.core) parks a warm-up write inside the schema check and holds
@@ -123,6 +127,14 @@ public final class SessionRegistry {
 	 * ```
 	 */
 	private static final long DRAIN_GIVE_UP_TIMEOUT_MILLIS = 5000L;
+	/**
+	 * {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} in nanoseconds. The drain measures its budget on
+	 * {@link System#nanoTime()} rather than on the wall clock, because the budget is a duration and
+	 * {@link System#currentTimeMillis()} can step - a backwards step would extend the drain, a forwards one would
+	 * cut it short.
+	 */
+	private static final long DRAIN_GIVE_UP_TIMEOUT_NANOS =
+		TimeUnit.MILLISECONDS.toNanos(DRAIN_GIVE_UP_TIMEOUT_MILLIS);
 	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
@@ -307,11 +319,18 @@ public final class SessionRegistry {
 				this.activeSessions.size()
 			);
 			this.lastSuspensionInfo.set(suspensionInformation);
-			final long start = System.currentTimeMillis();
-			// reuse list across iterations to reduce allocations
-			final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
+			final long start = System.nanoTime();
 			do {
-				futures.clear();
+				// A fresh CONCURRENT collection per iteration, and neither half of that is incidental.
+				// `executeWhenMethodIsNotRunning` may defer its lambda and run it later on the SESSION's own thread,
+				// so the `add` below can land while this thread is draining or discarding the collection. A plain
+				// `ArrayList` under that interleaving loses a future outright, or exposes a non-zero size holding
+				// `null` and makes `allOf` throw. Reuse is what made the second outcome reachable, so the collection
+				// is built fresh here rather than cleared at the top of each pass; a future added to a previous
+				// pass's queue after this thread has moved on is simply not waited for, exactly as clearing the
+				// reused list used to leave it - and the loop keeps going regardless, because it exits on
+				// `activeSessions` emptying rather than on the futures it managed to collect.
+				final Queue<CompletableFuture<CommitVersions>> futures = new ConcurrentLinkedQueue<>();
 				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
 					//noinspection resource
 					final EvitaSession plainSession = sessionTuple.plainSession();
@@ -341,14 +360,51 @@ public final class SessionRegistry {
 							);
 					}
 				}
-				// wait for all futures to complete
-				CompletableFuture
-					.allOf(futures.toArray(new CompletableFuture[0]))
-					.join();
+				// Waited for what is LEFT of the drain's budget, never indefinitely. An unbounded `join` here bounded
+				// nothing but the deferred case: a close that had already started and whose flush hung was waited on
+				// forever, and `MakeCatalogAliveMutationOperator` holds `engineStateLock` across this call, so every
+				// other engine mutation would then time out behind it.
+				//
+				// On expiry the wait simply stops - the close futures are deliberately NOT cancelled. Cancelling a
+				// close whose flush is in progress is worse than letting it finish unattended, and the point of the
+				// bound is to stop holding the engine state lock rather than to interrupt the flush. The loop
+				// condition below is then false by construction, so expiry falls through to the premise, which
+				// reports the sessions still standing and throws - the same failure this method already produced
+				// when the deferred case ran out of time.
+				//
+				// **The consequence, which the unbounded `join` could never produce:** this method can now return -
+				// by throwing - with a close still in flight. The caller's undo then runs against a catalog whose
+				// close is still completing, restoring it on the go-live path or terminating it on the rename one.
+				// Nothing breaks, and not by luck: the close future absorbs its own failure through the
+				// `exceptionally` below, and a flush that fails after the catalog was restored raises the refusal
+				// barrier through `Catalog#markUnpublishable`, whose compare-and-set keeps the first cause. The
+				// overlap is real, it is new, and it is bounded by the close finishing on its own thread.
+				final long remainingNanos = Math.max(0L, DRAIN_GIVE_UP_TIMEOUT_NANOS - (System.nanoTime() - start));
+				try {
+					CompletableFuture
+						.allOf(futures.toArray(new CompletableFuture[0]))
+						.get(remainingNanos, TimeUnit.NANOSECONDS);
+				} catch (TimeoutException ex) {
+					// budget spent; the loop condition ends the drain and the premise below reports why
+				} catch (InterruptedException ex) {
+					// never swallowed: the flag is restored so whoever owns this thread still learns of it, and the
+					// drain stops waiting rather than spinning out the rest of a budget it was told to abandon
+					Thread.currentThread().interrupt();
+					break;
+				} catch (ExecutionException ex) {
+					// Each close future already absorbs its own failure (`exceptionally` above), so `allOf` cannot
+					// complete exceptionally and this branch is unreachable. Kept because the checked exception has
+					// to go somewhere, and rethrown as a `CompletionException` carrying the same cause - which is
+					// what `join` produced for every stored exception this could realistically carry. It is not
+					// byte-for-byte what `join` did: `join` rethrew the stored wrapper instance, while `get`
+					// unwraps it and this rebuilds one, so the original wrapper's own stack is not preserved. The
+					// null guard covers the one shape that would otherwise double-wrap.
+					throw new CompletionException(ex.getCause() == null ? ex : ex.getCause());
+				}
 				// wait for active sessions to be empty, but at most `DRAIN_GIVE_UP_TIMEOUT_MILLIS` - read that
 				// constant's javadoc before changing it, it prices a long-running test
 			} while (!this.activeSessions.isEmpty()
-				&& System.currentTimeMillis() - start < DRAIN_GIVE_UP_TIMEOUT_MILLIS);
+				&& System.nanoTime() - start < DRAIN_GIVE_UP_TIMEOUT_NANOS);
 
 			Assert.isPremiseValid(
 				this.activeSessions.isEmpty(),
