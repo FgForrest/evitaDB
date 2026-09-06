@@ -762,6 +762,15 @@ public class EngineTransactionManager implements Closeable {
 				// leaving a catalog behind its transition placeholder with a suspended registry for the life of
 				// the process. `completeExceptionally` is the route every operator already hangs its undo on, and
 				// it absorbs a failing undo itself. Rethrown unchanged: the caller still failed.
+				//
+				// **The undo runs exactly once, and that rests on `execute(executor)` being the LAST statement of
+				// `ProgressRecord`'s constructor.** `ProgressingFuture#completeExceptionally` invokes `onFailure`
+				// unconditionally - it does not consult whether the future was already completed - so a second
+				// completion means a second undo. Every statement that can throw here either precedes the
+				// execution (nothing has completed the future yet) or is the execution itself, whose own failure
+				// path builds the future's completion callback only AFTER the submissions that can be rejected.
+				// A statement added below that call in `ProgressRecord` would break this, silently: the future
+				// could then be complete before this catch is entered.
 				operatorFuture.completeExceptionally(ex);
 				throw ex;
 			}
