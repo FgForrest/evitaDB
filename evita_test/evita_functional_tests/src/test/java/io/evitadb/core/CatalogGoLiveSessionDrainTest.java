@@ -26,6 +26,7 @@ package io.evitadb.core;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgressRecord;
@@ -107,6 +108,11 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	 * answer is decided by the same branch every time; the loop only guards against a lucky first attempt.
 	 */
 	private static final int REFUSAL_ATTEMPTS = 20;
+	/**
+	 * How far the log capture walks a cause chain looking for the go-live failure. Two levels is what the real
+	 * chain uses; the bound exists so a self-referential chain cannot spin the appender.
+	 */
+	private static final int MAX_INSPECTED_CAUSE_DEPTH = 16;
 	/**
 	 * Name prefix of the fixture's own threads. Shared by the thread factory and the log capture, which uses it to
 	 * tell this test's log output from that of the classes running beside it.
@@ -207,6 +213,24 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 				assertEquals(1, brandCount(), "the write that landed before the flush must be in the alive catalog");
 			}
 		);
+
+		// The in-memory count above cannot tell a surviving write from a lost one, which is exactly the shape of
+		// the defect this test exists to catch: a write landing on the superseded instance still shows up in the
+		// running ALIVE catalog, because `EntityCollection#createIndexCopiesForNewCatalogAttachment` carries the
+		// index objects across by reference - measured on the unfixed build as one brand in memory and none after
+		// a reload. Restarting on the same storage directory is what makes this an assertion about storage.
+		// Outside the log capture on purpose: shutting the engine down and booting it again writes through the
+		// same two loggers the capture watches, and none of that is the drain it was written to police.
+		reopenEvita();
+		assertEquals(
+			CatalogState.ALIVE, this.evita.getCatalogState(CATALOG).orElseThrow(),
+			"the go-live must have published an ALIVE bootstrap record, or the reload below proves nothing"
+		);
+		assertEquals(
+			1, brandCount(),
+			"the in-flight write must have reached STORAGE, not merely the running catalog - a reload from the " +
+				"same directory is what the original defect failed"
+		);
 	}
 
 	@Test
@@ -284,6 +308,29 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Tells whether a log event carries a {@link CatalogGoingLiveException} anywhere in its cause chain.
+	 *
+	 * The go-live placeholder's exception is what a session's termination callback fails with when it resolves the
+	 * catalog mid-transition, and it reaches the log wrapped in a {@code TransactionException} one level up, so the
+	 * chain has to be walked rather than only its head inspected. Bounded rather than walked to null, because a
+	 * cause chain that refers back into itself would otherwise spin here for ever.
+	 *
+	 * @param event the captured log event
+	 * @return true when the event reports a failure against a catalog that was going live
+	 */
+	private static boolean carriesGoingLiveFailure(@Nonnull ILoggingEvent event) {
+		IThrowableProxy current = event.getThrowableProxy();
+		for (int depth = 0; current != null && depth < MAX_INSPECTED_CAUSE_DEPTH; depth++) {
+			if (CatalogGoingLiveException.class.getName().equals(current.getClassName())) {
+				return true;
+			}
+			final IThrowableProxy cause = current.getCause();
+			current = cause == current ? null : cause;
+		}
+		return false;
+	}
+
+	/**
 	 * Runs the action with an ERROR-level log capture attached to the loggers a forcefully closed warm-up session
 	 * reports through, and fails when the action left any error entry behind.
 	 *
@@ -297,16 +344,31 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	private static void assertNoErrorLoggedDuring(@Nonnull Executable action) throws Throwable {
 		// Test classes run concurrently inside one surefire fork (`junit-platform.properties`) and these two loggers
 		// are process-wide, so an unfiltered capture would blame this drain for an error another class's session
-		// logged in the same second. Only two threads can run the incumbent's close here: the calling thread, because
-		// test one's `makeCatalogAlive` is synchronous and the close runs inline, and a fixture thread in test two.
+		// logged in the same second. TWO filters, because neither covers the case alone:
+		//
+		// - **by thread**, which catches an error reported on the thread that drove the go-live: the calling thread
+		//   in test one, where `makeCatalogAlive` is synchronous, and a fixture thread in test two;
+		// - **by throwable**, which catches the error this test is actually about wherever it is reported. A warm-up
+		//   close dispatches its flush to the transaction executor, and the termination callback that logs runs when
+		//   the commit progress completes - so completion can land on an `Evita-transaction-N` worker that the thread
+		//   filter rejects. It appears to run inline today because a one-entity flush is already complete when the
+		//   composition is chained, and that is a race rather than an invariant: on a busier box the thread filter
+		//   alone would silently stop catching anything.
+		//
+		// The throwable branch stays specific to `CatalogGoingLiveException`, so it cannot pick up a neighbouring
+		// class: no other functional test takes a catalog live with a session still open on it.
 		final String callingThreadName = Thread.currentThread().getName();
 		final List<ILoggingEvent> errors = Collections.synchronizedList(new ArrayList<>());
 		final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
 			@Override
 			protected void append(@Nonnull ILoggingEvent eventObject) {
+				if (eventObject.getLevel() != Level.ERROR) {
+					return;
+				}
 				final String threadName = eventObject.getThreadName();
-				if (eventObject.getLevel() == Level.ERROR
-					&& (callingThreadName.equals(threadName) || threadName.startsWith(FIXTURE_THREAD_PREFIX))) {
+				if (callingThreadName.equals(threadName)
+					|| threadName.startsWith(FIXTURE_THREAD_PREFIX)
+					|| carriesGoingLiveFailure(eventObject)) {
 					errors.add(eventObject);
 				}
 			}
@@ -339,6 +401,25 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 						"" : " / " + firstError.getThrowableProxy().getClassName())
 			);
 		}
+	}
+
+	/**
+	 * Closes the running engine and opens a new one on the same storage directory - the restart idiom the storage
+	 * tests around this one use ({@code WarmUpCompactionReloadTest},
+	 * {@code TransactionalMergeFlushFailureSuspendTest}).
+	 *
+	 * {@link Evita#waitUntilFullyInitialized()} is not optional: catalogs are loaded on the service pool, so the
+	 * constructor returns while the catalog is still `BEING_ACTIVATED` and a query issued before that settles fails
+	 * with `CatalogTransitioningException`, saying nothing about what the reload found.
+	 *
+	 * The field is reassigned, so the fixture's teardown closes the instance that is actually open. Should the
+	 * reopen itself fail, the teardown closes the already-closed one instead - harmless, because {@link Evita#close()}
+	 * is a compare-and-set.
+	 */
+	private void reopenEvita() {
+		this.evita.close();
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	/**
