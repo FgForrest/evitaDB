@@ -231,7 +231,7 @@ red, then restored):
 | `ReferenceContent` keyed rule | 33 + 10 + 4 | 8 red |
 | request-level reduction | 437 | 13 red / 8 red on two disabled paths |
 | quality gate fixes | 780 | 5 bugs red → green |
-| end-to-end (Java API, EvitaQL text, Java driver over gRPC) | 444 | 14 red with the fold disabled; 4 + 1 red with the reference-visibility fix reverted |
+| end-to-end: Java API, EvitaQL text, driver over gRPC | 444 | 14 red without the fold; 5 red without the visibility fix |
 
 Test classes: `ReferenceContentTest`, `EntityFetchTest`, `EntityGroupFetchTest`, `EntityFetchRequireTest`,
 `AccompanyingPriceContentTest`, `HierarchyContentTest`, `DefaultPrefetchRequirementCollectorTest`, the "Duplicate
