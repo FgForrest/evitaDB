@@ -59,12 +59,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -372,6 +374,12 @@ public class EntityFetchRequireResolver {
 	 * `priceForSaleMin` / `priceForSaleMax` are now flat siblings of `priceForSale`, so their `accompanyingPrice`
 	 * selection sits directly under each — same shape as `priceForSale`. Selections are deduplicated by name so
 	 * the engine does not compute the same accompanying price multiple times.
+	 *
+	 * The deduplication is only sound while the selections sharing a name agree, because the engine registers one
+	 * recipe per name and applies it to every price for sale in the query. Two sibling fields naming one accompanying
+	 * price with different `priceLists` are therefore refused rather than silently collapsed onto the first of them —
+	 * the collapse would have answered the later field with a price computed from the earlier field's price lists. A
+	 * GraphQL alias is what turns them into two independent accompanying prices.
 	 */
 	@Nonnull
 	private static List<AccompanyingPriceContent> resolveAccompanyingPriceContents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -392,8 +400,20 @@ public class EntityFetchRequireResolver {
 					final String[] priceLists = ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).toArray(String[]::new);
 					content = accompanyingPriceContent(priceName, priceLists);
 				}
-				// same `priceName` across sibling price-for-sale fields ⇒ same accompanying price; engine only needs to compute it once
-				deduplicated.putIfAbsent(priceName, content);
+				// same `priceName` across sibling price-for-sale fields ⇒ same accompanying price; engine only needs to
+				// compute it once. The recipe is registered once for the whole query and then applied to every price for
+				// sale, so two selections sharing a name must agree on the price lists - keeping the first one and
+				// dropping the second would answer the second field with a price it never asked for
+				final AccompanyingPriceContent alreadySelected = deduplicated.putIfAbsent(priceName, content);
+				if (alreadySelected != null && !content.isFullyContainedWithin(alreadySelected)) {
+					throw new GraphQLInvalidArgumentException(
+						"Accompanying price `" + priceName + "` is selected with two different price list sequences (" +
+							Arrays.toString(alreadySelected.getPriceLists()) + " and " +
+							Arrays.toString(content.getPriceLists()) + "). One accompanying price name is calculated " +
+							"once for the whole query, so selections sharing a name have to agree - give one of them " +
+							"a GraphQL alias to request it as a separate accompanying price."
+					);
+				}
 			}
 		}
 		return List.copyOf(deduplicated.values());

@@ -284,6 +284,20 @@ the entity fetch as an object keyed by the requirement name, so a requirement ca
 a GraphQL alias on a reference field becomes a separate named instance of that reference rather than a second
 requirement for the same one. The ambiguity the other APIs have to resolve therefore cannot arise here.
 
+Accompanying prices are the one exception in GraphQL, because they are selected under a price for sale rather than
+written as a requirement. `priceForSale`, `priceForSaleMin`, `priceForSaleMax` and `allPricesForSale` are siblings,
+and an `accompanyingPrice` selected under two of them without an alias carries the same name in both places:
+
+```graphql
+priceForSale    { accompanyingPrice(priceLists: "reference") { priceWithTax } }
+priceForSaleMin { accompanyingPrice(priceLists: "vip") { priceWithTax } }
+```
+
+An accompanying price name is calculated once for the whole query and then applied to every price for sale, so the
+two selections above ask for one name to be calculated from two different price list sequences. That is refused with
+an error. Give one of them a GraphQL alias - `vipPrice: accompanyingPrice(priceLists: "vip")` - and it becomes
+a separate accompanying price, calculated alongside the first rather than instead of it.
+
 </LS>
 
 <LS to="g">
