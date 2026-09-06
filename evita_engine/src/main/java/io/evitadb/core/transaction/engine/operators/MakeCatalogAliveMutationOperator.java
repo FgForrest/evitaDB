@@ -160,7 +160,10 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					);
 					if (catalogToRestore != null) {
 						// Past the point of no return: the ALIVE bootstrap is published, so the catalog IS alive and a
-						// reload would say so. What failed is the engine-level record of the transition. Nothing on
+						// reload would say so. What failed is the engine-level record of the transition, and only
+						// that: everything AFTER the completion updater is best-effort and locally caught, so a
+						// failure arriving here with the alive catalog in hand can only have come from the updater
+						// itself - which is what makes the message below accurate rather than a guess. Nothing on
 						// disk is damaged - see `.claude/rules/durability-model.md`.
 						log.error(
 							"Catalog `{}` went live, but the engine failed to record the transition - the " +
@@ -201,14 +204,26 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 				// warm-up close flushes - is what keeps its writes in the flush below. New sessions are already
 				// refused by the placeholder; REJECT keeps the registry saying the same.
 				//
-				// Synchronous and before `flush()` on purpose: building the flush future pops the trapped changes on
-				// this thread, so a write landing after it would be lost - which is issue #1495.
+				// **The safety boundary is `goLive()`, not `flush()`.** What must not happen is the ALIVE bootstrap
+				// record being published while a session is still writing to the instance it supersedes: past that
+				// point nothing can persist those writes, the running catalog serves them from index objects it
+				// carries by reference, and a reload has never heard of them - issue #1495. The drain therefore has
+				// to complete before `theCatalog.goLive()` below, and it does.
 				//
-				// Runs under the engine state lock, and the drain's five-second cap bounds only the case it is
-				// written for: a session whose method has not returned yet, where the close is deferred, no future
-				// is waited on and the loop simply times out. A close that DID start and whose flush hangs is
-				// waited on unbounded, and holds the engine state lock with it. That is the same exposure the
-				// rename operator's drain has (`ModifyCatalogSchemaNameMutationOperator`), not a new one.
+				// **Running it before `flush()` is a deliberate preference, not the safety property**, and the
+				// difference was measured rather than reasoned: with the drain moved into the completion lambda but
+				// still ahead of `goLive()`, the whole suite stays green, because a forced close performs its own
+				// warm-up flush and persists whatever this flush's pop missed; only moving it past `goLive()`
+				// reproduces the defect. The preference is worth keeping regardless - it is one flush cheaper, and
+				// it does not make an incumbent's writes depend on that forced close's own flush succeeding - but
+				// do not re-derive a guarantee from the placement that the placement does not carry.
+				//
+				// Runs under the engine state lock, and the drain is bounded end to end by its five-second cap -
+				// both a session whose method has not returned and a close already under way, whose completion is
+				// awaited for whatever is left of that budget rather than indefinitely. Expiry is a failure, not a
+				// partial success: the drain fails its premise, and `undoOperations` below restores the warm-up
+				// catalog behind its name and lifts the suspension. So the lock is held for a bounded time and a
+				// hung close costs this go-live rather than every engine mutation behind it.
 				//
 				// Idempotent against the session-driven path, which suspends this registry before applying the
 				// mutation: a second call under a standing suspension drains nothing and returns.
@@ -224,9 +239,24 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					(theFuture, __) -> {
 						final Catalog newCatalog = theCatalog.goLive();
 						aliveCatalog.set(newCatalog);
-						theFuture.updateProgress(1);
-						// emit the event
-						event.finish().commit();
+						// Guarded, because from the line above this failure handler restores an ALIVE catalog rather
+						// than the warm-up one - and neither of these two statements is worth failing a go-live whose
+						// bootstrap record is already published. `updateProgress` is the load-bearing half: it reaches
+						// the client's own `IntConsumer` through `ProgressRecord`, which every external API threads in
+						// from `makeCatalogAliveWithProgress`, so a throwing observer belonging to a caller would
+						// otherwise reach the undo. Guarding both is what makes the undo's "only the completion
+						// updater can have failed" true, rather than an enumeration that the next edit invalidates.
+						try {
+							theFuture.updateProgress(1);
+							// emit the event
+							event.finish().commit();
+						} catch (Throwable ex) {
+							log.error(
+								"Catalog `{}` went live, but reporting its progress did not finish - the transition " +
+									"itself is unaffected and continues.",
+								catalogName, ex
+							);
+						}
 
 						completionEngineStateUpdater.accept(
 							new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -243,14 +273,54 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 							}
 						);
 
-						newCatalog.notifyCatalogPresentInLiveView();
-						// lifts the suspension this operator (or the session-driven path before it) established
-						sessionRegistry.ifPresent(SessionRegistry::resumeOperations);
-						// Emit the host event AFTER the live-view callback so the system CDC stream
-						// reflects the ALIVE settlement strictly after the underlying mutation.
-						evita.notifyCatalogStateSettled(catalogName, CatalogState.ALIVE);
+						// Read before the bookkeeping below rather than in the `return`, so that nothing past the
+						// commit boundary can reach `undoOperations`. Two getters on a catalog built moments ago are
+						// not a realistic failure; the point is that the boundary is drawn once and holds without a
+						// per-statement argument about which of them can throw.
+						final CommitVersions commitVersions =
+							new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
 
-						return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
+						// **The transition is durable from here on**: the completion updater above appended the
+						// write-ahead-log entry and published the engine bootstrap record. Everything below is
+						// bookkeeping, and every line of it is best-effort for that reason - a throw would otherwise
+						// reach `undoOperations`, which would tell the client a committed go-live failed, re-run these
+						// same notifications and log that the engine did not record a transition it did record. Same
+						// idiom as the rename operator's post-commit block: log and carry on, with the resume in a
+						// `finally` so a failed notification cannot cost it.
+						try {
+							newCatalog.notifyCatalogPresentInLiveView();
+						} catch (Throwable ex) {
+							log.error(
+								"Catalog `{}` is alive and that is durable, but the live view was not told - queries " +
+									"may keep being served against the superseded instance until the server restarts.",
+								catalogName, ex
+							);
+						} finally {
+							// Owed unconditionally once the transition has committed: a registry left suspended
+							// answers `InstanceTerminatedException` to every session for the life of the process,
+							// beneath an operation that reported success. Lifts the suspension this operator - or the
+							// session-driven path before it - established.
+							//
+							// Placed between the two notifications rather than after both, restoring the original
+							// order: the live view has to agree the catalog is alive before sessions are let back in,
+							// and the change data capture stream must not announce ALIVE while the registry is still
+							// refusing. The host event is emitted after this, in its own block.
+							sessionRegistry.ifPresent(SessionRegistry::resumeOperations);
+						}
+
+						try {
+							// Emit the host event AFTER the live-view callback so the system CDC stream
+							// reflects the ALIVE settlement strictly after the underlying mutation.
+							evita.notifyCatalogStateSettled(catalogName, CatalogState.ALIVE);
+						} catch (Throwable ex) {
+							log.error(
+								"Catalog `{}` is alive and that is durable, but the change data capture stream was " +
+									"not told it had settled.",
+								catalogName, ex
+							);
+						}
+
+						return commitVersions;
 					},
 					undoOperations
 				);

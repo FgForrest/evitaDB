@@ -466,12 +466,40 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version())
 				);
 			}
-			this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
-			          .ifPresent(it -> it.addForcefullyClosedSession(this.id));
-			return this.evita.applyMutation(
-				new MakeCatalogAliveMutation(this.catalog.getName()),
-				progressObserver == null ? Functions.noOpIntConsumer() : progressObserver
-			);
+			// Read before the suspension is published, and used only by the catch below. The operator's undo resumes
+			// the registry it OWNS rather than whatever answers to the name later, and this path owes the same: a
+			// rename or replace that hands this registry to another name shares one suspension by reference, so
+			// resuming the instance always lifts it while a name-keyed lookup can miss it entirely.
+			final Optional<SessionRegistry> quiescedRegistry =
+				this.evita.getCatalogSessionRegistry(this.catalog.getName());
+			try {
+				// **Inside the `try`, and that is not tidiness.** This call publishes the suspension and only then
+				// drains, so it can throw with the suspension standing - and the drain's own budget makes that
+				// reachable rather than theoretical. Closing this session above frees the warm-up admission slot
+				// (the rule is "no session in `activeSessions`", not "no session ever"), and until the operator
+				// installs its placeholder there is nothing refusing a new one: a second warm-up session opened in
+				// that window, with a method still running when the drain arrives, has its close deferred, outlasts
+				// the budget and fails the drain's premise. Published outside this `try`, that throw would leak the
+				// suspension for the life of the process - which is the very leak the catch below exists to close.
+				this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
+				          .ifPresent(it -> it.addForcefullyClosedSession(this.id));
+				return this.evita.applyMutation(
+					new MakeCatalogAliveMutation(this.catalog.getName()),
+					progressObserver == null ? Functions.noOpIntConsumer() : progressObserver
+				);
+			} catch (Throwable ex) {
+				// The suspension above is published before the operator exists, so a SYNCHRONOUS rejection - the
+				// drain failing its premise, the engine state lock timing out, a conflicting mutation, a wedged
+				// engine - never reaches the operator's undo, and nothing else would ever lift it: the catalog is
+				// still warming up and would refuse every session for the life of the process. Resume is
+				// idempotent, so this also covers a failure inside the operator's own setup, whose undo has
+				// already resumed.
+				//
+				// Synchronous escapes only, deliberately. An asynchronous failure of the returned `Progress` is the
+				// operator's undo's business and must stay there - this method has already returned by then.
+				quiescedRegistry.ifPresent(SessionRegistry::resumeOperations);
+				throw ex;
+			}
 		}
 	}
 
