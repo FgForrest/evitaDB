@@ -270,6 +270,12 @@ silently win:
   sequences the references rather than selecting them, so an order carried by a single side is kept rather than
   refused; only two genuinely different orders contradict each other
 - two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
+- a `priceContent(NONE)` requirement beside one that does fetch prices. The other two modes differ in how many
+  prices come back and the wider one answers both, but `NONE` is the opposite instruction rather than a third
+  width - widening it would answer a request for no prices with prices. This is what makes
+  `entityFetchAllContentAnd(priceContent(NONE))` an error rather than a way to spell "everything except prices":
+  the all-content shorthand already contains `priceContentAll()`, and by the time the two are folded neither
+  carries any record of having come from a shorthand. List the requirements you want instead
 - two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
   lists that differ only in their order - the sequence is a priority order and any merge would invent a priority
   neither side asked for - and equally when one of them names its price lists while the other defers them to

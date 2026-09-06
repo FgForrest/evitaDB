@@ -68,7 +68,9 @@ import java.util.LinkedHashMap;
  *    discarded (the existing one already covers it). This is the branch that dropping a redundant requirement lives
  *    in, and it is wider than combinability: a `referenceContent("brand")` contributed by one translator is
  *    contained within a `referenceContentAll()` contributed by another, so only the broader one is prefetched even
- *    though the two are not combinable.
+ *    though the two are not combinable. The containment is tested in both directions - when the *existing* one is
+ *    contained within the newcomer, the newcomer replaces it - so that the outcome does not depend on the order in
+ *    which two nested requirements happened to be contributed, and so that a nested pair never reaches step 3.
  * 3. If the new requirement is *combinable with* an existing one of the same class (e.g., two `AttributeContent`
  *    instances that together cover a superset of attribute names), they are merged in place. The merge may still be
  *    **refused** with an {@link EvitaInvalidUsageException} for a disagreement the strip does not cover — two
@@ -171,6 +173,13 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 					for (int i = 0; i < existing.length; i++) {
 						final EntityContentRequire existingRequire = existing[i];
 						if (theRequirement.isFullyContainedWithin(existingRequire)) {
+							return existing;
+						} else if (existingRequire.isFullyContainedWithin(theRequirement)) {
+							// the union keeps the wider of two nested requirements, and which of them arrived first says
+							// nothing about what has to be loaded - without this, a pair that nests one way round would be
+							// dropped as redundant while the same pair in the other order would have to be reconciled by
+							// `combineWith`, which answers the stricter client-facing question and may refuse it
+							existing[i] = theRequirement;
 							return existing;
 						} else if (existingRequire.isCombinableWith(theRequirement)) {
 							existing[i] = existingRequire.combineWith(theRequirement);

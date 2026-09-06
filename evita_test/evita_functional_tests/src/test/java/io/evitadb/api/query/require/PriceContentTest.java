@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
@@ -137,13 +138,41 @@ class PriceContentTest {
 
 	@Test
 	void shouldCombineWithAnotherConstraint() {
-		assertEquals(priceContent(PriceContentMode.NONE), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.NONE)));
-		assertEquals(priceContent(PriceContentMode.RESPECTING_FILTER), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.RESPECTING_FILTER)));
-		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.RESPECTING_FILTER).combineWith(priceContent(PriceContentMode.ALL)));
-		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.ALL)));
-		assertEquals(priceContentRespectingFilter("a", "b"), priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b")));
-		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.ALL)));
-		assertEquals(priceContentRespectingFilter("a", "b"), priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b")));
+		assertEquals(
+			priceContent(PriceContentMode.NONE),
+			priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.NONE))
+		);
+		assertEquals(
+			priceContent(PriceContentMode.ALL),
+			priceContent(PriceContentMode.RESPECTING_FILTER).combineWith(priceContent(PriceContentMode.ALL))
+		);
+		assertEquals(
+			priceContentRespectingFilter("a", "b"),
+			priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b"))
+		);
+	}
+
+	@Test
+	void shouldRefuseToCombineNoPricesWithFetchedPrices() {
+		// `NONE` is not the narrowest of three widths - it is the opposite instruction, so widening it to the other
+		// mode would answer a client who asked for no prices with prices
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.RESPECTING_FILTER))
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> priceContent(PriceContentMode.NONE).combineWith(priceContentAll())
+		);
+		// and in either order
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> priceContentAll().combineWith(priceContent(PriceContentMode.NONE))
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> priceContentRespectingFilter().combineWith(priceContent(PriceContentMode.NONE))
+		);
 	}
 
 	@Test

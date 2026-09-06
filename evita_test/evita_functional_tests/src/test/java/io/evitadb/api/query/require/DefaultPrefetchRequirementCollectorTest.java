@@ -301,16 +301,18 @@ class DefaultPrefetchRequirementCollectorTest {
 		}
 
 		@Test
-		@DisplayName("should keep a requirement for all references added after a name specific one")
-		void shouldKeepAllReferencesRequirementAddedAfterSpecificOne() {
+		@DisplayName("should drop a name specific requirement when the one for all references arrives after it")
+		void shouldDropSpecificReferenceContentWhenAllReferencesArrivesAfterIt() {
 			final DefaultPrefetchRequirementCollector collector = new DefaultPrefetchRequirementCollector();
 
-			// the union is order sensitive: a requirement for all references is not contained within a name
-			// specific one and the two do not share a key, so both survive
+			// the containment is tested in both directions, so which of two nested requirements a translator
+			// happened to contribute first cannot change what is loaded
 			collector.addRequirementsToPrefetch(referenceContent("category"));
 			collector.addRequirementsToPrefetch(referenceContentAll());
 
-			assertEquals(2, collector.getRequirementsToPrefetch().length);
+			final EntityContentRequire[] requirements = collector.getRequirementsToPrefetch();
+			assertEquals(1, requirements.length);
+			assertEquals(referenceContentAll(), requirements[0]);
 		}
 
 		@Test
@@ -472,6 +474,36 @@ class DefaultPrefetchRequirementCollectorTest {
 				() -> collector.addRequirementsToPrefetch(accompanyingPriceContent("a", "reference"))
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Nested requirements")
+	class NestedRequirementTest {
+
+		@Test
+		@DisplayName("should keep the wider price content whichever of the two arrived first")
+		void shouldKeepTheWiderPriceContentRegardlessOfOrder() {
+			// the client asks for no prices, a hierarchy scoped entity fetch asks for all of them - the union answers
+			// what has to be LOADED, and `NONE` demands nothing, so the wider requirement wins in both orders. The
+			// client-facing fold refuses the very same pair, which is why the union must never reach `combineWith`
+			final DefaultPrefetchRequirementCollector noneFirst = new DefaultPrefetchRequirementCollector();
+			noneFirst.addRequirementsToPrefetch(priceContent(PriceContentMode.NONE));
+			noneFirst.addRequirementsToPrefetch(priceContentAll());
+
+			final DefaultPrefetchRequirementCollector allFirst = new DefaultPrefetchRequirementCollector();
+			allFirst.addRequirementsToPrefetch(priceContentAll());
+			allFirst.addRequirementsToPrefetch(priceContent(PriceContentMode.NONE));
+
+			assertArrayEquals(
+				new EntityContentRequire[]{priceContentAll()},
+				noneFirst.getRequirementsToPrefetch()
+			);
+			assertArrayEquals(
+				new EntityContentRequire[]{priceContentAll()},
+				allFirst.getRequirementsToPrefetch()
+			);
+		}
+
 	}
 
 }
