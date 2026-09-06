@@ -1,13 +1,18 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 09:20
+updated: 2026-09-06 15:05
 status: accepted
 kind: fix
 issues: [1493]
 prs: []
-areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_api/src/main/java/io/evitadb/api/requestResponse,
-  evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer]
+areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/main/java/io/evitadb/api/query/visitor,
+  evita_api/src/main/java/io/evitadb/api/requestResponse,
+  evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer,
+  evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/hierarchyStatistics,
+  evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram,
+  evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/requestResponse,
+  .claude/rules/constraint-resolution.md]
 supersedes: []
 superseded-by: []
 relates: []
@@ -33,6 +38,10 @@ The reduction obeys two rules, and the whole of this record is about keeping the
 A third rule, of the same family and settled by the same work: **a specific constraint replaces the generic one for
 its target, it never inherits from it.** That is why a reference-specific `referenceSummary` now defines all of its
 own requirements.
+
+The three rules were then enforced across the rest of the codebase — see *The generalisation* below. They are stated
+for day-to-day use, with every site that implements them, in `.claude/rules/constraint-resolution.md`; this record is
+the reasoning behind them and the alternatives that lost.
 
 ## Why
 
@@ -272,6 +281,54 @@ sides. `EntityContentRequireCombiningCollector` had no other caller and was dele
   of the same kind in one entityFetch", and `documentation/user/en/query/requirements/reference.md` for the summary
   override. The Czech mirror is machine-translated and was not hand-edited.
 
+## The generalisation across the codebase
+
+The three rules were derived from one constraint kind. An audit of every other place where a query can state the
+same thing twice about one target found nine further groups of defects, and the maintainer's ruling was to fold all
+of them into this issue rather than file them separately, as one commit each.
+
+**Every finding was reproduced before it was fixed, and the reproduction is quoted in its commit.** That discipline
+paid for itself three times over: the audit's reading was wrong or incomplete in three places, and two tests passed
+for the wrong reason before the real behaviour surfaced (a type-only `assertThrows` that the *old* exception also
+satisfied, because `MoreThanSingleResultException` extends `EvitaInvalidUsageException`; and a query asking for
+`SealedEntity` where the response held `EntityReference`, which threw for an unrelated reason).
+
+| What | Was | Now |
+|---|---|---|
+| `priceContent(NONE)` beside a fetching `priceContent` | folded to the fetching mode | refused |
+| `accompanyingPriceContent()` beside one naming price lists | refused, but by accident of array comparison | refused with a message that says why |
+| one GraphQL accompanying price name selected two ways | wrong price list returned — measured, not deduced | refused |
+| `attributeHistogram` bucket count and behaviour | producer-wide, last write won | carried per attribute, disagreement refused |
+| facet relation level | the declared level was ignored | honoured; `facetGroupsDisjunction` defaults to the level it actually changes |
+| duplicated `priceHistogram` | refused only when the query filtered on price | decided on a path the planner always walks |
+| two `hierarchyOf...` with different `orderBy` | last wins, retroactively re-sorting the sibling's output | refused; an order-less sibling no longer wipes the order |
+| a gRPC output name owned by the second `hierarchyOf...` | `NullPointerException` inside the driver | resolved across every constraint that could own it |
+| `page` beside `strip` | `page` won, the result form flipped, HTTP 200 over REST | refused |
+| two hierarchy filters for one target, with statistics | statistics described a subtree the records were not restricted to | refused, but only when statistics are requested |
+| one hierarchy output name claimed twice | `IllegalStateException` at fabrication, carrying both result trees | refused at planning, carrying no result data |
+
+### Two placement rules came out of this, and they generalise
+
+**A refusal has to sit on a path the planner always walks, or it is a coin flip.** The duplicated `priceHistogram`
+was decided inside a branch that only runs when the query filters on price, so the identical pair threw for a
+price-filtered query and returned silently for an attribute-filtered one. Moving the decision into
+`PriceHistogramTranslator`, which runs for every requirement whatever the query filters on, is what made it a rule
+rather than a symptom.
+
+**A refusal belongs where the ambiguity is consumed, not where it is written.** Two hierarchy filters in one query
+are an ordinary disjunction; they are ambiguous only for the code that must pick *one* of them to seed hierarchy
+statistics. Putting the refusal in `EvitaRequest#getHierarchyWithin`, whose only production callers are extra-result
+planning, keeps the filter legal and fails only the combination that has no answer. Refusing at the point of writing
+would have cost filtering expressiveness to solve a problem filtering does not have.
+
+### Rejected outright
+
+| Option | Rejected because |
+|---|---|
+| Refuse two `hierarchyOf...` constraints for one target, matching GraphQL | The merge is deliberate and tested — `EvitaArchivingTest` merges a `LIVE` and an `ARCHIVED` `hierarchyOfReference(CATEGORY, …)` into one container. Refusing it would delete a working feature to settle a surface disagreement in the harder direction. Revisit only together with a decision on `HierarchyOfResolver`. |
+| Fix `ReferenceContent#getChunking()`'s `findFirst()` | Unreachable by construction: every constructor takes a single `ChunkingRequireConstraint` and the `@Creator` marks `uniqueChildren = true`, so neither the fluent API nor the parser can build a `page` + `strip` pair inside one `referenceContent`. A guard there would be untestable. |
+| Make `EvitaRequest#initPagination` eager so `page` + `strip` fails at construction | Pagination is memoised-lazy and four getters trigger it; making construction eager changes the cost of every derived request to improve the timing of one error. Every execution path calls one of those getters, so the pair still cannot be executed. |
+
 ## Verification
 
 Unit and functional coverage, all with the mandated counterfactual (the production change disabled, the test observed
@@ -342,6 +399,32 @@ Queries whose result changes:
 - reference histograms return the same group shape at depth `NONE` as at `COUNTS`, and a boundary tie is broken by
   the governing summary's `orderBy`
 
+Queries whose result changes, from the generalisation:
+
+- `priceContent(NONE)` written beside a `priceContent` that fetches is refused instead of folded to the fetching mode
+- a query whose two `accompanyingPriceContent` for one name mix a stated price-list sequence with one deferred to
+  `defaultAccompanyingPriceLists` is refused, even though the two agree under today's default
+- one GraphQL accompanying price name selected twice with different price lists is refused; it used to return the
+  wrong price list, silently
+- two `attributeHistogram` requirements naming one attribute with different bucket counts or behaviours are refused;
+  the last one used to overwrite the first for every attribute in the query
+- **a declared facet relation level now takes effect.** `facetGroupsDisjunction` defaults to
+  `WITH_DIFFERENT_GROUPS`, the level at which it changes something, so it serialises without a level meaning
+  inter-group; two same-level constraints for one reference with different filters are refused
+- an attribute-filtered query carrying two differing `priceHistogram` requirements errors instead of returning one
+  of them
+- two `hierarchyOf...` constraints for one target declaring different `orderBy`s are refused, and one declaring no
+  order no longer wipes the order declared beside it — a query relying on that wipe changes result order
+- a query stating both `page` and `strip` errors instead of silently returning a paginated list
+- a query restricting one hierarchy two different ways *and* asking for its statistics errors instead of describing
+  a subtree the record set was not restricted to
+- one hierarchy output name claimed by two requirements fails as a usage error at planning, instead of an internal
+  `IllegalStateException` at fabrication whose message carried both computed result trees
+
+Over gRPC, a hierarchy output name declared by the second of two `hierarchyOf...` constraints is now returned
+correctly; it used to crash the driver with a `NullPointerException`. That is a fix in one direction only — no
+working query changes behaviour.
+
 **The one-sided restriction rule reversed once, and the reversal is the decision.** The first version of this work
 shipped the superset rule for a one-sided `filterBy` or page (Option E) after the quality gate found the strict rule
 refusing planner-built shapes. Measuring the refusal properly showed it fires during *planning*, on the index path as
@@ -356,6 +439,27 @@ With `forPrefetch()` stripping the restrictions of every top-level requirement e
 filter/order/chunking comparisons in that method can only be exercised through `EntityFetch#isFullyContainedWithin`
 on a nested body. The method was left as it is; whether those clauses still earn their keep is worth a look the next
 time someone touches it.
+
+**Three things were found and deliberately not fixed here.** Each needs a decision that is wider than this issue:
+
+- **GraphQL and the engine disagree about whether repeating `hierarchyOf...` for one target is legal at all.** The
+  engine merges the repetitions into one result container and `EvitaArchivingTest` pins that as supported;
+  `HierarchyOfResolver` refuses the same shape with *"Duplicate hierarchies for single reference."* Whichever way
+  this is settled, one of the two surfaces changes.
+- **`hierarchyWithin(<reference>, …)` nested inside `or` crashes the filter planner** with a bare
+  `NullPointerException` at `filter/translator/hierarchy/AbstractHierarchyTranslator.java:148`, surfaced as
+  `GenericEvitaInternalError: … null`. `FilterByVisitor#findTargetIndexSet` matches the precomputed target indexes
+  by constraint *identity*, and a hierarchy constraint nested in `or` is not among them; the fallback branch then
+  requires a reference schema that the processing scope carries only inside `referenceHaving`. Pre-existing and
+  entirely unrelated to duplicates — it was hit only because the first draft of a test wrote an ambiguous filter
+  with `or`. A plausible fix is to derive both schemas from `filterByVisitor.getSchema()` and the constraint's own
+  reference name, which the method already resolves and discards; whether the resulting formula is semantically
+  right needs checking against the reference implementation in the hierarchy suites.
+- **`QueryPlanningContext#setRootHierarchyNodesFormula` is a set-once premise assert**, and
+  `HierarchyWithinTranslator` calls it once per translated `hierarchyWithin` — so two `hierarchyWithin` in one
+  query appear to raise `GenericEvitaInternalError`, on this reading including two naming *different* references.
+  That would be loud with the wrong type and an unhelpful message. **This is a code reading, not a measurement**:
+  the shape was not built, because the test dataset has only one hierarchical reference.
 
 ## Related work
 
@@ -374,3 +478,6 @@ time someone touches it.
 - **2026-09-06** — the maintainer reversed the one-sided restriction rule and ruled that a specific summary must
   define all of its own requirements; the prefetch union gained `forPrefetch()` and the summary overlay was replaced
   by the override.
+- **2026-09-06** — the maintainer ruled the work should be generalised to the whole codebase; an audit of every
+  other place a query can state the same thing twice was fixed finding by finding, each reproduced first, and the
+  three rules were written down as `.claude/rules/constraint-resolution.md`.
