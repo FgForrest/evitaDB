@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request; refuse only the pairs that have no superset
 date: 2026-09-05
-updated: 2026-09-06 02:12
+updated: 2026-09-06 02:03
 status: accepted
 kind: fix
 issues: [1493]
@@ -264,7 +264,7 @@ forces prefetching with `debug(PREFER_PREFETCHING)` so the planner-generated ove
 "Richer copy keeps what an earlier fetch made visible" group of `ReferenceContractSerializablePredicateTest`
 for the enrichment merge.
 
-A full functional-module run on the final tree executed 23,337 tests with 0 failures; the single error is
+A full functional-module run on the final tree executed 23,345 tests with 0 failures; the single error is
 `ExportS3ServiceTest`, which needs a Docker daemon. (An earlier sweep on the quality-gate tree, 23,297 tests, also had
 0 failures; its two extra errors were dataset setups starved of heap in a fork running 24 classes concurrently and
 were green on isolated reruns. The final run used a fixed parallelism of 8 and a 12 GB fork heap.)
