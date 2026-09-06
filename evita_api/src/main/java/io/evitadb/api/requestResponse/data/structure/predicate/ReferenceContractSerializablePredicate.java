@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -73,7 +74,14 @@ import static java.util.Optional.ofNullable;
  * complete reference scope. This pattern is used when creating limited views from fully-fetched entities.
  *
  * **Empty map semantics**: An empty `referenceSet` map means "all references are allowed" when
- * `requiresEntityReferences` is true.
+ * `requiresEntityReferences` is true. A non-empty map does **not** mean the opposite on its own: a present
+ * `defaultAttributeRequest` says the query also carried a catch-all `referenceContent` requirement, and the fetcher
+ * loads every reference the specific entries do not name from that requirement. Such a reference is therefore
+ * visible too, and it is the default request - not an empty one - that shapes its attributes; the specific entries
+ * only override the baseline for the references they name. The rule is stated twice and nowhere else - by
+ * {@link #isReferenceCovered(String)} for one reference at a time, and by
+ * {@link #getRequestedReferenceNames(EntitySchemaContract)} for the whole schema at once, which is what a caller
+ * needs when it indexes references by name before it holds any of them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -314,14 +322,14 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Checks whether references with the specified name were fetched with the entity.
 	 *
-	 * An empty `referenceSet` means all references were fetched (when `requiresEntityReferences` is true).
+	 * An empty `referenceSet` means all references were fetched (when `requiresEntityReferences` is true), and so
+	 * does a present `defaultAttributeRequest` beside a non-empty one - see {@link #isReferenceCovered(String)}.
 	 *
 	 * @param referenceName the reference name to check
 	 * @return true if the reference is accessible
 	 */
 	public boolean wasFetched(@Nonnull String referenceName) {
-		return this.requiresEntityReferences &&
-			(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
+		return this.requiresEntityReferences && isReferenceCovered(referenceName);
 	}
 
 	/**
@@ -346,8 +354,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @throws ContextMissingException if the reference was not fetched with the entity
 	 */
 	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
-		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(
-			referenceName)))) {
+		if (!(this.requiresEntityReferences && isReferenceCovered(referenceName))) {
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 	}
@@ -358,7 +365,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * A reference passes the test if all of the following conditions are met:
 	 * - References are required (`requiresEntityReferences` is true)
 	 * - The reference exists (not dropped)
-	 * - The reference name matches (if `referenceSet` is non-empty)
+	 * - The reference is covered, i.e. it is named by `referenceSet`, or `referenceSet` is empty, or a
+	 *   `defaultAttributeRequest` covers everything the set does not name
 	 *
 	 * Note: This method only tests reference-level visibility, not attribute-level filtering within the reference.
 	 *
@@ -368,9 +376,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	@Override
 	public boolean test(ReferenceContract reference) {
 		if (this.requiresEntityReferences) {
-			final String referenceName = reference.getReferenceName();
-			return reference.exists() &&
-				(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
+			return reference.exists() && isReferenceCovered(reference.getReferenceName());
 		} else {
 			return false;
 		}
@@ -381,12 +387,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * of reference requirements and the reference set.
 	 *
 	 * @param referenceName the name of the reference to check.
-	 * @return `true` if references are required and the reference name is either part of the set
-	 * or the set is empty; `false` otherwise.
+	 * @return `true` if references are required and the reference is covered per
+	 * {@link #isReferenceCovered(String)}; `false` otherwise.
 	 */
 	public boolean isReferenceRequested(@Nonnull String referenceName) {
 		if (this.requiresEntityReferences) {
-			return this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName);
+			return isReferenceCovered(referenceName);
 		} else {
 			return false;
 		}
@@ -432,18 +438,43 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Retrieves a predicate that can be used to filter attribute values for a specific reference.
 	 *
+	 * The entry `referenceSet` holds for the reference wins, because a reference-specific requirement overrides the
+	 * baseline. A reference the set does not name falls back to `defaultAttributeRequest` - it was fetched from the
+	 * catch-all requirement that request describes, so its attributes are the ones that requirement asked for. Only
+	 * when there is no default at all does the reference end up with no attributes.
+	 *
 	 * @param referenceName the name of the reference for which to obtain the attribute predicate.
 	 * @return a `ReferenceAttributeValueSerializablePredicate` configured for the specified reference name.
 	 */
 	@Nonnull
 	public ReferenceAttributeValueSerializablePredicate getAttributePredicate(@Nonnull String referenceName) {
+		final AttributeRequest specificRequest = this.referenceSet.get(referenceName);
+		final AttributeRequest fallbackRequest = this.defaultAttributeRequest == null ?
+			AttributeRequest.EMPTY : this.defaultAttributeRequest;
 		return new ReferenceAttributeValueSerializablePredicate(
 			this.implicitLocale,
 			this.locales,
-			this.referenceSet.isEmpty() ?
-				(this.defaultAttributeRequest == null ? AttributeRequest.EMPTY : this.defaultAttributeRequest) :
-				this.referenceSet.getOrDefault(referenceName, AttributeRequest.EMPTY)
+			specificRequest == null ? fallbackRequest : specificRequest
 		);
+	}
+
+	/**
+	 * Returns names of the references the query asked for, i.e. the names a fetched entity has to expose - every one
+	 * of them, including those that came back holding nothing.
+	 *
+	 * This is {@link #isReferenceCovered(String)} answered for the whole schema at once, and it exists because the
+	 * caller needs the names before it has any reference in hand: an entity indexes its references by name, and a
+	 * name missing from that index reads as "no such references" rather than "none matched". Deriving the names from
+	 * `referenceSet` alone would therefore hide every reference covered only by the catch-all requirement.
+	 *
+	 * @param entitySchema schema whose reference names are returned when the query asked for all of them
+	 * @return names of the references the query asked for
+	 */
+	@Nonnull
+	public Set<String> getRequestedReferenceNames(@Nonnull EntitySchemaContract entitySchema) {
+		return this.referenceSet.isEmpty() || this.defaultAttributeRequest != null ?
+			entitySchema.getReferences().keySet() :
+			this.referenceSet.keySet();
 	}
 
 	/**
@@ -501,6 +532,31 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			requiredReferences = this.referenceSet;
 		}
 		return requiredReferences;
+	}
+
+	/**
+	 * Returns TRUE when the query asked for the named reference, i.e. when the reference was fetched along with the
+	 * entity and may therefore be handed to the client.
+	 *
+	 * Three shapes cover a reference, and they mirror what the fetcher does:
+	 *
+	 * - an **empty** `referenceSet` - the query named no reference specifically, so every one of them is fetched
+	 * - a `referenceSet` **naming** the reference - the reference has its own requirement
+	 * - a present `defaultAttributeRequest` - the query carried a catch-all `referenceContent` requirement beside the
+	 *   reference-specific ones, and the fetcher loads every reference the specific ones do not name from it
+	 *
+	 * The third case is the one easy to miss: leaving it out hides references that were fetched, which surfaces to
+	 * the client as a `ContextMissingException` telling it to add a `referenceContent` requirement the query already
+	 * has. This method does **not** consider `requiresEntityReferences` - every caller gates on that separately,
+	 * because "no references at all" is reported differently from "not this reference".
+	 *
+	 * @param referenceName name of the reference to check
+	 * @return TRUE when the reference was fetched along with the entity
+	 */
+	private boolean isReferenceCovered(@Nonnull String referenceName) {
+		return this.referenceSet.isEmpty() ||
+			this.referenceSet.containsKey(referenceName) ||
+			this.defaultAttributeRequest != null;
 	}
 
 }

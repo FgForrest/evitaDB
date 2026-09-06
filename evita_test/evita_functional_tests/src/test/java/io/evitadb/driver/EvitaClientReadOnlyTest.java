@@ -138,12 +138,15 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.Assertions.assertDiffers;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies the read-only behavior of {@link EvitaClient}.
@@ -2196,6 +2199,120 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					return productByPk.getReferenceChunk(Entities.PARAMETER).getTotalRecordCount();
 				}
 			)
+		);
+	}
+
+	/**
+	 * Tests that two reference content requirements written for one reference are folded into a single requirement
+	 * covering both, all the way through the remote transport.
+	 *
+	 * The driver hands the query over as EvitaQL text plus its parameters, so this is the only place proving that the
+	 * pair survives being rendered and parsed back before the server folds it. Both bodies have to reach the referenced
+	 * brand; the failure this guards against is the second requirement replacing the first one and its attribute
+	 * disappearing without any error.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
+	@DisplayName("fetch both bodies of a reference requested twice")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(QUERY)
+	@Tag(REFERENCE)
+	@Test
+	void shouldFetchBothBodiesWhenOneReferenceIsRequestedTwice(
+		EvitaClient evitaClient,
+		Map<Integer, SealedEntity> products
+	) {
+		final SealedEntity productWithBrand = products.values()
+			.stream()
+			.filter(it -> !it.getReferences(Entities.BRAND).isEmpty())
+			.findFirst()
+			.orElseThrow();
+		final Locale locale = productWithBrand.getAllLocales().stream().findFirst().orElseThrow();
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithBrand.getPrimaryKeyOrThrowException()),
+							entityLocaleEquals(locale)
+						),
+						require(
+							entityFetch(
+								referenceContent(Entities.BRAND, entityFetch(attributeContent(ATTRIBUTE_CODE))),
+								referenceContent(Entities.BRAND, entityFetch(attributeContent(ATTRIBUTE_NAME)))
+							)
+						)
+					)
+				).orElseThrow();
+
+				final Collection<ReferenceContract> brands = product.getReferences(Entities.BRAND);
+				assertFalse(brands.isEmpty(), "The product lost its brand on the way!");
+				for (final ReferenceContract brand : brands) {
+					final SealedEntity brandEntity = brand.getReferencedEntity().orElseThrow();
+					assertNotNull(
+						brandEntity.getAttribute(ATTRIBUTE_CODE),
+						"The body of the first requirement was dropped!"
+					);
+					assertNotNull(
+						brandEntity.getAttribute(ATTRIBUTE_NAME, locale),
+						"The body of the second requirement was dropped!"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Tests that two reference content requirements selecting one reference differently are refused, and that the
+	 * refusal reaches a remote caller with its reason intact.
+	 *
+	 * Note the expected type: everything the server rejects arrives back as a plain
+	 * {@link EvitaInvalidUsageException}, because the driver reconstructs `INVALID_ARGUMENT` responses from the error
+	 * code and does not restore the original subclass. What has to survive is the message, since it is all a remote
+	 * caller has to tell this apart from any other rejection.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@DisplayName("refuse two reference content requirements filtering one reference differently")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(QUERY)
+	@Tag(REFERENCE)
+	@Test
+	void shouldRefuseTwoReferenceContentsFilteringOneReferenceDifferently(EvitaClient evitaClient) {
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.CATEGORY,
+										filterBy(entityPrimaryKeyInSet(1, 2))
+									),
+									referenceContent(
+										Entities.CATEGORY,
+										filterBy(entityPrimaryKeyInSet(3, 4))
+									)
+								)
+							)
+						)
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("different filter constraints"),
+					"The refusal reason did not survive the wire: " + exception.getMessage()
+				);
+				return null;
+			}
 		);
 	}
 

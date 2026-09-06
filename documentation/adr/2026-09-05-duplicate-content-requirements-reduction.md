@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request; refuse only the pairs that have no superset
 date: 2026-09-05
-updated: 2026-09-05 23:54
+updated: 2026-09-06 00:22
 status: accepted
 kind: fix
 issues: [1493]
@@ -210,6 +210,11 @@ fetch with a reference-specific one. Both are load-bearing today.
   requirements with different but *overlapping* reference name sets both claiming one reference — `referenceContent`
   of `("a", "b")` beside one of `("b", "c")` — is a genuine usage error and raises `EvitaInvalidUsageException`
   naming the reference; a name repeated *inside* one requirement is not a conflict.
+- **Where a refusal actually fires.** For a query the planner prefetches, the constraint-level `combineWith` runs
+  first, inside `DefaultPrefetchRequirementCollector`, when `EntityFetchTranslator` hands the raw requirements to the
+  prefetch union - so a same-key conflict is refused there, before `EvitaRequest` folds the fetch. The end-to-end
+  refusal tests therefore guard the constraint rule; the request-level fold is guarded by the positive-path tests,
+  which go red when it is disabled.
 - **Only three surfaces can express the duplicate**: EvitaQL text, the Java API and gRPC (which transports EvitaQL).
   REST takes the entity fetch as an object keyed by the constraint name, and GraphQL turns an alias into a separate
   named reference instance, so neither can produce it.
@@ -226,6 +231,7 @@ red, then restored):
 | `ReferenceContent` keyed rule | 33 + 10 + 4 | 8 red |
 | request-level reduction | 437 | 13 red / 8 red on two disabled paths |
 | quality gate fixes | 780 | 5 bugs red → green |
+| end-to-end (Java API, EvitaQL text, Java driver over gRPC) | 444 | 14 red with the fold disabled; 4 + 1 red with the reference-visibility fix reverted |
 
 Test classes: `ReferenceContentTest`, `EntityFetchTest`, `EntityGroupFetchTest`, `EntityFetchRequireTest`,
 `AccompanyingPriceContentTest`, `HierarchyContentTest`, `DefaultPrefetchRequirementCollectorTest`, the "Duplicate
@@ -250,6 +256,15 @@ User-visible behaviour changes, all of them in queries that previously failed or
 - the prefetch union no longer drops all but the last `accompanyingPriceContent` when several name different prices
 - `entityFetchAllContentAnd(hierarchyContent(stopAt(...)))` now fetches the **whole** parent chain, because the bare
   `hierarchyContent()` inside the shorthand is the superset
+
+**Fixed in passing - the catch-all-beside-named shape hid the catch-all references.** The end-to-end specificity guard
+(`referenceContentAllWithAttributes()` beside a bare `referenceContent` for one reference) exposed a defect older than
+this branch: `ReferenceContractSerializablePredicate` and `EntityDecorator` each re-derived "did the client ask for this
+reference?" from the per-name reference map alone, ignoring the default attribute request that signals a catch-all
+requirement. The engine fetched the catch-all references, the predicate hid them behind a `ContextMissingException`,
+and once admitted the decorator never built their chunk, so they came back empty. The rule now lives in the predicate
+only (`isReferenceCovered`, `getRequestedReferenceNames`) and the decorator asks it. No test asserted the old
+behaviour; every existing construction of that predicate passed a null default.
 
 **Owed to the maintainer — one judgement call to confirm.** Dropping a one-sided `filterBy` or page is the point
 where this work reversed its own plan (Option E above). It is the right rule for the prefetch and facet unions, and
