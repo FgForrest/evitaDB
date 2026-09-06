@@ -8,7 +8,8 @@ component tree — and the engine has to decide what it means.
 
 **The wrong answer is to pick one.** A silent pick is invisible at the call site, changes with the order the
 constraints happen to be written in, and produces a response that quietly answers a different question than
-the one asked. That is what issue #1493 found in fifteen places and what these three rules replaced.
+the one asked. Issue #1493 was filed for one such place; an audit of the rest of the query language found
+eleven more, and these three rules replaced all of them.
 
 Read this before adding, removing or relaxing any refusal that concerns two requirements about one thing.
 
@@ -69,7 +70,7 @@ and be mistaken for a contradiction there.
 **This exemption is invisible in the code unless you go looking for it**, which is the trap. The collector and
 the client-facing fold both call `isCombinableWith` / `combineWith`, so a change that makes `combineWith`
 stricter silently makes the *union* stricter too, and a valid query that never contained a contradiction
-starts failing. It has happened once already (the `#1432` branch, and again in round 2 of #1493).
+starts failing. It has happened twice: on the `#1432` branch, and again in round 2 of #1493.
 
 > **Whenever you tighten a `combineWith`, check `DefaultPrefetchRequirementCollector` first.**
 
@@ -109,7 +110,7 @@ an attribute-filtered one. It now lives in `PriceHistogramTranslator`, which run
 
 **Refuse where the ambiguity is consumed, not where it is written.** Two hierarchy filters in one query are a
 perfectly ordinary disjunction; they are only ambiguous for the code that has to pick *one* of them to seed
-hierarchy statistics. So the refusal sits in `EvitaRequest#getHierarchyWithin`, whose only callers are
+hierarchy statistics. So the refusal sits in `EvitaRequest#getHierarchyWithin`, whose only production callers are
 extra-result planning — the filter keeps working, and only asking for statistics over an ambiguous restriction
 fails. Refusing at the point of writing would have cost filtering expressiveness and bought nothing.
 
