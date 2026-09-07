@@ -83,9 +83,13 @@ public enum StoragePartGroup {
 
 	/**
 	 * An index's own record rather than the values it indexes: which sub-indexes exist, and which entities the index
-	 * covers. Deliberately small - the attribute, price and facet structures are stored separately precisely so this
-	 * one is not rewritten whenever they change, which is why it is a poor proxy for the index footprint and why the
-	 * groups below exist. `EntityIndexStoragePart`, `EntityIdsStoragePart`, `CatalogIndexStoragePart`.
+	 * covers. `EntityIndexStoragePart`, `EntityIdsStoragePart`, `CatalogIndexStoragePart`.
+	 *
+	 * The manifest proper is deliberately small - the attribute, price and facet structures are stored separately
+	 * precisely so it is not rewritten whenever they change, which is why it is a poor proxy for the index footprint
+	 * and why the groups below exist. The membership bitmaps evicted out of it are the opposite case: they were split
+	 * off *because* they churn, being re-emitted on every entity insert and delete. Both describe the index rather
+	 * than the values under it, which is what puts them in one group; only the first is rarely written.
 	 */
 	INDEX_MANIFEST(StoragePartKind.INDEX),
 
@@ -121,10 +125,16 @@ public enum StoragePartGroup {
 	HIERARCHY_INDEX(StoragePartKind.INDEX),
 
 	/**
-	 * Everything built to answer histogram requests - the bucketed values, their range trees, the cardinality index
-	 * gating bucket boundaries, and the leaf pages of each.
+	 * Everything built for the bucketed histogram indexes a **reference schema** declares - the bucketed values, their
+	 * range trees, the cardinality index gating bucket boundaries, and the leaf pages of each.
+	 *
+	 * Named for the reference on purpose. The histograms most readers think of first - the `attributeHistogram` and
+	 * `priceHistogram` extra results - are computed on the fly from the filter and price indexes and have **no**
+	 * persisted storage part at all, so they can never appear in a composition breakdown. What this group measures is
+	 * the cost of `ReferenceSchemaContract.getHistogramIndexDefinitions`, read back by the `referenceHistogram`
+	 * require constraint. An operator seeing bytes here is paying for that reference feature and nothing else.
 	 */
-	HISTOGRAM_INDEX(StoragePartKind.INDEX),
+	REFERENCE_HISTOGRAM_INDEX(StoragePartKind.INDEX),
 
 	/**
 	 * Schema records - the catalog schema and one entity schema per collection. One record each, so this group is

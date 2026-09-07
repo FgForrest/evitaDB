@@ -2392,9 +2392,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			assertTrue(part.totalBytes() > 0, "A type holding records must report bytes: " + part);
 			// the classification is the whole point of the breakdown for a client that cannot know what an
 			// `EntityIdsStoragePart` is, and this is the only test in which one produced by the engine is decoded
-			// after a real wire round trip rather than built by hand
+			// after a real wire round trip rather than built by hand. A decoder that dropped the group would land
+			// every entry on the enum's zero value, which the converter refuses outright
 			assertNotNull(part.group(), "A decoded entry with no classification cannot be grouped: " + part);
-			assertEquals(part.group().kind(), part.kind(), "The decoded kind must be the group's own: " + part);
 			kindsSeen.add(part.kind());
 			summedBytes += part.totalBytes();
 		}

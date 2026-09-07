@@ -148,12 +148,16 @@ public enum GrpcStoragePartGroup
   STORAGE_PART_GROUP_HIERARCHY_INDEX(11),
   /**
    * <pre>
-   * Everything built to answer histogram requests - bucketed values, their range trees and cardinality gating.
+   * Everything built for the bucketed histogram indexes a REFERENCE SCHEMA declares - bucketed values, their range
+   * trees and cardinality gating. Named for the reference on purpose: the `attributeHistogram` and `priceHistogram`
+   * extra results are computed on the fly from the filter and price indexes and have no persisted storage part at
+   * all, so they never appear in a composition breakdown. Bytes here are the cost of the reference-schema histogram
+   * definitions read back by the `referenceHistogram` require constraint.
    * </pre>
    *
-   * <code>STORAGE_PART_GROUP_HISTOGRAM_INDEX = 12;</code>
+   * <code>STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX = 12;</code>
    */
-  STORAGE_PART_GROUP_HISTOGRAM_INDEX(12),
+  STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX(12),
   /**
    * <pre>
    * Schema records - the catalog schema and one entity schema per collection.
@@ -274,12 +278,16 @@ public enum GrpcStoragePartGroup
   public static final int STORAGE_PART_GROUP_HIERARCHY_INDEX_VALUE = 11;
   /**
    * <pre>
-   * Everything built to answer histogram requests - bucketed values, their range trees and cardinality gating.
+   * Everything built for the bucketed histogram indexes a REFERENCE SCHEMA declares - bucketed values, their range
+   * trees and cardinality gating. Named for the reference on purpose: the `attributeHistogram` and `priceHistogram`
+   * extra results are computed on the fly from the filter and price indexes and have no persisted storage part at
+   * all, so they never appear in a composition breakdown. Bytes here are the cost of the reference-schema histogram
+   * definitions read back by the `referenceHistogram` require constraint.
    * </pre>
    *
-   * <code>STORAGE_PART_GROUP_HISTOGRAM_INDEX = 12;</code>
+   * <code>STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX = 12;</code>
    */
-  public static final int STORAGE_PART_GROUP_HISTOGRAM_INDEX_VALUE = 12;
+  public static final int STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX_VALUE = 12;
   /**
    * <pre>
    * Schema records - the catalog schema and one entity schema per collection.
@@ -334,7 +342,7 @@ public enum GrpcStoragePartGroup
       case 9: return STORAGE_PART_GROUP_REFERENCE_INDEX;
       case 10: return STORAGE_PART_GROUP_FACET_INDEX;
       case 11: return STORAGE_PART_GROUP_HIERARCHY_INDEX;
-      case 12: return STORAGE_PART_GROUP_HISTOGRAM_INDEX;
+      case 12: return STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX;
       case 13: return STORAGE_PART_GROUP_SCHEMA;
       case 14: return STORAGE_PART_GROUP_HEADER;
       default: return null;

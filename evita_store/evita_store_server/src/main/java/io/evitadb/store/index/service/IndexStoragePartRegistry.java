@@ -62,7 +62,7 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
 			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class, StoragePartGroup.REFERENCE_INDEX),
 			new StoragePartRecord((byte) 33, GroupCardinalityIndexStoragePart.class, StoragePartGroup.REFERENCE_INDEX),
-			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class, StoragePartGroup.HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class, StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
 			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
 			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
 			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class, StoragePartGroup.INDEX_MANIFEST),
@@ -72,9 +72,9 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 41, ReferenceTypeCardinalityIndexLeafPagePart.class, StoragePartGroup.REFERENCE_INDEX),
 			new StoragePartRecord((byte) 42, SortIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
 			new StoragePartRecord((byte) 43, ChainIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
-			new StoragePartRecord((byte) 44, HistogramIndexLeafPagePart.class, StoragePartGroup.HISTOGRAM_INDEX),
-			new StoragePartRecord((byte) 45, HistogramRangeIndexLeafPagePart.class, StoragePartGroup.HISTOGRAM_INDEX),
-			new StoragePartRecord((byte) 46, HistogramCardinalityStoragePart.class, StoragePartGroup.HISTOGRAM_INDEX)
+			new StoragePartRecord((byte) 44, HistogramIndexLeafPagePart.class, StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 45, HistogramRangeIndexLeafPagePart.class, StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 46, HistogramCardinalityStoragePart.class, StoragePartGroup.REFERENCE_HISTOGRAM_INDEX)
 		);
 	}
 

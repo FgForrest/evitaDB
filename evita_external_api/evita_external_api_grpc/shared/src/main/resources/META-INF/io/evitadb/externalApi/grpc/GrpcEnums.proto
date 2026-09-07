@@ -1289,8 +1289,12 @@ enum GrpcStoragePartGroup {
   STORAGE_PART_GROUP_FACET_INDEX = 10;
   // The hierarchy index - the tree structure a hierarchical collection is queried through.
   STORAGE_PART_GROUP_HIERARCHY_INDEX = 11;
-  // Everything built to answer histogram requests - bucketed values, their range trees and cardinality gating.
-  STORAGE_PART_GROUP_HISTOGRAM_INDEX = 12;
+  // Everything built for the bucketed histogram indexes a REFERENCE SCHEMA declares - bucketed values, their range
+  // trees and cardinality gating. Named for the reference on purpose: the `attributeHistogram` and `priceHistogram`
+  // extra results are computed on the fly from the filter and price indexes and have no persisted storage part at
+  // all, so they never appear in a composition breakdown. Bytes here are the cost of the reference-schema histogram
+  // definitions read back by the `referenceHistogram` require constraint.
+  STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX = 12;
   // Schema records - the catalog schema and one entity schema per collection.
   STORAGE_PART_GROUP_SCHEMA = 13;
   // Header records the data store keeps to describe itself and its collections.

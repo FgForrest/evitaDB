@@ -1,7 +1,7 @@
 ---
 title: A storage part declares which kind of data it holds, at registration, in a closed enum
 date: 2026-09-07
-updated: 2026-09-07 12:10
+updated: 2026-09-07 12:45
 status: accepted
 kind: feature
 issues: [1500]
@@ -135,6 +135,16 @@ is what a superseding one has to argue against.
 - **Faceting is charged apart from references.** `io.evitadb.index.IndexType` already spends
   `FACET_INDEX` and `REFERENCE_INDEX` on different things, and `faceted` and `indexed` are separate
   schema decisions an operator turns off separately.
+- **`REFERENCE_HISTOGRAM_INDEX` is named for the reference, and the name is load-bearing.** The four
+  parts under it back the runtime `HistogramIndex`, which only `ReducedGroupEntityIndex` and
+  `ReferencedTypeEntityIndex` implement; the feature is declared solely by
+  `ReferenceSchemaContract.getHistogramIndexDefinitions` and read back by the `referenceHistogram`
+  require constraint. The histograms a reader thinks of first — the `attributeHistogram` and
+  `priceHistogram` extra results — are computed on the fly from the filter and price indexes and have
+  **no persisted storage part at all**, so they can never appear in a breakdown. A group called
+  `HISTOGRAM_INDEX` was written first and caught in review: it would have reproduced this record's own
+  motivating bug one level down, a plausible label attached to bytes that are not what the reader
+  assumes. If the label ever has to change again, this is the trap to avoid re-entering.
 - **The histogram identifies a record type by its simple class name**, which is why registration now
   refuses two types that would share one. Before this change such a collision would have merged two rows
   into one that reported the sum of both and named only half of it — a latent defect the name-keyed
@@ -177,6 +187,14 @@ tags, and the statistics surface has shipped in no release before it.
 
 **No pre-folded rows on the wire.** The client sums. If a future client cannot, the additive move is a
 `groups[]` field, not a reshape.
+
+**The simple-name collision guard fails a catalog's startup, not one statistics row.** Registration
+raises rather than merging, which is the project's standing rule for an unreachable state — but the
+blast radius did grow: before, two types sharing a simple name produced one wrong composition row;
+now the catalog does not open. That is only reachable through a `StoragePartRegistry` SPI provider
+outside the engine, of which there are none, and the 36 registered types are pinned by test. Revisit
+if the registry ever becomes a documented third-party extension point, where a downgrade to a logged
+warning plus a merged row might be the better trade.
 
 **`OffsetIndexRecordTypeCountChangedEvent` does not carry the group.** Adding it as a second
 `@ExportMetricLabel` would let Grafana chart data-versus-index bytes over time without a 36-series

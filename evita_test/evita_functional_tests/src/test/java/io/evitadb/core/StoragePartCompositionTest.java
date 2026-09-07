@@ -178,12 +178,10 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 		final CollectionStorageComposition composition = fetchCollectionStatistics(ENTITY_PRODUCT)
 			.storageCompositionIfPresent().orElseThrow();
 
+		// `kind()` is derived from `group()`, so asserting the two agree would hold whatever the engine reported.
+		// What can actually be wrong here is the group itself, so that is what the per-type assertions below check
 		for (final StoragePartUsage part : composition.parts()) {
 			assertNotNull(part.group(), "A breakdown entry with no classification cannot be grouped: " + part);
-			assertEquals(
-				part.group().kind(), part.kind(),
-				"The reported kind must be the one the group folds to: " + part
-			);
 		}
 
 		final StoragePartUsage bodies = findPart(parts(composition), EntityBodyStoragePart.class.getSimpleName());

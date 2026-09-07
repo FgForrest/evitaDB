@@ -24,6 +24,7 @@
 package io.evitadb.store.shared;
 
 import io.evitadb.api.statistics.StoragePartGroup;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -39,11 +40,10 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.TreeMap;
@@ -127,11 +127,12 @@ class StoragePartGroupRegistrationTest {
 			Map.entry("FacetIndexStoragePart", StoragePartGroup.FACET_INDEX),
 			Map.entry("HierarchyIndexStoragePart", StoragePartGroup.HIERARCHY_INDEX),
 
-			// histogram indexes
-			Map.entry("HistogramIndexStoragePart", StoragePartGroup.HISTOGRAM_INDEX),
-			Map.entry("HistogramCardinalityStoragePart", StoragePartGroup.HISTOGRAM_INDEX),
-			Map.entry("HistogramIndexLeafPagePart", StoragePartGroup.HISTOGRAM_INDEX),
-			Map.entry("HistogramRangeIndexLeafPagePart", StoragePartGroup.HISTOGRAM_INDEX)
+			// the bucketed histogram indexes a reference schema declares - NOT the `attributeHistogram` /
+			// `priceHistogram` extra results, which are computed on the fly and persist nothing
+			Map.entry("HistogramIndexStoragePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+			Map.entry("HistogramCardinalityStoragePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+			Map.entry("HistogramIndexLeafPagePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX),
+			Map.entry("HistogramRangeIndexLeafPagePart", StoragePartGroup.REFERENCE_HISTOGRAM_INDEX)
 		)
 	);
 
@@ -189,18 +190,37 @@ class StoragePartGroupRegistrationTest {
 	}
 
 	@Test
-	@DisplayName("Each group's kind is the one its members are reported under")
+	@DisplayName("Each group folds to the kind it is published under")
 	void shouldFoldEveryGroupToItsKind() {
-		final Map<StoragePartGroup, String> firstMember = new HashMap<>(32);
-		for (final StoragePartRecord record : loadRegisteredParts()) {
-			firstMember.putIfAbsent(record.group(), record.partType().getSimpleName());
+		// pinned as a table for the same reason the type mapping above is: the kind is what a client renders as its
+		// three-row summary, so moving a group between kinds silently rewrites what that summary means. Asserting
+		// that `kind()` merely returns something cannot fail - the enum constructor already requires a non-null kind
+		// for every constant that compiles - so it would be a test of the Java language, not of this taxonomy
+		final Map<StoragePartGroup, StoragePartKind> expected = new EnumMap<>(
+			Map.ofEntries(
+				Map.entry(StoragePartGroup.ENTITY_BODY, StoragePartKind.ENTITY_DATA),
+				Map.entry(StoragePartGroup.ATTRIBUTE_DATA, StoragePartKind.ENTITY_DATA),
+				Map.entry(StoragePartGroup.ASSOCIATED_DATA, StoragePartKind.ENTITY_DATA),
+				Map.entry(StoragePartGroup.PRICE_DATA, StoragePartKind.ENTITY_DATA),
+				Map.entry(StoragePartGroup.REFERENCE_DATA, StoragePartKind.ENTITY_DATA),
+				Map.entry(StoragePartGroup.INDEX_MANIFEST, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.ATTRIBUTE_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.PRICE_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.REFERENCE_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.FACET_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.HIERARCHY_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.REFERENCE_HISTOGRAM_INDEX, StoragePartKind.INDEX),
+				Map.entry(StoragePartGroup.SCHEMA, StoragePartKind.METADATA),
+				Map.entry(StoragePartGroup.HEADER, StoragePartKind.METADATA)
+			)
+		);
+
+		final Map<StoragePartGroup, StoragePartKind> actual = new EnumMap<>(StoragePartGroup.class);
+		for (final StoragePartGroup group : StoragePartGroup.values()) {
+			actual.put(group, group.kind());
 		}
-		for (final Entry<StoragePartGroup, String> entry : firstMember.entrySet()) {
-			assertNotNull(
-				entry.getKey().kind(),
-				"The group " + entry.getKey() + " (carried by " + entry.getValue() + ") folds to no kind"
-			);
-		}
+
+		assertEquals(expected, actual, "A group was added or moved between kinds");
 	}
 
 	@Test
