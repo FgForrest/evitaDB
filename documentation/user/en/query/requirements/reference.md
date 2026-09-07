@@ -559,7 +559,8 @@ histogramStatistics(
     <dd>
         mandatory `requestedBucketCount` — the desired number of histogram columns to compute. Pick a value that
         matches the pixel width of the histogram widget in the UI; typical values are **10–50**. The actual bucket
-        count may be lower under `OPTIMIZED` / `EQUALIZED_OPTIMIZED` (empty buckets dropped) but never higher.
+        count may be lower under `OPTIMIZED` (empty buckets dropped) and under `EQUALIZED` / `EQUALIZED_OPTIMIZED`
+        (a value held by many entities collapses several quantile intervals into one), but never higher.
     </dd>
     <dt>argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED)?</dt>
     <dd>
@@ -572,9 +573,12 @@ histogramStatistics(
         - **STANDARD**: exactly `requestedBucketCount` equal-width buckets, including empty ones
         - **OPTIMIZED**: same as `STANDARD`, but empty buckets are removed for a denser display (actual count ≤
             requested)
-        - **EQUALIZED**: exactly `requestedBucketCount` buckets with **frequency-equalised** boundaries (each bucket
-            ends up with roughly the same number of occurrences)
-        - **EQUALIZED_OPTIMIZED**: frequency-equalised boundaries with empty-bucket suppression
+        - **EQUALIZED**: **frequency-equalised** boundaries (each bucket ends up with roughly the same number of
+            occurrences), placed on values the data actually contains — so no bucket is ever empty, and the actual
+            count may be lower than requested. `relativeFrequency` carries the smoothed value density rather than a
+            share; see [equalized histograms in practice](histogram.md#equalized-histograms-in-practice)
+        - **EQUALIZED_OPTIMIZED**: *deprecated since 2026.2, use `EQUALIZED`* — identical to `EQUALIZED`, because
+            the equalised algorithm produces no empty buckets and there is nothing to suppress
         </p>
     </dd>
     <dt>requireConstraint:entityFetch?</dt>

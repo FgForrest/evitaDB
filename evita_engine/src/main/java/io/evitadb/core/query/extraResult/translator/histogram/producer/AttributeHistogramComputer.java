@@ -173,25 +173,16 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
 					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
 				);
-				case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+				// the equalized algorithm never produces an empty bucket, so there is nothing for the
+				// "optimized" variant to strip - both behaviours resolve to the same cruncher
+				case EQUALIZED, EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
 					histogramName,
 					bucketCount,
 					decimalPlaces,
 					buckets,
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
-					EqualizedHistogramDataCruncher.BucketCountMode.EXACT
-				);
-				case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
-					histogramName,
-					bucketCount,
-					decimalPlaces,
-					buckets,
-					bucket -> converter.applyAsInt((T) bucket.getValue()),
-					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
-					EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
 				);
 			};
 		}
@@ -397,11 +388,13 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Override
 	public long getOperationCost() {
-		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		// equalized variants have similar cost structure
+		// OPTIMIZED carries a penalty because a sparse histogram has to be recomputed to drop empty buckets.
+		// The equalised family never produces an empty bucket, so both of its members do exactly the same
+		// single pass and must be costed the same - charging EQUALIZED_OPTIMIZED the recomputation penalty
+		// would bias the planner against a behaviour that does no extra work.
 		return switch (this.behavior) {
-			case STANDARD, EQUALIZED -> 2213;
-			case OPTIMIZED, EQUALIZED_OPTIMIZED -> 3320;
+			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 2213;
+			case OPTIMIZED -> 3320;
 		};
 	}
 

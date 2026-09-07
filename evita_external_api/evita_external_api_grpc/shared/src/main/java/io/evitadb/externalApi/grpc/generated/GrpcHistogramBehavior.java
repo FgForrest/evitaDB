@@ -59,9 +59,11 @@ public enum GrpcHistogramBehavior
   OPTIMIZED(1),
   /**
    * <pre>
-   * Histogram always contains the number of buckets you asked for.
-   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-   * approximately equal portion of total records.
+   * Histogram will never contain more buckets than you asked for, and contains fewer whenever a single value is held
+   * by so many entities that it collapses several quantile intervals into one.
+   * Bucket boundaries are positioned on the empirical quantile function, so each bucket covers approximately equal
+   * portion of total records. Every boundary is a value the data actually contains, so no bucket is ever empty.
+   * `relativeFrequency` carries the smoothed value density normalised to the curve maximum, in the range (0, 100].
    * </pre>
    *
    * <code>EQUALIZED = 2;</code>
@@ -69,13 +71,14 @@ public enum GrpcHistogramBehavior
   EQUALIZED(2),
   /**
    * <pre>
-   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
-   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-   * approximately equal portion of total records.
+   * Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+   * so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+   * query grammar.
    * </pre>
    *
-   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   * <code>EQUALIZED_OPTIMIZED = 3 [deprecated = true];</code>
    */
+  @java.lang.Deprecated
   EQUALIZED_OPTIMIZED(3),
   UNRECOGNIZED(-1),
   ;
@@ -102,9 +105,11 @@ public enum GrpcHistogramBehavior
   public static final int OPTIMIZED_VALUE = 1;
   /**
    * <pre>
-   * Histogram always contains the number of buckets you asked for.
-   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-   * approximately equal portion of total records.
+   * Histogram will never contain more buckets than you asked for, and contains fewer whenever a single value is held
+   * by so many entities that it collapses several quantile intervals into one.
+   * Bucket boundaries are positioned on the empirical quantile function, so each bucket covers approximately equal
+   * portion of total records. Every boundary is a value the data actually contains, so no bucket is ever empty.
+   * `relativeFrequency` carries the smoothed value density normalised to the curve maximum, in the range (0, 100].
    * </pre>
    *
    * <code>EQUALIZED = 2;</code>
@@ -112,14 +117,14 @@ public enum GrpcHistogramBehavior
   public static final int EQUALIZED_VALUE = 2;
   /**
    * <pre>
-   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
-   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
-   * approximately equal portion of total records.
+   * Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+   * so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+   * query grammar.
    * </pre>
    *
-   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   * <code>EQUALIZED_OPTIMIZED = 3 [deprecated = true];</code>
    */
-  public static final int EQUALIZED_OPTIMIZED_VALUE = 3;
+  @java.lang.Deprecated public static final int EQUALIZED_OPTIMIZED_VALUE = 3;
 
 
   public final int getNumber() {
