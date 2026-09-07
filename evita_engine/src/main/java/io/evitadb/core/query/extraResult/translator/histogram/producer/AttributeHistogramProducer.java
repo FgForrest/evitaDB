@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -312,6 +313,18 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	}
 
 	/**
+	 * Returns the histogram requests registered so far, keyed by attribute name. Package-private on purpose: what
+	 * {@link #addAttributeHistogramRequest} folds when one attribute is requested twice is otherwise observable
+	 * only through a fully planned and executed query, which is far too much machinery to assert a merge with.
+	 *
+	 * @return the registered requests, never null
+	 */
+	@Nonnull
+	Map<String, AttributeHistogramRequest> getHistogramRequests() {
+		return this.histogramRequests;
+	}
+
+	/**
 	 * Adds a request for histogram computation passing all data necessary for the computation.
 	 * Method doesn't compute the histogram - just registers the requirement to be resolved later
 	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext)} )}  method.
@@ -362,13 +375,27 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			// request for one attribute name resolved its indexes the same way; `AttributeHistogramTranslator`
 			// asserts that premise by refusing to plan a histogram inside a reference scope, which is the one thing
 			// that would resolve a different index under the very same name
-			if (!alreadyRegistered.attributeIndexes().containsAll(attributeIndexes)) {
-				final List<FilterIndex> mergedIndexes = new ArrayList<>(alreadyRegistered.attributeIndexes());
-				for (final FilterIndex attributeIndex : attributeIndexes) {
-					if (!mergedIndexes.contains(attributeIndex)) {
-						mergedIndexes.add(attributeIndex);
+			// both sides hold one filter index per target index of the query, and a `hierarchyWithin` gives the
+			// planner one target index per requested hierarchy node - so neither side is bounded by the number of
+			// scopes and a list-against-list membership scan would be quadratic in the size of the hierarchy.
+			// `FilterIndex` inherits identity equality, so a `HashSet` reproduces exactly the membership test the
+			// list scan performed, at O(1) per probe.
+			final List<FilterIndex> registeredIndexes = alreadyRegistered.attributeIndexes();
+			final Set<FilterIndex> knownIndexes = CollectionUtils.createHashSet(registeredIndexes.size());
+			knownIndexes.addAll(registeredIndexes);
+			List<FilterIndex> mergedIndexes = null;
+			for (final FilterIndex attributeIndex : attributeIndexes) {
+				if (knownIndexes.add(attributeIndex)) {
+					// the merged list is allocated only once something is actually new, so a repeat that widens
+					// nothing leaves the registered request untouched and allocates nothing
+					if (mergedIndexes == null) {
+						mergedIndexes = new ArrayList<>(registeredIndexes.size() + attributeIndexes.size());
+						mergedIndexes.addAll(registeredIndexes);
 					}
+					mergedIndexes.add(attributeIndex);
 				}
+			}
+			if (mergedIndexes != null) {
 				this.histogramRequests.put(
 					attributeName,
 					new AttributeHistogramRequest(

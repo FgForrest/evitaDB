@@ -23,9 +23,17 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
@@ -35,11 +43,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.ToIntFunction;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -55,6 +66,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(HISTOGRAM)
 @Tag(ATTRIBUTE)
 class AttributeHistogramProducerTest {
+	private static final String ATTRIBUTE_NAME = "whatever";
 
 	@Test
 	void shouldReturnSimpleBuckets() {
@@ -274,6 +286,99 @@ class AttributeHistogramProducerTest {
 	 * @param expectedValue     the value the bucket must represent
 	 * @param expectedRecordIds the record ids the bucket must contain, in ascending order
 	 */
+	@Test
+	@DisplayName("registering one attribute twice widens the index set it is computed from")
+	void shouldWidenIndexSetWhenOneAttributeIsRegisteredTwice() {
+		final AttributeHistogramProducer producer = producer();
+		final FilterIndex first = filterIndex();
+		final FilterIndex second = filterIndex();
+
+		register(producer, first);
+		register(producer, second);
+
+		assertEquals(
+			List.of(first, second),
+			producer.getHistogramRequests().get(ATTRIBUTE_NAME).attributeIndexes()
+		);
+	}
+
+	@Test
+	@DisplayName("a repeat that adds no new index leaves the registered request untouched")
+	void shouldKeepRegisteredRequestWhenRepeatWidensNothing() {
+		final AttributeHistogramProducer producer = producer();
+		final FilterIndex first = filterIndex();
+		final FilterIndex second = filterIndex();
+
+		register(producer, first, second);
+		final AttributeHistogramProducer.AttributeHistogramRequest registered = producer.getHistogramRequests().get(ATTRIBUTE_NAME);
+		register(producer, second);
+
+		// identity, not equality - a repeat that widens nothing must not even rebuild the request
+		assertSame(registered, producer.getHistogramRequests().get(ATTRIBUTE_NAME));
+		assertEquals(List.of(first, second), registered.attributeIndexes());
+	}
+
+	@Test
+	@DisplayName("one attribute occupies one result slot, so two different bucket counts are refused")
+	void shouldRefuseOneAttributeRequestedWithTwoBucketCounts() {
+		final AttributeHistogramProducer producer = producer();
+		register(producer, 20, HistogramBehavior.STANDARD, filterIndex());
+
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> register(producer, 3, HistogramBehavior.STANDARD, filterIndex())
+		);
+	}
+
+	@Test
+	@DisplayName("one attribute requested twice with two behaviours is refused for the same reason")
+	void shouldRefuseOneAttributeRequestedWithTwoBehaviours() {
+		final AttributeHistogramProducer producer = producer();
+		register(producer, 20, HistogramBehavior.STANDARD, filterIndex());
+
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> register(producer, 20, HistogramBehavior.OPTIMIZED, filterIndex())
+		);
+	}
+
+	@Nonnull
+	private static AttributeHistogramProducer producer() {
+		return new AttributeHistogramProducer(new ConstantFormula(new BaseBitmap(1, 2, 3)));
+	}
+
+	@Nonnull
+	private static FilterIndex filterIndex() {
+		return new OwnerFilterIndex(
+			new AttributeIndexKey(null, ATTRIBUTE_NAME, null),
+			new ValueToRecordBitmap[]{new ValueToRecordBitmap(1, 1)},
+			new RangeIndex(),
+			Integer.class
+		);
+	}
+
+	private static void register(@Nonnull AttributeHistogramProducer producer, @Nonnull FilterIndex... indexes) {
+		register(producer, 20, HistogramBehavior.STANDARD, indexes);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void register(
+		@Nonnull AttributeHistogramProducer producer,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull FilterIndex... indexes
+	) {
+		producer.addAttributeHistogramRequest(
+			AttributeSchema._internalBuild(
+				ATTRIBUTE_NAME, Integer.class, false, ConflictResolutionOverride.INHERITED
+			),
+			bucketCount,
+			behavior,
+			Comparator.naturalOrder(),
+			List.of(indexes)
+		);
+	}
+
 	private static void assertBucket(
 		@Nonnull ValueToRecordBitmap bucket,
 		int expectedValue,
