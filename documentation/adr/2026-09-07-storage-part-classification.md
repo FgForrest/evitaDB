@@ -1,7 +1,7 @@
 ---
 title: A storage part declares which kind of data it holds, at registration, in a closed enum
 date: 2026-09-07
-updated: 2026-09-07 12:45
+updated: 2026-09-07 12:05
 status: accepted
 kind: feature
 issues: [1500]
@@ -154,16 +154,21 @@ is what a superseding one has to argue against.
 
 ## Verification
 
-`StoragePartGroupRegistrationTest` (5 tests) pins the full 36-type table as an explicit map — written
+`StoragePartGroupRegistrationTest` (7 tests) pins the full 36-type table as an explicit map — written
 out rather than derived, so that a reclassification is a reviewed edit rather than a silently restated
-one — and asserts that no group is declared without a member, that a simple-name collision is refused,
-and that an unregistered type raises rather than falling into a plausible bucket.
+one — and pins the group-to-kind fold as a second such table. It further asserts that no group is
+declared without a member, that a type cannot be registered without a group, that a simple-name
+collision is refused, that a registered type reports the group it was declared with, and that an
+unregistered type raises rather than falling into a plausible bucket.
 `StoragePartCompositionTest` (7) adds the fold assertions: every entry classified, the entity schema
 reported as metadata from inside the *entity* registry, the catalog's own store carrying no entity data
-at all, and both folds conserving every byte. `CatalogStatisticsConverterTest` (29) adds a wire test the
-round trip structurally cannot perform — that `kind` is actually sent, and that a tampered `kind` cannot
-reach a decoded record. `EvitaClientReadOnlyTest` asserts the classification survives server → gRPC →
-driver on a breakdown the engine really produced.
+at all, and both folds conserving every byte. `EvitaEnumConverterStoragePartTest` (19) pins both enum
+mappings in both directions against tables written out in the test, checks that every wire constant is
+named after the value it carries, and covers the rejection arm for a group this client cannot name.
+`CatalogStatisticsConverterTest` (29 executions, from 22 methods plus one parameterized case) adds a
+wire test the round trip structurally cannot perform — that `kind` is actually sent, and that a tampered
+`kind` cannot reach a decoded record. `EvitaClientReadOnlyTest` asserts the classification survives
+server → gRPC → driver on a breakdown the engine really produced.
 
 Counterfactuals, each with the source restored and `cmp`-verified afterwards: misclassifying
 `EntitySchemaStoragePart`, removing the encoder's `setKind`, and dropping the collision guard each fail
