@@ -9,7 +9,7 @@ commit: '13f79ff798325a9fa2a86988655777b17a3696e1'
 ---
 Typická stránka s výpisem produktů může vypadat takto:
 
-[![Stránka s výpisem kategorií z Alzashop.com](../../en/solve/assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z Alzashop.com")](../../en/solve/assets/filtering-products-in-category/category-listing.png)
+[![Stránka s výpisem kategorií z e-shopu](../../en/solve/assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z e-shopu")](../../en/solve/assets/filtering-products-in-category/category-listing.png)
 
 Obvykle se skládá z následujících typických bloků:
 

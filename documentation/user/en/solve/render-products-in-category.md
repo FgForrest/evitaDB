@@ -12,7 +12,7 @@ proofreading: 'done'
 
 Typical product listing page might look like this:
 
-[![Category listing page from Alzashop.com](assets/filtering-products-in-category/category-listing.png "Category listing page from Alzashop.com")](assets/filtering-products-in-category/category-listing.png)
+[![Category listing page from an e-commerce site](assets/filtering-products-in-category/category-listing.png "Category listing page from an e-commerce site")](assets/filtering-products-in-category/category-listing.png)
 
 It usually consists of the following typical blocks:
 
