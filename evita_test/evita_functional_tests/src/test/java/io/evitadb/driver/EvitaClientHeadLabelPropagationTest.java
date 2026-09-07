@@ -27,6 +27,11 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Label;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -34,8 +39,8 @@ import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryRequest;
+import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -59,6 +64,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -72,11 +78,12 @@ import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static java.util.Objects.requireNonNull;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -197,10 +204,7 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 		);
 
 		assertSingleCollectionOnTheWire(sentRequest);
-		assertFalse(
-			sentRequest.getQuery().contains("head("),
-			() -> "a derived collection alone must not be wrapped: " + sentRequest.getQuery()
-		);
+		assertBareCollectionHeadOnTheWire(sentRequest);
 	}
 
 	@Test
@@ -246,14 +250,8 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 			)
 		);
 
-		assertTrue(
-			sentRequest.getQuery().contains("collection("),
-			() -> "the entity type never made it onto the wire: " + sentRequest.getQuery()
-		);
-		assertFalse(
-			sentRequest.getQuery().contains("head("),
-			() -> "a head with nothing but a collection must not be wrapped: " + sentRequest.getQuery()
-		);
+		assertSingleCollectionOnTheWire(sentRequest);
+		assertBareCollectionHeadOnTheWire(sentRequest);
 	}
 
 	/**
@@ -270,35 +268,61 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 		@Nonnull String labelName,
 		@Nonnull String labelValue
 	) {
-		assertTrue(
-			sentRequest.getQuery().contains("label("),
-			() -> "the head label was dropped by the driver: " + sentRequest.getQuery()
+		final Query sentQuery = parseWireForm(sentRequest);
+		final List<Label> labels = QueryUtils.findConstraints(
+			requireNonNull(sentQuery.getHead(), () -> "the head never reached the wire: " + sentRequest.getQuery()),
+			Label.class
 		);
 		assertTrue(
-			sentRequest.getPositionalQueryParamsList().stream()
-				.map(GrpcQueryParam::getStringValue)
-				.anyMatch(labelName::equals),
-			() -> "the label name never reached the wire: " + sentRequest.getPositionalQueryParamsList()
-		);
-		assertTrue(
-			sentRequest.getPositionalQueryParamsList().stream()
-				.map(GrpcQueryParam::getStringValue)
-				.anyMatch(labelValue::equals),
-			() -> "the label value never reached the wire: " + sentRequest.getPositionalQueryParamsList()
+			labels.stream().anyMatch(
+				it -> labelName.equals(it.getLabelName()) && labelValue.equals(it.getLabelValue())
+			),
+			() -> "the head label `" + labelName + "` was dropped by the driver: " + sentRequest.getQuery()
 		);
 	}
 
 	/**
-	 * Asserts the wire carries exactly one `collection` constraint. Counting rather than merely finding one is what
-	 * catches a merge that prepends a collection to a header that already names one.
+	 * Asserts the head on the wire is a bare `collection`, not wrapped in a `head(...)` container - the shape every
+	 * already-deployed server parses, and the one a fix that over-wraps would break.
+	 */
+	private static void assertBareCollectionHeadOnTheWire(@Nonnull GrpcQueryRequest sentRequest) {
+		assertInstanceOf(
+			Collection.class,
+			parseWireForm(sentRequest).getHead(),
+			() -> "a head with nothing but a collection must not be wrapped: " + sentRequest.getQuery()
+		);
+	}
+
+	/**
+	 * Parses the captured wire form back with its positional parameters and returns the resulting query.
+	 *
+	 * Parsing rather than matching substrings is what the server itself does, so this doubles as proof that the
+	 * driver emitted something the server can actually read - a head printed as siblings of `filterBy` would be
+	 * rejected here by `EvitaQLQueryVisitor#findHeadConstraint`.
+	 */
+	@Nonnull
+	private static Query parseWireForm(@Nonnull GrpcQueryRequest sentRequest) {
+		return DefaultQueryParser.getInstance().parseQuery(
+			sentRequest.getQuery(),
+			QueryConverter.convertQueryParamsList(sentRequest.getPositionalQueryParamsList())
+		);
+	}
+
+	/**
+	 * Asserts the wire carries exactly one `collection` constraint, naming the product collection. Counting rather
+	 * than merely finding one is what catches a merge that prepends a collection to a header that already names one.
 	 */
 	private static void assertSingleCollectionOnTheWire(@Nonnull GrpcQueryRequest sentRequest) {
-		final String sentQuery = sentRequest.getQuery();
-		assertEquals(
-			1,
-			sentQuery.split("collection\\(", -1).length - 1,
-			() -> "expected exactly one collection on the wire: " + sentQuery
+		final Query sentQuery = parseWireForm(sentRequest);
+		final List<Collection> collections = QueryUtils.findConstraints(
+			requireNonNull(sentQuery.getHead(), () -> "the head never reached the wire: " + sentRequest.getQuery()),
+			Collection.class
 		);
+		assertEquals(
+			1, collections.size(),
+			() -> "expected exactly one collection on the wire: " + sentRequest.getQuery()
+		);
+		assertEquals(Entities.PRODUCT, collections.get(0).getEntityType());
 	}
 
 	/**

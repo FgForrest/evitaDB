@@ -224,12 +224,32 @@ class EvitaSessionContractHeadPreservationTest {
 	}
 
 	@Test
-	@DisplayName("A query that already defines entityFetch must be delegated untouched")
-	void shouldDelegateQueryWithEntityFetchUntouched() {
+	@DisplayName("queryOneSealedEntity must delegate a query that already defines entityFetch untouched")
+	void shouldDelegateQueryWithEntityFetchUntouchedFromQueryOneSealedEntity() {
+		final Query original = labelledQueryWithEntityFetch();
+		assertSame(
+			original,
+			captureDelegatedQuery(session -> session.queryOneSealedEntity(original))
+		);
+	}
+
+	@Test
+	@DisplayName("queryListOfSealedEntities must delegate a query that already defines entityFetch untouched")
+	void shouldDelegateQueryWithEntityFetchUntouchedFromQueryListOfSealedEntities() {
 		final Query original = labelledQueryWithEntityFetch();
 		assertSame(
 			original,
 			captureDelegatedQuery(session -> session.queryListOfSealedEntities(original))
+		);
+	}
+
+	@Test
+	@DisplayName("querySealedEntity must delegate a query that already defines entityFetch untouched")
+	void shouldDelegateQueryWithEntityFetchUntouchedFromQuerySealedEntity() {
+		final Query original = labelledQueryWithEntityFetch();
+		assertSame(
+			original,
+			captureDelegatedQuery(session -> session.querySealedEntity(original))
 		);
 	}
 

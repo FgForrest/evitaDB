@@ -100,4 +100,46 @@ class CsharpPrettyPrintingVisitorTest {
 		);
 	}
 
+	@Test
+	@DisplayName("Should render a label-only head that carries no collection")
+	void shouldRenderLabelOnlyHead() {
+		assertEquals(
+			"""
+			Query(
+				Label("query-name", "my-query"),
+				FilterBy(
+					EntityPrimaryKeyInSet(1)
+				)
+			)""",
+			CsharpPrettyPrintingVisitor.toString(
+				query(
+					label("query-name", "my-query"),
+					filterBy(entityPrimaryKeyInSet(1))
+				),
+				"\t",
+				""
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("Should render a query that carries no head at all")
+	void shouldRenderQueryWithoutHead() {
+		assertEquals(
+			"""
+			Query(
+				FilterBy(
+					EntityPrimaryKeyInSet(1)
+				)
+			)""",
+			CsharpPrettyPrintingVisitor.toString(
+				query(
+					filterBy(entityPrimaryKeyInSet(1))
+				),
+				"\t",
+				""
+			)
+		);
+	}
+
 }
