@@ -170,6 +170,26 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	implements ConstraintWithDefaults<RequireConstraint>, FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;
 
+	/**
+	 * Memoized results of the accessors that scan FacetSummary's arguments, children or additional children. The constraint
+	 * is immutable, so each of those scans can only ever produce one answer and repeating it merely re-walks the
+	 * same array - query planning asks most of these several times per query, and the Kryo serializer asks them
+	 * again.
+	 *
+	 * A `null` field means *either* not computed yet *or* computed and absent - the two are deliberately not
+	 * distinguished, because the scan that decides it is an allocation-free walk over a handful of children and
+	 * a flag to tell them apart would cost more than repeating it. The fields are `volatile` because
+	 * a constraint may be shared between threads and a racy publication of an array is not covered by the
+	 * final-field guarantee, and `transient` because they are derived state that a deserialized instance
+	 * recomputes on demand.
+	 */
+	private transient volatile EntityFetch memoizedFacetEntityRequirement;
+	private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
+	private transient volatile FilterBy memoizedFilterBy;
+	private transient volatile FilterGroupBy memoizedFilterGroupBy;
+	private transient volatile OrderBy memoizedOrderBy;
+	private transient volatile OrderGroupBy memoizedOrderGroupBy;
+
 	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, children, additionalChildren);
 		Assert.notNull(
@@ -263,10 +283,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<EntityFetch> getFacetEntityRequirement() {
-		return Arrays.stream(getChildren())
-			.filter(EntityFetch.class::isInstance)
-			.map(EntityFetch.class::cast)
-			.findFirst();
+		EntityFetch memoized = this.memoizedFacetEntityRequirement;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof EntityFetch entityFetch) {
+					memoized = entityFetch;
+					break;
+				}
+			}
+			this.memoizedFacetEntityRequirement = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -274,10 +301,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
-		return Arrays.stream(getChildren())
-			.filter(EntityGroupFetch.class::isInstance)
-			.map(EntityGroupFetch.class::cast)
-			.findFirst();
+		EntityGroupFetch memoized = this.memoizedGroupEntityRequirement;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof EntityGroupFetch entityGroupFetch) {
+					memoized = entityGroupFetch;
+					break;
+				}
+			}
+			this.memoizedGroupEntityRequirement = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -285,10 +319,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<FilterBy> getFilterBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(FilterBy.class::isInstance)
-			.map(FilterBy.class::cast)
-			.findFirst();
+		FilterBy memoized = this.memoizedFilterBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof FilterBy filterBy) {
+					memoized = filterBy;
+					break;
+				}
+			}
+			this.memoizedFilterBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -296,10 +337,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<FilterGroupBy> getFilterGroupBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(FilterGroupBy.class::isInstance)
-			.map(FilterGroupBy.class::cast)
-			.findFirst();
+		FilterGroupBy memoized = this.memoizedFilterGroupBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof FilterGroupBy filterGroupBy) {
+					memoized = filterGroupBy;
+					break;
+				}
+			}
+			this.memoizedFilterGroupBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -307,10 +355,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<OrderBy> getOrderBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderBy.class::isInstance)
-			.map(OrderBy.class::cast)
-			.findFirst();
+		OrderBy memoized = this.memoizedOrderBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof OrderBy orderBy) {
+					memoized = orderBy;
+					break;
+				}
+			}
+			this.memoizedOrderBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -318,10 +373,17 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<OrderGroupBy> getOrderGroupBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderGroupBy.class::isInstance)
-			.map(OrderGroupBy.class::cast)
-			.findFirst();
+		OrderGroupBy memoized = this.memoizedOrderGroupBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof OrderGroupBy orderGroupBy) {
+					memoized = orderGroupBy;
+					break;
+				}
+			}
+			this.memoizedOrderGroupBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	@AliasForParameter("requirements")

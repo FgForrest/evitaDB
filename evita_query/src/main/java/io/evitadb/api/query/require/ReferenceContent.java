@@ -228,6 +228,30 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
 
 	/**
+	 * Memoized results of the accessors that scan {@link #getArguments()}, {@link #getChildren()} or the additional
+	 * children. This constraint is immutable, so each of those scans can only ever produce one answer and repeating
+	 * it merely re-walks the same array - the Kryo serializer alone asks seven of them for a single instance, and
+	 * the query planner several more.
+	 *
+	 * A `null` field means *either* not computed yet *or* computed and absent - the two are deliberately not
+	 * distinguished, because the scan that decides it is an allocation-free walk over a handful of children and
+	 * a flag to tell them apart would cost more than repeating it. The fields are `volatile` because
+	 * a constraint may be shared between threads - {@link #ALL_REFERENCES} is a static constant - and a racy
+	 * publication of an array is not covered by the final-field guarantee, so another thread could otherwise observe
+	 * the array reference before its elements. They are `transient` because they are derived state that any
+	 * deserialized instance recomputes on demand.
+	 */
+	private transient volatile String memoizedInstanceName;
+	private transient volatile String[] memoizedReferenceNames;
+	private transient volatile ManagedReferencesBehaviour memoizedManagedReferencesBehaviour;
+	private transient volatile AttributeContent memoizedAttributeContent;
+	private transient volatile EntityFetch memoizedEntityRequirement;
+	private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
+	private transient volatile ChunkingRequireConstraint memoizedChunking;
+	private transient volatile FilterBy memoizedFilterBy;
+	private transient volatile OrderBy memoizedOrderBy;
+
+	/**
 	 * Internal constructor used in GraphQL API to define multiple reference content definitions and for cloning purposes.
 	 *
 	 * @see <a href="https://github.com/FgForrest/evitaDB/issues/902">Issue #902</a>
@@ -688,12 +712,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nullable
 	public String getInstanceName() {
-		return Arrays.stream(getArguments())
-			.filter(ReferenceContentName.class::isInstance)
-			.map(ReferenceContentName.class::cast)
-			.map(ReferenceContentName::name)
-			.findFirst()
-			.orElse(null);
+		String memoized = this.memoizedInstanceName;
+		if (memoized == null) {
+			for (final Serializable argument : getArguments()) {
+				if (argument instanceof ReferenceContentName referenceContentName) {
+					memoized = referenceContentName.name();
+					break;
+				}
+			}
+			this.memoizedInstanceName = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -716,10 +745,15 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public String[] getReferenceNames() {
-		return Arrays.stream(getArguments())
-			.filter(String.class::isInstance)
-			.map(String.class::cast)
-			.toArray(String[]::new);
+		String[] memoized = this.memoizedReferenceNames;
+		if (memoized == null) {
+			memoized = Arrays.stream(getArguments())
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
+				.toArray(String[]::new);
+			this.memoizedReferenceNames = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -728,11 +762,16 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public ManagedReferencesBehaviour getManagedReferencesBehaviour() {
-		return Arrays.stream(getArguments())
-			.filter(ManagedReferencesBehaviour.class::isInstance)
-			.map(ManagedReferencesBehaviour.class::cast)
-			.findFirst()
-			.orElse(ManagedReferencesBehaviour.ANY);
+		ManagedReferencesBehaviour memoized = this.memoizedManagedReferencesBehaviour;
+		if (memoized == null) {
+			memoized = Arrays.stream(getArguments())
+				.filter(ManagedReferencesBehaviour.class::isInstance)
+				.map(ManagedReferencesBehaviour.class::cast)
+				.findFirst()
+				.orElse(ManagedReferencesBehaviour.ANY);
+			this.memoizedManagedReferencesBehaviour = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -740,10 +779,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<AttributeContent> getAttributeContent() {
-		return Arrays.stream(getChildren())
-			.filter(it -> AttributeContent.class.isAssignableFrom(it.getClass()))
-			.map(AttributeContent.class::cast)
-			.findFirst();
+		AttributeContent memoized = this.memoizedAttributeContent;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof AttributeContent attributeContent) {
+					memoized = attributeContent;
+					break;
+				}
+			}
+			this.memoizedAttributeContent = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -752,10 +798,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@AliasForParameter("entityFetch")
 	@Nonnull
 	public Optional<EntityFetch> getEntityRequirement() {
-		return Arrays.stream(getChildren())
-			.filter(it -> EntityFetch.class.isAssignableFrom(it.getClass()))
-			.map(EntityFetch.class::cast)
-			.findFirst();
+		EntityFetch memoized = this.memoizedEntityRequirement;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof EntityFetch entityFetch) {
+					memoized = entityFetch;
+					break;
+				}
+			}
+			this.memoizedEntityRequirement = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -764,10 +817,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@AliasForParameter("entityGroupFetch")
 	@Nonnull
 	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
-		return Arrays.stream(getChildren())
-			.filter(it -> EntityGroupFetch.class.isAssignableFrom(it.getClass()))
-			.map(EntityGroupFetch.class::cast)
-			.findFirst();
+		EntityGroupFetch memoized = this.memoizedGroupEntityRequirement;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof EntityGroupFetch entityGroupFetch) {
+					memoized = entityGroupFetch;
+					break;
+				}
+			}
+			this.memoizedGroupEntityRequirement = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -775,10 +835,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<ChunkingRequireConstraint> getChunking() {
-		return Arrays.stream(getChildren())
-			.filter(it -> ChunkingRequireConstraint.class.isAssignableFrom(it.getClass()))
-			.map(ChunkingRequireConstraint.class::cast)
-			.findFirst();
+		ChunkingRequireConstraint memoized = this.memoizedChunking;
+		if (memoized == null) {
+			for (final RequireConstraint child : getChildren()) {
+				if (child instanceof ChunkingRequireConstraint chunkingRequireConstraint) {
+					memoized = chunkingRequireConstraint;
+					break;
+				}
+			}
+			this.memoizedChunking = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -810,7 +877,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<FilterBy> getFilterBy() {
-		return getAdditionalChild(FilterBy.class);
+		FilterBy memoized = this.memoizedFilterBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof FilterBy filterBy) {
+					memoized = filterBy;
+					break;
+				}
+			}
+			this.memoizedFilterBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**
@@ -818,7 +895,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<OrderBy> getOrderBy() {
-		return getAdditionalChild(OrderBy.class);
+		OrderBy memoized = this.memoizedOrderBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof OrderBy orderBy) {
+					memoized = orderBy;
+					break;
+				}
+			}
+			this.memoizedOrderBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	/**

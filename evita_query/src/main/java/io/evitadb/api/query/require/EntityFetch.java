@@ -137,6 +137,17 @@ import java.util.stream.Stream;
 public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 
+	/**
+	 * Memoized children re-typed as content requirements. This constraint is immutable, so the cast array can only
+	 * ever have one value, and {@link #getRequirements()} is the most frequently asked question about it - the
+	 * duplicate fold, the containment check, the prefetch collector and `EvitaRequest` all go through it.
+	 *
+	 * The array is shared with the caller exactly as {@link #getChildren()} shares its own, and is `volatile`
+	 * because a racy publication of an array is not covered by the final-field guarantee. It is `transient`
+	 * because it is derived state that a deserialized instance recomputes on demand.
+	 */
+	private transient volatile EntityContentRequire[] memoizedRequirements;
+
 	protected EntityFetch(RequireConstraint[] requireConstraints) {
 		super(requireConstraints);
 	}
@@ -158,9 +169,14 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 	@Nonnull
 	@Override
 	public EntityContentRequire[] getRequirements() {
-		return Arrays.stream(getChildren())
-			.map(EntityContentRequire.class::cast)
-			.toArray(EntityContentRequire[]::new);
+		EntityContentRequire[] memoized = this.memoizedRequirements;
+		if (memoized == null) {
+			memoized = Arrays.stream(getChildren())
+				.map(EntityContentRequire.class::cast)
+				.toArray(EntityContentRequire[]::new);
+			this.memoizedRequirements = memoized;
+		}
+		return memoized;
 	}
 
 	@Override
@@ -226,7 +242,7 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 		//noinspection unchecked
 		return reduced == requirements ?
 			(T) this :
-			(T) (EntityFetch) getCopyWithNewChildren(reduced, getAdditionalChildren());
+			(T) getCopyWithNewChildren(reduced, getAdditionalChildren());
 	}
 
 	@Nonnull

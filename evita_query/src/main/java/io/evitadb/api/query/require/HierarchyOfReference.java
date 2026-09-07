@@ -116,6 +116,24 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 
 	@Serial private static final long serialVersionUID = 3121491811975308390L;
 
+	/**
+	 * Memoized results of the accessors that scan HierarchyOfReference's arguments, children or additional children. The constraint
+	 * is immutable, so each of those scans can only ever produce one answer and repeating it merely re-walks the
+	 * same array - query planning asks most of these several times per query, and the Kryo serializer asks them
+	 * again.
+	 *
+	 * A `null` field means *either* not computed yet *or* computed and absent - the two are deliberately not
+	 * distinguished, because the scan that decides it is an allocation-free walk over a handful of children and
+	 * a flag to tell them apart would cost more than repeating it. The fields are `volatile` because
+	 * a constraint may be shared between threads and a racy publication of an array is not covered by the
+	 * final-field guarantee, and `transient` because they are derived state that a deserialized instance
+	 * recomputes on demand.
+	 */
+	private transient volatile String[] memoizedReferenceNames;
+	private transient volatile EmptyHierarchicalEntityBehaviour memoizedEmptyHierarchicalEntityBehaviour;
+	private transient volatile HierarchyRequireConstraint[] memoizedRequirements;
+	private transient volatile OrderBy memoizedOrderBy;
+
 	private HierarchyOfReference(
 		@Nonnull Serializable[] arguments,
 		@Nonnull RequireConstraint[] children,
@@ -209,10 +227,15 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public String[] getReferenceNames() {
-		return Arrays.stream(getArguments())
-			.filter(String.class::isInstance)
-			.map(String.class::cast)
-			.toArray(String[]::new);
+		String[] memoized = this.memoizedReferenceNames;
+		if (memoized == null) {
+			memoized = Arrays.stream(getArguments())
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
+				.toArray(String[]::new);
+			this.memoizedReferenceNames = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -220,11 +243,16 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public EmptyHierarchicalEntityBehaviour getEmptyHierarchicalEntityBehaviour() {
-		return Arrays.stream(getArguments())
-			.filter(EmptyHierarchicalEntityBehaviour.class::isInstance)
-			.map(EmptyHierarchicalEntityBehaviour.class::cast)
-			.findFirst()
-			.orElseThrow(() -> new GenericEvitaInternalError("EmptyHierarchicalEntityBehaviour is a mandatory argument!"));
+		EmptyHierarchicalEntityBehaviour memoized = this.memoizedEmptyHierarchicalEntityBehaviour;
+		if (memoized == null) {
+			memoized = Arrays.stream(getArguments())
+				.filter(EmptyHierarchicalEntityBehaviour.class::isInstance)
+				.map(EmptyHierarchicalEntityBehaviour.class::cast)
+				.findFirst()
+				.orElseThrow(() -> new GenericEvitaInternalError("EmptyHierarchicalEntityBehaviour is a mandatory argument!"));
+			this.memoizedEmptyHierarchicalEntityBehaviour = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -232,9 +260,14 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public HierarchyRequireConstraint[] getRequirements() {
-		return Arrays.stream(getChildren())
-			.map(HierarchyRequireConstraint.class::cast)
-			.toArray(HierarchyRequireConstraint[]::new);
+		HierarchyRequireConstraint[] memoized = this.memoizedRequirements;
+		if (memoized == null) {
+			memoized = Arrays.stream(getChildren())
+				.map(HierarchyRequireConstraint.class::cast)
+				.toArray(HierarchyRequireConstraint[]::new);
+			this.memoizedRequirements = memoized;
+		}
+		return memoized;
 	}
 
 	/**
@@ -242,10 +275,17 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<OrderBy> getOrderBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderBy.class::isInstance)
-			.map(OrderBy.class::cast)
-			.findFirst();
+		OrderBy memoized = this.memoizedOrderBy;
+		if (memoized == null) {
+			for (final Constraint<?> child : getAdditionalChildren()) {
+				if (child instanceof OrderBy orderBy) {
+					memoized = orderBy;
+					break;
+				}
+			}
+			this.memoizedOrderBy = memoized;
+		}
+		return Optional.ofNullable(memoized);
 	}
 
 	@Override
