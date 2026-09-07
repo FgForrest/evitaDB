@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.requestResponse;
 
-import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
@@ -174,7 +173,7 @@ public class ResponseConverter {
 					extraResults.hasSelfHierarchy() ?
 						toHierarchy(
 							entitySchemaFetcher, evitaRequest,
-							hierarchyConstraints.stream().filter(HierarchyOfSelf.class::isInstance).findFirst().orElseThrow(),
+							hierarchyConstraints.stream().filter(HierarchyOfSelf.class::isInstance).toList(),
 							extraResults.getSelfHierarchy()
 						) : null,
 					extraResults.getHierarchyMap()
@@ -190,8 +189,7 @@ public class ResponseConverter {
 										.filter(HierarchyOfReference.class::isInstance)
 										.map(HierarchyOfReference.class::cast)
 										.filter(hor -> Arrays.stream(hor.getReferenceNames()).anyMatch(refName -> Objects.equals(refName, it.getKey())))
-										.findFirst()
-										.orElseThrow(),
+										.toList(),
 									it.getValue()
 								)
 							)
@@ -479,12 +477,17 @@ public class ResponseConverter {
 
 	/**
 	 * Method converts {@link GrpcHierarchy} to map of named lists of {@link LevelInfo}.
+	 *
+	 * @param rootHierarchyConstraints all constraints of the query aimed at this hierarchy - repeating
+	 *                                 `hierarchyOfSelf` / `hierarchyOfReference` for a single target is legal and
+	 *                                 their output names all land in this one response container, so the constraint
+	 *                                 that declared a particular output name has to be looked up across all of them
 	 */
 	@Nonnull
 	private static Map<String, List<LevelInfo>> toHierarchy(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull RootHierarchyConstraint rootHierarchyConstraint,
+		@Nonnull List<? extends RootHierarchyConstraint> rootHierarchyConstraints,
 		@Nonnull GrpcHierarchy grpcHierarchy
 	) {
 		return grpcHierarchy
@@ -495,10 +498,23 @@ public class ResponseConverter {
 				Collectors.toMap(
 					Entry::getKey,
 					it -> {
-						final Constraint<?> hierarchyConstraint = QueryUtils.findConstraint(
-							rootHierarchyConstraint,
-							cnt -> cnt instanceof HierarchyRequireConstraint hrc && Objects.equals(it.getKey(), hrc.getOutputName())
-						);
+						final HierarchyRequireConstraint hierarchyConstraint = rootHierarchyConstraints
+							.stream()
+							.map(
+								root -> QueryUtils.<HierarchyRequireConstraint>findConstraint(
+									root,
+									cnt -> cnt instanceof HierarchyRequireConstraint hrc &&
+										Objects.equals(it.getKey(), hrc.getOutputName())
+								)
+							)
+							.filter(Objects::nonNull)
+							.findFirst()
+							.orElseThrow(
+								() -> new GenericEvitaInternalError(
+									"Hierarchy `" + it.getKey() + "` was returned by the server, but no hierarchy " +
+										"constraint in the query declares that output name."
+								)
+							);
 						final EntityFetch entityFetch = QueryUtils.findConstraint(hierarchyConstraint, EntityFetch.class);
 						return it.getValue().getLevelInfosList()
 							.stream()

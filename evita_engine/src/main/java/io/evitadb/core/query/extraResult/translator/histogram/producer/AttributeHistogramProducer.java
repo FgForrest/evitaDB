@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -61,9 +62,11 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -78,17 +81,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AttributeHistogramProducer implements ExtraResultProducer {
-	/**
-	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
-	 * this value, but might be optimized to lower count when there are big gaps between columns.
-	 */
-	private final int bucketCount;
-	/**
-	 * Contains behavior that was requested by the user in the query.
-	 *
-	 * @see HistogramBehavior
-	 */
-	@Nonnull private final HistogramBehavior behavior;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
@@ -315,35 +307,103 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			.isEmpty();
 	}
 
-	public AttributeHistogramProducer(
-		int bucketCount,
-		@Nonnull HistogramBehavior behavior,
-		@Nonnull Formula filterFormula
-	) {
-		this.bucketCount = bucketCount;
-		this.behavior = behavior;
+	public AttributeHistogramProducer(@Nonnull Formula filterFormula) {
 		this.filterFormula = filterFormula;
 		this.histogramRequests = new HashMap<>();
+	}
+
+	/**
+	 * Returns the histogram requests registered so far, keyed by attribute name. Package-private on purpose: what
+	 * {@link #addAttributeHistogramRequest} folds when one attribute is requested twice is otherwise observable
+	 * only through a fully planned and executed query, which is far too much machinery to assert a merge with.
+	 *
+	 * @return the registered requests, never null
+	 */
+	@Nonnull
+	Map<String, AttributeHistogramRequest> getHistogramRequests() {
+		return this.histogramRequests;
 	}
 
 	/**
 	 * Adds a request for histogram computation passing all data necessary for the computation.
 	 * Method doesn't compute the histogram - just registers the requirement to be resolved later
 	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext)} )}  method.
+	 *
+	 * The bucket count and the behaviour travel with the attribute rather than with the producer. A query may carry
+	 * several `attributeHistogram` requirements asking for different numbers of buckets, and they all share this one
+	 * producer - a producer wide setting would silently serve every attribute the first requirement's bucket count.
+	 *
+	 * @param attributeSchema  schema of the attribute the histogram is computed for
+	 * @param bucketCount      number of buckets requested for this attribute
+	 * @param behavior         histogram behaviour requested for this attribute
+	 * @param comparator       comparator for the attribute values
+	 * @param attributeIndexes filter indexes holding the values to compute the histogram from
+	 * @throws EvitaInvalidUsageException when the attribute was already requested with a different bucket count or
+	 *                                    behaviour, which the single result slot for that attribute cannot carry
 	 */
 	public void addAttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull List<FilterIndex> attributeIndexes
 	) {
-		this.histogramRequests.put(
-			attributeSchema.getName(),
-			new AttributeHistogramRequest(
-				attributeSchema,
-				comparator,
-				attributeIndexes
-			)
-		);
+		final String attributeName = attributeSchema.getName();
+		final AttributeHistogramRequest alreadyRegistered = this.histogramRequests.get(attributeName);
+		if (alreadyRegistered == null) {
+			this.histogramRequests.put(
+				attributeName,
+				new AttributeHistogramRequest(
+					attributeSchema, bucketCount, behavior, comparator, attributeIndexes
+				)
+			);
+		} else {
+			// one attribute occupies one slot in the result, so two requirements asking for it have to agree on
+			// what that slot should contain
+			if (alreadyRegistered.bucketCount() != bucketCount || alreadyRegistered.behavior() != behavior) {
+				final String reason = "Attribute histogram for attribute `" + attributeName + "` was already " +
+					"requested with a different bucket count or behavior - there may be only a single histogram " +
+					"request for each attribute, even across different scopes";
+				throw new EvitaInvalidUsageException(
+					reason + ": " + alreadyRegistered.bucketCount() + "/" + alreadyRegistered.behavior() +
+						" and " + bucketCount + "/" + behavior + ".",
+					reason + "."
+				);
+			}
+			// the requirements agree, so the repeat only widens the set of indexes the histogram is computed from -
+			// which is how one attribute requested in two scopes reaches here. Widening is only sound because every
+			// request for one attribute name resolved its indexes the same way; `AttributeHistogramTranslator`
+			// asserts that premise by refusing to plan a histogram inside a reference scope, which is the one thing
+			// that would resolve a different index under the very same name
+			// both sides hold one filter index per target index of the query, and a `hierarchyWithin` gives the
+			// planner one target index per requested hierarchy node - so neither side is bounded by the number of
+			// scopes and a list-against-list membership scan would be quadratic in the size of the hierarchy.
+			// `FilterIndex` inherits identity equality, so a `HashSet` reproduces exactly the membership test the
+			// list scan performed, at O(1) per probe.
+			final List<FilterIndex> registeredIndexes = alreadyRegistered.attributeIndexes();
+			final Set<FilterIndex> knownIndexes = CollectionUtils.createHashSet(registeredIndexes.size());
+			knownIndexes.addAll(registeredIndexes);
+			List<FilterIndex> mergedIndexes = null;
+			for (final FilterIndex attributeIndex : attributeIndexes) {
+				if (knownIndexes.add(attributeIndex)) {
+					// the merged list is allocated only once something is actually new, so a repeat that widens
+					// nothing leaves the registered request untouched and allocates nothing
+					if (mergedIndexes == null) {
+						mergedIndexes = new ArrayList<>(registeredIndexes.size() + attributeIndexes.size());
+						mergedIndexes.addAll(registeredIndexes);
+					}
+					mergedIndexes.add(attributeIndex);
+				}
+			}
+			if (mergedIndexes != null) {
+				this.histogramRequests.put(
+					attributeName,
+					new AttributeHistogramRequest(
+						attributeSchema, bucketCount, behavior, comparator, mergedIndexes
+					)
+				);
+			}
+		}
 	}
 
 	@Nullable
@@ -381,7 +441,8 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
 					final AttributeHistogramComputer computer = new AttributeHistogramComputer(
 						histogramRequest.getAttributeName(),
-						histogramBaselineFormula, this.bucketCount, this.behavior, histogramRequest
+						histogramBaselineFormula, histogramRequest.bucketCount(), histogramRequest.behavior(),
+						histogramRequest
 					);
 					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
@@ -420,11 +481,15 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	 * DTO that aggregates all data necessary for computing histogram for single attribute.
 	 *
 	 * @param attributeSchema  Refers to attribute schema.
+	 * @param bucketCount      Number of buckets requested for this particular attribute.
+	 * @param behavior         Histogram behaviour requested for this particular attribute.
 	 * @param comparator       Comparator to use for manipulation with {@link ValueToRecordBitmap#getValue()} values.
 	 * @param attributeIndexes Refers to all filter indexes that map entity primary keys and their associated values for this attribute.
 	 */
 	public record AttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull List<FilterIndex> attributeIndexes
 	) {

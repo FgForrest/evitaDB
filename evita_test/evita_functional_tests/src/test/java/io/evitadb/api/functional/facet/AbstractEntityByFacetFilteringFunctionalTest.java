@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetRelationType;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -1173,6 +1174,71 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				return null;
 			}
+		);
+	}
+
+	@DisplayName("Should return the same products whichever level a negation is declared at")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnSameProductsForNegationDeclaredAtEitherLevel(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Set<Integer> groups = getGroupsWithGaps(originalProductEntities);
+				final Integer[] parameters = getParametersInGroups(originalProductEntities, groups);
+				final Integer[] groupIds = groups.toArray(new Integer[0]);
+
+				// negating each facet and combining with AND is the same set as negating the group's own
+				// disjunction - `!a && !b` is `!(a || b)` - so the declared level cannot change the answer
+				final EvitaResponse<EntityReference> withinGroup = session.query(
+					negationQuery(parameters, groupIds, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP),
+					EntityReference.class
+				);
+				final EvitaResponse<EntityReference> betweenGroups = session.query(
+					negationQuery(parameters, groupIds, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS),
+					EntityReference.class
+				);
+
+				assertEquals(betweenGroups.getTotalRecordCount(), withinGroup.getTotalRecordCount());
+				assertFalse(withinGroup.getRecordData().isEmpty());
+				assertEquals(
+					betweenGroups.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					withinGroup.getRecordData().stream().map(EntityReference::getPrimaryKey).toList()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query used by {@link #shouldReturnSameProductsForNegationDeclaredAtEitherLevel} - the selected
+	 * parameter facets with their groups negated at the requested relation level.
+	 *
+	 * @param parameters facet primary keys to select in the user filter
+	 * @param groupIds   primary keys of the groups the negation applies to
+	 * @param level      level the negation is declared at
+	 * @return the query to execute
+	 */
+	@Nonnull
+	private static Query negationQuery(
+		@Nonnull Integer[] parameters,
+		@Nonnull Integer[] groupIds,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				userFilter(
+					facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(parameters))
+				)
+			),
+			require(
+				page(1, Integer.MAX_VALUE),
+				facetGroupsNegation(Entities.PARAMETER, level, filterBy(entityPrimaryKeyInSet(groupIds)))
+			)
 		);
 	}
 
@@ -2906,7 +2972,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+							// the reference-specific constraint governs `parameter` entirely, so it has to repeat the
+							// bodies the generic summary asks for - nothing is inherited from it
+							entityFetch(entityFetchAllContent()),
+							entityGroupFetch(entityFetchAllContent())
 						)
 					)
 				);
@@ -2998,7 +3068,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+							// the reference-specific constraint governs `parameter` entirely, so it has to repeat the
+							// bodies the generic summary asks for - nothing is inherited from it
+							entityFetch(entityFetchAllContent()),
+							entityGroupFetch(entityFetchAllContent())
 						)
 					)
 				);
@@ -3110,8 +3184,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							return FacetStatisticsDepth.COUNTS;
 						}, parameterGroupMapping
 					)
-						.facetEntityRequirementSupplier(referenceName -> entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						.groupEntityRequirementSupplier(referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
+						// the reference-specific constraint carries no entity fetch of its own and inherits none
+						// from the generic summary, so its reference comes back as a bare entity reference
+						.facetEntityRequirementSupplier(referenceName -> Entities.CATEGORY.equals(referenceName)
+							? null
+							: entityFetch(attributeContent(ATTRIBUTE_CODE)))
+						.groupEntityRequirementSupplier(referenceName -> Entities.CATEGORY.equals(referenceName)
+							? null
+							: entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
 						.build()
 				);
 
@@ -3123,6 +3203,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					groupEntity -> groupEntity.getAttributeNames().size() == 1 &&
 						groupEntity.getAttribute(ATTRIBUTE_CODE) != null
 				);
+				assertFacetEntitiesAreBareReferences(actualFacetSummary, Entities.CATEGORY);
 
 				return null;
 			}
@@ -3183,13 +3264,17 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							return FacetStatisticsDepth.COUNTS;
 						}, parameterGroupMapping
 					)
+						// the reference-specific constraint governs its reference entirely - only the attributes
+						// it asks for itself reach it, the generic summary's `code` is not united into them
 						.facetEntityRequirementSupplier(referenceName -> {
 							if (referenceName.equals(Entities.CATEGORY)) {
-								return entityFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+								return entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
 							}
 							return entityFetch(attributeContent(ATTRIBUTE_CODE));
 						})
-						.groupEntityRequirementSupplier(referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
+						.groupEntityRequirementSupplier(referenceName -> referenceName.equals(Entities.CATEGORY)
+							? entityGroupFetch()
+							: entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
 						.build()
 				);
 
@@ -3198,8 +3283,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					actualFacetSummary,
 					facetEntity -> {
 						if (facetEntity.getType().equals(Entities.CATEGORY)) {
-							return facetEntity.getAttributeNames().size() == 2 &&
-								facetEntity.getAttribute(ATTRIBUTE_CODE) != null &&
+							return facetEntity.getAttributeNames().size() == 1 &&
 								facetEntity.getAttribute(ATTRIBUTE_NAME) != null;
 						}
 						return facetEntity.getAttributeNames().size() == 1 &&
@@ -3208,6 +3292,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					groupEntity -> groupEntity.getAttributeNames().size() == 1 &&
 						groupEntity.getAttribute(ATTRIBUTE_CODE) != null
 				);
+				assertFacetEntityAttributeNames(actualFacetSummary, Entities.CATEGORY, Set.of(ATTRIBUTE_NAME));
 
 				return null;
 			}
@@ -3455,6 +3540,73 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				}
 			});
 		});
+	}
+
+	/**
+	 * Asserts that every facet entity the summary holds for the passed reference came back as a **bare entity
+	 * reference**. A reference-specific summary constraint governs the reference it names entirely, so a reference
+	 * whose constraint carries no `entityFetch` of its own fetches no body - not even the one the generic summary
+	 * written beside it asks for.
+	 *
+	 * @param summary       summary returned by the query
+	 * @param referenceName name of the reference whose facet entities are examined
+	 */
+	private static void assertFacetEntitiesAreBareReferences(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName
+	) {
+		int examinedFacets = 0;
+		for (final ReferenceGroupStatistics groupStatistics : summary.getReferenceStatistics()) {
+			if (!referenceName.equals(groupStatistics.getReferenceName())) {
+				continue;
+			}
+			for (final FacetStatistics facetStatistics : groupStatistics.getFacetStatistics()) {
+				assertInstanceOf(
+					EntityReference.class,
+					facetStatistics.getFacetEntity(),
+					"Facet entity of reference `" + referenceName + "` inherited the entity fetch of the generic summary!"
+				);
+				examinedFacets++;
+			}
+		}
+		assertTrue(examinedFacets > 0, "Summary holds no facet for reference `" + referenceName + "`!");
+	}
+
+	/**
+	 * Asserts that every facet entity the summary holds for the passed reference carries exactly the passed
+	 * attributes - neither more (the generic summary's attributes are not united into the reference-specific fetch)
+	 * nor fewer (the reference-specific fetch reaches the facet entity untouched).
+	 *
+	 * @param summary                 summary returned by the query
+	 * @param referenceName           name of the reference whose facet entities are examined
+	 * @param expectedAttributeNames  the attribute names the facet entities are expected to carry
+	 */
+	private static void assertFacetEntityAttributeNames(
+		@Nonnull ReferenceSummary summary,
+		@Nonnull String referenceName,
+		@Nonnull Set<String> expectedAttributeNames
+	) {
+		int examinedFacets = 0;
+		for (final ReferenceGroupStatistics groupStatistics : summary.getReferenceStatistics()) {
+			if (!referenceName.equals(groupStatistics.getReferenceName())) {
+				continue;
+			}
+			for (final FacetStatistics facetStatistics : groupStatistics.getFacetStatistics()) {
+				final SealedEntity facetEntity = assertInstanceOf(
+					SealedEntity.class,
+					facetStatistics.getFacetEntity(),
+					"The body of the `" + referenceName + "` facet entity was not fetched!"
+				);
+				assertEquals(
+					expectedAttributeNames,
+					facetEntity.getAttributeNames(),
+					"Facet entity of reference `" + referenceName + "` does not carry exactly the attributes its own " +
+						"summary constraint asked for!"
+				);
+				examinedFacets++;
+			}
+		}
+		assertTrue(examinedFacets > 0, "Summary holds no facet for reference `" + referenceName + "`!");
 	}
 
 	/**
@@ -5174,7 +5326,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+							// the reference-specific constraint governs `parameter` entirely, so it has to repeat the
+							// bodies the generic summary asks for - nothing is inherited from it
+							entityFetch(entityFetchAllContent()),
+							entityGroupFetch(entityFetchAllContent())
 						)
 					)
 				);
@@ -5260,7 +5416,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+							// the reference-specific constraint governs `parameter` entirely, so it has to repeat the
+							// bodies the generic summary asks for - nothing is inherited from it
+							entityFetch(entityFetchAllContent()),
+							entityGroupFetch(entityFetchAllContent())
 						)
 					)
 				);
@@ -5365,8 +5525,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							return FacetStatisticsDepth.COUNTS;
 						}, parameterGroupMapping
 					)
-						.facetEntityRequirementSupplier(referenceName -> entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						.groupEntityRequirementSupplier(referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
+						// the reference-specific constraint carries no entity fetch of its own and inherits none
+						// from the generic summary, so its reference comes back as a bare entity reference
+						.facetEntityRequirementSupplier(referenceName -> Entities.CATEGORY.equals(referenceName)
+							? null
+							: entityFetch(attributeContent(ATTRIBUTE_CODE)))
+						.groupEntityRequirementSupplier(referenceName -> Entities.CATEGORY.equals(referenceName)
+							? null
+							: entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
 						.build()
 				);
 
@@ -5378,6 +5544,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					groupEntity -> groupEntity.getAttributeNames().size() == 1 &&
 						groupEntity.getAttribute(ATTRIBUTE_CODE) != null
 				);
+				assertFacetEntitiesAreBareReferences(actualReferenceSummary, Entities.CATEGORY);
 
 				return null;
 			}
@@ -5432,13 +5599,17 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							return FacetStatisticsDepth.COUNTS;
 						}, parameterGroupMapping
 					)
+						// the reference-specific constraint governs its reference entirely - only the attributes
+						// it asks for itself reach it, the generic summary's `code` is not united into them
 						.facetEntityRequirementSupplier(referenceName -> {
 							if (referenceName.equals(Entities.CATEGORY)) {
-								return entityFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+								return entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
 							}
 							return entityFetch(attributeContent(ATTRIBUTE_CODE));
 						})
-						.groupEntityRequirementSupplier(referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
+						.groupEntityRequirementSupplier(referenceName -> referenceName.equals(Entities.CATEGORY)
+							? entityGroupFetch()
+							: entityGroupFetch(attributeContent(ATTRIBUTE_CODE)))
 						.build()
 				);
 
@@ -5447,8 +5618,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					actualReferenceSummary,
 					facetEntity -> {
 						if (facetEntity.getType().equals(Entities.CATEGORY)) {
-							return facetEntity.getAttributeNames().size() == 2 &&
-								facetEntity.getAttribute(ATTRIBUTE_CODE) != null &&
+							return facetEntity.getAttributeNames().size() == 1 &&
 								facetEntity.getAttribute(ATTRIBUTE_NAME) != null;
 						}
 						return facetEntity.getAttributeNames().size() == 1 &&
@@ -5457,6 +5627,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					groupEntity -> groupEntity.getAttributeNames().size() == 1 &&
 						groupEntity.getAttribute(ATTRIBUTE_CODE) != null
 				);
+				assertFacetEntityAttributeNames(actualReferenceSummary, Entities.CATEGORY, Set.of(ATTRIBUTE_NAME));
 
 				return null;
 			}

@@ -177,7 +177,8 @@ filtering scope as the main result (excluding the [`userFilter`](../filtering/be
 covers every reference whose schema marks it as `faceted`. Per-reference overrides — different fetch / filter /
 ordering settings or different histogram requirements — can be supplied with
 [`referenceSummaryOfReference`](#reference-summary-of-reference); the per-reference constraint **completely
-replaces** the matching configuration from a generic `referenceSummary` rather than merging with it.
+replaces** the generic `referenceSummary` for the reference it names rather than merging with it, so it has to
+define all of its own requirements. The generic constraint keeps governing every other faceted reference.
 
 </LS>
 
@@ -721,9 +722,24 @@ referenceSummaryOfReference(
 The <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummaryOfReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummaryOfReference.cs</SourceClass></LS>
 requirement either stands alone (when only one reference needs a summary) or coexists with a generic
 [`referenceSummary`](#reference-summary) to **override its baseline for that single reference**. The override is
-total: every constraint on the per-reference variant replaces the matching constraint from the generic one — they
-are never merged. This pattern lets you keep a one-line generic baseline and customise only the references that
-need it.
+total: nothing written on the generic constraint reaches the reference the per-reference variant names, so that
+variant has to define all of its own requirements. The generic constraint keeps governing every reference that has
+no per-reference variant, which is what lets you keep a one-line generic baseline and customise only the references
+that need it.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What happens to a requirement I don't repeat on the per-reference variant?
+</NoteTitle>
+
+It is simply not computed for that reference. Nothing crosses over from the generic constraint — no `entityFetch`,
+no `entityGroupFetch`, no `filterBy` / `filterGroupBy` and no `orderBy` / `orderGroupBy` — so a
+`referenceSummaryOfReference` carrying no `entityFetch` returns bare entity references even when the generic
+`referenceSummary` beside it asks for attributes.
+
+</Note>
 
 Let's display the reference summary for products in the *e-readers* category, but compute it only for the `brand`
 and `parameterValues` references. Options inside `brand` should be ordered alphabetically by name; options inside
@@ -915,10 +931,16 @@ facetGroupsDisjunction(
     </dd>
     <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
     <dd>
-        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>**Default: `WITH_DIFFERENT_GROUPS`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
         a particular level (within the same reference group, or to options in different reference groups /
         references).</p>
+        <p>This is the one constraint of the four whose default is `WITH_DIFFERENT_GROUPS`, and it defaults there
+        for the same reason the others default to `WITH_DIFFERENT_FACETS_IN_GROUP`: a constraint defaults to the
+        level at which it changes something. Disjunction is already the
+        [system default](#default-reference-calculation-rules) *within* a group, so at that level the constraint
+        does nothing unless [`facetCalculationRules`](#facet-calculation-rules) has changed the within-group
+        default first — which is a legitimate use, just not the common one.</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1023,10 +1045,21 @@ reference the entity in question, the query returns items that don't.
 
 <Note type="info">
 
+<NoteTitle toggles="true">
+
+##### Does it matter which level I set the negation at?
+</NoteTitle>
+
 As long as the other argument stays at the system default, it doesn't matter whether you set NEGATION at the level
 within the same reference group or between different groups: by [De Morgan's
 laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the same (`!a && !b` is equivalent to
 `!(a || b)`).
+
+Because the two are equivalent, evitaDB honours a `facetGroupsNegation` at **both** levels regardless of which one
+you wrote, so the level you pick cannot change the answer. This is the single exception to the rule that the two
+levels are orthogonal, and it exists only because negation is the one relation for which they provably are not.
+If [`facetCalculationRules`](#facet-calculation-rules) moves the other level away from its system default the
+equivalence no longer holds, and a query that changes the defaults should state the level it means.
 
 </Note>
 

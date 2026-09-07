@@ -135,6 +135,214 @@ Same as the [`entityFetch`](#entity-fetch) but used for fetching entities that r
 
 </LS>
 
+## Two content requirements of the same kind in one entityFetch
+
+<LS to="e,j,c">
+
+Two content requirements of the same kind can easily end up next to each other in a single `entityFetch` - the query
+may be assembled from several places in your code, or you may have added a requirement next to a fetch-all shorthand
+that already contains one of the same kind. Such a pair is not an error and neither half of it is lost. The
+requirements are folded into the single requirement the query is executed with, and wherever the two have a superset
+the rule is the same: **the superset wins**. Where they have none - two different selections of the same references,
+say - evitaDB refuses the query instead of silently picking one; the cases are listed at the end of this section.
+
+```evitaql
+entityFetch(
+    attributeContent("code"),
+    attributeContent("name")
+)
+```
+
+The query above fetches `code` **and** `name`, exactly as `attributeContent("code", "name")` would. Each kind of
+content requirement has its own notion of a superset:
+
+- [`attributeContent`](#attribute-content) and [`associatedDataContent`](#associated-data-content) unite their name
+  lists, and [`attributeContentAll`](#attribute-content-all) and
+  [`associatedDataContentAll`](#associated-data-content-all) absorb any sibling naming particular items
+- [`dataInLocales`](#data-in-locales) unites its locales, and [`dataInLocalesAll`](#data-in-locales-all) absorbs
+  a sibling naming particular locales
+- [`priceContent`](#price-content) keeps the richer of the two fetch modes and unites the additional price lists
+- [`hierarchyContent`](#hierarchy-content) unites the bodies requested for the parent entities, and a `stopAt` bound
+  present on one side only is dropped - the side carrying no bound asks for the whole parent chain, which is the
+  superset of any bounded one
+- [`referenceContent`](#reference-content) and [`accompanyingPriceContent`](#accompanying-price-content) may
+  legitimately appear several times in one `entityFetch`, so they are folded **per key** - see the two sections below
+
+<LS to="j">
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What does the fold do to `entityFetchAllContentAnd(...)`?
+</NoteTitle>
+
+Because the fold always favours the superset, a fetch-all shorthand combines with whatever you add next to it and
+never narrows. `entityFetchAllContentAnd(attributeContent("code"))` fetches **all** the attributes, and `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` fetches the
+**whole** parent chain rather than one level of it: `entityFetchAllContent()` already contains `attributeContentAll()`
+and a bare `hierarchyContent()`, and both of those are the superset. Ask for a narrower body with a plain
+`entityFetch` rather than with the fetch-all shorthand.
+
+</Note>
+
+</LS>
+
+### Folding referenceContent per reference
+
+The key of a `referenceContent` is the set of references it addresses - a single reference name, the set of names it
+lists, or, when the reference is fetched under its own logical instance name, that name as well. Only requirements
+sharing a key are folded, and within one key:
+
+- the reference attributes and the nested `entityFetch` / `entityGroupFetch` bodies are united, recursively, so that
+  nothing either side asked for is lost
+- a `filterBy` or a chunking (`page` / `strip`) constraint has to be **the same on both sides, or absent from both**.
+  The two requirements share a single output slot, and a restriction only one of them carries has no superset:
+  dropping it would return the references the restricting side asked to exclude, honouring it would hide the ones the
+  unrestricted side asked for. Both readings change what comes back, so evitaDB refuses the pair instead of picking
+  one for you - write the restriction on both sides, or on neither
+- an `orderBy` present on **one side only** is kept. This is the single exception to the rule above, and it is safe
+  for one reason: an order shapes the sequence of the references without dropping any of them, so keeping the only
+  order present hides nothing from either side
+- a disagreement on the [managed references behaviour](#managed-references-behaviour) narrows to `EXISTING`, so
+  a request to suppress references pointing at missing entities is never lost by folding
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What if two requirements list overlapping - but not identical - reference names?
+</NoteTitle>
+
+They are folded per name. `referenceContent("a", "b")` written next to `referenceContent("b", "c")` projects each
+requirement onto every name it lists, and the projections sharing a name are folded by the rules above - so `b` is
+fetched with the union of both bodies while `a` and `c` keep theirs.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why isn't my filtered `referenceContent` refused when the query also filters that reference?
+</NoteTitle>
+
+Because these rules govern the requirements **you** write, and the engine's own are not among them. Internally it
+may load *more* references than your query projects - evaluating a
+[`referenceHaving`](../filtering/references.md#reference-having) filter or an ordering by a
+[reference property](../ordering/reference.md) in memory needs the reference records themselves, so the query planner
+adds a requirement of its own for that reference, without your filter, order or page.
+
+That widening is invisible: whatever the engine loaded, the response is assembled from the requirements you wrote, so
+the references you get back - and their order and page - are exactly the ones your query asked for. A
+`referenceContent` that filters or pages the very reference a `referenceHaving` or an ordering also names is therefore
+perfectly ordinary, and is never refused as a disagreement with the requirement the planner added.
+
+</Note>
+
+A [`referenceContentAll`](#reference-content-all) requirement and a name-specific `referenceContent("brand")` carry
+different keys and are therefore **never** folded together. Both stay in effect - the name-specific requirement
+decides how `brand` is fetched and the wildcard one remains the fallback for every other reference:
+
+```evitaql
+entityFetch(
+    referenceContentAllWithAttributes(),
+    referenceContent("brand")
+)
+```
+
+The query above fetches `brand` without its reference attributes, and every other reference with them.
+
+### Folding accompanyingPriceContent per price name
+
+The key of an [`accompanyingPriceContent`](#accompanying-price-content) is the name of the price it calculates, which
+is what makes several of them in one `entityFetch` the normal case - two requirements naming different prices
+calculate two independent prices and both survive. Two requirements naming the *same* price are folded into one when
+they list exactly the same price lists.
+
+A requirement carrying **no** price lists does not ask for an empty sequence - it defers to the query level
+[`defaultAccompanyingPriceLists`](price.md#default-accompanying-price-lists). Requesting one price name once in that
+form and once with its own price lists is refused, and deliberately so even when the default currently resolves to
+exactly the same price lists:
+
+```evitaql
+require(
+    defaultAccompanyingPriceLists("reference"),
+    entityFetch(
+        priceContentRespectingFilter(),
+        accompanyingPriceContentDefault(),                 // price `default` from the query level default
+        accompanyingPriceContent("default", "reference")   // price `default` from `reference`
+    )
+)
+```
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why refuse a pair that agrees today?
+</NoteTitle>
+
+The two agree only by coincidence of what the default currently is. They stop agreeing the moment either the default
+or the explicit sequence changes - and price lists are typically assembled from variables, so that change is a routine
+edit somewhere else in the code. Nothing in the query would show the reader that the two requirements had drifted
+apart, so the pair is refused while the disagreement is still hypothetical. State the price lists on both
+requirements, or defer on both.
+
+</Note>
+
+Note that the first argument of `accompanyingPriceContent` is the **name** the price is labelled with in the result,
+not a price list: `accompanyingPriceContent("default", "reference")` calculates the price named `default` from the
+single price list `reference`.
+
+### Requirements that cannot be reconciled
+
+Some pairs have no superset at all, and evitaDB refuses them with an exception instead of letting one of them
+silently win:
+
+- two `referenceContent` requirements for one reference disagreeing about the `filterBy` or the chunking constraint -
+  whether the two carry a **different** one or only one of them carries it at all. A filter and a page each select
+  a subset of the references, and no union of two different selections - "everything" included - preserves both
+  intents
+- two `referenceContent` requirements for one reference carrying **different** `orderBy` constraints. An order
+  sequences the references rather than selecting them, so an order carried by a single side is kept rather than
+  refused; only two genuinely different orders contradict each other
+- two `hierarchyContent` requirements bounding the parent chain with **different** `stopAt` constraints
+- a `priceContent(NONE)` requirement beside one that does fetch prices. The other two modes differ in how many
+  prices come back and the wider one answers both, but `NONE` is the opposite instruction rather than a third
+  width - widening it would answer a request for no prices with prices. This is what makes
+  `entityFetchAllContentAnd(priceContent(NONE))` an error rather than a way to spell "everything except prices":
+  the all-content shorthand already contains `priceContentAll()`, and by the time the two are folded neither
+  carries any record of having come from a shorthand. List the requirements you want instead
+- two `accompanyingPriceContent` requirements calculating one price from **different** price lists, including two
+  lists that differ only in their order - the sequence is a priority order and any merge would invent a priority
+  neither side asked for - and equally when one of them names its price lists while the other defers them to
+  `defaultAccompanyingPriceLists`
+
+</LS>
+
+<LS to="g,r">
+
+Neither the GraphQL nor the REST API can ask for the same kind of content twice in a single entity fetch. REST takes
+the entity fetch as an object keyed by the requirement name, so a requirement can be written only once, and
+a GraphQL alias on a reference field becomes a separate named instance of that reference rather than a second
+requirement for the same one. The ambiguity the other APIs have to resolve therefore cannot arise here.
+
+Accompanying prices are the one exception in GraphQL, because they are selected under a price for sale rather than
+written as a requirement. `priceForSale`, `priceForSaleMin`, `priceForSaleMax` and `allPricesForSale` are siblings,
+and an `accompanyingPrice` selected under two of them without an alias carries the same name in both places:
+
+```graphql
+priceForSale    { accompanyingPrice(priceLists: "reference") { priceWithTax } }
+priceForSaleMin { accompanyingPrice(priceLists: "vip") { priceWithTax } }
+```
+
+An accompanying price name is calculated once for the whole query and then applied to every price for sale, so the
+two selections above ask for one name to be calculated from two different price list sequences. That is refused with
+an error. Give one of them a GraphQL alias - `vipPrice: accompanyingPrice(priceLists: "vip")` - and it becomes
+a separate accompanying price, calculated alongside the first rather than instead of it.
+
+</LS>
+
 <LS to="g">
 
 ## Entity content
