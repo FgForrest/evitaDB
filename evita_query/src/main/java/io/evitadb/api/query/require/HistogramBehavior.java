@@ -30,12 +30,13 @@ import io.evitadb.dataType.SupportedEnum;
  * Controls how bucket boundaries are computed and whether empty buckets are eliminated when computing
  * {@link AttributeHistogram} and {@link PriceHistogram} results.
  *
- * The four values form a two-dimensional matrix:
+ * The values were originally laid out as a two-dimensional matrix of boundary placement against empty-bucket
+ * handling. Only the equal-width column ever had two distinct behaviours:
  *
- * |                   | Equal-width intervals | Frequency-equalised intervals |
- * |-------------------|-----------------------|-------------------------------|
- * | Keep empty buckets| `STANDARD`            | `EQUALIZED`                   |
- * | Drop empty buckets| `OPTIMIZED`           | `EQUALIZED_OPTIMIZED`         |
+ * |                    | Equal-width intervals | Frequency-equalised intervals                   |
+ * |--------------------|-----------------------|-------------------------------------------------|
+ * | Keep empty buckets | `STANDARD`            | -                                               |
+ * | Drop empty buckets | `OPTIMIZED`           | `EQUALIZED` (`EQUALIZED_OPTIMIZED`, deprecated)  |
  *
  * **Equal-width vs. frequency-equalised boundaries**
  *
@@ -54,11 +55,12 @@ import io.evitadb.dataType.SupportedEnum;
  *   may contain fewer buckets than requested. Recommended for most interactive UIs as it avoids confusing empty
  *   columns.
  *
- * This axis is **meaningless for the frequency-equalised family**, which places every boundary on a value the data
- * actually contains and therefore never produces an empty bucket in the first place. `EQUALIZED` and
- * `EQUALIZED_OPTIMIZED` consequently behave identically: both return at most the requested number of buckets, and
- * both return fewer whenever a value held by many entities collapses several quantile intervals into one - there is
- * simply no distinct value left to split them at. Clients must not assume the requested count came back.
+ * This axis **collapsed for the frequency-equalised family**, which places every boundary on a value the data
+ * actually contains and therefore never produces an empty bucket in the first place - leaving the "optimized"
+ * variant with nothing to drop. `EQUALIZED` and `EQUALIZED_OPTIMIZED` consequently behave identically, and the
+ * latter is deprecated; both return at most the requested number of buckets, and both return fewer whenever a value
+ * held by many entities collapses several quantile intervals into one - there is simply no distinct value left to
+ * split them at. Clients must not assume the requested count came back.
  *
  * **Reading `relativeFrequency`**
  *
@@ -100,7 +102,12 @@ public enum HistogramBehavior {
 	/**
 	 * Identical to {@link #EQUALIZED}. The equalised algorithm never emits an empty bucket, so there is nothing for
 	 * the "optimized" variant to drop; the constant is kept because it is part of the published query grammar.
+	 *
+	 * @deprecated use {@link #EQUALIZED} instead - the keep/drop-empty axis has no meaning for the frequency-equalised
+	 * family, so this constant has never behaved differently and is retained only for backward compatibility of the
+	 * published query grammar
 	 */
+	@Deprecated(since = "2026.2")
 	EQUALIZED_OPTIMIZED
 
 }

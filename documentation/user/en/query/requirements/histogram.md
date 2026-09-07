@@ -87,7 +87,7 @@ attributeHistogram(
             <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
             <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
             <li><strong>EQUALIZED</strong>: Positions bucket boundaries on the empirical quantile function so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed. Never returns more buckets than requested and returns fewer whenever a single value is held by so many records that it collapses several quantile intervals into one.</li>
-            <li><strong>EQUALIZED_OPTIMIZED</strong>: Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: <em>Deprecated since 2026.2 - use EQUALIZED.</em> Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
         </ul>
     </dd>
     <dt>argument:string+</dt>
@@ -300,7 +300,7 @@ priceHistogram(
             <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
             <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
             <li><strong>EQUALIZED</strong>: Positions bucket boundaries on the empirical quantile function so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed. Never returns more buckets than requested and returns fewer whenever a single value is held by so many records that it collapses several quantile intervals into one.</li>
-            <li><strong>EQUALIZED_OPTIMIZED</strong>: Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: <em>Deprecated since 2026.2 - use EQUALIZED.</em> Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
         </ul>
     </dd>
 </dl>
@@ -571,8 +571,8 @@ makes them stable under repricing, comparable across the chart, and safe to draw
 </NoteTitle>
 
 Equalizing the axis changes what the numbers in the response mean, and a client that renders them the way it renders a
-standard histogram will draw the wrong picture. The rules below apply to both `EQUALIZED` and `EQUALIZED_OPTIMIZED`,
-for attribute and price histograms alike.
+standard histogram will draw the wrong picture. The rules below apply to both `EQUALIZED` and its deprecated alias
+`EQUALIZED_OPTIMIZED`, for attribute and price histograms alike.
 
 `relativeFrequency` is a **rendering intensity in `(0, 100]`**, where `100` is the maximum of the underlying density
 curve. It is not a count, not a share, and not a probability.

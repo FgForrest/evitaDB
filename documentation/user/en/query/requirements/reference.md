@@ -576,8 +576,8 @@ histogramStatistics(
             occurrences), placed on values the data actually contains — so no bucket is ever empty, and the actual
             count may be lower than requested. `relativeFrequency` carries the smoothed value density rather than a
             share; see [equalized histograms in practice](histogram.md#equalized-histograms-in-practice)
-        - **EQUALIZED_OPTIMIZED**: identical to `EQUALIZED` — the equalised algorithm produces no empty buckets, so
-            there is nothing to suppress
+        - **EQUALIZED_OPTIMIZED**: *deprecated since 2026.2, use `EQUALIZED`* — identical to `EQUALIZED`, because
+            the equalised algorithm produces no empty buckets and there is nothing to suppress
         </p>
     </dd>
     <dt>requireConstraint:entityFetch?</dt>

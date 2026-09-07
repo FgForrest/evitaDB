@@ -65,8 +65,8 @@ import java.util.Arrays;
  *      ideal for skewed data distributions. Every boundary is a value the data contains, so no bucket is ever
  *      empty and the actual count may be lower than requested. `relativeFrequency` then carries a value density
  *      rather than a share.
- *    - `EQUALIZED_OPTIMIZED`: identical to `EQUALIZED` - the equalised algorithm emits no empty buckets, so
- *      there is nothing to suppress.
+ *    - `EQUALIZED_OPTIMIZED`: **deprecated, use `EQUALIZED`** - identical to `EQUALIZED`, because the equalised
+ *      algorithm emits no empty buckets and there is nothing to suppress.
  * 3. `attributeNames` (String..., required, at least one) — names of the numeric filterable attributes for which
  *    histograms should be computed. Each named attribute produces a separate histogram in the response.
  *
