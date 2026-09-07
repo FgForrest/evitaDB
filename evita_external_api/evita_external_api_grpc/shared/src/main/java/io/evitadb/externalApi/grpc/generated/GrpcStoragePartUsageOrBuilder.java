@@ -34,7 +34,8 @@ public interface GrpcStoragePartUsageOrBuilder extends
   /**
    * <pre>
    * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-   * `AssociatedDataStoragePart`.
+   * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+   * identity to show, never one to classify by. Group by `group` instead.
    * </pre>
    *
    * <code>string storagePartType = 1;</code>
@@ -44,7 +45,8 @@ public interface GrpcStoragePartUsageOrBuilder extends
   /**
    * <pre>
    * Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-   * `AssociatedDataStoragePart`.
+   * `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+   * identity to show, never one to classify by. Group by `group` instead.
    * </pre>
    *
    * <code>string storagePartType = 1;</code>
@@ -72,4 +74,50 @@ public interface GrpcStoragePartUsageOrBuilder extends
    * @return The totalBytes.
    */
   long getTotalBytes();
+
+  /**
+   * <pre>
+   * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+   * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+   * engine versions.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+   * @return The enum numeric value on the wire for group.
+   */
+  int getGroupValue();
+  /**
+   * <pre>
+   * Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+   * type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+   * engine versions.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup group = 4;</code>
+   * @return The group.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup getGroup();
+
+  /**
+   * <pre>
+   * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+   * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+   * the kind that `group` belongs to and can never contradict it.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+   * @return The enum numeric value on the wire for kind.
+   */
+  int getKindValue();
+  /**
+   * <pre>
+   * The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+   * than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+   * the kind that `group` belongs to and can never contradict it.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind kind = 5;</code>
+   * @return The kind.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind getKind();
 }

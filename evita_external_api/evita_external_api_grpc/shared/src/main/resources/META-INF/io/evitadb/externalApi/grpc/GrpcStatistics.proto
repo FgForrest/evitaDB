@@ -29,12 +29,21 @@ message GrpcComponentStatus {
 message GrpcStoragePartUsage {
 
   // Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
-  // `AssociatedDataStoragePart`.
+  // `AssociatedDataStoragePart`. An OPEN set - it grows whenever the engine gains an index structure - so it is an
+  // identity to show, never one to classify by. Group by `group` instead.
   string storagePartType = 1;
   // Number of records of this type currently held (records).
   int32 count = 2;
   // Total size the records of this type occupy (bytes).
   int64 totalBytes = 3;
+  // Which kind of data this storage-part type holds - what a composition table groups by. A CLOSED set: a new part
+  // type lands in an existing group, so a client that knows these values keeps rendering a correct table across
+  // engine versions.
+  GrpcStoragePartGroup group = 4;
+  // The coarse fold of `group` - entity data, an index derived from it, or the store's own metadata. Sent rather
+  // than derived from `group` because a generated client enum carries no behaviour to derive it with; it is always
+  // the kind that `group` belongs to and can never contradict it.
+  GrpcStoragePartKind kind = 5;
 
 }
 

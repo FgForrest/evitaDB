@@ -61,6 +61,7 @@ public final class StoragePartProjection {
 			final StoragePartFootprint footprint = footprints[i];
 			usage[i] = new StoragePartUsage(
 				footprint.storagePartType(),
+				footprint.group(),
 				footprint.count(),
 				footprint.totalBytes()
 			);
