@@ -1,7 +1,7 @@
 ---
 title: Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
 date: 2026-08-10
-updated: 2026-08-16 18:10
+updated: 2026-09-07 12:10
 status: accepted
 kind: feature
 issues: [1339]
@@ -9,7 +9,7 @@ prs: [1418]
 areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-16-per-index-usage-statistics]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -256,6 +256,11 @@ select it. Reversing that would reverse the cost argument the whole browse surfa
   *earns* to the surface this record built for what it *costs*, on both the browse row and the
   drill-down. It is bound by the rule stated here: `O(1)` readings may ride on a row, but nothing that
   has to be measured may order one — which is why it leaves `BY_QUERY_COUNT` deferred.
+- [Storage part classification](../2026-09-07-storage-part-classification.md) — classifies the
+  `STORAGE_COMPOSITION` breakdown this record introduced, so a client can group it without a
+  class-name allowlist. It re-opens, without yet reversing, the "no catalog-wide sum" decision above:
+  the reason given there is about summing *record types* across stores, and it does not hold for
+  summing *groups*.
 
 ## Supporting material
 
