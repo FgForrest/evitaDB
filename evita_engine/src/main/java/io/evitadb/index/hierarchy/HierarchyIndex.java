@@ -88,7 +88,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
@@ -304,15 +303,17 @@ public class HierarchyIndex
 			return existing;
 		}
 		synchronized (this) {
-			if (this.nodeStore == null) {
-				this.nodeStore = new HierarchyNodeStore(
+			HierarchyNodeStore theNodeStore = this.nodeStore;
+			if (theNodeStore == null) {
+				theNodeStore = new HierarchyNodeStore(
 					new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY),
 					new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new),
 					new TransactionalMap<>(new HashMap<>(32)),
 					new TransactionalIntArray()
 				);
+				this.nodeStore = theNodeStore;
 			}
-			return this.nodeStore;
+			return theNodeStore;
 		}
 	}
 
@@ -908,18 +909,20 @@ public class HierarchyIndex
 		// getHierarchyNodeOrThrowException below, so every dereference of it inside the loop is reached
 		// only after that call has already accepted the store
 		final HierarchyNodeStore store = this.nodeStore;
-		for (Integer nodeId : nodes) {
-			output.add(nodeId);
-			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
-			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
-				final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
-				if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
-					// the chain either breaks here, or closes into a ring, or meets an ancestor another
-					// input node has already contributed - in every case there is nothing left to collect
-					break;
+		if (store != null) {
+			for (Integer nodeId : nodes) {
+				output.add(nodeId);
+				HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
+				while (hierarchyNode.parentEntityPrimaryKey() != null) {
+					final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+					final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
+					if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
+						// the chain either breaks here, or closes into a ring, or meets an ancestor another
+						// input node has already contributed - in every case there is nothing left to collect
+						break;
+					}
+					hierarchyNode = parentNode;
 				}
-				hierarchyNode = parentNode;
 			}
 		}
 		return output.isEmpty() ?
@@ -1488,7 +1491,7 @@ public class HierarchyIndex
 	 * @return the removed {@link HierarchyNode}, or `null` if the entity was not in the index
 	 */
 	@Nullable
-	private HierarchyNode internalRemoveHierarchy(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static HierarchyNode internalRemoveHierarchy(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		// remove optional previous location
 		if (store.itemIndex().containsKey(entityPrimaryKey)) {
 			final HierarchyNode previousLocation = store.itemIndex().remove(entityPrimaryKey);
@@ -1537,7 +1540,7 @@ public class HierarchyIndex
 	 * @throws EvitaInvalidUsageException if the node is absent from the index
 	 */
 	@Nonnull
-	private HierarchyNodeStore assertNodeInIndex(@Nullable HierarchyNodeStore store, int parentNode) {
+	private static HierarchyNodeStore assertNodeInIndex(@Nullable HierarchyNodeStore store, int parentNode) {
 		if (store == null) {
 			// no node has ever been written to this index, so it cannot hold the requested parent
 			throw new EvitaInvalidUsageException("Parent node `" + parentNode + "` is not present in the index!");
@@ -1581,7 +1584,7 @@ public class HierarchyIndex
 	 * @return the parent node, or empty when the node is a root or its parent is not part of the tree
 	 */
 	@Nonnull
-	private Optional<HierarchyNode> getParentNodeIfExists(
+	private static Optional<HierarchyNode> getParentNodeIfExists(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyNode hierarchyNode
 	) {
@@ -1599,7 +1602,7 @@ public class HierarchyIndex
 	 * @param store            the node store the orphaning operates on, resolved once by the caller
 	 * @param entityPrimaryKey the primary key of the entity whose subtree becomes orphaned
 	 */
-	private void makeOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static void makeOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		final TransactionalIntArray removedNodeChildren = store.levelIndex().remove(entityPrimaryKey);
 		if (removedNodeChildren != null) {
 			final OfInt it = removedNodeChildren.iterator();
@@ -1620,7 +1623,7 @@ public class HierarchyIndex
 	 * @param store            the node store the promotion operates on, resolved once by the caller
 	 * @param entityPrimaryKey the primary key of the newly placed entity whose orphaned children to claim
 	 */
-	private void createChildrenSetFromOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static void createChildrenSetFromOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		final CompositeIntArray children = new CompositeIntArray();
 		final OfInt it = store.orphans().iterator();
 		while (it.hasNext()) {
@@ -1649,7 +1652,7 @@ public class HierarchyIndex
 	 * @param children                    the direct children of the current node
 	 * @param levels                      remaining levels to traverse (0 = no further recursion)
 	 */
-	private void addRecursively(
+	private static void addRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate,
 		@Nonnull CompositeIntArray result,
@@ -1680,7 +1683,7 @@ public class HierarchyIndex
 	 * @param levels                      remaining levels to traverse (0 = no further recursion)
 	 * @return count of matching nodes in the subtree
 	 */
-	private int countRecursively(
+	private static int countRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate,
 		@Nonnull TransactionalIntArray children,
@@ -1711,7 +1714,7 @@ public class HierarchyIndex
 	 * @param indent  the current indentation level (multiplied by 3 for spaces)
 	 * @param sb      the string builder to append to
 	 */
-	private void toStringChildrenRecursively(
+	private static void toStringChildrenRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull TransactionalIntArray nodeIds,
 		int indent,
@@ -1815,7 +1818,7 @@ public class HierarchyIndex
 	 * @return a self-referencing {@link TraverserFactory} ready for recursive traversal
 	 */
 	@Nonnull
-	private TraverserFactory getTraverserFactory(
+	private static TraverserFactory getTraverserFactory(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyVisitor visitor,
 		@Nonnull HierarchyFilteringPredicate predicate
@@ -1862,7 +1865,7 @@ public class HierarchyIndex
 	 * @param rootNode the node to compute level for
 	 * @return level of the node or {@link HierarchyIndexContract#UNKNOWN_LEVEL} if it is not part of the tree
 	 */
-	private int computeLevel(@Nonnull HierarchyNodeStore store, @Nonnull HierarchyNode rootNode) {
+	private static int computeLevel(@Nonnull HierarchyNodeStore store, @Nonnull HierarchyNode rootNode) {
 		int level = 1;
 		HierarchyNode theNode = rootNode;
 		while (theNode.parentEntityPrimaryKey() != null) {
@@ -1939,7 +1942,7 @@ public class HierarchyIndex
 	 * @param levelSorter        a {@link UnaryOperator} to sort the children nodes at each level during the traversal
 	 * @param result             a {@link CompositeIntArray} to store the result of the traversal
 	 */
-	private void breadthFirstTraversal(
+	private static void breadthFirstTraversal(
 		@Nonnull HierarchyNodeStore store,
 		int previousLevelStart,
 		@Nonnull UnaryOperator<int[]> levelSorter,
@@ -1974,7 +1977,7 @@ public class HierarchyIndex
 	 * @param levelSorter a {@link UnaryOperator} to sort the children nodes at each level during the traversal
 	 * @param result      a {@link CompositeIntArray} to store the result of the traversal
 	 */
-	private void depthFirstTraversal(
+	private static void depthFirstTraversal(
 		@Nonnull HierarchyNodeStore store,
 		int rootNodeId,
 		@Nonnull UnaryOperator<int[]> levelSorter,

@@ -517,7 +517,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Integer, ServerEntityDecorator> entityIndex;
 		final QueryPlanningContext queryContext = executionContext.getQueryContext();
 		final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
-			queryContext, fetchRequest, queryContext.getEvitaSession()
+			queryContext, fetchRequest, Objects.requireNonNull(queryContext.getEvitaSession())
 		);
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = fetchRequest.getNamedReferenceEntityFetch();
@@ -588,7 +588,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				} else {
 					// if not, fetch the fresh entity from the collection
 					entityCollection.fetchEntityDecorator(
-							referencedRecordId, fetchRequest, queryContext.getEvitaSession()
+							referencedRecordId, fetchRequest, Objects.requireNonNull(queryContext.getEvitaSession())
 						)
 						.ifPresent(entity -> entityIndex.put(entity.getPrimaryKey(), entity));
 				}
@@ -1359,7 +1359,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.orElse(null),
 				entityNestedQueryComparator,
 				queryContext.getEvitaRequest(),
-				queryContext.getEvitaSession()
+				Objects.requireNonNull(queryContext.getEvitaSession())
 			);
 		}
 	}

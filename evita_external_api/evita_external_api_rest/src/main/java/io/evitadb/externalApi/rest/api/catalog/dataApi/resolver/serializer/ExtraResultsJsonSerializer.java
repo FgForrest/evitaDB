@@ -32,16 +32,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.FacetSummaryOfReference;
-import io.evitadb.api.query.require.HierarchyOfReference;
-import io.evitadb.api.query.require.HierarchyOfSelf;
-import io.evitadb.api.query.require.HierarchyRequireConstraint;
-import io.evitadb.api.query.require.ReferenceHistogramStatistics;
-import io.evitadb.api.query.require.ReferenceSummaryOfReference;
-import io.evitadb.api.query.require.Require;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
@@ -65,8 +56,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceHistogramDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
@@ -478,11 +469,11 @@ public class ExtraResultsJsonSerializer {
 	) {
 		final ObjectNode facetStatsNode = this.objectJsonSerializer.objectNode();
 		facetStatsNode.putIfAbsent(
-			EntityFacetStatisticsDescriptor.REQUESTED.name(),
+			FacetStatisticsDescriptor.REQUESTED.name(),
 			this.objectJsonSerializer.serializeObject(facetStatistics.isRequested())
 		);
 		facetStatsNode.putIfAbsent(
-			EntityFacetStatisticsDescriptor.COUNT.name(),
+			FacetStatisticsDescriptor.COUNT.name(),
 			this.objectJsonSerializer.serializeObject(facetStatistics.getCount())
 		);
 		if (facetStatistics.getImpact() != null) {
@@ -501,10 +492,10 @@ public class ExtraResultsJsonSerializer {
 				this.objectJsonSerializer.serializeObject(impact.hasSense())
 			);
 
-			facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.IMPACT.name(), impactNode);
+			facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
 		facetStatsNode.putIfAbsent(
-			EntityFacetStatisticsDescriptor.FACET_ENTITY.name(),
+			FacetStatisticsDescriptor.FACET_ENTITY.name(),
 			this.entityJsonSerializer.serialize(facetEntityContext, facetStatistics.getFacetEntity())
 		);
 		return facetStatsNode;

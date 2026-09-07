@@ -38,6 +38,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -49,14 +50,14 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link QueryConverter} class.
@@ -130,7 +131,7 @@ class QueryConverterTest {
 		final Locale localeValue = Locale.GERMANY;
 		assertEquals(localeValue, convertQueryParam(localeValue));
 		final Currency currencyValue = Currency.getInstance(Locale.GERMANY);
-		assertEquals(currencyValue, convertQueryParam(currencyValue));
+		assertSame(currencyValue, convertQueryParam(currencyValue));
 		final FacetStatisticsDepth facetStatisticsDepthValue = FacetStatisticsDepth.IMPACT;
 		assertEquals(FacetStatisticsDepth.IMPACT, convertQueryParam(facetStatisticsDepthValue));
 		final QueryPriceMode queryPriceModeValue = QueryPriceMode.WITHOUT_TAX;

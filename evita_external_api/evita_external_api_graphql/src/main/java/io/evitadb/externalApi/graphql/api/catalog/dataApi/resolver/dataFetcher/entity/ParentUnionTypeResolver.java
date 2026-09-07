@@ -65,7 +65,7 @@ public class ParentUnionTypeResolver implements TypeResolver {
 	 */
 	@Nonnull
 	@Override
-	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
+	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
 		final String targetObjectName = env.getObject() instanceof SealedEntity
 			? this.entityObjectName
 			: this.parentPointerObjectName;

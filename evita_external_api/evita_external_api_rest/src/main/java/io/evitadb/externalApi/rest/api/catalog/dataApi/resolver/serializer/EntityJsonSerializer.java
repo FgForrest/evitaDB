@@ -50,9 +50,12 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.StripList;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.WithNamedReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
@@ -325,8 +328,8 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeEntityClassifier(@Nonnull EntityClassifier entity) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.put(EntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(Objects.requireNonNull(entity.getPrimaryKey())));
-		rootNode.put(EntityDescriptor.TYPE.name(), this.objectJsonSerializer.serializeObject(entity.getType()));
+		rootNode.set(EntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(Objects.requireNonNull(entity.getPrimaryKey())));
+		rootNode.set(EntityDescriptor.TYPE.name(), this.objectJsonSerializer.serializeObject(entity.getType()));
 		return rootNode;
 	}
 
@@ -336,8 +339,8 @@ public class EntityJsonSerializer {
 	 */
 	private void serializeEntityBody(@Nonnull ObjectNode rootNode,
 	                                 @Nonnull EntityDecorator entity) {
-		rootNode.put(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entity.version()));
-		rootNode.put(EntityDescriptor.SCOPE.name(), this.objectJsonSerializer.serializeObject(entity.getScope()));
+		rootNode.set(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entity.version()));
+		rootNode.set(EntityDescriptor.SCOPE.name(), this.objectJsonSerializer.serializeObject(entity.getScope()));
 
 		if (!entity.getLocales().isEmpty()) {
 			rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getLocales()));
@@ -465,7 +468,7 @@ public class EntityJsonSerializer {
 					groupedReferences.getTotalRecordCount() + " references with same name: " + referenceName
 			);
 
-			final String referencePropertyName = EntityDescriptor.REFERENCE.name(referenceSchema);
+			final String referencePropertyName = WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema);
 			if (groupedReferences.getData().isEmpty()) {
 				rootNode.putIfAbsent(referencePropertyName, null);
 			} else {
@@ -474,11 +477,11 @@ public class EntityJsonSerializer {
 		} else {
 			final String referencePropertyName;
 			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
-				referencePropertyName = EntityDescriptor.REFERENCE.name(referenceSchema);
+				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema);
 			} else if (groupedReferences instanceof PaginatedList<ReferenceContract>) {
-				referencePropertyName = EntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema);
 			} else if (groupedReferences instanceof StripList<ReferenceContract>) {
-				referencePropertyName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema);
 			} else {
 				throw new OpenApiBuildingError("Unsupported implementation of data chunk `" + groupedReferences.getClass().getName() + "`");
 			}
@@ -500,13 +503,13 @@ public class EntityJsonSerializer {
 	                                            @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode referenceNode = this.objectJsonSerializer.objectNode();
 
-		referenceNode.putIfAbsent(EntityReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
+		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
 		// a referenced entity is fetched with the requirement written inside this `referenceContent`, not with the
 		// one the referencing entity was fetched with - the two describe different collections
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
 			referenceNode.putIfAbsent(
-				EntityReferenceDescriptor.REFERENCED_ENTITY.name(),
+				ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(),
 				serializeSingleEntity(ctx.forReferencedEntity(reference.getReferenceName()), sealedEntity)
 			));
 
@@ -514,7 +517,7 @@ public class EntityJsonSerializer {
 			.map(EntityClassifier.class::cast)
 			.or(reference::getGroup)
 			.ifPresent(groupEntity -> referenceNode.putIfAbsent(
-				EntityReferenceDescriptor.GROUP_ENTITY.name(),
+				ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
 				serializeSingleEntity(ctx.forGroupEntity(reference.getReferenceName()), groupEntity)
 			));
 

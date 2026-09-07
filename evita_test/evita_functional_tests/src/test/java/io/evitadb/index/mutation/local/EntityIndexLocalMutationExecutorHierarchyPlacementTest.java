@@ -165,7 +165,7 @@ class EntityIndexLocalMutationExecutorHierarchyPlacementTest extends AbstractMut
 		assertNoHierarchyPlacement();
 
 		// the index refuses to remove a node that is not there, so a broken guard fails loudly right here
-		assertDoesNotThrow(() -> this.executor.applyChanges());
+		assertDoesNotThrow(this.executor::applyChanges);
 
 		assertNoHierarchyPlacement();
 	}
@@ -236,7 +236,7 @@ class EntityIndexLocalMutationExecutorHierarchyPlacementTest extends AbstractMut
 		this.executor.applyMutation(new RemoveParentMutation());
 
 		markEntityForRemoval();
-		assertDoesNotThrow(() -> this.executor.applyChanges());
+		assertDoesNotThrow(this.executor::applyChanges);
 
 		assertNoHierarchyPlacement();
 	}

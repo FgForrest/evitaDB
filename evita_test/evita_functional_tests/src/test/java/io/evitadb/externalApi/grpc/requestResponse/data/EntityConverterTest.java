@@ -33,31 +33,23 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.AssociatedData;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
-import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
-import io.evitadb.api.requestResponse.data.structure.Price;
-import io.evitadb.api.requestResponse.data.structure.Prices;
-import io.evitadb.api.requestResponse.data.structure.References;
+import io.evitadb.api.requestResponse.data.structure.*;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.DateTimeRange;
@@ -69,9 +61,9 @@ import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.VersionUtils.SemVer;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -90,17 +82,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
-import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.HIERARCHY;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -263,7 +249,7 @@ class EntityConverterTest {
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(MOMENT_2020);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[]{BASIC});
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[0]);
-		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(new AccompanyingPrice[0]);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(AccompanyingPrice.EMPTY_ARRAY);
 		Mockito.when(evitaRequest.getQueryPriceMode()).thenReturn(QueryPriceMode.WITH_TAX);
 
 		final Entity delegate = Entity._internalBuild(
@@ -503,7 +489,7 @@ class EntityConverterTest {
 			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
 			Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[0]);
 			Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[0]);
-			Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(new AccompanyingPrice[0]);
+			Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(AccompanyingPrice.EMPTY_ARRAY);
 
 			final Entity delegate = Entity._internalBuild(
 				primaryKey, 1, schema, parentPrimaryKey,
