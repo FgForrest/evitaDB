@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.head.Collection;
@@ -45,7 +46,6 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SESSION;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -159,14 +159,17 @@ class EvitaSessionContractHeadPreservationTest {
 	 * The collection half guards the opposite mistake — a merge that forgets the collection while keeping the label.
 	 */
 	private static void assertHeaderSurvived(@Nonnull Query rebuiltQuery) {
-		final Collection collection = rebuiltQuery.getCollection();
-		assertNotNull(collection, () -> "the collection was lost during the rebuild: " + rebuiltQuery);
-		assertEquals(ENTITY_TYPE, collection.getEntityType());
-
-		final List<Label> labels = QueryUtils.findConstraints(
-			requireNonNull(rebuiltQuery.getHead(), () -> "the whole head was lost during the rebuild"),
-			Label.class
+		final HeadConstraint head = requireNonNull(
+			rebuiltQuery.getHead(), () -> "the whole head was lost during the rebuild"
 		);
+
+		// exactly one - `getCollection()` returns the first match, so counting is what would catch a rebuild that
+		// prepends a collection to a header that already names one
+		final List<Collection> collections = QueryUtils.findConstraints(head, Collection.class);
+		assertEquals(1, collections.size(), () -> "the collection was lost or duplicated by the rebuild: " + rebuiltQuery);
+		assertEquals(ENTITY_TYPE, collections.get(0).getEntityType());
+
+		final List<Label> labels = QueryUtils.findConstraints(head, Label.class);
 		assertEquals(1, labels.size(), () -> "the head label was dropped during the rebuild: " + rebuiltQuery);
 		assertEquals(LABEL_NAME, labels.get(0).getLabelName());
 		assertEquals(LABEL_VALUE, labels.get(0).getLabelValue());

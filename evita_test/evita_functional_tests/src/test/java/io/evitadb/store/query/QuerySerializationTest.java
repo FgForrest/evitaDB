@@ -206,7 +206,11 @@ public class QuerySerializationTest {
 					Query.query(head(collection("a"), label("x", "y")),
 						filterBy(attributeEquals("a", "b")))),
 				arguments("label-only head",
-					Query.query(label("x", "y"), filterBy(attributeEquals("a", "b"))))
+					Query.query(label("x", "y"), filterBy(attributeEquals("a", "b")))),
+				// a header-less query still has to round-trip - the head slot is written polymorphically and its
+				// null representation is part of that contract
+				arguments("no head at all",
+					Query.query(filterBy(attributeEquals("a", "b"))))
 			);
 		}
 	}

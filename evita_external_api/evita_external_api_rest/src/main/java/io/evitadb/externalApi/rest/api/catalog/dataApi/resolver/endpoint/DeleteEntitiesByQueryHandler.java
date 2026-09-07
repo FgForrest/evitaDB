@@ -80,7 +80,9 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 				final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
 						return Query.query(
-							query.getCollection(),
+							// the whole header must survive - it already carries the source-type, source-query and
+							// caller labels that QueryOrientedEntitiesHandler#enrichHeadWithInternalConstraints put there
+							query.getHead(),
 							query.getFilterBy(),
 							query.getOrderBy(),
 							require(
