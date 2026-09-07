@@ -106,6 +106,10 @@ As you can see, the requested parent information is part of the category entity 
 
 </LS>
 
+Because the query is filtered by a locale, the breadcrumb reaches only as far up as the categories that can supply
+the requested attributes in it - see [hierarchy parents behaviour](../query/requirements/fetching.md#hierarchy-parents-behaviour)
+if you need the ones above them as well.
+
 Next, let's see how to get the breadcrumb for a specific product. Here the situation is more complicated because 
 the product can (and in our example it does) belong to several categories:
 

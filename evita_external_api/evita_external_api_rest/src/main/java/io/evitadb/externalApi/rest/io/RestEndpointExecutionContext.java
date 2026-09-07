@@ -26,6 +26,11 @@ package io.evitadb.externalApi.rest.io;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
@@ -49,6 +54,7 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Nullable private EvitaSessionContract session;
 	@Nullable private UUID trafficSourceQueryRecordingId;
+	@Nullable private EntityFetchRequire entityRequirement;
 
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
@@ -109,6 +115,48 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 			() -> new RestInternalError("TrafficSourceQueryRecordingId cannot be overwritten when already set.")
 		);
 		this.trafficSourceQueryRecordingId = trafficSourceQueryRecordingId;
+	}
+
+	/**
+	 * Returns the requirement the entities returned by this request were fetched with, or NULL when the endpoint
+	 * resolved none - it may have been given none, or it may not work through a {@link Query} at all. The entity
+	 * serializer needs it to tell an ancestor whose body was asked for and could not be materialized from one whose
+	 * body was never requested; the two arrive as the same kind of object and are indistinguishable in the data.
+	 *
+	 * @return the requirement the returned entities were fetched with, or NULL when the endpoint resolved none
+	 */
+	@Nullable
+	public EntityFetchRequire entityRequirement() {
+		return this.entityRequirement;
+	}
+
+	/**
+	 * Records the requirement the entities of this request are fetched with. Can be set only once to avoid
+	 * overwriting errors; an endpoint that resolves no requirement simply never calls it.
+	 *
+	 * @param entityRequirement the requirement the entities of this request are fetched with
+	 */
+	public void provideEntityRequirement(@Nonnull EntityFetchRequire entityRequirement) {
+		Assert.isPremiseValid(
+			this.entityRequirement == null,
+			() -> new RestInternalError("Entity requirement cannot be overwritten when already set.")
+		);
+		this.entityRequirement = entityRequirement;
+	}
+
+	/**
+	 * Records the requirement the entities of this request are fetched with, read off the query that fetches them.
+	 * A query fetching no entity bodies at all resolves no requirement and the call is a no-op.
+	 *
+	 * @param query the query the entities of this request are fetched by
+	 */
+	public void provideEntityRequirement(@Nonnull Query query) {
+		final EntityFetch entityFetch = QueryUtils.findRequire(
+			query, EntityFetch.class, SeparateEntityContentRequireContainer.class
+		);
+		if (entityFetch != null) {
+			provideEntityRequirement(entityFetch);
+		}
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -118,6 +118,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SESSION;
@@ -1213,6 +1214,112 @@ class EvitaSessionServiceFunctionalTest {
 			final GrpcSealedEntity enrichedEntity = response.get().getRecordPage().getSealedEntitiesList().get(i);
 			assertEntity(entity, enrichedEntity);
 		}
+	}
+
+	/**
+	 * `HierarchyParentsBehaviour.COMPLETE` keeps an ancestor whose requested body could not be materialized in the
+	 * chain as a bodyless pointer and continues the walk above it, so a body may well sit above a pointer. The wire
+	 * format had no representation for that shape at all, and the converter cast every ancestor above a pointer to
+	 * another pointer - so the whole query failed rather than degrading. This pins the shape crossing gRPC end to
+	 * end, on both the newer `parentEntity` field and the legacy pointer field that an older client reads.
+	 *
+	 * The chain is built here rather than taken from the generated dataset because it needs one ancestor holding no
+	 * data at all in the query locale, which is exactly what makes its body unmaterializable. The behaviour travels
+	 * as an inline literal through the unsafe query endpoint, which keeps the whole shape readable in one string; the
+	 * safe path, where the same enum crosses as a `GrpcQueryParam` arm, is pinned by
+	 * `EvitaClientReadWriteTest#shouldQueryEitherParentChainThroughParametrisedQuery` instead.
+	 *
+	 * @param evita         the embedded evitaDB instance the fixture is written through
+	 * @param clientBuilder builder of the gRPC client the query is issued with
+	 */
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(HIERARCHY)
+	@DisplayName("Should carry a parent chain with a body above a bodyless pointer")
+	void shouldReturnCompleteParentChainWithABodyAboveAPointer(Evita evita, GrpcClientBuilder clientBuilder) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.CATEGORY, 9001)
+					.setAttribute(ATTRIBUTE_CODE, "complete-chain-9001")
+					.setAttribute(ATTRIBUTE_PRIORITY, 1L)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain root")
+					.upsertVia(session);
+				// the only ancestor without English data - its body cannot materialize under the query locale
+				session.createNewEntity(Entities.CATEGORY, 9002)
+					.setParent(9001)
+					.setAttribute(ATTRIBUTE_CODE, "complete-chain-9002")
+					.setAttribute(ATTRIBUTE_PRIORITY, 2L)
+					.setAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, "pouze cesky")
+					.upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 9003)
+					.setParent(9002)
+					.setAttribute(ATTRIBUTE_CODE, "complete-chain-9003")
+					.setAttribute(ATTRIBUTE_PRIORITY, 3L)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain middle")
+					.upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 9004)
+					.setParent(9003)
+					.setAttribute(ATTRIBUTE_CODE, "complete-chain-9004")
+					.setAttribute(ATTRIBUTE_PRIORITY, 4L)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain leaf")
+					.upsertVia(session);
+			}
+		);
+
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final GrpcQueryOneResponse response = evitaSessionBlockingStub.queryOneUnsafe(
+			GrpcQueryUnsafeRequest.newBuilder()
+				.setQuery(
+					"""
+						query(
+							collection('CATEGORY'),
+							filterBy(
+								entityPrimaryKeyInSet(9004),
+								entityLocaleEquals('en')
+							),
+							require(
+								entityFetch(
+									attributeContentAll(),
+									hierarchyContent(COMPLETE, entityFetch(attributeContentAll()))
+								)
+							)
+						)
+						"""
+				)
+				.build()
+		);
+
+		final GrpcSealedEntity leaf = response.getSealedEntity();
+		assertEquals(9004, leaf.getPrimaryKey());
+
+		assertTrue(leaf.hasParentEntity(), "The immediate parent materializes and must arrive with its body.");
+		final GrpcSealedEntity bodyBelowThePointer = leaf.getParentEntity();
+		assertEquals(9003, bodyBelowThePointer.getPrimaryKey());
+
+		assertFalse(
+			bodyBelowThePointer.hasParentEntity(),
+			"The ancestor above 9003 holds no English data, so it can only be reported bodyless."
+		);
+		assertTrue(bodyBelowThePointer.hasParentReference());
+		final GrpcEntityReferenceWithParent pointer = bodyBelowThePointer.getParentReference();
+		assertEquals(9002, pointer.getPrimaryKey());
+
+		assertTrue(pointer.hasParentEntity(), "The body above the pointer is the shape this whole mode exists for.");
+		final GrpcSealedEntity bodyAboveThePointer = pointer.getParentEntity();
+		assertEquals(9001, bodyAboveThePointer.getPrimaryKey());
+		assertFalse(bodyAboveThePointer.hasParentEntity(), "Nothing is reported above the root.");
+		assertFalse(bodyAboveThePointer.hasParentReference(), "Nothing is reported above the root.");
+
+		assertTrue(
+			pointer.hasParent(),
+			"The same ancestor has to stay readable on the legacy field, for a client that predates the newer one."
+		);
+		assertEquals(9001, pointer.getParent().getPrimaryKey());
+		assertFalse(pointer.getParent().hasParent());
 	}
 
 	@Test

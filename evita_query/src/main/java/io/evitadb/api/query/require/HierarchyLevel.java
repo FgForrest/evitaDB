@@ -105,6 +105,12 @@ public class HierarchyLevel extends AbstractRequireConstraintLeaf implements Hie
 
 	/**
 	 * Returns the final level that should be traversed, no other levels will be traversed any more.
+	 *
+	 * Because the level is an absolute depth, it can only bound a node whose depth is known. A node that is not
+	 * reachable from any root - its chain to the top is broken by a deleted or never created ancestor - has no such
+	 * depth, and this bound therefore never cuts it in either traversal direction. Use
+	 * {@link HierarchyDistance} where a bound has to hold over such a chain as well; it counts from the pivot node
+	 * and a break above it cannot shift it.
 	 */
 	public int getLevel() {
 		return (Integer) getArguments()[0];

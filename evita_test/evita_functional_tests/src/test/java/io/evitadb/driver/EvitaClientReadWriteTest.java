@@ -42,6 +42,8 @@ import io.evitadb.api.proxy.mock.ProductInterface;
 import io.evitadb.api.proxy.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -69,6 +71,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.*;
@@ -2826,6 +2829,171 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		                                                            .get();
 		assertNotNull(keywords);
 		assertTrue(keywords.getKeywordsCount() > 20);
+	}
+
+	/**
+	 * Sends the `hierarchyContent` parents behaviour through the *safe* query path - the one that serializes
+	 * a {@link Query} into a parametrised EvitaQL string plus a list of positional parameters, which is what every
+	 * ordinary driver call uses. Until `GrpcQueryParam` gained an arm for the enum that path could not carry it at
+	 * all, and `COMPLETE` was reachable only through the unsafe, string-inlined endpoint.
+	 *
+	 * The fixture is a four-node chain whose second node holds Czech data only, so its body cannot be materialized
+	 * under the English query locale. `COMPLETE` therefore has to return that node as a bodyless pointer and keep
+	 * walking above it, which puts the body of the root above a pointer - the shape the mode exists for, and one
+	 * `MATCHING` never produces.
+	 *
+	 * All three ways of writing the requirement are exercised over that one fixture, because the `COMPLETE` leg on
+	 * its own would pass just as well if the parametrised path ignored the caller and sent `COMPLETE` unconditionally.
+	 * The explicit `MATCHING` leg is what makes the new arm's selectivity observable, and the leg that names no
+	 * behaviour at all pins the elision of the implicit default end to end.
+	 *
+	 * @param evitaClient the driver instance provided by the test extension
+	 */
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, destroyAfterTest = true)
+	void shouldQueryEitherParentChainThroughParametrisedQuery(EvitaClient evitaClient) {
+		final Locale czechLocale = new Locale("cs");
+		evitaClient.defineCatalog(TEST_CATALOG)
+		           .updateViaNewSession(evitaClient);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+				       .withoutGeneratedPrimaryKey()
+				       .withHierarchy()
+				       .withLocale(czechLocale, Locale.ENGLISH)
+				       .withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::nullable)
+				       .withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
+				       .updateVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1)
+				       .setAttribute(ATTRIBUTE_CODE, "complete-chain-1")
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain root")
+				       .upsertVia(session);
+				// the only ancestor without English data - its body cannot materialize under the query locale
+				session.createNewEntity(Entities.CATEGORY, 2)
+				       .setParent(1)
+				       .setAttribute(ATTRIBUTE_CODE, "complete-chain-2")
+				       .setAttribute(ATTRIBUTE_NAME, czechLocale, "pouze cesky")
+				       .upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 3)
+				       .setParent(2)
+				       .setAttribute(ATTRIBUTE_CODE, "complete-chain-3")
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain middle")
+				       .upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 4)
+				       .setParent(3)
+				       .setAttribute(ATTRIBUTE_CODE, "complete-chain-4")
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "complete chain leaf")
+				       .upsertVia(session);
+			}
+		);
+
+		final SealedEntity leaf = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(4),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							entityFetch(
+								attributeContentAll(),
+								hierarchyContent(
+									HierarchyParentsBehaviour.COMPLETE,
+									entityFetch(attributeContentAll())
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+
+		assertEquals(4, leaf.getPrimaryKey());
+
+		final SealedEntity bodyBelowThePointer = assertInstanceOf(
+			SealedEntity.class, leaf.getParentEntity().orElseThrow(),
+			"The immediate parent materializes and must arrive with its body."
+		);
+		assertEquals(3, bodyBelowThePointer.getPrimaryKey());
+		assertEquals("complete-chain-3", bodyBelowThePointer.getAttribute(ATTRIBUTE_CODE));
+
+		final EntityReferenceWithParent pointer = assertInstanceOf(
+			EntityReferenceWithParent.class, bodyBelowThePointer.getParentEntity().orElseThrow(),
+			"The ancestor above 3 holds no English data, so it can only be reported bodyless."
+		);
+		assertEquals(2, pointer.getPrimaryKey());
+
+		final SealedEntity bodyAboveThePointer = assertInstanceOf(
+			SealedEntity.class, pointer.getParentEntity().orElseThrow(),
+			"The body above the pointer is the shape this whole mode exists for."
+		);
+		assertEquals(1, bodyAboveThePointer.getPrimaryKey());
+		assertEquals("complete-chain-1", bodyAboveThePointer.getAttribute(ATTRIBUTE_CODE));
+		assertTrue(bodyAboveThePointer.getParentEntity().isEmpty(), "Nothing is reported above the root.");
+
+		// the very same query with the behaviour written out as `MATCHING`, and then with no behaviour argument at
+		// all, must both stop below the ancestor that could not be materialized - otherwise the parametrised path is
+		// not carrying what the caller asked for
+		assertMatchingParentChain(
+			evitaClient,
+			hierarchyContent(HierarchyParentsBehaviour.MATCHING, entityFetch(attributeContentAll()))
+		);
+		assertMatchingParentChain(
+			evitaClient,
+			hierarchyContent(entityFetch(attributeContentAll()))
+		);
+	}
+
+	/**
+	 * Runs the parent-chain query of {@link #shouldQueryEitherParentChainThroughParametrisedQuery(EvitaClient)} with
+	 * the given `hierarchyContent` requirement and asserts the shape
+	 * {@link HierarchyParentsBehaviour#MATCHING} produces over its fixture: the immediate parent arrives with its
+	 * body and the walk ends there, because the ancestor above it holds no data in the query locale.
+	 *
+	 * @param evitaClient      the driver instance to query through
+	 * @param hierarchyContent the requirement under test
+	 */
+	private static void assertMatchingParentChain(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull HierarchyContent hierarchyContent
+	) {
+		final SealedEntity leaf = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(4),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							entityFetch(
+								attributeContentAll(),
+								hierarchyContent
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+
+		final SealedEntity parent = assertInstanceOf(
+			SealedEntity.class, leaf.getParentEntity().orElseThrow(),
+			"The immediate parent materializes and must arrive with its body."
+		);
+		assertEquals(3, parent.getPrimaryKey());
+		assertEquals("complete-chain-3", parent.getAttribute(ATTRIBUTE_CODE));
+		assertTrue(
+			parent.getParentEntity().isEmpty(),
+			"The ancestor above 3 holds no English data, so a matching chain has to end below it."
+		);
 	}
 
 	@Test

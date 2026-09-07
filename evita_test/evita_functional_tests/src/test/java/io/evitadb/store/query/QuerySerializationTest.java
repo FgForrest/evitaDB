@@ -27,18 +27,22 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.QueryTelemetry;
 import io.evitadb.api.query.require.QueryTelemetryContent;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
@@ -730,6 +734,111 @@ public class QuerySerializationTest {
 						entityFetch(referenceContentWithAttributes("a",
 							filterBy(attributeEquals("a", "b")), entityFetchAll(), page(1, 20)))),
 
+					// ManagedReferencesBehaviour is an argument of the constraint, so a non-default
+					// value must survive the round-trip in every shape the serializer reconstructs -
+					// no reference name, a single name, and several names - in the combinations of
+					// attributeContent / entityFetch / filterBy / orderBy / chunking each shape accepts
+					arguments("referenceContentAll(EXISTING)",
+						entityFetch(referenceContentAll(ManagedReferencesBehaviour.EXISTING))),
+					arguments("referenceContentAll(EXISTING + fetches + page)",
+						entityFetch(referenceContentAll(ManagedReferencesBehaviour.EXISTING,
+							entityFetchAll(), entityGroupFetchAll(), page(1, 20)))),
+					arguments("referenceContentAllWithAttributes(EXISTING + attributeContent)",
+						entityFetch(referenceContentAllWithAttributes(
+							ManagedReferencesBehaviour.EXISTING, attributeContent("a", "b", "c")))),
+					arguments("referenceContentAllWithAttributes(EXISTING + attributeContent + fetches + page)",
+						entityFetch(referenceContentAllWithAttributes(ManagedReferencesBehaviour.EXISTING,
+							attributeContent("a", "b", "c"), entityFetchAll(), entityGroupFetchAll(),
+							page(1, 20)))),
+					arguments("referenceContent(EXISTING + name)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "a"))),
+					arguments("referenceContent(EXISTING + name + filterBy + orderBy + fetches)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "a",
+							filterBy(attributeEquals("a", "b")),
+							orderBy(attributeNatural("a", OrderDirection.ASC)),
+							entityFetchAll(), entityGroupFetchAll()))),
+					arguments("referenceContent(EXISTING + name + fetches + page)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.EXISTING, "a",
+							entityFetchAll(), entityGroupFetchAll(), page(1, 20)))),
+					arguments("referenceContentWithAttributes(EXISTING + name + filterBy + orderBy + " +
+							"attributeContent + fetches)",
+						entityFetch(referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "a",
+							filterBy(attributeEquals("a", "b")),
+							orderBy(attributeNatural("a", OrderDirection.ASC)),
+							attributeContent("b", "c"), entityFetchAll(), entityGroupFetchAll()))),
+					arguments("referenceContentWithAttributes(EXISTING + name + attributeContent + fetches + page)",
+						entityFetch(referenceContentWithAttributes(ManagedReferencesBehaviour.EXISTING, "a",
+							attributeContent("b", "c"), entityFetchAll(), entityGroupFetchAll(),
+							page(1, 20)))),
+					arguments("referenceContent(EXISTING + names + fetches)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.EXISTING,
+							new String[] {"a", "b"}, entityFetchAll(), entityGroupFetchAll()))),
+					arguments("referenceContent(EXISTING + page + names)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.EXISTING,
+							page(1, 20), "a", "b"))),
+					// the two ANY rows are the controls of the block above: ANY is the default behaviour, so
+					// they prove the round trip still returns it where the constructors would have supplied
+					// it anyway, and that the EXISTING rows are not passing on a defaulted value
+					arguments("referenceContentAll(ANY + fetches + page)",
+						entityFetch(referenceContentAll(ManagedReferencesBehaviour.ANY,
+							entityFetchAll(), entityGroupFetchAll(), page(1, 20)))),
+					arguments("referenceContent(ANY + name + filterBy + orderBy + fetches)",
+						entityFetch(referenceContent(ManagedReferencesBehaviour.ANY, "a",
+							filterBy(attributeEquals("a", "b")),
+							orderBy(attributeNatural("a", OrderDirection.ASC)),
+							entityFetchAll(), entityGroupFetchAll()))),
+
+					// the instance name (alias) is an argument of the constraint as well - it is what lets the same
+					// reference be fetched twice under different filters within one entityFetch; the constructor
+					// below is the one EntityFetchRequireResolver of the GraphQL API builds such content with
+					arguments("referenceContent(alias + name)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[0], new Constraint<?>[0]))),
+					arguments("referenceContent(alias + name + filterBy + orderBy + fetches)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[]{entityFetchAll(), entityGroupFetchAll()},
+							new Constraint<?>[]{
+								filterBy(attributeEquals("a", "b")),
+								orderBy(attributeNatural("a", OrderDirection.ASC))
+							}))),
+					arguments("referenceContent(alias + name + attributeContent + fetches + page)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+							new RequireConstraint[]{
+								attributeContent("b", "c"), entityFetchAll(), entityGroupFetchAll(), page(1, 20)
+							},
+							new Constraint<?>[0]))),
+					arguments("referenceContent(alias + EXISTING + name + filterBy + page)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.EXISTING, new String[]{"a"},
+							new RequireConstraint[]{entityFetchAll(), page(1, 20)},
+							new Constraint<?>[]{filterBy(attributeEquals("a", "b"))}))),
+					// the alias branch of the serializer runs before the reconstruction branches on how many
+					// reference names were written, so it handles any name count; these two rows are the counts
+					// the branch structurally supports that no other row reaches
+					arguments("referenceContent(alias + two names)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.ANY, new String[]{"a", "b"},
+							new RequireConstraint[]{entityFetchAll()},
+							new Constraint<?>[0]))),
+					arguments("referenceContent(alias + no name)",
+						entityFetch(new ReferenceContent(
+							"primary", ManagedReferencesBehaviour.EXISTING, new String[0],
+							new RequireConstraint[]{entityFetchAll()},
+							new Constraint<?>[0]))),
+					arguments("referenceContent(two aliases of a single reference)",
+						entityFetch(
+							new ReferenceContent(
+								"cheapest", ManagedReferencesBehaviour.ANY, new String[]{"a"},
+								new RequireConstraint[]{entityFetchAll()},
+								new Constraint<?>[]{filterBy(attributeEquals("a", "b"))}),
+							new ReferenceContent(
+								"newest", ManagedReferencesBehaviour.EXISTING, new String[]{"a"},
+								new RequireConstraint[]{entityFetchAll()},
+								new Constraint<?>[]{filterBy(attributeEquals("a", "c"))}))),
+
 					arguments("priceContentAll",
 						entityFetch(priceContentAll())),
 					arguments("priceContent(NONE)",
@@ -754,6 +863,28 @@ public class QuerySerializationTest {
 					arguments("hierarchyContent(stopAt node filterBy + entityFetchAll)",
 						entityFetch(hierarchyContent(
 							stopAt(node(filterBy(attributeEquals("a", "b")))), entityFetchAll()))),
+					arguments("hierarchyContent(COMPLETE)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE))),
+					arguments("hierarchyContent(MATCHING)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING))),
+					arguments("hierarchyContent(COMPLETE + stopAt distance)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1))))),
+					arguments("hierarchyContent(COMPLETE + entityFetchAll)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.COMPLETE, entityFetchAll()))),
+					arguments("hierarchyContent(MATCHING + entityFetchAll)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING, entityFetchAll()))),
+					arguments("hierarchyContent(COMPLETE + stopAt distance + entityFetchAll)",
+						entityFetch(hierarchyContent(
+							HierarchyParentsBehaviour.COMPLETE, stopAt(distance(1)), entityFetchAll()))),
+					arguments("hierarchyContent(MATCHING + stopAt distance)",
+						entityFetch(hierarchyContent(HierarchyParentsBehaviour.MATCHING, stopAt(distance(1))))),
+					// the behaviour is written after a child that carries a nested filter of its own, which is where a
+					// mistake in the trailing-field layout of the serializer would surface
+					arguments("hierarchyContent(COMPLETE + stopAt node filterBy + entityFetchAll)",
+						entityFetch(hierarchyContent(
+							HierarchyParentsBehaviour.COMPLETE,
+							stopAt(node(filterBy(attributeEquals("a", "b")))),
+							entityFetchAll()))),
 
 					arguments("dataInLocalesAll",
 						entityFetch(dataInLocalesAll())),
@@ -766,6 +897,92 @@ public class QuerySerializationTest {
 						entityGroupFetchAll()),
 					arguments("entityGroupFetch(attributeContentAll + priceContentAll)",
 						entityGroupFetch(attributeContentAll(), priceContentAll()))
+				);
+			}
+
+			/**
+			 * A `referenceContent` carrying several reference names, or none at all, is reconstructed by a
+			 * different branch of the serializer than the single-name and aliased shapes the rows above cover.
+			 * Those branches must carry the filter and the order they read off the stream, exactly as the
+			 * aliased branch does, or a constraint of this shape would not survive a recording intact.
+			 *
+			 * No public factory produces a multi-name `referenceContent` carrying a filter, which is why the
+			 * fixture is assembled through `getCopyWithNewChildren` - the entry point the constraint-rewriting
+			 * visitors use, and the only way such an instance is reached in practice.
+			 */
+			@Test
+			@DisplayName("a multi-name referenceContent keeps its filter and order across a round trip")
+			void shouldKeepFilterAndOrderOnAMultiNameReferenceContent() {
+				final ReferenceContent base = new ReferenceContent(
+					null, ManagedReferencesBehaviour.EXISTING, new String[]{"a", "b"},
+					new RequireConstraint[]{entityFetchAll()}, new Constraint<?>[0]
+				);
+				final ReferenceContent original = (ReferenceContent) base.getCopyWithNewChildren(
+					new RequireConstraint[]{entityFetchAll()},
+					new Constraint<?>[]{
+						filterBy(attributeEquals("a", "b")),
+						orderBy(attributeNatural("a", OrderDirection.ASC))
+					}
+				);
+				assertTrue(original.getFilterBy().isPresent());
+				assertTrue(original.getOrderBy().isPresent());
+
+				assertSerializationRound(original);
+			}
+		}
+
+		/**
+		 * The optional `spacing` child of `page`, which controls where gaps are inserted into a page of
+		 * results. It is a child of the constraint and therefore part of its equality, so losing it makes a
+		 * replayed query a different query.
+		 */
+		@Nested
+		@DisplayName("paging")
+		class Paging {
+
+			/**
+			 * The control: a page carrying no spacing survives untouched, so the two cases below cannot be
+			 * explained by the page serializer being broken outright.
+			 */
+			@Test
+			@DisplayName("a page without spacing survives a round trip")
+			void shouldRoundTripAPageWithoutSpacing() {
+				assertSerializationRound(page(1, 20));
+			}
+
+			/**
+			 * The spacing travels as the trailing field of the page payload, and each of its gaps carries the
+			 * page-number expression that decides where the gap falls. The expression is written as its own
+			 * source text, so a page with spacing survives a recording without any expression registration of
+			 * its own being chained into the query Kryo.
+			 */
+			@Test
+			@DisplayName("a page keeps its spacing across a round trip")
+			void shouldRoundTripAPageWithSpacing() {
+				assertSerializationRound(page(1, 20, spacing(gap(2, "$pageNumber <= 3"))));
+			}
+
+			/**
+			 * The same page reached through the chunking argument of `referenceContent`, which is where a page
+			 * most often carries a spacing in the first place.
+			 */
+			@Test
+			@DisplayName("a page nested in referenceContent keeps its spacing across a round trip")
+			void shouldRoundTripAPageWithSpacingNestedInReferenceContent() {
+				assertSerializationRound(
+					entityFetch(referenceContent("a", page(1, 20, spacing(gap(2, "$pageNumber <= 3")))))
+				);
+			}
+
+			/**
+			 * Several gaps in one spacing, which is the only shape that proves the gap count is written and
+			 * read back rather than a single gap being assumed.
+			 */
+			@Test
+			@DisplayName("a page keeps every gap of a multi-gap spacing")
+			void shouldRoundTripAPageWithSeveralGaps() {
+				assertSerializationRound(
+					page(1, 20, spacing(gap(2, "$pageNumber <= 3"), gap(1, "$pageNumber > 3")))
 				);
 			}
 		}

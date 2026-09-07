@@ -161,6 +161,12 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -173,6 +179,12 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -185,6 +197,12 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Recursive pointer to parent entity.
+   *
+   * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+   * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+   * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+   * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+   * `MATCHING` parents behaviour.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -192,6 +210,65 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentOrBuilder() {
     return parent_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.getDefaultInstance() : parent_;
+  }
+
+  public static final int PARENTENTITY_FIELD_NUMBER = 5;
+  private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity_;
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   * @return Whether the parentEntity field is set.
+   */
+  @java.lang.Override
+  public boolean hasParentEntity() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   * @return The parentEntity.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity() {
+    return parentEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : parentEntity_;
+  }
+  /**
+   * <pre>
+   * The very same ancestor as `parent`, carrying the body that was requested for it.
+   *
+   * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+   * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+   * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+   * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+   * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+   * the richer of the two.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder() {
+    return parentEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : parentEntity_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -220,6 +297,9 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(4, getParent());
     }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(5, getParentEntity());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -243,6 +323,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getParent());
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getParentEntity());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -270,6 +354,11 @@ private static final long serialVersionUID = 0L;
       if (!getParent()
           .equals(other.getParent())) return false;
     }
+    if (hasParentEntity() != other.hasParentEntity()) return false;
+    if (hasParentEntity()) {
+      if (!getParentEntity()
+          .equals(other.getParentEntity())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -290,6 +379,10 @@ private static final long serialVersionUID = 0L;
     if (hasParent()) {
       hash = (37 * hash) + PARENT_FIELD_NUMBER;
       hash = (53 * hash) + getParent().hashCode();
+    }
+    if (hasParentEntity()) {
+      hash = (37 * hash) + PARENTENTITY_FIELD_NUMBER;
+      hash = (53 * hash) + getParentEntity().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -426,6 +519,7 @@ private static final long serialVersionUID = 0L;
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
         getParentFieldBuilder();
+        getParentEntityFieldBuilder();
       }
     }
     @java.lang.Override
@@ -439,6 +533,11 @@ private static final long serialVersionUID = 0L;
       if (parentBuilder_ != null) {
         parentBuilder_.dispose();
         parentBuilder_ = null;
+      }
+      parentEntity_ = null;
+      if (parentEntityBuilder_ != null) {
+        parentEntityBuilder_.dispose();
+        parentEntityBuilder_ = null;
       }
       return this;
     }
@@ -488,6 +587,12 @@ private static final long serialVersionUID = 0L;
             ? parent_
             : parentBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.parentEntity_ = parentEntityBuilder_ == null
+            ? parentEntity_
+            : parentEntityBuilder_.build();
+        to_bitField0_ |= 0x00000002;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -550,6 +655,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasParent()) {
         mergeParent(other.getParent());
       }
+      if (other.hasParentEntity()) {
+        mergeParentEntity(other.getParentEntity());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -598,6 +706,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 34
+            case 42: {
+              input.readMessage(
+                  getParentEntityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -832,6 +947,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -843,6 +964,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -858,6 +985,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -878,6 +1011,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -896,6 +1035,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -921,6 +1066,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -938,6 +1089,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -950,6 +1107,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -965,6 +1128,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Recursive pointer to parent entity.
+     *
+     * When the ancestor above this one carries a requested body, this field still holds that ancestor - reduced to
+     * its primary key and its own chain of primary keys - so that a client which does not know `parentEntity` still
+     * receives the complete chain of ancestor primary keys, only without their bodies. Unset means nothing is
+     * reported above this ancestor: it is a hierarchy root, or the chain was cut by a `stopAt` bound or by the
+     * `MATCHING` parents behaviour.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
@@ -981,6 +1150,226 @@ private static final long serialVersionUID = 0L;
         parent_ = null;
       }
       return parentBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> parentEntityBuilder_;
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     * @return Whether the parentEntity field is set.
+     */
+    public boolean hasParentEntity() {
+      return ((bitField0_ & 0x00000010) != 0);
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     * @return The parentEntity.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity() {
+      if (parentEntityBuilder_ == null) {
+        return parentEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : parentEntity_;
+      } else {
+        return parentEntityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public Builder setParentEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (parentEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        parentEntity_ = value;
+      } else {
+        parentEntityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public Builder setParentEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (parentEntityBuilder_ == null) {
+        parentEntity_ = builderForValue.build();
+      } else {
+        parentEntityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public Builder mergeParentEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (parentEntityBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          parentEntity_ != null &&
+          parentEntity_ != io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance()) {
+          getParentEntityBuilder().mergeFrom(value);
+        } else {
+          parentEntity_ = value;
+        }
+      } else {
+        parentEntityBuilder_.mergeFrom(value);
+      }
+      if (parentEntity_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public Builder clearParentEntity() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      parentEntity_ = null;
+      if (parentEntityBuilder_ != null) {
+        parentEntityBuilder_.dispose();
+        parentEntityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getParentEntityBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getParentEntityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder() {
+      if (parentEntityBuilder_ != null) {
+        return parentEntityBuilder_.getMessageOrBuilder();
+      } else {
+        return parentEntity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : parentEntity_;
+      }
+    }
+    /**
+     * <pre>
+     * The very same ancestor as `parent`, carrying the body that was requested for it.
+     *
+     * Set only under the `COMPLETE` parents behaviour, which keeps an ancestor whose requested body could not be
+     * materialized in the chain as a bodyless pointer and continues the walk above it - so an ancestor carrying a
+     * body may sit above one that does not. Unset means the ancestor above this one has no body to report, either
+     * because none was requested, because it could not be materialized, or because there is no ancestor at all;
+     * read `parent` in that case. When both are set they describe one and the same ancestor, and `parentEntity` is
+     * the richer of the two.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        getParentEntityFieldBuilder() {
+      if (parentEntityBuilder_ == null) {
+        parentEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
+                getParentEntity(),
+                getParentForChildren(),
+                isClean());
+        parentEntity_ = null;
+      }
+      return parentEntityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

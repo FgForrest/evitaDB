@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,11 +39,40 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 			Returns parent entity body. The entity fetch needs to be triggered using `hierarchyContent` requirement.
 			The property allows to fetch entire parent axis of the entity to the root if requested.
 
+			The property reports the `MATCHING` parents behaviour of that requirement: every ancestor it returns
+			carries the body that was asked for, and the axis ends below the first ancestor that could not supply
+			one - it holds no data in the queried locale, it was deleted, or the parent primary key never belonged
+			to an entity. When it is the immediate parent that could not supply a body, the cut yields nothing and
+			the property is absent altogether. A `hierarchyContent` asking for no ancestor body at all can have
+			nothing fail, so it reports the whole primary-key chain here - its elements then carry nothing but
+			their primary key and type, which is why the property is typed as a `oneOf` of the entity object and
+			a bodyless parent pointer. The two shapes never mix within one response: whichever of them the
+			requirement produces, the whole chain is made of it.
+
+			The sibling `parentEntityComplete` property reports the same axis without that cut, keeping the
+			ancestors that could not be materialized in it as bodyless pointers.
+
 	        Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
 	        may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	        Each entity must be part of at most single hierarchy (tree).
 	        """)
-		// type is expected to be a same hierarchical entity as parent
+		// type is expected to be a union of the same hierarchical entity as parent and its bodyless pointer
+		.build();
+
+	PropertyDescriptor PARENT_ENTITY_COMPLETE = PropertyDescriptor.builder()
+		.name("parentEntityComplete")
+		.description("""
+			Returns the same parent axis as `parentEntity`, but under the `COMPLETE` parents behaviour of
+			the `hierarchyContent` requirement: an ancestor whose requested body could not be materialized - it holds
+			no data in the queried locale, it was deleted, or the parent primary key never belonged to an entity - is
+			reported as a bodyless pointer instead of ending the chain, and the axis continues above it. An ancestor
+			carrying a full body may therefore sit above a pointer.
+
+			The property is present only when the fetched chain actually contains such a pointer; otherwise the chain
+			is fully materialized, the cut `parentEntity` reports is the very same axis, and repeating it here would
+			tell the caller nothing.
+			""")
+		// type is expected to be a union of the same hierarchical entity as parent and its bodyless pointer
 		.build();
 
 	PropertyDescriptor ACCOMPANYING_PRICES = PropertyDescriptor.builder()

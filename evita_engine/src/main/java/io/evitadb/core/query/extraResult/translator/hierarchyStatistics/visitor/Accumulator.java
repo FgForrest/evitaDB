@@ -26,6 +26,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -68,9 +70,10 @@ public class Accumulator {
 	 */
 	private final int entityPrimaryKey;
 	/**
-	 * The hierarchical entity in proper form. May be `null` until {@link #getEntity()} is called for the first time
-	 * and {@link #entityFetcher} resolves it lazily; for the synthetic root accumulator the value stays `null`
-	 * forever.
+	 * The hierarchical entity in proper form - a {@link SealedEntity} when a body was requested and could be
+	 * materialized, a bodyless {@link EntityReference} otherwise. May be `null` until {@link #getEntity()} is called
+	 * for the first time and {@link #entityFetcher} resolves it lazily; for the synthetic root accumulator the value
+	 * stays `null` forever.
 	 */
 	@Nullable private EntityClassifier entity;
 	/**
@@ -180,7 +183,12 @@ public class Accumulator {
 
 	/**
 	 * Returns the materialised {@link EntityClassifier} for this accumulator, fetching it lazily on first call
-	 * when the lazy-fetch constructor was used. Returns `null` only for the synthetic root accumulator.
+	 * when the lazy-fetch constructor was used. Returns `null` only for the synthetic root accumulator, which is
+	 * bound to no entity at all - {@link HierarchyEntityFetcher} itself never yields `null`, a node whose
+	 * requested body cannot be materialized comes back as a bodyless {@link EntityReference}.
+	 *
+	 * @return the classifier of this hierarchy node, or `null` for the synthetic root accumulator alone - a `null`
+	 *         here therefore means "no entity is behind this accumulator", never "the body could not be fetched"
 	 */
 	@Nullable
 	public EntityClassifier getEntity() {
@@ -224,7 +232,10 @@ public class Accumulator {
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		final EntityClassifier resolvedEntity = getEntity();
-		Assert.isPremiseValid(resolvedEntity != null, "Entity reference was not initialized for this accumulator!");
+		Assert.isPremiseValid(
+			resolvedEntity != null,
+			"The synthetic root accumulator stands for no entity and must never be rendered as a level info!"
+		);
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			resolvedEntity,

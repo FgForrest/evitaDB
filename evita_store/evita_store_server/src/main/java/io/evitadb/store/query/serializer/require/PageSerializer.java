@@ -28,10 +28,24 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.require.Page;
+import io.evitadb.api.query.require.Spacing;
 import lombok.RequiredArgsConstructor;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link Page} from/to binary format.
+ *
+ * The payload is the page number, the page size and finally the optional {@link Spacing} child. The spacing is a
+ * child of the constraint and therefore part of its equality, so a page that lost it would replay as a different
+ * page than the one that was recorded. Its position at the end of the payload keeps the two leading fields where
+ * they were, but this is still a format change without a compatibility reader - the same position taken by the
+ * managed-references behaviour before it, and with the same consequence: a payload written before it cannot be read
+ * by this serializer.
+ *
+ * Who that affects: the traffic recorder and its replaying reader, and the locally generated benchmark query
+ * corpora that `ClientSyntheticTestState` and `SanityChecker` load - none of which is tracked in this repository,
+ * so a break costs a regeneration rather than data. Why no compatible middle ground exists for a query-constraint
+ * serializer at all is written down once, for the sibling `QueryTelemetrySerializer`, in
+ * `documentation/adr/2026-08-04-query-telemetry-actionable-profile.md`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -42,11 +56,14 @@ public class PageSerializer extends Serializer<Page> {
 	public void write(Kryo kryo, Output output, Page object) {
 		output.writeInt(object.getPageNumber());
 		output.writeInt(object.getPageSize());
+		kryo.writeObjectOrNull(output, object.getSpacing().orElse(null), Spacing.class);
 	}
 
 	@Override
 	public Page read(Kryo kryo, Input input, Class<? extends Page> type) {
-		return new Page(input.readInt(), input.readInt());
+		final int pageNumber = input.readInt();
+		final int pageSize = input.readInt();
+		return new Page(pageNumber, pageSize, kryo.readObjectOrNull(input, Spacing.class));
 	}
 
 }

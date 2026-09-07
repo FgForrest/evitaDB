@@ -180,7 +180,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			this.argumentBuilderTransformer,
 			this.interfaceBuilderTransformer,
 			this.objectBuilderTransformer,
-			this.fieldBuilderTransformer
+			this.fieldBuilderTransformer,
+			this.unionBuilderTransformer
 		);
 		this.globalEntityObjectBuilder = new GlobalEntityObjectBuilder(
 			this.buildingContext,

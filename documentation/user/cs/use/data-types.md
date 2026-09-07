@@ -6,14 +6,18 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '6731d435d03fc92c64c9d0cef383290b69a06df7'
+commit: b3c4f6bcff9298e84d32347dc9a483db9544bb8e
 ---
-Tento dokument uvádí všechny datové typy podporované evitaDB, které lze použít v [atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) nebo [asociovaných datech](data-model.md#přidružená-data) pro ukládání informací relevantních pro klienta.
+Tento dokument uvádí všechny datové typy podporované evitaDB, které lze použít v
+[atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) nebo [asociovaných datech](data-model.md#přidružená-data)
+pro ukládání informací relevantních pro klienta.
 
 Existují dvě kategorie datových typů:
 
-1. [Jednoduché datové typy](#jednoduché-datové-typy), které lze použít jak pro [atributy](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované), tak pro [asociovaná data](data-model.md#přidružená-data)
-2. [Komplexní datové typy](#komplexní-datové-typy), které lze použít pouze pro [asociovaná data](data-model.md#přidružená-data)
+1. [jednoduché datové typy](#jednoduché-datové-typy), které lze použít jak pro
+    [atributy](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované), tak pro
+    [asociovaná data](data-model.md#přidružená-data)
+2. [komplexní datové typy](#komplexní-datové-typy), které lze použít pouze pro [asociovaná data](data-model.md#přidružená-data)
 
 ## Jednoduché datové typy
 
@@ -22,49 +26,49 @@ Existují dvě kategorie datových typů:
 Datové typy evitaDB jsou omezeny na následující seznam:
 
 - [String](#string),
-    formátováno jako `"string"`
+    formátovaný jako `"string"`
 - [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Short](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Short.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Integer](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Integer.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Long](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Long.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Boolean](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Boolean.html),
-    formátováno jako `true`
+    formátovaný jako `true`
 - [Character](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Character.html),
-    formátováno jako `'c'`
+    formátovaný jako `'c'`
 - [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html),
-    formátováno jako `1.124`
+    formátovaný jako `1.124`
 - [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html),
-    formátováno jako `2021-01-01T00:00:00+01:00`
+    formátovaný jako `2021-01-01T00:00:00+01:00`
 - [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html),
-    formátováno jako `2021-01-01T00:00:00`
+    formátovaný jako `2021-01-01T00:00:00`
 - [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html),
-    formátováno jako `2021-01-01`
+    formátovaný jako `2021-01-01`
 - [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
-    formátováno jako `00:00:00`
+    formátovaný jako `00:00:00`
 - [DateTimeRange](#datetimerange),
-    formátováno jako `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
+    formátovaný jako `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
 - [BigDecimalNumberRange](#numberrange),
-    formátováno jako `[1.24,78]`
+    formátovaný jako `[1.24,78]`
 - [LongNumberRange](#numberrange),
-    formátováno jako `[5,9]`
+    formátovaný jako `[5,9]`
 - [IntegerNumberRange](#numberrange),
-    formátováno jako `[5,9]`
+    formátovaný jako `[5,9]`
 - [ShortNumberRange](#numberrange),
-    formátováno jako `[5,9]`
+    formátovaný jako `[5,9]`
 - [ByteNumberRange](#numberrange),
-    formátováno jako `[5,9]`
+    formátovaný jako `[5,9]`
 - [Locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html),
-    formátováno jako jazykový tag `'cs-CZ'`
+    formátovaný jako jazykový tag `'cs-CZ'`
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html),
-    formátováno jako `'CZK'`
+    formátovaný jako `'CZK'`
 - [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
-    formátováno jako `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
+    formátovaný jako `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
 - [Predecessor](#predecessor),
-    formátováno jako `789`
+    formátovaný jako `789`
 
 </LS>
 <LS to="c">
@@ -72,115 +76,115 @@ Datové typy evitaDB jsou omezeny na následující seznam:
 Datové typy evitaDB jsou omezeny na následující seznam:
 
 - [string](#string),
-  formátováno jako `"string"`
+  formátovaný jako `"string"`
 - [byte](https://learn.microsoft.com/cs-cz/dotnet/api/system.byte),
-  formátováno jako `5`
+  formátovaný jako `5`
 - [short](https://learn.microsoft.com/en-us/dotnet/api/system.int16),
-  formátováno jako `5`
+  formátovaný jako `5`
 - [int](https://learn.microsoft.com/en-us/dotnet/api/system.int32),
-  formátováno jako `5`
+  formátovaný jako `5`
 - [long](https://learn.microsoft.com/en-us/dotnet/api/system.int64),
-  formátováno jako `5`
+  formátovaný jako `5`
 - [bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool),
-  formátováno jako `true`
+  formátovaný jako `true`
 - [char](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/char),
-  formátováno jako `'c'`
+  formátovaný jako `'c'`
 - [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decima),
-  formátováno jako `1.124`
+  formátovaný jako `1.124`
 - [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset),
-  formátováno jako `2021-01-01T00:00:00+01:00`
+  formátovaný jako `2021-01-01T00:00:00+01:00`
 - [DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime),
-  formátováno jako `2021-01-01T00:00:00`
+  formátovaný jako `2021-01-01T00:00:00`
 - [DateOnly](https://learn.microsoft.com/en-us/dotnet/api/system.dateonly),
-  formátováno jako `00:00:00`
+  formátovaný jako `00:00:00`
 - [TimeOnly](https://learn.microsoft.com/en-us/dotnet/api/system.timeonly),
-  formátováno jako `2021-01-01`
+  formátovaný jako `2021-01-01`
 - [DateTimeRange](#datetimerange),
-  formátováno jako `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
+  formátovaný jako `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
 - [DecimalNumberRange](#numberrange),
-  formátováno jako `[1.24,78]`
+  formátovaný jako `[1.24,78]`
 - [LongNumberRange](#numberrange),
-  formátováno jako `[5,9]`
+  formátovaný jako `[5,9]`
 - [IntegerNumberRange](#numberrange),
-  formátováno jako `[5,9]`
+  formátovaný jako `[5,9]`
 - [ShortNumberRange](#numberrange),
-  formátováno jako `[5,9]`
+  formátovaný jako `[5,9]`
 - [ByteNumberRange](#numberrange),
-  formátováno jako `[5,9]`
+  formátovaný jako `[5,9]`
 - [CultureInfo](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo),
-  formátováno jako jazykový tag `'cs-CZ'`
+  formátovaný jako jazykový tag `'cs-CZ'`
 - [Currency](https://github.com/FgForrest/evitaDB-C-Sharp-client/blob/master/EvitaDB.Client/DataTypes/Currency.cs),
-  formátováno jako `'CZK'`
+  formátovaný jako `'CZK'`
 - [GUID](https://learn.microsoft.com/en-us/dotnet/api/system.guid),
-  formátováno jako `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
+  formátovaný jako `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
 - [Predecessor](#predecessor),
-  formátováno jako `789`
+  formátovaný jako `789`
 
 </LS>
 <LS to="g,r">
 
-Datové typy jsou založeny na datových typech Javy, protože tak jsou ukládány interně. Jediný rozdíl
+Datové typy jsou založeny na datových typech Javy, protože takto jsou ukládány v pozadí. Jediný rozdíl
 je v tom, jak jsou formátovány. Datové typy evitaDB jsou omezeny na následující seznam:
 
 - [String](#string),
-    formátováno jako `'string'`
+    formátovaný jako `'string'`
 - [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Short](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Short.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Integer](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Integer.html),
-    formátováno jako `5`
+    formátovaný jako `5`
 - [Long](#long),
-    formátováno jako `"5"`
+    formátovaný jako `"5"`
 - [Boolean](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Boolean.html),
-    formátováno jako `true`
+    formátovaný jako `true`
 - [Character](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Character.html),
-    formátováno jako `"c"`
+    formátovaný jako `"c"`
 - [BigDecimal](#bigdecimal),
-    formátováno jako `"1.124"`
+    formátovaný jako `"1.124"`
 - [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html),
-    formátováno jako `"2021-01-01T00:00:00+01:00"`
+    formátovaný jako `"2021-01-01T00:00:00+01:00"`
 - [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html),
-    formátováno jako `"2021-01-01T00:00:00"`
+    formátovaný jako `"2021-01-01T00:00:00"`
 - [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html),
-    formátováno jako `"00:00:00"`
+    formátovaný jako `"00:00:00"`
 - [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
-    formátováno jako `"2021-01-01"`
+    formátovaný jako `"2021-01-01"`
 - [DateTimeRange](#datetimerange),
-    formátováno jako `["2021-01-01T00:00:00+01:00", "2022-01-01T00:00:00+01:00"]`
+    formátovaný jako `["2021-01-01T00:00:00+01:00", "2022-01-01T00:00:00+01:00"]`
 - [BigDecimalNumberRange](#numberrange),
-    formátováno jako `["1.24", "78"]`
+    formátovaný jako `["1.24", "78"]`
 - [LongNumberRange](#numberrange),
-    formátováno jako `["5", "9"]`
+    formátovaný jako `["5", "9"]`
 - [IntegerNumberRange](#numberrange),
-    formátováno jako `[5, 9]`
+    formátovaný jako `[5, 9]`
 - [ShortNumberRange](#numberrange),
-    formátováno jako `[5, 9]`
+    formátovaný jako `[5, 9]`
 - [ByteNumberRange](#numberrange),
-    formátováno jako `[5, 9]`
+    formátovaný jako `[5, 9]`
 - [Locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html),
-    formátováno jako jazykový tag `"cs-CZ"`
+    formátovaný jako jazykový tag `"cs-CZ"`
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html),
-    formátováno jako `"CZK"`
+    formátovaný jako `"CZK"`
 - [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
-    formátováno jako `"2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"`
+    formátovaný jako `"2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"`
 - [Predecessor](#predecessor),
-  formátováno jako `789`
+  formátovaný jako `789`
 
 </LS>
 
 <LS to="j,g,r,c">
 
-Pole jednoduchého typu je stále jednoduchý datový typ. Všechny jednoduché typy lze zabalit do pole. Není možné míchat
-pole a ne-pole v jednom schématu *atributu* / *asociovaných dat*. Jakmile schéma *atributu* nebo *asociovaných dat*
-určí, že přijímá pole celých čísel, nemůže uložit jedinou hodnotu celého čísla, a naopak.
-Atribut/Asociovaná data typu integer nikdy nepřijmou pole celých čísel.
+Pole jednoduchého typu je stále jednoduchý datový typ. Všechny jednoduché typy mohou být zabaleny do pole. Není možné míchat
+pole a ne-pole typy v rámci jednoho *atributu* / *asociovaného data* schématu. Jakmile schéma *atributu* nebo *asociovaného data*
+určí, že přijímá pole celých čísel, nemůže ukládat jednotlivou celočíselnou hodnotu a naopak.
+Celočíselný atribut/asociované data nikdy nepřijmou pole celých čísel.
 
 <Note type="warning">
 Protože evitaDB uchovává všechna data v indexech v hlavní paměti, důrazně doporučujeme používat nejkratší/nejmenší datové typy,
-které mohou pojmout vaše data. Snažíme se minimalizovat paměťovou stopu databáze, ale klíčová rozhodnutí jsou na vaší straně,
+které mohou pojmout vaše data. Děláme maximum pro minimalizaci paměťové náročnosti databáze, ale klíčová rozhodnutí jsou na vaší straně,
 takže pečlivě zvažte, jaký datový typ zvolíte a zda jej nastavíte jako filtrovatelný/tříditelný,
-což vyžaduje paměťový index.
+takže bude vyžadovat paměťový index.
 </Note>
 
 </LS>
@@ -210,11 +214,11 @@ Aplikační logika spojená s datovými typy evitaDB se nachází ve třídě
 ### String
 
 <LS to="j,e,g,r">
-[Typ string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) je interně kódován pomocí znakové sady [UTF-8](https://en.wikipedia.org/wiki/UTF-8). Dotazovací jazyk evitaDB
+[Typ string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) je interně kódován znakovou sadou [UTF-8](https://en.wikipedia.org/wiki/UTF-8). Dotazovací jazyk evitaDB
 a další I/O metody evitaDB implicitně používají toto kódování.
 </LS>
 <LS to="c">
-[Typ string](https://learn.microsoft.com/en-us/dotnet/api/system.string) je interně kódován pomocí znakové sady [UTF-8](https://en.wikipedia.org/wiki/UTF-8). Dotazovací jazyk evitaDB
+[Typ string](https://learn.microsoft.com/en-us/dotnet/api/system.string) je interně kódován znakovou sadou [UTF-8](https://en.wikipedia.org/wiki/UTF-8). Dotazovací jazyk evitaDB
 a další I/O metody evitaDB implicitně používají toto kódování.
 </LS>
 
@@ -225,15 +229,15 @@ a další I/O metody evitaDB implicitně používají toto kódování.
 Protože datový typ [64bitové celé číslo long](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Long.html) pochází z Javy,
 některé jazyky (např. [JavaScript](https://stackoverflow.com/a/17320771)) mohou mít problémy s jeho velikostí při
 parsování velkých čísel z JSON do svých výchozích číselných datových typů.
-Proto jsme se rozhodli formátovat datový typ long jako řetězec. Tím pádem zde není žádný limit velikosti a
-klient může vždy číslo správně zpracovat bez obav, že výchozí číselný datový typ není dostatečně velký pro parsované číslo.
+Proto jsme se rozhodli formátovat datový typ long jako řetězec. Tímto způsobem není žádný limit velikosti a
+klient může vždy číslo long správně naparsovat, aniž by se musel obávat, že výchozí číselný datový typ není dostatečně velký pro naparsované číslo.
 
 ### BigDecimal
 
 evitaDB podporuje datový typ [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
-namísto základních typů float nebo double, které se nacházejí ve většině programovacích jazyků. Hlavním důvodem je, že typy float a double
+namísto základních datových typů float nebo double, které se nacházejí ve většině programovacích jazyků. Hlavním důvodem je, že datové typy float a double
 nejsou dostatečně přesné pro finanční výpočty. Z tohoto důvodu jsou hodnoty BigDecimal formátovány jako řetězce.
-I když formát JSON má způsoby, jak do určité míry zajistit správnou přesnost, nemůžeme zaručit, že klientský programovací jazyk
+I když formát JSON má způsoby, jak do určité míry zajistit správnou přesnost, nemůžeme zaručit, že programovací jazyk klienta
 při parsování čísla použije správný datový typ, který zachová přesnost.
 
 </LS>
@@ -241,21 +245,26 @@ při parsování čísla použije správný datový typ, který zachová přesno
 ### Datum a čas
 
 <LS to="j,e,g,r">
-Ačkoli evitaDB podporuje *lokální* varianty data a času jako
-[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), vždy je
-převádí na [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
-pomocí výchozí časové zóny systému serveru evitaDB. Výchozí časovou zónu Javy můžete ovlivnit
-[několika způsoby](https://www.baeldung.com/java-jvm-time-zone). Pokud jsou vaše data závislá na časové zóně, doporučujeme pracovat
-přímo s [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
-na straně klienta a být explicitní ohledně offsetu již od začátku.
+*Lokální* varianty data a času — jako například
+[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html) — jsou
+prvotřídní datové typy atributů. Atribut deklarovaný jako `LocalDateTime` ukládá a vrací přesně hodnotu na hodinách,
+kterou jste zadali, a schéma entity zaznamenává `LocalDateTime` jako svůj datový typ — ať už jste atribut deklarovali
+předem, nebo nechali schéma vyvinout z první zapsané hodnoty.
+
+Lokální datum a čas nenese žádný offset, takže samo o sobě neidentifikuje konkrétní okamžik v čase — dva klienti v různých
+časových zónách čtou stejnou hodnotu jako stejný čas na hodinách, nikoli jako stejný okamžik. To je přesně to, co chcete pro
+údaje typu "na hodinách", jako jsou otevírací doby nebo opakující se rozvrh. Pokud jsou vaše data *specifická pro časové pásmo*,
+pracujte přímo s
+[OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) na straně
+klienta a buďte explicitní ohledně offsetu již od prvního dne.
 </LS>
 <LS to="c">
-Ačkoli evitaDB podporuje *lokální* varianty data a času jako
-[DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime), vždy je
-používána výchozí časová zóna systému serveru evitaDB. Výchozí časovou zónu Javy můžete ovlivnit
-[několika způsoby](https://www.baeldung.com/java-jvm-time-zone). Pokud jsou vaše data závislá na časové zóně, doporučujeme pracovat
+Ačkoliv evitaDB podporuje *lokální* varianty data a času jako
+[DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime), vždy
+používá výchozí časové pásmo systému serveru evitaDB. Výchozí časové pásmo Javy můžete ovlivnit
+[několika způsoby](https://www.baeldung.com/java-jvm-time-zone). Pokud jsou vaše data specifická pro časové pásmo, doporučujeme pracovat
 přímo s [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
-na straně klienta a být explicitní ohledně offsetu již od začátku.
+na straně klienta a být explicitní ohledně offsetu již od prvního dne.
 </LS>
 
 <Note type="question">
@@ -274,33 +283,32 @@ na straně klienta a být explicitní ohledně offsetu již od začátku.
 </NoteTitle>
 </LS>
 
-Zpracování offsetu/časové zóny se liší databázi od databáze. Chtěli jsme se vyhnout nastavování časové zóny v session nebo
-konfiguračních vlastnostech databáze, protože tento mechanismus je náchylný k chybám a nepraktický. Ukládání/načítání data a času s
-informací o časové zóně by bylo nejlepší možností, ale narážíme na problémy s
+Zpracování offsetu/časového pásma se liší databázi od databáze. Chtěli jsme se vyhnout nastavování časového pásma v session nebo
+konfiguračních vlastnostech databáze, protože tento mechanismus je náchylný k chybám a nepraktický. Ukládání/nahrávání dat a časů s
+informací o časovém pásmu by bylo nejlepší možností, ale narážíme na problémy s
 [parsováním](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/parse) v určitých
-prostředích a pouze datum s informací o offsetu se zdá být široce podporováno. Informace o offsetu je pro náš případ dostatečná –
-identifikuje globálně platný čas, který je znám v okamžiku uložení datové hodnoty.
+prostředích a pouze datum s informací o offsetu se zdá být široce podporováno. Informace o offsetu je pro náš případ dostatečná – identifikuje globálně platný čas, který je znám v okamžiku, kdy je datová hodnota uložena.
 
 </Note>
 
 ### DateTimeRange
 
 <LS to="j,e,g,r">
-DateTimeRange představuje konkrétní implementaci
-<SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>, která definuje levý a pravý okraj
+DateTimeRange představuje specifickou implementaci
+<SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>, která definuje hranice od a do
 pomocí datových typů [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html).
-Offsetová data a časy jsou zapsány v ISO formátu.
+Offset date times jsou zapsány ve formátu ISO.
 </LS>
 <LS to="c">
-DateTimeRange představuje konkrétní implementaci
-<SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass>, která definuje levý a pravý okraj
+DateTimeRange představuje specifickou implementaci
+<SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass>, která definuje hranice od a do
 pomocí datových typů [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset).
-Offsetová data a časy jsou zapsány v ISO formátu.
+Offset date times jsou zapsány ve formátu ISO.
 </LS>
 
 **Rozsah je zapsán jako:**
 
-- když jsou zadány oba okraje:
+- když jsou zadány obě hranice:
 
 <LS to="e,j,c">
 
@@ -317,7 +325,7 @@ Offsetová data a časy jsou zapsány v ISO formátu.
 
 </LS>
 
-- když je zadán levý okraj (od):
+- když je zadána levá hranice (od):
 
 <LS to="e,j,c">
 
@@ -334,7 +342,7 @@ Offsetová data a časy jsou zapsány v ISO formátu.
 
 </LS>
 
-- když je zadán pravý okraj (do):
+- když je zadána pravá hranice (do):
 
 <LS to="e,j,c">
 
@@ -354,29 +362,29 @@ Offsetová data a časy jsou zapsány v ISO formátu.
 ### NumberRange
 
 <LS to="j,e,g,r">
-NumberRange představuje konkrétní implementaci
-<SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>
-definující levý a pravý okraj pomocí datových typů [Number](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Number.html).
+NumberRange představuje specifickou implementaci
+<SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>,
+která definuje hranice od a do pomocí datových typů [Number](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Number.html).
 Podporované číselné typy jsou: Byte, Short, Integer, Long a BigDecimal.
 
-Oba okraje číselného rozsahu musí být stejného typu – nelze například použít BigDecimal jako dolní mez
-a Byte jako horní mez.
+Obě hranice číselného rozsahu musí být stejného typu – není možné například použít BigDecimal jako dolní hranici
+a Byte jako horní hranici.
 
 </LS>
 <LS to="c">
-NumberRange představuje konkrétní implementaci
-<SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass>
-definující levý a pravý okraj pomocí některého z podporovaných
-datových typů. Podporované číselné typy jsou: byte, short, int, long a decimal.
+NumberRange představuje specifickou implementaci
+<SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass>,
+která definuje hranice od a do pomocí libovolného podporovaného
+datového typu. Podporované číselné typy jsou: byte, short, int, long a decimal.
 
-Oba okraje číselného rozsahu musí být stejného typu – nelze například použít decimal jako dolní mez
-a byte jako horní mez.
+Obě hranice číselného rozsahu musí být stejného typu – není možné například použít decimal jako dolní hranici
+a byte jako horní hranici.
 
 </LS>
 
 **Rozsah je zapsán jako:**
 
-- když jsou zadány oba okraje:
+- když jsou zadány obě hranice:
 
 <LS to="e,j,c">
 
@@ -392,7 +400,7 @@ a byte jako horní mez.
 ```
 </LS>
 
-- když je zadán levý okraj (od):
+- když je zadána levá hranice (od):
 
 <LS to="e,j,c">
 
@@ -409,7 +417,7 @@ a byte jako horní mez.
 
 </LS>
 
-- když je zadán pravý okraj (do):
+- když je zadána pravá hranice (do):
 
 <LS to="e,j,c">
 
@@ -429,37 +437,38 @@ a byte jako horní mez.
 ### Predecessor
 
 <LS to="e,j,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LS> je speciální datový typ
-používaný k definování jednosměrného propojeného seznamu entit stejného typu. Představuje ukazatel na předchozí entitu
-v seznamu. Hlavní prvek je speciální případ a je reprezentován konstantou `Predecessor#HEAD`. Atribut predecessor
-lze použít pouze v [atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity nebo její reference na jinou entitu. Nelze jej použít pro filtrování entit, ale je velmi užitečný pro řazení.
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LS> je speciální datový typ,
+který slouží k definování jednosměrného orientovaného propojeného seznamu entit stejného typu. Představuje ukazatel na předchozí entitu
+v seznamu. Prvním prvkem je speciální případ a je reprezentován konstantou `Predecessor#HEAD`. Atribut predecessor
+lze použít pouze v [atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity nebo její reference na jinou entitu. Nelze jej použít k filtrování entit, ale je velmi užitečný pro řazení.
 
 #### Motivace pro propojené seznamy při řazení v databázi
 
-Propojený seznam je velmi optimální datová struktura pro řazení entit v databázi, která obsahuje velké množství dat.
-Vložení nového prvku do propojeného seznamu je operace s konstantní časovou složitostí a vyžaduje pouze dvě aktualizace:
+Propojený seznam je velmi optimální datová struktura pro řazení entit v databázi, která uchovává velké množství dat.
+Vložení nového prvku do propojeného seznamu je operace v konstantním čase a vyžaduje pouze dvě aktualizace:
 
-1) vložení nového prvku do seznamu, který ukazuje na existující prvek jako svého předchůdce
+1) vložení nového prvku do seznamu, který ukazuje na existující prvek jako na svého předchůdce
 2) aktualizace původního prvku ukazujícího na předchůdce tak, aby ukazoval na nový prvek.
 
-Přesun (aktualizace) prvku nebo odstranění existujícího prvku z propojeného seznamu je také operace s konstantní časovou složitostí,
-vyžadující podobné dvě aktualizace. Nevýhodou propojeného seznamu je jeho špatný výkon při náhodném přístupu (získání prvku na n-tém indexu)
-a při průchodu seznamem, což vyžaduje mnoho náhodných přístupů do různých částí paměti. Tyto nevýhody však lze zmírnit uchováváním propojeného seznamu ve formě pole nebo binárního stromu správně umístěných primárních klíčů.
+Přesunutí (aktualizace) prvku nebo odstranění existujícího prvku z propojeného seznamu je také operace v konstantním čase,
+vyžadující podobné dvě aktualizace. Nevýhodou propojeného seznamu je jeho špatný výkon při náhodném přístupu (získání prvku
+na n-tém indexu) a průchod seznamem, který vyžaduje mnoho náhodných přístupů do různých částí paměti. Tyto nevýhody však lze
+zmírnit tím, že se propojený seznam bude uchovávat ve formě pole nebo binárního stromu správně umístěných primárních klíčů.
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### Nejsou lepší přístupy pro uchování seřazeného seznamu entit?
+##### Nejsou lepší přístupy pro udržení seřazeného seznamu entit?
 </NoteTitle>
 
 Existují alternativní přístupy k tomuto problému, ale všechny mají své nevýhody. Některé z nich jsou shrnuty v
 [článku "Keeping an ordered collection in PostgreSQL" od Nicolase Goye](https://medium.com/the-missing-bit/keeping-an-ordered-collection-in-postgresql-9da0348c4bbe). Prošli jsme podobnou cestou a
 došli jsme k závěru, že propojený seznam je nejmenší zlo:
 
-- Nevyžaduje hromadné aktualizace okolních entit nebo občasné "přeskupení".
-- nekomplikuje klientskou logiku (a dobře spolupracuje s UI drag'n'drop přesouváním)
-- je velmi úsporný na data – vyžaduje pouze jeden <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
+- Nevyžaduje hromadné aktualizace okolních entit nebo občasné „přeskupení“.
+- nenutí klientskou logiku být složitou (a dobře spolupracuje s UI drag'n'drop přemisťováním)
+- je velmi datově efektivní – vyžaduje pouze jeden <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
   (4B) na jednu položku v seznamu
 
 </Note>
@@ -467,16 +476,15 @@ došli jsme k závěru, že propojený seznam je nejmenší zlo:
 #### Udržování konzistence propojeného seznamu
 
 Sestavení propojeného seznamu může být z pohledu konzistence složitý proces – zejména ve
-[fázi warm-up](api/write-data.md#hromadné-indexování), kdy potřebujete rekonstruovat data z externího primárního úložiště.
+[fázi warm-up](api/write-data.md#hromadné-indexování), kdy je potřeba rekonstruovat data z externího primárního úložiště.
 Abyste byli konzistentní za všech okolností, museli byste začít entitou, která představuje hlavu řetězce, pak vložit
-jejího následníka, a tak dále. To často není triviální, a pokud máte dva atributy predecessor s různým "pořadím" pro stejné entity, je to naprosto nemožné.
+jejího následníka a naopak. To často není triviální, a pokud máte dva atributy predecessor s různým „pořadím“ pro stejné entity, je to naprosto nemožné.
 
-Proto jsme navrhli naši implementaci propojeného seznamu tak, aby tolerovala částečné nekonzistence a konvergovala ke
-konzistentnímu stavu, jakmile budou vložena chybějící data. Podporujeme tyto scénáře nekonzistence:
+Proto jsme navrhli naši implementaci propojeného seznamu tak, aby tolerovala částečné nekonzistence a aby se při vkládání chybějících dat konvergovala do konzistentního stavu. Podporujeme tyto scénáře nekonzistence:
 
 - více hlavních prvků
 - více následníků pro jednoho předchůdce
-- kruhové závislosti, kdy hlavní prvek ukazuje na prvek ve svém ocasu
+- kruhové závislosti, kdy hlavní prvek ukazuje na prvek na svém konci
 
 Řazení podle nekonzistentního atributu predecessor řadí entity podle řetězců v následujícím pořadí:
 
@@ -484,7 +492,7 @@ konzistentnímu stavu, jakmile budou vložena chybějící data. Podporujeme tyt
 2) řetězce s prvky sdílejícími stejného předchůdce (od řetězce s nejvíce prvky po řetězec s nejméně prvky)
 3) řetězce s kruhovými závislostmi (od řetězce s nejvíce prvky po řetězec s nejméně prvky)
 
-Když budou závislosti opraveny, pořadí řazení se zkonverguje ke správnému.
+Jakmile jsou závislosti opraveny, pořadí řazení se konverguje ke správnému.
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/ChainIndex.java</SourceClass> bude obsahovat pouze
 jeden řetězec správně seřazených prvků a vrátí true při volání metody `isConsistent()`.
 

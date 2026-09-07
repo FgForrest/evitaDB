@@ -26,11 +26,15 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType.Builder;
+import graphql.schema.GraphQLUnionType;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentPointerDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.CompleteParentUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
@@ -41,9 +45,13 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Req
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ParentPrimaryKeyDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ParentUnionTypeResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ParentsCompleteDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ParentsDataFetcher;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.UnionDescriptorToGraphQLUnionTransformer;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +69,9 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	@Nonnull private final UnionDescriptorToGraphQLUnionTransformer unionBuilderTransformer;
 	@Nonnull private final RequireConstraintSchemaBuilder hierarchyRequireConstraintSchemaBuilder;
 
 	public EntityObjectHierarchyDecorator(
@@ -69,11 +79,15 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 		@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
 		@Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder,
 		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
-		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer
+		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+		@Nonnull UnionDescriptorToGraphQLUnionTransformer unionBuilderTransformer
 	) {
 		this.buildingContext = buildingContext;
 		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
 		this.fieldBuilderTransformer = fieldBuilderTransformer;
+		this.unionBuilderTransformer = unionBuilderTransformer;
 
 		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forComplementaryRequire(
 			constraintSchemaBuildingContext,
@@ -97,10 +111,24 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 				buildEntityParentPrimaryKeyField()
 			);
 
+			// both parent fields are bounded by the very same constraint, and the resolver requires the two arguments
+			// to be equal whenever both fields are selected at once
+			final GraphQLInputType stopAtConstraint = buildStopAtConstraint(entitySchema);
+			// both parent fields report ancestors through the non-hierarchical variant of the decorated object,
+			// so that the ancestors don't recursively carry the parent fields themselves
+			final String nonHierarchicalEntityObjectName =
+				GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL.name(entitySchema);
+
 			this.buildingContext.registerFieldToObject(
 				entityObjectName,
 				entityObjectBuilder,
-				buildEntityParentsField(collectionBuildingContext)
+				buildEntityParentsField(nonHierarchicalEntityObjectName, stopAtConstraint)
+			);
+
+			this.buildingContext.registerFieldToObject(
+				entityObjectName,
+				entityObjectBuilder,
+				buildEntityParentsCompleteField(entitySchema, nonHierarchicalEntityObjectName, stopAtConstraint)
 			);
 		}
 	}
@@ -113,23 +141,40 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 		);
 	}
 
+	/**
+	 * Builds the input type of the `stopAt` argument bounding how far up the ancestor axis the traversal goes.
+	 *
+	 * @param entitySchema the schema of the decorated collection
+	 * @return the input type of the `stopAt` argument
+	 */
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityParentsField(
-		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
-	) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private GraphQLInputType buildStopAtConstraint(@Nonnull EntitySchemaContract entitySchema) {
 		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(
 			new ManagedEntityTypePointer(entitySchema.getName())
 		);
-		final GraphQLInputType stopAtConstraint = this.hierarchyRequireConstraintSchemaBuilder.build(
+		return this.hierarchyRequireConstraintSchemaBuilder.build(
 			selfHierarchyConstraintDataLocator,
 			HierarchyStopAt.class
 		);
+	}
 
+	/**
+	 * Builds the `parents` field reporting the ancestor axis under {@link HierarchyParentsBehaviour#MATCHING}. Its
+	 * element type needs no union, because the fetcher cuts the chain below the first ancestor whose requested body
+	 * did not materialize.
+	 *
+	 * @param nonHierarchicalEntityObjectName name of the object the ancestors are reported through
+	 * @param stopAtConstraint                the input type of the `stopAt` argument
+	 * @return the built field together with its data fetcher
+	 */
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityParentsField(
+		@Nonnull String nonHierarchicalEntityObjectName,
+		@Nonnull GraphQLInputType stopAtConstraint
+	) {
 		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PARENTS
 			.to(this.fieldBuilderTransformer)
-			.type(list(nonNull(typeRef(GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL.name(entitySchema)))))
+			.type(list(nonNull(typeRef(nonHierarchicalEntityObjectName))))
 			.argument(
 				ParentsFieldHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
@@ -140,6 +185,60 @@ public class EntityObjectHierarchyDecorator implements EntityObjectDecorator {
 		return new BuiltFieldDescriptor(
 			field,
 			ParentsDataFetcher.getInstance()
+		);
+	}
+
+	/**
+	 * Builds the sibling of the `parents` field reporting the ancestor axis under
+	 * {@link HierarchyParentsBehaviour#COMPLETE}. Its element type is a union, because an ancestor whose requested body
+	 * could not be materialized is reported as a bodyless pointer rather than dropped, and the two shapes cannot be
+	 * told apart by any field they share.
+	 *
+	 * @param entitySchema                    the schema of the decorated collection
+	 * @param nonHierarchicalEntityObjectName name of the object the materialized ancestors are reported through
+	 * @param stopAtConstraint                the input type of the `stopAt` argument
+	 * @return the built field together with its data fetcher
+	 */
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityParentsCompleteField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String nonHierarchicalEntityObjectName,
+		@Nonnull GraphQLInputType stopAtConstraint
+	) {
+		final String completeParentPointerObjectName = CompleteParentPointerDescriptor.THIS.name(entitySchema);
+
+		this.buildingContext.registerType(
+			CompleteParentPointerDescriptor.THIS
+				.to(this.objectBuilderTransformer)
+				.name(completeParentPointerObjectName)
+				.build()
+		);
+
+		final GraphQLUnionType completeParentUnion = CompleteParentUnionDescriptor.THIS
+			.to(this.unionBuilderTransformer)
+			.name(CompleteParentUnionDescriptor.THIS.name(entitySchema))
+			.possibleType(typeRef(nonHierarchicalEntityObjectName))
+			.possibleType(typeRef(completeParentPointerObjectName))
+			.build();
+		this.buildingContext.registerType(completeParentUnion);
+		this.buildingContext.registerTypeResolver(
+			completeParentUnion,
+			new ParentUnionTypeResolver(nonHierarchicalEntityObjectName, completeParentPointerObjectName)
+		);
+
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PARENTS_COMPLETE
+			.to(this.fieldBuilderTransformer)
+			.type(list(nonNull(typeRef(completeParentUnion.getName()))))
+			.argument(
+				ParentsFieldHeaderDescriptor.STOP_AT
+					.to(this.argumentBuilderTransformer)
+					.type(stopAtConstraint)
+			)
+			.build();
+
+		return new BuiltFieldDescriptor(
+			field,
+			ParentsCompleteDataFetcher.getInstance()
 		);
 	}
 }

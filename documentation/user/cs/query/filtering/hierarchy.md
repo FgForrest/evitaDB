@@ -269,7 +269,7 @@ hierarchyWithinRoot(
 </dl>
 
 Omezení `hierarchyWithinRoot`, které cílí na kolekci `Category`, vrací všechny kategorie kromě těch,
-které by ukazovaly na neexistující rodičovské uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#sirotčí-uzly-v-hierarchii)
+které by ukazovaly na neexistující rodičovské uzly. Takové uzly hierarchie se nazývají [sirotci](../../use/schema.md#sirotčí-uzly-hierarchie)
 a nevyhovují žádnému dotazu na hierarchii.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -346,7 +346,7 @@ produktů přiřazených do jakékoli kategorie v našem [demo datasetu](../../g
 
 </SourceCodeTabs>
 
-Produkty přiřazené pouze do jedné [sirotčí kategorie](../../use/schema.md#sirotčí-uzly-v-hierarchii) budou v
+Produkty přiřazené pouze do jedné [sirotčí kategorie](../../use/schema.md#sirotčí-uzly-hierarchie) budou v
 výsledku chybět. Produkty přiřazené do dvou nebo více kategorií se v odpovědi objeví pouze jednou (na rozdíl od toho,
 co byste mohli očekávat, pokud máte zkušenosti s SQL).
 

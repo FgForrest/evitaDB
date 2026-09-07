@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -69,10 +70,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -85,9 +88,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -302,15 +303,17 @@ public class HierarchyIndex
 			return existing;
 		}
 		synchronized (this) {
-			if (this.nodeStore == null) {
-				this.nodeStore = new HierarchyNodeStore(
+			HierarchyNodeStore theNodeStore = this.nodeStore;
+			if (theNodeStore == null) {
+				theNodeStore = new HierarchyNodeStore(
 					new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY),
 					new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new),
 					new TransactionalMap<>(new HashMap<>(32)),
 					new TransactionalIntArray()
 				);
+				this.nodeStore = theNodeStore;
 			}
-			return this.nodeStore;
+			return theNodeStore;
 		}
 	}
 
@@ -418,6 +421,42 @@ public class HierarchyIndex
 		// same failure an unknown entity primary key produced before the store became lazy
 		final HierarchyNode removedNode = store == null ? null : internalRemoveHierarchy(store, entityPrimaryKey);
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
+		return finishNodeRemoval(removedNode);
+	}
+
+	/**
+	 * Removes a node from the hierarchy if it has a placement, and does nothing when it has none.
+	 *
+	 * Identical to {@link #removeNode(int)} in every other respect - the removed node's children are
+	 * recursively moved to the {@link HierarchyNodeStore#orphans()} collection just the same - but an absent placement is
+	 * accepted rather than reported. See
+	 * {@link HierarchyIndexContract#removeNodeIfPresent(int)} for which tear-down paths need that and
+	 * why an entity of a hierarchical collection may legitimately have no placement.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity to remove from the hierarchy
+	 * @return the primary key of the removed node's parent, or `null` if it was a root or was absent
+	 */
+	@Nullable
+	@Override
+	public Integer removeNodeIfPresent(int entityPrimaryKey) {
+		final HierarchyNodeStore store = this.nodeStore;
+		// a hierarchy that never received a node carries no placement to remove either, which is exactly the
+		// absent-placement case this entry point accepts rather than reports
+		final HierarchyNode removedNode = store == null ? null : internalRemoveHierarchy(store, entityPrimaryKey);
+		return removedNode == null ? null : finishNodeRemoval(removedNode);
+	}
+
+	/**
+	 * Records the bookkeeping both removal entry points owe once {@link #internalRemoveHierarchy(HierarchyNodeStore, int)} has
+	 * actually taken a node out - the index is dirty from now on, and outside a transaction the memoized
+	 * views computed over the old shape have to go. Kept in one place so the two entry points, which differ
+	 * only in how they treat an absent placement, cannot drift apart on what a removal costs.
+	 *
+	 * @param removedNode the node {@link #internalRemoveHierarchy(HierarchyNodeStore, int)} returned
+	 * @return the primary key of the removed node's parent, or `null` if the node was a root
+	 */
+	@Nullable
+	private Integer finishNodeRemoval(@Nonnull HierarchyNode removedNode) {
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
 			recordWarmUpSavepointTouch();
@@ -842,25 +881,50 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Returns a bitmap containing all provided nodes together with all their ancestor nodes up to the
-	 * root. Shared ancestors are de-duplicated by the underlying bitmap structure.
+	 * Returns a bitmap containing all provided nodes together with every ancestor above them the index
+	 * still holds. Shared ancestors are de-duplicated by the underlying bitmap structure.
+	 *
+	 * Like {@link #traverseHierarchyToRoot(HierarchyVisitor, int)} the upward walk stops silently at the
+	 * first parent primary key {@link HierarchyNodeStore#itemIndex()} cannot resolve, because a chain broken by a deleted or
+	 * never-created ancestor is a legitimate state of this index rather than a corrupted one. The parent
+	 * is resolved *before* it is collected, so a primary key that resolves to no entity can never reach
+	 * the output - two production callers feed the result straight into a formula, where a phantom entity
+	 * id would surface as a query result rather than as an error. The `checkedAdd` false return doubles
+	 * as the ring guard and as the shared-ancestor cut-off: once a node has been collected, everything
+	 * above it already has been too.
+	 *
+	 * The asymmetry with the traversal is deliberate: an input node that the index does not hold is a
+	 * caller passing a primary key it never registered - a programming error, and reported as one - while
+	 * an *ancestor* it does not hold is ordinary index state that says nothing about the caller.
 	 *
 	 * @param nodes bitmap of entity primary keys whose ancestors should be included
-	 * @return bitmap containing the original nodes and all their ancestors
+	 * @return bitmap containing the original nodes and all the ancestors the index can resolve
 	 * @throws EvitaInvalidUsageException if any node in the input is not present in the index
 	 */
 	@Nonnull
 	@Override
 	public Bitmap listNodesIncludingParents(@Nonnull Bitmap nodes) {
+		if (nodes.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// the input is not empty, so this index is required to hold at least its first node - resolving the
+		// store loudly here reports exactly the programming error the per-node lookup inside the loop reports,
+		// and hands the walk a store it can dereference without re-reading the field for every ancestor.
+		// Answering an absent store with an empty result instead would silence the contract below
+		final HierarchyNodeStore store = getNodeStoreOrThrowException(nodes.getFirst());
 		final PersistentRoaringBitmap output = new PersistentRoaringBitmap();
 		for (Integer nodeId : nodes) {
 			output.add(nodeId);
 			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				if (!output.checkedAdd(hierarchyNode.parentEntityPrimaryKey())) {
+				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+				final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
+				if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
+					// the chain either breaks here, or closes into a ring, or meets an ancestor another
+					// input node has already contributed - in every case there is nothing left to collect
 					break;
 				}
-				hierarchyNode = getHierarchyNodeOrThrowException(hierarchyNode.parentEntityPrimaryKey());
+				hierarchyNode = parentNode;
 			}
 		}
 		return output.isEmpty() ?
@@ -885,10 +949,24 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Traverses the hierarchy from the given `node` upward to the root, invoking the `visitor` for
-	 * the node and each of its ancestors. Traversal is silently skipped if the node is an orphan.
+	 * Walks upward from `node`, in two phases. The reachable fragment is collected first - the start
+	 * node, then each ancestor {@link HierarchyNodeStore#itemIndex()} can resolve - and replayed to the visitor second, so
+	 * the two phases cannot disagree about where the fragment ends and the visitor's recursion cannot
+	 * outrun the collection. The set of primary keys collected on the way up is what places the break
+	 * on a ring: the first parent already in it would be a second visit, and is treated exactly like a
+	 * parent the index cannot resolve at all.
 	 *
-	 * @param visitor the visitor to invoke for the node and each ancestor
+	 * Whether the collected chain tops out in a real root is decided once, after the collection, and
+	 * decides in turn whether the replay hands out real levels or
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL} - the same value
+	 * {@link #computeLevel(HierarchyNodeStore, HierarchyNode)} returns for a node outside the reachable tree, reached here
+	 * by walking the other way.
+	 *
+	 * The semantics this implements - what stops the walk, what `level` and `distance` mean, and why a
+	 * level bound cannot cut a chain of unknown depth - are specified on
+	 * {@link HierarchyIndexContract#traverseHierarchyToRoot(HierarchyVisitor, int)}.
+	 *
+	 * @param visitor the visitor to invoke for the node and each reachable ancestor
 	 * @param node    the primary key of the node to start the upward traversal from
 	 */
 	@Override
@@ -901,41 +979,72 @@ public class HierarchyIndex
 		final HierarchyNode theNode = store.itemIndex().get(node);
 		// if the node is missing, just skip traversal
 		if (theNode != null) {
+			// collect the fragment the walk can really reach - the start node first and each ancestor
+			// above it next - so that the last element is the topmost node the index can show; the
+			// capacity is sized for a hierarchy of ordinary depth, which 16 levels covers comfortably
+			final List<HierarchyNode> reachableChain = new ArrayList<>(16);
+			final IntHashSet collectedPrimaryKeys = new IntHashSet();
+			reachableChain.add(theNode);
+			collectedPrimaryKeys.add(node);
+
 			HierarchyNode hierarchyNode = theNode;
-			int nodeLevel = 1;
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
-				nodeLevel++;
-				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(store, hierarchyNode);
-				if (parentNode.isPresent()) {
-					hierarchyNode = parentNode.get();
-				} else {
-					// no traversal will happen - orphan found
-					return;
+				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+				final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
+				if (parentNode == null || !collectedPrimaryKeys.add(parentPrimaryKey)) {
+					// the chain either breaks or closes into a ring here - the node reached last is the
+					// top of the reachable fragment
+					break;
 				}
+				reachableChain.add(parentNode);
+				hierarchyNode = parentNode;
 			}
 
-			final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
-			final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
-				() -> {
-					final HierarchyNode parent = getHierarchyNodeOrThrowException(nodeId);
-					visitor.visit(
-						parent, level, distance,
-						ofNullable(parent.parentEntityPrimaryKey())
-							.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
-							.orElse(() -> {
-							})
-					);
-				};
-			factoryHolder.set(childrenTraverseCreator);
+			// the fragment carries real levels only when its top is an actual root; anything else leaves
+			// the distance to the top of the tree unknown, and an unknown depth is reported as such rather
+			// than replaced by a fragment-relative guess
+			final boolean chainReachesRoot = reachableChain.get(reachableChain.size() - 1)
+				.parentEntityPrimaryKey() == null;
 
-			int finalNodeLevel = nodeLevel;
-			visitor.visit(
-				theNode,
-				nodeLevel, 0,
-				ofNullable(theNode.parentEntityPrimaryKey())
-					.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
-					.orElse(() -> {
-					})
+			// the visit phase replays the collected fragment instead of resolving the parent primary keys
+			// a second time, so neither phase can disagree with the other about where the fragment ends,
+			// and the recursion cannot outrun it; the start node is simply the chain's first element, so
+			// it is visited by the very same traverser as every ancestor above it
+			createChainTraverser(visitor, reachableChain, 0, chainReachesRoot).run();
+		}
+	}
+
+	/**
+	 * Creates the traverser handed to the {@link HierarchyVisitor} for the node sitting at `index` of
+	 * the chain collected by {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}. That chain holds
+	 * the traversal start node at index 0 and every reachable ancestor above it in order, so `index` is
+	 * at the same time the node's distance from the start node, while what is left of the chain from it
+	 * upwards is its level - but only when the chain tops out in a real root, since otherwise no node of
+	 * the fragment has a knowable level at all.
+	 *
+	 * @param visitor           the visitor to invoke for the node
+	 * @param reachableChain    the collected chain of reachable nodes, traversal start node first
+	 * @param index             position of the node to visit, 0 being the traversal start node, or the
+	 *                          chain size once the top is passed
+	 * @param chainReachesRoot  whether the top of the chain is a root, i.e. whether levels are knowable
+	 * @return the traverser to hand to the visitor, doing nothing once the top of the chain is passed
+	 */
+	@Nonnull
+	private static Runnable createChainTraverser(
+		@Nonnull HierarchyVisitor visitor,
+		@Nonnull List<HierarchyNode> reachableChain,
+		int index,
+		boolean chainReachesRoot
+	) {
+		if (index >= reachableChain.size()) {
+			return () -> {
+			};
+		} else {
+			return () -> visitor.visit(
+				reachableChain.get(index),
+				chainReachesRoot ? reachableChain.size() - index : UNKNOWN_LEVEL,
+				index,
+				createChainTraverser(visitor, reachableChain, index + 1, chainReachesRoot)
 			);
 		}
 	}
@@ -1384,7 +1493,7 @@ public class HierarchyIndex
 	 * @return the removed {@link HierarchyNode}, or `null` if the entity was not in the index
 	 */
 	@Nullable
-	private HierarchyNode internalRemoveHierarchy(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static HierarchyNode internalRemoveHierarchy(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		// remove optional previous location
 		if (store.itemIndex().containsKey(entityPrimaryKey)) {
 			final HierarchyNode previousLocation = store.itemIndex().remove(entityPrimaryKey);
@@ -1433,7 +1542,7 @@ public class HierarchyIndex
 	 * @throws EvitaInvalidUsageException if the node is absent from the index
 	 */
 	@Nonnull
-	private HierarchyNodeStore assertNodeInIndex(@Nullable HierarchyNodeStore store, int parentNode) {
+	private static HierarchyNodeStore assertNodeInIndex(@Nullable HierarchyNodeStore store, int parentNode) {
 		if (store == null) {
 			// no node has ever been written to this index, so it cannot hold the requested parent
 			throw new EvitaInvalidUsageException("Parent node `" + parentNode + "` is not present in the index!");
@@ -1451,37 +1560,58 @@ public class HierarchyIndex
 	 */
 	@Nonnull
 	private HierarchyNode getHierarchyNodeOrThrowException(int theNode) {
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store == null) {
-			// no node has ever been written to this index, so the hierarchy is empty by construction
-			throw new EvitaInvalidUsageException("The node `" + theNode + "` is not present in the index!");
-		}
-		final HierarchyNode hierarchyNode = store.itemIndex().get(theNode);
+		final HierarchyNode hierarchyNode = getNodeStoreOrThrowException(theNode).itemIndex().get(theNode);
 		Assert.isTrue(hierarchyNode != null, "The node `" + theNode + "` is not present in the index!");
 		return hierarchyNode;
 	}
 
 	/**
-	 * Returns the parent {@link HierarchyNode} for the given node, or an empty optional if the node
-	 * is a root or its parent is an orphan. Throws an exception if the parent is expected to exist
-	 * but is missing from the index.
+	 * Returns the node store, reporting the absence of `theNode` when no node has ever been written to this index
+	 * and the store therefore does not exist yet.
 	 *
-	 * @param store         the node store holding the node whose parent to look up
-	 * @param hierarchyNode the node whose parent to look up
-	 * @return optional parent node, or empty if the node is a root or its parent is an orphan
-	 * @throws EvitaInvalidUsageException if the parent is expected but unexpectedly absent
+	 * An index that never received a node cannot hold the one being asked for, so the caller is naming a primary
+	 * key it never registered - the same programming error {@link #getHierarchyNodeOrThrowException(int)} reports
+	 * for a key a populated store does not know, and reported the same way rather than answered with an empty
+	 * result. Callers that legitimately tolerate an empty index read {@link #nodeStore} directly and branch on
+	 * `null` themselves; this entry point exists for the ones whose contract is to fail.
+	 *
+	 * @param theNode the primary key the caller is asking about, named in the exception message
+	 * @return the node store, never `null`
+	 * @throws EvitaInvalidUsageException when no node has ever been written to this index
 	 */
 	@Nonnull
-	private Optional<HierarchyNode> getParentNodeOrThrowException(
+	private HierarchyNodeStore getNodeStoreOrThrowException(int theNode) {
+		final HierarchyNodeStore store = this.nodeStore;
+		if (store == null) {
+			// no node has ever been written to this index, so the hierarchy is empty by construction
+			throw new EvitaInvalidUsageException("The node `" + theNode + "` is not present in the index!");
+		}
+		return store;
+	}
+
+	/**
+	 * Returns the parent {@link HierarchyNode} of the given node, or an empty optional whenever the
+	 * node has no parent that is part of the tree - i.e. when the node is a root, when its parent is a
+	 * registered orphan, or when the parent primary key is not present in the index at all.
+	 *
+	 * The last case is not an error and must not be reported as one: an ancestor may be deleted from
+	 * underneath the node, and an entity may be upserted with a parent primary key that does not exist
+	 * yet, which `documentation/user/en/use/schema.md` describes as a legitimate orphan state. Both
+	 * leave a node pointing at a primary key nobody can resolve.
+	 *
+	 * @param store         the node store to resolve the parent through
+	 * @param hierarchyNode the node whose parent to look up
+	 * @return the parent node, or empty when the node is a root or its parent is not part of the tree
+	 */
+	@Nonnull
+	private static Optional<HierarchyNode> getParentNodeIfExists(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyNode hierarchyNode
 	) {
 		if (hierarchyNode.parentEntityPrimaryKey() == null || store.orphans().contains(hierarchyNode.parentEntityPrimaryKey())) {
 			return empty();
 		} else {
-			final HierarchyNode parentNode = store.itemIndex().get(hierarchyNode.parentEntityPrimaryKey());
-			Assert.isTrue(parentNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
-			return of(parentNode);
+			return ofNullable(store.itemIndex().get(hierarchyNode.parentEntityPrimaryKey()));
 		}
 	}
 
@@ -1492,7 +1622,7 @@ public class HierarchyIndex
 	 * @param store            the node store the orphaning operates on, resolved once by the caller
 	 * @param entityPrimaryKey the primary key of the entity whose subtree becomes orphaned
 	 */
-	private void makeOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static void makeOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		final TransactionalIntArray removedNodeChildren = store.levelIndex().remove(entityPrimaryKey);
 		if (removedNodeChildren != null) {
 			final OfInt it = removedNodeChildren.iterator();
@@ -1513,7 +1643,7 @@ public class HierarchyIndex
 	 * @param store            the node store the promotion operates on, resolved once by the caller
 	 * @param entityPrimaryKey the primary key of the newly placed entity whose orphaned children to claim
 	 */
-	private void createChildrenSetFromOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
+	private static void createChildrenSetFromOrphansRecursively(@Nonnull HierarchyNodeStore store, int entityPrimaryKey) {
 		final CompositeIntArray children = new CompositeIntArray();
 		final OfInt it = store.orphans().iterator();
 		while (it.hasNext()) {
@@ -1542,7 +1672,7 @@ public class HierarchyIndex
 	 * @param children                    the direct children of the current node
 	 * @param levels                      remaining levels to traverse (0 = no further recursion)
 	 */
-	private void addRecursively(
+	private static void addRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate,
 		@Nonnull CompositeIntArray result,
@@ -1573,7 +1703,7 @@ public class HierarchyIndex
 	 * @param levels                      remaining levels to traverse (0 = no further recursion)
 	 * @return count of matching nodes in the subtree
 	 */
-	private int countRecursively(
+	private static int countRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate,
 		@Nonnull TransactionalIntArray children,
@@ -1604,7 +1734,7 @@ public class HierarchyIndex
 	 * @param indent  the current indentation level (multiplied by 3 for spaces)
 	 * @param sb      the string builder to append to
 	 */
-	private void toStringChildrenRecursively(
+	private static void toStringChildrenRecursively(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull TransactionalIntArray nodeIds,
 		int indent,
@@ -1708,7 +1838,7 @@ public class HierarchyIndex
 	 * @return a self-referencing {@link TraverserFactory} ready for recursive traversal
 	 */
 	@Nonnull
-	private TraverserFactory getTraverserFactory(
+	private static TraverserFactory getTraverserFactory(
 		@Nonnull HierarchyNodeStore store,
 		@Nonnull HierarchyVisitor visitor,
 		@Nonnull HierarchyFilteringPredicate predicate
@@ -1737,29 +1867,37 @@ public class HierarchyIndex
 	}
 
 	/**
-	 * Returns the level of the passed hierarchy node in the hierarchy tree.
+	 * Returns the level of the passed hierarchy node in the hierarchy tree, root nodes sitting at
+	 * level 1.
+	 *
+	 * The question this method answers is "which level does the node occupy in the whole tree", so it
+	 * reports {@link HierarchyIndexContract#UNKNOWN_LEVEL} for every node that is not part of that tree
+	 * - an orphan, or a node whose ancestor chain is broken by a deleted or never-created ancestor.
+	 * {@link #traverseHierarchyToRoot(HierarchyVisitor, int)} answers the same question walking the
+	 * other way and gives the same answer, that one included.
+	 *
+	 * This loop needs no visited-node set of its own, unlike the one in
+	 * {@link #traverseHierarchyToRoot(HierarchyVisitor, int)}: {@link #getParentNodeIfExists(HierarchyNodeStore, HierarchyNode)}
+	 * short-circuits on {@link HierarchyNodeStore#orphans()}, and every member of a ring is a registered orphan, so the very
+	 * first hop already returns {@link HierarchyIndexContract#UNKNOWN_LEVEL} and no ring can be entered.
 	 *
 	 * @param store    the node store holding the node
 	 * @param rootNode the node to compute level for
-	 * @return level of the node or -1 if the node is not part of the tree
+	 * @return level of the node or {@link HierarchyIndexContract#UNKNOWN_LEVEL} if it is not part of the tree
 	 */
-	private int computeLevel(@Nonnull HierarchyNodeStore store, @Nonnull HierarchyNode rootNode) {
-		try {
-			int level = 1;
-			HierarchyNode theNode = rootNode;
-			while (theNode.parentEntityPrimaryKey() != null) {
-				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(store, theNode);
-				if (parentNode.isPresent()) {
-					theNode = parentNode.get();
-					level++;
-				} else {
-					return -1;
-				}
+	private static int computeLevel(@Nonnull HierarchyNodeStore store, @Nonnull HierarchyNode rootNode) {
+		int level = 1;
+		HierarchyNode theNode = rootNode;
+		while (theNode.parentEntityPrimaryKey() != null) {
+			final Optional<HierarchyNode> parentNode = getParentNodeIfExists(store, theNode);
+			if (parentNode.isPresent()) {
+				theNode = parentNode.get();
+				level++;
+			} else {
+				return UNKNOWN_LEVEL;
 			}
-			return level;
-		} catch (EvitaInvalidUsageException ex) {
-			return -1;
 		}
+		return level;
 	}
 
 	/**
@@ -1824,7 +1962,7 @@ public class HierarchyIndex
 	 * @param levelSorter        a {@link UnaryOperator} to sort the children nodes at each level during the traversal
 	 * @param result             a {@link CompositeIntArray} to store the result of the traversal
 	 */
-	private void breadthFirstTraversal(
+	private static void breadthFirstTraversal(
 		@Nonnull HierarchyNodeStore store,
 		int previousLevelStart,
 		@Nonnull UnaryOperator<int[]> levelSorter,
@@ -1859,7 +1997,7 @@ public class HierarchyIndex
 	 * @param levelSorter a {@link UnaryOperator} to sort the children nodes at each level during the traversal
 	 * @param result      a {@link CompositeIntArray} to store the result of the traversal
 	 */
-	private void depthFirstTraversal(
+	private static void depthFirstTraversal(
 		@Nonnull HierarchyNodeStore store,
 		int rootNodeId,
 		@Nonnull UnaryOperator<int[]> levelSorter,

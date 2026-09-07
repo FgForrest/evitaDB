@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
@@ -47,7 +48,9 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTransla
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.utils.Assert;
 
@@ -112,6 +115,26 @@ public abstract class AbstractHierarchyTranslator {
 	/**
 	 * Method creates a {@link HierarchyTraversalPredicate} controlling the scope of the generated {@link LevelInfo}
 	 * hierarchy statistics according the contents of the {@link HierarchyStopAt} constraint.
+	 *
+	 * One rule governs both directions of the {@link HierarchyLevel} bound: **a level bound cannot cut a chain whose
+	 * depth is unknown**. {@link HierarchyLevel} is an absolute depth counted from the top of the tree, and a node
+	 * that is not reachable from any root has no such depth - the traversals report
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL} for it. Comparing that value against the bound in either
+	 * direction would answer a question the index cannot answer: downwards it would admit everything, upwards it
+	 * would silently drop reachable ancestors by an offset nobody can measure. So an unknown level is admitted
+	 * outright, by the same expression in both directions, and a caller who needs a bound that still holds over a
+	 * broken chain expresses it as a {@link HierarchyDistance} instead - `distance` counts from the pivot node and
+	 * a break cannot shift it.
+	 *
+	 * @param direction       the direction the traversal runs in, which decides how a level bound is compared
+	 * @param stopAt          the constraint to translate into a predicate
+	 * @param queryContext    the planning context a nested `node` filter is compiled in
+	 * @param entityIndex     the global index a nested `node` filter is evaluated against
+	 * @param entitySchema    the schema of the hierarchical entity the constraint applies to
+	 * @param referenceSchema the reference schema when the hierarchy is reached through a reference, `null` when
+	 *                        the query traverses the queried entity's own hierarchy
+	 * @return the predicate bounding the traversal, or `null` when the `stopAt` definition is none of the three
+	 *         the planner knows how to translate
 	 */
 	@Nullable
 	public static HierarchyTraversalPredicate stopAtConstraintToPredicate(
@@ -125,7 +148,8 @@ public abstract class AbstractHierarchyTranslator {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
-			return (hierarchyNodeId, level, distance) -> direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel;
+			return (hierarchyNodeId, level, distance) -> level == HierarchyIndexContract.UNKNOWN_LEVEL ||
+				(direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel);
 		} else if (filter instanceof HierarchyDistance distanceCnt) {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
@@ -148,6 +172,27 @@ public abstract class AbstractHierarchyTranslator {
 	 *
 	 * - thin {@link EntityClassifier} that contains only entity type and primary key
 	 * - {@link SealedEntity} with varying content according to requirements
+	 *
+	 * **A node that made it into the tree is never dropped for want of a body.** Which nodes a hierarchy
+	 * statistics tree contains is settled before this fetcher runs, by the {@link HierarchyFilteringPredicate}
+	 * the computer was given - that is where the query filter and its {@link EntityLocaleEquals} gate apply. This
+	 * fetcher only decides what an admitted node *carries*, so when the requested body cannot be materialized
+	 * (the node holds no data in the query locale, say) it falls back to the very thin {@link EntityReference}
+	 * the no-`entityFetch` branch above returns, rather than to `null`. A statistics tree is a picture of a
+	 * shape: cutting a node out of it, or handing the accumulator behind it a `null` to trip over when the
+	 * {@link LevelInfo} is rendered, would misreport the very structure the caller asked for.
+	 *
+	 * Now that `AbstractHierarchyStatisticsComputer#createStatistics` applies the locale gate wherever it builds
+	 * the filtering predicate itself, no known query reaches that fallback: a node admitted into the tree holds
+	 * data in the query locale, so its body materializes. The fallback stays as the guard for any future path
+	 * that admits a node whose body cannot be materialized, so that such a path degrades to a bodyless node
+	 * instead of failing the whole query.
+	 *
+	 * @param entityFetch          the requirement describing the body to load, or `null` when the caller wants
+	 *                             nothing but entity type and primary key
+	 * @param context              the context of the enclosing hierarchy requirement
+	 * @param extraResultPlanner   the planning visitor the requirement is being translated by
+	 * @return the fetcher, which always yields a classifier and never `null`
 	 */
 	@Nonnull
 	protected static HierarchyEntityFetcher createEntityFetcher(
@@ -168,15 +213,21 @@ public abstract class AbstractHierarchyTranslator {
 			return new HierarchyEntityFetcher() {
 				@Nullable private EntityFetch enrichedFetch;
 
-				@Nullable
+				@Nonnull
 				@Override
-				public EntityClassifier apply(QueryExecutionContext executionContext, Integer entityPk) {
+				public EntityClassifier apply(
+					@Nonnull QueryExecutionContext executionContext,
+					@Nonnull Integer entityPk
+				) {
 					EntityFetch enriched = this.enrichedFetch;
 					if (enriched == null) {
 						enriched = executionContext.enrichEntityFetch(entityFetch);
 						this.enrichedFetch = enriched;
 					}
-					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched).orElse(null);
+					// the body could not be materialized - report the node bodyless instead of not at all
+					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched)
+						.map(EntityClassifier.class::cast)
+						.orElseGet(() -> new EntityReference(hierarchicalEntityType, entityPk));
 				}
 			};
 		}

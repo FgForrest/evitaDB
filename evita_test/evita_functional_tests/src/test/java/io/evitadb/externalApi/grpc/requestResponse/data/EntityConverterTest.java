@@ -27,48 +27,43 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.AssociatedData;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
-import io.evitadb.api.requestResponse.data.structure.Price;
-import io.evitadb.api.requestResponse.data.structure.Prices;
-import io.evitadb.api.requestResponse.data.structure.References;
+import io.evitadb.api.requestResponse.data.structure.*;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity;
+import io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent;
 import io.evitadb.externalApi.grpc.generated.GrpcPrice;
 import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.VersionUtils.SemVer;
-import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -87,12 +82,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
-import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -258,7 +249,7 @@ class EntityConverterTest {
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(MOMENT_2020);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[]{BASIC});
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[0]);
-		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(new AccompanyingPrice[0]);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(AccompanyingPrice.EMPTY_ARRAY);
 		Mockito.when(evitaRequest.getQueryPriceMode()).thenReturn(QueryPriceMode.WITH_TAX);
 
 		final Entity delegate = Entity._internalBuild(
@@ -459,5 +450,131 @@ class EntityConverterTest {
 	private static BigDecimal priceWithoutTax(@Nonnull GrpcPrice grpcPrice) {
 		return io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter
 			.toBigDecimal(grpcPrice.getPriceWithoutTax());
+	}
+
+	@Nested
+	@DisplayName("Parent chain conversion via gRPC EntityConverter")
+	@Tag(HIERARCHY)
+	class ParentChainConversionTest {
+
+		/**
+		 * Builds a hierarchical schema with no attributes, associated data, references or prices - the parent slot
+		 * is the only surface these tests touch.
+		 */
+		@Nonnull
+		private static EntitySchema hierarchicalSchema() {
+			return EntitySchema._internalBuild(
+				1, Entities.CATEGORY, null, null, null,
+				false,
+				true, new Scope[]{Scope.LIVE},
+				false, null,
+				2,
+				Collections.emptySet(), Collections.emptySet(),
+				Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+				Collections.emptySet(), Collections.emptyMap()
+			);
+		}
+
+		/**
+		 * Wraps a bare hierarchical {@link Entity} in a decorator whose parent slot holds `parentEntity` and whose
+		 * hierarchy predicate reports the parent axis as fetched, so that the converter takes its parent branch.
+		 */
+		@Nonnull
+		private static EntityDecorator decorate(
+			@Nonnull EntitySchema schema,
+			int primaryKey,
+			@Nullable Integer parentPrimaryKey,
+			@Nullable EntityClassifierWithParent parentEntity
+		) {
+			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+			Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[0]);
+			Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[0]);
+			Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(AccompanyingPrice.EMPTY_ARRAY);
+
+			final Entity delegate = Entity._internalBuild(
+				primaryKey, 1, schema, parentPrimaryKey,
+				new References(schema),
+				new EntityAttributes(schema),
+				new AssociatedData(schema),
+				new Prices(schema, PriceInnerRecordHandling.NONE),
+				Collections.emptySet(),
+				Scope.DEFAULT_SCOPE,
+				false
+			);
+
+			return new EntityDecorator(
+				delegate,
+				schema,
+				parentEntity,
+				new LocaleSerializablePredicate(evitaRequest),
+				new HierarchySerializablePredicate(true),
+				new AttributeValueSerializablePredicate(evitaRequest),
+				new AssociatedDataValueSerializablePredicate(evitaRequest),
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new PriceContractSerializablePredicate(evitaRequest, Boolean.FALSE),
+				MOMENT_2020
+			);
+		}
+
+		/**
+		 * A chain of nothing but bodyless pointers is the shape that existed before a parent chain could report a
+		 * body above a pointer, and it must keep converting cleanly - without it the row below could pass on a
+		 * converter that simply refused every parent chain.
+		 */
+		@Test
+		@DisplayName("A chain of bodyless pointers converts with every primary key intact")
+		void shouldConvertAChainOfPointers() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityReferenceWithParent pointerChain = new EntityReferenceWithParent(
+				Entities.CATEGORY, 2,
+				new EntityReferenceWithParent(Entities.CATEGORY, 1, null)
+			);
+			final EntityDecorator leaf = decorate(schema, 3, 2, pointerChain);
+
+			final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(leaf, new SemVer(2025, 4));
+
+			assertEquals(2, grpcEntity.getParent().getValue());
+			assertEquals(2, grpcEntity.getParentReference().getPrimaryKey());
+			assertEquals(1, grpcEntity.getParentReference().getParent().getPrimaryKey());
+		}
+
+		/**
+		 * The headline shape of `HierarchyParentsBehaviour.COMPLETE`: an ancestor whose requested body could not be
+		 * materialized stays in the chain as a bodyless pointer, and the walk continues above it - so a body may
+		 * well sit above a pointer. The converter carries that shape to the client with the body intact, in the
+		 * `parentEntity` field the pointer message gained for it.
+		 *
+		 * The body is written into the legacy `parent` field as well, reduced to its primary key and to the chain of
+		 * primary keys above it, so a client that does not know `parentEntity` still receives the whole ancestor axis
+		 * - only without the bodies. That is the half a reader on the older field set sees, and it has to stay
+		 * complete rather than stopping at the pointer.
+		 */
+		@Test
+		@DisplayName("A body above a bodyless pointer converts with the body intact")
+		void shouldConvertABodyAboveAPointer() {
+			final EntitySchema schema = hierarchicalSchema();
+			final EntityDecorator rootBody = decorate(schema, 1, null, null);
+			final EntityReferenceWithParent pointerAboveTheBody = new EntityReferenceWithParent(
+				Entities.CATEGORY, 2, rootBody
+			);
+			final EntityDecorator leaf = decorate(schema, 3, 2, pointerAboveTheBody);
+
+			final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(leaf, new SemVer(2025, 4));
+
+			final GrpcEntityReferenceWithParent pointer = grpcEntity.getParentReference();
+			assertEquals(2, pointer.getPrimaryKey());
+			assertTrue(pointer.hasParentEntity(), "The body above the pointer must reach the client.");
+			assertEquals(1, pointer.getParentEntity().getPrimaryKey());
+			assertEquals(Entities.CATEGORY, pointer.getParentEntity().getEntityType());
+			assertFalse(
+				pointer.getParentEntity().hasParentReference(),
+				"Nothing is reported above the root, so its own chain must be empty."
+			);
+
+			assertTrue(pointer.hasParent(), "The same ancestor must be readable on the legacy field too.");
+			assertEquals(1, pointer.getParent().getPrimaryKey());
+			assertEquals(Entities.CATEGORY, pointer.getParent().getEntityType());
+			assertFalse(pointer.getParent().hasParent());
+		}
 	}
 }

@@ -168,7 +168,7 @@ public enum GrpcStoragePartKind
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(50);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(51);
   }
 
   private static final GrpcStoragePartKind[] VALUES = values();

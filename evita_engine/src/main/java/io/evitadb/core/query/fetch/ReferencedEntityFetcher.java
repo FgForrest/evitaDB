@@ -52,6 +52,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.visitor.FinderVisitor;
@@ -68,6 +69,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
+import io.evitadb.api.requestResponse.data.structure.ParentChainEnd;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
@@ -117,6 +119,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
@@ -143,6 +146,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.and;
+import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
@@ -243,8 +247,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * Index of prefetched parents assembled by {@link #initReferenceIndex} via {@link #prefetchParents} and quickly
 	 * available when the entity is requested by the {@link EntityDecorator} constructor. The key is parent
-	 * {@link EntityContract#getPrimaryKey()}, the value is either {@link EntityReferenceWithParent} if bodies were
-	 * not requested, or full {@link SealedEntity} otherwise.
+	 * {@link EntityContract#getPrimaryKey()}, the value is the resolved chain that starts at that parent.
+	 *
+	 * When no body was requested every element of a chain is an {@link EntityReferenceWithParent}. When bodies were
+	 * requested the shapes may be mixed within a single chain: under
+	 * {@link HierarchyParentsBehaviour#COMPLETE} an ancestor whose body could not be materialized stays in the chain
+	 * as an {@link EntityReferenceWithParent} pointer and the ancestors above it may again be full
+	 * {@link SealedEntity} instances, so a body may sit above a pointer.
+	 *
+	 * **No value in this index is ever NULL.** A chain that reports nothing above its key - a root, a `stopAt` cut,
+	 * or a cut below an unmaterializable ancestor - is stored as {@link ParentChainEnd#INSTANCE}; see
+	 * {@link #terminateChain} for why NULL would mean the opposite to the decorator that reads it.
 	 */
 	@Nullable private IntObjectMap<EntityClassifierWithParent> parentEntities;
 	/**
@@ -504,7 +517,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Integer, ServerEntityDecorator> entityIndex;
 		final QueryPlanningContext queryContext = executionContext.getQueryContext();
 		final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
-			queryContext, fetchRequest, queryContext.getEvitaSession()
+			queryContext, fetchRequest, Objects.requireNonNull(queryContext.getEvitaSession())
 		);
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = fetchRequest.getNamedReferenceEntityFetch();
@@ -575,7 +588,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				} else {
 					// if not, fetch the fresh entity from the collection
 					entityCollection.fetchEntityDecorator(
-							referencedRecordId, fetchRequest, queryContext.getEvitaSession()
+							referencedRecordId, fetchRequest, Objects.requireNonNull(queryContext.getEvitaSession())
 						)
 						.ifPresent(entity -> entityIndex.put(entity.getPrimaryKey(), entity));
 				}
@@ -1346,7 +1359,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.orElse(null),
 				entityNestedQueryComparator,
 				queryContext.getEvitaRequest(),
-				queryContext.getEvitaSession()
+				Objects.requireNonNull(queryContext.getEvitaSession())
 			);
 		}
 	}
@@ -1458,51 +1471,108 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Replaces a plain {@link EntityReferenceWithParent} with a fully decorated {@link ServerEntityDecorator} chain
-	 * respecting the parent-child relationship. The method is invoked recursively on each parent in the chain,
-	 * building the hierarchy from the root down.
+	 * Replaces a plain {@link EntityReferenceWithParent} chain with the bodies fetched for it, applying the requested
+	 * {@link HierarchyParentsBehaviour} to every ancestor whose body is missing from {@code parentBodies}. The method
+	 * is invoked recursively on each ancestor of the chain and builds the result from the root down.
 	 *
-	 * @param entityReference the entity reference with parent chain to replace with sealed entities
-	 * @param parentBodies    the map of already fetched parent entity bodies indexed by primary key
-	 * @return an optional containing the sealed entity with its parent chain, or empty if the entity body
-	 * was not found in {@code parentBodies}
+	 * An ancestor whose requested body cannot be materialized - it holds no data in the query locale, it was deleted,
+	 * or the primary key never belonged to an entity at all - is either the point where the chain is cut
+	 * ({@link HierarchyParentsBehaviour#MATCHING}) or a bodyless pointer the walk continues above
+	 * ({@link HierarchyParentsBehaviour#COMPLETE}), which is why a body may well be reported above a pointer.
+	 *
+	 * The returned value is NULL when the chain ends *below* the passed reference, i.e. when nothing of it is
+	 * reported at all. The two consumers spell that outcome differently and translate it themselves: the parent slot
+	 * of an {@link EntityDecorator} carries {@link ParentChainEnd#INSTANCE}, while
+	 * {@link EntityReferenceWithParent#parentEntity()} is null-terminated.
+	 *
+	 * @param entityReference  the entity reference with parent chain to replace with the fetched bodies
+	 * @param parentBodies     the map of already fetched parent entity bodies indexed by primary key
+	 * @param parentsBehaviour what to do with an ancestor whose requested body could not be materialized
+	 * @return the resolved chain starting at the passed reference, or NULL when the chain ends below it
 	 */
-	@Nonnull
-	private static Optional<SealedEntity> replaceWithSealedEntities(
+	@Nullable
+	private static EntityClassifierWithParent replaceWithSealedEntities(
 		@Nonnull EntityReferenceWithParent entityReference,
-		@Nonnull Map<Integer, ServerEntityDecorator> parentBodies
+		@Nonnull Map<Integer, ServerEntityDecorator> parentBodies,
+		@Nonnull HierarchyParentsBehaviour parentsBehaviour
 	) {
 		final ServerEntityDecorator entityDecorator = parentBodies.get(entityReference.getPrimaryKey());
 		if (entityDecorator == null) {
-			return Optional.empty();
+			return switch (parentsBehaviour) {
+				// the chain is cut just below this ancestor - neither it nor anything above it is reported
+				case MATCHING -> null;
+				// the ancestor stays in the chain as a bodyless pointer and the walk continues above it
+				case COMPLETE -> new EntityReferenceWithParent(
+					entityReference.getType(),
+					entityReference.getPrimaryKey(),
+					resolveAncestors(entityReference, parentBodies, parentsBehaviour)
+				);
+			};
 		}
 
-		final EntityClassifierWithParent enrichedParentEntity = entityReference.getParentEntity()
-			.flatMap(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-			.map(EntityClassifierWithParent.class::cast)
-			.orElse(EntityClassifierWithParent.CONCEALED_ENTITY);
-
-		return Optional.of(
-			ServerEntityDecorator.decorate(
-				entityDecorator,
-				enrichedParentEntity,
-				entityDecorator.getLocalePredicate(),
-				new HierarchySerializablePredicate(true),
-				entityDecorator.getAttributePredicate(),
-				entityDecorator.getAssociatedDataPredicate(),
-				entityDecorator.getReferencePredicate(),
-				entityDecorator.getPricePredicate(),
-				entityDecorator.getAlignedNow(),
-				entityDecorator.getIoFetchCount() +
-					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-						parentDecorator.getIoFetchCount() :
-						0),
-				entityDecorator.getIoFetchedBytes() +
-					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-						parentDecorator.getIoFetchedBytes() :
-						0)
-			)
+		final EntityClassifierWithParent enrichedParentEntity = resolveAncestors(
+			entityReference, parentBodies, parentsBehaviour
 		);
+		// an entity decorator already accumulates the IO statistics of everything above it - but only through a slot
+		// it can read as a decorator, so the read-time walk stops dead at a bodyless pointer. The tail is therefore
+		// folded into the counters here exactly when read time cannot reach it, and never when it can, which would
+		// count the ancestor directly above twice
+		final ServerEntityDecorator unreachedAncestor = enrichedParentEntity instanceof ServerEntityDecorator ?
+			null : findNearestDecoratedAncestor(enrichedParentEntity);
+		return ServerEntityDecorator.decorate(
+			entityDecorator,
+			enrichedParentEntity == null ? ParentChainEnd.INSTANCE : enrichedParentEntity,
+			entityDecorator.getLocalePredicate(),
+			new HierarchySerializablePredicate(true),
+			entityDecorator.getAttributePredicate(),
+			entityDecorator.getAssociatedDataPredicate(),
+			entityDecorator.getReferencePredicate(),
+			entityDecorator.getPricePredicate(),
+			entityDecorator.getAlignedNow(),
+			entityDecorator.getIoFetchCount() +
+				(unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchCount()),
+			entityDecorator.getIoFetchedBytes() +
+				(unreachedAncestor == null ? 0 : unreachedAncestor.getIoFetchedBytes())
+		);
+	}
+
+	/**
+	 * Resolves the part of the chain that sits above the passed reference, i.e. applies
+	 * {@link #replaceWithSealedEntities(EntityReferenceWithParent, Map, HierarchyParentsBehaviour)} to its parent.
+	 *
+	 * @param entityReference  the entity reference whose ancestors are to be resolved
+	 * @param parentBodies     the map of already fetched parent entity bodies indexed by primary key
+	 * @param parentsBehaviour what to do with an ancestor whose requested body could not be materialized
+	 * @return the resolved chain above the passed reference, or NULL when nothing is reported above it
+	 */
+	@Nullable
+	private static EntityClassifierWithParent resolveAncestors(
+		@Nonnull EntityReferenceWithParent entityReference,
+		@Nonnull Map<Integer, ServerEntityDecorator> parentBodies,
+		@Nonnull HierarchyParentsBehaviour parentsBehaviour
+	) {
+		return entityReference.getParentEntity()
+			.map(EntityReferenceWithParent.class::cast)
+			.map(parentEntity -> replaceWithSealedEntities(parentEntity, parentBodies, parentsBehaviour))
+			.orElse(null);
+	}
+
+	/**
+	 * Walks up a resolved parent chain through any number of bodyless pointers and returns the first ancestor that
+	 * carries a body. Used for propagating the IO statistics, which only a {@link ServerEntityDecorator} accumulates.
+	 *
+	 * @param parentEntity the resolved chain to walk, may be NULL when the chain ends
+	 * @return the nearest ancestor carrying a body, or NULL when the chain holds none
+	 */
+	@Nullable
+	private static ServerEntityDecorator findNearestDecoratedAncestor(
+		@Nullable EntityClassifierWithParent parentEntity
+	) {
+		EntityClassifierWithParent examinedEntity = parentEntity;
+		while (examinedEntity instanceof EntityReferenceWithParent pointer) {
+			examinedEntity = pointer.parentEntity();
+		}
+		return examinedEntity instanceof ServerEntityDecorator decorator ? decorator : null;
 	}
 
 	/**
@@ -1539,7 +1609,19 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * in {@code parentEntityReferences} so that shared ancestors are reused across entities.
 	 *
 	 * Duplicate parent IDs (after sorting) are skipped. When {@code allReferencedParents} is provided (i.e. bodies
-	 * are requested), every discovered parent primary key is added to this writer for later bulk body fetching.
+	 * are requested), every parent primary key the index actually resolved is added to this writer for later bulk
+	 * body fetching - a key the index cannot resolve is left out, because there is no entity behind it to fetch.
+	 *
+	 * The chain of an ancestor is republished under its own primary key so that entities sharing it are served from
+	 * one traversal, but only when the requirement carries no `stopAt`: a bound is measured from the queried entity,
+	 * so a sub-chain collected while serving a deeper entity is shorter than the one the ancestor is entitled to in
+	 * its own right, and publishing it would hand the shallower entity a chain its own bound never cut.
+	 *
+	 * A parent primary key the hierarchy index cannot resolve - a deleted ancestor, or one that was never created -
+	 * is not silently dropped. It is a key the entity genuinely carries, so it is placed on top of the chain as
+	 * a bodyless pointer by {@link #appendUnresolvableParent}, offered to the stop predicate at its own distance with
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL} as its level, and therefore cut by a `stopAt` bound exactly like
+	 * any resolvable ancestor. Because it resolves to nothing, it is the last link of the chain.
 	 *
 	 * @param entityType             the entity type name used to construct {@link EntityReferenceWithParent} instances
 	 * @param scope                  the scope within which the hierarchy index is looked up
@@ -1591,6 +1673,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// sort parents first
 			Arrays.sort(parentIds);
 			final ReferenceKeeper<EntityReferenceWithParent> theParent = new ReferenceKeeper<>(null);
+			// distance of the node the upward walk offered last, -1 while it has offered none. The walk moves
+			// *upwards*, handing the nodes of the reachable fragment over in strictly increasing distance from the
+			// queried entity, so the last one offered is also the farthest; a node that finds this value unchanged
+			// once its own traverser has run is therefore the top of the fragment
+			final int[] farthestOfferedDistance = new int[1];
+			// primary keys the current chain already holds - a ring hands the same node back and it must not be
+			// mistaken for a key the index cannot resolve
+			final IntSet chainMembers = new IntHashSet(8);
+			// a sub-chain collected under a bound measured from a deeper entity is shorter than the one its own
+			// entity is entitled to, so it must not be published for reuse
+			final boolean shareSubChains = hierarchyContent.getStopAt().isEmpty();
 			boolean hasPreviousParent = false;
 			int previousParent = 0;
 			// first, construct EntityReferenceWithParent for each requested parent id
@@ -1602,17 +1695,33 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				hasPreviousParent = true;
 				previousParent = parentId;
 				theParent.setReference(null);
-				if (allReferencedParents != null) {
-					allReferencedParents.add(parentId);
-				}
+				farthestOfferedDistance[0] = -1;
+				chainMembers.clear();
 				globalIndex.traverseHierarchyToRoot(
 					(node, level, distance, traverser) -> {
+						farthestOfferedDistance[0] = distance;
 						if (stopPredicate.test(node.entityPrimaryKey(), level, distance + 1)) {
+							chainMembers.add(node.entityPrimaryKey());
+							// the check has to ride inside the walk: the self-traversing branch below hands the
+							// continuation over as a Runnable and documents it as *optionally* invoked, so it
+							// cannot be hoisted out of the two branches
+							final Runnable upwardWalk = () -> {
+								traverser.run();
+								// the walk offered nothing above this node, so it is the top of the reachable
+								// fragment; a parent primary key it still carries is one the index cannot resolve
+								// and therefore the last link of the chain the entity really has
+								if (farthestOfferedDistance[0] == distance && node.parentEntityPrimaryKey() != null) {
+									appendUnresolvableParent(
+										entityType, stopPredicate, theParent, chainMembers,
+										node.parentEntityPrimaryKey(), distance + 2
+									);
+								}
+							};
 							if (stopPredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
 								selfTraversingPredicate.traverse(
-									node.entityPrimaryKey(), level, distance + 1, traverser);
+									node.entityPrimaryKey(), level, distance + 1, upwardWalk);
 							} else {
-								traverser.run();
+								upwardWalk.run();
 							}
 							theParent.setReference(new EntityReferenceWithParent(
 								entityType, node.entityPrimaryKey(),
@@ -1625,11 +1734,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					},
 					parentId
 				);
+				if (farthestOfferedDistance[0] < 0) {
+					// the walk offered no node at all, which the index does only for a primary key it cannot
+					// resolve - the entity points straight at a break, and that key is its whole parent chain
+					appendUnresolvableParent(
+						entityType, stopPredicate, theParent, chainMembers, parentId, 1
+					);
+				}
 				// register the parent and also all its parents recursively, there is high chance other entities
 				// will share the same parents
 				EntityReferenceWithParent parent = theParent.getReference();
 				parentEntityReferences.put(parentId, parent);
-				while (parent != null) {
+				while (shareSubChains && parent != null) {
 					final EntityClassifierWithParent parentEntity = parent.getParentEntity().orElse(null);
 					if (parentEntity == null) {
 						parent = null;
@@ -1639,10 +1755,53 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							parentEntity.getPrimaryKeyOrThrowException(),
 							parentEntity.getParentEntity().orElse(null)
 						);
-						parentEntityReferences.put(parent.primaryKey(), parent);
+						if (!parentEntityReferences.containsKey(parent.primaryKey())) {
+							parentEntityReferences.put(parent.primaryKey(), parent);
+						}
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * Places a bodyless pointer to a parent primary key the hierarchy index cannot resolve on top of the chain
+	 * collected so far. Such a key is reached either because an ancestor was deleted from underneath the chain or
+	 * because an entity was upserted with a parent that was never created; in both cases it is a primary key the
+	 * entity genuinely carries, so it belongs to the reported chain of parent primary keys, and only the requested
+	 * body it can never yield distinguishes it from any other ancestor. It is never registered for body fetching -
+	 * there is no entity behind it to fetch.
+	 *
+	 * A ring is the one case where the fragment top carries a key the index resolves perfectly well: the walk stops
+	 * on returning to a node it has already collected, which looks from here exactly like a break. The keys the
+	 * chain already holds therefore have to be known, and a key among them is dropped rather than reported twice -
+	 * a ring member is genuinely carried *and* genuinely already reported.
+	 *
+	 * The key is offered to the stop predicate at its own position in the chain, exactly like a resolvable ancestor,
+	 * so that a `stopAt` bound cuts it when it reaches beyond the bound. Its level is
+	 * {@link HierarchyIndexContract#UNKNOWN_LEVEL}, because a chain that does not reach a root has no knowable
+	 * depth - the same answer the index gives for every node of such a fragment.
+	 *
+	 * @param entityType                the entity type name used to construct the pointer
+	 * @param stopPredicate             the stop predicate of the `hierarchyContent` requirement
+	 * @param theParent                 keeper of the chain collected so far, updated in place when the key is admitted
+	 * @param chainMembers              primary keys the chain collected so far already holds
+	 * @param unresolvableParentId      the parent primary key the index cannot resolve
+	 * @param distanceFromQueriedEntity distance of that key from the entity whose parents are being collected
+	 */
+	private static void appendUnresolvableParent(
+		@Nonnull String entityType,
+		@Nonnull HierarchyTraversalPredicate stopPredicate,
+		@Nonnull ReferenceKeeper<EntityReferenceWithParent> theParent,
+		@Nonnull IntSet chainMembers,
+		int unresolvableParentId,
+		int distanceFromQueriedEntity
+	) {
+		if (!chainMembers.contains(unresolvableParentId) &&
+			stopPredicate.test(unresolvableParentId, HierarchyIndexContract.UNKNOWN_LEVEL, distanceFromQueriedEntity)) {
+			theParent.setReference(
+				new EntityReferenceWithParent(entityType, unresolvableParentId, theParent.getReference())
+			);
 		}
 	}
 
@@ -2284,7 +2443,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Override
 	public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
 		return ofNullable(this.parentEntities)
-			.map(prefetchedEntities -> (Function<Integer, EntityClassifierWithParent>) prefetchedEntities::get)
+			.map(
+				prefetchedEntities -> (Function<Integer, EntityClassifierWithParent>) primaryKey -> {
+					final EntityClassifierWithParent resolvedChain = prefetchedEntities.get(primaryKey);
+					// a key the index never received - a scope holding no hierarchy index contributes none - is still
+					// a resolved answer: nothing is reported above the entity. NULL would mean the opposite, that
+					// nobody looked, and would send the decorator back to the raw ancestor its delegate carries
+					return resolvedChain == null ? ParentChainEnd.INSTANCE : resolvedChain;
+				}
+			)
 			.orElse(null);
 	}
 
@@ -2533,6 +2700,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Method executes all the necessary hierarchical entities fetch. Execution reuses potentially existing fetched
 	 * hierarchical entities from the last enrichment of the same entity.
 	 *
+	 * Once this method has run, every chain in {@link #parentEntities} is terminated - a key whose chain reports
+	 * nothing above it maps to {@link ParentChainEnd#INSTANCE} rather than to NULL, in both the body-requesting and
+	 * the bodyless branch. This is the invariant {@link EntityDecorator#getParentEntity()} leans on: NULL is the slot
+	 * value that means "nobody resolved the parent", so its fallback to the pointer the delegate carries is
+	 * unreachable for anything this method resolved and serves only decorators built outside this path.
+	 *
 	 * @param hierarchyContent  the requirement specification for the hierarchical entities
 	 * @param executionContext  query context used for querying the entity
 	 * @param entityCollection  the entity collection whose hierarchy is being traversed
@@ -2578,7 +2751,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			// second, replace the EntityReferenceWithParent with EntityDecorator if the bodies are requested
 			if (bodyRequired) {
-				final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(
+				final EvitaRequest fetchRequest = deriveParentBodyRequest(
+					executionContext.getEvitaRequest(),
 					entityType,
 					hierarchyContent.getEntityFetch().get()
 				);
@@ -2593,24 +2767,107 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 
 				// replace the previous EntityReferenceWithParent with EntityDecorator with filled parent
+				final HierarchyParentsBehaviour parentsBehaviour = hierarchyContent.getParentsBehaviour();
 				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(
 					parentEntityReferences.size());
 				for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
 					parentSealedEntities.put(
 						parentRef.key,
-						ofNullable(parentRef.value)
-							.map(EntityReferenceWithParent.class::cast)
-							.flatMap(it -> replaceWithSealedEntities(it, parentBodies))
-							.orElse(null)
+						terminateChain(
+							ofNullable(parentRef.value)
+								.map(EntityReferenceWithParent.class::cast)
+								.map(it -> replaceWithSealedEntities(it, parentBodies, parentsBehaviour))
+								.orElse(null)
+						)
 					);
 				}
 				// initialize rich SealedEntities index
 				this.parentEntities = parentSealedEntities;
 			} else {
-				// initialize plain EntityReferenceWithParent - no body was requested
-				this.parentEntities = parentEntityReferences;
+				// initialize plain EntityReferenceWithParent - no body was requested, so both parents behaviours
+				// are inert and the complete chain of parent primary keys is reported as it stands
+				this.parentEntities = terminateEmptyChains(parentEntityReferences);
 			}
 		}
+	}
+
+	/**
+	 * Builds the request the ancestor bodies are read with.
+	 *
+	 * A query states the locale it is asked in as a filter, and the body read consults exactly that
+	 * ({@link EvitaRequest#getRequiredOrImplicitLocale()}) when it decides whether an ancestor materializes - which is
+	 * what makes {@link HierarchyParentsBehaviour#MATCHING} cut the chain below an ancestor that holds no data in it.
+	 * An enrichment has no filter of its own: the request is assembled from the entity's own predicates and names its
+	 * locales through `dataInLocales` instead, so the walk it runs would materialize the very ancestor the original
+	 * query hid and hand back a different chain for a call that was asked to add nothing. When the entity was fetched
+	 * in a single locale, that locale is therefore restated as a filter for the body read alone. Several locales carry
+	 * no single gate to apply and are left as they are.
+	 *
+	 * @param sourceRequest the request this fetch takes part in
+	 * @param entityType    the hierarchical collection the ancestors are read from
+	 * @param entityFetch   the requirement describing the requested ancestor richness
+	 * @return the request the ancestor bodies are read with
+	 */
+	@Nonnull
+	private EvitaRequest deriveParentBodyRequest(
+		@Nonnull EvitaRequest sourceRequest,
+		@Nonnull String entityType,
+		@Nonnull EntityFetch entityFetch
+	) {
+		if (this.existingEntityRetriever != EmptyEntityProvider.INSTANCE &&
+			sourceRequest.getRequiredOrImplicitLocale() == null) {
+			final Set<Locale> requiredLocales = sourceRequest.getRequiredLocales();
+			if (requiredLocales != null && requiredLocales.size() == 1) {
+				return sourceRequest.deriveCopyWith(
+					entityType,
+					filterBy(entityLocaleEquals(requiredLocales.iterator().next())),
+					null,
+					entityFetch
+				);
+			}
+		}
+		return sourceRequest.deriveCopyWith(entityType, entityFetch);
+	}
+
+	/**
+	 * Returns the passed index of parent chains with every empty chain replaced by the terminator
+	 * {@link #terminateChain(EntityClassifierWithParent)} produces. A chain comes out empty only when the `stopAt`
+	 * predicate admitted no ancestor at all, so the index is usually free of them and is then returned untouched
+	 * rather than copied.
+	 *
+	 * @param parentEntityReferences the index of parent chains built by {@link #identifyParents}
+	 * @return an index in which no chain is NULL
+	 */
+	@Nonnull
+	private static IntObjectMap<EntityClassifierWithParent> terminateEmptyChains(
+		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences
+	) {
+		for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
+			if (parentRef.value == null) {
+				final IntObjectHashMap<EntityClassifierWithParent> terminatedReferences = new IntObjectHashMap<>(
+					parentEntityReferences.size());
+				for (IntObjectCursor<EntityClassifierWithParent> chain : parentEntityReferences) {
+					terminatedReferences.put(chain.key, terminateChain(chain.value));
+				}
+				return terminatedReferences;
+			}
+		}
+		return parentEntityReferences;
+	}
+
+	/**
+	 * Translates a resolved parent chain into the value stored in the parent slot of an {@link EntityDecorator}.
+	 * A chain that reports nothing above the entity - a genuine root, a `stopAt` cut, or a cut below an
+	 * unmaterializable ancestor - becomes {@link ParentChainEnd#INSTANCE} rather than NULL, because NULL is the slot
+	 * value that means "nobody resolved the parent" and sends the decorator back to the pointer its delegate carries.
+	 * Leaving it NULL here would resurrect one raw ancestor past every cut this class makes.
+	 *
+	 * @param resolvedChain the resolved chain, or NULL when nothing is reported above the entity
+	 * @return the value to store in the parent slot
+	 */
+	@Nonnull
+	private static EntityClassifierWithParent terminateChain(@Nullable EntityClassifierWithParent resolvedChain) {
+		return resolvedChain == null ? ParentChainEnd.INSTANCE : resolvedChain;
 	}
 
 	/**

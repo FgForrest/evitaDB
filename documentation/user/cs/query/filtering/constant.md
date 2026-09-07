@@ -122,7 +122,7 @@ omezení, které přesně odpovídá unikátnímu atributu ([attribute equals](c
 evitaDB upřednostní entitu z prvního scope uvedeného v podmínce `scope` před entitami ve scopech definovaných
 později v této podmínce `scope`. To znamená, že pokud dotazujete jednu entitu podle hodnoty jejího unikátního atributu (např. `URL`)
 a hledáte entitu v obou scopech, vždy získáte entitu z prvního scope, který ve svém dotazu určíte.
-Toto chování se neuplatní, pokud je použito pouze částečné shody (např. [attribute starts with](string.md#atribut-začíná-na),
+Toto chování se neuplatní, pokud je použito pouze částečné shody (např. [attribute starts with](string.md#attribut-začíná-na),
 atd.).
 
 </Note>

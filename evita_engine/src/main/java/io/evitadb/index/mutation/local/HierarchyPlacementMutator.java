@@ -131,4 +131,40 @@ public interface HierarchyPlacementMutator {
 		}
 	}
 
+	/**
+	 * Tolerant sibling of {@link #removeParent} used by the paths that tear an entity's hierarchy placement down
+	 * because the entity is leaving an index - it is being deleted, or moved to another scope - rather than because
+	 * a mutation asked for the placement to go.
+	 *
+	 * On those paths an entity of a hierarchical collection may legitimately hold no placement at all, so the
+	 * absence must be accepted instead of reported. That happens whenever a collection becomes hierarchical, or
+	 * widens the scopes it indexes hierarchy in, while it already holds entities: only the live global index is
+	 * re-placed, and entities sitting in another scope at that moment never receive one. {@link #removeParent}
+	 * keeps its assertion for the mutation path, where an absent placement really is a programming error.
+	 *
+	 * @param executor          the active mutation executor that provides access to entity schema and index state
+	 * @param entityIndex       the index whose embedded hierarchy index will be updated
+	 * @param primaryKeyToIndex the primary key of the entity being removed from the hierarchy
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity schema does not have hierarchy enabled
+	 *                                                         (i.e. {@link EntitySchema#isWithHierarchy()} returns
+	 *                                                         `false`)
+	 */
+	static void removeParentIfPresent(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex entityIndex,
+		int primaryKeyToIndex
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		Assert.isTrue(
+			entitySchema.isWithHierarchy(),
+			"Schema does not enable hierarchy - " +
+				"cannot remove hierarchical placement for `" + entitySchema.getName() + "`!");
+
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (entitySchema.isHierarchyIndexedInScope(scope)) {
+			entityIndex.removeNodeIfPresent(primaryKeyToIndex);
+			executor.reportEntityCapabilityTouched(Capability.HIERARCHICAL, scope);
+		}
+	}
+
 }

@@ -68,6 +68,7 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
@@ -141,24 +142,13 @@ public class EntityConverter {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
 		final EntityClassifierWithParent parentEntity;
 		if (grpcEntity.hasParentEntity()) {
-			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
-			final EvitaRequest parentRequest = ofNullable(hierarchyContent)
-				.flatMap(HierarchyContent::getEntityFetch)
-				.map(
-					it -> evitaRequest.deriveCopyWith(
-						entitySchema.getName(),
-						QueryConstraints.entityFetch(
-							ArrayUtils.mergeArrays(
-								it.getRequirements(),
-								new EntityContentRequire[]{QueryConstraints.hierarchyContent()}
-							)
-						)
-					)
-				)
-				.orElse(evitaRequest);
-			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
+			parentEntity = toAncestorEntity(
+				entitySchemaFetcher, evitaRequest, entitySchema.getName(), grpcEntity.getParentEntity()
+			);
 		} else if (grpcEntity.hasParentReference()) {
-			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReference());
+			parentEntity = toEntityReferenceWithParent(
+				grpcEntity.getParentReference(), entitySchemaFetcher, evitaRequest
+			);
 		} else {
 			parentEntity = parent;
 		}
@@ -366,14 +356,16 @@ public class EntityConverter {
 				.ifPresent(parent -> {
 					if (parent instanceof EntityReferenceWithParent entityReference) {
 						entityBuilder.setParentReference(
-							toGrpcEntityReferenceWithParent(entityReference)
+							toGrpcEntityReferenceWithParent(entityReference, clientVersion)
 						);
 					} else if (parent instanceof SealedEntity sealedEntity) {
 						entityBuilder.setParentEntity(
 							toGrpcSealedEntity(sealedEntity, clientVersion)
 						);
 					} else {
-						throw new EvitaInvalidUsageException("Unexpected parent type: " + parent.getClass());
+						throw new GenericEvitaInternalError(
+							"Unexpected ancestor type in a parent chain: " + parent.getClass()
+						);
 					}
 				});
 		}
@@ -651,15 +643,66 @@ public class EntityConverter {
 	}
 
 	/**
-	 * Converts {@link GrpcEntityReference} to the {@link EntityReference} that should be used
+	 * Converts {@link GrpcEntityReferenceWithParent} to the {@link EntityReferenceWithParent} that should be used
 	 * in the Java client.
+	 *
+	 * This overload reads the chain of ancestor primary keys only. A chain in which an ancestor carries a requested
+	 * body - the shape {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#COMPLETE} produces - needs the
+	 * entity schema and the request that body was fetched under, so it has to go through
+	 * {@link #toEntityReferenceWithParent(GrpcEntityReferenceWithParent, Function, EvitaRequest)} instead. Such a
+	 * chain is refused here rather than silently reduced to its primary keys.
+	 *
+	 * @param entityReferenceWithParent the chain to convert
+	 * @return the converted chain
 	 */
 	@Nonnull
 	public static EntityReferenceWithParent toEntityReferenceWithParent(@Nonnull GrpcEntityReferenceWithParent entityReferenceWithParent) {
+		return toEntityReferenceWithParent(entityReferenceWithParent, null, null);
+	}
+
+	/**
+	 * Converts {@link GrpcEntityReferenceWithParent} to the {@link EntityReferenceWithParent} that should be used
+	 * in the Java client, materializing every ancestor that carries a requested body.
+	 *
+	 * Under {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#COMPLETE} an ancestor whose body could
+	 * not be materialized stays in the chain as a bodyless pointer and the walk continues above it, so a body may
+	 * sit above a pointer. The server sends such an ancestor in both `parentEntity` (with its body) and `parent`
+	 * (reduced to primary keys, for clients that do not know the newer field), and the richer one wins here.
+	 *
+	 * @param entityReferenceWithParent the chain to convert
+	 * @param entitySchemaFetcher       resolver of the schema of an ancestor carrying a body, NULL when the caller
+	 *                                  knows the chain carries none
+	 * @param evitaRequest              the request the chain was fetched under, NULL together with the resolver
+	 * @return the converted chain
+	 */
+	@Nonnull
+	public static EntityReferenceWithParent toEntityReferenceWithParent(
+		@Nonnull GrpcEntityReferenceWithParent entityReferenceWithParent,
+		@Nullable Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nullable EvitaRequest evitaRequest
+	) {
+		final EntityClassifierWithParent ancestor;
+		if (entityReferenceWithParent.hasParentEntity()) {
+			Assert.isPremiseValid(
+				entitySchemaFetcher != null && evitaRequest != null,
+				() -> new GenericEvitaInternalError(
+					"Parent chain carries an ancestor body, which cannot be converted without the entity schema " +
+						"and the request it was fetched under."
+				)
+			);
+			ancestor = toAncestorEntity(
+				entitySchemaFetcher, evitaRequest,
+				entityReferenceWithParent.getEntityType(), entityReferenceWithParent.getParentEntity()
+			);
+		} else if (entityReferenceWithParent.hasParent()) {
+			ancestor = toEntityReferenceWithParent(
+				entityReferenceWithParent.getParent(), entitySchemaFetcher, evitaRequest
+			);
+		} else {
+			ancestor = null;
+		}
 		return new EntityReferenceWithParent(
-			entityReferenceWithParent.getEntityType(), entityReferenceWithParent.getPrimaryKey(),
-			entityReferenceWithParent.hasParent() ?
-				toEntityReferenceWithParent(entityReferenceWithParent.getParent()) : null
+			entityReferenceWithParent.getEntityType(), entityReferenceWithParent.getPrimaryKey(), ancestor
 		);
 	}
 
@@ -698,10 +741,60 @@ public class EntityConverter {
 	}
 
 	/**
-	 * Builds an entity reference with parent in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 * Materializes an ancestor that arrived with its body. The request the ancestor is read under keeps whatever
+	 * richness the caller asked for its ancestors and adds a bare `hierarchyContent()`, so that the chain above the
+	 * ancestor stays readable on the client.
+	 *
+	 * @param entitySchemaFetcher resolver of the ancestor's schema
+	 * @param evitaRequest        the request the chain was fetched under
+	 * @param entityType          the hierarchical collection the ancestor belongs to
+	 * @param grpcAncestor        the ancestor as it arrived over the wire
+	 * @return the materialized ancestor
 	 */
+	@Nonnull
+	private static SealedEntity toAncestorEntity(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull String entityType,
+		@Nonnull GrpcSealedEntity grpcAncestor
+	) {
+		final EvitaRequest parentRequest = ofNullable(evitaRequest.getHierarchyContent())
+			.flatMap(HierarchyContent::getEntityFetch)
+			.map(
+				it -> evitaRequest.deriveCopyWith(
+					entityType,
+					QueryConstraints.entityFetch(
+						ArrayUtils.mergeArrays(
+							it.getRequirements(),
+							new EntityContentRequire[]{QueryConstraints.hierarchyContent()}
+						)
+					)
+				)
+			)
+			.orElse(evitaRequest);
+		return toEntity(
+			entitySchemaFetcher, parentRequest, grpcAncestor, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER
+		);
+	}
+
+	/**
+	 * Builds an entity reference with parent in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 *
+	 * The chain above the reference is not uniform: under
+	 * {@link io.evitadb.api.query.require.HierarchyParentsBehaviour#COMPLETE} an ancestor whose requested body could
+	 * not be materialized stays in the chain as a bodyless pointer and the walk continues above it, so a body may
+	 * sit above a pointer. An ancestor carrying a body is therefore written into `parentEntity` **and**, reduced to
+	 * its primary keys, into the legacy `parent` field, so that a client which does not know `parentEntity` still
+	 * receives the complete chain of ancestor primary keys.
+	 *
+	 * @param entityReference the chain to convert
+	 * @param clientVersion   version of the client the response is built for, NULL when it is unknown
+	 * @return the converted chain
+	 */
+	@Nonnull
 	private static GrpcEntityReferenceWithParent toGrpcEntityReferenceWithParent(
-		@Nonnull EntityReferenceWithParent entityReference
+		@Nonnull EntityReferenceWithParent entityReference,
+		@Nullable SemVer clientVersion
 	) {
 		final GrpcEntityReferenceWithParent.Builder builder = GrpcEntityReferenceWithParent.newBuilder()
 			.setEntityType(entityReference.getType())
@@ -709,10 +802,38 @@ public class EntityConverter {
 
 		entityReference.getParentEntity()
 			.ifPresent(
-				it -> builder.setParent(
-					toGrpcEntityReferenceWithParent((EntityReferenceWithParent) it)
-				)
+				it -> {
+					if (it instanceof EntityReferenceWithParent ancestorReference) {
+						builder.setParent(toGrpcEntityReferenceWithParent(ancestorReference, clientVersion));
+					} else if (it instanceof SealedEntity ancestorEntity) {
+						builder.setParentEntity(toGrpcSealedEntity(ancestorEntity, clientVersion));
+						builder.setParent(toGrpcPrimaryKeyChain(ancestorEntity));
+					} else {
+						throw new GenericEvitaInternalError(
+							"Unexpected ancestor type in a parent chain: " + it.getClass()
+						);
+					}
+				}
 			);
+
+		return builder.build();
+	}
+
+	/**
+	 * Reduces an ancestor and everything above it to a chain of primary keys, which is what a client that predates
+	 * the `parentEntity` field of `GrpcEntityReferenceWithParent` is able to read.
+	 *
+	 * @param ancestor the ancestor to reduce
+	 * @return the reduced chain
+	 */
+	@Nonnull
+	private static GrpcEntityReferenceWithParent toGrpcPrimaryKeyChain(@Nonnull EntityClassifierWithParent ancestor) {
+		final GrpcEntityReferenceWithParent.Builder builder = GrpcEntityReferenceWithParent.newBuilder()
+			.setEntityType(ancestor.getType())
+			.setPrimaryKey(ancestor.getPrimaryKeyOrThrowException());
+
+		ancestor.getParentEntity()
+			.ifPresent(it -> builder.setParent(toGrpcPrimaryKeyChain(it)));
 
 		return builder.build();
 	}

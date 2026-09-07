@@ -81,6 +81,7 @@ public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContex
 				));
 
 				log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), query);
+				executionContext.provideEntityRequirement(query);
 
 				final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().queryOne(query, EntityClassifier.class));

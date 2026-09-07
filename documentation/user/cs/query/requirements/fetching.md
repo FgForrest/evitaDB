@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '651df95a8191b549dc2d91d587f7cca8973faa5e'
+commit: '07b06b58794d9b87fda0298cd85687cab263be63'
 ---
 <LS to="e,j,c,r">
 
@@ -697,11 +697,25 @@ Jak vidíte, entita je vrácena s českou a anglickou lokalizací, pro které js
 
 ```evitaql-syntax
 hierarchyContent(
+    argument:enum(COMPLETE|MATCHING)?,
     requireConstraint:(entityFetch|stopAt)*
 )
 ```
 
 <dl>
+    <dt>argument:enum(COMPLETE|MATCHING)?</dt>
+    <dd>
+        <p>**Výchozí:** `MATCHING`</p>
+
+        <p>
+        volitelný argument, který rozhoduje o tom, co se stane s rodičovskou entitou, jejíž požadované tělo nelze
+        načíst; výchozí `MATCHING` usekne řetězec těsně pod takovým rodičem, takže každý vrácený rodič nese tělo,
+        o které jste požádali, kdežto `COMPLETE` takového rodiče v řetězci ponechá jako ukazatel bez těla a pokračuje
+        v procházení nad ním (podrobnosti viz kapitola [chování rodičů v hierarchii](#chování-rodičů-v-hierarchii));
+        argument nemá žádný účinek, pokud není přítomno omezení `entityFetch`, protože bez něj se o žádné tělo rodiče
+        nežádá a nic se tedy nemůže nepodařit načíst
+        </p>
+    </dd>
     <dt>requireConstraint:(entityFetch|stopAt)*</dt>
     <dd>
         volitelně jeden nebo více omezení, která vám umožní definovat úplnost hierarchických entit a
@@ -722,7 +736,9 @@ stromu hierarchie. Velikost tohoto řetězce můžete omezit pomocí omezení `s
 přímý rodič každé vrácené entity, můžete použít omezení `stopAt(distance(1))`. Výsledek je podobný použití omezení
 [`parents`](hierarchy.md#parents), ale je omezený tím, že neposkytuje informace o statistikách a možnost vypsat sourozence rodičovských entit. Na druhou stranu je jednodušší na použití – protože hierarchické umístění je přímo dostupné v načteném objektu entity.
 
-Pokud zadáte vnořené omezení [`entityFetch`](#načtení-entity), hierarchická informace bude obsahovat těla rodičovských entit v požadované šířce. [`attributeContent`](#obsah-atributů) uvnitř `entityFetch` vám umožní přistupovat k atributům rodičovských entit atd.
+Pokud zadáte vnořené omezení [`entityFetch`](#načtení-entity), hierarchická informace bude obsahovat těla rodičovských entit v požadované šířce. [`attributeContent`](#obsah-atributů) uvnitř `entityFetch` vám umožní přistupovat k atributům rodičovských entit atd. Není ovšem zaručeno, že každý rodič dokáže poskytnout tělo,
+o které žádáte – o tom, jak řetězec vypadá, když to jeden z nich nedokáže, rozhoduje argument
+[chování rodičů v hierarchii](#chování-rodičů-v-hierarchii).
 
 Pro načtení entity se základními hierarchickými informacemi použijte následující dotaz:
 
@@ -804,6 +820,11 @@ na kterém uzlu zastavit procházení hierarchie.
 Výsledek je podobný použití požadavku [`parents`](hierarchy.md#parents), ale je omezený tím, že neposkytuje
 informace o statistikách a možnost vypsat sourozence rodičovských entit. Na druhou stranu je jednodušší na použití – protože hierarchické umístění je přímo dostupné v načteném objektu entity.
 
+Není ovšem zaručeno, že každý rodič dokáže poskytnout tělo, které si vyberete. Pole `parents` ukončí řetězec pod
+prvním rodičem, který to nedokáže, takže vše, co vrátí, nese požadované tělo; sourozenecké pole `parentsComplete`
+vrací tutéž osu bez tohoto useknutí – takového rodiče ohlásí jako ukazatel bez těla a pokračuje nad ním. Podrobnosti
+najdete v kapitole [chování rodičů v hierarchii](#chování-rodičů-v-hierarchii).
+
 Pro načtení entity se základními hierarchickými informacemi použijte následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -850,6 +871,120 @@ Tento poměrně složitý příklad využívá [referenční pole kategorie](#re
 </Note>
 
 </LS>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Chování rodičů v hierarchii
+</NoteTitle>
+
+Rodičovská entita může ve stromu hierarchie být, a přesto nemusí být schopna poskytnout tělo, o které jste požádali.
+Děje se to třemi způsoby:
+
+- rodič nemá **žádná data v lokalizaci, podle které dotaz filtruje** – požádali jste omezením
+  [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) o anglickou variantu stromu a jedna
+  z rodičovských kategorií existuje pouze v češtině;
+- rodič **byl smazán**, zatímco entita pod ním stále odkazuje na jeho primární klíč;
+- primární klíč rodiče **nikdy žádné entitě nepatřil** – evitaDB nevynucuje referenční integritu primárního klíče
+  rodiče, takže entita může být zcela legitimně vytvořena s rodičem, který bude zaindexován až později.
+
+Osa rodičů se prochází od přímého rodiče směrem nahoru a <LS to="e,j,c">první volitelný argument požadavku
+`hierarchyContent`</LS><LS to="r">argument `parentsBehaviour` požadavku `hierarchyContent`</LS><LS to="g">pole, které
+si vyberete,</LS> rozhoduje o tom, co procházení udělá, když na takového rodiče narazí:
+
+- **MATCHING**: řetězec je useknut těsně pod tímto rodičem – nevrátí se ani on, ani nic nad ním. Každý rodič, kterého
+  dostanete, tedy nese tělo, o které jste požádali, a to za cenu těch, které nikdy neuvidíte.
+- **COMPLETE**: vrátí se každý rodič. Ten, který tělo poskytnout nedokáže, je ohlášen jako ukazatel bez těla nesoucí
+  pouze svůj primární klíč, a procházení pokračuje nad ním. Rodič **s** tělem se tak může objevit nad rodičem bez
+  těla a váš kód na to musí být připraven.
+
+Poslední dva případy – smazaný rodič a primární klíč rodiče, který nikdy žádné entitě nepatřil – strom v tom místě
+přerušují, takže nad přerušením už není nic, kam by evitaDB vůbec mohla dosáhnout. `COMPLETE` proto řetězec u takového
+ukazatele bez těla ukončí, místo aby pokračovalo za něj, a `MATCHING` jej ukončí těsně pod ním. Ukazatel přesto stojí
+za to mít: říká vám, že předkové entity pokračují dál, než kam až vám evitaDB dokáže dohlédnout – a právě to
+`MATCHING` skrývá.
+
+`MATCHING` je výchozí chování, takže stávající dotaz vrací přesně to, co vracel předtím, než tento argument existoval.
+Po `COMPLETE` sáhněte, když potřebujete rodiče *nad* tím, kterého nelze načíst – typickým případem je drobečková
+navigace, která musí dosáhnout ke kořeni, i když jeden z jejích uzlů není přeložen – a buďte připraveni vykreslit
+ukazatele bez těla, které s sebou přinese.
+
+Chování je definováno vůči **požadovanému** tělu, takže rozhoduje o něčem jen tehdy, když je vůbec o jaké tělo žádáno.
+<LS to="e,j,c,r">`hierarchyContent()` bez vnořeného omezení `entityFetch`</LS><LS to="g">Výběr `parents` nebo
+`parentsComplete`, který si nežádá nic než primární klíč,</LS> nežádá o žádné tělo rodiče, nic se tedy nemůže
+nepodařit načíst a pod oběma chováními se vrátí celý řetězec primárních klíčů rodičů, který entita má – až ke kořeni,
+nebo až k přerušení stromu.
+
+<LS to="e,j,c">
+
+**Upozornění ke kombinaci dvou požadavků `hierarchyContent`.** Dva požadavky `hierarchyContent` v jediném
+`entityFetch` se redukují na jeden a tato redukce spíše rozšiřuje, než
+zužuje. Zkratka `entityFetchAllContent()` už jeden holý `hierarchyContent()` obsahuje, takže zápis
+`entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` právě takovou dvojici vytvoří – a protože chybějící
+mez je z těch dvou ta širší, **mez `stopAt(distance(1))` je zahozena** a načte se celý řetězec rodičů. Jde o totéž
+rozšíření, kvůli kterému [`attributeContentAll`](#všechny-atributy) spolkne `attributeContent("code")` napsaný vedle
+něj. Pokud tu mez potřebujete, nežádejte vedle ní o kompletní obsah entity.
+
+Chování rodičů naopak redukci přežije: požadavek, který o žádné tělo rodiče nežádá, nevyslovuje žádnou preferenci,
+takže `entityFetchAllContentAnd(hierarchyContent(COMPLETE, entityFetch(attributeContentAll())))` skutečně načte celý
+řetězec. Dotaz selže teprve tehdy, když o těla rodičů žádají **oba** požadavky a pojmenují různá chování – stejně jako
+selže, když oba nesou `stopAt` a jejich meze se liší. Ani jedno z chování není nadmnožinou toho druhého, a tak evitaDB
+raději odmítne hádat, které jste měli na mysli, než aby jedno z nich potichu zvolila.
+
+</LS>
+
+<LS to="g">
+
+V GraphQL není chování vypsáno jako argument – každá ze dvou hodnot má na objektu hierarchické entity vlastní pole:
+
+- **`parents`** ohlašuje osu pod chováním `MATCHING`. Jeho název, typ i argumenty jsou tytéž, jaké mělo vždy, a prvky,
+  které vrací, jsou objekty entit – nově je k tomu ale upřímné: tam, kde rodiče nešlo načíst, seznam končí, místo aby
+  pokračoval prvky nesoucími pouze primární klíč.
+- **`parentsComplete`** ohlašuje tutéž osu pod chováním `COMPLETE`. Protože jeho prvky jsou buď entita, nebo ukazatel
+  bez těla, vrací pole **union** nehierarchického objektu entity a objektu rodičovského ukazatele pojmenovaného podle
+  kolekce – pro entitu `Category` jsou to `NonHierarchicalCategory` a `CategoryCompleteParentPointer` – takže z něj
+  vybíráte pomocí inline fragmentů a obojí od sebe rozeznáte podle `__typename`.
+
+Obě pole přijímají tentýž argument `stopAt` jako dřív. Vybrat obě naráz je povoleno a stojí to jediné načtení, ale
+oba argumenty `stopAt` pak musí být shodné – server sestavuje jeden požadavek `hierarchyContent` ze sjednocení obou
+výběrových množin a odmítá hádat, kterou ze dvou různých mezí jste měli na mysli.
+
+</LS>
+
+<LS to="r">
+
+Chování je argumentem požadavku `hierarchyContent`, v těle REST dotazu se jmenuje `parentsBehaviour` a přijímá výše
+popsané hodnoty `COMPLETE` a `MATCHING`. To, o které z nich jste požádali, pak rozhoduje, kterou vlastnost vrácené
+entity číst:
+
+- **`parentEntity`** ohlašuje osu vždy pod chováním `MATCHING` – řetězec těl rodičů useknutý pod prvním rodičem,
+  kterého nešlo načíst. Její název i význam jsou tytéž, jaké měla vždy, a nově je upřímná ke svému vlastnímu
+  deklarovanému typu: kdykoli se o těla rodičů vůbec žádalo, neobsahuje řetězec, který nese, žádný ukazatel bez těla,
+  zatímco dřív obsahovat mohl. `hierarchyContent`, který o **žádné** tělo rodiče nežádá, nemá co by se mohlo nepodařit
+  a ohlašuje zde celý řetězec primárních klíčů, a proto je vlastnost typována jako `oneOf` objektu entity a ukazatele
+  na rodiče bez těla pojmenovaného podle kolekce – pro entitu `Category` jsou to `Category` a `CategoryParentPointer`.
+  Oba tvary se v rámci jedné odpovědi nikdy nemísí: ať už váš požadavek vytvoří kterýkoli z nich, je z něj celý
+  řetězec.
+- **`parentEntityComplete`** ohlašuje tutéž osu pod chováním `COMPLETE` a její prvky jsou typovány jako `oneOf`
+  objektu entity a ukazatele na rodiče bez těla – `Category` a `CategoryCompleteParentPointer`. Vlastnost se zapisuje
+  jen tehdy, když načtený řetězec takový ukazatel skutečně obsahuje; když šlo načíst každého rodiče, jsou oba pohledy
+  totožné a vrací se pouze `parentEntity`.
+
+  Obě osy se zanořují skrz vlastnost, ze které se čtou, a proto nemohou sdílet jeden objekt ukazatele:
+  `CategoryParentPointer` nese `parentEntity` a `CategoryCompleteParentPointer` nese `parentEntityComplete`. Oba
+  objekty ukazatele jsou uzavřené (`additionalProperties: false`), a právě to činí každý `oneOf` jednoznačným –
+  načtený rodič nese `version`, který větev ukazatele odmítá, a rodič bez těla postrádá vlastnosti `version`, `scope`
+  a lokalizační vlastnosti, které větev entity vyžaduje.
+
+Dejte pozor na tvar, který useknutí `MATCHING` nabývá, když tělo nedokáže poskytnout **přímý rodič**: useknutí pak
+nevydá vůbec nic a `parentEntity` v odpovědi **zcela chybí** – stejně jako u kořenové entity, která žádného rodiče
+skutečně nemá. Pokud potřebujete tyto dva případy rozlišit, nebo potřebujete rodiče nad tím přímým, čtěte řetězec
+přes `parentEntityComplete`.
+
+</LS>
+
+</Note>
 
 ## Obsah cen
 
