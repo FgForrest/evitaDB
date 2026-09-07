@@ -49,7 +49,7 @@ public interface EntityClassifierWithParent extends EntityClassifier {
 	 * {@link io.evitadb.api.requestResponse.data.structure.ParentChainEnd#isChainEnd(EntityClassifierWithParent)},
 	 * which still accepts this constant.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	EntityClassifierWithParent CONCEALED_ENTITY = new EntityClassifierWithParent() {
 		@Serial private static final long serialVersionUID = -2322605230612089578L;
 
