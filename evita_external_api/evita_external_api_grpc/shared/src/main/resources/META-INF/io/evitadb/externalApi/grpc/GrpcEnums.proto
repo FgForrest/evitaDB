@@ -1229,3 +1229,71 @@ enum GrpcSchemaCapability {
   SCHEMA_CAPABILITY_SUBSTRING_ACCELERATED = 9;
 
 }
+
+// What a storage part fundamentally is - the coarse fold of `GrpcStoragePartGroup`, and the one a composition table
+// uses when it wants three rows rather than fourteen. The three answer different questions: entity data shrinks only
+// by storing less, an index shrinks by indexing less (a schema decision that loses no data), and metadata is what the
+// store needs to describe itself and cannot be acted on at all.
+enum GrpcStoragePartKind {
+
+  // Default value, never sent by the server. Every reported storage-part type carries an explicit kind.
+  STORAGE_PART_KIND_UNSPECIFIED = 0;
+  // The entity's own persisted state - body, attributes, associated data, prices, references.
+  STORAGE_PART_KIND_ENTITY_DATA = 1;
+  // Structures the engine derived from entity data to answer queries. Every byte is reconstructible by a reindex and
+  // every byte was asked for by a schema flag.
+  STORAGE_PART_KIND_INDEX = 2;
+  // Schema and header records - what the data store needs to describe itself.
+  STORAGE_PART_KIND_METADATA = 3;
+
+}
+
+// Which kind of data one storage-part type holds. This is the classification a composition table groups by, and it
+// exists because `GrpcStoragePartUsage.storagePartType` cannot serve as one: that field is the simple class name of a
+// storage part, an OPEN set that grows whenever the engine gains an index structure, and nothing in a name says which
+// entries are indexes - two of the engine's index parts carry no `Index` in their class name at all.
+//
+// This set is CLOSED on purpose. A new storage-part type is expected to land in an existing group, so a client that
+// knows these values keeps rendering a correct table across engine versions without being taught anything; adding a
+// value here is a deliberate, documented event rather than a side effect of adding a part type.
+//
+// The index groups mirror the data groups on purpose - `ATTRIBUTE_DATA` against `ATTRIBUTE_INDEX`, `PRICE_DATA`
+// against `PRICE_INDEX`, `REFERENCE_DATA` against `REFERENCE_INDEX`. The pair is what a schema owner reads to see
+// what indexing a feature costs against what storing it costs.
+enum GrpcStoragePartGroup {
+
+  // Default value, never sent by the server. Every reported storage-part type carries an explicit group.
+  STORAGE_PART_GROUP_UNSPECIFIED = 0;
+  // The entity's own record - primary key, scope, locales, parent and the manifest of the parts it owns.
+  STORAGE_PART_GROUP_ENTITY_BODY = 1;
+  // Attribute values as stored, one record per entity and locale.
+  STORAGE_PART_GROUP_ATTRIBUTE_DATA = 2;
+  // Associated data values as stored. Usually the largest data group - this is where documents and images end up.
+  STORAGE_PART_GROUP_ASSOCIATED_DATA = 3;
+  // Prices as stored, one record per entity.
+  STORAGE_PART_GROUP_PRICE_DATA = 4;
+  // References to other entities as stored, including their own attributes.
+  STORAGE_PART_GROUP_REFERENCE_DATA = 5;
+  // An index's own record rather than the values it indexes: which sub-indexes exist, and which entities it covers.
+  // Deliberately small - the attribute, price and facet structures are stored apart precisely so this one is not
+  // rewritten when they change, which is why it is a poor proxy for the index footprint.
+  STORAGE_PART_GROUP_INDEX_MANIFEST = 6;
+  // Everything built because an attribute is filterable, sortable, unique or part of a sortable compound.
+  STORAGE_PART_GROUP_ATTRIBUTE_INDEX = 7;
+  // Everything built to answer price-based filtering and ordering.
+  STORAGE_PART_GROUP_PRICE_INDEX = 8;
+  // Everything built to resolve references between entities. Faceting is charged separately.
+  STORAGE_PART_GROUP_REFERENCE_INDEX = 9;
+  // The facet index - what a facet summary is computed from. Charged apart from `REFERENCE_INDEX` because `faceted`
+  // and `indexed` are separate schema decisions.
+  STORAGE_PART_GROUP_FACET_INDEX = 10;
+  // The hierarchy index - the tree structure a hierarchical collection is queried through.
+  STORAGE_PART_GROUP_HIERARCHY_INDEX = 11;
+  // Everything built to answer histogram requests - bucketed values, their range trees and cardinality gating.
+  STORAGE_PART_GROUP_HISTOGRAM_INDEX = 12;
+  // Schema records - the catalog schema and one entity schema per collection.
+  STORAGE_PART_GROUP_SCHEMA = 13;
+  // Header records the data store keeps to describe itself and its collections.
+  STORAGE_PART_GROUP_HEADER = 14;
+
+}
