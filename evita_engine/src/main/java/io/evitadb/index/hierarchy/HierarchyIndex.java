@@ -904,25 +904,27 @@ public class HierarchyIndex
 	@Nonnull
 	@Override
 	public Bitmap listNodesIncludingParents(@Nonnull Bitmap nodes) {
+		if (nodes.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// the input is not empty, so this index is required to hold at least its first node - resolving the
+		// store loudly here reports exactly the programming error the per-node lookup inside the loop reports,
+		// and hands the walk a store it can dereference without re-reading the field for every ancestor.
+		// Answering an absent store with an empty result instead would silence the contract below
+		final HierarchyNodeStore store = getNodeStoreOrThrowException(nodes.getFirst());
 		final PersistentRoaringBitmap output = new PersistentRoaringBitmap();
-		// resolved once for the whole walk; an absent store cannot survive the first
-		// getHierarchyNodeOrThrowException below, so every dereference of it inside the loop is reached
-		// only after that call has already accepted the store
-		final HierarchyNodeStore store = this.nodeStore;
-		if (store != null) {
-			for (Integer nodeId : nodes) {
-				output.add(nodeId);
-				HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
-				while (hierarchyNode.parentEntityPrimaryKey() != null) {
-					final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
-					final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
-					if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
-						// the chain either breaks here, or closes into a ring, or meets an ancestor another
-						// input node has already contributed - in every case there is nothing left to collect
-						break;
-					}
-					hierarchyNode = parentNode;
+		for (Integer nodeId : nodes) {
+			output.add(nodeId);
+			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
+			while (hierarchyNode.parentEntityPrimaryKey() != null) {
+				final int parentPrimaryKey = hierarchyNode.parentEntityPrimaryKey();
+				final HierarchyNode parentNode = store.itemIndex().get(parentPrimaryKey);
+				if (parentNode == null || !output.checkedAdd(parentPrimaryKey)) {
+					// the chain either breaks here, or closes into a ring, or meets an ancestor another
+					// input node has already contributed - in every case there is nothing left to collect
+					break;
 				}
+				hierarchyNode = parentNode;
 			}
 		}
 		return output.isEmpty() ?
@@ -1558,14 +1560,33 @@ public class HierarchyIndex
 	 */
 	@Nonnull
 	private HierarchyNode getHierarchyNodeOrThrowException(int theNode) {
+		final HierarchyNode hierarchyNode = getNodeStoreOrThrowException(theNode).itemIndex().get(theNode);
+		Assert.isTrue(hierarchyNode != null, "The node `" + theNode + "` is not present in the index!");
+		return hierarchyNode;
+	}
+
+	/**
+	 * Returns the node store, reporting the absence of `theNode` when no node has ever been written to this index
+	 * and the store therefore does not exist yet.
+	 *
+	 * An index that never received a node cannot hold the one being asked for, so the caller is naming a primary
+	 * key it never registered - the same programming error {@link #getHierarchyNodeOrThrowException(int)} reports
+	 * for a key a populated store does not know, and reported the same way rather than answered with an empty
+	 * result. Callers that legitimately tolerate an empty index read {@link #nodeStore} directly and branch on
+	 * `null` themselves; this entry point exists for the ones whose contract is to fail.
+	 *
+	 * @param theNode the primary key the caller is asking about, named in the exception message
+	 * @return the node store, never `null`
+	 * @throws EvitaInvalidUsageException when no node has ever been written to this index
+	 */
+	@Nonnull
+	private HierarchyNodeStore getNodeStoreOrThrowException(int theNode) {
 		final HierarchyNodeStore store = this.nodeStore;
 		if (store == null) {
 			// no node has ever been written to this index, so the hierarchy is empty by construction
 			throw new EvitaInvalidUsageException("The node `" + theNode + "` is not present in the index!");
 		}
-		final HierarchyNode hierarchyNode = store.itemIndex().get(theNode);
-		Assert.isTrue(hierarchyNode != null, "The node `" + theNode + "` is not present in the index!");
-		return hierarchyNode;
+		return store;
 	}
 
 	/**
@@ -1578,9 +1599,8 @@ public class HierarchyIndex
 	 * yet, which `documentation/user/en/use/schema.md` describes as a legitimate orphan state. Both
 	 * leave a node pointing at a primary key nobody can resolve.
 	 *
-	 * @param store         the node store holding the node whose parent to look up
-	 * @param hierarchyNode the node whose parent to look up
 	 * @param store         the node store to resolve the parent through
+	 * @param hierarchyNode the node whose parent to look up
 	 * @return the parent node, or empty when the node is a root or its parent is not part of the tree
 	 */
 	@Nonnull
