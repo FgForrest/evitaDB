@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-09-02 11:40
+updated: 2026-09-07 15:49
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -768,6 +768,20 @@ rather than a tuning one. Both are open items below.
 
 ### Open items — the fulltext core
 
+- **P5 is implemented but unmerged, and red as it stands (2026-09-02).** PR #1453 targets
+  `258-fulltext-support` and merges cleanly, but its last commit added two tests that assert accent-stripped
+  recall the shipped index chain cannot deliver by the PR's own measurement record —
+  `CzechAccentTypingTest.shouldMatchAccentStrippedTyping` (30 unreachable forms, the bare-typed `-ých` /
+  `-ým` class) and `FulltextAnalyzerTest.shouldConvergeDeclensionFormsWithoutDiacritics` (`panove` stems
+  to `panov`, not `pan`). Verified on the merged tree under two locales, 55 of 57 pass. They read as pinned
+  targets for the M7 query-side fan-out that is not implemented yet, or as documentation tests that should
+  be marked expected-to-fail; the author has to say which before the merge. Five items of the 2026-08-25
+  review also show no change on the branch: Polish and the generic chain do not fold diacritics, `register`
+  carries no note that JPMS consumers must require Lucene themselves, the unknown-language warning set is
+  process-static, and the word/number split filter is absent although the P5 plan on the branch says it
+  ships in the PR. `prototypes/p1-index-core.md` was revised on 2026-09-02 against P8 and P5 and already
+  states the shipped contract; on merge, its §2 takes the revised text over the PR's eleven-line addition,
+  which the revision supersedes.
 - **Semantic search is a phase dependency, not a gap.** Today's Lucene client has kNN over a
   `vector` field, document and query embeddings, and a query-vector cache, all deployed. For us it
   arrives with F2, and `float[]` is not a valid attribute type today. A customer using semantic
@@ -995,6 +1009,16 @@ rather than a tuning one. Both are open items below.
   patterns: zero regressions, the `n`-scaling reading of the synthetic ladder falsified, the gate's
   *input* indicted rather than its threshold, and the `unique`-not-`filterable` refusal and the
   no-migration lock-out surfaced as the two open questions that matter for shipping
+- **2026-09-02** — P8 merged (PR #1483, issue #1454 closed); the P1 plan revised in place against what
+  P8 shipped and what P5 (PR #1453, unmerged) measured — the analyzer contract, the M7 query-side
+  fan-out and its per-token counting rule, the derived-versus-persisted question restated as a build-time
+  measurement, the CMS dataset's availability — before P1's implementation starts
+- **2026-09-07** — the P6 plan revised in place against the jVector checkout (`4.0.0-rc.9` + 12,
+  every web-only claim replaced by a source anchor), an assessment of hnsw-sb (set aside: no filtered
+  ANN, no quantization, string ids, no licence) and an external note on filtered and quantized ANN; the
+  mini-gate reframed from "jVector or in-house HNSW" to a planner-over-strategies subsystem with Lucene's
+  vector packages added as a library candidate, and the verified negatives recorded — no cancellation,
+  no ACORN-style widening and no scalar or RaBitQ-style code in jVector, no deletes in Lucene
 
 ## Supporting material
 
@@ -1018,7 +1042,12 @@ rather than a tuning one. Both are open items below.
 - [`prototypes/p5-analyzers.md`](prototypes/p5-analyzers.md) — the analyser registry, the Czech chain,
   and the coexistence of the analysis chain with today's NFD normalisation.
 - [`prototypes/p6-vector-spike.md`](prototypes/p6-vector-spike.md) — the vector branch as a separate
-  decision with its own mini-gate: jVector as an embeddable library versus an in-house HNSW.
+  decision with its own mini-gate. Revised 2026-09-07 against the jVector and hnsw-sb checkouts: the
+  gate now asks for the shape of a retrieval subsystem — a planner over four filtered-search strategies,
+  a codec slot separate from the graph, exact reranking — and which graph stands behind its seam;
+  the candidates are jVector, Lucene's vector packages as a library, and in-house; hnsw-sb is assessed
+  and set aside. Its §4.0 lists what the checkout corrected in the earlier web-only reading, and its §12
+  holds open questions OP6-1 to OP6-18.
 - [`prototypes/p7-rank-profiles-and-boost-channel.md`](prototypes/p7-rank-profiles-and-boost-channel.md)
   — rank profiles, the boost channel, feature export, and the curated layer's placement.
 - [`prototypes/query-design.md`](prototypes/query-design.md) — the shape of the query language and

@@ -7,6 +7,23 @@
 >
 > Written on 2026-08-12. All anchors into the code were verified against the state of the `dev` branch
 > on the same day. Translated from Czech and moved into this record on 2026-08-24.
+>
+> **Revised 2026-09-02, before implementation starts.** Two lines of work this plan treated as future or
+> parallel have since landed and changed its inputs: **P8**, the trigram substring index (issue #1454,
+> merged as PR #1483), and **P5**, the analysis chain (PR #1453 on branch `258-fulltext-support-p5`,
+> **unmerged** at the time of revision — two of its own tests are red and five review items are open,
+> see the record's *Open items*). The questions P1 answers and the gate criteria of §1 are unchanged.
+> What changed is marked **[2026-09-02]** in place; the list, so that nothing has to be diffed: §1.2 and
+> §2 (the analyzer contract is concrete and NFC-normalised, the stand-in is withdrawn, the second-lane
+> question is refuted, a query-side hypothesis fan-out is a new input), §3.3 (the hosting and the
+> schema-capability templates exist), §3.4 (persistence has a measured negative precedent), §3.5 and
+> §7.5 (the baseline is accelerated), §3.7 (the harness pieces exist), §4.3.5 (derive versus persist),
+> §5.2–§5.3 (the fan-out enters the cost model; the matched-terms lane counts query tokens), §6 (K1, K2,
+> K3, K5, K6, K7 restated), §7.4 (the CMS dataset exists) and §8 (Q4, Q6, Q7, Q8 restated; Q9, Q10
+> added). Code anchors named inside a **[2026-09-02]** note were re-verified against
+> `258-fulltext-support` at `ee2801c8e`; every other anchor still carries its 2026-08-12 line number and
+> must be re-checked before being relied on — `FilterIndex#getRecordsWhoseValuesContains`, for one, has
+> moved from line 592 to 742.
 
 ---
 
@@ -60,9 +77,12 @@ incremental operation. The measurement procedure is in §7.2.
 - **No integration into the write path.** `AttributeIndexMutator`, `EntityIndex` and the schema are not
   touched. The design in §3.3 shows where the structure will be hung in F1, so that the prototype does
   not go against the grain.
-- **No analyzers of its own.** Tokenization is the subject of P5, which precedes the gate. P1 works with
-  the tokenizer as a pluggable interface and, should P5 not have run yet, with its provisional stand-in
-  (§7.1).
+- **No analyzers of its own.** Tokenization is the subject of P5, which precedes the gate.
+  **[2026-09-02]** P5 has delivered it (PR #1453): P1 consumes
+  `FulltextAnalyzerRegistry#getIndexAnalyzer(entityType, locale)` and
+  `FulltextAnalyzer#analyze(String, AnalyzedTermConsumer)` as they are, and the provisional stand-in this
+  plan once reserved for K2 is withdrawn — a number measured over a stand-in would have had to be
+  re-measured anyway.
 - **No rank profiles nor boost channel.** That is P7. P1 implements a single, hard-wired profile — the
   lexicographic 64-bit composite of §4.3 of the research — and does so in a way that generalizing it to
   profiles will not require rewriting the scorer.
@@ -84,18 +104,49 @@ profile (§4.3); full-set scoring without WAND (§2.3).
 **What P1 assumes from P5:** a stable tokenizer per locale and agreement between the indexing and query
 analysis on the produced terms. P1 does not produce a tokenizer, but its output is an input of the index
 build — if P5 decides otherwise (a different stemmer, a different normalization), the **content** of the
-dictionary changes, not its shape, so P1 can be remeasured against a new analyzer without a rewrite. The
-concrete shape of the contract is already proposed by the P5 plan (`p5-analyzers.md`, §4.2): one method
-emitting records `(term, startOffset, endOffset, positionIncrement)`, with a seam left for an
-allocation-free variant with a callback. P1 consumes only the terms from it — offsets are needed only by
-highlighting and P4 — but it should consume **that** contract, not a simplified one of its own.
+dictionary changes, not its shape, so P1 can be remeasured against a new analyzer without a rewrite.
+**[2026-09-02] The contract is no longer a proposal — it is the shape shipped in PR #1453**, package
+`io.evitadb.index.fulltext.analysis` of `evita_engine`: `FulltextAnalyzerRegistry` resolves one analyzer
+per (entity type, locale) and slot (`INDEX`, `SEARCH`, `PHRASE`; a chain declares at registration which
+sides it may serve, `AnalysisMode`), and `FulltextAnalyzer#analyze` streams one callback per term carrying
+the term, a *lazily* supplied surface form, both offsets and the position increment
+(`AnalyzedTermConsumer`); `getTerms` is the collecting convenience. Three properties of it bind P1.
+**The analyzer normalises its input to NFC at the boundary**, while the filter index and the trigram index
+keep NFD — the two coexist by design (the `FulltextAnalyzer` JavaDoc says why the NFC line must not be
+removed) and P1 must not assume NFD for a term. **Offsets index into the NFC-normalised text**, not into
+the stored value — a highlighting concern for P4, not P1's. And **Lucene 9.12.3 is a pinned dependency of
+`evita_engine`**, frozen against Dependabot because the chain's output *is* the dictionary's content, so
+`lucene-core`'s `LevenshteinAutomata` is available to K5 without the friction §6 anticipated.
 
-**A decision P5 explicitly delegates to P1:** whether the dictionary will carry only the stem, or the
-stem and the surface form (`p5-analyzers.md`, §4.2 and the recommendation on the same fork). P5 designs
-the contract so that it emits the surface form — after analysis it cannot be recovered — but what the
-dictionary does with it is to be decided by **P1 by measuring the dictionary's size** (and by P3 through
-the suggester's quality). K3 therefore measures it in both variants; it is one builder parameter, not a
-second implementation.
+**A decision P5 explicitly delegated to P1 — and what became of it:** whether the dictionary will carry
+only the stem, or the stem and the surface form. P5 designed the contract so that it emits the surface
+form — after analysis it cannot be recovered — and left what the dictionary does with it to **P1, by
+measuring the dictionary's size** (and to P3 through the suggester's quality). **[2026-09-02]** The
+correctness argument for a surface lane is gone. P5's measurement record
+(`p5-approach-measurements-accent-vs-stemming.md`, §8) refutes the second-lane-per-term mechanism — it buys
+3 pairs of 95 for a 1.95× term inflation, because a folded surface lane and a stem lane only ever meet like
+for like — so the term dictionary layout is **not** obliged to hold two lanes per token, and the review of
+PR #1453 that had asked for a folded surface-form lane against the accent-typing gap is answered another
+way (next paragraph). K3 still measures the dictionary in both modes, but as a size figure for P3, not as
+a layout decision; if a surface lane is ever wanted it must be argued from exact-phrase or highlighting,
+on its own merits. Two P5 leftovers remain P1 inputs. The **real-attribute-value tokenization review** of
+`p5-analyzers.md` §10.3 was not executed in P5 and must run in K3, on the same corpora P1 measures with,
+before the layout freezes — it is the designated tripwire for revisiting the discarded keyword-marker
+protection. And the **accent-typed query problem** has moved out of the dictionary and into the query
+pipeline, as follows.
+
+**[2026-09-02] A new input from P5 that changes the scorer, not the index — the M7 verdict.** The
+production Czech chain scores perfectly on stored values, because stored values are spelled correctly;
+every failure of accent-stripped typing is on the query side. P5 therefore keeps the index chain as it is
+and resolves the query by **folding it and emitting every stem the folded stemmer could produce as OR'd
+terms** — measured at 1.30 terms per query token on average and never more than 2 on the fixture
+vocabulary (P5 measurement record, §6 and §8). For P1 this is a third source of expansion beside prefix and
+typo (§5.2), and it forces a rule §5.3 had left implicit: **every lane that counts matches counts query
+tokens, not expanded terms** — a hit on any expansion of a token, whether hypothesis, prefix or typo
+variant, counts that token once. The hypotheses share one position, so phrase semantics for them is P4's
+question. The production folded-space stemmer does not exist yet — the measurement's `FoldedCzechStemmer`
+is test code on the P5 branch — so K5 either consumes a production port or enumerates the hypotheses with
+the same tables; recorded as Q9.
 
 **What P1 hands over to P2:** the decision on the sidecar's shape including its invariants, the measured
 RAM of both considered shapes, and a list of places where the rank alignment can diverge under the
@@ -116,7 +167,14 @@ understand each other:
   baseline (the same build with the flag switched off) and warns that if P1 does not deliver it, it
   becomes P2's first step. **P1 does not deliver it** — §1.2 excludes it and §3.3 explains why (the flag
   does not exist in the schema today and it is F1 work intertwined with O6). It is therefore
-  deliberately P2, step 1, not an omission; recorded as question Q7.
+  deliberately P2, step 1, not an omission; recorded as question Q7. **[2026-09-02]** The *template*
+  for that flag now exists: P8 shipped a scoped, per-attribute capability on its own builder axis
+  (`acceleratedFor(...)`, `AttributeFilterAccelerator`, `SetAttributeSchemaAcceleratedMutation`),
+  validated on assembled schemas through `AttributeSchemaContract#validate` rather than on the mutation,
+  and **refused** when added to a collection that already holds entities
+  (`EntityCollection#verifyNoFilterCapabilityAddedToNonEmptyCollection`). `searchable()` stays its own
+  axis (`schema-design.md` §5.4 says why it is not folded the same way), so the flag is still P2's
+  step 1 — but a copy of a worked example, not a design.
 
 **What P1 hands over to P7:** phase 1's feature vector as an array of values aligned to the candidate set
 (§5.3). The boost map and rank profiles hook into it without changing the scorer — which is exactly why
@@ -233,6 +291,17 @@ The target shape for F1 (P1 does not build it, it merely aims at it): `GlobalEnt
 `captureOriginalsFromComponents()` has to be called as the **last step** of the terminal subclass's
 constructor, i.e. after all `addComponent(...)` calls (`EntityIndex.java:1012`, JavaDoc).
 
+**[2026-09-02] The trigram index is hosted exactly this way, so the target shape is now a copy.**
+`TrigramIndexMapComponent` is registered beside `PriceIndexComponent` in both `GlobalEntityIndex`
+constructors (`GlobalEntityIndex.java:263-267` and `:327-331`). Three rules came with it that a
+`FulltextIndex` component inherits, all recorded in the P8 section of the record's *Key technical
+details*: the component has a storage surface of exactly zero and is re-derived by the finalizer of
+`GlobalEntityIndex.reloadPlan()` from the already-loaded shared value trees, with a stated mapping
+exception in `EntityIndexReloadPlanSymmetryTest`; a posting is never mutated in place, because the tree
+versions references and a savepoint rollback restores them; and a rebuild failure fails the catalog load
+rather than opening it with the index silently missing. Whether the fulltext structures are derived the
+same way is precisely Q8 (§4.3.5), and P1 owes that decision a build-time number (K3, K4).
+
 **The write path** leads through `AttributeIndexMutator.executeAttributeUpsert`
 (`AttributeIndexMutator.java:151`). There is also the gate deciding whether the indexes are touched at
 all:
@@ -249,6 +318,14 @@ Fulltext will add a fourth disjunct. **That flag does not exist today, though** 
 the flag (and with it the pivot of length normalization, §4.4) is therefore **schema work for F1**,
 intertwined with O6 of the research (searchable associated data). P1 avoids it by configuring both the
 pivot and the field selection outside the schema, in the harness.
+
+**[2026-09-02]** The gate is unchanged, but the class has moved: `AttributeIndexMutator` now lives in
+`io.evitadb.index.mutation.local`, `executeAttributeUpsert` is still at line 151 and the three-disjunct
+gate sits at lines 177 and 325. P8 did not add a fourth disjunct — its capability rides on the filter
+index that already exists, which is the whole point of `acceleratedFor(...)` — so fulltext will be the
+first to add one. The schema half of that is the template described under §2 (*What P1 hands over to
+P2*); `AttributeSchemaContract#hasFilterIndexInScope` is the precedent for a scope-aware predicate that
+is not one of the three flags.
 
 ### 3.4 Persistence: granular paging is a finished pattern
 
@@ -272,6 +349,17 @@ P1 **does not implement** persistence — it builds in memory. But the format of
 chunks has to be such that it fits into this template without rearrangement, and §4 takes that into
 account.
 
+**[2026-09-02] Persistence now has a measured negative precedent, and four traps.** P8 priced persisting
+its postings at every granularity this template offers and rejected all of them — one new value rewrites
+~4.8 MB of whole postings, 4 285× what a delta journal would append, 94 % of it bystander bytes — and
+shipped a derived structure with an ordered-append bulk rebuild of 4.0 s on 943 410 distinct values
+instead (the record's *Rejected outright*, the three P8 rows, and *Verification*, *Catalog load*). The
+same section records four properties of this paged machinery that decide the shape of any persisted form
+and are invisible from outside: nothing bounds a leaf page by bytes, a split writes both halves fresh,
+`publishPreviousFlush` is load-bearing, and a value mutated in place reads CLEAN and is never rewritten.
+None of that decides the fulltext case — its rebuild re-analyses the whole corpus, which the trigram
+rebuild never had to — but it moves Q8 from "decide before the format" to "measure, then decide" (§4.3.5).
+
 ### 3.5 Today's baseline: `attributeContains`
 
 `AbstractAttributeStringSearchTranslator` (`.../filter/translator/attribute/`) builds a predicate from the
@@ -292,6 +380,16 @@ over values normalized to Unicode NFD (`FilterIndex.java:278-284`). Two things f
 baseline is slow in proportion to the number of distinct values, and above all it **matches a substring
 of the whole value**, so a multi-word query ends on it with practically zero results. The comparison "who
 is better" therefore has to be split, otherwise we win by definition and learn nothing.
+
+**[2026-09-02] The first of those two things no longer holds where it matters.** The method above is
+unchanged (now `FilterIndex.java:742`, `endsWith` at 729, the `TOBEDONE` comment still in place), but
+`attributeContains` and `attributeEndsWith` are served by the trigram accelerator for every attribute that
+declares `acceleratedFor(SUBSTRING_SEARCH)` — entered from `AbstractAttributeStringSearchTranslator`,
+gated by `TrigramSubstringSearch`, with zero regressions over 159 real patterns on a production
+e-commerce catalog and typical wins of one to three orders of magnitude (the record's *P8 on a production
+corpus*). The baseline for §7.5 is therefore no longer "a slow scan" but "a fast literal match", and the
+second point — substring of the whole value, no notion of a word or of ranking — is the entire
+difference. That is what §7.5 now compares.
 
 ### 3.6 The seam for the sorter: `FilteredPriceRecordAccessor`, not `FilteredPricesSorter`
 
@@ -330,6 +428,20 @@ because it means **the formula engine really is not touched**, as §4.3 of the r
   directory snapshot passed by the system properties `evita.replay.catalogName` and
   `evita.replay.pristineDataDir` (`WalReplayState.java:139-265`). The datasets are **not** in the repo —
   they are supplied externally.
+- **[2026-09-02] Four pieces of the harness now exist and are to be reused, not rewritten.**
+  `io.evitadb.spike.footprint.FootprintSpikeSupport#ownedSize(instance, sharedRoots...)` is the JOL
+  procedure of §7.2 packaged with the three measurement rules its JavaDoc states (deep-retained, owned
+  graph only, shared roots subtracted by set difference rather than by arithmetic).
+  `io.evitadb.spike.trigram.TrigramCorpusExtractor` is K1 as far as filter-indexed `String` attributes
+  go — one TSV line per occurrence, `entityType / attributeName / locale / entityPrimaryKey / value`,
+  raw and never normalised — and its companion note says it was written to serve P1;
+  `TrigramCorpusStatistics` beside it is a K3-style statistics pass over that TSV with a different token
+  generator. `SubstringCatalogFixture` in `evita_performance_tests` is the precedent for an **honest
+  benchmark arm**: every cell prints the flag saying which path actually ran, which is how a "faster"
+  arm that had silently fallen back was caught. And the `spike/trigram` package sets the convention for
+  where P1's instruments live: the package is git-ignored, an instrument is force-added only with a
+  companion `.md` stating the question it answers, and a spike that answered a settled fork is deleted
+  (`spike/trigram/README.md`). P1's instruments go in `spike/fulltext` under the same rule.
 
 ---
 
@@ -552,6 +664,15 @@ function of data that is entirely in the catalog — but it is a choice that **m
 comes into being**, because it determines whether a chunk needs a self-describing header at all. Recorded
 as question Q8.
 
+**[2026-09-02]** P8 took the second path — derived, zero storage surface, rebuilt on catalog open — and
+measured why (§3.4). For fulltext the same choice has a cost P8 never paid: a rebuild re-analyses every
+stored value through the Lucene chain, so the open-time cost scales with corpus bytes times analyzer
+throughput, not with the value count. Neither path can be chosen from the armchair, which is why K3 and K4
+now report **bulk build time from the corpus TSV, per structure**, beside their memory figures. If the
+derived path wins, this whole section and Q8 dissolve — no header, no version, no BWC surface — exactly
+as they did for the trigram index. If it loses, the four paged-machinery properties recorded in §3.4
+decide the format, and Q8 stands as written.
+
 **These points are, however, no longer open — P2 answered them.** The recommended variant B of plan P2
 (`p2-transactional-maintenance.md`, §6) sidesteps points 1 and 2 by construction: during a transaction the
 alignment is not maintained at all (the diff layer is a plain unaligned delta of `(PK, impact)` pairs) and
@@ -636,6 +757,12 @@ The first addend dominates and has two independent variables the harness has to 
 - **the expansion width.** Prefix and typo expansion (§4.6 of the research) multiplies the number of
   postings read. Three tokens each expanded into fifty variants means 150 passes, and if the variants are
   frequent, it is 1.5×10⁸ steps — **out of budget**, and that with a single million candidates.
+- **[2026-09-02] the hypothesis fan-out.** The M7 query-side resolution of P5 (§2) turns one query token
+  into the set of stems a folded stemmer could produce — 1.30 on average, at most 2, on P5's fixture
+  vocabulary — and every hypothesis is then prefix- and typo-expanded in turn. It multiplies the expansion
+  width rather than adding to it, so the cap of §4.6 of the research is spent per *token*, across all
+  three sources together; K6 varies it as its own parameter and reports where the product of the three
+  crosses the budget.
 
 This is the main result P1 is to bring: **where the knee is**. The mitigations are known and both have a
 precedent: a hard cap on the number of expanded terms (§4.6 of the research mentions it) and ordering the
@@ -657,6 +784,15 @@ The recommended shape of the walk — the analogue of what `FilteredPricesSorter
    of matched terms, the weighted sum of typos, the maximum impact (across all fields and terms, with the
    field's weight from the query), the best exactness reached, and a prepared place for the contextual
    rank and for the provenance of a match across a reference (§2, the seam for §1.4 of the research).
+   **[2026-09-02] The unit of "matched" is the query token, never the expanded term.** A token that was
+   expanded into hypotheses, prefixes or typo variants counts once however many of its expansions hit,
+   its typo lane carries the *best* distance among the expansions that hit, and its exactness lane the
+   best exactness. Without this rule a query token with two folded hypotheses would outscore a token with
+   one, which is a property of the stemmer's tables, not of the document. This was implicit for typo
+   variants and is spelled out now because the M7 fan-out (§2, §5.2) makes multiple hits per token the
+   common case rather than the exception. The cheapest implementation is to merge each token's expansions
+   into one pass over its union of postings, carrying the best lane values, before the token's contribution
+   reaches the accumulator.
 4. **Compose the 64-bit composite only at the end**, in a single pass over the accumulators, per the table
    of lanes in §4.3 of the research. The bit split (8/8/8/8/16/16) is a matter for the prototype, not of
    principle.
@@ -754,15 +890,25 @@ snapshot, i.e. the same way as `WalReplayState` (the system properties `evita.re
 `evita.replay.pristineDataDir`, `WalReplayState.java:139-265`). *Why separate:* the measurement run then
 has no live catalog on the heap, repeats in seconds and can be run on a different machine from the one
 where the data lies. Precedent: `BucketStoreMemorySpike` reads `*.buckets.tsv` extracted in advance.
+**[2026-09-02]** It exists: `io.evitadb.spike.trigram.TrigramCorpusExtractor` (§3.7) dumps exactly this
+shape and copies the catalog before booting it, because a boot replays the WAL and may compact. Its one
+gap is scope — it dumps only `String` attributes that carry a filter index in some scope, because that
+is what a substring predicate can be accelerated against. Fulltext fields are, as a rule, *not* filter
+indexed (a long description is nothing anyone filters by), and the CMS body may be associated data rather
+than an attribute at all (Q10). K1 is therefore **widen the extractor with an explicit opt-in list of
+(entity type, attribute or associated-data name)**, keeping the TSV format so `TrigramCorpusStatistics`
+and every later instrument keep reading it, not a new tool.
 
-**K2 — the tokenization interface and its provisional implementation.** Not an interface of our own but
-**the contract designed in P5** (`p5-analyzers.md`, §4.2): a method emitting records
-`(term, startOffset, endOffset, positionIncrement)`. P1 reads only the terms from them, but hooks into the
-same contract, so that swapping the stand-in for the real analyzer is a swap of implementation, not a
-rewrite of the caller. Until P5 delivers, the provisional implementation: NFD normalization (because of
-coexistence with today's `FilterIndex`, `FilterIndex.java:278-284`), lowercasing, splitting on non-letter
-characters. *Explicitly: the numbers from this run are not qualitatively comparable with a run over the P5
-analyzer* — they serve to develop the harness and for a first RAM estimate.
+**K2 — the tokenization step.** **[2026-09-02, restated.]** Not an interface of our own and no longer a
+stand-in either: the harness resolves `FulltextAnalyzerRegistry#getIndexAnalyzer(entityType, locale)` and
+feeds every extracted value through `FulltextAnalyzer#analyze(String, AnalyzedTermConsumer)`, consuming
+the term and the position increment and ignoring the offsets and the lazy surface form, exactly as the
+indexing path will. Two things to hold: the terms are **NFC**-derived, not NFD — the stand-in's reason
+for NFD was coexistence with `FilterIndex`, and P5 settled that the two normalisations coexist by design
+(§2) — and the registry is per catalog, so the harness builds one and closes it. The earlier warning that
+stand-in numbers would not be comparable with the real analyzer is moot; every number K3 onwards produces
+is measured over the chain that will ship. Where P5's Czech chain is concerned, that is the *index-side*
+chain (M7 keeps it as it is); the query-side fan-out belongs to K5.
 
 **K3 — the builder of the dictionary and the postings.** From the input of K1+K2, build a
 `TransactionalBucketBPlusTree` per variant D1 (§4.1): the key `prefix(field) + term`, the value via
@@ -770,6 +916,14 @@ analyzer* — they serve to develop the harness and for a first RAM estimate.
 computed `docFreq` per key. Part of the step is also **measuring the dictionary's size in two modes — stem
 only, and stem plus surface form** (§2): P5 conditions its open fork on this number and without it has
 nothing to decide it with. A by-product is the real Zipf curve of both profiles (handover P→budget, §8).
+**[2026-09-02]** Three amendments. The two-mode measurement stays but its consumer changed — P5's fork is
+refuted and the number now serves P3's suggester design, so a `stem → surface-form keys` third variant
+(handover P→5) is measured only if P3 asks for it. K3 additionally reports **bulk build time** from the
+TSV, because Q8 is now decided on it (§4.3.5). And K3 hosts the **real-value tokenization review** P5 did
+not execute (`p5-analyzers.md` §10.3): for a sample of real values per corpus, print the terms they
+decomposed into for a human to read — dimensions, hyphenated codes, units after numbers, brand names
+mixing capitals and digits — with the output kept in a machine-readable form. It has to run before the
+layout freezes, and it is the tripwire for revisiting the keyword-marker protection P5 discarded.
 
 **K4 — the sidecar builder, both variants.** From the same input compute `tf` and the field lengths, from
 them the impact bytes (§4.4), and store them both as S1 (rank-aligned `byte[]` chunks) and as S2 (parallel
@@ -777,19 +931,41 @@ them the impact bytes (§4.4), and store them both as S1 (rank-aligned `byte[]` 
 **reading the memory peak during the build** and the smallest `-Xmx` at which the build completes (§7.2) —
 without that, that figure never comes into being in the procedure, because a measurement run after the
 build completes shows only the finished structure. *Here we learn the answer to the gate's first question.*
+**[2026-09-02]** As in K3, report the sidecar's bulk build time per variant beside its memory; the
+derive-versus-persist decision of Q8 needs the sum of K3's and K4's figures on the CMS profile, where
+re-analysis on every catalog open is most expensive.
 
 **K5 — term expansion.** Prefix expansion via a cursor (§3.1) and typo expansion via a Levenshtein DFA.
 For P1 the direct construction from `lucene-core` suffices (`LevenshteinAutomata`, §3 of the research; a
 hard cap of distance 2), interleaved with a dictionary-guided walk of the tree. *Should wiring Lucene in as
 a dependency prove a friction in P1, a crude expansion (all terms up to distance 2 computed naively) can be
 used for the latency measurement — the phase 1 latency numbers do not depend on it, because they measure
-walking postings, not the cost of expansion.*
+walking postings, not the cost of expansion.* **[2026-09-02]** The friction is gone: `lucene-core` 9.12.3
+is a dependency of `evita_engine` since PR #1453, so `LevenshteinAutomata` is used directly and the crude
+fallback is withdrawn. K5 gains a third expansion source — the **M7 hypothesis fan-out** of §2 — applied
+*before* prefix and typo expansion, so that each hypothesis is expanded in turn. The folded-space stemmer
+that produces the hypotheses is test code on the P5 branch (`FoldedCzechStemmer`, with its ambiguous
+rules as switches); K5 either drives a production port of it or enumerates the switch positions itself,
+and either way records the measured fan-out per token on the real corpora, because 1.30 was measured on
+a 32-lemma fixture and is not a corpus number (Q9).
 
 **K6 — the phase 1 scorer.** The walk per §5.3, with a parameterizable expansion cap and expansion ordering
-by cardinality. *Here we learn the answer to the gate's second question.*
+by cardinality. *Here we learn the answer to the gate's second question.* **[2026-09-02]** Three
+conditions carried over from P8, where each was learned the expensive way (the record's *The trigram gate
+constant* and *P8 on a production corpus*). The fan-out is a parameter of the run, and the counting rule
+of §5.3 step 3 is asserted by a test before any number is read. **Every cell prints which path and which
+expansion width actually ran**, in the manner of `SubstringCatalogFixture`, so a cell that silently
+capped cannot be read as a cheap one. And **the expansion knee is measured on at least two corpora of
+different character** — P8's synthetic ladder produced a scaling law in `n` that a production corpus
+falsified outright, and a cap chosen from one corpus is that mistake again.
 
 **K7 — a set of ~50 queries and the baseline.** Assembling the queries (§7.5) and running today's
-`attributeContains` over the same catalog for a comparison of the result sets.
+`attributeContains` over the same catalog for a comparison of the result sets. **[2026-09-02]** The
+baseline is run with the attribute declared `acceleratedFor(SUBSTRING_SEARCH)`, so the comparison is
+between a fast literal match and a tokenised, ranked one — a difference of capabilities in both
+directions (§7.5), not a race. The Czech query set is analysed through the *search* slot with the M7
+fan-out, the index through the *index* slot; running both through one chain would hide exactly the
+asymmetry P5 measured.
 
 **K8 — writing up the findings.** The measured numbers, the expansion knee, the recommendation on the
 sidecar variant, and the list of traps for P2 per §4.3.4.
@@ -863,10 +1039,21 @@ The usual traps of measurement runs recorded in the repo apply: the benchmark mu
 **The e-commerce profile.** A real production e-commerce catalog. It is **not** in the repo — it is supplied
 externally as a directory with a snapshot, the way `WalReplayState` consumes it. Mind the memory: booting a
 real catalog is gigabytes and the measurement run must not take place on a machine where the heap is tight.
-That is precisely why K1 is separated from K2–K4 (§6).
+That is precisely why K1 is separated from K2–K4 (§6). **[2026-09-02]** Two such catalogs were measured by
+P8 and are to hand: a production e-commerce catalog of ~157 000 products across 18 collections (short
+identifier-shaped and name-shaped fields; the corpus of the 159-pattern run), and a fan-out-heavy
+production catalog with ~20 800 reduced indexes (the replication census). The public demo dataset is the
+harness-development corpus and never a gate number.
 
-**The CMS profile (Z8).** Here the dataset **does not exist even externally** and it is a real schedule
-risk, not a formality. The options, in order of evidentiary value:
+**The CMS profile (Z8).** **[2026-09-02] The dataset exists, and Q4 is resolved.** P8 measured its trigram
+structures on a production CMS catalog of 972 611 articles (the per-attribute memory table in the
+record's *Verification*), so the long-text profile is a run, not a schedule risk — with one condition to
+verify first: the P8 census saw only the filter-indexed `String` attributes (title, keywords, authors,
+URL, path, a content hash, category and section names), and the article *body* was not among them. Whether
+the body is stored as a non-indexed attribute, as associated data, or not at all decides how K1 reaches
+it and whether the profile's document lengths are the real ones; recorded as Q10. The three options below
+are kept as the order of evidentiary value they were written in; only (1) is now a gate corpus, and (2)
+and (3) remain fallbacks for the case Q10 answers "not stored".
 
 1. **A real CMS export from a customer.** The only variant with the right distribution of document
    lengths, the right Zipf curve of terms and the structure of content blocks from §1.4 of the research. It
@@ -883,12 +1070,22 @@ risk, not a formality. The options, in order of evidentiary value:
    only to develop the harness, never as a gate number.**
 
 *Recommendation:* develop on (3), measure the gate on (1), and if (1) does not arrive in time, measure on
-(2) with an explicit note that it is a pessimistic surrogate corpus.
+(2) with an explicit note that it is a pessimistic surrogate corpus. **[2026-09-02]** (1) has arrived;
+develop on the demo dataset, measure the gate on (1) once Q10 confirms the body is reachable, and fall
+back to (2) only if it is not.
 
 ### 7.5 The qualitative side-by-side against `attributeContains`
 
 The baseline is per §3.5 a substring match over the whole attribute value, without any ordering. Two things
 follow that the comparison has to respect if it is not to be mere self-congratulation:
+
+**[2026-09-02]** A third thing, now that the baseline is trigram-accelerated (§3.5): the comparison is
+**not about speed at all** and must not report latency side by side. Both paths are fast on their own
+terms; what is compared is what each one finds. The single-word group is where the honest two-way result
+lives, and the trigram line is the reason the infix regression named below is a *capability kept*, not a
+loss to be argued away — P8's brief §33 point 4 closes Q6 on exactly this: `contains`/`endsWith` stay
+literal and unranked and fast, fulltext is tokenised and ranked, and neither has to absorb the other's
+semantics.
 
 **Split the queries into two groups.**
 - **~25 single-word queries.** Here the comparison is honest and interesting in both directions. Fulltext
@@ -978,6 +1175,8 @@ that somebody does not have to discover it under load.
 
 **Q4 — Availability of a CMS dataset.** Without it the gate's second criterion cannot be evaluated (§7.4).
 It is an organizational dependency, not a technical one, and therefore nobody will resolve it automatically.
+**[2026-09-02] Resolved** — a production CMS catalog of 972 611 articles was measured by P8 and is
+available (§7.4); what remains of it is Q10.
 
 **Q5 — Does the Sage comparison harness exist, or is it so far a plan?** §7 of the research relies on it at
 the gate; both referenced documents are "analysis only" analyses (§7.5). Until that is confirmed, P1 plans
@@ -989,13 +1188,25 @@ queries depend on an infix. If often, it is input for P5 (rules for tokenizing n
 codes), not for P1. A second consumer of that number now exists: the trigram substring index
 (`p8-trigram-substring-index.md`, §33), which attacks the infix case from the other side by making the
 literal `contains` path fast — if infix dependence turns out to be common, it strengthens that line
-rather than P5's tokenization rules.
+rather than P5's tokenization rules. **[2026-09-02] Closed by P8**, which shipped that path
+(`acceleratedFor(SUBSTRING_SEARCH)`): the infix case is served, `attributeContains` stays beside fulltext
+by construction, and P5 has since discarded token-level protection on the same grounds (`p5-analyzers.md`
+§4.6 point 1 — exact-match values go into separate, non-fulltext attributes served by the trigram lane).
+The only residue for P1 is to report, in K7, how many of the ~50 real queries are infix-shaped, as the
+number the opt-in guidance for both lines will cite.
 
 **Q7 — who will deliver the schema flag for a fulltext field?** P2 needs it as a switch for its baseline
 (`p2-transactional-maintenance.md`, §2 and §10.1) and reckons that if P1 does not deliver it, it becomes
 P2's own first step. P1 deliberately does not deliver it (§1.2, §3.3): there is nothing of the kind in the
 schema today and introducing it is F1 work intertwined with O6 of the research. This is not a technical
 question but a question of the order of work — and it is better decided before P2 discovers it at the start.
+**[2026-09-02]** Still P2's first step, but its cost has changed: the scoped capability axis, its assembled-
+schema validation and its refusal on a non-empty collection all exist as P8's worked example (§2, *What P1
+hands over to P2*), so the flag is a copy with a new name, plus the pivot of §4.4 as its one parameter.
+The part that has *not* been solved is what the refusal implies — no existing catalog can turn the
+capability on, because there is no reindex path — and the record lists that as the one genuinely blocking
+item of the reindexing story. P2 measures on a catalog rebuilt with the flag declared up front, as P8's
+production run had to.
 
 **Q8 — how is the sidecar's format versioned and what happens when an older chunk is read?** (§4.3.5.) Two
 legitimate answers: a compatible reader per the Kryo and `serialVersionUID` discipline (the recipe is in the
@@ -1003,7 +1214,29 @@ legitimate answers: a compatible reader per the Kryo and `serialVersionUID` disc
 rebuilt from the postings and the length array. **P1 does not implement persistence (§3.4), but it needs the
 answer before the format**, because it determines whether a chunk needs a self-describing header, or whether
 a version at the level of the whole persisted sub-index suffices. Deciding it later means changing the
-format.
+format. **[2026-09-02] Restated as a measurement, and widened from the sidecar to all three structures.**
+P8 chose "derived, rebuilt on open" for its postings on numbers (§3.4), and the question for fulltext is
+whether the same holds when the rebuild has to re-analyse the corpus. K3 and K4 report bulk build time per
+structure on both profiles; the decision is taken from those figures against the measured catalog-open
+time of the same catalogs, and only if it comes out "persist" does the versioning question above need an
+answer at all.
+
+**Q9 — who builds the query-side hypothesis fan-out, and in what shape?** P5's M7 verdict (§2) moves the
+accent-typing problem into the query pipeline: one query token expands into the set of stems a
+folded-space Czech stemmer could produce, OR'd, sharing one position. That stemmer exists only as test
+code on the P5 branch; its production port, the enumeration of its ambiguous rules as switches, and the
+choice of where on the recall/precision curve to sit (P5 measurement record §8: A21 is the interim
+recommendation, A20 the fully-fanned one) are P5 follow-up work, not P1's. But K5 needs *something* that
+produces the hypotheses to measure the fan-out on a real corpus, and §5.3 needs the counting rule
+regardless. The same one-token-to-many-terms capability is what synonym expansion needs, so the planner
+seam should be designed once for both; phrase and position semantics for hypothesis terms are P4's.
+
+**Q10 — is the CMS article body stored, and as what?** The P8 census of the production CMS catalog saw
+only its filter-indexed `String` attributes and the body was not among them. If it is a non-indexed
+attribute, K1's widened extractor reaches it by name; if it is associated data, the extractor has to read
+associated data, which no instrument does today; if it is not stored at all, the CMS profile falls back to
+the surrogate corpora of §7.4 and the gate's second criterion is measured on a pessimistic stand-in. This
+is answerable by whoever knows the schema in one line, and it gates K1.
 
 ### Handovers — P1's results somebody else is waiting for
 
@@ -1019,7 +1252,18 @@ chosen, nor can its variant C be conditionally rejected.
 **P→5 — the dictionary's size in two modes.** The result of K3. P5 conditions its fork "stem only vs. stem
 plus surface form" on this number (§2). The research `bitmap-memory-optimizations.md` (§2) adds a third
 variant K3 is to measure too: the tree of surface forms owns the postings and the stem tree holds only lists
-of term keys (a lazy OR at query time, no duplication of bitmaps).
+of term keys (a lazy OR at query time, no duplication of bitmaps). **[2026-09-02]** The consumer has
+changed: P5's fork is refuted (§2) and the number now informs P3's suggester and nothing else, so the
+third variant is measured only on P3's request. Worth knowing before it is: that variant is structurally
+the trigram index's own `trigram → valueId → postings` indirection, and P8's brief §33 point 2 records the
+discriminator between the two shapes — the cardinality of the reference list — and says the value-id
+infrastructure on the shared value tree is the answer if dense term ordinals are ever wanted for sidecar
+addressing or the suggester, designed with both consumers at the table.
+
+**P→planner — one query token expands into a small set of OR'd terms sharing a position.** The result
+of K5 and K6 under Q9: the measured fan-out per token on real corpora, the cost it adds to phase 1, and the
+counting rule of §5.3 step 3 that makes it score-neutral. The consumer is whoever designs the
+`attributeMatches` translation (§5.4) and, through it, synonym expansion, which has the same shape.
 
 **P→budget — the real Zipf curve of both profiles.** The estimate of §4.8 rests on ~300k unique terms for
 1M products and on ~500–600 terms per CMS document. Both are estimates; K3 measures both as a by-product and
