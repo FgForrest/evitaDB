@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.service;
 
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
@@ -44,9 +45,9 @@ public class CatalogStoragePartRegistry implements StoragePartRegistry {
 	@Override
 	public Collection<StoragePartRecord> listStorageParts() {
 		return List.of(
-			new StoragePartRecord((byte) 50, CatalogHeader.class),
-			new StoragePartRecord((byte) 51, EntityCollectionFileHeader.class),
-			new StoragePartRecord((byte) 52, CatalogSchemaStoragePart.class)
+			new StoragePartRecord((byte) 50, CatalogHeader.class, StoragePartGroup.HEADER),
+			new StoragePartRecord((byte) 51, EntityCollectionFileHeader.class, StoragePartGroup.HEADER),
+			new StoragePartRecord((byte) 52, CatalogSchemaStoragePart.class, StoragePartGroup.SCHEMA)
 		);
 	}
 }
