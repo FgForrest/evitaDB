@@ -176,7 +176,7 @@ class DataTypesConverterTest {
 			.enumType()
 			.getValues();
 
-		assertEquals(3, values.size());
+		assertEquals(4, values.size());
 		assertFalse(values.get(0).isDeprecated(), "A constant without @Deprecated must not be flagged");
 		assertNull(values.get(0).getDeprecationReason());
 
@@ -188,6 +188,13 @@ class DataTypesConverterTest {
 			"Deprecated since 2026.2 and scheduled for removal.",
 			values.get(2).getDeprecationReason(),
 			"forRemoval must reach the client, it is the difference between \"avoid\" and \"migrate now\""
+		);
+
+		assertTrue(values.get(3).isDeprecated());
+		assertEquals(
+			"Deprecated.",
+			values.get(3).getDeprecationReason(),
+			"A bare @Deprecated carries no version, and must still mark the value rather than read as undeprecated"
 		);
 	}
 
@@ -271,6 +278,8 @@ class DataTypesConverterTest {
 		@Deprecated(since = "2026.2")
 		RETIRED,
 		@Deprecated(since = "2026.2", forRemoval = true)
-		DOOMED
+		DOOMED,
+		@Deprecated
+		UNDATED
 	}
 }
