@@ -23,6 +23,7 @@
 
 package io.evitadb.store.index.service;
 
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.store.shared.service.StoragePartRegistry;
@@ -41,34 +42,39 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 	@Nonnull
 	@Override
 	public Collection<StoragePartRecord> listStorageParts() {
+		// every type declares the kind of data it holds - see StoragePartRecord for why that is declared rather than
+		// derived. Two entries here are the reason a name test cannot do this job: EntityIdsStoragePart and
+		// HistogramCardinalityStoragePart are index parts whose class names carry no `Index` at all. Leaf-page parts
+		// are charged to the family whose tree they page, because `PAGED` versus `SINGLE` is a storage-format choice
+		// rather than a different kind of data
 		return Arrays.asList(
-			new StoragePartRecord((byte) 20, EntityIndexStoragePart.class),
-			new StoragePartRecord((byte) 21, UniqueIndexStoragePart.class),
-			new StoragePartRecord((byte) 22, FilterIndexStoragePart.class),
-			new StoragePartRecord((byte) 23, SortIndexStoragePart.class),
-			new StoragePartRecord((byte) 24, ChainIndexStoragePart.class),
-			new StoragePartRecord((byte) 25, AttributeCardinalityIndexStoragePart.class),
-			new StoragePartRecord((byte) 26, PriceListAndCurrencySuperIndexStoragePart.class),
-			new StoragePartRecord((byte) 27, PriceListAndCurrencyRefIndexStoragePart.class),
-			new StoragePartRecord((byte) 28, HierarchyIndexStoragePart.class),
-			new StoragePartRecord((byte) 29, FacetIndexStoragePart.class),
-			new StoragePartRecord((byte) 30, CatalogIndexStoragePart.class),
-			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class),
-			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class),
-			new StoragePartRecord((byte) 33, GroupCardinalityIndexStoragePart.class),
-			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class),
-			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class),
-			new StoragePartRecord((byte) 38, PriceListAndCurrencySuperIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 39, GlobalUniqueIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 40, UniqueIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 41, ReferenceTypeCardinalityIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 42, SortIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 43, ChainIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 44, HistogramIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 45, HistogramRangeIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 46, HistogramCardinalityStoragePart.class)
+			new StoragePartRecord((byte) 20, EntityIndexStoragePart.class, StoragePartGroup.INDEX_MANIFEST),
+			new StoragePartRecord((byte) 21, UniqueIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 22, FilterIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 23, SortIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 24, ChainIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 25, AttributeCardinalityIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 26, PriceListAndCurrencySuperIndexStoragePart.class, StoragePartGroup.PRICE_INDEX),
+			new StoragePartRecord((byte) 27, PriceListAndCurrencyRefIndexStoragePart.class, StoragePartGroup.PRICE_INDEX),
+			new StoragePartRecord((byte) 28, HierarchyIndexStoragePart.class, StoragePartGroup.HIERARCHY_INDEX),
+			new StoragePartRecord((byte) 29, FacetIndexStoragePart.class, StoragePartGroup.FACET_INDEX),
+			new StoragePartRecord((byte) 30, CatalogIndexStoragePart.class, StoragePartGroup.INDEX_MANIFEST),
+			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class, StoragePartGroup.REFERENCE_INDEX),
+			new StoragePartRecord((byte) 33, GroupCardinalityIndexStoragePart.class, StoragePartGroup.REFERENCE_INDEX),
+			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class, StoragePartGroup.HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class, StoragePartGroup.INDEX_MANIFEST),
+			new StoragePartRecord((byte) 38, PriceListAndCurrencySuperIndexLeafPagePart.class, StoragePartGroup.PRICE_INDEX),
+			new StoragePartRecord((byte) 39, GlobalUniqueIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 40, UniqueIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 41, ReferenceTypeCardinalityIndexLeafPagePart.class, StoragePartGroup.REFERENCE_INDEX),
+			new StoragePartRecord((byte) 42, SortIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 43, ChainIndexLeafPagePart.class, StoragePartGroup.ATTRIBUTE_INDEX),
+			new StoragePartRecord((byte) 44, HistogramIndexLeafPagePart.class, StoragePartGroup.HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 45, HistogramRangeIndexLeafPagePart.class, StoragePartGroup.HISTOGRAM_INDEX),
+			new StoragePartRecord((byte) 46, HistogramCardinalityStoragePart.class, StoragePartGroup.HISTOGRAM_INDEX)
 		);
 	}
 

@@ -36,17 +36,37 @@ import javax.annotation.Nonnull;
  * {@link CatalogStatisticsComponent#RECORD_COUNTS}, which include in-flight data, while writes are pending. The two
  * are not expected to agree except immediately after a flush.
  *
+ * **Group by {@link #group()}, never by {@link #storagePartType()}.** The type is the simple class name of a storage
+ * part - an open set that grows whenever the engine gains an index structure, and one a client cannot classify: two of
+ * the engine's index parts carry no `Index` in their class name. The group is closed, declared by the engine at
+ * registration, and is what a composition table folds on. {@link #kind()} is the coarser fold of the same
+ * classification.
+ *
  * @param storagePartType simple class name of the storage part, e.g. `EntityBodyStoragePart`,
  *                        `AttributesStoragePart`, `AssociatedDataStoragePart`
+ * @param group           the kind of data this type holds - what a composition table groups by
  * @param count           number of records of this type currently held
  * @param totalBytes      total bytes those records occupy
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record StoragePartUsage(
 	@Nonnull String storagePartType,
+	@Nonnull StoragePartGroup group,
 	int count,
 	long totalBytes
 ) {
+
+	/**
+	 * The coarse axis of {@link #group()} - entity data, an index derived from it, or the store's own metadata.
+	 *
+	 * Derived rather than stored, so a usage record can never report a group and a kind that contradict each other.
+	 *
+	 * @return the kind of data this storage-part type holds
+	 */
+	@Nonnull
+	public StoragePartKind kind() {
+		return this.group.kind();
+	}
 
 	/**
 	 * Mean size of a record of this storage-part type. Exact, because both operands are exact.

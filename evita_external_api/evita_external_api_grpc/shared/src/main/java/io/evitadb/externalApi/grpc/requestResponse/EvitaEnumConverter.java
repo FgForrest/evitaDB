@@ -65,6 +65,8 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
+import io.evitadb.api.statistics.StoragePartGroup;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -1934,6 +1936,82 @@ public class EvitaEnumConverter {
 			case UNIQUE -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_UNIQUE;
 			case FILTER -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_FILTER;
 			case SORT -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_SORT;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcStoragePartGroup} to {@link StoragePartGroup}.
+	 *
+	 * @param grpcGroup the received storage-part group
+	 * @return its Java form
+	 * @throws EvitaInvalidUsageException when the group is unknown to this client - a server newer than this client
+	 *                                    has classified a storage part into a group that did not exist when this
+	 *                                    client was built
+	 */
+	@Nonnull
+	public static StoragePartGroup toStoragePartGroup(@Nonnull GrpcStoragePartGroup grpcGroup) {
+		return switch (grpcGroup) {
+			case STORAGE_PART_GROUP_ENTITY_BODY -> StoragePartGroup.ENTITY_BODY;
+			case STORAGE_PART_GROUP_ATTRIBUTE_DATA -> StoragePartGroup.ATTRIBUTE_DATA;
+			case STORAGE_PART_GROUP_ASSOCIATED_DATA -> StoragePartGroup.ASSOCIATED_DATA;
+			case STORAGE_PART_GROUP_PRICE_DATA -> StoragePartGroup.PRICE_DATA;
+			case STORAGE_PART_GROUP_REFERENCE_DATA -> StoragePartGroup.REFERENCE_DATA;
+			case STORAGE_PART_GROUP_INDEX_MANIFEST -> StoragePartGroup.INDEX_MANIFEST;
+			case STORAGE_PART_GROUP_ATTRIBUTE_INDEX -> StoragePartGroup.ATTRIBUTE_INDEX;
+			case STORAGE_PART_GROUP_PRICE_INDEX -> StoragePartGroup.PRICE_INDEX;
+			case STORAGE_PART_GROUP_REFERENCE_INDEX -> StoragePartGroup.REFERENCE_INDEX;
+			case STORAGE_PART_GROUP_FACET_INDEX -> StoragePartGroup.FACET_INDEX;
+			case STORAGE_PART_GROUP_HIERARCHY_INDEX -> StoragePartGroup.HIERARCHY_INDEX;
+			case STORAGE_PART_GROUP_HISTOGRAM_INDEX -> StoragePartGroup.HISTOGRAM_INDEX;
+			case STORAGE_PART_GROUP_SCHEMA -> StoragePartGroup.SCHEMA;
+			case STORAGE_PART_GROUP_HEADER -> StoragePartGroup.HEADER;
+			case STORAGE_PART_GROUP_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized storage part group: " + grpcGroup);
+		};
+	}
+
+	/**
+	 * Converts {@link StoragePartGroup} to {@link GrpcStoragePartGroup}.
+	 *
+	 * @param group the storage-part group to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcStoragePartGroup toGrpcStoragePartGroup(@Nonnull StoragePartGroup group) {
+		return switch (group) {
+			case ENTITY_BODY -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ENTITY_BODY;
+			case ATTRIBUTE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ATTRIBUTE_DATA;
+			case ASSOCIATED_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ASSOCIATED_DATA;
+			case PRICE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_PRICE_DATA;
+			case REFERENCE_DATA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_DATA;
+			case INDEX_MANIFEST -> GrpcStoragePartGroup.STORAGE_PART_GROUP_INDEX_MANIFEST;
+			case ATTRIBUTE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_ATTRIBUTE_INDEX;
+			case PRICE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_PRICE_INDEX;
+			case REFERENCE_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_INDEX;
+			case FACET_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_FACET_INDEX;
+			case HIERARCHY_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_HIERARCHY_INDEX;
+			case HISTOGRAM_INDEX -> GrpcStoragePartGroup.STORAGE_PART_GROUP_HISTOGRAM_INDEX;
+			case SCHEMA -> GrpcStoragePartGroup.STORAGE_PART_GROUP_SCHEMA;
+			case HEADER -> GrpcStoragePartGroup.STORAGE_PART_GROUP_HEADER;
+		};
+	}
+
+	/**
+	 * Converts {@link StoragePartKind} to {@link GrpcStoragePartKind}.
+	 *
+	 * There is deliberately no inverse. The kind is a property of {@link StoragePartGroup}, so the Java side derives
+	 * it from the decoded group and a peer cannot make the two contradict each other; the wire carries it only because
+	 * a generated client enum has no behaviour to derive it with.
+	 *
+	 * @param kind the storage-part kind to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcStoragePartKind toGrpcStoragePartKind(@Nonnull StoragePartKind kind) {
+		return switch (kind) {
+			case ENTITY_DATA -> GrpcStoragePartKind.STORAGE_PART_KIND_ENTITY_DATA;
+			case INDEX -> GrpcStoragePartKind.STORAGE_PART_KIND_INDEX;
+			case METADATA -> GrpcStoragePartKind.STORAGE_PART_KIND_METADATA;
 		};
 	}
 
