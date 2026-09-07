@@ -211,22 +211,13 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
 				value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
 			);
-			case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+			// the equalized algorithm never produces an empty bucket, so there is nothing for the
+			// "optimized" variant to strip - both behaviours resolve to the same cruncher
+			case EQUALIZED, EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
 				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
 				priceRetriever,
 				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-				EqualizedHistogramDataCruncher.BucketCountMode.EXACT
-			);
-			case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
-				"price histogram",
-				bucketCount,
-				indexedPricePlaces,
-				priceRecords,
-				priceRetriever,
-				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-				EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
 			);
 		};
 	}

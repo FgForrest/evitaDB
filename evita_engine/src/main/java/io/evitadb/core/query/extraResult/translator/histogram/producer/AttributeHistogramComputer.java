@@ -173,25 +173,16 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
 					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
 				);
-				case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+				// the equalized algorithm never produces an empty bucket, so there is nothing for the
+				// "optimized" variant to strip - both behaviours resolve to the same cruncher
+				case EQUALIZED, EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
 					histogramName,
 					bucketCount,
 					decimalPlaces,
 					buckets,
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
-					EqualizedHistogramDataCruncher.BucketCountMode.EXACT
-				);
-				case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
-					histogramName,
-					bucketCount,
-					decimalPlaces,
-					buckets,
-					bucket -> converter.applyAsInt((T) bucket.getValue()),
-					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
-					EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
 				);
 			};
 		}
