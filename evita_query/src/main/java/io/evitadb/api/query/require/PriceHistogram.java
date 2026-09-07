@@ -63,8 +63,8 @@ import java.util.Arrays;
  *    - `EQUALIZED`: frequency-equalised boundaries so each bucket covers roughly the same number of entities.
  *      Every boundary is a value the data contains, so no bucket is ever empty and the actual count may be
  *      lower than requested. `relativeFrequency` then carries a value density rather than a share.
- *    - `EQUALIZED_OPTIMIZED`: identical to `EQUALIZED` - the equalised algorithm emits no empty buckets, so
- *      there is nothing to suppress.
+ *    - `EQUALIZED_OPTIMIZED`: **deprecated, use `EQUALIZED`** - identical to `EQUALIZED`, because the equalised
+ *      algorithm emits no empty buckets and there is nothing to suppress.
  *
  * **ConstraintWithDefaults behaviour**
  *

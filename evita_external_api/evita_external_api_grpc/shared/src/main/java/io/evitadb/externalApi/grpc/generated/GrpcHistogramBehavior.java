@@ -71,12 +71,14 @@ public enum GrpcHistogramBehavior
   EQUALIZED(2),
   /**
    * <pre>
-   * Identical to EQUALIZED. The equalised algorithm never emits an empty bucket, so there is nothing for the
-   * "optimized" variant to drop; the constant is kept because it is part of the published query grammar.
+   * Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+   * so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+   * query grammar.
    * </pre>
    *
-   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   * <code>EQUALIZED_OPTIMIZED = 3 [deprecated = true];</code>
    */
+  @java.lang.Deprecated
   EQUALIZED_OPTIMIZED(3),
   UNRECOGNIZED(-1),
   ;
@@ -115,13 +117,14 @@ public enum GrpcHistogramBehavior
   public static final int EQUALIZED_VALUE = 2;
   /**
    * <pre>
-   * Identical to EQUALIZED. The equalised algorithm never emits an empty bucket, so there is nothing for the
-   * "optimized" variant to drop; the constant is kept because it is part of the published query grammar.
+   * Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+   * so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+   * query grammar.
    * </pre>
    *
-   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   * <code>EQUALIZED_OPTIMIZED = 3 [deprecated = true];</code>
    */
-  public static final int EQUALIZED_OPTIMIZED_VALUE = 3;
+  @java.lang.Deprecated public static final int EQUALIZED_OPTIMIZED_VALUE = 3;
 
 
   public final int getNumber() {

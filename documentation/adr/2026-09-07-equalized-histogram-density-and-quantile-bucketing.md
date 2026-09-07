@@ -1,12 +1,12 @@
 ---
 title: Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio
 date: 2026-09-07
-updated: 2026-09-07 13:05
+updated: 2026-09-07 13:25
 status: accepted
 kind: fix
 issues: [1501]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram, evita_query/src/main/java/io/evitadb/api/query/require/HistogramBehavior.java, evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/HistogramContract.java]
+areas: [evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram, evita_query/src/main/java/io/evitadb/api/query/require/HistogramBehavior.java, evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/HistogramContract.java, evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/api/dataType/DataTypesConverter.java]
 supersedes: []
 superseded-by: []
 relates: [2026-08-24-price-histogram-per-accessor-granularity]
@@ -126,6 +126,28 @@ Two sub-decisions are worth stating because they will look arbitrary:
   leave every existing client rendering the defect faithfully forever. The cost is a semantic change under a
   stable name, which is why the rendering contract is now written out on
   `HistogramContract.Bucket#relativeFrequency()` and in the user documentation.
+- **`EQUALIZED_OPTIMIZED` is deprecated rather than given a behaviour of its own.** The keep/drop-empty axis
+  that separated the pair collapsed: the equalised algorithm places every boundary on a value the data
+  contains, so there is never an empty bucket for the "optimized" variant to drop. That leaves the pair
+  genuinely identical, and `EQUALIZED` no longer honours the guarantee its own JavaDoc used to make — *"always
+  contains the number of buckets you asked for"* — because the old implementation met that guarantee by
+  fabricating: `padWithEmptyBuckets` inserted buckets at thresholds no entity holds, and
+  `extendRangeForMissingBuckets` appended them *past the data maximum*, moving `getMaxValue()` with them. Both
+  were deleted; a price slider whose right handle sits beyond the most expensive product is the defect this
+  work exists to remove.
+  **Rejected because** — the alternative was to restore the pair's distinction honestly, letting `EQUALIZED`
+  fill the requested budget by spending surplus distinct values as extra cuts (subdividing the widest or
+  heaviest buckets) while `EQUALIZED_OPTIMIZED` stopped at the quantile cuts. It fails on the guarantee it
+  exists to provide: the ceiling for any algorithm placing boundaries on values the data contains is
+  `min(bucketCount, distinctValues)`, so with fewer distinct values than buckets it still returns fewer and
+  the contract still has to read *"at most"*. A guarantee that holds only usually is worse than an honest
+  ceiling, because clients code against the happy path and break on the first low-cardinality attribute. It
+  also contradicts the name — buckets deliberately unequal in mass — and needs a splitting heuristic (by mass?
+  by width? by density?) with no principled answer. Measured: the production price catalogue (135 distinct
+  prices) already fills the budget exactly at `bucketCount` 10/15/20 and returns 29/43 at 30/50; the
+  production attribute (24 distinct values, 338 of 666 records on one) returns 10 at 20 and 13 at 50.
+  **Revisit if** a client appears that cannot render a variable bucket count *and* is willing to accept
+  unequal masses — then the subdivision belongs behind the `EQUALIZED_OPTIMIZED` constant rather than a new one.
 - **`representativeValue` was considered and dropped.** Publishing the exact abscissa the density was read at
   would make the response a true `(x, y)` series. Measurement showed that evaluating at the threshold instead
   preserves the peak on all four real catalogues tested, so the field would have bought precision nobody
@@ -222,9 +244,14 @@ any harmless re-derivation while proving nothing.
   refreshed from this branch — they will regenerate once the fix ships and the demo redeploys. The
   `attribute-histogram-equalized.evitaql.string.md` example is currently a faithful picture of the defect: a
   128-product bucket drawing a 15-character bar next to 248-product buckets drawing two.
-- **`EQUALIZED_OPTIMIZED` is now a synonym for `EQUALIZED`.** It is kept because it is part of the published
-  query grammar and removing it would be a breaking change for no gain. It was not deprecated: a client
-  passing it gets exactly what it asks for, and the name is not misleading so much as redundant.
+- **`EQUALIZED_OPTIMIZED` is deprecated (`since = "2026.2"`) and is a synonym for `EQUALIZED`.** The constant
+  is kept because it is part of the published query grammar and removing it would break clients for no gain.
+  The deprecation is published everywhere the schema can express it: `[deprecated = true]` in
+  `GrpcEnums.proto`, and a GraphQL `deprecationReason` on the enum value, which required teaching
+  `DataTypesConverter` to carry a constant's `@Deprecated` marker into the GraphQL enum at all — it previously
+  built enum values by name only, so *no* evitaDB enum could publish a deprecated constant. OpenAPI cannot
+  express it: `deprecated` there applies to the whole schema, never to a single enum item, so the REST surface
+  says nothing and `OpenApiEnum` was left alone.
 - **Clients must stop applying `sqrt`.** The known storefront transform `h = 10.34 · √relativeFrequency`
   exists only to compress the dynamic range this change removes; post-fix the tallest-to-median ratio is
   roughly 1.2–2.0 and compressing it again flattens a legitimately readable profile. Called out in the issue,

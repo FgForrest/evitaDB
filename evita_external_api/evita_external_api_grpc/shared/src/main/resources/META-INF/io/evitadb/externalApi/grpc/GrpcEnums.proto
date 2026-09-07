@@ -228,9 +228,10 @@ enum GrpcHistogramBehavior {
   // portion of total records. Every boundary is a value the data actually contains, so no bucket is ever empty.
   // `relativeFrequency` carries the smoothed value density normalised to the curve maximum, in the range (0, 100].
   EQUALIZED = 2;
-  // Identical to EQUALIZED. The equalised algorithm never emits an empty bucket, so there is nothing for the
-  // "optimized" variant to drop; the constant is kept because it is part of the published query grammar.
-  EQUALIZED_OPTIMIZED = 3;
+  // Deprecated: use EQUALIZED instead. Identical to EQUALIZED - the equalised algorithm never emits an empty bucket,
+  // so there is nothing for the "optimized" variant to drop; the constant is kept because it is part of the published
+  // query grammar.
+  EQUALIZED_OPTIMIZED = 3 [deprecated = true];
 }
 
 // This enumeration controls behavior of the `ReferenceContent` related to managed entities.
