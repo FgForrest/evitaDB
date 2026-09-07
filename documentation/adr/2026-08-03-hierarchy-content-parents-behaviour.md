@@ -1,7 +1,7 @@
 ---
 title: hierarchyContent gains HierarchyParentsBehaviour; MATCHING stays the default and COMPLETE opts into the whole chain
 date: 2026-08-03
-updated: 2026-09-03 11:37
+updated: 2026-09-07 14:30
 status: accepted
 kind: fix
 issues: [1365]
@@ -129,7 +129,7 @@ Ship the same enum, but make the full chain the default so #1365 is fixed withou
 | Option | Rejected because | Revisit if |
 |---|---|---|
 | An explicit, reportable truncation marker for the `MATCHING` cut | It invents a third chain-ending concept alongside `stopAt` and a real root, and the marker is precisely the hint that reference `EXISTING` deliberately withholds — parents would become *less* consistent with references, not more | A marker is introduced for `stopAt` cuts too, so the two share one mechanism |
-| A union / `oneOf` on the existing `parents` and `parentEntity` fields | Breaks every generated client and 18 documentation example snapshots, for a shape the sibling-field precedent already covers additively (`*Page` / `*Strip` on `WithNamedReferenceDescriptor`, the static `priceForSale` / `allPricesForSale` pair) | Never for these two fields; a future field can start out as a union |
+| A union / `oneOf` on the existing `parents` and `parentEntity` fields, *as the carrier of `COMPLETE` behaviour* | Breaks every generated client and 18 documentation example snapshots, for a shape the sibling-field precedent already covers additively (`*Page` / `*Strip` on `WithNamedReferenceDescriptor`, the static `priceForSale` / `allPricesForSale` pair) | Never for these two fields; a future field can start out as a union. Distinct from the `oneOf` `parentEntity` did gain in this PR, which adds no behaviour and only widens the declared type to the key-only chain it already emitted — see *Consequences* |
 | An additive entity object carrying a `bodyAvailable` flag and true `scope` / `version` / `allLocales` | It is an entity-shaped shell — the same thing Option B was rejected for, only reached through the API layer instead of the engine | Option B is ever reconsidered; the two stand or fall together |
 | Merge rule "stricter wins", as `ReferenceContent#combineWith` does for `ManagedReferencesBehaviour` | A silent downgrade hides a query-authoring mistake. `HierarchyContent#combineWith` already throws on conflicting `stopAt`, so throwing is the local precedent, not the departure | The engine ever gains a way to report a silently-resolved requirement conflict back to the caller |
 
@@ -532,13 +532,26 @@ all four skips pre-existing `@Disabled` cases.
   silently serving them a cut chain they believe is complete is the worse failure. Implicit `MATCHING`
   is unaffected in either direction, because `isArgumentImplicit` elides the argument entirely. The
   release note has to say so; real capability negotiation would be separate infrastructure work.
-- **`parentEntity` still fails its declared REST type for a *bodyless* `hierarchyContent()`.** The
-  chain is key-only while the entity object requires `version` and `scope`
-  (`shouldReportWholeKeyChainWithoutBodies` pins the shape). This is **pre-existing** — a bare
-  `hierarchyContent()` produced key-only ancestors there long before #1365 — and it was left alone on
-  purpose. Routing the bodyless chain through the new pointer type as well is now tempting and is
-  exactly why it needs a decision of its own: it would change the declared type of a property that has
-  shipped for years.
+- **`parentEntity` failed its declared REST type for a *bodyless* `hierarchyContent()`; it now carries a
+  `oneOf`.** The chain is key-only while the entity object requires `version` and `scope`
+  (`shouldReportWholeKeyChainWithoutBodies` pins the shape), so a plain bodyless `hierarchyContent()`
+  response did not validate against the type evitaDB publishes for it. **Pre-existing** — a bare
+  `hierarchyContent()` produced key-only ancestors there long before #1365. It was deferred while this
+  record was first written and then fixed inside the same PR (`07b06b587`): `parentEntity` became a
+  `oneOf` of the entity object and a bodyless pointer, the shape `parentEntityComplete` already had,
+  with `buildParentUnion` parameterized to serve both axes and remaining the single call site of
+  `forbidAdditionalProperties()`. The two axes cannot share one pointer object — each nests through the
+  property it is read from, and closing the pointer objects is what makes each `oneOf` exclusive — so
+  the pre-existing pair was renamed to `*CompleteParentPointer` / `*CompleteParentUnion` and the
+  unqualified names went to the new REST-only pair.
+
+  **This is not the union the *Also rejected* table rules out**, and the two must not be read as a
+  silent reversal of each other. That row rejects routing `COMPLETE` *behaviour* through `parents` /
+  `parentEntity`, where an additive sibling field already carries the shape at no cost to generated
+  clients. This change adds no behaviour to `parentEntity` at all: it widens the property's declared
+  type to admit the key-only chain the server has always emitted through it. The rejected option would
+  have broken clients to express something expressible elsewhere; this one stopped a published schema
+  from being violated by its own server.
 - **The REST serializer's reduction of sibling `referenceContent` requirements is a superset of the
   engine's own pick.** The engine resolves a reference name to exactly **one** `referenceContent` — a
   named one beats an all-references one, and among same-name siblings the last wins — which was
