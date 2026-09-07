@@ -44,8 +44,11 @@ import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -167,6 +170,35 @@ class DataTypesConverterTest {
 	}
 
 
+	@Test
+	void shouldCarryEnumConstantDeprecationIntoGraphQLEnum() {
+		final List<GraphQLEnumValueDefinition> values = DataTypesConverter
+			.getGraphQLEnumType(DummyDeprecatedEnum.class)
+			.enumType()
+			.getValues();
+
+		assertEquals(4, values.size());
+		assertFalse(values.get(0).isDeprecated(), "A constant without @Deprecated must not be flagged");
+		assertNull(values.get(0).getDeprecationReason());
+
+		assertTrue(values.get(1).isDeprecated());
+		assertEquals("Deprecated since 2026.2.", values.get(1).getDeprecationReason());
+
+		assertTrue(values.get(2).isDeprecated());
+		assertEquals(
+			"Deprecated since 2026.2 and scheduled for removal.",
+			values.get(2).getDeprecationReason(),
+			"forRemoval must reach the client, it is the difference between \"avoid\" and \"migrate now\""
+		);
+
+		assertTrue(values.get(3).isDeprecated());
+		assertEquals(
+			"Deprecated.",
+			values.get(3).getDeprecationReason(),
+			"A bare @Deprecated carries no version, and must still mark the value rather than read as undeprecated"
+		);
+	}
+
 	private void assertGraphQLEnumType(GraphQLEnumType graphQLEnumType) {
 		assertEquals("DummyEnum", graphQLEnumType.getName());
 
@@ -240,5 +272,15 @@ class DataTypesConverterTest {
 
 	enum DummyEnum {
 		ONE, TWO
+	}
+
+	enum DummyDeprecatedEnum {
+		LIVE,
+		@Deprecated(since = "2026.2")
+		RETIRED,
+		@Deprecated(since = "2026.2", forRemoval = true)
+		DOOMED,
+		@Deprecated
+		UNDATED
 	}
 }

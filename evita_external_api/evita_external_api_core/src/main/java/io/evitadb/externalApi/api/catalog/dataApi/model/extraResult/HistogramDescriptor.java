@@ -145,13 +145,15 @@ public interface HistogramDescriptor {
 		PropertyDescriptor RELATIVE_FREQUENCY = PropertyDescriptor.builder()
 			.name("relativeFrequency")
 			.description("""
-				Relative frequency value used for visualization purposes.
-				For standard histograms: percentage of total occurrences (0-100), calculated as
-				`(occurrences / overallCount) * 100`.
-				For equalized histograms: normalized value density (0-100) that accounts for both
-				the number of occurrences in the bucket and its width. Calculated as
-				`occurrences * (totalRange / bucketWidth)`, then normalized so all buckets sum to 100.
-				Higher values indicate denser data concentration (more values in narrower range).
+				Rendering intensity of the bucket's bar, on a 0-100 scale. Never a count and never a
+				probability - use `occurrences` for anything numeric shown to a person.
+				For standard histograms: percentage of total occurrences, calculated as
+				`(occurrences / overallCount) * 100`. The values sum to 100 and empty buckets are 0.
+				For equalized histograms: the smoothed value density at the bucket, normalized against
+				the maximum of the density curve, so the value lies in (0, 100] where 100 is the tallest
+				point of the distribution. The values do NOT sum to 100 and there are no empty buckets.
+				Scale bars against the constant 100 - never against the sum, and never against the
+				tallest returned bucket, which would tie the rendering to the requested bucket count.
 				""")
 			.type(nonNull(BigDecimal.class))
 			.build();

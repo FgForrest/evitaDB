@@ -28,12 +28,16 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
   - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
-  - **`relativeFrequency`** - a value used for visualizing bucket height in UI (0-100 scale):
-    - For **standard histograms**: percentage of total occurrences, calculated as `(occurrences / overallCount) * 100`
-    - For **equalized histograms**: normalized value density that considers both occurrences and bucket width:
-      1. Raw frequency is calculated as `occurrences * (totalRange / bucketWidth)` - this rewards buckets with many occurrences packed into narrow ranges
-      2. Values are then normalized to sum to 100 across all buckets
-      3. Empty buckets always have relativeFrequency = 0
+  - **`relativeFrequency`** - the height the bar should be drawn at, on a 0-100 scale. It is a *rendering intensity*,
+    never a count and never a probability - use `occurrences` for anything numeric you show to a person, and
+    `occurrences / overallCount` for a share:
+    - For **standard histograms**: percentage of total occurrences, calculated as `(occurrences / overallCount) * 100`.
+      The values sum to 100 and empty buckets are 0.
+    - For **equalized histograms**: the smoothed **value density** at the bucket, normalized against the maximum of
+      the density curve, so the value lies in `(0, 100]` where 100 is the tallest point of the distribution. The
+      values do **not** sum to 100, and there are no empty buckets. See
+      [equalized histograms in practice](#equalized-histograms-in-practice) for what a client must and must not do
+      with it.
   - **`requested`**:
     - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
       or [priceBetween](../filtering/price.md#price-between) constraints
@@ -49,11 +53,12 @@ source** (reference histograms only — see [reference histograms](../../use/sch
 element can fall into several buckets at once, so `overallCount` may exceed the number of distinct contributing
 elements. For every scalar-source histogram the two are equal.
 
-`relativeFrequency` stays a valid 0–100 visualization in both cases — it is a ratio of `occurrences` to `overallCount`
-(standard buckets still sum to 100, equalized buckets are still normalized to 100), and for a range source both
-numerator and denominator count the same overlap attributions. The only difference is interpretive: a range-source
-bucket's height reflects the share of **(element × overlapped-bucket) attributions** rather than the share of distinct
-elements, so positions covered by more overlapping ranges appear proportionally taller.
+`relativeFrequency` stays a valid 0–100 visualization in both cases. For a standard histogram it is the ratio of
+`occurrences` to `overallCount`, and for a range source both numerator and denominator count the same overlap
+attributions — a range-source bucket's height then reflects the share of **(element × overlapped-bucket)
+attributions** rather than the share of distinct elements, so positions covered by more overlapping ranges appear
+proportionally taller. For an equalized histogram the value is a density read off the value axis and is not derived
+from `overallCount` at all, so the range-source caveat does not apply to it.
 
 </Note>
 
@@ -81,8 +86,8 @@ attributeHistogram(
         <ul>
             <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
             <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
-            <li><strong>EQUALIZED</strong>: Returns exactly the requested number of buckets, but positions bucket boundaries based on cumulative frequency distribution so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed.</li>
-            <li><strong>EQUALIZED_OPTIMIZED</strong>: Combines EQUALIZED bucketing with optimization to reduce empty buckets.</li>
+            <li><strong>EQUALIZED</strong>: Positions bucket boundaries on the empirical quantile function so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed. Never returns more buckets than requested and returns fewer whenever a single value is held by so many records that it collapses several quantile intervals into one.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: <em>Deprecated since 2026.2 - use EQUALIZED.</em> Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
         </ul>
     </dd>
     <dt>argument:string+</dt>
@@ -234,8 +239,17 @@ adapted for filter slider UX. The algorithm:
 
 1. Calculates the total weight (sum of all record counts)
 2. Calculates cumulative frequency for each unique value
-3. Positions bucket boundaries at points where cumulative frequency crosses threshold (i/bucketCount)
-4. Counts actual occurrences in each resulting bucket
+3. Places a boundary at the first value whose cumulative frequency reaches each rank `k / bucketCount` — this is the
+   empirical quantile function, sampled at evenly spaced ranks
+4. Drops duplicate boundaries, and, when one value absorbed two or more ranks, additionally opens a bucket at the
+   *next* value so that the heavy value's records are closed into a bucket of their own
+5. Counts actual occurrences in each resulting bucket
+
+Step 4 is what makes the result honest on real retail data. A price like 999 can be shared by hundreds of products, and
+a boundary can only ever be placed *at* a value the data contains — you cannot split a price in half. Charging that
+value for every rank it swallowed keeps the buckets after it from being starved, at the cost of returning fewer buckets
+than requested. **This is normal and correct: always render however many buckets came back, never assume you got
+`bucketCount` of them.**
 
 To demonstrate equalized histogram, we will use the following example:
 
@@ -303,8 +317,8 @@ priceHistogram(
         <ul>
             <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
             <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
-            <li><strong>EQUALIZED</strong>: Returns exactly the requested number of buckets, but positions bucket boundaries based on cumulative frequency distribution so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed.</li>
-            <li><strong>EQUALIZED_OPTIMIZED</strong>: Combines EQUALIZED bucketing with optimization to reduce empty buckets.</li>
+            <li><strong>EQUALIZED</strong>: Positions bucket boundaries on the empirical quantile function so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed. Never returns more buckets than requested and returns fewer whenever a single value is held by so many records that it collapses several quantile intervals into one.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: <em>Deprecated since 2026.2 - use EQUALIZED.</em> Identical to EQUALIZED. The equalized algorithm places every boundary on a value the data actually contains and therefore never produces an empty bucket, so there is nothing left to optimize away.</li>
         </ul>
     </dd>
 </dl>
@@ -483,6 +497,224 @@ The equalized histogram result in JSON format is a bit more verbose, but it's st
 </Note>
 
 As you can see, the bucket boundaries are positioned to distribute products more evenly across the slider range.
+
+## Equalized histograms in practice
+
+The equalized behaviour exists to solve two concrete problems that show up on real catalogues, one created by fixing
+the other. Neither is obvious until you put a slider in front of a shopper.
+
+### Problem 1 — a linear slider spends its track on the wrong products
+
+Retail catalogues are heavily skewed: most products sit in a narrow band, and a handful of expensive outliers stretch
+the range far beyond it. A slider drawn on a linear scale gives equal *width* to equal *value*, which means it gives
+almost all of its width to the part of the range where almost nothing is for sale.
+
+This is a well-documented usability failure, not a theoretical one. Baymard Institute's slider research puts it
+plainly:
+
+> Linear slider scales will very often not be appropriate within e-commerce filtering, especially for price and
+> budget. Normally the vast majority of products will be clustered within a relative narrow range with only a few
+> outliers at either end of the scale.
+>
+> — Christian Holst, [*Improve Form Slider UX With These 5 Requirements for Slider Interfaces*](https://baymard.com/blog/slider-interfaces),
+> Baymard Institute, 2015
+
+Their worked example found a site where **50% of the slider width controlled just 2% of the products**, while 5% of
+the width controlled 50% of them — leaving the slider "needlessly sensitive" exactly where the shopper needs
+precision. The same study found that more than half of test subjects misread dual-point price sliders in the first
+place, so any additional imprecision lands on users who are already struggling. Baymard's recommendation is to use "a
+biased-scale, a logarithmic scale, or similar".
+
+A production evitaDB catalogue of 3 237 products priced from 9 to 2 990 measures almost identically:
+
+| On a linear track | Share of the catalogue |
+|---|---|
+| first half of the track | **90.9%** of products |
+| second half of the track | **8.2%** of products |
+| the track occupied by the middle 80% of products | **36.6%** |
+
+Half the control does nothing, and the half that does everything is too sensitive to aim with. `EQUALIZED` replaces
+the linear scale with the catalogue's own quantile function, so every position on the track moves the shopper past
+roughly the same number of products.
+
+<Note type="info">
+
+Baymard also recommends pairing any price slider with text inputs so an exact value can be typed. That is
+complementary to this feature, not replaced by it — an equalized track makes dragging viable, but typing is still the
+faster route to a specific number.
+
+</Note>
+
+### Problem 2 — equalizing the track makes the columns meaningless
+
+Fixing the slider breaks the chart above it. Once bucket boundaries are chosen so that every bucket holds about the
+same number of products, plotting the number of products per bucket draws **a flat row of identical bars** — it is
+constant by construction and tells the shopper nothing. The histogram's whole job is to show where the products are,
+and equalizing the axis is precisely the operation that removes that information from the counts.
+
+So `relativeFrequency` has to carry something else. On an equalized axis, what a reader actually perceives is how
+*tightly packed* the values are at each position — the density of prices, not the count of products.
+
+The tempting way to get that number is to derive it from each bucket's own width: a bucket holding many products
+across a narrow span is dense, so `occurrences / bucketWidth` looks like the answer. It is not, and the reason matters.
+A bucket's width is the distance between two adjacent prices, so such an estimate rests on a **single pair of
+neighbouring values** — and price grids are arbitrary. Reprice one product and the bar it falls in can change by
+orders of magnitude while the catalogue, to a shopper, has not changed at all. On the production catalogue above, a
+width-derived estimate renders the bucket holding 81 products at `35.15` and the bucket holding 338 products at
+`6.03` — a bucket with a quarter of the products drawing almost six times taller than one holding four times as many.
+
+evitaDB therefore estimates the density **once, across the whole price axis**, and reads that curve at each bucket.
+Bar heights become a property of the catalogue rather than of where the boundaries happened to fall, which is what
+makes them stable under repricing, comparable across the chart, and safe to draw directly.
+
+### What this gives you
+
+- **Uniform precision along the track.** Every slider position moves past roughly the same number of products,
+  instead of one half of the control doing 91% of the work.
+- **No dead slider positions.** Every threshold is a price that actually occurs, so every stop selects a different set
+  of products.
+- **Bars that mean something and stay put.** Heights show where prices genuinely cluster, and repricing a single
+  product moves the tallest bar by about 0.01%.
+- **A profile you can draw as-is.** The tallest-to-shortest bar ratio on the production catalogue is roughly 13:1 — a
+  readable chart with no compressing transform on the client.
+- **The trade:** you may get fewer buckets than you asked for. When one price is shared by more products than a bucket
+  is worth, there is no distinct price to split it at. Render however many came back.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Rendering an equalized histogram — what a client must and must not do
+
+</NoteTitle>
+
+Equalizing the axis changes what the numbers in the response mean, and a client that renders them the way it renders a
+standard histogram will draw the wrong picture. The rules below apply to both `EQUALIZED` and its deprecated alias
+`EQUALIZED_OPTIMIZED`, for attribute and price histograms alike.
+
+`relativeFrequency` is a **rendering intensity in `(0, 100]`**, where `100` is the maximum of the underlying density
+curve. It is not a count, not a share, and not a probability.
+
+**Do**
+
+- Scale the bar height against the **constant `100`** — `height = chartHeight * relativeFrequency / 100`.
+- Draw each bar spanning `[bucket.threshold, nextBucket.threshold)`, and the last one up to `max`. The value describes
+  the **whole bucket**, not a point inside it.
+- **Give the last bar a minimum width.** Its threshold can equal `max` — that happens whenever the largest value is
+  numerous enough to be closed into a bucket of its own — so a bar drawn strictly to scale would be zero pixels wide
+  even when it is the tallest one in the chart.
+- Take slider stops from `threshold`. Every threshold is a real, selectable value, so every slider position yields a
+  different result set.
+- Use `occurrences` for anything numeric shown to the user ("142 products"), and `occurrences / overallCount` for a
+  share.
+
+**Don't**
+
+- **Don't apply `sqrt` or `log`.** The value is already a linear rendering intensity with a moderate dynamic range —
+  tallest-to-median is roughly 1.2–2.0 — so a compressing transform flattens a profile that is legitimately readable
+  as it stands. Draw it directly.
+- **Don't divide by the sum of the buckets.** Equalized values are normalized against the tallest point of the curve,
+  not against each other, so they do not sum to 100.
+- **Don't scale against `max()` of the returned buckets.** That re-couples the rendering to `bucketCount` — ask for
+  more buckets and every bar would change height even though the distribution did not.
+- **Don't assume exactly one bucket reads `100`.** The denominator is the curve maximum over all observed values, not
+  over the returned buckets, so a response may legitimately contain zero buckets at 100, or several. Only
+  `0 < relativeFrequency <= 100` is guaranteed.
+- **Don't assume `bucketCount` buckets came back.** Fewer is normal and correct, as explained above.
+- **Don't compare `relativeFrequency` across behaviours or across two different histograms.** It is a per-response
+  rendering scale.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The mathematics behind the calculation
+
+</NoteTitle>
+
+**You do not need any of this to use the feature.** Everything above is sufficient to request an equalized histogram
+and render it correctly. This section is for readers who want to know which established statistical methods are used
+and why the standard textbook forms had to be adapted — it is background, not instructions.
+
+**Where the boundaries go.** Equalizing an axis means sampling the *quantile function* — the inverse of the cumulative
+distribution function, `Q(u) = F⁻¹(u)` — at evenly spaced ranks `u = k / bucketCount`. Where a standard histogram cuts
+the *value* range into equal pieces, this cuts the *rank* range into equal pieces, which is what makes every bucket
+hold roughly the same number of items.
+
+There is one constraint that has no analogue in the standard histogram: **a boundary can only be placed at a value that
+actually occurs.** A slider stop that sits between two adjacent prices selects exactly the same products as the price
+below it, so it is not a distinct position at all. On real catalogues this bites constantly, because retail pricing is
+full of ties — a single price like 999 can be shared by hundreds of products, which is more than a bucket's worth. When
+one value spans several quantile ranks there are only two honest options: let it bleed into the following buckets, or
+close it into a bucket of its own and return fewer buckets than requested. Bleeding starves everything after it, so the
+value is charged for every rank it covers and the bucket count comes back short. **That is the reason fewer buckets is
+normal rather than exceptional.**
+
+**Why the bar height is not a count.** The boundaries were chosen precisely so that each bucket holds about the same
+number of items, so plotting `occurrences` on an equalized axis draws a flat line by construction — it carries no
+information about the distribution. What a reader actually perceives on an equal-pixel equalized axis is how *tightly
+packed* the values are at each position. That quantity has a name in the statistical literature: the
+**density-quantile function** `f(F⁻¹(u))`, introduced by Parzen. It is the density of the underlying values, sampled
+along the equalized axis, and it is what `relativeFrequency` reports.
+
+**How the density is estimated.** By *kernel density estimation*, the standard non-parametric approach:
+
+```
+f̂(x) = 1 / (n · h) · Σ K( (x − xᵢ) / h )
+```
+
+Each observation contributes a small bump of width `h` centred on itself, and the bumps are summed. The kernel `K` is
+triangular, `K(u) = max(0, 1 − |u|)`: it has *compact support*, so an observation influences only the values within `h`
+of it, which keeps the whole curve computable in a single linear pass over the data.
+
+The only parameter that matters is the bandwidth `h`. It follows **Silverman's rule of thumb**:
+
+```
+h ≈ 0.9 · min(σ, IQR / 1.34) · n^(−1/5)
+```
+
+The `min` is what makes it robust: `σ` is sensitive to a single outlier, the interquartile range is not, and taking the
+smaller of the two prevents one distant value from flattening the whole curve. The `1.34` is the normal-consistency
+constant — for a normal distribution `IQR ≈ 1.34 σ` — so the two candidates are expressed in the same units. The rule
+is stated for a kernel measured in standard deviations, while `h` here is a *half-width*; a triangular kernel of
+half-width `h` has variance `h² / 6`, so the two are related by `h = √6 · σ`.
+
+**Three deliberate departures from the textbook rule.** Each exists because a histogram that is *redrawn* as a shopper
+filters has a requirement an ordinary statistical estimate does not: it must be a **continuous** function of the data.
+A chart that visibly re-shapes itself because one product was added or repriced reads as a bug, whatever its
+statistical merits.
+
+- *The count term is the number of **distinct** values, not the number of records.* Silverman's `n^(−1/5)` assumes you
+  are inferring an unknown distribution from a sample, so more observations justify a sharper estimate. Here the
+  catalogue is known in full — this is a smoothing of data already in hand, not an inference about a population behind
+  it. Cloning every product would leave the distribution's shape identical, so it must leave the curve identical;
+  counting records instead would sharpen it by about 13% for every doubling of an unchanged catalogue.
+- *A value holding a large share of the data is capped before the spread is measured.* A single value holding more than
+  half the weight spans the entire interquartile range on its own, which drives the `IQR` term towards zero and
+  collapses the bandwidth with it. The cap is applied as a smooth `min(w, (N − w) / 2)` rather than as an
+  `if (w > N / 2)` switch, because a threshold is discontinuous exactly where real data tends to sit — a catalogue at
+  50.1% on one value would otherwise be redrawn by a single product crossing 50%. The cap affects only the spread
+  estimate, never the bucket contents.
+- *The quartiles are averaged over a band of ranks rather than read at a point.* A point-valued quantile is a step
+  function of the weights: it jumps by a whole gap the moment one observation crosses a rank boundary. Averaging the
+  quantile function over a narrow band around each quartile — an *L-estimator*, `Q̄(p) = 1/(2r) · ∫ Q(u) du` — makes it
+  move continuously instead. Linear interpolation between neighbouring order statistics would also be continuous, but
+  it can return a value that lies *inside* a gap where no product exists, which on a catalogue with one very expensive
+  item puts the estimate somewhere no data is.
+
+**Why the scale is the curve maximum.** The bars are normalized against the tallest point of the density curve rather
+than against each other. Normalizing against the returned buckets would tie the picture to `bucketCount`: asking for
+more bars would change the height of every existing bar even though nothing about the catalogue had changed. Anchoring
+to the curve makes the shape a property of the data alone — which is also why the value cannot be compared between two
+different histograms.
+
+**Further reading.** [Histogram equalization in image processing](https://www.howdoi.me/blog/slider-scale.html) for the
+original idea; Parzen (1979), *Nonparametric statistical data modeling*, for the density-quantile function; Silverman
+(1986), *Density Estimation for Statistics and Data Analysis*, for the bandwidth rule.
+
+</Note>
 
 ## Baseline relaxation — sliders don't contract under their own handles
 

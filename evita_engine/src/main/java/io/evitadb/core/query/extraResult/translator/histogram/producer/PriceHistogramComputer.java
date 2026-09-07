@@ -211,22 +211,13 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
 				value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
 			);
-			case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+			// the equalized algorithm never produces an empty bucket, so there is nothing for the
+			// "optimized" variant to strip - both behaviours resolve to the same cruncher
+			case EQUALIZED, EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
 				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
 				priceRetriever,
 				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-				EqualizedHistogramDataCruncher.BucketCountMode.EXACT
-			);
-			case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
-				"price histogram",
-				bucketCount,
-				indexedPricePlaces,
-				priceRecords,
-				priceRetriever,
-				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-				EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
 			);
 		};
 	}
@@ -346,11 +337,13 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 	@Override
 	public long getOperationCost() {
-		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		// equalized variants have similar cost structure
+		// OPTIMIZED carries a penalty because a sparse histogram has to be recomputed to drop empty buckets.
+		// The equalised family never produces an empty bucket, so both of its members do exactly the same
+		// single pass and must be costed the same - charging EQUALIZED_OPTIMIZED the recomputation penalty
+		// would bias the planner against a behaviour that does no extra work.
 		return switch (this.behavior) {
-			case STANDARD, EQUALIZED -> 7511;
-			case OPTIMIZED, EQUALIZED_OPTIMIZED -> 11267;
+			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 7511;
+			case OPTIMIZED -> 11267;
 		};
 	}
 
