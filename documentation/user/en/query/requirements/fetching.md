@@ -1131,7 +1131,12 @@ chapter.
 
 </LS>
 
-### Hierarchy Parents Behaviour
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Hierarchy Parents Behaviour
+</NoteTitle>
 
 A parent entity may sit in the hierarchy tree and still be unable to provide the body you asked for. There are three
 ways this happens:
@@ -1165,21 +1170,16 @@ Reach for `COMPLETE` when you need the parents *above* an unfetchable one - a br
 though one of its nodes isn't translated is the typical case - and be ready to render the bodyless pointers it brings
 with it.
 
-<Note type="info">
-
 The behaviour is defined in terms of the **requested** body, so it decides something only when there is a body to
 request. <LS to="e,j,c,r">A `hierarchyContent()` with no nested `entityFetch` constraint</LS><LS to="g">A `parents` or
 `parentsComplete` selection that asks for nothing but the primary key</LS> requests no parent body at all, nothing can
 fail to be fetched, and the whole chain of parent primary keys the entity has - up to the root, or up to a break in
 the tree - is returned under either behaviour.
 
-</Note>
-
 <LS to="e,j,c">
 
-<Note type="warning">
-
-Two `hierarchyContent` requirements in a single `entityFetch` are reduced to one, and the reduction widens rather than
+**A caveat on combining two `hierarchyContent` requirements.** Two `hierarchyContent` requirements in a single
+`entityFetch` are reduced to one, and the reduction widens rather than
 narrows. The `entityFetchAllContent()` shortcut already contains a bare `hierarchyContent()`, so writing
 `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` produces exactly such a pair - and because an absent
 bound is the wider of the two, **the `stopAt(distance(1))` bound is dropped** and the whole parent chain is fetched.
@@ -1191,8 +1191,6 @@ preference, so `entityFetchAllContentAnd(hierarchyContent(COMPLETE, entityFetch(
 fetch the complete chain. Only when **both** requirements ask for parent bodies and name different behaviours does
 the query fail - as it also does when both carry a `stopAt` and the two bounds differ. Neither behaviour is a superset
 of the other, so evitaDB refuses to guess which one you meant instead of silently picking one.
-
-</Note>
 
 </LS>
 
@@ -1245,6 +1243,8 @@ genuinely has no parent. If you need to tell those two apart, or need the parent
 through `parentEntityComplete`.
 
 </LS>
+
+</Note>
 
 ## Price content
 

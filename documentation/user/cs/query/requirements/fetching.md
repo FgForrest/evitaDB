@@ -872,7 +872,12 @@ Tento poměrně složitý příklad využívá [referenční pole kategorie](#re
 
 </LS>
 
-### Chování rodičů v hierarchii
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Chování rodičů v hierarchii
+</NoteTitle>
 
 Rodičovská entita může ve stromu hierarchie být, a přesto nemusí být schopna poskytnout tělo, o které jste požádali.
 Děje se to třemi způsoby:
@@ -905,21 +910,16 @@ Po `COMPLETE` sáhněte, když potřebujete rodiče *nad* tím, kterého nelze n
 navigace, která musí dosáhnout ke kořeni, i když jeden z jejích uzlů není přeložen – a buďte připraveni vykreslit
 ukazatele bez těla, které s sebou přinese.
 
-<Note type="info">
-
 Chování je definováno vůči **požadovanému** tělu, takže rozhoduje o něčem jen tehdy, když je vůbec o jaké tělo žádáno.
 <LS to="e,j,c,r">`hierarchyContent()` bez vnořeného omezení `entityFetch`</LS><LS to="g">Výběr `parents` nebo
 `parentsComplete`, který si nežádá nic než primární klíč,</LS> nežádá o žádné tělo rodiče, nic se tedy nemůže
 nepodařit načíst a pod oběma chováními se vrátí celý řetězec primárních klíčů rodičů, který entita má – až ke kořeni,
 nebo až k přerušení stromu.
 
-</Note>
-
 <LS to="e,j,c">
 
-<Note type="warning">
-
-Dva požadavky `hierarchyContent` v jediném `entityFetch` se redukují na jeden a tato redukce spíše rozšiřuje, než
+**Upozornění ke kombinaci dvou požadavků `hierarchyContent`.** Dva požadavky `hierarchyContent` v jediném
+`entityFetch` se redukují na jeden a tato redukce spíše rozšiřuje, než
 zužuje. Zkratka `entityFetchAllContent()` už jeden holý `hierarchyContent()` obsahuje, takže zápis
 `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` právě takovou dvojici vytvoří – a protože chybějící
 mez je z těch dvou ta širší, **mez `stopAt(distance(1))` je zahozena** a načte se celý řetězec rodičů. Jde o totéž
@@ -931,8 +931,6 @@ takže `entityFetchAllContentAnd(hierarchyContent(COMPLETE, entityFetch(attribut
 řetězec. Dotaz selže teprve tehdy, když o těla rodičů žádají **oba** požadavky a pojmenují různá chování – stejně jako
 selže, když oba nesou `stopAt` a jejich meze se liší. Ani jedno z chování není nadmnožinou toho druhého, a tak evitaDB
 raději odmítne hádat, které jste měli na mysli, než aby jedno z nich potichu zvolila.
-
-</Note>
 
 </LS>
 
@@ -985,6 +983,8 @@ skutečně nemá. Pokud potřebujete tyto dva případy rozlišit, nebo potřebu
 přes `parentEntityComplete`.
 
 </LS>
+
+</Note>
 
 ## Obsah cen
 
