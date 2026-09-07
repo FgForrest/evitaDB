@@ -127,7 +127,7 @@ The caveat matters more than the rule. Rules of that family are derived under no
 
 <NoteTitle toggles="true">
 
-##### The fields this quietly touches
+##### The mathematics this quietly touches
 
 </NoteTitle>
 
