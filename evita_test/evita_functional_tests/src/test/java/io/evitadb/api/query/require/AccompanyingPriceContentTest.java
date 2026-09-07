@@ -25,6 +25,8 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -205,16 +207,148 @@ class AccompanyingPriceContentTest {
 	}
 
 	@Nested
-	@DisplayName("EntityContentRequire contract")
-	class EntityContentRequireContractTest {
+	@DisplayName("Combining")
+	class CombiningTest {
 
 		@Test
-		@DisplayName("should be combinable with another AccompanyingPriceContent")
-		void shouldBeCombinableWithAnotherAccompanyingPriceContent() {
-			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "basic");
+		@DisplayName("should be combinable with the same price name and price lists")
+		void shouldBeCombinableWithSameNameAndPriceLists() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
 
 			assertTrue(constraint1.isCombinableWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should combine equal requirements into the receiver")
+		void shouldCombineEqualRequirementsIntoTheReceiver() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+
+			assertSame(constraint1, constraint1.combineWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should be combinable with another default accompanying price")
+		void shouldBeCombinableWithAnotherDefaultAccompanyingPrice() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent();
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent();
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			assertSame(constraint1, constraint1.combineWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be combinable with a different price name")
+		void shouldNotBeCombinableWithDifferentPriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
+
+			assertFalse(constraint1.isCombinableWith(constraint2));
+		}
+
+		@Test
+		@DisplayName("should refuse to combine a different price name")
+		void shouldRefuseToCombineDifferentPriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse to combine different price lists for one price name")
+		void shouldRefuseToCombineDifferentPriceListsForOnePriceName() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+			assertTrue(exception.getMessage().contains("myPrice"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse to combine a deferred price list sequence with an explicit one")
+		void shouldRefuseToCombineDeferredPriceListsWithExplicitOnes() {
+			final AccompanyingPriceContent deferring = new AccompanyingPriceContent();
+			final AccompanyingPriceContent explicit = new AccompanyingPriceContent(
+				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "reference"
+			);
+
+			// they address one price and so are combinable - the disagreement surfaces only when they are combined
+			assertTrue(deferring.isCombinableWith(explicit));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> deferring.combineWith(explicit)
+			);
+			assertTrue(
+				exception.getMessage().contains("defaultAccompanyingPriceLists"),
+				"the message must point at the deferral, not merely report unequal price lists: " +
+					exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a deferred and an explicit price list sequence in either order")
+		void shouldRefuseToCombineExplicitPriceListsWithDeferredOnes() {
+			final AccompanyingPriceContent explicit = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent deferring = new AccompanyingPriceContent("myPrice");
+
+			assertTrue(explicit.isCombinableWith(deferring));
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> explicit.combineWith(deferring)
+			);
+			assertTrue(
+				exception.getMessage().contains("defaultAccompanyingPriceLists"),
+				exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should name both price list sequences when two explicit ones disagree")
+		void shouldNameBothPriceListSequencesInTheRefusal() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+			// the first argument is the price name, not a price list - the message has to tell them apart
+			assertTrue(exception.getMessage().contains("[reference]"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("[basic]"), exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should refuse to combine price lists differing only in order")
+		void shouldRefuseToCombinePriceListsDifferingOnlyInOrder() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic", "reference");
+
+			// the price list sequence is a priority order, so a different order means a different price
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint1.combineWith(constraint2)
+			);
+		}
+
+		@Test
+		@DisplayName("should treat the no-arg constraint and the explicit default name as one price")
+		void shouldTreatNoArgConstraintAndExplicitDefaultNameAsOneKey() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent();
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent(
+				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE
+			);
+
+			assertTrue(constraint1.isCombinableWith(constraint2));
+			assertSame(constraint1, constraint1.combineWith(constraint2));
 		}
 
 		@Test
@@ -227,27 +361,50 @@ class AccompanyingPriceContentTest {
 		}
 
 		@Test
-		@DisplayName("should combine by returning the other requirement")
-		void shouldCombineByReturningTheOtherRequirement() {
-			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "basic");
+		@DisplayName("should refuse to combine with a requirement of another kind")
+		void shouldRefuseToCombineWithDifferentRequirementType() {
+			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
 
-			final AccompanyingPriceContent combined = constraint1.combineWith(constraint2);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> constraint.combineWith(attributeContentAll())
+			);
+		}
+	}
 
-			assertSame(constraint2, combined);
+	@Nested
+	@DisplayName("Containment")
+	class ContainmentTest {
+
+		@Test
+		@DisplayName("should be fully contained within an equal requirement")
+		void shouldBeFullyContainedWithinEqualRequirement() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference", "basic");
+
+			assertTrue(constraint1.isFullyContainedWithin(constraint2));
 		}
 
 		@Test
-		@DisplayName("should never be fully contained within another requirement")
-		void shouldNeverBeFullyContainedWithinAnotherRequirement() {
+		@DisplayName("should not be fully contained within a differently named requirement")
+		void shouldNotBeFullyContainedWithinDifferentlyNamedRequirement() {
 			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
-			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("otherPrice", "reference");
 
 			assertFalse(constraint1.isFullyContainedWithin(constraint2));
 		}
 
 		@Test
-		@DisplayName("should not be fully contained within different constraint type")
+		@DisplayName("should not be fully contained within a requirement with other price lists")
+		void shouldNotBeFullyContainedWithinRequirementWithOtherPriceLists() {
+			final AccompanyingPriceContent constraint1 = new AccompanyingPriceContent("myPrice", "reference");
+			final AccompanyingPriceContent constraint2 = new AccompanyingPriceContent("myPrice", "basic");
+
+			assertFalse(constraint1.isFullyContainedWithin(constraint2));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained within a requirement of another kind")
 		void shouldNotBeFullyContainedWithinDifferentConstraintType() {
 			final AccompanyingPriceContent constraint = new AccompanyingPriceContent("myPrice", "reference");
 

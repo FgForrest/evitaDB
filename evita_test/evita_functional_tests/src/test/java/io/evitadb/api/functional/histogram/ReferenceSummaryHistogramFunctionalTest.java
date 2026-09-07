@@ -29,6 +29,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -36,9 +37,11 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -68,6 +71,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1150,6 +1154,311 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					}
 				}
 			);
+		}
+	}
+
+	// ==========================================================================================
+	// LARGE fixture — the reference-specific summary overrides the generic one at every depth
+	// ==========================================================================================
+
+	/**
+	 * Pins down that a `referenceSummaryOfReference` governs the reference it names **entirely** on the histogram
+	 * path too: the `entityFetch` and `entityGroupFetch` of a generic `referenceSummary` written beside it reach
+	 * neither the facets nor the groups of that reference, at either statistics depth.
+	 *
+	 * The two depths are what this exercises. At {@link FacetStatisticsDepth#NONE} the groups are synthesized by the
+	 * histogram pipeline and their entities come from the group-entity fetcher; at {@link FacetStatisticsDepth#COUNTS}
+	 * they are emitted by the facet pipeline and their entities come from the request resolved there. Those two
+	 * resolutions used to disagree - the facet path overlaid the generic summary's fetch onto the specific one while
+	 * the histogram path did not - so the very same query returned an enriched group at `COUNTS` and a bare entity
+	 * reference at `NONE`. Both now follow the documented override, so both come back bare.
+	 */
+	@Nested
+	@DisplayName("Generic summary override at every depth (large fixture)")
+	class GenericSummaryOverrideLarge {
+
+		@ParameterizedTest(name = "depth={0}")
+		@EnumSource(value = FacetStatisticsDepth.class, names = {"NONE", "COUNTS"})
+		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
+		@DisplayName("the specific summary must inherit no entity fetch from the generic one at any depth")
+		void shouldNotInheritGenericEntityFetchAtAnyDepth(
+			@Nonnull FacetStatisticsDepth depth, @Nonnull Evita evita
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								page(1, Integer.MAX_VALUE),
+								referenceSummary(
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(attributeContent(ATTR_NAME)),
+									entityGroupFetch(attributeContent(ATTR_NAME))
+								),
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, depth, null, null,
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+
+					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
+						final ReferenceGroupStatistics group = referenceSummary.getReferenceGroupStatistics(
+							REF_PARAM_VALUES, groupPk
+						);
+						assertNotNull(group, "Group " + groupPk + " must surface in the summary at depth " + depth);
+						final HistogramContract histogram = group.getHistogramStatistics(HISTOGRAM_PRICE);
+						assertNotNull(histogram, "Group " + groupPk + " must carry the bucketed histogram");
+						assertTrue(histogram.getBuckets().length > 0, "Histogram must have at least one bucket");
+
+						assertInstanceOf(
+							EntityReference.class, group.getGroupEntity(),
+							"Group " + groupPk + " inherited the `entityGroupFetch` of the generic summary at depth "
+								+ depth
+						);
+						if (depth == FacetStatisticsDepth.COUNTS) {
+							assertFalse(
+								group.getFacetStatistics().isEmpty(),
+								"Group " + groupPk + " must carry facet statistics at depth COUNTS"
+							);
+						}
+						for (final FacetStatistics facetStatistics : group.getFacetStatistics()) {
+							assertInstanceOf(
+								EntityReference.class, facetStatistics.getFacetEntity(),
+								"A facet of group " + groupPk + " inherited the `entityFetch` of the generic summary "
+									+ "at depth " + depth
+							);
+						}
+					}
+					return null;
+				}
+			);
+		}
+
+		/**
+		 * The `filterGroupBy` of the generic summary must not reach the reference the specific summary names either.
+		 * The histogram path used to fall back to the generic group predicate whenever the reference-specific request
+		 * carried none of its own, which silently dropped every group the generic filter excluded - even though the
+		 * client wrote that filter for the *other* references.
+		 */
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
+		@DisplayName("the specific summary must inherit no group filter from the generic one")
+		void shouldNotInheritGenericGroupFilter(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								page(1, Integer.MAX_VALUE),
+								referenceSummary(
+									FacetStatisticsDepth.COUNTS,
+									filterGroupBy(entityPrimaryKeyInSet(1))
+								),
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, FacetStatisticsDepth.NONE, null, null,
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+
+					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
+						final ReferenceGroupStatistics group = referenceSummary.getReferenceGroupStatistics(
+							REF_PARAM_VALUES, groupPk
+						);
+						assertNotNull(
+							group,
+							"Group " + groupPk + " was dropped by the `filterGroupBy` of the generic summary"
+						);
+						assertNotNull(
+							group.getHistogramStatistics(HISTOGRAM_PRICE),
+							"Group " + groupPk + " must carry the bucketed histogram"
+						);
+					}
+					return null;
+				}
+			);
+		}
+	}
+
+	// ==========================================================================================
+	// Bespoke fixture — the generic summary's own `orderBy` on the all-references fan-out
+	// ==========================================================================================
+
+	/**
+	 * Pins down which constraint supplies the facet sorter the histogram pipeline uses to pick a boundary anchor.
+	 *
+	 * When several referenced entities share the histogram's minimum (or maximum) value, the anchor exposed by
+	 * {@link HistogramContract#getMinReferencedEntity()} is picked with the reference's configured sorter, and only
+	 * the lowest primary key wins when there is none. A reference reached through the all-references fan-out
+	 * (`referenceSummaryWithHistograms`) is registered on the producer as a *default* request, not a per-reference
+	 * one - and the histogram path used to look the sorter up in the per-reference map alone, so the `orderBy` the
+	 * caller wrote on the generic summary was silently dropped for exactly the references that summary governs.
+	 * Under the whole-constraint override the generic summary governs those references completely, so its `orderBy`
+	 * is theirs.
+	 *
+	 * Fixture: one group holding three parameter values, two of which tie on the minimum value. Their names order
+	 * the opposite way to their primary keys, so a descending `orderBy(attributeNatural(name))` and the
+	 * lowest-primary-key fallback disagree about the tie - which is what makes the sorter observable at all.
+	 */
+	@Nested
+	@DisplayName("Generic summary sorter on the all-references fan-out (bespoke fixture)")
+	class GenericSummarySorterFanOut {
+
+		private static final String TIE_REF = "paramTieHistogram";
+		private static final String TIE_HISTOGRAM = "tieHistogram";
+		/**
+		 * Names of the two parameter values that tie on the histogram's minimum value. `PK_LOW` carries the name
+		 * that sorts *last* in descending order, so the sorter and the lowest-primary-key fallback disagree.
+		 */
+		private static final String NAME_OF_LOW_PK = "alpha";
+		private static final String NAME_OF_HIGH_PK = "zulu";
+		private static final String NAME_OF_MAXIMUM = "mike";
+
+		@Test
+		@DisplayName("the fan-out must pick the boundary anchor with the generic summary's own orderBy")
+		void shouldPickBoundaryAnchorWithGenericSummaryOrderBy() {
+			runWithInlineSchema(
+				"referenceHistogramE2E_genericSorterFanOut",
+				GenericSummarySorterFanOut::defineTieSchema,
+				GenericSummarySorterFanOut::seedTiedGroup,
+				evita -> evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReferenceContract> result = session.query(
+							query(
+								collection(ENTITY_PRODUCT),
+								require(
+									referenceSummaryWithHistograms(
+										FacetStatisticsDepth.COUNTS,
+										null, null,                                   // facetFilterBy, facetGroupFilterBy
+										orderBy(attributeNatural(ATTR_NAME, OrderDirection.DESC)),
+										null,                                         // facetGroupOrderBy
+										null, null,                                   // entityFetch, entityGroupFetch
+										histogramStatistics(
+											10, entityFetch(attributeContent(ATTR_NAME)), TIE_HISTOGRAM
+										)
+									)
+								)
+							),
+							EntityReferenceContract.class
+						);
+						final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+						assertNotNull(referenceSummary);
+
+						final ReferenceGroupStatistics group = referenceSummary.getReferenceGroupStatistics(TIE_REF, 1);
+						assertNotNull(group, "The only group must surface in the summary");
+						final HistogramContract histogram = group.getHistogramStatistics(TIE_HISTOGRAM);
+						assertNotNull(histogram, "The group must carry the bucketed histogram");
+
+						final SealedEntity minAnchor = histogram.getMinReferencedEntity()
+							.orElseThrow(() -> new AssertionError(
+								"The histogram must expose the entity anchoring its minimum bucket"
+							));
+						assertEquals(
+							NAME_OF_HIGH_PK,
+							minAnchor.getAttribute(ATTR_NAME),
+							"The tie on the minimum value was broken by the lowest primary key instead of by the " +
+								"`orderBy` of the generic summary that governs this reference"
+						);
+
+						final SealedEntity maxAnchor = histogram.getMaxReferencedEntity()
+							.orElseThrow(() -> new AssertionError(
+								"The histogram must expose the entity anchoring its maximum bucket"
+							));
+						assertEquals(
+							NAME_OF_MAXIMUM,
+							maxAnchor.getAttribute(ATTR_NAME),
+							"The unique maximum value must anchor on its only holder regardless of the sorter"
+						);
+						return null;
+					}
+				)
+			);
+		}
+
+		/**
+		 * Defines a `product → parameterValue → parameter` schema whose reference carries one bucketed histogram over
+		 * the referenced entity's value attribute. The referenced entity's `name` is sortable, so it can drive the
+		 * `orderBy` the generic summary writes.
+		 */
+		private static void defineTieSchema(@Nonnull EvitaSessionContract session) {
+			session.defineEntitySchema(ENTITY_PARAMETER)
+				.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+				.updateVia(session);
+
+			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+				.withAttribute(
+					ATTR_NAME, String.class,
+					whichIs -> whichIs.filterable().sortable().nullable()
+				)
+				.withAttribute(
+					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
+				)
+				.updateVia(session);
+
+			session.defineEntitySchema(ENTITY_PRODUCT)
+				.withReferenceToEntity(
+					TIE_REF, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioning()
+						.indexedWithComponents(ReferenceIndexedComponents.values())
+						.faceted()
+						.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+						.bucketed(
+							TIE_HISTOGRAM,
+							ExpressionFactory.parse(
+								"$reference.referencedEntity?.attributes['" + ATTR_BASIC_UNIT_VALUE + "']"
+							)
+						)
+				)
+				.updateVia(session);
+		}
+
+		/**
+		 * Seeds one group holding three parameter values: two tied on the minimum value whose names order the
+		 * opposite way to their primary keys, and one holding the unique maximum.
+		 */
+		private static void seedTiedGroup(@Nonnull EvitaSessionContract session) {
+			session.createNewEntity(ENTITY_PARAMETER, 1)
+				.setAttribute(ATTR_NAME, "Width")
+				.upsertVia(session);
+
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+				.setAttribute(ATTR_NAME, NAME_OF_LOW_PK)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+				.upsertVia(session);
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+				.setAttribute(ATTR_NAME, NAME_OF_HIGH_PK)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+				.upsertVia(session);
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 3)
+				.setAttribute(ATTR_NAME, NAME_OF_MAXIMUM)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("30"))
+				.upsertVia(session);
+
+			for (int productPk = 1; productPk <= 3; productPk++) {
+				final int pvPk = productPk;
+				session.createNewEntity(ENTITY_PRODUCT, productPk)
+					.setReference(
+						TIE_REF, pvPk,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 1)
+					)
+					.upsertVia(session);
+			}
 		}
 	}
 

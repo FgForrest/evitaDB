@@ -159,3 +159,17 @@ Czech mirror is machine-translated, never hand-edited — see `.claude/rules/doc
 
 - **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
 - Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must surface immediately at runtime.
+
+## Optionals
+
+**`Optional` is a return type, and nothing else.** It is legal as a method return value and as a local variable
+holding one. Never as a **class field**, never as a **method argument**.
+
+A field pays a wrapper object per instance for something `null` already expresses, and then drags it through
+every copy, serializer and equality check on the class. An argument forces every caller to wrap, while the
+parameter still accepts `null` - a signature promising a guarantee it does not give. Take the value and mark it
+`@Nullable`.
+
+The case that tempts a field is memoizing a nullable lookup, where `null` means *not computed* and *absent* at
+once. Do not separate them with an `Optional` field - recompute instead, and keep the scan allocation-free.
+`ReferenceContent#getFilterBy` is the worked example.

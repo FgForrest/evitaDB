@@ -1392,4 +1392,43 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 		);
 	}
 
+	@DisplayName("Should provide paginated access to references of an entity ordered by a reference property")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnReferencePageWhenEntitiesAreOrderedByReferenceProperty(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
+							)
+						),
+						require(
+							entityFetch(
+								referenceContent(Entities.CATEGORY, page(1, 2))
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, response.getRecordData().size());
+				for (final SealedEntity product : response.getRecordData()) {
+					final PaginatedList<ReferenceContract> categories =
+						(PaginatedList<ReferenceContract>) product.getReferenceChunk(Entities.CATEGORY);
+					assertEquals(1, categories.getPageNumber());
+					assertEquals(2, categories.getPageSize());
+					assertTrue(categories.getData().size() <= 2, "The reference page must not exceed its size!");
+					assertEquals(categories.getData().size(), product.getReferences(Entities.CATEGORY).size());
+				}
+				return null;
+			}
+		);
+	}
+
 }

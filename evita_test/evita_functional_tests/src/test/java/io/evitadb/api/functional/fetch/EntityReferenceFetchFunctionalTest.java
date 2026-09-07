@@ -994,4 +994,60 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 		);
 	}
 
+	@DisplayName("References filtered by the query and by the requirement should be returned as a page")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnFilteredReferencePageWhenReferenceIsAlsoFiltered(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(entitiesMatchingTheRequirements),
+								referenceHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(1, 2, 3, 4, 5)
+								)
+							)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									filterBy(entityPrimaryKeyInSet(1, 2, 3, 4, 5)),
+									page(1, 2)
+								)
+							)
+						)
+					)
+				);
+
+				assertFalse(response.getRecordData().isEmpty());
+				for (final SealedEntity product : response.getRecordData()) {
+					final DataChunk<ReferenceContract> categories =
+						product.getReferenceChunk(Entities.CATEGORY);
+					assertTrue(categories.getData().size() <= 2, "The reference page must not exceed its size!");
+					for (final ReferenceContract category : categories) {
+						assertTrue(
+							category.getReferencedPrimaryKey() <= 5,
+							"Only the categories matching the requirement filter may be returned!"
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
 }

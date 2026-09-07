@@ -483,6 +483,8 @@ final class ReferenceHistogramAccumulator {
 		final HistogramRequest req = resolved.request();
 		final AttributeHistogramRequest histRequest = new AttributeHistogramRequest(
 			resolved.attributeSchema(),
+			req.bucketCount(),
+			req.behavior(),
 			resolved.comparator(),
 			List.of(filterIndex)
 		);
