@@ -29,7 +29,9 @@ import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -1799,6 +1801,104 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertHistogramIntegrity(result, filteredProducts, null, null, null);
 
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse two price histograms with different settings whether or not a price filter is used")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	@Tag(HISTOGRAM)
+	void shouldRefuseTwoPriceHistogramsRegardlessOfTheFilter(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// there is one price histogram slot in the response, so the two requirements below have no answer
+				// that satisfies both. The verdict must not depend on what the query filters on - the accessor that
+				// used to notice the duplicate is reached only from the price filter translators, so a query
+				// filtering on an attribute silently computed both and kept whichever finished last
+				// the message is asserted, not merely the exception type: the accessor this replaces threw
+				// `MoreThanSingleResultException`, which is itself an `EvitaInvalidUsageException`, so a type-only
+				// assertion would pass against the very behaviour being removed
+				final EvitaInvalidUsageException withoutPriceFilter = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeIsNotNull(ATTRIBUTE_CODE)),
+							require(page(1, Integer.MAX_VALUE), priceHistogram(10), priceHistogram(20))
+						),
+						EntityReference.class
+					),
+					"no price filter is present"
+				);
+				assertTrue(
+					withoutPriceFilter.getMessage().contains("only a single price histogram request"),
+					withoutPriceFilter.getMessage()
+				);
+
+				final EvitaInvalidUsageException withPriceFilter = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									priceInCurrency(CURRENCY_EUR),
+									priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+								)
+							),
+							require(page(1, Integer.MAX_VALUE), priceHistogram(10), priceHistogram(20))
+						),
+						EntityReference.class
+					),
+					"a price filter is present"
+				);
+				assertTrue(
+					withPriceFilter.getMessage().contains("only a single price histogram request"),
+					withPriceFilter.getMessage()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should accept two identical price histogram requirements")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	@Tag(HISTOGRAM)
+	void shouldAcceptTwoIdenticalPriceHistograms(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the two agree, so the second one is redundant rather than contradictory - one producer serves both
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(),
+							priceHistogram(20),
+							priceHistogram(20)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+					.collect(Collectors.toList());
+
+				assertHistogramIntegrity(result, filteredProducts, null, null, null);
 				return null;
 			}
 		);

@@ -58,6 +58,7 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryAdapter;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.SummaryDeclaration;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryResultAdapter;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -435,6 +436,15 @@ public class ReferenceSummaryOfReferenceTranslator
 				extraResultPlanner, orderGroupBy, findLocale(filterGroupBy), extraResultPlanner, referenceSchema, true
 			)
 			: null;
+		// a second summary constraint of the same kind for this reference must not silently replace the first one
+		referenceSummaryProducer.assertReferenceSummaryNotRedeclared(
+			referenceName,
+			new SummaryDeclaration(
+				statisticsDepth, referenceEntityRequirement, groupEntityRequirement,
+				filterBy, filterGroupBy, orderBy, orderGroupBy
+			)
+		);
+
 		referenceSummaryProducer.requireReferenceReferenceSummary(
 			referenceSchema,
 			statisticsDepth,

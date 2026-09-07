@@ -1905,17 +1905,48 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
+	 *
+	 * **A transitional placeholder answers before the session registry gets a say.** A catalog that is going live,
+	 * being deactivated or being dropped is represented in the engine state by an {@link UnusableCatalog}, and this
+	 * method throws that placeholder's representative exception ahead of consulting the registry - left to the
+	 * registry, a REJECT suspension would answer {@link InstanceTerminatedException} and tell the client the catalog
+	 * is gone. Only the placeholder answer is decided here: a name that names **no** catalog is deliberately still
+	 * left to the registry, so a request arriving inside a rename's POSTPONE window waits the suspension out and
+	 * then succeeds rather than being refused {@link CatalogNotFoundException} ahead of it.
+	 *
+	 * @param sessionTraits the catalog to open the session on, and the flags the session is created with
+	 * @return the created session together with its commit progress record
+	 * @throws CatalogGoingLiveException     when the catalog is going live right now
+	 * @throws CatalogTransitioningException when the catalog is being deactivated or dropped
+	 * @throws CatalogNotFoundException      when the name names no catalog
+	 * @throws InstanceTerminatedException   when the registry is suspended because the catalog is being terminated
+	 * @throws io.evitadb.core.exception.SessionBusyException when a postponing suspension did not finish in time
+	 * @throws ReadOnlyException             when a read-write session is requested on a read-only engine or catalog
 	 */
 	@Nonnull
 	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
+		// a transitional placeholder must answer BEFORE the registry gets a say: the operators that quiesce
+		// a catalog - go-live, deactivation, drop - install the placeholder first and suspend the registry
+		// with REJECT second, and the registry's answer to a rejected request is InstanceTerminatedException,
+		// which tells the client the catalog is gone. For a catalog that is merely going live the contract is
+		// CatalogGoingLiveException (its own javadoc, and the "Catalog States" section of EvitaSessionContract),
+		// and CatalogTransitioningException for a catalog being deactivated or dropped.
+		//
+		// Only the PLACEHOLDER answer is decided here, never the not-found one: a rename publishes the target
+		// name's POSTPONE-suspended registry before its commit lands, and a session request arriving in that
+		// window has to wait the suspension out and then succeed, not be refused CatalogNotFoundException ahead
+		// of the registry
+		final CatalogContract catalogContract = getCatalogInstance(sessionTraits.catalogName()).orElse(null);
+		if (catalogContract instanceof UnusableCatalog unusableCatalog) {
+			throw unusableCatalog.getRepresentativeException();
+		}
+		// the registry's own catalog supplier keeps the same check too - a placeholder may be installed between
+		// this line and the supplier running
 		final SessionRegistry catalogSessionRegistry = this.catalogSessionRegistries.computeIfAbsent(
 			sessionTraits.catalogName(),
 			__ -> {
-				// we need first to verify whether the catalog exists and is not corrupted
-				final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
-				if (catalogContract instanceof UnusableCatalog unusableCatalog) {
-					throw unusableCatalog.getRepresentativeException();
-				}
+				// a name that names no catalog must get no registry - see `Evita#suspendCatalogSessions`
+				getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 				return createSessionNewRegistry(sessionTraits);
 			}
 		);

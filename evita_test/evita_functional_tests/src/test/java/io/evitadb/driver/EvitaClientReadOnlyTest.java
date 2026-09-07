@@ -63,6 +63,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -140,12 +141,15 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.Assertions.assertDiffers;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies the read-only behavior of {@link EvitaClient}.
@@ -1341,6 +1345,92 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
+	 * Tests that the client resolves the output names of every `hierarchyOfReference` constraint in the query, not
+	 * only of the first one naming the reference. Repeating the constraint for a single reference is a supported
+	 * pattern - the results merge into one container in the response - so the driver has to look for the output name
+	 * across all of them.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("get hierarchies of two constraints naming a single reference")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetHierarchiesOfTwoConstraintsNamingSingleReference(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("megaMenu", entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("sideMenu")
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy);
+		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
+		assertNotNull(categoryHierarchy);
+		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
+		assertFalse(categoryHierarchy.get("sideMenu").isEmpty());
+		// each output name is deserialized with the `entityFetch` of the constraint that declared it - `megaMenu`
+		// asked for a body with attributes, `sideMenu` asked for nothing but the reference
+		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").get(0).entity();
+		assertInstanceOf(SealedEntity.class, megaMenuEntity);
+		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
+		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").get(0).entity());
+	}
+
+	/**
+	 * Tests the same output name resolution for `hierarchyOfSelf`, whose repetitions all feed the single `self`
+	 * container of the response.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@Test
+	@DisplayName("get self hierarchies of two constraints")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetSelfHierarchiesOfTwoConstraints(EvitaClient evitaClient) {
+		final EvitaResponse<EntityReference> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.CATEGORY),
+						require(
+							page(1, 0),
+							hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent(ATTRIBUTE_CODE)))),
+							hierarchyOfSelf(fromRoot("sideMenu"))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy);
+		assertFalse(hierarchy.getSelfHierarchy("megaMenu").isEmpty());
+		assertFalse(hierarchy.getSelfHierarchy("sideMenu").isEmpty());
+		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").get(0).entity();
+		assertInstanceOf(SealedEntity.class, megaMenuEntity);
+		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
+		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").get(0).entity());
+	}
+
+	/**
 	 * Tests that the client can retrieve custom entity model instances along with extra query results.
 	 *
 	 * This test verifies that the client can successfully execute queries that return
@@ -2198,6 +2288,120 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					return productByPk.getReferenceChunk(Entities.PARAMETER).getTotalRecordCount();
 				}
 			)
+		);
+	}
+
+	/**
+	 * Tests that two reference content requirements written for one reference are folded into a single requirement
+	 * covering both, all the way through the remote transport.
+	 *
+	 * The driver hands the query over as EvitaQL text plus its parameters, so this is the only place proving that the
+	 * pair survives being rendered and parsed back before the server folds it. Both bodies have to reach the referenced
+	 * brand; the failure this guards against is the second requirement replacing the first one and its attribute
+	 * disappearing without any error.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
+	@DisplayName("fetch both bodies of a reference requested twice")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(QUERY)
+	@Tag(REFERENCE)
+	@Test
+	void shouldFetchBothBodiesWhenOneReferenceIsRequestedTwice(
+		EvitaClient evitaClient,
+		Map<Integer, SealedEntity> products
+	) {
+		final SealedEntity productWithBrand = products.values()
+			.stream()
+			.filter(it -> !it.getReferences(Entities.BRAND).isEmpty())
+			.findFirst()
+			.orElseThrow();
+		final Locale locale = productWithBrand.getAllLocales().stream().findFirst().orElseThrow();
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithBrand.getPrimaryKeyOrThrowException()),
+							entityLocaleEquals(locale)
+						),
+						require(
+							entityFetch(
+								referenceContent(Entities.BRAND, entityFetch(attributeContent(ATTRIBUTE_CODE))),
+								referenceContent(Entities.BRAND, entityFetch(attributeContent(ATTRIBUTE_NAME)))
+							)
+						)
+					)
+				).orElseThrow();
+
+				final Collection<ReferenceContract> brands = product.getReferences(Entities.BRAND);
+				assertFalse(brands.isEmpty(), "The product lost its brand on the way!");
+				for (final ReferenceContract brand : brands) {
+					final SealedEntity brandEntity = brand.getReferencedEntity().orElseThrow();
+					assertNotNull(
+						brandEntity.getAttribute(ATTRIBUTE_CODE),
+						"The body of the first requirement was dropped!"
+					);
+					assertNotNull(
+						brandEntity.getAttribute(ATTRIBUTE_NAME, locale),
+						"The body of the second requirement was dropped!"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Tests that two reference content requirements selecting one reference differently are refused, and that the
+	 * refusal reaches a remote caller with its reason intact.
+	 *
+	 * Note the expected type: everything the server rejects arrives back as a plain
+	 * {@link EvitaInvalidUsageException}, because the driver reconstructs `INVALID_ARGUMENT` responses from the error
+	 * code and does not restore the original subclass. What has to survive is the message, since it is all a remote
+	 * caller has to tell this apart from any other rejection.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@DisplayName("refuse two reference content requirements filtering one reference differently")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Tag(QUERY)
+	@Tag(REFERENCE)
+	@Test
+	void shouldRefuseTwoReferenceContentsFilteringOneReferenceDifferently(EvitaClient evitaClient) {
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.CATEGORY,
+										filterBy(entityPrimaryKeyInSet(1, 2))
+									),
+									referenceContent(
+										Entities.CATEGORY,
+										filterBy(entityPrimaryKeyInSet(3, 4))
+									)
+								)
+							)
+						)
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("different filter constraints"),
+					"The refusal reason did not survive the wire: " + exception.getMessage()
+				);
+				return null;
+			}
 		);
 	}
 

@@ -234,6 +234,18 @@ strip(
 
 </LS>
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Can I use `page` and `strip` in the same query?
+</NoteTitle>
+
+No. Each of them selects a different form of the returned data chunk, so there is no combined answer to give -
+a query stating both is rejected.
+
+</Note>
+
 The `strip`
 <LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) requirement</LS>
 <LS to="g">approach</LS>

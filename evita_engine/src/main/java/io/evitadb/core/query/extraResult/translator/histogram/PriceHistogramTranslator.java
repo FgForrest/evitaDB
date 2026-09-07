@@ -34,8 +34,10 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingSc
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.sort.price.FilteredPricesSorter;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -92,6 +94,29 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 		final Optional<FilteredPricesSorter> filteredPricesSorter = ofNullable(
 			extraResultPlanner.findSorter(FilteredPricesSorter.class)
 		);
+
+		// there is a single price histogram slot in the response, so a second `priceHistogram` requirement either
+		// asks for exactly what the first one did - and is redundant - or contradicts it. Deciding that here rather
+		// than in `EvitaRequest#isPriceHistogramRequested` is what makes the verdict independent of the query plan:
+		// this translator runs for every `priceHistogram` requirement, whereas that accessor is reached only from
+		// the four price filter translators and therefore never runs for a query that filters on something else.
+		final PriceHistogramProducer existingProducer =
+			extraResultPlanner.findExistingProducer(PriceHistogramProducer.class);
+		if (existingProducer != null) {
+			final int bucketCount = priceHistogram.getRequestedBucketCount();
+			final HistogramBehavior behavior = priceHistogram.getBehavior();
+			if (existingProducer.getBucketCount() != bucketCount || existingProducer.getBehavior() != behavior) {
+				final String reason = "Price histogram was already requested with a different bucket count or " +
+					"behavior - there may be only a single price histogram request in the query";
+				throw new EvitaInvalidUsageException(
+					reason + ": " + existingProducer.getBucketCount() + "/" + existingProducer.getBehavior() +
+						" and " + bucketCount + "/" + behavior + ".",
+					reason + "."
+				);
+			}
+			// the two agree, so the first producer already computes exactly what this requirement asks for
+			return existingProducer;
+		}
 
 		// create price histogram producer that computes the result
 		return new PriceHistogramProducer(
