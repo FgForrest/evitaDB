@@ -2,7 +2,7 @@
 title: The hidden mathematics of a faceted filter panel
 perex: |
   A filter panel looks like the simplest part of an e-shop: some checkboxes, a price slider, a few counts. It is nothing of the sort. Every redraw has to answer several structurally different questions at once, each against a different view of what the shopper has picked — and the price slider, the most innocent-looking control on the page, turns out to rest on a century of statistics that retail pricing quietly breaks. This post is about the mechanics behind those panels, the traps waiting in them, and what a correct answer actually has to satisfy.
-date: '14.05.2026'
+date: '07.09.2026'
 author: 'Ing. Jan Novotný'
 motive: assets/images/26-faceted-filter-choreography.png
 proofreading: 'done'
