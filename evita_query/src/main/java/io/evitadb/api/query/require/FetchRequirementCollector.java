@@ -42,10 +42,17 @@ import javax.annotation.Nonnull;
  * (using the {@link EntityContentRequire#isCombinableWith} / {@link EntityContentRequire#combineWith} protocol)
  * and deduplicates requirements that are fully contained within already-registered ones.
  *
- * A merging implementation may also **refuse**: two requirements that address the same thing but contradict each
- * other (two `referenceContent` requirements for one reference with different `filterBy` constraints, for example)
- * raise an {@link EvitaInvalidUsageException} out of {@link #addRequirementsToPrefetch(EntityContentRequire...)}
- * rather than letting one of them silently win.
+ * This collector says **load at least this**, so it widens freely. Every requirement is first admitted through
+ * {@link EntityContentRequire#forPrefetch()}, which strips the parts that shape the output - a `referenceContent`'s
+ * `filterBy`, `orderBy` and chunking, a `hierarchyContent`'s `stopAt`. Two requirements contributed by unrelated
+ * parts of one plan therefore cannot contradict each other over what is *returned*, and the union takes the superset
+ * instead of refusing. That is what lets an ordinary query filter its `referenceContent` while ordering by the same
+ * reference without meeting a client-facing refusal here, for a conflict the client never wrote.
+ *
+ * A merging implementation may still **refuse** a disagreement the strip does not cover - two
+ * `accompanyingPriceContent` requirements computing one price from different price lists, say - by raising an
+ * {@link EvitaInvalidUsageException} out of {@link #addRequirementsToPrefetch(EntityContentRequire...)} rather than
+ * letting one of them silently win.
  *
  * The standard implementation is {@link DefaultPrefetchRequirementCollector}, which is wired into
  * `QueryPlanningContext` and `QueryPlanBuilder` so that all engine translators can access the same collector
@@ -61,6 +68,10 @@ public interface FetchRequirementCollector {
 	 * The method call might be completely ignored if the collector is not present.
 	 *
 	 * @param require the requirements to prefetch
+	 * @throws EvitaInvalidUsageException when a requirement disagrees with one already collected in a way that
+	 *                                    {@link EntityContentRequire#forPrefetch()} does not strip away - the
+	 *                                    output-shaping parts never reach here, so this is narrower than the
+	 *                                    refusal that governs what the client is returned
 	 */
 	void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require);
 

@@ -73,6 +73,9 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	 * @param a the first EntityFetchRequire requirement, can be null
 	 * @param b the second EntityFetchRequire requirement, can be null
 	 * @return the combined EntityFetchRequire requirement, or null if both are null
+	 * @throws EvitaInvalidUsageException when both are non-null and hold two requirements of one kind that
+	 *                                    contradict each other - the combination is delegated to
+	 *                                    {@link #combineWith(EntityFetchRequire)}, which refuses such a pair
 	 */
 	@Nullable
 	static <T extends EntityFetchRequire> T combineRequirements(@Nullable T a, @Nullable T b) {
@@ -195,6 +198,9 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	 * @param anotherRequirement another requirement to be combined with
 	 * @param <T> type of the requirement to be combined with
 	 * @return a new combined requirement
+	 * @throws EvitaInvalidUsageException when the two carry requirements of one kind that say contradictory things
+	 *                                    about a single target - the merge describes what is returned, so it refuses
+	 *                                    such a pair instead of letting one of them silently win
 	 */
 	@Nonnull
 	<T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement);

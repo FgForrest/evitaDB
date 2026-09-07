@@ -811,8 +811,8 @@ class ReevaluateExpressionExecutorTest {
 
 		/**
 		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): a production catalog,
-		 * `ParameterValue` upsert blowing up with `A total of 2 constraints were found in a query,
-		 * but expected is only one`.
+		 * `ParameterValue` upsert blowing up with ``A total of `2` constraints were found in a query,
+		 * but expected is only one: <the two constraints>.``
 		 *
 		 * `ReevaluateExpressionExecutor.evaluateCondition` decides whether per-group evaluation is
 		 * required by calling `FinderVisitor.findConstraint(filter, GroupHaving.class::isInstance)`.

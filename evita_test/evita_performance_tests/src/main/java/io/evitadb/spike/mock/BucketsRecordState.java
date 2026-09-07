@@ -23,11 +23,11 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.attribute.FilterIndex;
