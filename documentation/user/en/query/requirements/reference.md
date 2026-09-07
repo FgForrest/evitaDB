@@ -722,13 +722,24 @@ referenceSummaryOfReference(
 The <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummaryOfReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummaryOfReference.cs</SourceClass></LS>
 requirement either stands alone (when only one reference needs a summary) or coexists with a generic
 [`referenceSummary`](#reference-summary) to **override its baseline for that single reference**. The override is
-total: nothing written on the generic constraint — no `entityFetch`, no `entityGroupFetch`, no `filterBy` /
-`filterGroupBy` and no `orderBy` / `orderGroupBy` — reaches the reference the per-reference variant names, so that
-variant has to define all of its own requirements. Anything it omits is simply not computed for that reference: a
-`referenceSummaryOfReference` carrying no `entityFetch` returns bare entity references even when the generic
-`referenceSummary` beside it asks for attributes. The generic constraint keeps governing every reference that has
+total: nothing written on the generic constraint reaches the reference the per-reference variant names, so that
+variant has to define all of its own requirements. The generic constraint keeps governing every reference that has
 no per-reference variant, which is what lets you keep a one-line generic baseline and customise only the references
 that need it.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What happens to a requirement I don't repeat on the per-reference variant?
+</NoteTitle>
+
+It is simply not computed for that reference. Nothing crosses over from the generic constraint — no `entityFetch`,
+no `entityGroupFetch`, no `filterBy` / `filterGroupBy` and no `orderBy` / `orderGroupBy` — so a
+`referenceSummaryOfReference` carrying no `entityFetch` returns bare entity references even when the generic
+`referenceSummary` beside it asks for attributes.
+
+</Note>
 
 Let's display the reference summary for products in the *e-readers* category, but compute it only for the `brand`
 and `parameterValues` references. Options inside `brand` should be ordered alphabetically by name; options inside
@@ -1033,6 +1044,11 @@ changes the behaviour of the options in every group selected by `filterBy`. Inst
 reference the entity in question, the query returns items that don't.
 
 <Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Does it matter which level I set the negation at?
+</NoteTitle>
 
 As long as the other argument stays at the system default, it doesn't matter whether you set NEGATION at the level
 within the same reference group or between different groups: by [De Morgan's

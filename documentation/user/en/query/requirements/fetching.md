@@ -170,12 +170,20 @@ content requirement has its own notion of a superset:
 
 <LS to="j">
 
-Because the fold always favours the superset, the fetch-all shorthands now combine with whatever you add next to
-them instead of failing. `entityFetchAllContentAnd(attributeContent("code"))` is accepted and fetches **all** the
-attributes, and `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` fetches the **whole** parent chain
-rather than one level of it - `entityFetchAllContent()` already contains `attributeContentAll()` and a bare
-`hierarchyContent()`, and both of those are the superset. Ask for a narrower body with a plain `entityFetch` rather
-than with the fetch-all shorthand.
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What does the fold do to `entityFetchAllContentAnd(...)`?
+</NoteTitle>
+
+Because the fold always favours the superset, a fetch-all shorthand combines with whatever you add next to it and
+never narrows. `entityFetchAllContentAnd(attributeContent("code"))` fetches **all** the attributes, and `entityFetchAllContentAnd(hierarchyContent(stopAt(distance(1))))` fetches the
+**whole** parent chain rather than one level of it: `entityFetchAllContent()` already contains `attributeContentAll()`
+and a bare `hierarchyContent()`, and both of those are the superset. Ask for a narrower body with a plain
+`entityFetch` rather than with the fetch-all shorthand.
+
+</Note>
 
 </LS>
 
@@ -198,19 +206,38 @@ sharing a key are folded, and within one key:
 - a disagreement on the [managed references behaviour](#managed-references-behaviour) narrows to `EXISTING`, so
   a request to suppress references pointing at missing entities is never lost by folding
 
-A reference named by several requirements with **different** name sets - `referenceContent("a", "b")` written next to
-`referenceContent("b", "c")` - is folded per name: each requirement is projected onto every name it lists and the
-projections sharing a name are folded by the rules above, so `b` is fetched with the union of both bodies while `a`
-and `c` keep theirs.
+<Note type="info">
 
-These rules govern the requirements **you** write. Internally the engine may load *more* references than your query
-projects - evaluating a [`referenceHaving`](../filtering/references.md#reference-having) filter or an ordering by
-a [reference property](../ordering/reference.md) in memory needs the reference records themselves, so the query
-planner adds a requirement of its own for that reference, without your filter, order or page. That widening is
-invisible: whatever the engine loaded, the response is assembled from the requirements you wrote, so the references
-you get back - and their order and page - are exactly the ones your query asked for. A `referenceContent` that
-filters or pages the very reference a `referenceHaving` or an ordering also names is therefore perfectly ordinary,
-and is never refused as a disagreement with the requirement the planner added.
+<NoteTitle toggles="true">
+
+##### What if two requirements list overlapping - but not identical - reference names?
+</NoteTitle>
+
+They are folded per name. `referenceContent("a", "b")` written next to `referenceContent("b", "c")` projects each
+requirement onto every name it lists, and the projections sharing a name are folded by the rules above - so `b` is
+fetched with the union of both bodies while `a` and `c` keep theirs.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why isn't my filtered `referenceContent` refused when the query also filters that reference?
+</NoteTitle>
+
+Because these rules govern the requirements **you** write, and the engine's own are not among them. Internally it
+may load *more* references than your query projects - evaluating a
+[`referenceHaving`](../filtering/references.md#reference-having) filter or an ordering by a
+[reference property](../ordering/reference.md) in memory needs the reference records themselves, so the query planner
+adds a requirement of its own for that reference, without your filter, order or page.
+
+That widening is invisible: whatever the engine loaded, the response is assembled from the requirements you wrote, so
+the references you get back - and their order and page - are exactly the ones your query asked for. A
+`referenceContent` that filters or pages the very reference a `referenceHaving` or an ordering also names is therefore
+perfectly ordinary, and is never refused as a disagreement with the requirement the planner added.
+
+</Note>
 
 A [`referenceContentAll`](#reference-content-all) requirement and a name-specific `referenceContent("brand")` carry
 different keys and are therefore **never** folded together. Both stay in effect - the name-specific requirement
@@ -248,10 +275,20 @@ require(
 )
 ```
 
-The two agree today. They stop agreeing the moment either the default or the explicit sequence changes - and price
-lists are typically assembled from variables, so that change is a routine edit somewhere else in the code. Nothing
-in the query would show the reader that the two requirements had drifted apart, so the pair is refused while the
-disagreement is still hypothetical. State the price lists on both requirements, or defer on both.
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why refuse a pair that agrees today?
+</NoteTitle>
+
+The two agree only by coincidence of what the default currently is. They stop agreeing the moment either the default
+or the explicit sequence changes - and price lists are typically assembled from variables, so that change is a routine
+edit somewhere else in the code. Nothing in the query would show the reader that the two requirements had drifted
+apart, so the pair is refused while the disagreement is still hypothetical. State the price lists on both
+requirements, or defer on both.
+
+</Note>
 
 Note that the first argument of `accompanyingPriceContent` is the **name** the price is labelled with in the result,
 not a price list: `accompanyingPriceContent("default", "reference")` calculates the price named `default` from the
