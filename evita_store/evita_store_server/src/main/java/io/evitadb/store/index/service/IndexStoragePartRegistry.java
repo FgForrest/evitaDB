@@ -42,7 +42,7 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 	@Nonnull
 	@Override
 	public Collection<StoragePartRecord> listStorageParts() {
-		// every type declares the kind of data it holds - see StoragePartRecord for why that is declared rather than
+		// every type declares the group it belongs to - see StoragePartRecord for why that is declared rather than
 		// derived. Two entries here are the reason a name test cannot do this job: EntityIdsStoragePart and
 		// HistogramCardinalityStoragePart are index parts whose class names carry no `Index` at all. Leaf-page parts
 		// are charged to the family whose tree they page, because `PAGED` versus `SINGLE` is a storage-format choice

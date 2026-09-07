@@ -213,6 +213,7 @@ class CatalogStatisticsConverterTest {
 		// the round-trip tests cannot see this: the decoder derives `kind` from `group`, so an encoder that never
 		// called `setKind` would still round-trip perfectly while sending every client an UNSPECIFIED kind
 		assertFalse(sent.isEmpty(), "The fixture carries a storage composition");
+		final EnumSet<StoragePartKind> kindsSent = EnumSet.noneOf(StoragePartKind.class);
 		for (final GrpcStoragePartUsage usage : sent) {
 			assertNotEquals(
 				GrpcStoragePartGroup.STORAGE_PART_GROUP_UNSPECIFIED, usage.getGroup(),
@@ -225,7 +226,15 @@ class CatalogStatisticsConverterTest {
 				usage.getKind(),
 				"The kind sent must be the one its group folds to: " + usage
 			);
+			kindsSent.add(EvitaEnumConverter.toStoragePartGroup(usage.getGroup()).kind());
 		}
+
+		// the loop above proves the encoder set `kind` for whatever the fixture happens to carry, so what it proves
+		// depends on the fixture covering all three arms - which this pins, and a later fixture edit cannot undo
+		assertEquals(
+			EnumSet.allOf(StoragePartKind.class), kindsSent,
+			"The fixture has to exercise the encoder's kind arm for every kind, not just for entity data: " + kindsSent
+		);
 
 		// and the other direction: the kind is a property of the group, so a peer cannot make a decoded record
 		// contradict itself by sending a kind that disagrees
@@ -1115,9 +1124,14 @@ class CatalogStatisticsConverterTest {
 			new DurabilityStatistics(221L, 222L, 223L, 224, 225L, 226L, LAST_CHECKPOINT_AT, COUNTING_SINCE),
 			new StorageSizeStatistics(301L, 302L, 303L, 310L, 311L, 304L, 305L, 306L, 307L, 308L, 309L),
 			new StorageCompositionStatistics(
+				// one row of each kind, because the classification assertions below prove the encoder populates the
+				// wire `kind` field and a fixture of a single kind proves that for one arm of three. Appended rather
+				// than prepended: the tampering half of that test reads the first entry and expects an entity body
 				new StoragePartUsage[]{
 					new StoragePartUsage("EntityBodyStoragePart", StoragePartGroup.ENTITY_BODY, 401, 402L),
-					new StoragePartUsage("AttributesStoragePart", StoragePartGroup.ATTRIBUTE_DATA, 403, 404L)
+					new StoragePartUsage("AttributesStoragePart", StoragePartGroup.ATTRIBUTE_DATA, 403, 404L),
+					new StoragePartUsage("FilterIndexStoragePart", StoragePartGroup.ATTRIBUTE_INDEX, 405, 406L),
+					new StoragePartUsage("CatalogSchemaStoragePart", StoragePartGroup.SCHEMA, 407, 408L)
 				}
 			),
 			// a projected time *and* an eligible store: the two are independent at the catalog level, where one data

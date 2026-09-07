@@ -44,7 +44,7 @@ public interface StoragePartRegistry {
 	Collection<StoragePartRecord> listStorageParts();
 
 	/**
-	 * Record representing single {@link StoragePart} type along with its unique byte id and the kind of data it holds.
+	 * Record representing single {@link StoragePart} type along with its unique byte id and the group it belongs to.
 	 *
 	 * The `group` is what makes a storage-part breakdown readable by a client that has never heard of the class named
 	 * in it: the set of part types is open and grows with every index structure the engine gains, while
@@ -59,7 +59,7 @@ public interface StoragePartRegistry {
 	 *
 	 * @param id       unique id among all other storage parts
 	 * @param partType the class of storage part
-	 * @param group    the kind of data this part holds, as reported by the storage composition statistics
+	 * @param group    which group of stored data this part belongs to, as reported by the storage composition statistics
 	 */
 	record StoragePartRecord(
 		byte id,

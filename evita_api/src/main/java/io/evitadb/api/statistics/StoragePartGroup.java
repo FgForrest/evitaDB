@@ -96,19 +96,23 @@ public enum StoragePartGroup {
 	/**
 	 * Everything built because an attribute is `filterable`, `sortable`, `unique` or part of a sortable compound -
 	 * the unique, filter, sort and chain indexes, their cardinality tracking, the catalog's globally-unique indexes,
-	 * and the leaf pages of each once an index is large enough to be paged.
+	 * and - for those of them that page - their leaf pages once an index grows large enough. The cardinality
+	 * tracking is always written whole.
 	 */
 	ATTRIBUTE_INDEX(StoragePartKind.INDEX),
 
 	/**
 	 * Everything built to answer price-based filtering and ordering - the per-price-list-and-currency super and
-	 * reference indexes and their leaf pages.
+	 * reference indexes, plus the super index's leaf pages once it grows large enough to page. The reference index
+	 * is always written whole.
 	 */
 	PRICE_INDEX(StoragePartKind.INDEX),
 
 	/**
-	 * Everything built to resolve references between entities - the reference-type and group cardinality indexes and
-	 * their leaf pages. Faceting is charged separately, to {@link #FACET_INDEX}, because it is a separate schema flag.
+	 * Everything built to resolve references between entities - the reference-type and group cardinality indexes,
+	 * plus the reference-type index's leaf pages once it grows large enough to page. The group cardinality index is
+	 * always written whole. Faceting is charged separately, to {@link #FACET_INDEX}, because it is a separate schema
+	 * flag.
 	 */
 	REFERENCE_INDEX(StoragePartKind.INDEX),
 
@@ -126,7 +130,8 @@ public enum StoragePartGroup {
 
 	/**
 	 * Everything built for the bucketed histogram indexes a **reference schema** declares - the bucketed values, their
-	 * range trees, the cardinality index gating bucket boundaries, and the leaf pages of each.
+	 * range trees and the leaf pages those two page into, plus the cardinality index gating bucket boundaries, which
+	 * is evicted whole and never pages.
 	 *
 	 * Named for the reference on purpose. The histograms most readers think of first - the `attributeHistogram` and
 	 * `priceHistogram` extra results - are computed on the fly from the filter and price indexes and have **no**

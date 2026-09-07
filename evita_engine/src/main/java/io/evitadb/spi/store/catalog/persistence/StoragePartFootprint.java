@@ -44,7 +44,7 @@ import java.util.Comparator;
  * part type and is therefore not attributed to one.
  *
  * @param storagePartType simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`
- * @param group           the kind of data this type holds - declared at registration, because the set of part types
+ * @param group           which group of stored data this type belongs to - declared at registration, because the set of part types
  *                        is open while {@link StoragePartGroup} is closed
  * @param count           number of records of this type currently held
  * @param totalBytes      total bytes those records occupy

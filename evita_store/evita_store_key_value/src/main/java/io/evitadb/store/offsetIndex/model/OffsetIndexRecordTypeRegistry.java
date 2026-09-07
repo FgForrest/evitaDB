@@ -53,7 +53,7 @@ public class OffsetIndexRecordTypeRegistry {
 	 */
 	private final Map<Byte, Class<? extends StoragePart>> idToTypeIndex = new HashMap<>(64);
 	/**
-	 * Maps the simple class name of each registered type to the kind of data it holds. Keyed by simple name because
+	 * Maps the simple class name of each registered type to the group it belongs to. Keyed by simple name because
 	 * that is the identity {@link OffsetIndex#getHistogram()} reports a record type under, and the registration
 	 * assertions below are what make that key unambiguous.
 	 */
@@ -68,14 +68,22 @@ public class OffsetIndexRecordTypeRegistry {
 	}
 
 	/**
-	 * Registers new type that could be stored into the {@link OffsetIndex} along with its unique id and the kind of
-	 * data it holds.
+	 * Registers new type that could be stored into the {@link OffsetIndex} along with its unique id and the group it
+	 * belongs to.
 	 *
 	 * @param id    unique id among all other storage parts
 	 * @param type  the class of storage part
-	 * @param group the kind of data the type holds, reported by the storage composition statistics
+	 * @param group which group of stored data the type belongs to, reported by the storage composition statistics
 	 */
 	public void registerFileOffsetIndexType(byte id, @Nonnull Class<? extends StoragePart> type, @Nonnull StoragePartGroup group) {
+		// checked first, so a rejected registration records nothing at all. `@Nonnull` is documentation rather than
+		// enforcement, and an unclassified type that got past here would be stored under its name and then be
+		// indistinguishable, to `groupFor`, from a name nobody ever registered - reporting a type that IS registered
+		// as one the OffsetIndex cannot handle, and sending its reader after a registration that is not missing
+		Assert.isPremiseValid(
+			group != null,
+			() -> "The storage part type `" + type.getSimpleName() + "` was registered without a group!"
+		);
 		Assert.isPremiseValid(!this.idToTypeIndex.containsKey(id), () -> "The id is already set to `" + this.idToTypeIndex.get(id) + "` class!");
 		Assert.isPremiseValid(!this.typeToIdIndex.containsKey(type), () -> "The class has already set id `" + this.typeToIdIndex.get(type) + "`!");
 		// the histogram identifies a record type by its simple name, so two registered types sharing one would merge
@@ -108,7 +116,7 @@ public class OffsetIndexRecordTypeRegistry {
 	}
 
 	/**
-	 * Returns the kind of data the record type of the passed simple class name holds - the classification a storage
+	 * Returns the group the record type of the passed simple class name belongs to - the classification a storage
 	 * composition breakdown groups by.
 	 *
 	 * The lookup is by simple name because that is how {@link OffsetIndex#getHistogram()} identifies a record type;

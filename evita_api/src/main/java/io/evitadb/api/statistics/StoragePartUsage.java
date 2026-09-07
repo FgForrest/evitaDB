@@ -44,7 +44,7 @@ import javax.annotation.Nonnull;
  *
  * @param storagePartType simple class name of the storage part, e.g. `EntityBodyStoragePart`,
  *                        `AttributesStoragePart`, `AssociatedDataStoragePart`
- * @param group           the kind of data this type holds - what a composition table groups by
+ * @param group           which group of stored data this type belongs to - what a composition table groups by
  * @param count           number of records of this type currently held
  * @param totalBytes      total bytes those records occupy
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

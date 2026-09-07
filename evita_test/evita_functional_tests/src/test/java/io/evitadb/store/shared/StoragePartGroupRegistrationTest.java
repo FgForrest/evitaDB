@@ -253,6 +253,59 @@ class StoragePartGroupRegistrationTest {
 	}
 
 	@Test
+	@DisplayName("A registered type reports the group it was declared with")
+	void shouldReportTheGroupARegisteredTypeWasDeclaredWith() {
+		final OffsetIndexRecordTypeRegistry registry = new OffsetIndexRecordTypeRegistry();
+
+		// every other assertion in this class reaches the group table through the service loader, where the group
+		// registered and the group expected are the same registry constant - so none of them can tell a registry
+		// that stores the group it was handed from one that stores a group of its own choosing. This registers a
+		// type the loader never sees, under a group the engine gives nothing else in this registry, and asks for it
+		// back. `FACET_INDEX` is neither the first nor the last constant, so a hardcoded group or a `values()[0]`
+		// would fail rather than coincidentally agree
+		registry.registerFileOffsetIndexType(
+			(byte) 99, Shadow.LocallyRegisteredStoragePart.class, StoragePartGroup.FACET_INDEX
+		);
+
+		assertEquals(
+			StoragePartGroup.FACET_INDEX,
+			registry.groupFor(Shadow.LocallyRegisteredStoragePart.class.getSimpleName()),
+			"The group a type was registered with is the group it must be reported under"
+		);
+	}
+
+	@Test
+	@DisplayName("A type may not be registered without a group")
+	void shouldRefuseToRegisterATypeWithoutAGroup() {
+		final OffsetIndexRecordTypeRegistry registry = new OffsetIndexRecordTypeRegistry();
+
+		// `@Nonnull` on the parameter is documentation, not a check, and a storage part registry is a service-loaded
+		// extension point - so a provider outside the engine can hand registration a null group. Accepting it would
+		// store the type unclassified and defer the failure to the first composition read, which reports the type as
+		// one the offset index cannot handle at all: a diagnosis pointing at the wrong thing entirely, for a type
+		// that is in fact registered
+		final GenericEvitaInternalError error = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> registry.registerFileOffsetIndexType(
+				(byte) 97, Shadow.UnclassifiedStoragePart.class, null
+			),
+			"A type registered without a group must be refused at registration"
+		);
+		assertTrue(
+			error.getPrivateMessage().contains(Shadow.UnclassifiedStoragePart.class.getSimpleName()),
+			"The refusal has to name the type that carried no group, instead of: " + error.getPrivateMessage()
+		);
+
+		// and it must leave nothing behind: a guard placed after the id and type maps are written would still throw
+		// here, while leaving the registry holding a type it has just refused
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> registry.idFor(Shadow.UnclassifiedStoragePart.class),
+			"A refused registration must not leave the type behind in the registry"
+		);
+	}
+
+	@Test
 	@DisplayName("An unregistered type name has no group rather than a default one")
 	void shouldRefuseToGuessAGroupForAnUnknownType() {
 		final OffsetIndexRecordTypeRegistry registry = new OffsetIndexRecordTypeRegistry();
@@ -289,6 +342,45 @@ class StoragePartGroupRegistrationTest {
 			@Override
 			public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 				return 1L;
+			}
+		}
+
+		/**
+		 * A storage part wearing a simple class name no registry declares, so it can be registered by hand under a
+		 * group of the test's choosing - which is what makes the group it comes back under an actual statement about
+		 * the registry rather than about the engine's own registrations.
+		 */
+		private static class LocallyRegisteredStoragePart implements StoragePart {
+			@Serial private static final long serialVersionUID = 1L;
+
+			@Nonnull
+			@Override
+			public Long getStoragePartPK() {
+				return 2L;
+			}
+
+			@Override
+			public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
+				return 2L;
+			}
+		}
+
+		/**
+		 * A storage part offered for registration with no group at all - the state the {@code @Nonnull} on the
+		 * registration parameter describes but cannot by itself prevent.
+		 */
+		private static class UnclassifiedStoragePart implements StoragePart {
+			@Serial private static final long serialVersionUID = 1L;
+
+			@Nonnull
+			@Override
+			public Long getStoragePartPK() {
+				return 3L;
+			}
+
+			@Override
+			public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
+				return 3L;
 			}
 		}
 

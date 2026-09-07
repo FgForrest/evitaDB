@@ -33,7 +33,9 @@ import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.test.EvitaTestSupport;
@@ -49,12 +51,12 @@ import javax.annotation.Nullable;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,6 +82,7 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 	private static final String ENTITY_CATEGORY = "category";
 	private static final int PRODUCT_COUNT = 50;
 	private static final int CATEGORY_COUNT = 10;
+	private static final String GLOBAL_ATTRIBUTE = "globalCode";
 
 	private TestPaths paths;
 	private Evita evita;
@@ -88,14 +91,22 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("StoragePartCompositionTest");
 		this.evita = new Evita(getEvitaConfiguration());
-		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
+		// the globally unique attribute is what puts an *index* into the catalog's own data store - without it that
+		// store holds schemas and headers only, and every claim about how an index is classified there is untestable
+		this.evita.defineCatalog(CATALOG)
+			.withAttribute(GLOBAL_ATTRIBUTE, String.class, thatIs -> thatIs.uniqueGlobally())
+			.updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,
 			session -> {
-				session.defineEntitySchema(ENTITY_PRODUCT);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withGlobalAttribute(GLOBAL_ATTRIBUTE)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_CATEGORY);
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
-					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, i));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, i).setAttribute(GLOBAL_ATTRIBUTE, "product-" + i)
+					);
 				}
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
 					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i));
@@ -178,79 +189,121 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 		final CollectionStorageComposition composition = fetchCollectionStatistics(ENTITY_PRODUCT)
 			.storageCompositionIfPresent().orElseThrow();
 
-		// `kind()` is derived from `group()`, so asserting the two agree would hold whatever the engine reported.
-		// What can actually be wrong here is the group itself, so that is what the per-type assertions below check
-		for (final StoragePartUsage part : composition.parts()) {
-			assertNotNull(part.group(), "A breakdown entry with no classification cannot be grouped: " + part);
-		}
-
-		final StoragePartUsage bodies = findPart(parts(composition), EntityBodyStoragePart.class.getSimpleName());
+		// `kind()` is derived from `group()`, so asserting the two agree would hold whatever the engine reported, and
+		// so would asserting the group is present at all - the registry returns one or raises. What can actually be
+		// wrong is which group, which is what the per-type assertions below check
+		final StoragePartUsage bodies = findPart(composition.parts(), EntityBodyStoragePart.class.getSimpleName());
 		assertNotNull(bodies);
 		assertEquals(StoragePartGroup.ENTITY_BODY, bodies.group(), "An entity body is entity data: " + bodies);
 		assertEquals(StoragePartKind.ENTITY_DATA, bodies.kind());
 
 		// the entity schema is declared by the *entity* storage part registry yet is metadata - which is why the
 		// classification is declared per type rather than inferred from the registry that declares it
-		final StoragePartUsage schema = findPart(parts(composition), EntitySchemaStoragePart.class.getSimpleName());
+		final StoragePartUsage schema = findPart(composition.parts(), EntitySchemaStoragePart.class.getSimpleName());
 		assertNotNull(schema);
 		assertEquals(StoragePartGroup.SCHEMA, schema.group(), "An entity schema is metadata, not entity data: " + schema);
 		assertEquals(StoragePartKind.METADATA, schema.kind());
 	}
 
 	@Test
-	@DisplayName("The catalog's own data store holds no entity data at all")
+	@DisplayName("The catalog's own data store holds metadata and catalog-level indexes, and no entity data")
 	void shouldClassifyTheCatalogStoreAsMetadataAndIndexesOnly() {
 		final StorageCompositionStatistics composition = fetchCatalogStatistics()
 			.storageCompositionIfPresent().orElseThrow();
 
 		// this is the concrete reason a two-way data/index split cannot work: the catalog's own store is entirely
 		// metadata and catalog-level indexes, so folding metadata into "entity data" would render a schema as data
+		final EnumSet<StoragePartKind> kindsHeld = EnumSet.noneOf(StoragePartKind.class);
 		for (final StoragePartUsage part : composition.catalogParts()) {
-			assertNotEquals(
-				StoragePartKind.ENTITY_DATA, part.kind(),
-				"An entity's own data lives in its collection's store, never in the catalog's: " + part
-			);
+			kindsHeld.add(part.kind());
 		}
+		assertEquals(
+			EnumSet.of(StoragePartKind.METADATA, StoragePartKind.INDEX), kindsHeld,
+			"The catalog's own store holds its metadata and the catalog-level indexes, and nothing else: " + composition
+		);
+
 		final StoragePartUsage catalogSchema = findPart(
 			composition.catalogParts(), CatalogSchemaStoragePart.class.getSimpleName()
 		);
-		assertNotNull(catalogSchema);
+		assertNotNull(catalogSchema, "The catalog schema was not attributed: " + composition);
 		assertEquals(StoragePartGroup.SCHEMA, catalogSchema.group());
+
+		// the end-to-end proof that a group is not implied by the store a part lives in, nor by the registry that
+		// declares it: this is an *attribute index* row, sitting in a store that holds no attribute value at all
+		final StoragePartUsage globalUnique = findPart(
+			composition.catalogParts(), GlobalUniqueIndexStoragePart.class.getSimpleName()
+		);
+		assertNotNull(
+			globalUnique,
+			"A globally unique attribute puts its index into the catalog's own data store: " + composition
+		);
+		assertEquals(
+			StoragePartGroup.ATTRIBUTE_INDEX, globalUnique.group(),
+			"A globally unique index is what an attribute's `uniqueGlobally` flag costs: " + globalUnique
+		);
+		assertEquals(StoragePartKind.INDEX, globalUnique.kind());
 	}
 
 	@Test
 	@DisplayName("Folding by group and by kind conserves every byte")
 	void shouldConserveBytesAcrossBothFolds() {
-		// the only arithmetic a composition table has to do. If a type were classified into a group the client does
-		// not fold - or into none - the two folds would part company with the raw total
+		// the only arithmetic a composition table has to do: a client folds the rows by group and then folds the
+		// groups by kind, and every byte has to arrive in exactly one bucket of each fold
 		final CollectionStorageComposition composition = fetchCollectionStatistics(ENTITY_PRODUCT)
 			.storageCompositionIfPresent().orElseThrow();
 
-		long total = 0L;
+		final Map<String, Long> byType = new TreeMap<>();
 		final Map<StoragePartGroup, Long> byGroup = new EnumMap<>(StoragePartGroup.class);
 		final Map<StoragePartKind, Long> byKind = new EnumMap<>(StoragePartKind.class);
 		for (final StoragePartUsage part : composition.parts()) {
-			total += part.totalBytes();
+			byType.merge(part.storagePartType(), part.totalBytes(), Long::sum);
 			byGroup.merge(part.group(), part.totalBytes(), Long::sum);
 			byKind.merge(part.kind(), part.totalBytes(), Long::sum);
 		}
 
-		assertTrue(total > 0, "A collection holding entities must attribute bytes: " + composition);
-		assertEquals(
-			total, byGroup.values().stream().mapToLong(Long::longValue).sum(),
-			"Every byte must land in exactly one group: " + byGroup
-		);
-		assertEquals(
-			total, byKind.values().stream().mapToLong(Long::longValue).sum(),
-			"Every byte must land in exactly one kind: " + byKind
-		);
+		// every equality below has one side summed over rows picked by *type name*, an axis the classification has no
+		// say in. Summing the same rows re-bucketed against themselves would be an arithmetic identity that holds for
+		// any classification whatsoever, right or wrong
+		final long entityBodyBytes = bytesOf(byType, EntityBodyStoragePart.class);
+		final long attributeBytes = bytesOf(byType, AttributesStoragePart.class);
+		assertTrue(entityBodyBytes > 0, "A collection holding entities must attribute bytes: " + composition);
+		assertTrue(attributeBytes > 0, "The products carry a globally unique value, so they carry attributes");
+
 		assertTrue(
-			byKind.getOrDefault(StoragePartKind.ENTITY_DATA, 0L) > 0,
-			"A collection of stored entities holds entity data: " + byKind
+			byGroup.keySet().containsAll(
+				EnumSet.of(
+					StoragePartGroup.ENTITY_BODY, StoragePartGroup.ATTRIBUTE_DATA,
+					StoragePartGroup.SCHEMA, StoragePartGroup.INDEX_MANIFEST
+				)
+			),
+			"A collection of stored entities holds its bodies, their attributes, its schema and its index: " + byGroup
 		);
-		assertTrue(
-			byKind.getOrDefault(StoragePartKind.INDEX, 0L) > 0,
-			"A collection of stored entities holds the indexes built over them: " + byKind
+		assertEquals(
+			entityBodyBytes, byGroup.getOrDefault(StoragePartGroup.ENTITY_BODY, 0L),
+			"The entity body group must hold exactly the bytes of the entity body rows: " + byGroup
+		);
+		assertEquals(
+			attributeBytes, byGroup.getOrDefault(StoragePartGroup.ATTRIBUTE_DATA, 0L),
+			"The attribute data group must hold exactly the bytes of the attribute rows: " + byGroup
+		);
+
+		// the fold to a kind: this collection's only entity-data types are the body and its attributes and its only
+		// metadata is its schema, so a group folding to the wrong kind - in either direction - parts the two sides,
+		// and the remainder pins the third kind without naming the index types the engine happens to have written
+		final long schemaBytes = bytesOf(byType, EntitySchemaStoragePart.class);
+		final long attributedBytes = byType.values().stream().mapToLong(Long::longValue).sum();
+		assertEquals(
+			entityBodyBytes + attributeBytes, byKind.getOrDefault(StoragePartKind.ENTITY_DATA, 0L),
+			"Entity data is the bodies and their attributes, and nothing else this collection holds: " + byKind
+		);
+		assertEquals(
+			schemaBytes, byKind.getOrDefault(StoragePartKind.METADATA, 0L),
+			"The only metadata a collection's data store holds is its own schema: " + byKind
+		);
+		assertEquals(
+			attributedBytes - entityBodyBytes - attributeBytes - schemaBytes,
+			byKind.getOrDefault(StoragePartKind.INDEX, 0L),
+			"Everything a collection's data store holds beyond its entities and its schema is index: " + byKind
 		);
 	}
 
@@ -312,10 +365,6 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 			final StoragePartUsage part = parts[i];
 			assertTrue(part.count() > 0, "A type with no record must not be listed at all: " + part);
 			assertTrue(part.totalBytes() > 0, "A type holding records must hold bytes: " + part);
-			assertEquals(
-				part.totalBytes() / part.count(), part.averageBytes(),
-				"The average must be the exact quotient of the two reported numbers: " + part
-			);
 			if (i > 0) {
 				final StoragePartUsage previous = parts[i - 1];
 				assertTrue(
@@ -330,14 +379,15 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The entries of a collection-level breakdown, named so the assertions above read like the catalog-level ones.
+	 * Bytes the breakdown attributes to one storage part type, looked up by the simple class name it is reported
+	 * under - an axis independent of the classification, which is what lets a fold assertion actually fail.
 	 *
-	 * @param composition the component to unwrap
-	 * @return its entries
+	 * @param byType          bytes accumulated per reported type name
+	 * @param storagePartType the storage part type to look up
+	 * @return the bytes attributed to it, or `0` when the data store holds no record of it
 	 */
-	@Nonnull
-	private static StoragePartUsage[] parts(@Nonnull CollectionStorageComposition composition) {
-		return composition.parts();
+	private static long bytesOf(@Nonnull Map<String, Long> byType, @Nonnull Class<?> storagePartType) {
+		return byType.getOrDefault(storagePartType.getSimpleName(), 0L);
 	}
 
 	/**

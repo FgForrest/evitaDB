@@ -55,6 +55,7 @@ import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.StoragePartGroup;
 import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.VolatileStateStatistics;
@@ -2390,20 +2391,35 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		for (final StoragePartUsage part : parts) {
 			assertTrue(part.count() > 0, "A type with no record must not survive the wire: " + part);
 			assertTrue(part.totalBytes() > 0, "A type holding records must report bytes: " + part);
-			// the classification is the whole point of the breakdown for a client that cannot know what an
-			// `EntityIdsStoragePart` is, and this is the only test in which one produced by the engine is decoded
-			// after a real wire round trip rather than built by hand. A decoder that dropped the group would land
-			// every entry on the enum's zero value, which the converter refuses outright
-			assertNotNull(part.group(), "A decoded entry with no classification cannot be grouped: " + part);
 			kindsSeen.add(part.kind());
 			summedBytes += part.totalBytes();
 		}
 		assertTrue(summedBytes > 0, "The breakdown lost every byte on the way through the wire");
 		assertTrue(
-			kindsSeen.containsAll(EnumSet.of(StoragePartKind.ENTITY_DATA, StoragePartKind.INDEX)),
-			"A populated collection holds both the entities it was given and the indexes built over them, and both " +
-				"kinds have to survive the wire: " + kindsSeen
+			kindsSeen.containsAll(
+				EnumSet.of(StoragePartKind.ENTITY_DATA, StoragePartKind.INDEX, StoragePartKind.METADATA)
+			),
+			"A populated collection holds the entities it was given, the indexes built over them and its own " +
+				"schema, and all three kinds have to survive the wire: " + kindsSeen
 		);
+
+		// the classification is the whole point of the breakdown for a client that cannot know what an
+		// `EntityIdsStoragePart` is, and this is the only test in which one produced by the engine is decoded after a
+		// real wire round trip rather than built by hand. Asserting only that a group arrived would hold for any
+		// group, so two the engine is known to produce are named: one entity-data row and one metadata row, which
+		// between them cover both switch arms a wrong-group bug would have to survive
+		final StoragePartUsage bodies = findPart(parts, "EntityBodyStoragePart");
+		assertNotNull(bodies, "The entity bodies did not survive the wire: " + Arrays.toString(parts));
+		assertEquals(StoragePartGroup.ENTITY_BODY, bodies.group(), "An entity body is entity data: " + bodies);
+		assertEquals(StoragePartKind.ENTITY_DATA, bodies.kind());
+
+		final StoragePartUsage schema = findPart(parts, "EntitySchemaStoragePart");
+		assertNotNull(schema, "Every collection's data store holds its own schema: " + Arrays.toString(parts));
+		assertEquals(
+			StoragePartGroup.SCHEMA, schema.group(),
+			"An entity schema is metadata, however it is declared: " + schema
+		);
+		assertEquals(StoragePartKind.METADATA, schema.kind());
 
 		// COLLECTIONS carries a *different* sub-message at each level - the inventory at the catalog level, these
 		// header counters here - which a client implementer reading only the proto has no way to infer, so it is
@@ -2950,6 +2966,23 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				TEST_CATALOG, "nonExistingCollection", EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS)
 			)
 		);
+	}
+
+	/**
+	 * Finds the entry of one storage part type in a decoded storage composition breakdown.
+	 *
+	 * @param parts           the decoded breakdown to search
+	 * @param storagePartType simple class name of the storage part type to look for
+	 * @return the entry, or `null` when the type holds no record in this data store
+	 */
+	@Nullable
+	private static StoragePartUsage findPart(@Nonnull StoragePartUsage[] parts, @Nonnull String storagePartType) {
+		for (final StoragePartUsage part : parts) {
+			if (storagePartType.equals(part.storagePartType())) {
+				return part;
+			}
+		}
+		return null;
 	}
 
 	/**
