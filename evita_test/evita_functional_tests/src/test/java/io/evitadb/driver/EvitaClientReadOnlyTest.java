@@ -55,6 +55,7 @@ import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.query.Query;
@@ -2385,12 +2386,24 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final StoragePartUsage[] parts = statistics.storageCompositionIfPresent().orElseThrow().parts();
 		assertTrue(parts.length > 0, "A populated collection cannot come back with an empty breakdown");
 		long summedBytes = 0L;
+		final EnumSet<StoragePartKind> kindsSeen = EnumSet.noneOf(StoragePartKind.class);
 		for (final StoragePartUsage part : parts) {
 			assertTrue(part.count() > 0, "A type with no record must not survive the wire: " + part);
 			assertTrue(part.totalBytes() > 0, "A type holding records must report bytes: " + part);
+			// the classification is the whole point of the breakdown for a client that cannot know what an
+			// `EntityIdsStoragePart` is, and this is the only test in which one produced by the engine is decoded
+			// after a real wire round trip rather than built by hand
+			assertNotNull(part.group(), "A decoded entry with no classification cannot be grouped: " + part);
+			assertEquals(part.group().kind(), part.kind(), "The decoded kind must be the group's own: " + part);
+			kindsSeen.add(part.kind());
 			summedBytes += part.totalBytes();
 		}
 		assertTrue(summedBytes > 0, "The breakdown lost every byte on the way through the wire");
+		assertTrue(
+			kindsSeen.containsAll(EnumSet.of(StoragePartKind.ENTITY_DATA, StoragePartKind.INDEX)),
+			"A populated collection holds both the entities it was given and the indexes built over them, and both " +
+				"kinds have to survive the wire: " + kindsSeen
+		);
 
 		// COLLECTIONS carries a *different* sub-message at each level - the inventory at the catalog level, these
 		// header counters here - which a client implementer reading only the proto has no way to infer, so it is

@@ -30,6 +30,8 @@ import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
+import io.evitadb.api.statistics.StoragePartGroup;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
@@ -44,12 +46,15 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -168,6 +173,90 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Every entry names the kind of data it holds, and the schema is metadata rather than entity data")
+	void shouldClassifyEveryEntryOfACollectionBreakdown() {
+		final CollectionStorageComposition composition = fetchCollectionStatistics(ENTITY_PRODUCT)
+			.storageCompositionIfPresent().orElseThrow();
+
+		for (final StoragePartUsage part : composition.parts()) {
+			assertNotNull(part.group(), "A breakdown entry with no classification cannot be grouped: " + part);
+			assertEquals(
+				part.group().kind(), part.kind(),
+				"The reported kind must be the one the group folds to: " + part
+			);
+		}
+
+		final StoragePartUsage bodies = findPart(parts(composition), EntityBodyStoragePart.class.getSimpleName());
+		assertNotNull(bodies);
+		assertEquals(StoragePartGroup.ENTITY_BODY, bodies.group(), "An entity body is entity data: " + bodies);
+		assertEquals(StoragePartKind.ENTITY_DATA, bodies.kind());
+
+		// the entity schema is declared by the *entity* storage part registry yet is metadata - which is why the
+		// classification is declared per type rather than inferred from the registry that declares it
+		final StoragePartUsage schema = findPart(parts(composition), EntitySchemaStoragePart.class.getSimpleName());
+		assertNotNull(schema);
+		assertEquals(StoragePartGroup.SCHEMA, schema.group(), "An entity schema is metadata, not entity data: " + schema);
+		assertEquals(StoragePartKind.METADATA, schema.kind());
+	}
+
+	@Test
+	@DisplayName("The catalog's own data store holds no entity data at all")
+	void shouldClassifyTheCatalogStoreAsMetadataAndIndexesOnly() {
+		final StorageCompositionStatistics composition = fetchCatalogStatistics()
+			.storageCompositionIfPresent().orElseThrow();
+
+		// this is the concrete reason a two-way data/index split cannot work: the catalog's own store is entirely
+		// metadata and catalog-level indexes, so folding metadata into "entity data" would render a schema as data
+		for (final StoragePartUsage part : composition.catalogParts()) {
+			assertNotEquals(
+				StoragePartKind.ENTITY_DATA, part.kind(),
+				"An entity's own data lives in its collection's store, never in the catalog's: " + part
+			);
+		}
+		final StoragePartUsage catalogSchema = findPart(
+			composition.catalogParts(), CatalogSchemaStoragePart.class.getSimpleName()
+		);
+		assertNotNull(catalogSchema);
+		assertEquals(StoragePartGroup.SCHEMA, catalogSchema.group());
+	}
+
+	@Test
+	@DisplayName("Folding by group and by kind conserves every byte")
+	void shouldConserveBytesAcrossBothFolds() {
+		// the only arithmetic a composition table has to do. If a type were classified into a group the client does
+		// not fold - or into none - the two folds would part company with the raw total
+		final CollectionStorageComposition composition = fetchCollectionStatistics(ENTITY_PRODUCT)
+			.storageCompositionIfPresent().orElseThrow();
+
+		long total = 0L;
+		final Map<StoragePartGroup, Long> byGroup = new EnumMap<>(StoragePartGroup.class);
+		final Map<StoragePartKind, Long> byKind = new EnumMap<>(StoragePartKind.class);
+		for (final StoragePartUsage part : composition.parts()) {
+			total += part.totalBytes();
+			byGroup.merge(part.group(), part.totalBytes(), Long::sum);
+			byKind.merge(part.kind(), part.totalBytes(), Long::sum);
+		}
+
+		assertTrue(total > 0, "A collection holding entities must attribute bytes: " + composition);
+		assertEquals(
+			total, byGroup.values().stream().mapToLong(Long::longValue).sum(),
+			"Every byte must land in exactly one group: " + byGroup
+		);
+		assertEquals(
+			total, byKind.values().stream().mapToLong(Long::longValue).sum(),
+			"Every byte must land in exactly one kind: " + byKind
+		);
+		assertTrue(
+			byKind.getOrDefault(StoragePartKind.ENTITY_DATA, 0L) > 0,
+			"A collection of stored entities holds entity data: " + byKind
+		);
+		assertTrue(
+			byKind.getOrDefault(StoragePartKind.INDEX, 0L) > 0,
+			"A collection of stored entities holds the indexes built over them: " + byKind
+		);
+	}
+
+	@Test
 	@DisplayName("The breakdown is a subset of the live bytes the storage size decomposition reports")
 	void shouldSumToASubsetOfTheCollectionLiveBytes() {
 		final EntityCollectionStatistics statistics = this.evita.management().getEntityCollectionStatistics(
@@ -240,6 +329,17 @@ class StoragePartCompositionTest implements EvitaTestSupport {
 				);
 			}
 		}
+	}
+
+	/**
+	 * The entries of a collection-level breakdown, named so the assertions above read like the catalog-level ones.
+	 *
+	 * @param composition the component to unwrap
+	 * @return its entries
+	 */
+	@Nonnull
+	private static StoragePartUsage[] parts(@Nonnull CollectionStorageComposition composition) {
+		return composition.parts();
 	}
 
 	/**
