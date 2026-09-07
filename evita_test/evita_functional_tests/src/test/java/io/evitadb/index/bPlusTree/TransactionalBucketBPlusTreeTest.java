@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.BucketCountChanges.BucketCountMemento;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusTreeNode;
@@ -57,6 +58,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.CACHE;
@@ -64,6 +66,8 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
+import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,9 +77,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * inverted index. Exercises bucket insert/promotion/demotion, single↔multi representation, point
  * lookups, ordered forward / from-key / reverse cursors, leaf split / merge / steal rebalancing, bucket delete +
  * collapse, negative primary keys (including {@link Integer#MIN_VALUE}) as single and multi members, and the full
- * MVCC machinery (isolation, rollback, commit merge including a deep-committed overflow bitmap, and the
- * delete-a-multi-bucket-then-commit path that proves the discarded bitmap layer is released). Bounded fixed-seed
- * randomized churn guards the rebalancing/commit machinery against regressions.
+ * MVCC machinery (isolation, rollback, commit merge including a deep-committed overflow bitmap, the
+ * delete-a-multi-bucket-then-commit path that proves the discarded bitmap layer is released, and the bucket count's
+ * own diff layer — its isolation from a session-free reader, its registration and commit sweep, and its
+ * savepoint rollback/commit fidelity against the node graph it counts). Bounded fixed-seed randomized churn guards
+ * the rebalancing/commit machinery against regressions.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -359,7 +365,7 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("rejects an empty vararg add")
 		void shouldRejectEmptyVarargAdd() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
-			assertThrows(IllegalArgumentException.class, () -> tree.addRecord(5, new int[0]));
+			assertThrows(IllegalArgumentException.class, () -> tree.addRecord(5));
 		}
 
 		@Test
@@ -524,7 +530,7 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRejectEmptyVarargRemove() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
 			tree.addRecord(5, 100);
-			assertThrows(IllegalArgumentException.class, () -> tree.removeRecord(5, new int[0]));
+			assertThrows(IllegalArgumentException.class, () -> tree.removeRecord(5));
 		}
 
 		@Test
@@ -1285,6 +1291,312 @@ class TransactionalBucketBPlusTreeTest {
 	}
 
 	@Nested
+	@DisplayName("Bucket count MVCC")
+	class BucketCountMvccTest {
+
+		/**
+		 * Reads the tree's bucket count on a thread that has **no transaction bound**, which is the shape the
+		 * statistics and management walks take: a request thread asking a live tree how many buckets it holds while
+		 * another thread's transaction is mutating it. Such a reader must always see the committed count, never the
+		 * writer's in-flight one.
+		 *
+		 * @param tree the tree to interrogate
+		 * @return the bucket count as seen with no transaction bound
+		 * @throws InterruptedException when the reading thread is interrupted while being joined
+		 */
+		private static int bucketCountWithoutTransaction(@Nonnull TransactionalBucketBPlusTree<?> tree)
+			throws InterruptedException {
+			final AtomicInteger seen = new AtomicInteger();
+			final AtomicReference<Throwable> failure = new AtomicReference<>();
+			final Thread reader = new Thread(() -> seen.set(tree.bucketCount()));
+			// without this the reader's own failure would be swallowed and reported as a count of zero, hiding the very
+			// thing this helper probes behind an unrelated "expected 3 but was 0"
+			reader.setUncaughtExceptionHandler((thread, ex) -> failure.set(ex));
+			reader.start();
+			reader.join();
+			final Throwable readerFailure = failure.get();
+			if (readerFailure != null) {
+				throw new IllegalStateException("the session-free reader failed to read the count", readerFailure);
+			}
+			return seen.get();
+		}
+
+		/**
+		 * Renders the tree's bucket count together with the keys its forward cursor yields, as a single
+		 * `.equals`-comparable value. Pairing the two is what lets a savepoint assertion fail on a count that was
+		 * restored out of step with the node graph it is supposed to describe — a count-only oracle cannot see that,
+		 * and a contents-only oracle cannot see it either.
+		 *
+		 * @param tree the tree to read
+		 * @return the bucket count and the cursor keys, rendered as `count:key,key,...`
+		 */
+		@Nonnull
+		private static String countAndKeysOf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final StringBuilder sb = new StringBuilder(64).append(tree.bucketCount()).append(':');
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				sb.append(cursor.value()).append(',');
+			}
+			return sb.toString();
+		}
+
+		@Test
+		@DisplayName("a transaction sees its own count while a session-free reader still sees the committed one")
+		void shouldIsolateTheBucketCountFromASessionFreeReader() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+			tree.addRecord(2, 20);
+			tree.addRecord(3, 30);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					try {
+						// two buckets born inside the transaction, one through each of the two `addRecord` overloads -
+						// both are distinct increment sites
+						tested.addRecord(4, 40);
+						tested.addRecord(5, 50, 51);
+						assertEquals(5, tested.bucketCount(), "the writer must see its own inserts");
+						assertEquals(
+							3, bucketCountWithoutTransaction(tested),
+							"a reader resolving no transaction must still see the committed count"
+						);
+
+						// and one bucket deleted inside it - the decrement has to be visible to the writer alone too
+						tested.removeRecord(1, 10);
+						assertEquals(4, tested.bucketCount(), "the writer must see its own removal");
+						assertEquals(
+							3, bucketCountWithoutTransaction(tested),
+							"a removal inside the transaction must not move the committed count either"
+						);
+					} catch (InterruptedException ex) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException("interrupted while reading the count off-transaction", ex);
+					}
+				},
+				(original, committed) -> {
+					assertEquals(3, original.bucketCount(), "the pre-merge tree keeps reporting the committed count");
+					assertEquals(4, committed.bucketCount(), "the merged tree carries the in-transaction count");
+					verifyTreeConsistency(committed, 2, 3, 4, 5);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a rolled-back transaction leaves the committed count untouched")
+		void shouldLeaveTheCommittedBucketCountUntouchedOnRollback() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			assertStateAfterRollback(
+				tree,
+				tested -> {
+					tested.addRecord(100, 1_000);
+					tested.addRecord(101, 1_010);
+					tested.removeRecord(0, 0);
+					assertEquals(7, tested.bucketCount(), "the transaction must see its own count while it runs");
+				},
+				(original, committed) -> assertEquals(
+					6, original.bucketCount(),
+					"a rolled-back transaction must not have moved the committed count"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("dropping a tree's layers inside a transaction gives its count back and sweeps clean")
+		void shouldGiveTheBucketCountBackWhenTheLayerIsDropped() {
+			// the outer tree is never touched - it only provides the transactional context that drives the commit sweep
+			final TransactionalBucketBPlusTree<Integer> outer = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> discarded =
+				new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				discarded.addRecord(i, i * 10);
+			}
+
+			assertStateAfterCommit(
+				outer,
+				tested -> {
+					// two births and one death, so the in-transaction count (7) differs from the committed one (6) and
+					// the assertion after the drop can tell the two apart
+					discarded.addRecord(100, 1_000);
+					discarded.addRecord(101, 1_010);
+					discarded.removeRecord(0, 0);
+					assertEquals(7, discarded.bucketCount(), "the transaction must see its own count before the drop");
+					// dropping the layers must release the tree's OWN bucket-count layer too - if it did not, the sweep
+					// below would refuse the commit with StaleTransactionMemoryException
+					discarded.removeLayer(Transaction.getTransactionalLayerMaintainer());
+					assertEquals(
+						6, discarded.bucketCount(),
+						"a dropped layer must give the committed count back, not keep the in-transaction one"
+					);
+					// the count fell back to the committed value - so must the graph it counts; the consistency report
+					// walks both cursors and cross-checks the walked bucket count against the one just asserted
+					verifyTreeConsistency(discarded, 0, 1, 2, 3, 4, 5);
+				},
+				(original, committed) -> assertEquals(0, committed.bucketCount())
+			);
+
+			assertEquals(6, discarded.bucketCount(), "the discarded tree keeps its pre-transaction committed count");
+		}
+
+		@Test
+		@DisplayName("a transaction that changes the count registers a layer of its own and the commit sweeps it")
+		void shouldRegisterAndSweepTheTreesOwnBucketCountLayer() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(tested),
+						"a transaction that has not moved the count must not have opened a layer for it"
+					);
+					assertEquals(1, tested.bucketCount(), "and a bare read must not open one either");
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(tested));
+
+					tested.addRecord(2, 20);
+					final BucketCountChanges layer = Transaction.getTransactionalMemoryLayerIfExists(tested);
+					assertNotNull(layer, "a bucket born inside the transaction must open the tree's own count layer");
+					assertEquals(2, layer.getBucketCount());
+				},
+				// the harness verifies the whole transactional memory was swept - a tree-level layer left ALIVE would
+				// fail the commit here rather than reach these assertions
+				(original, committed) -> {
+					assertEquals(1, original.bucketCount());
+					assertEquals(2, committed.bucketCount());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback returns the count to the value it had when the savepoint opened")
+		void shouldRestoreTheBucketCountOnSavepointRollback() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			// the baseline insert opens the count layer BEFORE the savepoint, so the rollback has to restore that layer
+			// from its memento rather than take the cheaper drop-a-layer-created-inside-the-savepoint arm
+			assertSavepointRollbackRestores(
+				tree,
+				t -> t.addRecord(2, 20),
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					t.addRecord(3, 30);
+					t.addRecord(4, 40);
+					t.removeRecord(1, 10);
+					assertEquals(3, t.bucketCount(), "the savepoint's own changes must be visible while it is open");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback drops a count layer that was born inside it")
+		void shouldDropTheBucketCountLayerBornInsideTheSavepoint() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			// the baseline only adds a record to an EXISTING bucket, so it opens the leaf's own layer while leaving the
+			// count untouched - no count layer exists when the savepoint opens, and the rollback therefore has to drop
+			// the layer born inside it entirely rather than restore it from a memento
+			assertSavepointRollbackRestores(
+				tree,
+				t -> {
+					t.addRecord(1, 11);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(t),
+						"a mutation that creates no bucket must not open the count layer"
+					);
+				},
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					t.addRecord(2, 20);
+					t.addRecord(3, 30);
+					assertEquals(
+						3, t.bucketCount(),
+						"the buckets born inside the savepoint are visible while it is open"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a committed savepoint keeps the count it moved to")
+		void shouldKeepTheBucketCountWhenTheSavepointIsCommitted() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+
+			assertSavepointCommitKeeps(
+				tree,
+				t -> t.addRecord(2, 20),
+				BucketCountMvccTest::countAndKeysOf,
+				t -> {
+					// a NON-ZERO net count change: the harness captures the oracle AFTER these operations, so a
+					// commitSavepoint that wrongly restored the memento (count 2, keys 1,2) instead of releasing it
+					// would be visible here as a mismatch against the count 3, keys 2,3,4 it must keep
+					t.addRecord(3, 30);
+					t.addRecord(4, 40);
+					t.removeRecord(1, 10);
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucket count diff layer")
+	class BucketCountChangesTest {
+
+		@Test
+		@DisplayName("counts up and down from the committed value it was created with")
+		void shouldCountUpAndDownFromTheCommittedValue() {
+			final BucketCountChanges layer = new BucketCountChanges(7);
+			assertEquals(7, layer.getBucketCount());
+
+			layer.increment();
+			layer.increment();
+			layer.decrement();
+
+			assertEquals(8, layer.getBucketCount());
+		}
+
+		@Test
+		@DisplayName("restores the same memento any number of times")
+		void shouldRestoreTheSameMementoRepeatedly() {
+			final BucketCountChanges layer = new BucketCountChanges(7);
+			layer.increment();
+			final BucketCountMemento memento = layer.snapshot();
+			assertEquals(8, memento.bucketCount());
+
+			layer.increment();
+			layer.increment();
+			layer.restore(memento);
+			assertEquals(8, layer.getBucketCount(), "the first restore must return the captured count");
+
+			// the memento holds a primitive, so it is untouched by either the mutations above or the restore itself
+			layer.decrement();
+			layer.decrement();
+			layer.restore(memento);
+			assertEquals(8, layer.getBucketCount(), "the same memento must still be faithful on a second restore");
+			assertEquals(8, memento.bucketCount(), "a restore must not consume the memento");
+		}
+
+		@Test
+		@DisplayName("refuses to count below zero")
+		void shouldRefuseToCountBelowZero() {
+			final BucketCountChanges layer = new BucketCountChanges(1);
+			layer.decrement();
+			assertEquals(0, layer.getBucketCount(), "the last bucket the layer saw may still be counted away");
+
+			// a count that outlives the buckets it counts would surface far from its cause - as a wrong distinct value
+			// count reported to the user, and as an estimated path length silently collapsing through NaN to zero
+			assertThrows(GenericEvitaInternalError.class, layer::decrement);
+		}
+	}
+
+	@Nested
 	@DisplayName("STM invariants")
 	class StmInvariantsTest {
 
@@ -1801,7 +2113,7 @@ class TransactionalBucketBPlusTreeTest {
 			tree.addRecord(5, 50);
 			tree.addRecord(1, 10);
 			assertEquals(1, tree.enumerateLeaves().size(), "Fixture should be a single-leaf tree.");
-			assertRoundTrip(tree, new int[] {1, 5});
+			assertRoundTrip(tree, 1, 5);
 		}
 
 		@Test
@@ -1818,7 +2130,7 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRoundTripEmptyTree() {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
 			assertEquals(1, tree.enumerateLeaves().size(), "An empty tree must expose a single empty leaf.");
-			assertRoundTrip(tree, new int[0]);
+			assertRoundTrip(tree);
 		}
 
 		@Test
@@ -1973,23 +2285,44 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldReportLeafForOverflowOnlyBitmapMutation() {
 			// value 0 is a multi bucket (0 % 5 == 0) holding {0, 1}
 			final TreeTuple prepared = prepareRandomMultiTree(13L, 300, 5);
+			// grow it past the small-bucket threshold so its record set is a live, mutable TransactionalBitmap. Only
+			// the bitmap tier can be mutated behind the leaf's back at all - a sorted-array bucket is immutable and
+			// every change to it goes through the leaf, which then acquires a layer of its own - and it is that
+			// behind-the-back mutation this test exists to prove the rebuilt-node detection still catches
+			final int[] filler = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD];
+			for (int i = 0; i < filler.length; i++) {
+				filler[i] = 1_000 + i;
+			}
+			prepared.tree().addRecord(0, filler);
+			final int cardinalityBefore = prepared.tree().getRecordsEqualTo(0).size();
+
 			assertStateAfterCommit(
 				prepared.tree(),
 				tree -> {
 					// mutate the live overflow bitmap directly, bypassing the leaf's addRecord — so the leaf node
 					// itself never acquires a transactional layer (the case the old leaf-layer predicate missed)
 					final Bitmap records = tree.getRecordsEqualTo(0);
-					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a multi-record bucket.");
-					((TransactionalBitmap) records).add(9_999);
+					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a bitmap-tier bucket.");
+					records.add(9_999);
 				},
 				(original, committed) -> {
 					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
 					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
 					assertEquals(1, leafCount(rebuilt), "The overflow mutation must rebuild exactly its one leaf.");
-					assertArrayEquals(
-						new int[] {0, 1, 9_999}, committed.getRecordsEqualTo(0).getArray(),
+					final Bitmap committedRecords = committed.getRecordsEqualTo(0);
+					assertEquals(
+						cardinalityBefore + 1, committedRecords.size(),
 						"The committed tree must carry the overflow-added record."
 					);
+					// the whole expected set is known - {0, 1} the bucket was born with, the filler, and the id the
+					// transaction added behind the leaf's back - so assert it exactly rather than by cardinality
+					// plus a few memberships, which a lost or duplicated filler id would slip past
+					final int[] expected = new int[3 + filler.length];
+					expected[0] = 0;
+					expected[1] = 1;
+					System.arraycopy(filler, 0, expected, 2, filler.length);
+					expected[expected.length - 1] = 9_999;
+					assertArrayEquals(expected, committedRecords.getArray(), "No record may be lost or duplicated.");
 				}
 			);
 		}
@@ -3221,7 +3554,7 @@ class TransactionalBucketBPlusTreeTest {
 				singleLeaf(1, 2), singleLeaf(5, 6), singleLeaf(10, 11)
 			));
 			// the registry keeps probe KEYS, not node objects; each key relocates to the leaf that owns it
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.of(
 				new MutableIntKey(1), new MutableIntKey(5), new MutableIntKey(10)
 			)));
 		}
@@ -3240,7 +3573,7 @@ class TransactionalBucketBPlusTreeTest {
 			// relocate by the leaf's own (unchanged) first key 5 — the descent lands on it and the tail half-invariant fires
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
+				() -> tree.validateDirtyScope(List.of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("successor leaf boundary"),
@@ -3263,7 +3596,7 @@ class TransactionalBucketBPlusTreeTest {
 			// predecessor's corrupted last key
 			final AbstractTransactionalBPlusTree.BPlusTreeCorruptedException ex = assertThrows(
 				AbstractTransactionalBPlusTree.BPlusTreeCorruptedException.class,
-				() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(5)))
+				() -> tree.validateDirtyScope(List.of(new MutableIntKey(5)))
 			);
 			assertTrue(
 				ex.getMessage().contains("predecessor leaf boundary"),
@@ -3278,7 +3611,7 @@ class TransactionalBucketBPlusTreeTest {
 			// it rather than dereference the peek slot
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
 				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
-			assertDoesNotThrow(() -> tree.validateDirtyScope(List.<Object>of(new MutableIntKey(42))));
+			assertDoesNotThrow(() -> tree.validateDirtyScope(List.of(new MutableIntKey(42))));
 		}
 
 		@Test
@@ -3419,5 +3752,968 @@ class TransactionalBucketBPlusTreeTest {
 			);
 		}
 
+	}
+
+	/**
+	 * Pins the leaf-side half of the content-sized storage design: a column's backing array follows what the leaf
+	 * holds, while the leaf keeps deciding to split, rebalance and page on the **logical** block size.
+	 *
+	 * The two failure modes these guard are asymmetric, and the worse one is silent. If `capacity()` ever came back
+	 * as the backing array's length, a five-value tree would report itself full and split — turning a memory
+	 * optimization into a storage-shape change. Worse, the split's own end bound is that same capacity, so the right
+	 * half would copy the empty range and half the leaf would simply vanish, with no exception and no failing
+	 * consistency report. Hence a content assertion after every split here, not merely a shape one.
+	 */
+	@Nested
+	@DisplayName("Content-sized leaf storage behind a logical capacity")
+	@Tag(INDEXING)
+	class ContentSizedLeafStorage {
+
+		/**
+		 * Sums the heap of a leaf's key and record columns — the proxy this test uses for "how long are the backing
+		 * arrays", since the arrays themselves are private to the columns.
+		 *
+		 * @param leaf the leaf to measure
+		 * @return the bytes its two mandatory columns occupy
+		 */
+		private static long columnBytesOf(@Nonnull BPlusLeafTreeNode<Integer> leaf) {
+			// both getters are transaction-aware: inside a transaction they answer for the leaf's LAYER, so this
+			// measures the base leaf only outside one. Use the two-column overload to measure captured references
+			return columnBytesOf(leaf.getKeyColumn(), leaf.getRecords());
+		}
+
+		/**
+		 * Sums the heap of one key column and one record column, for a caller holding the two references directly.
+		 *
+		 * @param keys    the key column to measure
+		 * @param records the single-record column to measure
+		 * @return the bytes the two occupy
+		 */
+		private static long columnBytesOf(@Nonnull ValueColumn<Integer> keys, @Nonnull RecordColumn records) {
+			return keys.getHeapSizeInBytes(element -> 0L) + records.getHeapSizeInBytes();
+		}
+
+		@Test
+		@DisplayName("a leaf whose backing arrays are shorter than the block size still does not split")
+		void shouldNotSplitALeafWhoseBackingArraysAreShorterThanTheBlockSize() {
+			// a production-sized block against five values: the backing arrays hold eight slots, the leaf holds 255
+			// (the single-argument constructor derives the minimum as blockSize / 2 and demands it be strictly below
+			// half, so an odd block is the largest legal one it accepts)
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(1, leaves.size(), "five values must never outgrow a 255-bucket leaf");
+			assertInstanceOf(BPlusLeafTreeNode.class, tree.getRoot(), "the root must still be the leaf itself");
+
+			final BPlusLeafTreeNode<Integer> leaf = leaves.get(0);
+			assertEquals(5, leaf.getKeyColumn().size(), "the key column holds exactly the five live values");
+			assertEquals(255, leaf.getKeyColumn().capacity(), "the LOGICAL capacity is the block size, unchanged");
+			assertEquals(255, leaf.getRecords().capacity());
+			assertEquals(255, leaf.capacity(), "the leaf answers the logical capacity, not its storage");
+			assertFalse(leaf.isFull());
+			assertFalse(leaf.isNearlyFull());
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4);
+		}
+
+		@Test
+		@DisplayName("a real split keeps every bucket of both halves")
+		void shouldKeepEveryBucketOfBothHalvesWhenALeafSplits() {
+			// block size 5 with six values forces exactly one split, so both halves can be read back whole
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			for (int i = 0; i < 6; i++) {
+				tree.addRecord(i, i * 10);
+			}
+
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(2, leaves.size(), "the fixture must actually split");
+
+			// the content assertion is the point: a split whose end bound collapsed to `mid` would leave the right
+			// leaf empty and lose half the tree without throwing anything at all
+			final BPlusLeafTreeNode<Integer> right = leaves.get(1);
+			assertTrue(right.size() > 0, "the right half of a split must never be empty");
+
+			int total = 0;
+			for (final BPlusLeafTreeNode<Integer> leaf : leaves) {
+				total += leaf.size();
+				assertEquals(leaf.getPeek() + 1, leaf.getKeyColumn().size(), "every column covers exactly the leaf");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+			}
+			assertEquals(6, total, "a split must not lose a single bucket");
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4, 5);
+			for (int i = 0; i < 6; i++) {
+				assertArrayEquals(new int[]{i * 10}, recordsOf(tree, i), "records lost at value " + i);
+			}
+		}
+
+		@Test
+		@DisplayName("a low-cardinality tree in which every bucket is multi-record stays whole")
+		void shouldKeepEveryRecordWhenEveryBucketIsMultiRecord() {
+			// the shape the overflow column dominates: few distinct values, every one of them promoted
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int value = 0; value < 6; value++) {
+				tree.addRecord(value, value * 100, value * 100 + 1, value * 100 + 2);
+			}
+
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			assertNotNull(leaf.getOverflow(), "every bucket is multi, so the overflow column must exist");
+			assertEquals(6, leaf.getOverflow().size(), "the overflow column covers exactly the live buckets");
+			assertEquals(255, leaf.getOverflow().capacity(), "its logical capacity is still the block size");
+			for (int value = 0; value < 6; value++) {
+				assertNotNull(
+					leaf.getOverflow().recordsAt(value), "bucket " + value + " must carry a multi-record set"
+				);
+				assertArrayEquals(
+					new int[]{value * 100, value * 100 + 1, value * 100 + 2}, recordsOf(tree, value),
+					"records lost at value " + value
+				);
+			}
+			verifyTreeConsistency(tree, 0, 1, 2, 3, 4, 5);
+
+			// deleting every record of the middle bucket collapses it, and the overflow column must shrink with the
+			// rest rather than leave a stale bitmap aliased past the live run
+			tree.removeRecord(3, 300, 301, 302);
+			assertEquals(5, leaf.getOverflow().size());
+			verifyTreeConsistency(tree, 0, 1, 2, 4, 5);
+		}
+
+		@Test
+		@DisplayName("a steal between leaves of different physical lengths moves every bucket")
+		void shouldRebalanceWhenDonorAndReceiverHaveDifferentPhysicalLengths() {
+			// small blocks so a handful of removals force a real steal / merge, and the two leaves reach it with
+			// arrays grown to different lengths because they were filled at different times
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			for (int i = 0; i < 24; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			// promote a scattering of buckets so the overflow column takes part in the rebalance too
+			for (int i = 0; i < 24; i += 3) {
+				tree.addRecord(i, i * 10 + 1);
+			}
+			verifyTreeConsistency(
+				tree, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23);
+
+			for (int i = 0; i < 24; i += 2) {
+				tree.removeRecord(i, i * 10, i * 10 + 1);
+			}
+			verifyTreeConsistency(tree, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23);
+			for (final BPlusLeafTreeNode<Integer> leaf : tree.enumerateLeaves()) {
+				assertEquals(
+					leaf.getPeek() + 1, leaf.getKeyColumn().size(), "a rebalance must leave the columns aligned");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+				if (leaf.getOverflow() != null) {
+					assertEquals(leaf.getPeek() + 1, leaf.getOverflow().size());
+				}
+			}
+			for (int i = 1; i < 24; i += 2) {
+				assertArrayEquals(
+					i % 3 == 0 ? new int[]{i * 10, i * 10 + 1} : new int[]{i * 10}, recordsOf(tree, i),
+					"records lost at value " + i
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a commit that changes nothing keeps every leaf by identity")
+		@Tag(TRANSACTION)
+		void shouldKeepEveryLeafByIdentityWhenACommitChangesNothing() {
+			final TreeTuple prepared = prepareRandomTree(4_242L, 300);
+			final List<BPlusLeafTreeNode<Integer>> before = prepared.tree().enumerateLeaves();
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// deliberately no mutation: the trim at the commit merge must be reached only where a new
+					// committed leaf is being built anyway, never on the untouched fast path
+				},
+				(original, committed) -> {
+					final List<BPlusLeafTreeNode<Integer>> after = committed.enumerateLeaves();
+					assertEquals(before.size(), after.size());
+					for (int i = 0; i < before.size(); i++) {
+						assertSame(
+							before.get(i), after.get(i),
+							"a no-op commit must not rebuild - and therefore must not trim - leaf " + i
+						);
+					}
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("the commit merge gives back the slack of a leaf that has drained")
+		@Tag(TRANSACTION)
+		void shouldTrimTheColumnsOfADrainedLeafWhenTheCommitMergeRebuildsIt() {
+			// one leaf grown to sixteen buckets, then drained to three inside a transaction: at commit the rebuilt
+			// leaf carries columns sized to what is left rather than to the high-water mark
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 16; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final long grownBytes = columnBytesOf(tree.enumerateLeaves().get(0));
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					for (int i = 3; i < 16; i++) {
+						t.removeRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> {
+					final BPlusLeafTreeNode<Integer> leaf = committed.enumerateLeaves().get(0);
+					assertEquals(3, leaf.size(), "three buckets must survive");
+					assertEquals(3, leaf.getKeyColumn().size());
+					assertEquals(255, leaf.getKeyColumn().capacity(), "trimming never moves the logical capacity");
+					assertTrue(
+						columnBytesOf(leaf) < grownBytes,
+						"the commit merge must give the drained leaf's slack back - was "
+							+ columnBytesOf(leaf) + ", grown to " + grownBytes
+					);
+					verifyTreeConsistency(committed, 0, 1, 2);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a growth inside a savepoint never reaches the committed columns")
+		@Tag(TRANSACTION)
+		void shouldLeaveTheCommittedColumnsUntouchedWhenASavepointGrowsALeaf() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.addRecord(10, 100);
+
+			final BPlusLeafTreeNode<Integer> committedLeaf = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committedLeaf.getKeyColumn();
+			final RecordColumn committedRecords = committedLeaf.getRecords();
+			final long committedBytes = columnBytesOf(committedLeaf);
+			final int committedSize = committedKeys.size();
+
+			// five more distinct values force at least one reallocation of the four-slot backing arrays
+			assertSavepointRollbackRestores(
+				tree,
+				t -> {
+				},
+				t -> {
+					final TreeMap<Integer, String> content = new TreeMap<>();
+					final BucketCursor<Integer> cursor = t.cursor();
+					while (cursor.next()) {
+						content.put(cursor.value(), cursor.records().toString());
+					}
+					return content;
+				},
+				t -> {
+					for (int i = 0; i < 5; i++) {
+						t.addRecord(20 + i, 200 + i);
+					}
+				}
+			);
+
+			assertSame(committedKeys, committedLeaf.getKeyColumn(), "the committed key column must not be replaced");
+			assertSame(committedRecords, committedLeaf.getRecords());
+			assertEquals(committedSize, committedKeys.size(), "the committed column must not have grown");
+			assertEquals(
+				committedBytes, columnBytesOf(committedLeaf),
+				"a grow inside a savepoint must reallocate the LAYER's array, never the committed one"
+			);
+			assertEquals(10, committedKeys.keyAt(0), "the committed content must be exactly what it was");
+		}
+
+		@Test
+		@DisplayName("a leaf whose columns have fallen out of step with its peek is refused")
+		void shouldRefuseALeafWhoseColumnsHaveFallenOutOfStepWithItsPeek() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+
+			// outside a transaction `setPeek` takes the `layer == null` arm, and an UPWARD move raises `peek` without
+			// growing a single column - the one shape that reaches the invariant deterministically through a public
+			// method. The leaf is left corrupt because `peek` is assigned before the check runs, so this tree must
+			// not be reused after the assertions below
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> leaf.setPeek(leaf.getPeek() + 1),
+				"a leaf whose peek runs ahead of every column must never be published"
+			);
+			final String message = exception.getMessage();
+			assertTrue(message.contains("peek + 1 == 6"), "the report must name the expected run, got: " + message);
+			assertTrue(message.contains("keys=5"), "the report must name the key column, got: " + message);
+			assertTrue(message.contains("records=5"), "the report must name the record column, got: " + message);
+			assertTrue(message.contains("valueIds=n/a"), "the report must name the id column, got: " + message);
+			assertTrue(message.contains("overflow=n/a"), "the report must name the overflow column, got: " + message);
+		}
+
+		@Test
+		@DisplayName("a cursor over a leaf whose peek runs ahead of its columns walks only what is live")
+		void shouldBoundTheCursorByTheColumnLiveRunWhenALeafPeekRunsAhead() {
+			// a bulk-loaded page sizes every column EXACTLY to the page, so a read one slot past the live run really
+			// does run off the end of the backing array - which is what makes the bound below an assertion rather
+			// than a formality. This is the state a session-free management or statistics reader can observe while a
+			// warm-up bulk load is still growing a column the leaf's `peek` has already moved past
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, 3);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+
+			// the invariant refuses the move, but `peek` is already assigned by the time it does, so the leaf stays
+			// in exactly the torn shape the cursors have to survive
+			assertThrows(GenericEvitaInternalError.class, () -> leaf.setPeek(leaf.getPeek() + 1));
+			assertEquals(3, leaf.getPeek(), "the fixture must leave peek one slot ahead of the columns");
+			assertEquals(3, leaf.getKeyColumn().size(), "the columns must be the exactly-sized ones the page built");
+
+			assertEquals(3, tree.recordCount(), "the record count must stop at the column's own live run");
+			final List<Integer> forward = new ArrayList<>();
+			final BucketCursor<Integer> cursor = tree.cursor();
+			while (cursor.next()) {
+				forward.add(cursor.value());
+			}
+			assertEquals(List.of(10, 20, 30), forward, "the forward walk must stop at the live run");
+
+			final List<Integer> reverse = new ArrayList<>();
+			final BucketCursor<Integer> reverseCursor = tree.reverseCursor();
+			while (reverseCursor.next()) {
+				reverse.add(reverseCursor.value());
+			}
+			assertEquals(List.of(30, 20, 10), reverse, "the reverse walk must stop at the live run");
+		}
+
+		@Test
+		@DisplayName("a steal whose donor overflow column is short is refused rather than demoting the stolen bucket")
+		void shouldRefuseAShortDonorOverflowColumnOnASteal() {
+			// a `null` in the overflow column is not an empty slot - it IS the leaf's single/multi discriminator. A
+			// donor whose overflow column is shorter than the range its key column donates would hand the receiver
+			// every multi bucket in the shortfall marked single, keeping one record out of each bucket's whole set.
+			// The key column cannot catch it: the two are driven with the same range, the key column is copied first,
+			// and it is intact - so the overflow column has to answer for itself
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, 4, 3, 1, Integer.class, null
+			);
+			for (int i = 0; i < 12; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertTrue(leaves.size() >= 2, "the fixture needs two sibling leaves");
+			final BPlusLeafTreeNode<Integer> donor = leaves.get(0);
+			final BPlusLeafTreeNode<Integer> receiver = leaves.get(1);
+			assertTrue(
+				receiver.size() < receiver.capacity(),
+				"the receiver must have room for the bucket it steals"
+			);
+
+			// promote the donor's LAST bucket - the one a steal-from-left takes - to a multi one, which is also what
+			// allocates the donor's overflow column in the first place
+			tree.addRecord(donor.keyAt(donor.size() - 1), 9_000);
+			final OverflowColumn donorOverflow = donor.getOverflow();
+			assertNotNull(donorOverflow, "promoting a bucket must have given the donor an overflow column");
+			assertEquals(donor.size(), donorOverflow.size(), "the fixture starts from an aligned donor");
+
+			// one slot short of the range the donor's key column is about to donate
+			donorOverflow.fillEmpty(donorOverflow.size() - 1, donorOverflow.size());
+
+			// the steal is abandoned part-way, which leaves this tree unusable - that is what an internal error
+			// means, and nothing below reads the tree again
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class, () -> receiver.stealFromLeft(1, donor),
+				"a donor that cannot answer for the bucket it donates must not be stolen from"
+			);
+			assertTrue(
+				exception.getMessage().contains("Overflow column source range"),
+				"the overflow column must be the one that refuses, got: " + exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("creating a layer over a misaligned leaf is refused before the committed column is touched")
+		void shouldRefuseToCreateALayerOverAMisalignedLeaf() {
+			// `createLayer()` passes the leaf's own columns as BOTH origin and target of the split-copy constructor,
+			// so the copy and the size-authoritative fill behind it rewrite the committed leaf in place. They are
+			// inert only while every column's live run is exactly `peek + 1`, which is why the leaf has to be
+			// refused before the first of them runs rather than after the last
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 5; i++) {
+				tree.addRecord(i, i * 10);
+			}
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = leaf.getKeyColumn();
+
+			// one key appended straight onto the committed column, past the run the leaf's peek covers
+			committedKeys.insertKeyAt(committedKeys.size(), 99);
+			assertEquals(6, committedKeys.size(), "the fixture must leave the key column one slot longer than peek");
+			assertEquals(4, leaf.getPeek());
+
+			final GenericEvitaInternalError exception = assertThrows(
+				GenericEvitaInternalError.class, leaf::createLayer,
+				"a layer must never be created over a leaf whose columns disagree with its peek"
+			);
+			final String message = exception.getMessage();
+			assertTrue(message.contains("peek + 1 == 5"), "the report must name the expected run, got: " + message);
+			assertTrue(message.contains("keys=6"), "the report must name the key column, got: " + message);
+			assertEquals(
+				6, committedKeys.size(),
+				"a refused layer must leave the committed key column exactly as it found it"
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint that is committed keeps the growth it caused")
+		@Tag(TRANSACTION)
+		void shouldKeepTheGrowthWhenASavepointIsCommitted() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			tree.addRecord(10, 100);
+
+			assertSavepointCommitKeeps(
+				tree,
+				t -> {
+				},
+				t -> {
+					final TreeMap<Integer, String> content = new TreeMap<>();
+					final BucketCursor<Integer> cursor = t.cursor();
+					while (cursor.next()) {
+						content.put(cursor.value(), cursor.records().toString());
+					}
+					return content;
+				},
+				t -> {
+					for (int i = 0; i < 5; i++) {
+						t.addRecord(20 + i, 200 + i);
+					}
+				}
+			);
+		}
+
+		/**
+		 * Builds a throw-away tree whose single leaf holds exactly `count` buckets, and returns the bytes its two
+		 * mandatory columns occupy. Growth doubles from a floor of four, so a run of `count` inserts lands on a
+		 * backing array of exactly `count` slots whenever `count` is a power of two at or above the floor — which
+		 * makes this the footprint a leaf with `count`-slot columns has, and the expectation the physical-length
+		 * assertions below compare against.
+		 *
+		 * @param count how many buckets the reference leaf holds; a power of two at or above four
+		 * @return the bytes a leaf with `count`-slot columns occupies
+		 */
+		private static long columnBytesOfLeafSizedTo(int count) {
+			final TransactionalBucketBPlusTree<Integer> reference =
+				new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < count; i++) {
+				reference.addRecord(i, i);
+			}
+			return columnBytesOf(reference.enumerateLeaves().get(0));
+		}
+
+		/**
+		 * Builds a tree holding the eight buckets `0, 10, 20 .. 70`, which leaves its single leaf's columns EXACTLY
+		 * full: growth runs 4 -> 8 and the eighth insert still fits, so both backing arrays end at eight slots for
+		 * eight live buckets. That is the shape both halves of every split are born in, and the shape every page
+		 * replayed from disk arrives in.
+		 *
+		 * @return the populated tree
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> exactlyFullLeafTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			for (int i = 0; i < 8; i++) {
+				tree.addRecord(i * 10, i);
+			}
+			return tree;
+		}
+
+		@Test
+		@DisplayName("an exactly-full committed leaf is decoupled with room for the insert that follows")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafWithRoomForTheInsert() {
+			// copying an exactly-full column at its short length and growing it on the very next insert is two
+			// allocations where one would do. The decouple's insert path therefore copies straight to
+			// grownLength(8, 9, 255) == 16, which is what the layer's footprint below has to show
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+			assertEquals(8, committedKeys.size(), "the fixture must leave the columns exactly full");
+			assertEquals(columnBytesOfLeafSizedTo(8), committedBytes, "eight buckets must occupy eight slots");
+			// measured OUTSIDE the transaction on purpose: the reference tree is never committed, so building it in
+			// here would leave its leaf's layer behind and the commit would refuse the whole transaction as stale
+			final long sixteenSlotBytes = columnBytesOfLeafSizedTo(16);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.addRecord(1, 101);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the insert must have created a layer over the committed leaf");
+
+					// the committed leaf is untouched. Its columns are read through the references captured before
+					// the transaction, because the leaf's own getters are transaction-aware and answer for the layer
+					assertNotSame(committedKeys, layer.getKeyColumn(), "the layer must decouple its key column");
+					assertNotSame(committedRecords, layer.getRecords(), "the layer must decouple its record column");
+					assertEquals(8, committedKeys.size(), "the committed leaf must not observe the layer's insert");
+					assertEquals(
+						committedBytes, columnBytesOf(committedKeys, committedRecords),
+						"the committed columns must never be grown"
+					);
+
+					// the layer landed at sixteen slots, and stays there for the seven inserts that fill them
+					final long layerBytes = columnBytesOf(layer);
+					assertEquals(
+						sixteenSlotBytes, layerBytes,
+						"the decoupled columns must be grownLength(8, 9, 255) == 16 slots long"
+					);
+					assertTrue(layerBytes > committedBytes, "the layer must be physically longer than the base");
+					for (int key = 2; key <= 8; key++) {
+						t.addRecord(key, 100 + key);
+						assertEquals(
+							layerBytes, columnBytesOf(layer),
+							"no insert up to the sixteenth bucket may reallocate, failed at key " + key
+						);
+					}
+					assertEquals(16, layer.size(), "the layer must now hold sixteen buckets");
+				},
+				(t, committedTree) -> {
+					// back outside the transaction the leaf's getters answer for the BASE again, and the base is the
+					// pre-transaction tree — so this is where the committed columns' identity can actually be read
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+
+					// the merged leaf holds every bucket the fixture and the transaction contributed between them
+					verifyTreeConsistency(committedTree, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{0}, recordsOf(committedTree, 0));
+					assertArrayEquals(new int[]{101}, recordsOf(committedTree, 1));
+					assertArrayEquals(new int[]{108}, recordsOf(committedTree, 8));
+					assertArrayEquals(new int[]{7}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an add that joins an existing bucket decouples an exactly-full leaf verbatim")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafVerbatimWhenAnAddJoinsAnExistingBucket() {
+			// the headroom is for a bucket that is actually being added. An add landing on a key the leaf already
+			// holds gains no slot, and taking the headroom for it would grow an exactly-full leaf's columns for
+			// good — the commit merge's 4:1 trim gap never reclaims a single doubling. On the reduced trees this
+			// work exists for, where a four-key leaf sits on four-slot arrays, that is the whole prize given back
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// a second record on a key the fixture already holds. The bucket is promoted to a multi one,
+					// which legitimately materializes the overflow column — but the key and record columns, which
+					// are the two `columnBytesOf` measures, must not move a slot
+					t.addRecord(70, 999);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the add must have created a layer over the committed leaf");
+					assertNotSame(committedKeys, layer.getKeyColumn(), "a join must still decouple");
+					assertEquals(
+						committedBytes, columnBytesOf(layer),
+						"a join adds no key, so its decouple must copy the columns verbatim"
+					);
+					assertEquals(8, layer.size(), "the layer must still hold exactly eight buckets");
+				},
+				(t, committedTree) -> {
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+					assertEquals(
+						committedBytes, columnBytesOf(committedTree.enumerateLeaves().get(0)),
+						"the merged leaf must carry the committed physical length rather than a doubling"
+					);
+					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{7, 999}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a join followed by a new key still ends at the grown length with every value present")
+		@Tag(TRANSACTION)
+		void shouldGrowOnceWhenAJoinIsFollowedByANewKey() {
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final long committedBytes = columnBytesOf(committed);
+			// measured outside the transaction: a reference tree built in here would leave its leaf's layer unswept
+			final long sixteenSlotBytes = columnBytesOfLeafSizedTo(16);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.addRecord(70, 999);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the add must have created a layer over the committed leaf");
+					assertEquals(committedBytes, columnBytesOf(layer), "the join must leave the columns at eight");
+
+					// the new key has to grow them itself. The columns are already decoupled by the join, so the
+					// headroom copy is no longer on offer and the ordinary geometric growth takes over — one
+					// reallocation, landing on the same sixteen slots a bare insert would have reached
+					t.addRecord(1, 101);
+					assertEquals(sixteenSlotBytes, columnBytesOf(layer), "the new key must grow the columns to 16");
+					assertEquals(9, layer.size(), "the layer must hold nine buckets");
+				},
+				(t, committedTree) -> {
+					verifyTreeConsistency(committedTree, 0, 1, 10, 20, 30, 40, 50, 60, 70);
+					assertArrayEquals(new int[]{101}, recordsOf(committedTree, 1));
+					assertArrayEquals(new int[]{7, 999}, recordsOf(committedTree, 70));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a removal decouples an exactly-full leaf verbatim, with no headroom")
+		@Tag(TRANSACTION)
+		void shouldDecoupleAnExactlyFullLeafVerbatimForARemoval() {
+			// the headroom is for an insert and nothing else: a decouple whose mutation is about to SHRINK the
+			// columns would be over-allocating for slots that mutation is giving back
+			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
+			final RecordColumn committedRecords = committed.getRecords();
+			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					t.removeRecord(70, 7);
+
+					final BPlusLeafTreeNode<Integer> layer =
+						Transaction.getTransactionalMemoryLayerIfExists(committed);
+					assertNotNull(layer, "the removal must have created a layer over the committed leaf");
+					assertNotSame(committedKeys, layer.getKeyColumn(), "a removal must still decouple");
+					assertEquals(
+						committedBytes, columnBytesOf(layer),
+						"a decouple for a removal must copy the columns verbatim"
+					);
+					assertEquals(7, layer.size(), "the layer must have dropped the bucket");
+					assertEquals(8, committedKeys.size(), "the committed leaf must not observe the removal");
+					assertEquals(
+						committedBytes, columnBytesOf(committedKeys, committedRecords),
+						"the committed columns must never be touched"
+					);
+				},
+				(t, committedTree) -> {
+					assertSame(committedKeys, committed.getKeyColumn(), "the base key column was replaced");
+					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
+					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
+					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Pins the internal-node half of the content-sized storage design. An internal node now allocates four key slots
+	 * and four child slots instead of a whole block, sizes a split product to the half it copied, grows on demand and
+	 * gives the slack back at the commit merge — the same rule the leaf columns follow.
+	 *
+	 * The dangerous half is `isFull()`. It asks whether `peek` has reached the **block size**, and the moment it goes
+	 * back to asking whether `peek` has reached `children.length - 1` a four-slot node reports itself full holding
+	 * three children and splits a node that holds two. That is the exact mirror of the silent failure the leaf's own
+	 * content-sizing tests guard, so the cases below always assert the node's content alongside its shape.
+	 */
+	@Nested
+	@DisplayName("Content-sized internal nodes behind a logical block size")
+	@Tag(INDEXING)
+	class ContentSizedInternalNodes {
+
+		/**
+		 * Leaf and internal block size of the fixtures that must not split an internal node. The tree refuses an
+		 * internal block above the leaf block and refuses an even one, and derives nothing here — both are given
+		 * explicitly so the numbers below read as the ones the node actually holds.
+		 */
+		private static final int WIDE_BLOCK = 127;
+
+		/**
+		 * Collects every internal node of the tree in pre-order.
+		 *
+		 * @param tree the tree to walk
+		 * @return the internal nodes, root first
+		 */
+		@Nonnull
+		private static List<BPlusInternalTreeNode<Integer>> internalNodesOf(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree
+		) {
+			final List<BPlusInternalTreeNode<Integer>> nodes = new ArrayList<>();
+			collectInternalNodes(tree.getRoot(), nodes);
+			return nodes;
+		}
+
+		/**
+		 * Recursively adds `node` and its internal descendants to `out`.
+		 *
+		 * @param node the subtree root
+		 * @param out  the accumulator
+		 */
+		private static void collectInternalNodes(
+			@Nonnull BPlusTreeNode<Integer, ?> node, @Nonnull List<BPlusInternalTreeNode<Integer>> out
+		) {
+			if (node instanceof BPlusInternalTreeNode<?> internal) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
+					(BPlusInternalTreeNode<Integer>) internal;
+				out.add(internalNode);
+				final BPlusTreeNode<Integer, ?>[] children = internalNode.getChildren();
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					collectInternalNodes(children[i], out);
+				}
+			}
+		}
+
+		/**
+		 * Returns the ascending key array `0 .. count - 1`, the content every fixture below inserts.
+		 *
+		 * @param count how many keys the tree holds
+		 * @return the expected sorted key array
+		 */
+		@Nonnull
+		private static int[] ascendingKeys(int count) {
+			final int[] keys = new int[count];
+			for (int i = 0; i < count; i++) {
+				keys[i] = i;
+			}
+			return keys;
+		}
+
+		@Test
+		@DisplayName("an internal node whose arrays are full but whose block is not does not split")
+		void shouldNotSplitAnInternalNodeWhoseArraysAreShorterThanTheBlockSize() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			// insert until the root's child array is exactly filled - the one occupancy at which reading fullness off
+			// the array length rather than off the block size would answer "full" and split a node holding four
+			// children out of a hundred and twenty-eight
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never filled the root's child array");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 == candidate.getChildren().length) {
+						root = candidate;
+					}
+				}
+			}
+
+			assertTrue(
+				root.getChildren().length < WIDE_BLOCK + 1,
+				"the fixture must reach a full array well below the block size, was " + root.getChildren().length
+			);
+			assertFalse(
+				root.isFull(),
+				"a node whose ARRAY is full but whose BLOCK is not must never report itself full - it holds "
+					+ (root.getPeek() + 1) + " of " + (WIDE_BLOCK + 1) + " children"
+			);
+			assertEquals(root.getPeek(), root.keyCount(), "the separator count is one below the child count");
+			assertTrue(
+				root.getKeys().length >= root.keyCount(),
+				"the key array must cover every separator the node holds"
+			);
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("a root born from the first split allocates the floor, not the block")
+		void shouldAllocateAFreshRootAtTheFloorRatherThanTheBlockSize() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			int inserted = 0;
+			while (tree.getRoot() instanceof BPlusLeafTreeNode<?>) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never split the root leaf");
+			}
+
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> root =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			assertEquals(1, root.getPeek(), "a root born from one split separates exactly two children");
+			assertEquals(1, root.keyCount());
+			assertEquals(4, root.getChildren().length, "a two-child root allocates the four-slot floor");
+			assertEquals(4, root.getKeys().length, "and its separator array follows the same floor");
+			assertFalse(root.isFull());
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("an internal node grows on demand and keeps every child across the growth")
+		void shouldGrowAnInternalNodeOnDemandAndKeepEveryChild() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never drove the root past the four-slot floor");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 > ColumnSizing.MIN_PHYSICAL_LENGTH) {
+						root = candidate;
+					}
+				}
+			}
+
+			assertTrue(
+				root.getChildren().length > ColumnSizing.MIN_PHYSICAL_LENGTH,
+				"the child array must have grown past the floor, was " + root.getChildren().length
+			);
+			assertTrue(
+				root.getChildren().length <= WIDE_BLOCK + 1, "growth must never overshoot the logical block size");
+			assertEquals(root.getPeek(), root.keyCount());
+			assertTrue(root.getKeys().length >= root.keyCount());
+			for (int i = 0; i <= root.getPeek(); i++) {
+				assertNotNull(root.getChildren()[i], "a grown node must not lose the child at slot " + i);
+			}
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("both halves of an internal split are sized to the half they copied")
+		void shouldSizeASplitInternalNodeToTheHalfItCopied() {
+			// a nine-key internal block splits after ten children, which a handful of leaves reaches - and the origin
+			// is at the block size by then, so the halves being shorter is a real comparison rather than a tautology
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(9, 4, 9, 4, Integer.class, null);
+
+			int inserted = 0;
+			BPlusTreeNode<Integer, ?> previousRoot = tree.getRoot();
+			BPlusInternalTreeNode<Integer> splitOrigin = null;
+			while (splitOrigin == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never split an internal node");
+				final BPlusTreeNode<Integer, ?> currentRoot = tree.getRoot();
+				if (currentRoot != previousRoot && previousRoot instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> origin =
+						(BPlusInternalTreeNode<Integer>) internal;
+					splitOrigin = origin;
+				}
+				previousRoot = currentRoot;
+			}
+
+			@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> newRoot =
+				(BPlusInternalTreeNode<Integer>) tree.getRoot();
+			assertEquals(1, newRoot.getPeek(), "the root the split installed separates the two halves");
+
+			for (int half = 0; half <= 1; half++) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> product =
+					(BPlusInternalTreeNode<Integer>) newRoot.getChildren()[half];
+				assertEquals(
+					product.getPeek() + 1, product.getChildren().length,
+					"half " + half + " must be sized exactly to the children it copied"
+				);
+				assertTrue(
+					product.getChildren().length < splitOrigin.getChildren().length,
+					"half " + half + " must not inherit the origin's full-block child array"
+				);
+				assertTrue(
+					product.getKeys().length < splitOrigin.getKeys().length,
+					"half " + half + " must not inherit the origin's full-block separator array"
+				);
+				assertFalse(product.isFull(), "a half-full split product must not report itself full");
+			}
+			verifyTreeConsistency(tree, ascendingKeys(inserted));
+		}
+
+		@Test
+		@DisplayName("the commit merge gives back the slack of an internal node that has drained")
+		@Tag(TRANSACTION)
+		void shouldTrimADrainedInternalNodeWhenTheCommitMergeRebuildsIt() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(31, 15, 31, 15, Integer.class, null);
+
+			// grow the root well past the four-slot floor so a drained node has real slack to give back
+			int inserted = 0;
+			BPlusInternalTreeNode<Integer> root = null;
+			while (root == null) {
+				tree.addRecord(inserted, inserted * 10);
+				inserted++;
+				assertTrue(inserted < 100_000, "the fixture never grew the root to eighteen children");
+				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal) {
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> candidate =
+						(BPlusInternalTreeNode<Integer>) internal;
+					if (candidate.getPeek() + 1 >= 18) {
+						root = candidate;
+					}
+				}
+			}
+			final int grownChildren = root.getChildren().length;
+			final int grownKeys = root.getKeys().length;
+			final int survivors = 32;
+			final int total = inserted;
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					for (int i = survivors; i < total; i++) {
+						t.removeRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> {
+					assertInstanceOf(
+						BPlusInternalTreeNode.class, committed.getRoot(),
+						"thirty-two values cannot fit one thirty-one-bucket leaf, so the spine must survive the drain"
+					);
+					@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> committedRoot =
+						(BPlusInternalTreeNode<Integer>) committed.getRoot();
+					assertTrue(
+						committedRoot.getChildren().length < grownChildren,
+						"the commit merge must give the drained node's child slack back - was "
+							+ committedRoot.getChildren().length + ", grown to " + grownChildren
+					);
+					assertTrue(
+						committedRoot.getKeys().length < grownKeys,
+						"and its separator slack with it - was " + committedRoot.getKeys().length
+							+ ", grown to " + grownKeys
+					);
+					assertTrue(
+						committedRoot.getChildren().length >= committedRoot.getPeek() + 1,
+						"a trim must never cut into the children the node still holds"
+					);
+					assertEquals(committedRoot.getPeek(), committedRoot.keyCount());
+					verifyTreeConsistency(committed, ascendingKeys(survivors));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a commit that changes nothing keeps every internal node by identity")
+		@Tag(TRANSACTION)
+		void shouldKeepEveryInternalNodeByIdentityWhenACommitChangesNothing() {
+			final TreeTuple prepared = prepareRandomTree(4_711L, 300);
+			final List<BPlusInternalTreeNode<Integer>> before = internalNodesOf(prepared.tree());
+			assertFalse(before.isEmpty(), "the fixture must build a multi-level spine");
+
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// deliberately no mutation: the trim at the commit merge must be reached only where a new
+					// committed node is being built anyway, never on the untouched fast path
+				},
+				(original, committed) -> {
+					final List<BPlusInternalTreeNode<Integer>> after = internalNodesOf(committed);
+					assertEquals(before.size(), after.size());
+					for (int i = 0; i < before.size(); i++) {
+						assertSame(
+							before.get(i), after.get(i),
+							"a no-op commit must not rebuild - and therefore must not trim - internal node " + i
+						);
+					}
+				}
+			);
+		}
 	}
 }

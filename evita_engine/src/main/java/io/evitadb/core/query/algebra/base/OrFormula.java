@@ -37,7 +37,6 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -257,17 +256,9 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 		// Ascending in ROARING's order, which is unsigned - a record id is an `int` and nothing on the way in rules
 		// out a negative one. Signed-sorted, the negatives would arrive as the LOWEST ids and be filled into the
 		// highest containers, so every subsequent container would be inserted at the front of the container array and
-		// shift the whole of it. Flipping the sign bit makes `Arrays.sort` order unsigned, and flipping it back
-		// restores the ids: two linear passes, no allocation, and for the non-negative ids this actually sees the
-		// result is byte-for-byte what the plain sort produced.
+		// shift the whole of it. How the unsigned order is reached without boxing is `ArrayUtils#sortUnsigned`.
 		// (`PersistentRoaringBitmap#bitmapOfUnordered` skips the sort but buffers 1024 words per call - a loss here.)
-		for (int i = 0; i < singleRecordIds.length; i++) {
-			singleRecordIds[i] ^= Integer.MIN_VALUE;
-		}
-		Arrays.sort(singleRecordIds);
-		for (int i = 0; i < singleRecordIds.length; i++) {
-			singleRecordIds[i] ^= Integer.MIN_VALUE;
-		}
+		ArrayUtils.sortUnsigned(singleRecordIds);
 		result[0] = PersistentRoaringBitmap.bitmapOf(singleRecordIds);
 		return result;
 	}

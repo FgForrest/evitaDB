@@ -458,7 +458,7 @@ public final class EntityCollection implements
 			// initialize container buffer
 			final StoragePartPersistenceService<StorageDescriptor> storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
 			this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService, this::getInternalSchema) :
 				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 			this.dataStoreReader = new DataStoreReaderBridge(
 				this.dataStoreBuffer,
@@ -565,7 +565,7 @@ public final class EntityCollection implements
 		);
 
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, this.persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -625,7 +625,7 @@ public final class EntityCollection implements
 		this.indexPkSequence = indexPkSequence;
 		this.pricePkSequence = pricePkSequence;
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
+			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService(), this::getInternalSchema) :
 			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
@@ -2107,12 +2107,16 @@ public final class EntityCollection implements
 					)
 				);
 		} catch (Throwable ex) {
-			// the collected changes are lost and this collection's persisted state is now incomplete: refuse every
-			// later flush of it rather than write on top of baselines that claim the lost changes were persisted.
+			// The collected changes are gone and the baselines they were collected against have already advanced, so
+			// no later flush of this catalog can reconstruct them - it would diff against baselines claiming the lost
+			// changes are on disk and publish a state silently missing them. The refusal therefore belongs to the
+			// CATALOG rather than to this collection: publication is catalog-wide, and it is the only thing that has
+			// to be stopped. Nothing on disk is harmed - see `.claude/rules/durability-model.md`.
+			//
 			// Catching Throwable rather than RuntimeException is deliberate: an Error such as an OutOfMemoryError mid
-			// flush must poison too, otherwise a later collect could silently write over baselines. The cause is always
-			// rethrown, so this never uses exceptions for control flow
-			this.dataStoreBuffer.poison(ex);
+			// flush loses the changes just the same. The cause is always rethrown, so this never uses exceptions for
+			// control flow
+			this.catalog.markUnpublishable(ex);
 			throw ex;
 		}
 	}
@@ -2148,7 +2152,8 @@ public final class EntityCollection implements
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
 			),
-			true
+			true,
+			this::getInternalSchema
 		);
 	}
 

@@ -23,7 +23,10 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -288,6 +291,49 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 	}
 
 	@Nested
+	@DisplayName("bucket count MVCC")
+	class BucketCountMvcc {
+
+		@Test
+		@DisplayName("an insert and a removal move only the transaction's own count")
+		void shouldIsolateTheBucketCountAcrossTheLongPayloadApi() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			for (int key = 0; key < 10; key++) {
+				tree.addLongRecord(key, payloadFor(key));
+			}
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// the count layer does not exist until the first bucket is born or dies
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(tested));
+
+					tested.addLongRecord(100, payloadFor(100));
+					tested.addLongRecord(101, payloadFor(101));
+					assertEquals(12, tested.size(), "the writer must see the buckets it created");
+
+					// the long-payload removal is the decrement site this API reaches
+					assertTrue(tested.removeLongRecord(0));
+					assertTrue(tested.removeLongRecord(1));
+					assertTrue(tested.removeLongRecord(2));
+					assertEquals(9, tested.size(), "the writer must see the buckets it deleted");
+
+					final BucketCountChanges layer = Transaction.getTransactionalMemoryLayerIfExists(tested);
+					assertNotNull(layer, "mutating the bucket set must open the tree's own count layer");
+					assertEquals(9, layer.getBucketCount());
+				},
+				// the harness verifies the whole transactional memory was swept, so a count layer left ALIVE would
+				// fail the commit before these assertions are reached
+				(original, committed) -> {
+					assertEquals(10, original.size(), "the pre-merge tree keeps reporting the committed count");
+					assertEquals(9, committed.size(), "the merged tree carries the in-transaction count");
+					assertEquals(ConsistencyState.CONSISTENT, committed.getConsistencyReport().state());
+				}
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("mode guards")
 	class ModeGuards {
 
@@ -310,6 +356,66 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 			assertThrows(GenericEvitaInternalError.class, () -> tree.addLongRecord(2, 222L));
 			assertThrows(GenericEvitaInternalError.class, () -> tree.removeLongRecord(1));
 			assertThrows(GenericEvitaInternalError.class, () -> tree.getLongRecordEqualTo(1));
+		}
+	}
+
+	/**
+	 * The eight-byte payload column's half of the content-sized storage design. It matters on its own because a
+	 * long-payload tree is the global-unique value→entity spine, where a `long` slot costs twice what the default
+	 * `int` one does — so a column that went on allocating its whole block would cost twice as much here too.
+	 */
+	@Nested
+	@DisplayName("content-sized storage")
+	class ContentSizedStorage {
+
+		@Test
+		@DisplayName("a leaf with short backing arrays still answers the logical capacity")
+		void shouldAnswerTheLogicalCapacityWhenTheBackingArraysAreShort() {
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(255);
+			for (int i = 0; i < 5; i++) {
+				tree.addLongRecord(i, 1_000_000_000L + i);
+			}
+
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			assertEquals(1, tree.enumerateLeaves().size(), "five values must never outgrow a 255-bucket leaf");
+			assertEquals(5, leaf.getRecords().size(), "the payload column holds exactly the five live values");
+			assertEquals(255, leaf.getRecords().capacity(), "the LOGICAL capacity is the block size, unchanged");
+			assertFalse(leaf.isFull());
+			for (int i = 0; i < 5; i++) {
+				assertEquals(OptionalLong.of(1_000_000_000L + i), tree.getLongRecordEqualTo(i));
+			}
+		}
+
+		@Test
+		@DisplayName("splits, steals and merges across short columns keep every payload")
+		void shouldKeepEveryPayloadWhenRebalancingAcrossShortColumns() {
+			// a block of three drives a split every couple of inserts and a steal or merge on nearly every removal,
+			// so donor and receiver reach each rebalance with backing arrays of different lengths
+			final TransactionalBucketBPlusTree<Integer> tree = newLongTree(3);
+			for (int i = 0; i < 24; i++) {
+				tree.addLongRecord(i, Long.MIN_VALUE + i);
+			}
+			for (final BPlusLeafTreeNode<Integer> leaf : tree.enumerateLeaves()) {
+				assertEquals(leaf.getPeek() + 1, leaf.getKeyColumn().size(), "a split must leave the columns aligned");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+			}
+
+			for (int i = 0; i < 24; i += 2) {
+				assertTrue(tree.removeLongRecord(i));
+			}
+			assertEquals(
+				ConsistencyState.CONSISTENT, tree.getConsistencyReport().state(),
+				tree.getConsistencyReport().report()
+			);
+			for (final BPlusLeafTreeNode<Integer> leaf : tree.enumerateLeaves()) {
+				assertEquals(
+					leaf.getPeek() + 1, leaf.getKeyColumn().size(), "a rebalance must leave the columns aligned");
+				assertEquals(leaf.getPeek() + 1, leaf.getRecords().size());
+			}
+			for (int i = 1; i < 24; i += 2) {
+				assertEquals(
+					OptionalLong.of(Long.MIN_VALUE + i), tree.getLongRecordEqualTo(i), "payload lost at value " + i);
+			}
 		}
 	}
 }

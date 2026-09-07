@@ -30,8 +30,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.List;
@@ -140,6 +143,46 @@ class LongValueColumnTest {
 			);
 		}
 
+		@Test
+		@DisplayName("Instant round-trips and preserves order across the epoch")
+		void shouldRoundTripInstant() {
+			// the list deliberately straddles 1970: `toEpochMilli` FLOORS, so a pre-epoch instant is the one place a
+			// truncate-toward-zero implementation would round the wrong way and break monotonicity
+			assertRoundTripAndOrder(
+				List.of(
+					Instant.parse("1900-03-04T05:06:07.008Z"),
+					Instant.parse("1969-12-31T23:59:59.999Z"),
+					Instant.EPOCH,
+					Instant.parse("1970-01-01T00:00:00.001Z"),
+					Instant.parse("2026-05-20T12:19:26.123Z")
+				),
+				Instant.class
+			);
+		}
+
+		@Test
+		@DisplayName("Instant encodes to the millisecond BELOW, on both sides of the epoch")
+		void shouldFloorInstantToTheMillisecondBelow() {
+			// The codec's domain restriction, stated as an absolute number rather than as a round-trip: an instant
+			// carrying sub-millisecond digits does not survive `decode(encode(v)) == v`, and the direction it moves is
+			// DOWN — including before 1970, where `Instant.getNano()` is a positive offset above a more-negative
+			// second and a naive `seconds * 1000 + nanos / 1_000_000` would round up instead.
+			final LongKeyCodec codec = LongKeyCodec.forType(Instant.class);
+			assertEquals(1_000L, codec.encode(Instant.parse("1970-01-01T00:00:01.000999999Z")));
+			assertEquals(-1_000L, codec.encode(Instant.parse("1969-12-31T23:59:59.000999999Z")));
+			assertEquals(-1L, codec.encode(Instant.parse("1969-12-31T23:59:59.999999999Z")));
+			// and the two sub-millisecond twins of one millisecond really do land on the SAME slot - this is the
+			// collapse the whole millisecond-truncation guarantee exists to keep out of the tree
+			assertEquals(
+				codec.encode(Instant.parse("2026-05-20T12:19:26.123000001Z")),
+				codec.encode(Instant.parse("2026-05-20T12:19:26.123999999Z"))
+			);
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				codec.decode(codec.encode(Instant.parse("2026-05-20T12:19:26.123999999Z")))
+			);
+		}
+
 		/**
 		 * Asserts that each value round-trips through encode/decode and that encode is monotonic with natural order over
 		 * the (ascending) input list.
@@ -177,7 +220,7 @@ class LongValueColumnTest {
 		@DisplayName("insert / remove / findKeyPosition / duplicate match the boxed column")
 		void shouldBehaveLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 
 			// build the same ordered prefix [10, 20, 30, 40] in both columns
@@ -224,7 +267,7 @@ class LongValueColumnTest {
 		@DisplayName("copyRangeTo moves a key block like the boxed column")
 		void shouldCopyRangeLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> srcPrimitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> srcPrimitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> srcBoxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			for (int i = 0; i < 4; i++) {
 				srcPrimitive.insertKeyAt(i, (i + 1) * 7);
@@ -249,7 +292,7 @@ class LongValueColumnTest {
 		@DisplayName("fillEmpty clears slots and appendKey renders the decoded key like the boxed column")
 		void shouldClearSlotsAndRenderKeyLikeBoxedColumn() {
 			final LongKeyCodec codec = LongKeyCodec.forType(Integer.class);
-			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, new long[BLOCK_SIZE]);
+			final ValueColumn<Integer> primitive = new LongValueColumn<>(codec, BLOCK_SIZE);
 			final ValueColumn<Integer> boxed = new BoxedObjectColumn<>(Integer.class, BLOCK_SIZE);
 			final int[] inserted = {3, 6, 9, 12};
 			for (int i = 0; i < inserted.length; i++) {
@@ -317,6 +360,65 @@ class LongValueColumnTest {
 				LongValueColumn.class,
 				ValueColumnFactory.forKey(LocalDate.class, null).create(BLOCK_SIZE)
 			);
+			// `Instant` is a key type in its own right, so the RAW key space reaches the single-`long` column too -
+			// there is no separate temporal column any more
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forKey(Instant.class, null).create(BLOCK_SIZE)
+			);
+			// a declared OffsetDateTime / LocalDateTime attribute reaches it only through the FILTER key space, which
+			// is the one whose caller converts the values to `Instant` first (ValueColumnFactory#normalizedTypeOf)
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forFilterKey(OffsetDateTime.class, null, 0).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				LongValueColumn.class,
+				ValueColumnFactory.forFilterKey(LocalDateTime.class, Comparator.naturalOrder(), 0).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("the raw key space keeps a declared temporal attribute on the boxed column")
+		void shouldKeepDeclaredTemporalTypesBoxedInTheRawKeySpace() {
+			// forKey serves callers that store values verbatim (OwnerUniqueIndex / GlobalUniqueIndex keep RAW
+			// values). Handing them the Instant-keyed column made LongKeyCodec#INSTANT cast an OffsetDateTime to
+			// Instant on the very first write, so a unique temporal attribute threw a ClassCastException - see
+			// UniqueIndexTest's "Temporal unique attributes" for the end-to-end proof.
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forKey(OffsetDateTime.class, null).create(BLOCK_SIZE)
+			);
+			assertInstanceOf(
+				BoxedObjectColumn.class,
+				ValueColumnFactory.forKey(LocalDateTime.class, Comparator.naturalOrder()).create(BLOCK_SIZE)
+			);
+		}
+
+		@Test
+		@DisplayName("an Instant-keyed tree collapses sub-millisecond twins onto one bucket")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldCollapseSubMillisecondTwinsInAnInstantKeyedTree() {
+			// the column-level consequence of the codec's domain restriction, exercised through the tree rather than
+			// through the column: the two twins must reach ONE bucket holding BOTH records, and the bucket must be
+			// keyed by the truncated instant rather than by either input
+			final ValueColumnFactory factory =
+				ValueColumnFactory.forFilterKey(OffsetDateTime.class, Comparator.naturalOrder(), 0);
+			final TransactionalBucketBPlusTree<Instant> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, 3, 7, 3, Instant.class, null, factory
+			);
+			tree.addRecord(Instant.parse("2026-05-20T12:19:26.123000001Z"), 1);
+			tree.addRecord(Instant.parse("2026-05-20T12:19:26.123999999Z"), 2);
+			tree.addRecord(Instant.parse("2026-05-20T12:19:26.124000000Z"), 3);
+
+			assertEquals(2, tree.size(), "the twins must share one bucket, the neighbouring millisecond its own");
+			// the oracle names the truncated keys outright: it holds neither of the two values that were inserted, so
+			// it cannot be satisfied by a tree that merely echoed its input back
+			final TreeMap<Instant, TreeSet<Integer>> oracle = new TreeMap<>();
+			oracle.put(Instant.parse("2026-05-20T12:19:26.123Z"), new TreeSet<>(List.of(1, 2)));
+			oracle.put(Instant.parse("2026-05-20T12:19:26.124Z"), new TreeSet<>(List.of(3)));
+			assertTreeMatchesOracle(tree, oracle);
+			verifyConsistent(tree);
 		}
 
 		@Test

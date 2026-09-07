@@ -94,6 +94,9 @@ public class HierarchyOfResolver extends AbstractExtraResultConstraintResolver {
 			return List.of();
 		}
 
+		// every `hierarchy` field selection contributes its own constraint - several of them aimed at a single target
+		// are a supported pattern, because the engine folds their results into one container indexed by output name,
+		// and separate constraints are the only way to ask for the hierarchy of one target in two different scopes
 		return hierarchyFields.stream()
 			.flatMap(hierarchyField -> {
 				final Scope scope = resolveScope(hierarchyField);
@@ -109,16 +112,20 @@ public class HierarchyOfResolver extends AbstractExtraResultConstraintResolver {
 						}
 					});
 			})
-			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
-				throw new GraphQLInvalidResponseUsageException("Duplicate hierarchies for single reference.");
-			}))
-			.values();
+			.toList();
 	}
 
-
-
+	/**
+	 * Resolves a single `self` selection into a {@link HierarchyOfSelf} constraint, wrapped in
+	 * {@link io.evitadb.api.query.require.RequireInScope} when the selection sits inside an `inScope` field.
+	 *
+	 * @param field         the `self` field selection to resolve
+	 * @param scope         the scope the selection was made in, `null` when it was made outside `inScope`
+	 * @param desiredLocale the locale the fetched hierarchy entity bodies should be resolved in
+	 * @return the constraint describing this selection alone
+	 */
 	@Nonnull
-	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(
+	private RequireConstraint resolveHierarchyOfSelf(
 		@Nonnull SelectedField field,
 		@Nullable Scope scope,
 		@Nullable Locale desiredLocale
@@ -143,14 +150,21 @@ public class HierarchyOfResolver extends AbstractExtraResultConstraintResolver {
 			hierarchyOfSelf != null,
 			() -> new GraphQLQueryResolvingInternalError("Could not resolve hierarchy of self. It is null.")
 		);
-		return new SimpleEntry<>(
-			HierarchyDescriptor.SELF.name(),
-			wrapInScopeConstraint(scope, hierarchyOfSelf)
-		);
+		return wrapInScopeConstraint(scope, hierarchyOfSelf);
 	}
 
+	/**
+	 * Resolves a single reference selection into a {@link HierarchyOfReference} constraint, wrapped in
+	 * {@link io.evitadb.api.query.require.RequireInScope} when the selection sits inside an `inScope` field.
+	 *
+	 * @param field         the reference field selection to resolve, named after the reference in property naming
+	 *                      convention
+	 * @param scope         the scope the selection was made in, `null` when it was made outside `inScope`
+	 * @param desiredLocale the locale the fetched hierarchy entity bodies should be resolved in
+	 * @return the constraint describing this selection alone
+	 */
 	@Nonnull
-	private Entry<String, RequireConstraint> resolveHierarchyOfReference(
+	private RequireConstraint resolveHierarchyOfReference(
 		@Nonnull SelectedField field,
 		@Nullable Scope scope,
 		@Nullable Locale desiredLocale
@@ -200,10 +214,7 @@ public class HierarchyOfResolver extends AbstractExtraResultConstraintResolver {
 			hierarchyOfReference != null,
 			() -> new GraphQLQueryResolvingInternalError("Could not resolve hierarchy of reference `" + referenceName + "`. It is null.")
 		);
-		return new SimpleEntry<>(
-			referenceName,
-			wrapInScopeConstraint(scope, hierarchyOfReference)
-		);
+		return wrapInScopeConstraint(scope, hierarchyOfReference);
 	}
 
 	@Nonnull

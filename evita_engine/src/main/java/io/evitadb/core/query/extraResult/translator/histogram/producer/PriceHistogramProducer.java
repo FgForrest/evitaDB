@@ -41,6 +41,7 @@ import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.utils.Functions;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -64,12 +65,12 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
 	 */
-	private final int bucketCount;
+	@Getter private final int bucketCount;
 	/**
 	 * Contains behavior that was requested by the user in the query.
 	 * @see HistogramBehavior
 	 */
-	@Nonnull private final HistogramBehavior behavior;
+	@Getter @Nonnull private final HistogramBehavior behavior;
 	/**
 	 * Reference to the query context that allows to access entity bodies.
 	 */

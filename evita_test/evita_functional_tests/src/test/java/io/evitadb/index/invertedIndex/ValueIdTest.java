@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.LeafPage;
@@ -43,6 +44,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -626,12 +630,9 @@ class ValueIdTest {
 					false
 				),
 				() -> {
-					final Transaction transaction = Transaction.getTransaction().orElseThrow();
-					try {
+					try (Transaction transaction = Transaction.getTransaction().orElseThrow()) {
 						// mints a value id, which creates the allocator's diff layer
 						index.addRecord(10, 2);
-					} finally {
-						transaction.close();
 					}
 				}
 			);
@@ -1116,6 +1117,63 @@ class ValueIdTest {
 		}
 
 		@Test
+		@DisplayName("a persisted page that lost its id column, or carries a short one, is refused")
+		void shouldRefusePersistedPagesWhoseValueIdColumnIsMissingOrShort() {
+			final InvertedIndex index = pagedIndexWithIds(LEAF_BLOCK_SIZE * 3);
+			final PageEmission<LeafPage> emission = index.collectChangedPages();
+			final int[] orderedPageSequences = emission.orderedPageSequences();
+			assertTrue(orderedPageSequences.length > 1, "The fixture must span more than one leaf page.");
+			final Map<Integer, LeafPage> pagesBySequence = CollectionUtils.createHashMap(orderedPageSequences.length);
+			for (final LeafPage page : emission.changedPages()) {
+				pagesBySequence.put(page.pageSequence(), page);
+			}
+			final ValueToRecord[][] perPageBuckets = new ValueToRecord[orderedPageSequences.length][];
+			final int[][] intactValueIds = new int[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				final LeafPage page = pagesBySequence.get(orderedPageSequences[i]);
+				assertNotNull(page, "A fresh index must emit every one of its leaf pages.");
+				perPageBuckets[i] = page.buckets();
+				intactValueIds[i] = page.valueIds();
+			}
+			// the intact shape must load, or the two rejections below would pass for a reason that has nothing to do
+			// with the id column - the emitted column carries exactly one id per bucket of its page
+			assertNotNull(
+				InvertedIndex.fromPersistedPages(
+					Integer.class, orderedPageSequences, perPageBuckets, intactValueIds,
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				),
+				"The unmodified page array must reload."
+			);
+
+			// a run that switched the id column off without rewriting the pages it had already written: the array is
+			// there, one page's column is not. Without the premise this loads SILENTLY - the plain path hands the
+			// null column straight to `bulkLoadPage` and the page comes back with no ids under a root that restores
+			// the persisted high-water, so the next allocation re-mints ids the previous run had already published
+			final int[][] oneColumnMissing = intactValueIds.clone();
+			oneColumnMissing[1] = null;
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> InvertedIndex.fromPersistedPages(
+					Integer.class, orderedPageSequences, perPageBuckets, oneColumnMissing,
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				)
+			);
+
+			// one page paired with a column one id short - the shape that reads past the end of the column (an
+			// out-of-bounds read on the repair path, a short leaf on the plain one) and so hands the ids of one
+			// generation to the buckets of another
+			final int[][] oneColumnShort = intactValueIds.clone();
+			oneColumnShort[1] = Arrays.copyOf(intactValueIds[1], intactValueIds[1].length - 1);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> InvertedIndex.fromPersistedPages(
+					Integer.class, orderedPageSequences, perPageBuckets, oneColumnShort,
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				)
+			);
+		}
+
+		@Test
 		@DisplayName("an inline index reloads with its id column stamped back in key order")
 		void shouldRestoreValueIdsOfInlineIndex() {
 			final InvertedIndex index = indexWithIds(30, 10, 20, 40);
@@ -1353,6 +1411,75 @@ class ValueIdTest {
 				expected.leafVersionIds(), actual.leafVersionIds(),
 				"the two forms must depend on exactly the same leaves, or they would not share a cache entry"
 			);
+		}
+	}
+
+	/**
+	 * Value ids are minted per distinct value and stamped into a parallel id column that moves with the keys through
+	 * every split, merge and steal. A range-typed tree is the one shape where those keys are RECONSTRUCTED on every
+	 * read, so an id that stayed with the wrong key would surface here and nowhere else.
+	 */
+	@Nested
+	@DisplayName("Ids over a range-keyed tree")
+	class RangeKeyedIds {
+
+		/**
+		 * Builds an ascending date-time range whose zone offset varies with the ordinal.
+		 *
+		 * @param ordinal the ordinal to derive the range from
+		 * @return the range
+		 */
+		@Nonnull
+		private static DateTimeRange range(int ordinal) {
+			final ZoneOffset offset = ZoneOffset.ofTotalSeconds((ordinal % 5 - 2) * 1800);
+			final LocalDateTime from = LocalDateTime.of(2024, 1, 1, 0, 0).plusHours(ordinal);
+			return DateTimeRange.between(from.atOffset(offset), from.plusDays(1).atOffset(offset));
+		}
+
+		/**
+		 * @return an empty, id-carrying inverted index over date-time ranges
+		 */
+		@Nonnull
+		private static InvertedIndex emptyRangeIndexWithIds() {
+			final InvertedIndex index = new InvertedIndex(
+				DateTimeRange.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0);
+			index.attachValueIdConsumer(TEST_CONSUMER);
+			return index;
+		}
+
+		@Test
+		@DisplayName("a single-leaf range tree resolves every id back to the value that owns it")
+		void shouldResolveIdsOnASingleLeafRangeTree() {
+			final InvertedIndex index = emptyRangeIndexWithIds();
+			for (int i = 0; i < 10; i++) {
+				index.addRecord(range(i), 100 + i);
+			}
+			assertFalse(index.isPaged(), "The fixture must be small enough to be persisted inline.");
+
+			for (int i = 0; i < 10; i++) {
+				final int valueId = index.getValueId(range(i));
+				assertNotEquals(-1, valueId, "every live value must carry an id");
+				assertEquals(range(i), index.getValueById(valueId), "id " + valueId + " resolved to the wrong value");
+			}
+		}
+
+		@Test
+		@DisplayName("ids survive the splits of a paged range tree, each still naming its own value")
+		void shouldKeepIdsAlignedAcrossRangeTreeSplits() {
+			final InvertedIndex index = emptyRangeIndexWithIds();
+			final int valueCount = LEAF_BLOCK_SIZE * 3;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(range(i), i);
+			}
+			assertTrue(index.isPaged(), "The fixture must be large enough to be persisted as leaf pages.");
+
+			// ids are minted in insertion order, and the value each one names must survive every split the tree
+			// performed after it was stamped — including the two-array lockstep of the range column
+			for (int i = 0; i < valueCount; i++) {
+				final int valueId = index.getValueId(range(i));
+				assertNotEquals(-1, valueId, "value " + i + " lost its id across the splits");
+				assertEquals(range(i), index.getValueById(valueId), "id " + valueId + " resolved to the wrong value");
+			}
 		}
 	}
 }

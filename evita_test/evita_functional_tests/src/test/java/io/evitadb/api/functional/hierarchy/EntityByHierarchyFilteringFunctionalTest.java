@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -2802,6 +2803,217 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
 				assertNotNull(statistics);
 				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should keep the order declared by a sibling hierarchyOfSelf constraint")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldKeepOrderDeclaredBySiblingHierarchyOfSelfConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> alone = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRootSelf()
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final EvitaResponse<EntityReference> withSibling = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRootSelf()
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							),
+							hierarchyOfSelf(
+								fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy aloneStatistics = alone.getExtraResult(Hierarchy.class);
+				final Hierarchy siblingStatistics = withSibling.getExtraResult(Hierarchy.class);
+				assertNotNull(aloneStatistics);
+				assertNotNull(siblingStatistics);
+				// the sibling declares no order of its own, so it must not wipe the one declared beside it
+				assertEquals(
+					aloneStatistics.getSelfHierarchy("megaMenu"),
+					siblingStatistics.getSelfHierarchy("megaMenu")
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse two hierarchyOfSelf constraints ordering the same hierarchy differently")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldRefuseTwoHierarchyOfSelfConstraintsWithDifferentOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								and(
+									entityLocaleEquals(CZECH_LOCALE),
+									hierarchyWithinRootSelf()
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfSelf(
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								),
+								hierarchyOfSelf(
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+									fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("ordered by two different `orderBy` constraints"),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse self hierarchy statistics restricted by two different hierarchy filters")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldRefuseSelfHierarchyStatisticsWithTwoDifferentHierarchyFilters(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1)),
+								hierarchyWithinRootSelf()
+							),
+							require(
+								page(1, 0),
+								hierarchyOfSelf(
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should allow two different hierarchy filters when no hierarchy statistics are requested")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldAllowTwoDifferentHierarchyFiltersWithoutStatistics(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// only the statistics are ambiguous - the filter itself is a perfectly ordinary disjunction and
+				// the planner translates both of its branches
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(entityPrimaryKeyInSet(1)),
+							hierarchyWithinRootSelf()
+						),
+						require(page(1, Integer.MAX_VALUE))
+					),
+					EntityReference.class
+				);
+
+				assertTrue(result.getTotalRecordCount() > 0);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse two hierarchy requirements sharing a single output name")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldRefuseTwoHierarchyRequirementsSharingOutputName(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								and(
+									entityLocaleEquals(CZECH_LOCALE),
+									hierarchyWithinRootSelf()
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfSelf(
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1))),
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("`megaMenu` is requested twice"),
+					exception.getMessage()
+				);
 
 				return null;
 			}

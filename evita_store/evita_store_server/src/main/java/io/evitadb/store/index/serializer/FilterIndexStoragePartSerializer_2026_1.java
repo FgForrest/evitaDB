@@ -46,6 +46,13 @@ import java.time.ZoneOffset;
  * Every `BigDecimal` filter part is re-keyed and re-written with the current serializer by `Migration_2026_2`, so a
  * legacy blob is only ever read for a non-`BigDecimal` part, whose correct scale is `0`.
  *
+ * Like every format that predates the millisecond move, it persisted its range thresholds at **second** granularity,
+ * so it marks each part it produces with {@link FilterIndexStoragePart#isSecondGranularityRangeThresholds()}. The
+ * rescale deliberately does not happen here: a range index whose axis is `PAGED` keeps its thresholds in leaf-page
+ * records this serializer never sees, and a threshold is an untyped `long` shared by `DateTimeRange` and every
+ * `NumberRange` subtype, so only the declared attribute type can decide which parts to repair — both facts belong to
+ * the load path. See {@code AttributeIndexLoader#loadRangeIndex}.
+ *
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -90,12 +97,16 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 		}
 
 		final boolean hasRangeIndex = input.readBoolean();
-		if (hasRangeIndex) {
-			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId);
-		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
-		}
+		final RangeIndex intRangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
+		final FilterIndexStoragePart part = new FilterIndexStoragePart(
+			entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId
+		);
+		// every FilterIndexStoragePart format older than the millisecond change persisted its range thresholds as
+		// epoch SECONDS; mark the provenance so AttributeIndexLoader can rescale the ones that belong to a
+		// `DateTimeRange` attribute (a threshold is an untyped long shared with every NumberRange subtype, so the
+		// declared attribute type - not this flag alone - decides)
+		part.setSecondGranularityRangeThresholds(true);
+		return part;
 	}
 
 	/**
@@ -103,9 +114,10 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 	 * `FilterIndex.getNormalizer` keys `LocalDateTime` attributes with.
 	 *
 	 * `2026.1` had no `LocalDateTime` branch in its normalizer, so it persisted the raw wall-clock value; the current
-	 * tree picks {@code InstantValueColumn} for such an attribute and would fail with a `ClassCastException` while
-	 * rehydrating those buckets. Anchoring at UTC is exactly what the normalizer now does on the write path, and
-	 * because the offset is constant the mapping preserves the bucket ordering the reload path relies on.
+	 * tree keys such an attribute by an {@code Instant} held in a primitive {@code long} column, and would fail with a
+	 * `ClassCastException` while rehydrating those buckets. Anchoring at UTC is exactly what the normalizer now does
+	 * on the write path, and because the offset is constant the mapping preserves the bucket ordering the reload path
+	 * relies on.
 	 *
 	 * The conversion is self-healing: once the index is written again it is persisted through the current serializer
 	 * with `Instant` keys, and this legacy reader is no longer consulted for it.

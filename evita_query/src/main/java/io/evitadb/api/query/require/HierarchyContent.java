@@ -45,6 +45,7 @@ import java.util.Optional;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * The `hierarchyContent` requirement fetches the hierarchical placement of the entity — specifically, the chain of
@@ -162,6 +163,15 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	 * it is hidden again from {@link #toString()} by {@link #getArgumentsExcludingDefaults()}.
 	 */
 	public static final HierarchyParentsBehaviour DEFAULT_PARENTS_BEHAVIOUR = HierarchyParentsBehaviour.MATCHING;
+
+	/**
+	 * Memoized parent-chain bound. This constraint is immutable, so the scan can only ever produce one answer, and
+	 * every `combineWith` / `isFullyContainedWithin` / `forPrefetch` call asks for it. A `null` field means *not
+	 * computed yet* or *computed and absent*, undivided - the scan that decides it is an allocation-free walk over
+	 * a handful of children, so repeating it for an absent bound costs less than a flag to tell the two apart. The
+	 * field is `transient` because it is derived state a deserialized instance recomputes on demand.
+	 */
+	@Nullable private transient volatile HierarchyStopAt memoizedStopAt;
 
 	/**
 	 * The single funnel every public constructor delegates to. It is what guarantees that the behaviour always sits in
@@ -304,12 +314,17 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	 */
 	@Nonnull
 	public Optional<HierarchyStopAt> getStopAt() {
-		for (RequireConstraint constraint : getChildren()) {
-			if (constraint instanceof HierarchyStopAt hierarchyStopAt) {
-				return of(hierarchyStopAt);
+		HierarchyStopAt memoized = this.memoizedStopAt;
+		if (memoized == null) {
+			for (final RequireConstraint constraint : getChildren()) {
+				if (constraint instanceof HierarchyStopAt hierarchyStopAt) {
+					memoized = hierarchyStopAt;
+					break;
+				}
 			}
+			this.memoizedStopAt = memoized;
 		}
-		return empty();
+		return ofNullable(memoized);
 	}
 
 	/**
@@ -335,6 +350,44 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Additional children are not supported for HierarchyContent!");
 		return new HierarchyContent(getParentsBehaviour(), children);
+	}
+
+	/**
+	 * Drops the {@link HierarchyStopAt} bound, keeping the nested {@link EntityFetch} that describes the parent
+	 * bodies.
+	 *
+	 * The bound is an **output projection**: it decides how many ancestors of the returned entity reach the response,
+	 * and it says nothing about what has to be loaded to answer the query — the whole parent chain is materialised
+	 * from the entity's hierarchy placement either way. A prefetch requirement is a lower bound ("load at least
+	 * this"), so dropping it is a widening that can never make an answer wrong, and the client never observes it:
+	 * the prefetched entity is narrowed back down from his own `EvitaRequest`, whose `hierarchyContent` carries the
+	 * bound he actually wrote.
+	 *
+	 * Without the strip the bound would reach the prefetch union and be answered by
+	 * {@link #combineWith(EntityContentRequire)}, which refuses two differing bounds — and the union is fed from
+	 * unrelated parts of one plan, so the two bounds need not describe one output slot at all. A `hierarchyContent`
+	 * in the query's own `entityFetch` bounds the parent chain of the returned entities, while a `hierarchyContent`
+	 * written inside a `hierarchyOfSelf` computer bounds the parent chain of the hierarchy node bodies; both are
+	 * honoured in the response, each materialised from its own derived request, and only the "load at least this"
+	 * union saw them as a contradiction.
+	 *
+	 * The projection is **shallow**, exactly as {@link ReferenceContent#forPrefetch()} is: a requirement nested
+	 * inside this one's {@link EntityFetch} keeps its own restrictions.
+	 *
+	 * @return this requirement without its `stopAt` bound, or this very instance when it carries none
+	 */
+	@Nonnull
+	@Override
+	public HierarchyContent forPrefetch() {
+		if (getStopAt().isEmpty()) {
+			return this;
+		}
+		return new HierarchyContent(
+			getParentsBehaviour(),
+			Arrays.stream(getChildren())
+				.filter(it -> !(it instanceof HierarchyStopAt))
+				.toArray(RequireConstraint[]::new)
+		);
 	}
 
 	@Override
@@ -365,6 +418,20 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 		return false;
 	}
 
+	/**
+	 * Merges this requirement with another `hierarchyContent` into a single requirement covering both. The nested
+	 * entity bodies are united recursively, while the `stopAt` bound follows the superset rule: it is kept when both
+	 * sides agree on it, refused with an {@link EvitaInvalidUsageException} when the two sides bound the chain
+	 * differently, and **dropped** when only one side carries it - a requirement without a bound asks for the whole
+	 * parent chain, and adopting the other side's bound would silently return fewer parents than it asked for.
+	 *
+	 * @param anotherRequirement another requirement to be combined with
+	 * @param <T> type of the requirement to be combined with
+	 * @return a new requirement covering both this one and `anotherRequirement`
+	 * @throws EvitaInvalidUsageException when both sides carry a different `stopAt` constraint, or when both ask for
+	 *                                    ancestor bodies under a different {@link HierarchyParentsBehaviour}
+	 * @throws GenericEvitaInternalError when `anotherRequirement` is not a `hierarchyContent`
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
@@ -385,6 +452,10 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 					"Cannot combine multiple hierarchy content requirements with different parents behaviour."
 				);
 			}
+			// a side carrying no stop constraint asks for the whole parent chain and is therefore the superset -
+			// the bound survives only when both sides agreed on it
+			final HierarchyStopAt combinedStopAt = thisStopAt.isPresent() && thatStopAt.isPresent() ?
+				thisStopAt.get() : null;
 			// the side that asks for no ancestor bodies contributes no behaviour, so the other one's survives intact;
 			// when neither asks, neither states a preference and the combination lands on the default rather than on
 			// whichever operand happened to be written second
@@ -400,10 +471,7 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 				combinedBehaviour,
 				Arrays.stream(
 					new RequireConstraint[]{
-						// an absent bound is the superset: a caller that asked for the whole chain must not be
-						// truncated by a bound the other caller asked for, so a bound survives only when both sides
-						// carry it - and the check above has already established that the two then agree
-						thisStopAt.isPresent() && thatStopAt.isPresent() ? thisStopAt.get() : null,
+						combinedStopAt,
 						EntityFetchRequire.combineRequirements(
 							getEntityFetch().orElse(null),
 							anotherHierarchyContent.getEntityFetch().orElse(null)

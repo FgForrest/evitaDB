@@ -47,6 +47,7 @@ import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -165,6 +166,17 @@ class LocalMutationExecutorCollector {
 	 * by rebuilding (warm-up), or the whole in-memory transaction is discarded on failure (WAL replay).
 	 */
 	@Nullable private Savepoint savepoint;
+	/**
+	 * The warm-up counterpart of {@link #savepoint}: the non-transactional savepoint bracketing the root entity
+	 * mutation while the catalog is being bulk loaded. Warm-up writes go in place to the index delegates rather than to
+	 * diff layers, so there is no maintainer to drive — the structures record the inverse of each mutation into this
+	 * savepoint's journal instead, and it replays them on failure.
+	 *
+	 * {@code null} whenever a transaction is active (that path uses {@link #savepoint} exclusively) or when the
+	 * mutation opted out of atomic rollback (WAL replay). The two savepoint kinds are mutually exclusive by
+	 * construction: at most one of them is ever open.
+	 */
+	@Nullable private WarmUpSavepoint warmUpSavepoint;
 	/**
 	 * Per-histogram condition state captured by {@link #capturePreMutationConditionState} **before** a batch's
 	 * local mutations were applied, keyed by the {@link ReevaluateExpressionMutation} it belongs to.
@@ -356,10 +368,11 @@ class LocalMutationExecutorCollector {
 	 * @param entitySchema              the schema of the entity to which the mutation applies
 	 * @param entityMutation            the mutation to be applied to the entity
 	 * @param checkConsistency          indicates whether consistency checks should be performed
-	 * @param atomicRollback            when {@code true} and a transaction is active, the root entity mutation is
-	 *                                  bracketed by a savepoint so that a partial failure is surgically reverted
-	 *                                  while the transaction continues; when {@code false} (WAL replay) or when no
-	 *                                  transaction is active (warmup) no savepoint is opened
+	 * @param atomicRollback            when {@code true}, the root entity mutation is bracketed by a savepoint so that
+	 *                                  a partial failure is surgically reverted while everything written before it
+	 *                                  stays — the transactional diff-layer savepoint while a transaction is active,
+	 *                                  the {@link WarmUpSavepoint} on the warm-up path otherwise; when {@code false}
+	 *                                  (WAL replay) no savepoint is opened
 	 * @param generateImplicitMutations flags indicating which implicit mutations should be generated
 	 * @param changeCollector           executor to collect and apply local mutations
 	 * @param entityIndexUpdater        executor to update the entity index with the mutations
@@ -392,20 +405,14 @@ class LocalMutationExecutorCollector {
 		final MutationApplicationRecord record;
 		final boolean addToWAL;
 		if (this.level == 0) {
+			// A catalog that can no longer publish its state has nothing to gain from more writes, and after a failed
+			// warm-up rollback its indexes cannot be trusted to receive them. Refusing here stops a bulk load at the
+			// first entity after the failure instead of letting it pour in hours of work that can never be saved -
+			// which is what happened while the refusal lived at the flush entry points alone
+			this.catalog.assertPublishable();
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
-			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
-			// reverts exactly this entity's diff-layer changes while the surrounding transaction keeps running.
-			// Only meaningful when atomic rollback is requested (not WAL replay) AND a transaction is active
-			// (warmup writes go in place to the index delegate, not to diff layers — there is nothing to snapshot).
-			if (atomicRollback) {
-				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-				if (maintainer != null) {
-					this.savepointMaintainer = maintainer;
-					this.savepoint = maintainer.openSavepoint();
-				}
-			}
 			// record mutation to the traffic recorder
 			record = session == null ?
 				null :
@@ -414,6 +421,28 @@ class LocalMutationExecutorCollector {
 					this.created,
 					entityMutation
 			);
+			// bracket the whole (possibly nested) root mutation with a savepoint so that a partial failure
+			// reverts exactly this entity's changes while everything written before it stays. Only meaningful when
+			// atomic rollback is requested (not WAL replay); which kind of savepoint applies depends on the write
+			// path: a transaction snapshots the diff layers through its maintainer, while warm-up writes go in place
+			// to the index delegates and are reverted from the journal the structures record into.
+			//
+			// INVARIANT: nothing that can throw may sit between opening a savepoint and the try/finally below, which
+			// is the only thing that closes it. This block therefore comes LAST in this branch - traffic recording
+			// activates a tracing block and a tracing implementation is free to fail, and an exception thrown after
+			// the open would escape without any finally to detach the savepoint. On the warm-up path that leaks the
+			// thread-bound savepoint, and the next entity on this thread then fails its own open() as a nested one.
+			// Ordering is safe because traffic recording touches no index, executor or storage state, so nothing
+			// revertable happens before the bracket begins.
+			if (atomicRollback) {
+				final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+				if (maintainer != null) {
+					this.savepointMaintainer = maintainer;
+					this.savepoint = maintainer.openSavepoint();
+				} else {
+					this.warmUpSavepoint = WarmUpSavepoint.open();
+				}
+			}
 		} else {
 			addToWAL = false;
 			// while implicit mutations are trapped in memory and stored on next flush
@@ -631,15 +660,17 @@ class LocalMutationExecutorCollector {
 	 * and index-trigger cross-collection writes that went through the same maintainer. This is the single,
 	 * authoritative rollback mechanism; the legacy hand-written per-executor undo actions have been removed.
 	 *
-	 * When no savepoint is open — the non-transactional warm-up path, or WAL replay (which opts out via
-	 * {@code atomicRollback == false}) — there is nothing to revert: warm-up writes go in place to the index
-	 * delegate (no diff layer to snapshot) and replay discards the whole in-memory transaction on failure rather
-	 * than recovering per-entity. In those contexts a failed entity is intentionally left partially applied and must
-	 * be retried by rebuilding.
+	 * On the warm-up path the same happens through the {@link WarmUpSavepoint}: the structures wrote in place, so the
+	 * inverses they journalled while it was open are replayed instead of diff layers being restored.
+	 *
+	 * When neither savepoint is open — WAL replay (which opts out via {@code atomicRollback == false}), or warm-up
+	 * with the mechanism switched off — there is nothing to revert: replay discards the whole in-memory transaction on
+	 * failure rather than recovering per-entity, and an unbracketed warm-up entity is intentionally left partially
+	 * applied and must be retried by rebuilding.
 	 */
 	private void rollback() {
-		// atomic, transaction-bound path: revert this root mutation's diff-layer changes via the savepoint while the
-		// surrounding transaction keeps running. Outside it (warm-up / WAL replay) there is no per-entity rollback.
+		// revert this root mutation's changes via whichever savepoint brackets it, while everything written before it
+		// stays. With neither open (WAL replay / unbracketed warm-up) there is no per-entity rollback.
 		rollbackOpenSavepoint();
 	}
 
@@ -663,6 +694,37 @@ class LocalMutationExecutorCollector {
 				this.savepointMaintainer = null;
 			}
 		}
+		rollbackOpenWarmUpSavepoint();
+	}
+
+	/**
+	 * Rolls back the currently open warm-up savepoint (if any), replaying the inverses the structures journalled while
+	 * it was open, and clears the field in a {@code finally} block so it cannot dangle into later finalization.
+	 *
+	 * A failure of this rollback is treated far more seriously than its transactional counterpart, because warm-up
+	 * writes went IN PLACE: there is no diff layer to throw away, so a rewind that fails leaves the live indexes
+	 * half-mutated with no second chance. Worse, inverse replay stops at the first inverse that throws, so a shared
+	 * structure can be left inconsistent for entities other than the one that failed.
+	 *
+	 * The catalog is therefore marked unpublishable before the rollback failure is attached to {@link #exception} as
+	 * a suppressed cause — the original mutation failure stays the one thrown to the caller, while every later
+	 * publication route and every later mutation refuses, and the catalog is handed over for deactivation. Nothing
+	 * on disk is harmed: it still holds the last published state, and reloading recovers it completely.
+	 *
+	 * The caller must have already set {@link #exception} to a non-null value, because a rollback failure is recorded
+	 * against it.
+	 */
+	private void rollbackOpenWarmUpSavepoint() {
+		if (this.warmUpSavepoint != null) {
+			try {
+				this.warmUpSavepoint.rollback();
+			} catch (RuntimeException rollbackEx) {
+				this.catalog.markUnpublishable(rollbackEx);
+				this.exception.addSuppressed(rollbackEx);
+			} finally {
+				this.warmUpSavepoint = null;
+			}
+		}
 	}
 
 	/**
@@ -675,6 +737,28 @@ class LocalMutationExecutorCollector {
 	 * In case any {@code RuntimeException} occurs during the commit process, the exception
 	 * is caught and wrapped in a {@code TransactionException}, and the transaction is
 	 * expected to be rolled back.
+	 *
+	 * **The storage parts written here are inside the bracket, not after it.** Both savepoints are still open while
+	 * the executors commit, so the entity storage parts {@code ContainerizedLocalMutationExecutor#commit} pushes into
+	 * the data store buffer are revertable like any other change made under the bracket — which matters because this
+	 * loop can fail PART-WAY through an entity that writes several parts, having already written the earlier ones.
+	 * The two write modes are rewound by different means and both are needed:
+	 *
+	 * - A TRAPPED write (implicit, nested mutations) only changes `DataStoreChanges`' in-memory cache, which its
+	 *   memento rewinds — that memento is a journal POSITION rather than a copy, so the mark taken when the index
+	 *   phase first touched the layer still covers everything written afterwards.
+	 * - A DIRECT write — what a root mutation does, since it runs with `trapChanges == false` — reaches the
+	 *   persistence service, and no in-memory memento can undo that. `DataStoreChanges#putStoragePart` /
+	 *   `removeStoragePart` therefore read the record's pre-image and push its absolute restore straight into the open
+	 *   warm-up savepoint, at the point of each write.
+	 *
+	 * An executor failing part-way through this loop therefore leaves no storage part behind — which is what closes
+	 * the orphan-primary-key gap this whole mechanism exists for, since that gap was precisely a body written (or not)
+	 * out of step with the indexes.
+	 *
+	 * The one change that is deliberately NOT reverted is a failure of the savepoint acceptance itself: by then every
+	 * executor has committed and the mutation has succeeded, so there is nothing to undo — see the comment on the
+	 * warm-up acceptance below for why its reference is dropped unconditionally.
 	 */
 	private void commit() {
 		// we do not address the situation where only one applicator fails on commit and the others succeed
@@ -696,6 +780,17 @@ class LocalMutationExecutorCollector {
 				this.savepointMaintainer.commitSavepoint(this.savepoint);
 				this.savepoint = null;
 				this.savepointMaintainer = null;
+			}
+			// same acceptance on the warm-up path: the journalled inverses are discarded without being replayed
+			if (this.warmUpSavepoint != null) {
+				try {
+					this.warmUpSavepoint.commit();
+				} finally {
+					// the savepoint unbinds itself from the thread before it does any work, so drop the reference
+					// unconditionally - otherwise a failure of the acceptance would send an already-closed savepoint
+					// through the rollback below and mistake that for an unrewindable state
+					this.warmUpSavepoint = null;
+				}
 			}
 		} catch (RuntimeException ex) {
 			this.exception = new TransactionException("Failed to commit local mutations!", ex);

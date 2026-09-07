@@ -111,6 +111,7 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.collection.EntityCollection.EntityCollectionHeaderWithCollection;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.exception.CatalogUnpublishableException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
@@ -209,7 +210,14 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * {@inheritDoc}
+ * The engine's implementation of {@link CatalogContract} - the in-memory catalog itself: its schema, its
+ * {@link EntityCollection}s, its catalog-wide indexes and the persistence service that stores them.
+ *
+ * **An instance is bound to one catalog state and is replaced rather than mutated when that state changes.**
+ * {@link #goLive()} does not turn this instance transactional; it publishes an ALIVE bootstrap record and returns
+ * a **new** instance that shares these indexes, and every committed transaction likewise produces a successor
+ * through {@link TransactionalLayerProducer}. The engine state names exactly one of them at a time, and the one it
+ * stopped naming is terminated.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -409,6 +417,32 @@ public final class Catalog
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
+	/**
+	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, or
+	 * a {@link #goLive()} that threw after publishing its ALIVE bootstrap record - or `null` while the catalog can
+	 * still be persisted. Set by {@link #recordUnpublishableCause(Throwable)}, whose public entry point is
+	 * {@link #markUnpublishable(Throwable)}, and never cleared - a catalog recovers by being reloaded from disk,
+	 * not by this field going back to `null`.
+	 *
+	 * Holds the cause atomically so the FIRST failure wins - it is the one that explains every refusal after it -
+	 * and so that the deactivation it schedules is issued exactly once. Written from more than one thread: the
+	 * flush executor's (a collection write failing inside a flush future), the thread running {@link #goLive()}
+	 * inside the go-live flush future's completion lambda, and the writer thread itself (a warm-up rollback that
+	 * threw). Read on the writer thread that runs the next mutation or flush entry point.
+	 */
+	@Nonnull private final AtomicReference<Throwable> unpublishableCause = new AtomicReference<>();
+	/**
+	 * Serializes {@link #terminate()} so the idempotence {@link CatalogContract#terminate()} promises holds
+	 * under the concurrency that actually produces a second call.
+	 *
+	 * A catalog has TWO legitimate terminators and they are not ordered with respect to one another: the
+	 * deactivation {@link #recordUnpublishableCause(Throwable)} schedules, which terminates the instance it
+	 * swapped out of the engine state, and engine shutdown, whose `Evita#closeCatalogs` terminates every catalog
+	 * the state still names. A plain check-and-return would satisfy the letter of idempotence and still let the second
+	 * caller return while the first is halfway through releasing collections - so the lock is what gives that
+	 * caller a completed termination to observe rather than merely a silent no-op.
+	 */
+	@Nonnull private final Object terminationLock = new Object();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -1233,6 +1267,10 @@ public final class Catalog
 			// use "virtual" percentage to indicate progress
 			100,
 			theFuture -> {
+				// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
+				// longer be published must not reach it - and the refusal has to happen before the irreversible
+				// handover below rather than in the middle of it
+				assertPublishable();
 				final long catalogVersion = getVersion();
 				// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
 				// answers - so a failure past that point would otherwise report the new name as the old one.
@@ -1338,6 +1376,26 @@ public final class Catalog
 		return this.goingLive.get();
 	}
 
+	/**
+	 * Publishes an ALIVE bootstrap record for this catalog and returns a **new** instance in
+	 * {@link CatalogState#ALIVE} state that shares this one's indexes. This instance is superseded by it and is
+	 * never itself made alive.
+	 *
+	 * **The caller-visible failure contract splits at that publication**, which the interface declaration does not
+	 * describe. A throw before it leaves the stored catalog warming up and this instance untouched and still
+	 * usable. A throw after it leaves the stored catalog ALIVE and durable while this instance is still
+	 * WARMING_UP in memory - so this method marks the instance unpublishable through
+	 * {@link #recordUnpublishableCause(Throwable)} before rethrowing, and a caller that puts it back behind the
+	 * catalog's name (the go-live operator's undo) therefore gets a catalog that serves readers but refuses every
+	 * write and every flush, until the deactivation that mark schedules settles the name.
+	 *
+	 * @return the ALIVE catalog instance that supersedes this one
+	 * @throws CatalogUnpublishableException when an earlier warm-up failure already bars this instance from
+	 *                                      publishing anything
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException
+	 *                                      when this catalog is already alive, or another `goLive` call is in
+	 *                                      progress on it
+	 */
 	@Nonnull
 	@Override
 	public Catalog goLive() {
@@ -1348,6 +1406,10 @@ public final class Catalog
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			// go-live publishes a bootstrap record of its own and then mints an ALIVE catalog that SHARES these
+			// indexes, which would carry untrustworthy state past every warm-up guard there is. The flush the
+			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here
+			assertPublishable();
 			final List<EntityCollection> newCollections = this.entityCollections
 				.values()
 				.stream()
@@ -1356,33 +1418,71 @@ public final class Catalog
 
 			this.persistenceService.goLive(1L);
 
-			final Catalog newCatalog = new Catalog(
-				1L,
-				CatalogState.ALIVE,
-				this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
-				this.archiveCatalogIndex.get() == null ?
-					null :
-					this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
-				newCollections,
-				this.persistenceService,
-				this,
-				true
-			);
-
-			this.transactionManager.advanceVersion(newCatalog.getVersion());
-			// marks a sweep boundary at the end of bulk indexing, so the next periodic sweep reclaims what the
-			// import stopped using. Gated because a lone sweep releases almost nothing - see CollationKeyCache#sweepAll
-			if (this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0) {
-				final int releasedCollationKeys = CollationKeyCache.sweepAll();
-				log.info(
-					"Catalog `{}` is now alive! (released {} collation keys unused since the previous sweep)",
-					newCatalog.getName(), releasedCollationKeys
+			// **Everything below is past the point of no return.** The ALIVE bootstrap record is published, so the
+			// stored catalog IS alive and a reload lands on it - nothing here can damage that, and nothing here is
+			// undone by failing. What a failure below DOES leave behind is this instance: still WARMING_UP in memory,
+			// still publishable, and still the instance the go-live operator's undo puts back behind the catalog's
+			// name, because `aliveCatalog` is only recorded once this method returns. It would then acknowledge
+			// warm-up writes that no bootstrap record will ever reference and that a reload silently discards - the
+			// defect of issue #1495, re-created in a narrow window. Marking this instance unpublishable closes it: the
+			// restored catalog refuses every write and every flush, and the deactivation the mark schedules settles
+			// the name.
+			try {
+				final Catalog newCatalog = new Catalog(
+					1L,
+					CatalogState.ALIVE,
+					this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
+					this.archiveCatalogIndex.get() == null ?
+						null :
+						this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
+					newCollections,
+					this.persistenceService,
+					this,
+					true
 				);
-			} else {
-				log.info("Catalog `{}` is now alive!", newCatalog.getName());
-			}
-			return newCatalog;
 
+				this.transactionManager.advanceVersion(newCatalog.getVersion());
+				// marks a sweep boundary at the end of bulk indexing, so the next periodic sweep reclaims what the
+				// import stopped using. Gated because a lone sweep releases almost nothing - see
+				// CollationKeyCache#sweepAll
+				if (this.evitaConfiguration.server().dropCollationKeysAfterSecondsOfInactivity() > 0) {
+					final int releasedCollationKeys = CollationKeyCache.sweepAll();
+					log.info(
+						"Catalog `{}` is now alive! (released {} collation keys unused since the previous sweep)",
+						newCatalog.getName(), releasedCollationKeys
+					);
+				} else {
+					log.info("Catalog `{}` is now alive!", newCatalog.getName());
+				}
+				return newCatalog;
+			} catch (Throwable ex) {
+				// `Throwable`, because an `Error` past the publication leaves exactly the same superseded instance
+				// behind as an exception does. Rethrown unchanged - an accurate message and the refusal below are all
+				// this catch adds.
+				//
+				// Logged here rather than left to `markUnpublishable`, whose message is written for the OTHER
+				// caller: it tells an operator the stored data is intact "at the version of the last successful
+				// flush" and that everything since must be replayed. On this path that recovery advice is wrong,
+				// and sending someone looking for the wrong recovery is what the durability model says not to do.
+				// Logged BEFORE the mark so a throw from the mark cannot cost the accurate message.
+				//
+				// It names the deactivation that `recordUnpublishableCause` below schedules, because that is what
+				// decides the recovery: `SetCatalogStateMutationOperator` persists INACTIVE through its COMPLETION
+				// updater, so once the deactivation lands a restart reloads the catalog INACTIVE and an activation
+				// is what brings the published ALIVE storage back. Telling the operator "just restart" would send
+				// them to a restart that looks like it lost the catalog.
+				log.error(
+					"Catalog `{}` published its ALIVE bootstrap record and then failed to finish going live. " +
+						"The stored catalog IS alive and intact and nothing needs replaying. The superseded " +
+						"in-memory instance is being barred from accepting further writes, because nothing would " +
+						"ever publish them, and it is being deactivated for the same reason - so recovery is to " +
+						"ACTIVATE the catalog again, which reloads it in its published ALIVE state. A restart on " +
+						"its own is enough only if it beats that deactivation to the disk.",
+					getName(), ex
+				);
+				recordUnpublishableCause(ex);
+				throw ex;
+			}
 		} finally {
 			this.goingLive.set(false);
 		}
@@ -1976,13 +2076,27 @@ public final class Catalog
 		return catalogIndexes;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Idempotent, as {@link CatalogContract#terminate()} requires: a second call returns once the first has
+	 * finished, having done nothing itself. This used to be an `isPremiseValid(!isTerminated())` — a guard that
+	 * treated an ordinary concurrent shutdown as a programming error, because a catalog has two legitimate
+	 * terminators that race (see {@link #terminationLock}). The premise is why
+	 * `SetCatalogStateMutationOperator` wraps its own call in a `try`/`catch` that merely logs, while
+	 * `Evita#closeCatalogs` calls it unguarded and would have propagated the failure out of shutdown.
+	 */
 	@Override
 	public void terminate() {
-		Assert.isPremiseValid(!isTerminated(), "Catalog is already terminated!");
-		try {
-			terminateInternally();
-		} finally {
-			this.persistenceService.close();
+		synchronized (this.terminationLock) {
+			if (isTerminated()) {
+				return;
+			}
+			try {
+				terminateInternally();
+			} finally {
+				this.persistenceService.close();
+			}
 		}
 	}
 
@@ -2384,10 +2498,22 @@ public final class Catalog
 	}
 
 	/**
-	 * Method allows to immediately flush all information held in memory to the persistent storage.
-	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
-	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
-	 * in BULK / non-transactional mode.
+	 * Method allows to immediately flush all information held in memory to the persistent storage. It stores
+	 * an {@link EntityCollectionHeader} for every collection whose file offset index changed and, when anything
+	 * changed at all, the catalog header that publishes them.
+	 *
+	 * **Warm-up only, and it says so by failing rather than by doing nothing.** In transactional
+	 * ({@link CatalogState#ALIVE}) mode the very first statement fails its premise, because in that mode changes
+	 * reach storage through a transaction and never through here. It also refuses when an earlier warm-up failure
+	 * has made this instance's state unpublishable - see {@link #assertPublishable()} - and refuses **before** the
+	 * destructive collect rather than after it.
+	 *
+	 * @return a future completing once every collection and the catalog header have been written. Its failure is
+	 *         terminal for this instance: an exceptional completion raises the refusal barrier through the
+	 *         future's own failure handler, before the future is observably complete, and a cancellation raises it
+	 *         through the `whenComplete` backstop beside it - the changes this call popped are unreconstructible
+	 *         either way. Nothing on disk is damaged in either case; the last published bootstrap record still
+	 *         points at a complete state (see `.claude/rules/durability-model.md`).
 	 */
 	@Nonnull
 	public ProgressingFuture<Void> flush() {
@@ -2397,11 +2523,17 @@ public final class Catalog
 			getCatalogState() == CatalogState.WARMING_UP,
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
+		// refuse before the destructive collect below, not merely before the header write: collecting advances every
+		// index's change-detection baseline, so a flush that is going to be refused anyway must not consume state on
+		// its way to being refused
+		assertPublishable();
 
 		// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection future is
 		// even constructed - while they are written only in the combine step below, once every collection has flushed.
 		// A collection whose write fails therefore strands these already-popped changes with no combine step to persist
-		// them, so the catalog buffer must be poisoned alongside the collection's own (see whenComplete below).
+		// them, and the baselines they were collected against have already moved - so the catalog can no longer
+		// publish anything (see the failure handler installed on the future below, and the cancellation backstop
+		// beside it).
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
 		final ProgressingFuture<Void> flushFuture = new ProgressingFuture<>(
 			trappedChanges.getTrappedChangesCount(),
@@ -2449,18 +2581,174 @@ public final class Catalog
 				}
 				return null;
 			},
-			Functions.noOpConsumer()
+			// Whether a collection's write failed or the combine step itself did, this catalog's own collected changes
+			// are lost either way, and the baselines they were collected against have already moved. No later flush
+			// can reconstruct them, so this catalog may never publish again.
+			//
+			// **Installed as the future's own failure handler rather than as a `whenComplete` dependent, and the
+			// difference is load-bearing.** `ProgressingFuture#completeExceptionally` runs this handler BEFORE it
+			// delegates to `super.completeExceptionally`, so the refusal barrier stands before the future is
+			// observably complete at all. A dependent registered here instead would run after the ones registered
+			// later - `CompletableFuture` does not specify an order, and in practice pops its dependents
+			// last-in-first-out - which puts it after the go-live operator's own dependent: that operator would
+			// restore this catalog behind its name and resume its session registry while the barrier was still
+			// missing, and a session admitted in that window would write to a catalog whose changes are already lost.
+			// The handler itself can run more than once - two exceptional completions both invoke it before
+			// `super.completeExceptionally` no-ops - but the mark behind it is compare-and-set guarded, so MARKING
+			// twice is impossible and the first cause is the one that survives.
+			this::markUnpublishable
 		);
-		// whether a collection's write failed or the combine step itself did, this catalog's own popped changes are lost
-		// either way: refuse every later catalog flush rather than store a header describing a state never written
+		// **The second half of the same barrier, and not a duplicate of the handler above.** The failure handler
+		// covers an exceptional completion, and covers it EARLY - before the future is observably complete. It does
+		// not cover CANCELLATION: `CompletableFuture#cancel` does not route through `completeExceptionally`, so the
+		// handler never sees it. A cancelled warm-up flush has already popped its trapped changes and advanced the
+		// baselines they were collected against, so it has exactly as much claim on the barrier as a failed one.
+		// Nothing in the tree cancels this future today, and that is precisely why the dependent stays: a durability
+		// barrier whose correctness rests on "nobody currently cancels this" is one refactor away from silently not
+		// existing. `markUnpublishable` is compare-and-set guarded, so the pair cannot mark twice.
 		flushFuture.whenComplete(
 			(result, ex) -> {
 				if (ex != null) {
-					this.dataStoreBuffer.poison(ex);
+					markUnpublishable(ex);
 				}
 			}
 		);
 		return flushFuture;
+	}
+
+	/**
+	 * Reports that a warm-up failure has left this catalog's in-memory state impossible to publish, so no bootstrap
+	 * record may ever again be derived from it. The FIRST cause wins - it is the one that explains every refusal
+	 * after it - and the deactivation it schedules is therefore issued exactly once.
+	 *
+	 * Three failures reach here, and every one of them leaves the in-memory catalog untrustworthy as a source of
+	 * a new published state:
+	 *
+	 * - A **flush that failed after collecting**. Collecting is destructive: it hands the pending parts over AND
+	 *   advances every index's change-detection baseline, so a later flush would diff against baselines claiming the
+	 *   lost changes are already on disk and publish a state silently missing them. The offset index drains its own
+	 *   pending entries the same way, so records written since the last successful flush can also have become
+	 *   unreachable to reads.
+	 * - A **flush that was cancelled after collecting**, which has popped exactly as much and is worth exactly the
+	 *   same barrier. It arrives through the `whenComplete` dependent beside the flush future's failure handler
+	 *   rather than through the handler itself, because `CompletableFuture#cancel` does not route through
+	 *   `completeExceptionally` and the handler therefore never sees a cancellation.
+	 * - A **per-entity warm-up rollback that itself threw**. Warm-up writes go in place, so a rewind that fails
+	 *   leaves the live indexes half-mutated - and because inverse replay stops at the first throw, a shared
+	 *   structure can be left inconsistent for entities other than the one that failed.
+	 *
+	 * **Nothing on disk is damaged in any of them.** Data files are append-only and the last bootstrap record still
+	 * points at a complete, correct state; reloading the catalog recovers it entirely. This barrier exists so that no
+	 * FUTURE publication derives a record from state that can no longer be trusted - see
+	 * `.claude/rules/durability-model.md`.
+	 *
+	 * This is the **public entry point**: it raises the barrier and reports it in the operator's own terms. A caller
+	 * that has already reported its situation accurately - the message here would contradict it - raises the same
+	 * barrier through {@link #recordUnpublishableCause(Throwable)} instead.
+	 *
+	 * @param cause the warm-up failure that made the in-memory state unpublishable
+	 */
+	public void markUnpublishable(@Nonnull Throwable cause) {
+		if (recordUnpublishableCause(cause)) {
+			log.error(
+				"Catalog `{}` can no longer persist changes and will be deactivated. Its stored data is intact at the " +
+					"version of the last successful flush; everything written since then must be replayed after the " +
+					"catalog is activated again.",
+				getName(), cause
+			);
+		}
+	}
+
+	/**
+	 * Raises the refusal {@link #markUnpublishable(Throwable)} describes, and says nothing to the operator.
+	 *
+	 * **The message is the part that is caller-specific, not the refusal.** The wording
+	 * {@link #markUnpublishable(Throwable)} carries is written for a failed warm-up flush: it tells the operator
+	 * the stored state is that of the last successful flush and that everything since must be replayed. That
+	 * advice is wrong on the path {@link #goLive()} takes after publishing its ALIVE bootstrap record, where the
+	 * stored state is the published ALIVE one and nothing needs replaying - and two consecutive ERROR lines that
+	 * contradict each other are worse than one, because the reader has to guess which is about their situation.
+	 * A caller that has already reported its own situation accurately takes this method instead.
+	 *
+	 * The first cause wins, exactly as it does through the public entry point, and the deactivation is therefore
+	 * scheduled once. Note the deactivation is **submitted before the caller writes its own message**, so an
+	 * operator can meet the deactivation's log lines ahead of the explanation for them; that ordering is by
+	 * construction rather than a defect, and the alternatives - moving the scheduling out to every caller, or
+	 * threading a reporter through - trade a correctness risk or machinery for a cosmetic gain.
+	 *
+	 * @param cause the failure that made this catalog's in-memory state impossible to publish
+	 * @return true when this call was the one that recorded the cause, false when a cause was already recorded
+	 */
+	private boolean recordUnpublishableCause(@Nonnull Throwable cause) {
+		if (this.unpublishableCause.compareAndSet(null, cause)) {
+			scheduleDeactivation();
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Tells whether this catalog may still publish its in-memory state.
+	 *
+	 * Exists for the one caller that must NOT throw on a barrier it finds set - {@link #terminateInternally()} skips
+	 * the flush loop and the header write, and then goes on to release every resource. Everything else uses
+	 * {@link #assertPublishable()}.
+	 *
+	 * @return true when no warm-up failure has made this catalog's state unpublishable
+	 */
+	public boolean isPublishable() {
+		return this.unpublishableCause.get() == null;
+	}
+
+	/**
+	 * Refuses the caller when this catalog's in-memory state can no longer be published.
+	 *
+	 * Guards every route that would write a bootstrap record ({@link #flush()}, {@link #goLive()}, the collection
+	 * replace path) and the next root entity mutation, so a bulk load that can never be saved stops at once instead
+	 * of pouring in more work. Termination deliberately does not call this - see {@link #isPublishable()}.
+	 *
+	 * @throws CatalogUnpublishableException when a warm-up failure has made this catalog's state unpublishable
+	 */
+	public void assertPublishable() {
+		final Throwable cause = this.unpublishableCause.get();
+		if (cause != null) {
+			throw new CatalogUnpublishableException(getName(), cause);
+		}
+	}
+
+	/**
+	 * Hands the catalog over for deactivation, so the engine stops serving a catalog it can no longer trust.
+	 *
+	 * Routed through the engine mutation pipeline rather than done here, because deactivation has to quiesce the
+	 * catalog's sessions, swap the engine's reference for an unusable placeholder and terminate this instance - work
+	 * that must be serialized against every other catalog lifecycle operation. It is scheduled rather than executed
+	 * inline because this runs while a failing mutation is still unwinding on the writer thread, and because
+	 * deactivation closes exactly the sessions that thread is running under.
+	 *
+	 * The barrier set by {@link #recordUnpublishableCause(Throwable)} is what protects the window until this lands:
+	 * every publication route and every further mutation already refuses. Failure to deactivate is therefore logged
+	 * rather than propagated - the catalog stays refusing, which is the property that matters.
+	 */
+	private void scheduleDeactivation() {
+		final String catalogName = getName();
+		this.scheduler.execute(
+			() -> {
+				try {
+					// an engine that is already shutting down terminates this catalog anyway, and issuing a lifecycle
+					// mutation into a closing engine would only trade a clean shutdown for a logged failure
+					if (!this.evita.isActive()) {
+						return;
+					}
+					this.evita.deactivateCatalogWithProgress(catalogName);
+				} catch (RuntimeException ex) {
+					log.error(
+						"Failed to deactivate catalog `{}` after it became unpublishable. It keeps refusing every write " +
+							"and every flush, so no untrustworthy state can be published; restart the engine to reload it.",
+						catalogName, ex
+					);
+				}
+			}
+		);
 	}
 
 	/**
@@ -3163,28 +3451,59 @@ public final class Catalog
 			// flush all entity collections and store their headers
 			final List<EntityCollectionHeader> entityHeaders;
 			boolean changeOccurred = this.lastPersistedSchemaVersion != getInternalSchema().version();
-			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
+			// Only a warming-up catalog persists anything at close, and only one that may still publish has anything
+			// to gain from doing so - for the rest the header write would be refused anyway, so skip straight to
+			// releasing the resources. This is the one barrier site that must NOT throw: shutdown has to finish.
+			final boolean flushBeforeTerminate = getCatalogState() == CatalogState.WARMING_UP && isPublishable();
+			// tracks whether every collection got its changes onto the disk. A header names ALL of them at once, so
+			// one collection failing means the header would describe a mix of what this run wrote and what the
+			// previous one did - and a single root entity mutation can write into several collections through
+			// reflected references, so publishing that mix tears exactly the per-entity consistency the write path
+			// guarantees. Keeping the last published state is the correct outcome instead
+			boolean everyCollectionFlushed = true;
 			entityHeaders = new ArrayList<>(this.entityCollections.size());
 			for (EntityCollection entityCollection : this.entityCollections.values()) {
 				// in warmup state try to persist all changes in volatile memory
-				if (warmingUpState) {
+				if (flushBeforeTerminate) {
 					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(
-						updateIndexIfNecessary(
-							// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-							entityCollection.flush()
-						)
-					);
-					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+					try {
+						entityHeaders.add(
+							updateIndexIfNecessary(
+								// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
+								entityCollection.flush()
+							)
+						);
+						changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+					} catch (RuntimeException ex) {
+						// isolated per collection deliberately: a failure here must not cost the remaining
+						// collections their termination, which is the only thing this method still owes them
+						everyCollectionFlushed = false;
+						log.error(
+							"Failed to flush entity collection `{}` of catalog `{}` while terminating it - the " +
+								"catalog header will not be stored, so the catalog stays at its last published " +
+								"version.",
+							entityCollection.getEntityType(), catalogName, ex
+						);
+					}
 				}
-				// in all states terminate collection operations
+				// in all states terminate collection operations - isolated for the same reason the flush above is:
+				// releasing the remaining collections is the last thing this method owes them, and one collection
+				// failing must not cost the others theirs
 				if (!entityCollection.isTerminated()) {
-					entityCollection.terminate();
+					try {
+						entityCollection.terminate();
+					} catch (RuntimeException ex) {
+						log.error(
+							"Failed to terminate entity collection `{}` of catalog `{}` - its handles stay open " +
+								"until the process ends.",
+							entityCollection.getEntityType(), catalogName, ex
+						);
+					}
 				}
 			}
 
 			// if any change occurred (this may happen only in warm up state)
-			if (warmingUpState && changeOccurred) {
+			if (flushBeforeTerminate && changeOccurred && everyCollectionFlushed) {
 				// store catalog header
 				this.persistenceService.storeHeader(
 					this.catalogId,

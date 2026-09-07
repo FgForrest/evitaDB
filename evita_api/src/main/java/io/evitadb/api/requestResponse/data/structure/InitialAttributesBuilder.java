@@ -76,6 +76,34 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nullable
 	Map<String, S> attributeTypes;
 
+	/**
+	 * Converts a value the builder has just been handed into the exact form that will be **stored**, using the same
+	 * entry point {@link UpsertAttributeMutation} uses — {@link EvitaDataTypes#toSupportedStoredTypeOrItsArray}. It
+	 * accepts a scalar or an array, because the scalar `setAttribute` overload receives arrays too (the generic
+	 * parameter `U` is free to be an array type).
+	 *
+	 * Normalizing here rather than only in {@link #buildChangeSet()} is what makes a value read back off the builder
+	 * equal to the value the engine will end up holding: a `Float` becomes the `BigDecimal` it is stored as, and a
+	 * temporal value loses the sub-millisecond digits the index cannot represent. It also lets the implicit attribute
+	 * schema be derived from the class that will really be persisted, which is the class the server derives it from
+	 * (`AttributeSchemaEvolvingMutation.verifyOrEvolveSchema` reads `getAttributeValue().getClass()` off the already
+	 * normalized mutation). {@link ExistingAttributesBuilder} has always behaved this way, because it wraps every
+	 * value in an {@link UpsertAttributeMutation} the moment it is set; this is the same behaviour for the
+	 * new-entity builder.
+	 *
+	 * The pass {@link #buildChangeSet()} still performs is therefore a no-op on these values, and deliberately
+	 * cheap: the normalization returns the *same instance* whenever nothing changes, down to handing an array back
+	 * unmodified.
+	 *
+	 * @param attributeValue the value as passed by the caller (scalar or array, never `null`)
+	 * @return the value in its stored form — the very same instance when it was already normal
+	 * @throws io.evitadb.dataType.exception.UnsupportedDataTypeException when the value's type cannot be stored at all
+	 */
+	@Nonnull
+	private static Serializable toStoredForm(@Nonnull Serializable attributeValue) {
+		return Objects.requireNonNull(EvitaDataTypes.toSupportedStoredTypeOrItsArray(attributeValue));
+	}
+
 	static void verifyAttributeIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String attributeName,
@@ -192,8 +220,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			createImplicitSchemaIfMissing(attributeName, attributeValue, null);
-			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			final Serializable storedValue = toStoredForm(attributeValue);
+			createImplicitSchemaIfMissing(attributeName, storedValue, null);
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, storedValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -206,8 +235,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			createImplicitSchemaIfMissing(attributeName, attributeValue, null);
-			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			final Serializable storedValue = toStoredForm(attributeValue);
+			createImplicitSchemaIfMissing(attributeName, storedValue, null);
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, storedValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -229,8 +259,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			createImplicitSchemaIfMissing(attributeName, attributeValue, locale);
-			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			final Serializable storedValue = toStoredForm(attributeValue);
+			createImplicitSchemaIfMissing(attributeName, storedValue, locale);
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, storedValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -243,8 +274,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			createImplicitSchemaIfMissing(attributeName, attributeValue, locale);
-			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			final Serializable storedValue = toStoredForm(attributeValue);
+			createImplicitSchemaIfMissing(attributeName, storedValue, locale);
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, storedValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -385,6 +417,16 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			.collect(Collectors.toSet());
 	}
 
+	/**
+	 * Wraps every held value into an upsert mutation.
+	 *
+	 * {@link UpsertAttributeMutation} normalizes the value it is given, but every value in this builder has already
+	 * been through the same normalization at {@link #toStoredForm} — so the pass is an identity no-op here rather
+	 * than the point at which the value changes shape. That ordering is what keeps a value read back off the builder
+	 * equal to the value that reaches the engine; see {@link #toStoredForm}.
+	 *
+	 * @return the stream of upsert mutations, one per held attribute value
+	 */
 	@Nonnull
 	@Override
 	public Stream<? extends AttributeMutation> buildChangeSet() {
@@ -426,9 +468,16 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	 * If an attribute schema already exists, verifies that the provided value matches the expected type.
 	 * Otherwise, adds a new attribute schema if the entity schema allows adding attributes dynamically.
 	 *
+	 * The value must **already be in its stored form** ({@link #toStoredForm}) — every caller normalizes before
+	 * calling. Both of the things this method does with the value read its class, so a raw one would derive an
+	 * implicit schema for a type that is never stored (a `Float` attribute for a value the engine keeps as a
+	 * `BigDecimal`) and would verify a declared schema against a class the mutation is not going to carry.
+	 *
 	 * @param <U>          The type of the attribute value, which must extend {@link Serializable}.
 	 * @param attributeName The name of the attribute for which the schema needs to be created or verified. Must not be null.
-	 * @param attributeValue The value of the attribute to be used for schema creation or type verification. Nullable.
+	 * @param attributeValue The value of the attribute, already in its stored form, to be used for schema creation or
+	 *                       type verification. Nullable.
+	 * @param locale The locale of the attribute, or `null` for a locale-independent one.
 	 */
 	protected <U extends Serializable> void createImplicitSchemaIfMissing(
 		@Nonnull String attributeName,

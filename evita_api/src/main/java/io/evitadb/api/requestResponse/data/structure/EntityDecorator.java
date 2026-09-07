@@ -517,11 +517,10 @@ public class EntityDecorator implements SealedEntity {
 		indexFilteredSortedAndFetchedReferences(
 			entity,
 			entitySchema,
-			referencePredicate.getReferenceSet().isEmpty() ?
-				// client requests all references
-				entitySchema.getReferences().keySet() :
-				// client requests references with specific names
-				referencePredicate.getReferenceSet().keySet(),
+			// which references the client asked for is the predicate's rule to state - naming them from its
+			// reference set alone would skip the ones a catch-all requirement covers, and a reference missing from
+			// the index below reads as "no such references" rather than "none matched"
+			referencePredicate.getRequestedReferenceNames(entitySchema),
 			referenceFetcher,
 			outputReferences,
 			filteredOutReferences

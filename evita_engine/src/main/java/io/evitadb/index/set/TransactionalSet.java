@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -86,6 +88,18 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	@Override
 	public SetChanges<K> createLayer() {
 		return new SetChanges<>(this.setDelegate);
+	}
+
+	/**
+	 * The delegate branch mutates the backing `HashSet` in place, so a whole-state pre-image would be a deep copy of
+	 * the accumulated base set — the rollback cliff the journal strategy exists to avoid. It journals PER OPERATION
+	 * instead, recording the membership each write changes before applying it.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull
@@ -175,7 +189,11 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public Iterator<K> iterator() {
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.setDelegate.iterator();
+			// the wrapper is handed out unconditionally rather than only while a savepoint is open, because the
+			// alternative decides at CONSTRUCTION time: an iterator taken before a savepoint opened and removed
+			// through after it opened would reach the delegate unjournalled. remove() re-resolves the savepoint per
+			// call, so outside one the wrapper is transparent apart from its own allocation
+			return new WarmUpJournalingIterator<>(this.setDelegate);
 		} else {
 			return new TransactionalMemorySetIterator<>(this.setDelegate, layer, this);
 		}
@@ -207,6 +225,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public boolean add(K key) {
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			journalMembershipIfOpen(key);
 			return this.setDelegate.add(key);
 		} else {
 			return layer.put(key);
@@ -218,6 +237,8 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		Assert.notNull(key, "Null keys are not supported in transactional sets!");
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			//noinspection unchecked
+			journalMembershipIfOpen((K) key);
 			return this.setDelegate.remove(key);
 		} else {
 			return layer.remove(key);
@@ -243,6 +264,12 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public boolean addAll(@Nonnull Collection<? extends K> c) {
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				for (final K key : c) {
+					journalMembership(savepoint, key);
+				}
+			}
 			return this.setDelegate.addAll(c);
 		} else {
 			boolean modified = false;
@@ -257,6 +284,16 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public boolean retainAll(@Nonnull Collection<?> c) {
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// the scan is the same O(size) the retainAll below performs anyway, and it records an inverse only for
+				// the elements that are actually about to be dropped
+				for (final K key : this.setDelegate) {
+					if (!c.contains(key)) {
+						journalMembership(savepoint, key);
+					}
+				}
+			}
 			return this.setDelegate.retainAll(c);
 		} else {
 			Objects.requireNonNull(c);
@@ -276,6 +313,18 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public boolean removeAll(@Nonnull Collection<?> c) {
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// driven by the ARGUMENT, not by the set: `removeAll` with a small argument touches only that many
+				// elements, so scanning the (potentially huge) delegate instead would turn an O(|c|) call into O(size)
+				for (final Object key : c) {
+					if (this.setDelegate.contains(key)) {
+						// only elements proven present are re-added, so the cast is the membership test's own guarantee
+						//noinspection unchecked
+						journalMembership(savepoint, (K) key);
+					}
+				}
+			}
 			return this.setDelegate.removeAll(c);
 		} else {
 			Objects.requireNonNull(c);
@@ -295,10 +344,58 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	public void clear() {
 		final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// the one place a whole-set pre-image is right: the clear is O(size) in any case, so a copy of the same
+				// order changes no complexity, and a per-element inverse would push one journal entry per survivor.
+				// Insertion-ordered so a delegate whose iteration order is part of its contract comes back in order
+				final Set<K> preImage = new LinkedHashSet<>(this.setDelegate);
+				savepoint.push(() -> {
+					this.setDelegate.clear();
+					this.setDelegate.addAll(preImage);
+				});
+			}
 			this.setDelegate.clear();
 		} else {
 			layer.clearAll();
 		}
+	}
+
+	/**
+	 * Records the inverse of a pending membership change of `key`, but only when a warm-up savepoint brackets the
+	 * current root entity mutation (see {@link WarmUpSavepoint}).
+	 *
+	 * @param key the element whose membership is about to change
+	 */
+	private void journalMembershipIfOpen(K key) {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null) {
+			journalMembership(savepoint, key);
+		}
+	}
+
+	/**
+	 * Records the inverse of a pending membership change of `key`: captures whether the element is currently in the
+	 * delegate and pushes an operation forcing exactly that membership back. Must be called BEFORE the change.
+	 *
+	 * The inverse is per operation rather than a first-touch copy of the delegate, because the delegate is this set's
+	 * whole accumulated content and copying it once per entity is the `O(N²)` rollback cliff the journal strategy
+	 * exists to avoid. It is ABSOLUTE - it forces a membership rather than toggling one - so an element added and
+	 * removed several times inside one savepoint still ends up with its pre-savepoint membership, the earliest-pushed
+	 * inverse being the one reverse replay runs last.
+	 *
+	 * @param savepoint the open savepoint to record into
+	 * @param key       the element whose membership is about to change
+	 */
+	private void journalMembership(@Nonnull WarmUpSavepoint savepoint, K key) {
+		final boolean wasPresent = this.setDelegate.contains(key);
+		savepoint.push(() -> {
+			if (wasPresent) {
+				this.setDelegate.add(key);
+			} else {
+				this.setDelegate.remove(key);
+			}
+		});
 	}
 
 	/**
@@ -358,6 +455,53 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			if (!i.hasNext())
 				return sb.append('}').toString();
 			sb.append(',').append(' ');
+		}
+	}
+
+	/**
+	 * Iterator over the raw delegate that journals every {@link #remove()} into the open warm-up savepoint. It is
+	 * handed out instead of the delegate's own iterator on the whole non-transactional branch, because removing
+	 * through an iterator reaches the delegate without passing through any of this set's mutators - and `removeAll` /
+	 * `retainAll` / `removeIf` on the {@link java.util.Collection} defaults all funnel through it. It is the warm-up
+	 * counterpart of {@link TransactionalMemorySetIterator}, which closes the same hole on the transactional branch.
+	 *
+	 * The savepoint is re-resolved at {@link #remove()} time rather than captured at construction, and this is what
+	 * lets the wrapper be handed out unconditionally: an iterator that outlives the savepoint records nothing, and an
+	 * iterator created BEFORE a savepoint opened still journals into it. Choosing the wrapper at construction time
+	 * would close only the first of those two directions.
+	 *
+	 * @param <K> element type
+	 */
+	private static final class WarmUpJournalingIterator<K> implements Iterator<K> {
+		private final Set<K> setDelegate;
+		private final Iterator<K> delegate;
+		@Nullable private K current;
+
+		WarmUpJournalingIterator(@Nonnull Set<K> setDelegate) {
+			this.setDelegate = setDelegate;
+			this.delegate = setDelegate.iterator();
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.delegate.hasNext();
+		}
+
+		@Override
+		public K next() {
+			this.current = this.delegate.next();
+			return this.current;
+		}
+
+		@Override
+		public void remove() {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && this.current != null) {
+				// the element is still present at this point, so the inverse is unconditionally an add-back
+				final K removed = this.current;
+				savepoint.push(() -> this.setDelegate.add(removed));
+			}
+			this.delegate.remove();
 		}
 	}
 

@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.array.TransactionalIntArray;
@@ -49,6 +50,9 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.UUID;
@@ -145,6 +149,12 @@ class LeafIndexHeapSizeTest {
 		private static final String ID_CONSUMER = "leaf-index-heap-size-test";
 
 		/**
+		 * The one zone offset every date-time-range fixture bound carries. `ZoneOffset.ofHours` interns it JVM-wide,
+		 * so it is a shared root rather than anything an index owns.
+		 */
+		private static final ZoneOffset SHARED_OFFSET = ZoneOffset.ofHours(2);
+
+		/**
 		 * Builds a string-keyed inverted index, whose leaves front-code their keys.
 		 *
 		 * @param distinctValues how many distinct bucket values to seed
@@ -172,6 +182,35 @@ class LeafIndexHeapSizeTest {
 			index.attachValueIdConsumer(ID_CONSUMER);
 			for (int i = 0; i < distinctValues; i++) {
 				index.addRecord(String.format("value-%05d", i), i + 1);
+			}
+			return index;
+		}
+
+		/**
+		 * Builds a date-time-range-keyed inverted index, whose leaves hold their keys as three parallel `long[]`
+		 * columns rather than as boxed objects — the shape whose separator keys this nest otherwise never measures.
+		 *
+		 * **Every bound gets its own `LocalDate` and `LocalTime`, and that is load-bearing.** The JDK hands out one
+		 * cached `LocalTime` for a whole hour and reuses a `LocalDateTime`'s time instance in anything derived from
+		 * it, so a fixture built on midnights lets one `LocalTime` stand behind every bound in the index — the walk
+		 * then counts it once where `EvitaDataTypes.estimateSize` counts it per bound, and the exactness below turns
+		 * into a divergence that grows with the separators. The minute and second offsets are what avoid that.
+		 *
+		 * @param distinctValues how many distinct bucket values to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static InvertedIndex dateTimeRangeKeyed(int distinctValues) {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
+			final InvertedIndex index = new InvertedIndex(DateTimeRange.class, normalizer, comparator, 0);
+			final LocalDateTime base = LocalDateTime.of(2024, 1, 1, 0, 0);
+			for (int i = 0; i < distinctValues; i++) {
+				final LocalDateTime from = base.plusDays(i).plusMinutes(i % 59 + 1);
+				final LocalDateTime to = from.plusDays(1).plusSeconds(i % 53 + 1);
+				index.addRecord(
+					DateTimeRange.between(from.atOffset(SHARED_OFFSET), to.atOffset(SHARED_OFFSET)), i + 1);
 			}
 			return index;
 		}
@@ -376,6 +415,155 @@ class LeafIndexHeapSizeTest {
 				"a larger index must report a larger footprint"
 			);
 		}
+
+		@Test
+		void shouldKeepAOneKeyIntegralIndexWithinItsSizingBudget() {
+			// The whole point of sizing a leaf's columns to their content: an integral index holding ONE value used
+			// to pay for a 256-slot key column, a 256-slot record column and their headers - 3472 bytes for a single
+			// long and a single int. What is left is structure only, and every one of these bytes is accounted for:
+			//
+			//   72  the index object                     72  the leaf node
+			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
+			//   48  the tree's `root` transactional       24  the record column object + 32 its four-slot int[]
+			//       reference holder and its              32  the tree's transactional dirty flag
+			//       AtomicReference
+			//
+			// That sums to 440, which is what both sides report. The bucket count is a plain int inside the tree's
+			// own 80 bytes - it costs no holder and no box. The four-slot floor is deliberate (see ColumnSizing):
+			// the reduced value trees this sizing exists for are dominated by one to four distinct values, so a
+			// floor of four covers the common case in a single allocation and never reallocates. The 456-byte
+			// budget therefore leaves room for one more small object without leaving room for a column that has
+			// gone back to allocating its whole block.
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
+			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(Integer.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, Integer.class);
+			final InvertedIndex index = new InvertedIndex(Integer.class, normalizer, comparator, 0);
+			index.addRecord(1_000_001, 1);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 456,
+				"a one-key integral index must stay within its 456 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldKeepAOneKeyTemporalIndexWithinItsSizingBudget() {
+			// A temporal key is normalized to a millisecond-exact `Instant` and stored as its epoch-milli, so it takes
+			// the very same single-`long` column an integral key does and this gate has the very same composition:
+			//
+			//   72  the index object                     72  the leaf node
+			//   80  the bucket tree object               32  the key column object + 48 its four-slot long[]
+			//   48  the tree's `root` transactional      24  the record column object + 32 its four-slot int[]
+			//       reference holder and its             32  the tree's transactional dirty flag
+			//       AtomicReference
+			//
+			// 440 again, against the 472 the same shape would cost while a temporal key rode a parallel
+			// `(long[], int[])` pair: the 32 bytes of a second four-slot array plus its header. The 456-byte budget is
+			// therefore the integral gate's budget verbatim, and it declines the pair — which is the whole point of
+			// stating it here rather than trusting the integral gate to stand in for this shape.
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
+			final AttributeIndexKey key = new AttributeIndexKey(null, "published", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, OffsetDateTime.class);
+			final InvertedIndex index = new InvertedIndex(OffsetDateTime.class, normalizer, comparator, 0);
+			index.addRecord(
+				LocalDateTime.of(2024, 1, 1, 10, 15, 30).atOffset(SHARED_OFFSET).plusNanos(123_456_789L), 1
+			);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 456,
+				"a one-key temporal index must stay within its 456 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldKeepAOneKeyRangeIndexWithinItsSizingBudget() {
+			// The same budget for the shape the range column serves, which is the integral one plus its extra bound
+			// arrays. Every byte, against the 440 of the integral gate above:
+			//
+			//   72  the index object                     72  the leaf node
+			//   80  the bucket tree object               40  the key column object
+			//   48  the tree's `root` transactional      96  its TWO four-slot long[] arrays, 48 each
+			//       reference holder and its             24  the record column object + 32 its four-slot int[]
+			//       AtomicReference                      32  the tree's transactional dirty flag
+			//
+			// That sums to 496 - the integral gate's 440 plus 56: 48 for the second bound array and 8 for the wider
+			// column object holding it. Every range kind is this shape now; the date-time one used to carry a third
+			// array for its bounds' zone offsets and cost 48 bytes more. The 504-byte budget leaves room for one
+			// more small object without leaving room for a column that has gone back to allocating its whole block
+			// - or for a third array
+			//
+			// Four of those objects carry a `warmUpTouchStamp` long apiece for per-entity warm-up rollback - the index,
+			// the leaf, the root holder and the dirty flag - which is the 32 bytes separating these figures from the
+			// ones this gate was first written against. That is a field the atomicity work added, not sizing slack
+			// coming back: the columns are still four slots wide, which is what this gate exists to hold them to.
+
+			final AttributeIndexKey key = new AttributeIndexKey(null, "validity", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(DateTimeRange.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, DateTimeRange.class);
+			final InvertedIndex index = new InvertedIndex(DateTimeRange.class, normalizer, comparator, 0);
+			index.addRecord(
+				DateTimeRange.between(
+					LocalDateTime.of(2024, 1, 1, 0, 0).atOffset(ZoneOffset.ofHours(2)),
+					LocalDateTime.of(2024, 2, 1, 0, 0).atOffset(ZoneOffset.ofHours(2))
+				),
+				1
+			);
+
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			assertEquals(measured, index.getHeapSizeInBytes(), "the index must price itself exactly");
+			assertTrue(
+				measured <= 504,
+				"a one-key range index must stay within its 504 B budget - was " + measured
+			);
+		}
+
+		@Test
+		void shouldAccountForTheSeparatorKeysOfAMultiLeafRangeIndex() {
+			// A range tree is the one shape that flips the tree's `separatorKeysAreOwned` verdict from false to
+			// true - the check is "the leaf's key column is not the boxed one" - so the moment a range index grows
+			// internal nodes every separator starts being charged through `EvitaDataTypes.estimateSize`. The gate
+			// above is a SINGLE leaf and has no separators at all, and the two multi-leaf cases in this nest key
+			// on a String and on a UUID, so this shape is measured nowhere else.
+			//
+			// A range separator is a freshly minted object - `keyAt` rebuilds it and cannot alias a leaf key the
+			// way a boxed column's promoted-by-reference separator does - so it is really retained and really
+			// walked, and the two sides agree byte for byte once the one thing neither owns is taken off the walk:
+			// the zone offset behind every bound. That is `ZoneOffset.UTC` and NOT the offset the fixture wrote at -
+			// the column stores no offsets, so every bound it rebuilds is anchored at UTC - and `estimateSize`
+			// deliberately charges only the reference slot pointing at the JVM-wide interned constant, so it is
+			// named here as the shared root it is. Measured, it is a fixed 72 bytes at any index size - which is
+			// what makes exactness attainable here rather than the bounded divergence the front-coded String case
+			// has to settle for.
+			final Object[] internedOffset = {ZoneOffset.UTC};
+			final InvertedIndex index = dateTimeRangeKeyed(1_000);
+			assertTrue(index.isPaged(), "the seeded index must span several leaves");
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, internedOffset, INVERTED_EXCLUSIONS);
+
+			// four times the values is four times the leaves and four times the separators: a separator term that
+			// had gone missing would surface as a divergence growing with them, and this stays exact
+			final InvertedIndex larger = dateTimeRangeKeyed(4_000);
+			assertMatchesMeasuredHeap(larger.getHeapSizeInBytes(), larger, internedOffset, INVERTED_EXCLUSIONS);
+			assertTrue(
+				larger.getHeapSizeInBytes() > index.getHeapSizeInBytes(),
+				"a larger paged range index must price above a smaller one"
+			);
+		}
 	}
 
 	@Nested
@@ -447,16 +635,17 @@ class LeafIndexHeapSizeTest {
 		};
 
 		@Test
-		void shouldOverReportAnEmptyOwnerByTheOneZeroBoxItsThreeCountersShare() {
+		void shouldOverReportAnEmptyOwnerByTheOneZeroBoxItsTwoCountersShare() {
 			final OwnerSortIndex index = ownerSortIndex(0);
-			// an empty index has three structures whose size counter boxes ZERO - the owned tree and the two inner
-			// trees of the sorted-records facade - and the JVM hands all three the SAME cached Integer. Rule 1
-			// charges a box to each holder regardless, because whether one is shared moves with -XX:AutoBoxCacheMax
-			// and must not decide what a reading says; a walk dedupes by identity and sees the single instance once.
-			// Three holders, one instance, so the gap is two boxes - and it is fixed, not a term that grows: every
-			// seeded fixture here starts above the cache ceiling, which is why only empty ones diverge at all
+			// an empty index has two structures whose size counter boxes ZERO - the two inner trees of the
+			// sorted-records facade - and the JVM hands both the SAME cached Integer. Rule 1 charges a box to each
+			// holder regardless, because whether one is shared moves with -XX:AutoBoxCacheMax and must not decide
+			// what a reading says; a walk dedupes by identity and sees the single instance once. Two holders, one
+			// instance, so the gap is one box - and it is fixed, not a term that grows: every seeded fixture here
+			// starts above the cache ceiling, which is why only empty ones diverge at all. The owned bucket tree
+			// used to be a third such holder; it now keeps its count in a plain int and boxes nothing
 			assertExceedsMeasuredHeapBy(
-				index.getHeapSizeInBytes(), 2L * VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
+				index.getHeapSizeInBytes(), VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
 			);
 		}
 
@@ -667,7 +856,7 @@ class LeafIndexHeapSizeTest {
 			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
 			// scaffolding to price at an upper bound.
 			//
-			// This is the accounting face of the leak fixed in #1458: a formula node carries the execution context
+			// This is the accounting face of a previously fixed leak: a formula node carries the execution context
 			// of the first query to initialize it, so an index that kept one pinned that query's session and its
 			// whole catalog generation. A step up here would mean a memo came back.
 			final long warm = index.getHeapSizeInBytes();

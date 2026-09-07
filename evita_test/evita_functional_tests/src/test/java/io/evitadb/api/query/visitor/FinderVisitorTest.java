@@ -842,6 +842,61 @@ class FinderVisitorTest {
 		}
 
 		@Test
+		@DisplayName("Should name both offending constraints in the generic message")
+		void shouldNameOffendingConstraintsInGenericMessage() {
+			final List<Constraint<?>> matches = FinderVisitor.findConstraints(
+				FinderVisitorTest.this.filterConstraint,
+				fc -> fc instanceof final AttributeEquals eq && eq.getAttributeValue().equals(true)
+			);
+			assertEquals(2, matches.size());
+
+			final MoreThanSingleResultException exception = assertThrows(
+				MoreThanSingleResultException.class,
+				() -> FinderVisitor.findConstraint(
+					FinderVisitorTest.this.filterConstraint,
+					fc -> fc instanceof final AttributeEquals eq && eq.getAttributeValue().equals(true)
+				)
+			);
+
+			// the visitor tracks no position in the query, so the constraints themselves are the only handle the
+			// caller has on which of the matches are the offending ones
+			assertTrue(
+				exception.getMessage().contains(matches.get(0) + ", " + matches.get(1)),
+				"Exception message should list both offending constraints separated by a comma, but was: " +
+					exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("Should name both offending constraints beside the predicate description")
+		void shouldNameOffendingConstraintsBesideThePredicateDescription() {
+			final PredicateWithDescription<Constraint<?>> predicate = createDescribedPredicate(
+				"constraints with attribute value equals to true",
+				constraint -> constraint instanceof final AttributeEquals eq &&
+					eq.getAttributeValue().equals(true)
+			);
+			final List<Constraint<?>> matches = FinderVisitor.findConstraints(
+				FinderVisitorTest.this.filterConstraint, predicate
+			);
+			assertEquals(2, matches.size());
+
+			final MoreThanSingleResultException exception = assertThrows(
+				MoreThanSingleResultException.class,
+				() -> FinderVisitor.findConstraint(FinderVisitorTest.this.filterConstraint, predicate)
+			);
+
+			assertTrue(
+				exception.getMessage().contains("constraints with attribute value equals to true"),
+				"Exception message should contain predicate description"
+			);
+			assertTrue(
+				exception.getMessage().contains(matches.get(0) + ", " + matches.get(1)),
+				"Exception message should list both offending constraints beside the description, but was: " +
+					exception.getMessage()
+			);
+		}
+
+		@Test
 		@DisplayName("Should not throw when findConstraint() finds exactly one match")
 		void shouldNotThrowWhenExactlyOneMatchFound() {
 			assertDoesNotThrow(

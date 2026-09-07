@@ -56,13 +56,15 @@ import java.util.Optional;
  *
  * - **referenceName** *(mandatory)* — the name of the faceted reference this constraint applies to (e.g.
  *   `"parameterValues"`, `"brand"`)
- * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_FACETS_IN_GROUP`)* — the level at which
+ * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_GROUPS`)* — the level at which
  *   disjunction is applied:
- *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — disjunction between individual facets within the same group (this is the
- *     **default behaviour** for within-group relations, so specifying this level for `facetGroupsDisjunction` is
- *     effectively a no-op unless it was previously set to conjunction)
- *   - `WITH_DIFFERENT_GROUPS` — disjunction between facets **across** different groups of this reference, overriding
- *     the default AND that normally applies between groups
+ *   - `WITH_DIFFERENT_GROUPS` *(default)* — disjunction between facets **across** different groups of this
+ *     reference, overriding the default AND that normally applies between groups
+ *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — disjunction between individual facets within the same group. Disjunction
+ *     is already the system default there, so this level only does something when
+ *     {@link FacetCalculationRules} changed the within-group default to something else — which is why it is not
+ *     the default level of this constraint. Every other `facetGroups*` constraint defaults to the level where it
+ *     alters the system default; this one has to point the other way to do the same.
  * - **filterBy** *(optional)* — a {@link FilterBy} constraint targeting properties of the **group entity** to select
  *   which groups the disjunction applies to; when omitted, disjunction applies to all groups of the reference
  *
@@ -147,7 +149,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer
 	) {
 		super(
 			facetGroupRelationLevel == null ?
-				new Serializable[]{referenceName, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP} :
+				new Serializable[]{referenceName, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS} :
 				new Serializable[]{referenceName, facetGroupRelationLevel},
 			NO_CHILDREN,
 			filterBy
@@ -168,7 +170,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer
 			.filter(FacetGroupRelationLevel.class::isInstance)
 			.map(FacetGroupRelationLevel.class::cast)
 			.findFirst()
-			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
+			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS);
 	}
 
 	@Override
@@ -189,7 +191,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS) {
 			return new Serializable[]{ getReferenceName() };
 		} else {
 			return super.getArguments();
@@ -198,7 +200,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS) {
 			return !(serializable instanceof String);
 		}
 		return false;

@@ -31,6 +31,8 @@ variable is not set, use the project's usual location.
 
 Prefer the libraries already in use — Kryo (binary serialization), RoaringBitmap (bitmaps), Jackson (JSON), Netty/Armeria (web server & client), gRPC-Java & GraphQL-Java (APIs), Logback (logging), Byte Buddy (runtime codegen), MinIO (S3 storage). Don't introduce an alternative for a job one of these already does without discussion.
 
+The same applies to the project's own helpers: `evita_common`'s `io.evitadb.utils` package already solves most small problems, and a hand-rolled second version drifts from it. Inventory and when to reach for each: `documentation/developer/utilities.md`.
+
 ## Project Structure
 
 See "How this repository is organized" in README.md for module descriptions and dependency graph.
@@ -40,6 +42,13 @@ length, opening or writing one — that is the storage module's work. `evita_api
 stored and what it means; only `evita_store` knows it is a file. SPI types under `io.evitadb.spi.store.**` are
 contracts and must execute no IO at all. Scope, the exceptions that are genuinely not catalog storage, and how to
 split a type that violates this: `.claude/rules/module-boundaries.md`
+
+**Nothing is durable until the bootstrap record publishes it.** Data files are append-only and bytes no pointer
+reaches are inert — so "refuse to persist" always means "refuse to publish", and a failure that only wrote
+unpublished bytes has damaged nothing. Read `.claude/rules/durability-model.md` **before** writing any code that
+decides what is safe to persist, any failure handler that refuses work to protect stored data, or any message
+telling an operator their data is damaged. Getting this wrong produces guards that cost availability and protect
+nothing.
 
 ## Decision Records (ADR)
 
@@ -150,3 +159,17 @@ Czech mirror is machine-translated, never hand-edited — see `.claude/rules/doc
 
 - **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
 - Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must surface immediately at runtime.
+
+## Optionals
+
+**`Optional` is a return type, and nothing else.** It is legal as a method return value and as a local variable
+holding one. Never as a **class field**, never as a **method argument**.
+
+A field pays a wrapper object per instance for something `null` already expresses, and then drags it through
+every copy, serializer and equality check on the class. An argument forces every caller to wrap, while the
+parameter still accepts `null` - a signature promising a guarantee it does not give. Take the value and mark it
+`@Nullable`.
+
+The case that tempts a field is memoizing a nullable lookup, where `null` means *not computed* and *absent* at
+once. Do not separate them with an `Optional` field - recompute instead, and keep the scan allocation-free.
+`ReferenceContent#getFilterBy` is the worked example.

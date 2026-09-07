@@ -53,11 +53,41 @@ import java.util.function.Consumer;
  * This {@link Consumer} implementation takes default Kryo instance and registers additional serializers that are
  * required to (de)serialize {@link StoragePart} implementations.
  *
+ * It is also the enforcement point for the two obligations that keep an already-written catalog readable, and the
+ * place to check both before changing any index storage format.
+ *
+ * ## The registration order is a persisted contract
+ *
+ * Kryo writes the registration **id**, not the class name, so the id a type holds here is baked into every catalog
+ * ever written with it. A new record type is therefore always appended at the end, never inserted, so that every
+ * preceding id keeps the meaning it already has on disk. Reordering this method — or dropping a registration that
+ * still sits between two live ones — re-points existing bytes at the wrong class.
+ *
+ * ## Every released serial-version-uid needs a reader
+ *
+ * A `SerialVersionBasedSerializer` routes by the uid the blob carries, so a shape that ever reached a released
+ * catalog must keep a backward-compatible serializer registered for its uid here — including a shape whose byte
+ * *layout* is unchanged but whose *meaning* moved, which the layout alone cannot reveal (the epoch-second to
+ * epoch-millisecond range thresholds are the worked example).
+ *
+ * The converse is deliberate rather than an omission: a uid that only ever existed inside a development window is
+ * left **unregistered on purpose**, so a catalog written by a snapshot build fails loudly instead of being decoded by
+ * a reader that was never meant for it. Telling the two cases apart takes evidence, not memory — `git tag --contains`
+ * on the commit that introduced the uid — and getting it backwards once already produced a reader-shaped hole; the
+ * histogram registration below records that case and the check that settles it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 public class IndexStoragePartConfigurer implements Consumer<Kryo> {
+	/** Resolves the compressed keys the index parts persist instead of their full identities. */
 	private final KeyCompressor keyCompressor;
+	/**
+	 * First Kryo registration id of the index storage-part family, sitting in the block between
+	 * {@code EntityStoragePartConfigurer}'s 500 and {@code CatalogHeaderKryoConfigurer}'s 700. It is a persisted
+	 * contract like the order that follows it and must never move — and the family may not grow past 99 registrations
+	 * without first moving the neighbour it would collide with.
+	 */
 	private static final int INDEX_BASE = 600;
 
 	@Override
@@ -139,13 +169,29 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			PriceListAndCurrencySuperIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-7553613939380658772L, new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-7553613939380658772L,
+					new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				// the 2026.2 shape: the same bytes, but its validity thresholds are epoch SECONDS
+				.addBackwardCompatibleSerializer(
+					2938472615049182736L,
+					new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(
 			PriceListAndCurrencyRefIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-1687563151524978160L, new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(
+					-1687563151524978160L,
+					new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1(this.keyCompressor)
+				)
+				// the 2026.2 shape: the same bytes, but its validity thresholds are epoch SECONDS
+				.addBackwardCompatibleSerializer(
+					8461029375182640917L,
+					new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2(this.keyCompressor)
+				),
 			index++
 		);
 		kryo.register(
@@ -182,11 +228,19 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(GroupCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GroupCardinalityIndexStoragePartSerializer(this.keyCompressor), GroupCardinalityIndexStoragePart.class), index++);
 		kryo.register(
 			HistogramIndexStoragePart.class,
-			// the reference bucketed-histogram feature is unreleased (absent from every release branch), so no released
-			// catalog carries a histogram part — there is nothing to be backward-compatible with. The UID bump on
-			// HistogramIndexStoragePart makes any stale unreleased-dev catalog fail loud (and be regenerated) rather than
-			// mis-read the added frozen-scale field.
-			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class),
+			// CAUTION: the histogram FEATURE is unreleased as a user-facing capability, but its storage part is NOT
+			// absent from released catalogs — uid 5083172946028471653L was introduced by `fa01ba65f` and
+			// `git tag --contains` lists v2026.2.0 .. v2026.2.6. The two claims were conflated once, and reading that
+			// shape with the current serializer after DateTimeRange moved to millisecond comparison granularity makes
+			// every range threshold a thousand times too small — silently. Hence the reader below.
+			// The uid before it (7294816253748291063L) really is unreleased (`016d93255` and `fa01ba65f` both landed
+			// inside the 2026.2 development window), which is why nothing reads that one and a stale catalog carrying
+			// it still fails loud.
+			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(
+					5083172946028471653L,
+					new HistogramIndexStoragePartSerializer_2026_2()
+				),
 			index++
 		);
 
@@ -200,7 +254,11 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the granular FilterIndex range leaf-page record — a brand-new record type with no backward-compatible reader.
+		// the granular FilterIndex range leaf-page record. Its FORMAT has never changed, so it needs no
+		// backward-compatible reader — but the record itself IS present in released catalogs (uid introduced by
+		// `e5f57f7a0`, in v2026.2.0 .. v2026.2.6), so do not read this as "never shipped". A legacy range-PAGED
+		// filter axis is repaired at load time in AttributeIndexLoader, which reads these very pages; the scale
+		// marker is the ROOT part's uid, never a leaf page's.
 		kryo.register(
 			RangeIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new RangeIndexLeafPagePartSerializer(), RangeIndexLeafPagePart.class),
@@ -278,8 +336,11 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the granular histogram range-tree leaf-page record — a brand-new record type with no backward-compatible
-		// reader. Appended last to keep the preceding registration ids stable.
+		// the granular histogram range-tree leaf-page record. Its FORMAT has never changed, so it needs no
+		// backward-compatible reader — but the record itself IS present in released catalogs (uid introduced by
+		// `fa01ba65f`, in v2026.2.0 .. v2026.2.6). A legacy range-PAGED histogram axis is repaired at load time in
+		// HistogramIndexMapLoader, which reads these very pages; the scale marker is the ROOT part's uid.
+		// Appended last to keep the preceding registration ids stable.
 		kryo.register(
 			HistogramRangeIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new HistogramRangeIndexLeafPagePartSerializer(), HistogramRangeIndexLeafPagePart.class),
