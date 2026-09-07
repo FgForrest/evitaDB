@@ -65,6 +65,9 @@ import java.util.LinkedHashMap;
  * order and page come from `EvitaRequest#getReferenceEntityFetch()` and `ServerChunkTransformerAccessor`, both
  * reading the query he actually sent. The prefetch path and the index path therefore return the identical body.
  *
+ * The rule this collector implements is rule 3 of `documentation/developer/query/constraint-resolution.md`;
+ * check it before tightening any `combineWith`, which silently tightens this union with it.
+ *
  * **Merging logic:** Requirements are indexed internally by their runtime class. When a new requirement arrives:
  * 1. If no requirement of that class exists yet, it is stored directly.
  * 2. If the new requirement is *fully contained within* an existing requirement of the same class, it is silently

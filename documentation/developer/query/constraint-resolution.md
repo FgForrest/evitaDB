@@ -11,7 +11,9 @@ constraints happen to be written in, and produces a response that quietly answer
 the one asked. Issue #1493 was filed for one such place; an audit of the rest of the query language found
 eleven more, and these three rules replaced all of them.
 
-Read this before adding, removing or relaxing any refusal that concerns two requirements about one thing.
+This document is for the person adding, removing or relaxing a refusal that concerns two requirements about
+one thing — and for anyone tightening a `combineWith`, which silently tightens the prefetch union with it and
+has broken valid queries twice.
 
 ## The three rules
 

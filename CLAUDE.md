@@ -159,16 +159,3 @@ Czech mirror is machine-translated, never hand-edited — see `.claude/rules/doc
 
 - **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
 - Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must surface immediately at runtime.
-
-## Constraint Resolution
-
-**A query that says the same thing twice is never resolved by picking one of them.** A silent pick is
-invisible at the call site, depends on the order the constraints happen to be written in, and answers a
-different question than the one asked. Three rules replace it: a *named* form completely replaces the
-generic one for its target; a contradiction at one named target is refused at planning time with both
-constraints named; and the engine's own prefetch requirements are exempt from that refusal and widen freely,
-because they say what to **load**, never what to **return**.
-
-Read `.claude/rules/constraint-resolution.md` **before** adding, removing or relaxing any refusal about two
-requirements aimed at one thing — and always before tightening a `combineWith`, which silently tightens the
-prefetch union with it and has broken valid queries twice.

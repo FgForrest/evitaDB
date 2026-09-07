@@ -136,6 +136,10 @@ public interface EntityContentRequire extends RequireConstraint {
 	 * differently, or two `accompanyingPriceContent` requirements calculating one price from different price list
 	 * sequences.
 	 *
+	 * **Before tightening what this refuses, read `documentation/developer/query/constraint-resolution.md`.**
+	 * The very same method backs the widening prefetch union in {@link DefaultPrefetchRequirementCollector}, so a
+	 * stricter merge here has twice broken queries that contained no contradiction at all.
+	 *
 	 * @param anotherRequirement another requirement to be combined with
 	 * @param <T> type of the requirement to be combined with
 	 * @return a new combined requirement
@@ -158,6 +162,9 @@ public interface EntityContentRequire extends RequireConstraint {
 	 *
 	 * Applied by {@link DefaultPrefetchRequirementCollector} to every requirement entering the prefetch union, and by
 	 * nobody else — the fold that shapes the body the client receives must see the requirement as he wrote it.
+	 *
+	 * Why the union is exempt from the client-facing refusal at all: rule 3 of
+	 * `documentation/developer/query/constraint-resolution.md`.
 	 *
 	 * @return this requirement without its output restrictions, or this very instance when it carries none
 	 */

@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-06 18:55
+updated: 2026-09-07 08:32
 status: accepted
 kind: fix
 issues: [1493]
@@ -14,7 +14,7 @@ areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/
   evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram,
   evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/requestResponse,
   evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/api/catalog,
-  .claude/rules/constraint-resolution.md]
+  documentation/developer/query/constraint-resolution.md]
 supersedes: []
 superseded-by: []
 relates: []
@@ -42,7 +42,7 @@ its target, it never inherits from it.** That is why a reference-specific `refer
 own requirements.
 
 The three rules were then enforced across the rest of the codebase — see *The generalisation* below. They are stated
-for day-to-day use, with every site that implements them, in `.claude/rules/constraint-resolution.md`; this record is
+for day-to-day use, with every site that implements them, in `documentation/developer/query/constraint-resolution.md`; this record is
 the reasoning behind them and the alternatives that lost.
 
 ## Why
@@ -596,4 +596,4 @@ output name, they now exercise the engine refusal; with the fold reinstated they
   by the override.
 - **2026-09-06** — the maintainer ruled the work should be generalised to the whole codebase; an audit of every
   other place a query can state the same thing twice was fixed finding by finding, each reproduced first, and the
-  three rules were written down as `.claude/rules/constraint-resolution.md`.
+  three rules were written down as `documentation/developer/query/constraint-resolution.md`.

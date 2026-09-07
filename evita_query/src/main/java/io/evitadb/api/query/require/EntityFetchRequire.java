@@ -124,6 +124,9 @@ public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>,
 	 * has no opinion about. That widened set is never what the client receives; the response is re-derived from his
 	 * own `EvitaRequest`.
 	 *
+	 * The three rules this fold implements, and every other site that implements them, are in
+	 * `documentation/developer/query/constraint-resolution.md`.
+	 *
 	 * @param requirements requirements to reduce, never null
 	 * @return the very same array instance when there was nothing to combine, a new shorter array otherwise
 	 * @throws EvitaInvalidUsageException when two siblings of the same kind contradict each other
