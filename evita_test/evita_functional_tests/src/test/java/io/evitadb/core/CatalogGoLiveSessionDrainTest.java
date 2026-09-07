@@ -476,7 +476,7 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 		final List<ILoggingEvent> errors = Collections.synchronizedList(new ArrayList<>());
 		final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
 			@Override
-			protected void append(@Nonnull ILoggingEvent eventObject) {
+			protected void append(ILoggingEvent eventObject) {
 				if (eventObject.getLevel() != Level.ERROR) {
 					return;
 				}

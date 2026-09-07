@@ -374,45 +374,12 @@ public final class SessionRegistry {
 			this.lastSuspensionInfo.set(suspensionInformation);
 			final long start = System.nanoTime();
 			do {
-				// A fresh CONCURRENT collection per iteration, and neither half of that is incidental.
-				// `executeWhenMethodIsNotRunning` may defer its lambda and run it later on the SESSION's own thread,
-				// so the `add` below can land while this thread is draining or discarding the collection. A plain
-				// `ArrayList` under that interleaving loses a future outright, or exposes a non-zero size holding
-				// `null` and makes `allOf` throw. Reuse is what made the second outcome reachable, so the collection
-				// is built fresh here rather than cleared at the top of each pass; a future added to a previous
-				// pass's queue after this thread has moved on is simply not waited for, exactly as clearing the
-				// reused list used to leave it - and the loop keeps going regardless, because it exits on
-				// `activeSessions` emptying rather than on the futures it managed to collect.
-				final Queue<CompletableFuture<CommitVersions>> futures = new ConcurrentLinkedQueue<>();
-				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
-					//noinspection resource
-					final EvitaSession plainSession = sessionTuple.plainSession();
-					//noinspection resource
-					final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
-					if (proxySession.isActive()) {
-						proxySession
-							// close the session once the running method is finished
-							// or immediately if there is no method running
-							.executeWhenMethodIsNotRunning(
-								() -> {
-									if (plainSession.isActive()) {
-										if (plainSession.isTransactionOpen()) {
-											plainSession.setRollbackOnly();
-										}
-										final UUID sessionId = plainSession.getId();
-										log.info("There is still an active session {} - terminating.", sessionId);
-										suspensionInformation.addForcefullyClosedSession(sessionId);
-										futures.add(
-											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
-												.toCompletableFuture()
-												// ignore exceptions, we don't care about them here
-												.exceptionally(ex -> null)
-										);
-									}
-								}
-							);
-					}
-				}
+				// One pass of the drain: hand a forced close to everyone still standing. The queue comes back still
+				// open to writes from the sessions' own threads, and a fresh one per pass is load-bearing - see
+				// `startForcedCloseOfActiveSessions`.
+				final Queue<CompletableFuture<CommitVersions>> futures = startForcedCloseOfActiveSessions(
+					suspensionInformation
+				);
 				// Waited for what is LEFT of the drain's budget, never indefinitely. An unbounded `join` here bounded
 				// nothing but the deferred case: a close that had already started and whose flush hung was waited on
 				// forever, and `MakeCatalogAliveMutationOperator` holds `engineStateLock` across this call, so every
@@ -491,6 +458,67 @@ public final class SessionRegistry {
 			return of(suspensionInformation);
 		}
 		return ofNullable(this.lastSuspensionInfo.get());
+	}
+
+	/**
+	 * Hands a forced close to every session still standing in {@link #activeSessions}, and returns the futures
+	 * those closes complete on. This is the closing half of one pass of
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)}'s drain loop: the caller waits the returned
+	 * futures out against what is left of the drain's budget, and calls this again while sessions remain.
+	 *
+	 * A session whose method is still running is not closed here. The close is handed to
+	 * {@link EvitaInternalSessionContract#executeWhenMethodIsNotRunning(Runnable)}, which may defer it and run
+	 * it later on the **session's own thread** - so the returned queue is still being written after this method
+	 * has returned, by threads this one does not control.
+	 *
+	 * **That is why the queue is concurrent, and why it is a fresh one per call.** A plain `ArrayList` under
+	 * that interleaving loses a future outright, or exposes a non-zero size holding `null` and makes `allOf`
+	 * throw; reuse across passes is what made the second outcome reachable, so each pass gets its own queue
+	 * rather than clearing one at the top. A future added to a previous pass's queue after the caller has moved
+	 * on is simply not waited for - exactly as clearing a reused list used to leave it - and the drain loop is
+	 * unharmed either way, because it exits on {@link #activeSessions} emptying rather than on the futures it
+	 * managed to collect.
+	 *
+	 * Every returned future absorbs its own failure, so an `allOf` over them cannot complete exceptionally.
+	 *
+	 * @param suspensionInformation the census each forcefully closed session is recorded into
+	 * @return the futures of the closes this pass started, still open to writes from the sessions' own threads
+	 */
+	@Nonnull
+	private Queue<CompletableFuture<CommitVersions>> startForcedCloseOfActiveSessions(
+		@Nonnull SuspensionInformation suspensionInformation
+	) {
+		final Queue<CompletableFuture<CommitVersions>> futures = new ConcurrentLinkedQueue<>();
+		for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+			//noinspection resource
+			final EvitaSession plainSession = sessionTuple.plainSession();
+			//noinspection resource
+			final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
+			if (proxySession.isActive()) {
+				proxySession
+					// close the session once the running method is finished
+					// or immediately if there is no method running
+					.executeWhenMethodIsNotRunning(
+						() -> {
+							if (plainSession.isActive()) {
+								if (plainSession.isTransactionOpen()) {
+									plainSession.setRollbackOnly();
+								}
+								final UUID sessionId = plainSession.getId();
+								log.info("There is still an active session {} - terminating.", sessionId);
+								suspensionInformation.addForcefullyClosedSession(sessionId);
+								futures.add(
+									plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
+										.toCompletableFuture()
+										// ignore exceptions, we don't care about them here
+										.exceptionally(ex -> null)
+								);
+							}
+						}
+					);
+			}
+		}
+		return futures;
 	}
 
 	/**
