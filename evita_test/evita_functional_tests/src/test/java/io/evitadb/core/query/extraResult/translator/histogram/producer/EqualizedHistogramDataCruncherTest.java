@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,6 +44,7 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -164,12 +166,18 @@ class EqualizedHistogramDataCruncherTest {
 		@Test
 		@DisplayName("Should stay linear in the data when a huge bucket count is requested")
 		void shouldStayLinearInTheDataWhenHugeBucketCountRequested() {
-			// The caller picks bucketCount, so walking the quantile function one rank at a time would let a
-			// single request cost O(bucketCount) regardless of how little data there is. The rank walk takes
-			// whole runs in one step instead, so this returns immediately rather than looping ten million times.
-			final CacheableBucket[] histogram = cruncher(
-				10_000_000, new int[][]{{10, 3}, {20, 999_000}, {30, 7}}
-			).getHistogram();
+			// The caller picks bucketCount and nothing bounds it, so walking the quantile function one rank at a
+			// time would let a single request cost O(bucketCount) regardless of how little data there is. The
+			// rank walk consumes whole runs in one step instead. The timeout is the assertion that matters:
+			// asserting only the output would pass just as happily against a walk that took a hundred million
+			// iterations to produce it.
+			final CacheableBucket[] histogram = assertTimeoutPreemptively(
+				Duration.ofSeconds(5),
+				() -> cruncher(
+					Integer.MAX_VALUE, new int[][]{{10, 3}, {20, 999_000}, {30, 7}}
+				).getHistogram(),
+				"The quantile walk scaled with the requested bucket count instead of with the data"
+			);
 
 			assertEquals(3, histogram.length, "Three distinct values cannot produce more than three buckets");
 			assertEquals(3, histogram[0].occurrences());
@@ -276,12 +284,82 @@ class EqualizedHistogramDataCruncherTest {
 		}
 
 		@Test
+		@DisplayName("Should split evenly weighted values into exactly equal buckets")
+		void shouldSplitEvenlyWeightedValuesIntoEqualBuckets() {
+			// Evenly weighted data is the one shape where every quantile rank falls exactly on a value
+			// boundary, which makes it the only shape that can tell "the value that CONTAINS the rank" apart
+			// from "the value that ENDS at it". Picking the latter puts every cut one distinct value early and
+			// piles the remainder onto the last bucket. Irregular retail data never exhibits it - both
+			// production corpora below bucket identically under either convention - so this case has to be
+			// constructed deliberately or the error is invisible.
+			final int[][] sixEqualValues = new int[6][];
+			for (int i = 0; i < sixEqualValues.length; i++) {
+				sixEqualValues[i] = new int[]{(i + 1) * 10, 7};
+			}
+			final CacheableBucket[] thirds = cruncher(3, sixEqualValues).getHistogram();
+
+			assertEquals(3, thirds.length, "Six equal masses split three ways must produce three buckets");
+			for (int i = 0; i < thirds.length; i++) {
+				assertEquals(
+					14, thirds[i].occurrences(),
+					"Bucket " + i + " of an evenly weighted catalogue must hold exactly a third of it"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should fill every bucket when the plateau count matches the bucket count")
+		void shouldFillEveryBucketWhenPlateauCountMatchesBucketCount() {
+			// Twenty equal plateaus asked to fill twenty buckets is the degenerate form of the case above:
+			// one plateau per bucket is both achievable and obviously correct, so anything less is a defect
+			// rather than the unavoidable consequence of an indivisible value.
+			final int[][] twentyPlateaus = new int[20][];
+			for (int i = 0; i < twentyPlateaus.length; i++) {
+				twentyPlateaus[i] = new int[]{(i + 1) * 100 - 1, 100};
+			}
+			final CacheableBucket[] histogram = cruncher(20, twentyPlateaus).getHistogram();
+
+			assertEquals(20, histogram.length, "Twenty equal plateaus must fill twenty buckets");
+			for (int i = 0; i < histogram.length; i++) {
+				assertEquals(
+					100, histogram[i].occurrences(),
+					"Bucket " + i + " must hold exactly one plateau, not two"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should aggregate duplicate consecutive thresholds in the source data")
+		void shouldAggregateDuplicateConsecutiveThresholds() {
+			// This is the shape the price histogram always has: one source item per entity carrying weight 1,
+			// so a price shared by several products arrives as repeated consecutive entries rather than as a
+			// pre-aggregated pair. Feeding only distinct pairs leaves the aggregation pass unexercised.
+			final int[][] perRecord = {
+				{100, 1}, {100, 1}, {100, 1},
+				{200, 1},
+				{300, 1}, {300, 1}, {300, 1}, {300, 1}, {300, 1}
+			};
+			final CacheableBucket[] histogram = cruncher(3, perRecord).getHistogram();
+
+			assertEquals(3, histogram.length, "Three distinct prices must open three buckets");
+			assertEquals(new BigDecimal(100), histogram[0].threshold());
+			assertEquals(3, histogram[0].occurrences(), "The three records priced 100 must be folded together");
+			assertEquals(new BigDecimal(200), histogram[1].threshold());
+			assertEquals(1, histogram[1].occurrences());
+			assertEquals(new BigDecimal(300), histogram[2].threshold());
+			assertEquals(5, histogram[2].occurrences(), "The five records priced 300 must be folded together");
+		}
+
+		@Test
 		@DisplayName("Should isolate a heavy value into a bucket of its own")
 		void shouldIsolateHeavyValueIntoItsOwnBucket() {
-			// forty evenly priced values holding ten products each, plus one price holding two hundred - a third of
-			// the catalogue on a single value, which is exactly what charm pricing produces. The old bucketing
-			// advanced one bucket per distinct value however many quantile targets that value had crossed, so the
-			// heavy value's mass leaked into the buckets after it and starved them.
+			// forty evenly priced values holding ten products each, plus one price holding two hundred - a third
+			// of the catalogue on a single value, which is exactly what charm pricing produces. This pins the
+			// isolation rule only: the heavy value opens a bucket and the next distinct price opens the one
+			// after it, so its mass cannot spill forwards. It is deliberately NOT the regression guard for
+			// target-crossing accounting - a bucketing that mis-charges absorbed ranks can still isolate this
+			// particular value, and shouldChargeEveryBucketForTheTargetsItAbsorbed is what actually detects
+			// that across the random corpus.
 			final int[][] catalogue = new int[40][];
 			for (int i = 0; i < catalogue.length; i++) {
 				catalogue[i] = new int[]{(i + 1) * 37, 10};
@@ -404,14 +482,21 @@ class EqualizedHistogramDataCruncherTest {
 				}
 			}
 
-			final double peakRatio = peakWidthRatio(
+			// The discriminating measure is WHERE the profile peaks. A density read off each bucket's own width
+			// relocates the peak entirely when a plateau is split - the mass at one position collapses and a new
+			// maximum appears several buckets away - whereas a density pooled over the whole axis barely moves
+			// it. Counting bars above some height threshold cannot see that: both profiles can have the same
+			// number of tall bars in completely different places.
+			final double peakShift = relativePeakShift(
+				concentrated,
 				cruncher(20, concentrated).getHistogram(),
 				cruncher(20, fragmented.toArray(new int[0][])).getHistogram()
 			);
 			assertTrue(
-				peakRatio < 1.5,
-				"Fragmenting heavy plateaus over adjacent values changed the profile by " + peakRatio +
-					"x - the bandwidth must not be a function of the value grid"
+				peakShift < 0.05,
+				"Fragmenting heavy plateaus over adjacent values moved the peak of the profile by " +
+					(peakShift * 100) + "% of the value range - the bandwidth must not be a function of the " +
+					"value grid"
 			);
 		}
 
@@ -780,9 +865,11 @@ class EqualizedHistogramDataCruncherTest {
 	 * @return largest relative drift, or zero when the two histograms cannot be compared bar by bar
 	 */
 	private static double maximumRelativeDrift(@Nonnull CacheableBucket[] before, @Nonnull CacheableBucket[] after) {
-		if (before.length != after.length) {
-			return 0.0;
-		}
+		assertEquals(
+			before.length, after.length,
+			"Histograms of different lengths cannot be compared bar by bar - returning \"no drift\" here would " +
+				"turn a structural change into a silent pass"
+		);
 		double worst = 0.0;
 		for (int i = 0; i < before.length; i++) {
 			final double a = before[i].relativeFrequency().doubleValue();
@@ -793,34 +880,32 @@ class EqualizedHistogramDataCruncherTest {
 	}
 
 	/**
-	 * Compares how wide the tallest part of the profile is in two histograms, as a ratio of the number of bars
-	 * rendering above half the full scale. A bandwidth that reacted to the value grid rather than to the
-	 * distribution would change this sharply.
+	 * Returns how far the tallest bar moved between two histograms of the same catalogue, as a fraction of the
+	 * catalogue's own value range. Peak *position* is what distinguishes a density pooled over the whole axis
+	 * from one derived per bucket: the former barely moves when a plateau is redistributed over neighbouring
+	 * values, the latter relocates the maximum entirely.
 	 *
-	 * @param first  first histogram
-	 * @param second second histogram
-	 * @return ratio of the wider half-height span to the narrower one, never below one
+	 * @param catalogue the source catalogue, used for the value range the shift is expressed in
+	 * @param first     histogram before the perturbation
+	 * @param second    histogram after the perturbation
+	 * @return absolute peak shift divided by the value range
 	 */
-	private static double peakWidthRatio(@Nonnull CacheableBucket[] first, @Nonnull CacheableBucket[] second) {
-		final double a = Math.max(1, countAboveHalfPeak(first));
-		final double b = Math.max(1, countAboveHalfPeak(second));
-		return Math.max(a, b) / Math.min(a, b);
+	private static double relativePeakShift(
+		@Nonnull int[][] catalogue, @Nonnull CacheableBucket[] first, @Nonnull CacheableBucket[] second
+	) {
+		final double range = (double) catalogue[catalogue.length - 1][0] - catalogue[0][0];
+		assertTrue(range > 0.0, "A catalogue with no value range cannot express a peak shift");
+		return Math.abs(peakThreshold(first) - peakThreshold(second)) / range;
 	}
 
 	/**
-	 * Counts the buckets rendering at more than half of the full scale.
+	 * Returns the threshold of the bucket rendering tallest.
 	 *
 	 * @param histogram histogram to inspect
-	 * @return number of buckets above half height
+	 * @return threshold of the tallest bucket
 	 */
-	private static int countAboveHalfPeak(@Nonnull CacheableBucket[] histogram) {
-		int count = 0;
-		for (CacheableBucket bucket : histogram) {
-			if (bucket.relativeFrequency().compareTo(new BigDecimal("50")) > 0) {
-				count++;
-			}
-		}
-		return count;
+	private static double peakThreshold(@Nonnull CacheableBucket[] histogram) {
+		return histogram[indexOfMaximumRelativeFrequency(histogram)].threshold().doubleValue();
 	}
 
 	/**

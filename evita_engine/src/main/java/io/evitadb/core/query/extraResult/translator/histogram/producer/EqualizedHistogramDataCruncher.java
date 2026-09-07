@@ -53,8 +53,8 @@ import java.util.function.ToIntFunction;
  *
  * 1. accumulate the source items into distinct values with their weights,
  * 2. for each `k` in `[0, bucketCount)` walk to the first distinct value whose cumulative weight reaches
- *    the rank `k / bucketCount`, compared in exact integer arithmetic (`C[j+1] * B >= k * N`) so the
- *    boundary never depends on floating-point rounding,
+ *    the rank `k / bucketCount` - the value that *contains* that rank, compared in exact integer arithmetic
+ *    (`C[j+1] * B > k * N`) so the boundary never depends on floating-point rounding,
  * 3. when several consecutive targets land on the *same* distinct value — which is what a price held by
  *    many products does — emit that value once and, if it absorbed two or more targets, additionally emit
  *    the *next* distinct value. That closes the heavy value's mass into a bucket of its own instead of
@@ -63,7 +63,9 @@ import java.util.function.ToIntFunction;
  * The result therefore contains **no empty buckets and no repeated thresholds**: every threshold is a real,
  * selectable value, so every slider position yields a different result set. It may legitimately contain
  * **fewer** than `bucketCount` buckets — when a value is held by many records, there is simply no distinct
- * value to split the interval at. Callers must not assume otherwise.
+ * value to split the interval at. Callers must not assume otherwise. The final bucket's threshold may also
+ * equal {@link #getMaxValue()}, making it zero-width — that is what isolating a numerous largest value looks
+ * like, and renderers are expected to floor the bar width rather than treat it as degenerate.
  *
  * The bucket count stays within budget: with `m_i` targets absorbed by start `i`,
  * `Σ m_i = bucketCount`, the isolation rule adds at most one threshold per start with `m_i >= 2`, and
@@ -75,9 +77,9 @@ import java.util.function.ToIntFunction;
  * `relativeFrequency` is a **rendering intensity in `(0, 100]`** — not a count, not a share. Because the
  * axis is equalized, occurrences per bucket are ~constant by construction and carry no information; the
  * quantity a reader actually perceives on an equal-pixel equalized axis is the density-quantile function
- * `f(F⁻¹(u))`. Estimating it from the single gap between two adjacent values (which is what this class did
- * before) makes it swing by orders of magnitude when one record is repriced, so it is instead read off one
- * global kernel density estimate over the whole value axis:
+ * `f(F⁻¹(u))`. Deriving it from a single bucket's own width rests on the gap between two adjacent values -
+ * a sample of one - and swings by orders of magnitude when a single record is repriced, so it is instead
+ * read off one global kernel density estimate over the whole value axis:
  *
  * - **kernel**: triangular, `K(u) = max(0, 1 − |u|)`. Compact support keeps the evaluation `O(D + B)`.
  * - **bandwidth**: `h = √6 · 0.9 · min(σ_w, IQR_c / 1.34) · D^(−1/5)` — Silverman's rule, with the `√6`
@@ -156,6 +158,12 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * capped weights sum to something positive.
 	 */
 	private static final double MINIMAL_CAPPED_WEIGHT = 1e-12;
+	/**
+	 * Number of quantile ranks a single distinct value must absorb before its mass is closed into a bucket of its
+	 * own. A value that absorbed just one rank is an ordinary bucket start; one that absorbed two or more was
+	 * charged for intervals no other value could open, so the histogram re-opens at the next distinct value.
+	 */
+	private static final int MINIMUM_ABSORBED_RANKS_TO_ISOLATE = 2;
 
 	/**
 	 * Contains requested maximal bucket count.
@@ -412,34 +420,49 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 
 		int rank = 0;
 		while (rank < this.bucketCount) {
-			// bounded by distinctCount - 1: the last value's cumulative weight equals totalWeight, and
-			// totalWeight * bucketCount < k * totalWeight is false for every k < bucketCount
+			// Strict `>` is what makes this the value that *contains* the rank rather than the one that
+			// *ends* at it. The two agree whenever the cumulative weight steps past `rank * N / B` mid-value,
+			// which is the usual case on irregular data - but on evenly weighted values every rank falls
+			// exactly on a boundary, and taking the value that ends there puts every cut one value early:
+			// six values of weight seven into three buckets yields 7/14/21 rather than 14/14/14, and twenty
+			// equal plateaus into twenty buckets yields nineteen.
+			// Bounded by distinctCount - 1: the last value's cumulative weight equals totalWeight, and
+			// totalWeight * bucketCount <= rank * totalWeight is false for every rank < bucketCount.
 			while (walkIndex < distinctCount - 1
-				&& cumulativeWeights[walkIndex + 1] * this.bucketCount < (long) rank * totalWeight) {
+				&& cumulativeWeights[walkIndex + 1] * this.bucketCount <= (long) rank * totalWeight) {
 				walkIndex++;
 			}
 
-			// The walk lands on this value for every rank up to `C[walkIndex + 1] * B / N`, so the whole run
+			// The walk lands on this value for every rank below `C[walkIndex + 1] * B / N`, so the whole run
 			// is taken in one step instead of one iteration per rank. Without this the loop would cost
 			// O(bucketCount) even when a handful of distinct values absorb everything - and the caller chooses
-			// bucketCount. The step is always at least one, because the rank just resolved lands here by
-			// construction, so the walk index strictly increases on every following iteration and the loop
-			// visits at most `distinctCount` values.
+			// bucketCount. `(x - 1) / N` is the largest integer rank with `rank * N < x`, the exact inverse of
+			// the strict comparison above; the step is therefore always at least one, so the walk index
+			// strictly increases on every following iteration and the loop visits at most `distinctCount`
+			// values.
 			final long lastRankOnThisValue = walkIndex < distinctCount - 1
-				? cumulativeWeights[walkIndex + 1] * this.bucketCount / totalWeight
+				? (cumulativeWeights[walkIndex + 1] * this.bucketCount - 1) / totalWeight
 				: this.bucketCount - 1L;
 			final int nextRank = (int) Math.min(this.bucketCount, lastRankOnThisValue + 1);
 
-			if (pendingAbsorbed > 0 && walkIndex != pendingStart) {
+			if (pendingAbsorbed > 0) {
+				final int closedStart = pendingStart;
+				// the run batching consumes every rank that resolves to `pendingStart` in one step, so the
+				// walk must have moved on by now - a repeated start would mean a rank run was split across
+				// two iterations and the absorbed count silently under-reported
+				Assert.isPremiseValid(
+					walkIndex > closedStart,
+					() -> "Quantile walk of " + this.histogramType + " failed to advance past distinct value " +
+						closedStart + " between two rank runs!"
+				);
 				startCount = emitStart(
 					bucketStarts, startCount, pendingStart, pendingAbsorbed, walkIndex, distinctCount
 				);
-				pendingAbsorbed = 0;
 			}
 			pendingStart = walkIndex;
 			// saturate: only "absorbed at least two ranks" is ever asked, and a huge bucketCount over few
 			// distinct values would otherwise overflow the counter
-			pendingAbsorbed = Math.min(pendingAbsorbed + (nextRank - rank), 2);
+			pendingAbsorbed = Math.min(nextRank - rank, MINIMUM_ABSORBED_RANKS_TO_ISOLATE);
 			rank = nextRank;
 		}
 
@@ -475,7 +498,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		bucketStarts[count++] = start;
 		// a value that swallowed two or more ranks was charged for them - give the mass its own bucket by
 		// re-opening at the next distinct value, unless that value already opens the following bucket
-		if (absorbed >= 2 && start + 1 < distinctCount && start + 1 != nextStart) {
+		if (absorbed >= MINIMUM_ABSORBED_RANKS_TO_ISOLATE && start + 1 < distinctCount && start + 1 != nextStart) {
 			bucketStarts[count++] = start + 1;
 		}
 		return count;
@@ -626,7 +649,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * five-product category whose most expensive item costs 24 691x the cheapest, interpolation placed the
 	 * upper quartile inside the gap and returned a bandwidth of 368 374, flattening the whole profile.
 	 *
-	 * Requires `QUANTILE_BAND_RADIUS <= p <= 1 − QUANTILE_BAND_RADIUS`, which both quartiles satisfy, so
+	 * Requires `QUANTILE_BAND_RADIUS &lt;= p &lt;= 1 − QUANTILE_BAND_RADIUS`, which both quartiles satisfy, so
 	 * the band never has to be clipped to `[0, 1]`.
 	 *
 	 * @param distinctThresholds distinct values in ascending order
