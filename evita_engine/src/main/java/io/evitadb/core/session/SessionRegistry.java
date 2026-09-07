@@ -28,6 +28,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -49,19 +50,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -77,7 +81,8 @@ import static java.util.Optional.ofNullable;
  * ## Responsibilities
  *
  * - **Session Lifecycle**: Creates, registers, and removes sessions
- * - **Suspension Handling**: Supports catalog rename/replace by suspending session creation
+ * - **Suspension Handling**: Quiesces the catalog for every lifecycle operation that needs it - rename, replace,
+ *   go-live, deactivation, drop - by suspending session creation and draining the sessions already open
  * - **Version Tracking**: Tracks which catalog versions are consumed by active sessions
  * - **Thread Safety**: All operations are thread-safe using concurrent data structures
  *
@@ -99,6 +104,59 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public final class SessionRegistry {
+	/**
+	 * How long {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} waits for the sessions it asked to close
+	 * before it gives up and fails its own premise. It bounds the drain **end to end**, and both of the cases it
+	 * has to cover: a session whose method has not returned yet, whose forced close `EvitaSessionProxy` postpones
+	 * and which the loop can only wait out; and a close that has already started, whose completion is awaited for
+	 * whatever is left of this budget rather than indefinitely. Expiry is not a partial success - the drain's
+	 * premise then reports the sessions still standing and throws.
+	 *
+	 * **CALIBRATION - TWO long-running tests are priced by this number, one per arm.**
+	 *
+	 * - `LongRunningCatalogGoLiveDrainTimeoutTest` (evita_test/evita_long_running_tests, io.evitadb.core) covers the
+	 *   DEFERRED arm: it parks a warm-up write inside the schema check and holds it there until the go-live has
+	 *   failed, which is the only side-effect-free way to reach `MakeCatalogAliveMutationOperator`'s undo. Its
+	 *   positive waits are 30 s.
+	 * - `LongRunningSessionRegistryDrainTimeoutTest` (same module, io.evitadb.core.session) covers the arm the
+	 *   bounded wait below was actually written for - a close that has already STARTED and never completes - which
+	 *   the test above never enters, because its `futures` collection stays empty and `allOf` of nothing is
+	 *   complete before it is awaited. It drives a mocked session whose close future is never completed, and both
+	 *   of its timing bounds are fractions of this constant, mirrored in its own `DRAIN_GIVE_UP_BUDGET_MILLIS`.
+	 *
+	 * **Raising this bound past those 30 s blunts the first test silently**: the parked write would be released
+	 * while the drain is still running, the drain would then succeed, and the whole failure path would go untested
+	 * while the test stayed green. It also re-prices the second, whose upper bound is that same 30 s. Raising it
+	 * therefore means re-pricing every positive wait in both. Lowering it, or making a forced close cheaper, cannot
+	 * blunt anything - the tests only get faster.
+	 */
+	private static final long DRAIN_GIVE_UP_TIMEOUT_MILLIS = 5000L;
+	/**
+	 * {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} in nanoseconds. The drain measures its budget on
+	 * {@link System#nanoTime()} rather than on the wall clock, because the budget is a duration and
+	 * {@link System#currentTimeMillis()} can step - a backwards step would extend the drain, a forwards one would
+	 * cut it short.
+	 */
+	private static final long DRAIN_GIVE_UP_TIMEOUT_NANOS =
+		TimeUnit.MILLISECONDS.toNanos(DRAIN_GIVE_UP_TIMEOUT_MILLIS);
+	/**
+	 * How long the drain parks between two passes over the still-active sessions.
+	 *
+	 * **It exists because one arm of the drain has nothing to wait on.** When every close is postponed - the
+	 * session's method has not returned, so `EvitaSessionProxy` runs the close lambda later and on the session's own
+	 * thread - the pass collects no future at all, and awaiting an empty {@link CompletableFuture#allOf} returns
+	 * immediately. Without this park the loop would then re-scan for whatever is left of
+	 * {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} at full processor occupancy, on a thread that
+	 * `MakeCatalogAliveMutationOperator` holds `EngineTransactionManager#engineStateLock` on: a hung incumbent would
+	 * cost a pegged core and push every concurrent engine mutation towards its own lock timeout.
+	 *
+	 * Ten milliseconds, because it decides only the pass RATE, never the end-to-end bound: the park is clamped to
+	 * what is left of the budget, so the drain still gives up at the same moment, and a session that leaves in the
+	 * meantime is noticed at most this late. Priced by `LongRunningSessionRegistryDrainTimeoutTest` (0.86 % of the
+	 * budget spent on a processor, against 99.3 % without it, threshold 10 %) - raising it materially blunts that
+	 * measurement rather than breaking it.
+	 */
+	private static final long DRAIN_PASS_PARK_NANOS = TimeUnit.MILLISECONDS.toNanos(10L);
 	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
@@ -261,8 +319,39 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * Method closes and removes all active sessions from the registry.
-	 * All changes are rolled back.
+	 * Publishes a suspension on this registry and then forcibly closes and removes every session still active on
+	 * it, so that the caller ends up with a catalog nobody holds a session on. The suspension is published
+	 * **first** and the drain runs behind it, so a session request arriving in between is postponed or refused by
+	 * `suspendOperation` instead of joining the set this call has to wait out.
+	 *
+	 * **Only an open transaction is rolled back, and nothing else is discarded.** A session with a transaction
+	 * open is marked rollback-only; the close itself is
+	 * {@link EvitaSessionContract#closeNow(CommitBehavior)} with {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE},
+	 * so a **warm-up** session's writes are flushed and kept - a warm-up close performs its own flush. That is the
+	 * property the engine-level go-live turns on (issue #1495): draining an incumbent warm-up session hands its
+	 * writes to the flush rather than stranding them on an instance the ALIVE bootstrap record is about to
+	 * supersede - see `MakeCatalogAliveMutationOperator`.
+	 *
+	 * The drain is bounded end to end by {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS}, covering both a session whose
+	 * method has not returned yet and a forced close that has already started; expiry is a failure rather than a
+	 * partial success.
+	 *
+	 * @param suspendOperation how session requests arriving while the suspension stands are treated -
+	 *                         {@link SuspendOperation#POSTPONE} makes them wait it out,
+	 *                         {@link SuspendOperation#REJECT} answers {@link InstanceTerminatedException}
+	 * @return the census of the sessions this call closed by force; or, when a suspension was **already standing**
+	 *         - in which case this call drains nothing and returns at once - the census of the call that published
+	 *         that one, which is empty when there is none to hand back ({@link #clearTemporaryInformation()}
+	 *         discards it once it is five minutes old, and the publishing call may not have recorded it yet). Both
+	 *         go-live routes depend on that second branch for idempotence:
+	 *         `EvitaSession#goLiveAndCloseWithProgress` suspends this registry before applying the mutation, and
+	 *         `MakeCatalogAliveMutationOperator` calls this again inside it.
+	 * @throws GenericEvitaInternalError when the sessions have not left within
+	 *                                   {@link #DRAIN_GIVE_UP_TIMEOUT_MILLIS} - thrown **with the suspension
+	 *                                   already published**, so lifting it belongs to the caller and a caller with
+	 *                                   no undo leaves the registry refusing sessions for the life of the process
+	 *                                   (issue #1497). The close futures are deliberately not cancelled, so this
+	 *                                   method can also return - by throwing - with a forced close still in flight.
 	 */
 	@Nonnull
 	public Optional<SuspensionInformation> closeAllActiveSessionsAndSuspend(
@@ -283,46 +372,71 @@ public final class SessionRegistry {
 				this.activeSessions.size()
 			);
 			this.lastSuspensionInfo.set(suspensionInformation);
-			final long start = System.currentTimeMillis();
-			// reuse list across iterations to reduce allocations
-			final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
+			final long start = System.nanoTime();
 			do {
-				futures.clear();
-				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
-					//noinspection resource
-					final EvitaSession plainSession = sessionTuple.plainSession();
-					//noinspection resource
-					final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
-					if (proxySession.isActive()) {
-						proxySession
-							// close the session once the running method is finished
-							// or immediately if there is no method running
-							.executeWhenMethodIsNotRunning(
-								() -> {
-									if (plainSession.isActive()) {
-										if (plainSession.isTransactionOpen()) {
-											plainSession.setRollbackOnly();
-										}
-										final UUID sessionId = plainSession.getId();
-										log.info("There is still an active session {} - terminating.", sessionId);
-										suspensionInformation.addForcefullyClosedSession(sessionId);
-										futures.add(
-											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
-												.toCompletableFuture()
-												// ignore exceptions, we don't care about them here
-												.exceptionally(ex -> null)
-										);
-									}
-								}
-							);
-					}
+				// One pass of the drain: hand a forced close to everyone still standing. The queue comes back still
+				// open to writes from the sessions' own threads, and a fresh one per pass is load-bearing - see
+				// `startForcedCloseOfActiveSessions`.
+				final Queue<CompletableFuture<CommitVersions>> futures = startForcedCloseOfActiveSessions(
+					suspensionInformation
+				);
+				// Waited for what is LEFT of the drain's budget, never indefinitely. An unbounded `join` here bounded
+				// nothing but the deferred case: a close that had already started and whose flush hung was waited on
+				// forever, and `MakeCatalogAliveMutationOperator` holds `engineStateLock` across this call, so every
+				// other engine mutation would then time out behind it.
+				//
+				// On expiry the wait simply stops - the close futures are deliberately NOT cancelled. Cancelling a
+				// close whose flush is in progress is worse than letting it finish unattended, and the point of the
+				// bound is to stop holding the engine state lock rather than to interrupt the flush. The loop
+				// condition below is then false by construction, so expiry falls through to the premise, which
+				// reports the sessions still standing and throws - the same failure this method already produced
+				// when the deferred case ran out of time.
+				//
+				// **The consequence, which the unbounded `join` could never produce:** this method can now return -
+				// by throwing - with a close still in flight. The caller's undo then runs against a catalog whose
+				// close is still completing, restoring it on the go-live path or terminating it on the rename one.
+				// Nothing breaks, and not by luck: the close future absorbs its own failure through the
+				// `exceptionally` below, and a flush that fails after the catalog was restored raises the refusal
+				// barrier through `Catalog#markUnpublishable`, whose compare-and-set keeps the first cause. The
+				// overlap is real, it is new, and it is bounded by the close finishing on its own thread.
+				final long remainingNanos = Math.max(0L, DRAIN_GIVE_UP_TIMEOUT_NANOS - (System.nanoTime() - start));
+				try {
+					CompletableFuture
+						.allOf(futures.toArray(new CompletableFuture[0]))
+						.get(remainingNanos, TimeUnit.NANOSECONDS);
+				} catch (TimeoutException ignored) {
+					// budget spent; the loop condition ends the drain and the premise below reports why
+				} catch (InterruptedException ex) {
+					// never swallowed: the flag is restored so whoever owns this thread still learns of it, and the
+					// drain stops waiting rather than spinning out the rest of a budget it was told to abandon
+					Thread.currentThread().interrupt();
+					break;
+				} catch (ExecutionException ex) {
+					// Each close future already absorbs its own failure (`exceptionally` above), so `allOf` cannot
+					// complete exceptionally and this branch is unreachable. Kept because the checked exception has
+					// to go somewhere, and rethrown as a `CompletionException` carrying the same cause - which is
+					// what `join` produced for every stored exception this could realistically carry. It is not
+					// byte-for-byte what `join` did: `join` rethrew the stored wrapper instance, while `get`
+					// unwraps it and this rebuilds one, so the original wrapper's own stack is not preserved. The
+					// null guard covers the one shape that would otherwise double-wrap.
+					throw new CompletionException(ex.getCause() == null ? ex : ex.getCause());
 				}
-				// wait for all futures to complete
-				CompletableFuture
-					.allOf(futures.toArray(new CompletableFuture[0]))
-					.join();
-				// wait for active sessions to be empty, but at most 5 seconds
-			} while (!this.activeSessions.isEmpty() && System.currentTimeMillis() - start < 5000);
+				// Between passes the drain WAITS rather than spins - see `DRAIN_PASS_PARK_NANOS`. Only when
+				// somebody is still standing: a drain that has emptied the map is about to leave the loop, and
+				// must not pay a park to do it. Clamped to what is left of the budget, so the end-to-end bound
+				// below is the same one it was without the park.
+				if (!this.activeSessions.isEmpty()) {
+					LockSupport.parkNanos(
+						Math.min(
+							Math.max(0L, DRAIN_GIVE_UP_TIMEOUT_NANOS - (System.nanoTime() - start)),
+							DRAIN_PASS_PARK_NANOS
+						)
+					);
+				}
+				// `DRAIN_GIVE_UP_TIMEOUT_MILLIS` is the human-readable spelling of the bound below - read its javadoc
+				// before changing it, it prices two long-running tests
+			} while (!this.activeSessions.isEmpty()
+				&& System.nanoTime() - start < DRAIN_GIVE_UP_TIMEOUT_NANOS);
 
 			Assert.isPremiseValid(
 				this.activeSessions.isEmpty(),
@@ -347,7 +461,90 @@ public final class SessionRegistry {
 	}
 
 	/**
+	 * Hands a forced close to every session still standing in {@link #activeSessions}, and returns the futures
+	 * those closes complete on. This is the closing half of one pass of
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)}'s drain loop: the caller waits the returned
+	 * futures out against what is left of the drain's budget, and calls this again while sessions remain.
+	 *
+	 * A session whose method is still running is not closed here. The close is handed to
+	 * {@link EvitaInternalSessionContract#executeWhenMethodIsNotRunning(Runnable)}, which may defer it and run
+	 * it later on the **session's own thread** - so the returned queue is still being written after this method
+	 * has returned, by threads this one does not control.
+	 *
+	 * **That is why the queue is concurrent, and why it is a fresh one per call.** A plain `ArrayList` under
+	 * that interleaving loses a future outright, or exposes a non-zero size holding `null` and makes `allOf`
+	 * throw; reuse across passes is what made the second outcome reachable, so each pass gets its own queue
+	 * rather than clearing one at the top. A future added to a previous pass's queue after the caller has moved
+	 * on is simply not waited for - exactly as clearing a reused list used to leave it - and the drain loop is
+	 * unharmed either way, because it exits on {@link #activeSessions} emptying rather than on the futures it
+	 * managed to collect.
+	 *
+	 * Every returned future absorbs its own failure, so an `allOf` over them cannot complete exceptionally.
+	 *
+	 * @param suspensionInformation the census each forcefully closed session is recorded into
+	 * @return the futures of the closes this pass started, still open to writes from the sessions' own threads
+	 */
+	@Nonnull
+	private Queue<CompletableFuture<CommitVersions>> startForcedCloseOfActiveSessions(
+		@Nonnull SuspensionInformation suspensionInformation
+	) {
+		final Queue<CompletableFuture<CommitVersions>> futures = new ConcurrentLinkedQueue<>();
+		for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+			//noinspection resource
+			final EvitaSession plainSession = sessionTuple.plainSession();
+			//noinspection resource
+			final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
+			if (proxySession.isActive()) {
+				proxySession
+					// close the session once the running method is finished
+					// or immediately if there is no method running
+					.executeWhenMethodIsNotRunning(
+						() -> {
+							if (plainSession.isActive()) {
+								if (plainSession.isTransactionOpen()) {
+									plainSession.setRollbackOnly();
+								}
+								final UUID sessionId = plainSession.getId();
+								log.info("There is still an active session {} - terminating.", sessionId);
+								suspensionInformation.addForcefullyClosedSession(sessionId);
+								futures.add(
+									plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
+										.toCompletableFuture()
+										// ignore exceptions, we don't care about them here
+										.exceptionally(ex -> null)
+								);
+							}
+						}
+					);
+			}
+		}
+		return futures;
+	}
+
+	/**
+	 * Tells whether a quiesce is currently published on this registry, i.e. whether session creation is being
+	 * postponed or refused right now.
+	 *
+	 * **A weakly consistent read**, and it is meant for callers that need to know a quiesce has *been published*
+	 * rather than callers deciding what to do about one - the answer can change the instant it is returned, and
+	 * everything that must act on a suspension reads it again under the gate that owns it
+	 * ({@link #handleSuspension(Supplier)}, {@link #registerWhileNotSuspended(Supplier)}). The intended callers are
+	 * the tests - and any future caller of the same shape - that need to wait for the suspension published by
+	 * {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} before asserting how the catalog answers
+	 * a session request.
+	 *
+	 * @return true when a suspension is standing on this registry
+	 */
+	public boolean isSuspended() {
+		return this.currentSuspension.get() != null;
+	}
+
+	/**
 	 * Method resumes operations on this registry - i.e. creating new sessions.
+	 *
+	 * **A no-op when no suspension stands**, which is what makes it safe to call unconditionally and safe to call
+	 * twice: an operator's undo lifts whatever its own drain may or may not have published without first having to
+	 * work out which, and a second lift arriving from a path that already resumed changes nothing.
 	 */
 	public void resumeOperations() {
 		final InSuspension inSuspension = this.currentSuspension.getAndSet(null);
@@ -997,8 +1194,16 @@ public final class SessionRegistry {
 									.orElse(minimalActiveVersion)
 						);
 					}
-				} catch (CatalogTransitioningException ignored) {
+				} catch (CatalogTransitioningException | CatalogGoingLiveException ignored) {
 					// catalog is transitioning, we cannot notify it anyway
+					//
+					// `CatalogGoingLiveException` is named separately because it is NOT a
+					// `CatalogTransitioningException`: the go-live operator installs its own placeholder, whose
+					// representative exception this supplier throws while the transition runs, and a session drained
+					// by that operator would otherwise fail its termination callback here - losing the proxy
+					// finalization below it and logging an error for an entirely orderly close. There is nothing to
+					// reclaim either way: the warm-up instance being superseded has no version consumers left, and
+					// the alive instance starts its own version count.
 				}
 			}
 		}

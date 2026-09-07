@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-05 21:05
+updated: 2026-09-06 13:10
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-09-06-go-live-session-drain, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -535,16 +535,21 @@ proportionally larger against a smaller total, and the census charged the tempor
   `hasEncodedSurrogate == false` and silently mangle lone surrogates. That predates this work, belongs to
   `2026-08-31-front-coded-column-stores-wtf8`, and the comment at the search site says so explicitly so
   the partial guard cannot be read as a complete one.
-- **The public go-live path does not drain incumbent warm-up sessions.** Adjacent to the session-admission
-  note above and also untouched here. `Evita#makeCatalogAliveWithProgress` applies the mutation directly;
-  `closeAllSessionsAndSuspend` has exactly one caller in the main tree, the session-driven
-  `EvitaSession#goLiveAndCloseWithProgress`, and neither `MakeCatalogAliveMutationOperator` nor
-  `Catalog#goLive()` fences a session. The operator does install an `UnusableCatalog(GOING_ALIVE)`
-  synchronously, which refuses *new* sessions for the duration — so the exposure is narrower than it
-  first looks — but a session opened *before* the transition holds the superseded `Catalog` instance and
-  nothing drains it, so warm-up writes racing the `flush()`/`goLive()` pair can be lost. **Filed as
-  issue #1495** rather than folded in here: it is session and catalog lifecycle rather than index work,
-  and no commit on this branch touches it.
+- **The public go-live path did not drain incumbent warm-up sessions — fixed under issue #1495.** When this
+  record shipped, `Evita#makeCatalogAliveWithProgress` applied the mutation directly and neither
+  `MakeCatalogAliveMutationOperator` nor `Catalog#goLive()` fenced a session opened *before* the transition,
+  which holds the superseded `Catalog` instance. The impact claimed here and in the issue — "writes can be
+  lost" — understated it: measured on the unfixed build, the racing write returned normally, the running
+  ALIVE catalog served that entity from index objects it carries by reference, and a reload of the same
+  storage did not have it. That is an in-memory catalog disagreeing with its own published state, not a
+  plain lost write. The operator now owns the catalog's `SessionRegistry` and drains it with
+  `REJECT` before `Catalog#goLive()` publishes the ALIVE bootstrap record - that publication, not the warm-up
+  flush's pop, is the safety boundary, established by measurement and recorded in
+  `2026-09-06-go-live-session-drain`. Running the drain ahead of the flush as well is a deliberate preference.
+  The operator lifts the suspension and restores the warm-up catalog behind its name when the go-live
+  fails; `Evita#createSessionInternal` consults the transitional placeholder before the registry, so a
+  client racing the transition still gets
+  `CatalogGoingLiveException`.
 - **The site inventory needed a second sweep, and that is the process lesson.** One reading of a
   6,000-line region produced four classes of omission, two of which would have thrown on first
   execution: a missing column mutator with four call sites, ten unlisted raw overflow-array moves, a
