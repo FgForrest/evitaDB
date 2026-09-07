@@ -177,7 +177,6 @@ don't collapse and siblings in the same family keep their catalog-wide spans.
 Constraints outside `userFilter` (the category, locale, currency, scope, price list) are never peeled. They define
 the universe; the relaxation surface is `userFilter` and nothing else.
 
-For the full UX story behind these rules — including the rich facet group algebra
-(`facetGroupsConjunction`, `…Disjunction`, `…Negation`, `…Exclusivity`) and why a dedicated `histogramHaving`
-exists rather than reusing `attributeBetween` — see the blog post
-[*The hidden choreography of a faceted filter panel*](/documentation/blog/en/26-faceted-filter-choreography.md).
+For the shopper-facing story behind these rules — why a panel that ignores them feels broken, and what the
+price slider in particular costs to get right — see the blog post
+[*The hidden mathematics of a faceted filter panel*](/documentation/blog/en/26-faceted-filter-choreography.md).
