@@ -90,11 +90,25 @@ jobs:
       contents: read
       pull-requests: write
       id-token: write
+    env:
+      # Subagents are backgrounded by default, and a background agent is killed when the headless
+      # session ends - which is how PR #1327 finished green having posted nothing but "the four
+      # deep-review agents are running in the background". This flag removes `run_in_background`
+      # from the Agent tool's schema outright and forces every delegated agent to run
+      # synchronously, so the parent physically cannot finish with delegated work outstanding.
+      # Parallelism survives: several foreground agents dispatched in one turn still run at once.
+      # It must sit at JOB level - env on the `uses:` step is not visible inside a composite action.
+      CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Mark review start   # the "did it post anything" check at the end of this job compares
+        id: start                 # against this instant, so a comment left by an earlier review round
+        run: |                    # is never mistaken for this round's review
+          echo "at=$(date -u +%FT%TZ)" >> "$GITHUB_OUTPUT"
 
       - name: Pre-fetch the base ref            # the reviewer needs to diff against the base branch, and a
         env:                                    # review agent that has to fetch it itself spends turns on
@@ -108,6 +122,13 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
+          # Renders the turn-by-turn report into the job's Step Summary, where "sub-agent launched
+          # / completed / failed" is legible without scrolling a raw JSON log. Both this and
+          # show_full_output surface Claude-authored and tool-result content, which is why they are
+          # documented as trusted-input-only - safe here because the review job needs
+          # secrets.ANTHROPIC_API_KEY and `pull-requests: write`, neither of which a fork PR gets,
+          # so this job only ever runs on branches pushed by collaborators.
+          display_report: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -123,9 +144,15 @@ jobs:
             The repository also contains a `CLAUDE.md` file with the project's
             coding standards — use it as your reference for style compliance.
 
-            Use `gh pr diff ${{ github.event.pull_request.number }}` to examine
-            the changes. Use inline comments for file-specific feedback and a
-            single summary comment on the PR for overall assessment.
+            Start from `gh pr diff ${{ github.event.pull_request.number }} --name-only`
+            and read the changed files one at a time with
+            `git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- <path>`.
+            Do NOT open the whole diff in one call on a large PR: this one is
+            capable of exceeding half a megabyte, and a tool result that size is
+            truncated without telling you, leaving you reviewing a fraction of
+            the change while believing you have seen all of it. Use inline
+            comments for file-specific feedback and a single summary comment on
+            the PR for overall assessment.
 
             The base branch is ALREADY fetched as
             `origin/${{ github.event.pull_request.base.ref }}`, so diff against
@@ -138,14 +165,23 @@ jobs:
 
             CRITICAL - you must produce and post the review yourself, within
             this session. The session ends the moment you stop responding, and
-            anything still running in the background is killed with it. If you
-            delegate any part of the review to subagents, you MUST wait for
-            every one of them and synthesize their findings before you finish.
-            Never end your turn with work outstanding: a closing message like
-            "the agents are running, I'll post the review once they complete"
-            produces a green job and no review at all, which is worse than no
-            review because it looks like one happened. When in doubt, review
-            inline yourself rather than delegating.
+            anything still running is killed with it.
+
+            Sub-agents are allowed and are a good way to cover independent areas
+            of a large diff, but treat them as synchronous work. Background
+            execution is disabled for this job, so every agent you dispatch runs
+            in the foreground and returns to you. Dispatch independent reviewers
+            together in a single turn so they run concurrently - there is no
+            reason to serialize work that has no dependency - then collect every
+            result and synthesize the findings yourself.
+
+            Never end your turn or write the final review while a delegated task
+            is still pending. A closing message like "the agents are running,
+            I'll post the review once they complete" produces a green job and no
+            review at all, which is worse than no review because it looks like
+            one happened. If a delegated agent fails, is unavailable, or comes
+            back with nothing, review that area yourself here rather than
+            dropping it silently.
 
             Your final action must be the summary comment posted via
             `gh pr comment`. If you found nothing worth raising, say so
@@ -161,5 +197,41 @@ jobs:
             rebutted, or fixed. See Step 2 of `.claude/agents/pr-reviewer.md` for
             the full procedure.
 
+          # git blame answers "is this deliberate?", which the reviewer persona is told to ask
+          # before flagging unusual code; without it that question costs a denied tool call.
+          # Everything here is read-only - the only write paths are the two comment tools.
+          # Wrapped across lines on purpose: the action tokenizes claude_args with shell-quote and
+          # lets an accumulating flag consume every consecutive non-flag value, so one value per
+          # line is equivalent to one long comma-separated string and stays inside 120 columns.
           claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git fetch:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git branch:*),Bash(git rev-parse:*),Bash(git merge-base:*)"
+            --allowedTools "Read,Glob,Grep"
+              "mcp__github_inline_comment__create_inline_comment"
+              "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*)"
+              "Bash(git fetch:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+              "Bash(git blame:*),Bash(git branch:*),Bash(git rev-parse:*),Bash(git merge-base:*)"
+
+      - name: Verify a review was actually posted
+        # The action reports success when the Claude session terminates, whether or not it produced
+        # anything - which is exactly how the failure this job guards against stayed invisible. This
+        # step makes "no review" red instead of green, so the next regression is noticed on the PR
+        # rather than by someone eyeballing an old run. Not `always()`: this workflow cancels
+        # in-progress runs on every push, and a superseded run owes nobody a review.
+        if: success() || failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.start.outputs.at }}
+        run: |
+          # `since` filters server-side on updated_at, so one page always covers this round; the
+          # created_at test then excludes an older comment that merely happened to be edited. jq
+          # reads SINCE from the environment rather than by interpolation, so nothing is injectable.
+          posted=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments?since=${SINCE}&per_page=100" \
+            --jq '[.[] | select(.user.login == "claude[bot]") | select(.created_at >= env.SINCE)] | length')
+          echo "Summary comments posted by claude[bot] during this run: ${posted}"
+          if [ "${posted}" -eq 0 ]; then
+            echo "::error::The review session ended without posting a summary comment. Check the Step" \
+                 "Summary for where it stopped - a session ending with delegated work outstanding is" \
+                 "the known cause."
+            exit 1
+          fi

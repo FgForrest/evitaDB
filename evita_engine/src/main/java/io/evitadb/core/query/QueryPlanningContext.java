@@ -33,6 +33,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -262,25 +263,34 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private EntitySchema entitySchema;
 	/**
-	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be included/excluded from traversal.
+	 * Contains the {@link HierarchyFilteringPredicate} of each translated hierarchy filter constraint, keeping
+	 * information about which hierarchy nodes that constraint includes or excludes from traversal.
 	 *
 	 * It is resolved by the filtering phase and handed over to the requirement phase, so that hierarchy statistics
-	 * observe exactly the same node visibility as the filter did. It can be set only once per context - see
-	 * {@link #setHierarchyHavingPredicate(HierarchyFilteringPredicate)}.
+	 * observe exactly the same node visibility as the filter did. Keyed by the constraint for the same reason as
+	 * {@link #rootHierarchyNodesFormula} - a query may carry several hierarchy filters and the statistics of one
+	 * hierarchy must never observe the visibility another one declared. Read through
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, HierarchyFilteringPredicate)}.
 	 */
-	@Getter
-	private HierarchyFilteringPredicate hierarchyHavingPredicate;
+	@Nullable
+	private Map<HierarchyFilterConstraint, HierarchyFilteringPredicate> hierarchyHavingPredicate;
 	/**
-	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
-	 * the query result to be reused in other query evaluation phases (require). Shares the write-once contract of
-	 * {@link #hierarchyHavingPredicate} and is read through {@link #getRootHierarchyNodes()}.
+	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
+	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
+	 * computed. Keyed by the constraint itself, because a single query may legitimately carry several of them -
+	 * two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
+	 * hierarchy must never observe the roots of another. Read through
+	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint)}. Lazily allocated by
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}.
 	 */
-	private Formula rootHierarchyNodesFormula;
+	@Nullable
+	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
-	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
-	 * to mark the group id involved in special relation handling.
+	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
+	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
+	 * relation handling.
 	 *
 	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
 	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
@@ -1501,30 +1511,64 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 
 	/**
-	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase. Can be called
-	 * only once per context - two different root sets within one query would mean the filter and the hierarchy
-	 * statistics disagree about what the hierarchy is.
+	 * Sets resolved hierarchy root nodes formula of a single hierarchy filter constraint, to be shared among the
+	 * filter and the requirement phase.
 	 *
+	 * The first formula recorded for a constraint wins. A constraint is translated once per scope index and the
+	 * translation deliberately lets the first applicable scope take precedence (LIVE before ARCHIVED), so the roots
+	 * have to follow the same precedence rather than being overwritten by a later scope.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
 	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
-	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
-		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
-		this.rootHierarchyNodesFormula = rootHierarchyNodesFormula;
+	public void setRootHierarchyNodesFormula(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Formula rootHierarchyNodesFormula
+	) {
+		if (this.rootHierarchyNodesFormula == null) {
+			this.rootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
+		}
+		this.rootHierarchyNodesFormula.putIfAbsent(hierarchyFilterConstraint, rootHierarchyNodesFormula);
 	}
 
 	/**
-	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase. Setting
-	 * it repeatedly is tolerated as long as the predicate is equal to the one already stored - the same constraint
-	 * may legitimately be resolved by more than one translator - but a *different* predicate is rejected.
+	 * Sets resolved hierarchy having/exclusion predicate of a single hierarchy filter constraint, to be shared among
+	 * the filter and the requirement phase.
 	 *
-	 * @param hierarchyHavingPredicate predicate deciding which hierarchy nodes are traversable
+	 * The first predicate recorded for a constraint wins, for the same reason as in
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}: a constraint is translated once per
+	 * scope index and the first applicable scope takes precedence.
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility was resolved
+	 * @param hierarchyHavingPredicate  predicate deciding which hierarchy nodes are traversable
 	 */
-	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(
-			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
-			"The hierarchy exclusion predicate can be set only once!"
-		);
-		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
+	public void setHierarchyHavingPredicate(
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate
+	) {
+		if (this.hierarchyHavingPredicate == null) {
+			this.hierarchyHavingPredicate = CollectionUtils.createHashMap(4);
+		}
+		this.hierarchyHavingPredicate.putIfAbsent(hierarchyFilterConstraint, hierarchyHavingPredicate);
+	}
+
+	/**
+	 * Returns the node visibility predicate declared by the passed hierarchy filter constraint.
+	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the visibility always belongs to that very hierarchy.
+	 * A NULL constraint, and a constraint that declares no `having` / `havingAnyChild` / `excluding` filter, both
+	 * yield NULL, which the computers read as "every node is traversable".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose node visibility is asked for, may be NULL
+	 * @return the predicate declared by that constraint, or NULL when it declared none
+	 */
+	@Nullable
+	public HierarchyFilteringPredicate getHierarchyHavingPredicate(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint
+	) {
+		return this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null ?
+			null : this.hierarchyHavingPredicate.get(hierarchyFilterConstraint);
 	}
 
 	/**
@@ -1634,12 +1678,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull BiFunction<EvitaRequest, String, Optional<FacetFilterBy>> facetSettingsRetriever
+		@Nonnull FacetSettingsRetriever facetSettingsRetriever
 		) {
 		final String referenceName = referenceSchema.getName();
 		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
 			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
-		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(this.evitaRequest, referenceName);
+		// the settings are read for the level being asked about - a relation declared between groups must not
+		// decide the relation between the facets inside one group, and vice versa
+		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(
+			this.evitaRequest, referenceName, level
+		);
 		if (facetSettings.isEmpty()) {
 			return theDefault == relationType;
 		} else {
@@ -1651,7 +1699,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				} else {
 					final boolean requestedExplicitly = getFacetRelationTuples()
 						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, relationType),
+							new FacetRelationTuple(referenceName, relationType, level),
 							refName -> {
 								final String referencedGroupType = referenceSchema.getReferencedGroupType();
 								Assert.isTrue(
@@ -1686,13 +1734,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns primary key of all root hierarchy nodes that cover the requested hierarchy.
+	 * Returns primary keys of all root hierarchy nodes that cover the hierarchy requested by the passed constraint.
 	 *
+	 * The caller passes the constraint the extra result decided to describe - resolved by
+	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the roots always belong to that very hierarchy. A NULL
+	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
+	 * bitmap, which the producers read as "the index roots".
+	 *
+	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
 	 * @return bitmap of root hierarchy nodes
 	 */
 	@Nonnull
-	public Bitmap getRootHierarchyNodes() {
+	public Bitmap getRootHierarchyNodes(@Nullable HierarchyFilterConstraint hierarchyFilterConstraint) {
 		return ofNullable(this.rootHierarchyNodesFormula)
+			.map(it -> hierarchyFilterConstraint == null ? null : it.get(hierarchyFilterConstraint))
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -1825,16 +1880,47 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
-	 * the {@link #facetRelationTuples} key.
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()}, {@link FacetRelationType} and
+	 * {@link FacetGroupRelationLevel} into one object used as the {@link #facetRelationTuples} key. The level is
+	 * part of the key because the two levels are orthogonal and each carries its own filter, so a predicate
+	 * memoized for one must never be reused to answer the other.
 	 *
 	 * @param referenceName name of the reference the facet group belongs to
 	 * @param relation      relation type the memoized predicate decides about
+	 * @param level         the {@link FacetGroupRelationLevel} the relation was asked about (within group vs.
+	 *                      between groups)
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
-		@Nonnull FacetRelationType relation
+		@Nonnull FacetRelationType relation,
+		@Nonnull FacetGroupRelationLevel level
 	) {
+
+	}
+
+	/**
+	 * Pulls the settings of one facet relation type for a reference at a particular
+	 * {@link FacetGroupRelationLevel} out of the request. This is what binds the shared
+	 * {@link #isFacetGroupRelationType} implementation to one of the four relations; the level is part of the lookup
+	 * because the two levels are orthogonal and carry their own settings.
+	 */
+	@FunctionalInterface
+	private interface FacetSettingsRetriever {
+
+		/**
+		 * Returns the settings declared for the given reference at the given level.
+		 *
+		 * @param request       request to read the settings from
+		 * @param referenceName name of the reference the facets belong to
+		 * @param level         level the relation is being asked about
+		 * @return the settings, empty when the query declared none for that reference at that level
+		 */
+		@Nonnull
+		Optional<FacetFilterBy> apply(
+			@Nonnull EvitaRequest request,
+			@Nonnull String referenceName,
+			@Nonnull FacetGroupRelationLevel level
+		);
 
 	}
 

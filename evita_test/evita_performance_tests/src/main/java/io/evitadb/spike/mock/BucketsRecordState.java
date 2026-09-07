@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
@@ -63,6 +64,11 @@ import java.util.Random;
 public class BucketsRecordState {
 	/** Number of histogram buckets (value-to-record mappings). */
 	private static final int BUCKET_COUNT = 2000;
+	/**
+	 * Number of buckets the histogram is *requested* with. The request carries it since the bucket count and
+	 * behaviour became per-attribute; the benchmark hands the same values to the computer, so the two must agree.
+	 */
+	public static final int REQUESTED_BUCKET_COUNT = 40;
 	/** Total number of records across all buckets. */
 	private static final int VALUE_COUNT = 100_000;
 	private static final Random random = new Random(42);
@@ -80,6 +86,8 @@ public class BucketsRecordState {
 		this.entityIds = generateBitmap(VALUE_COUNT, 1);
 		this.request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false, ConflictResolutionOverride.INHERITED),
+			REQUESTED_BUCKET_COUNT,
+			HistogramBehavior.STANDARD,
 			Comparator.naturalOrder(),
 			Arrays.asList(
 				new OwnerFilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),

@@ -921,6 +921,12 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link GrpcDateTimeRange} to {@link DateTimeRange}.
 	 *
+	 * The sub-second component of each bound is carried across, exactly as
+	 * {@link #toOffsetDateTime(GrpcOffsetDateTime)} carries it for a scalar moment. The writer has always sent it;
+	 * dropping it here was invisible while a range compared at whole-second granularity, and became a real loss of
+	 * precision once ranges started comparing at the millisecond — a bound sent as `12:00:00.750Z` would have been
+	 * stored, and matched, as `12:00:00Z`.
+	 *
 	 * @param grpcDateTimeRange value to be converted
 	 * @return {@link DateTimeRange} value
 	 */
@@ -928,8 +934,14 @@ public class EvitaDataTypesConverter {
 	public static DateTimeRange toDateTimeRange(@Nonnull GrpcDateTimeRange grpcDateTimeRange) {
 		final boolean fromSet = grpcDateTimeRange.hasFrom();
 		final boolean toSet = grpcDateTimeRange.hasTo();
-		final Instant from = Instant.ofEpochSecond(grpcDateTimeRange.getFrom().getTimestamp().getSeconds());
-		final Instant to = Instant.ofEpochSecond(grpcDateTimeRange.getTo().getTimestamp().getSeconds());
+		final Instant from = Instant.ofEpochSecond(
+			grpcDateTimeRange.getFrom().getTimestamp().getSeconds(),
+			grpcDateTimeRange.getFrom().getTimestamp().getNanos()
+		);
+		final Instant to = Instant.ofEpochSecond(
+			grpcDateTimeRange.getTo().getTimestamp().getSeconds(),
+			grpcDateTimeRange.getTo().getTimestamp().getNanos()
+		);
 		final OffsetDateTime fromRange = OffsetDateTime.ofInstant(from, ZoneId.of(fromSet ? grpcDateTimeRange.getFrom().getOffset() : DEFAULT_ZONE_OFFSET.getId()));
 		final OffsetDateTime toRange = OffsetDateTime.ofInstant(to, ZoneId.of(toSet ? grpcDateTimeRange.getTo().getOffset() : DEFAULT_ZONE_OFFSET.getId()));
 		if (!fromSet && toSet) {

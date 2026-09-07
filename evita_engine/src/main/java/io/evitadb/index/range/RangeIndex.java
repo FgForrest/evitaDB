@@ -36,6 +36,9 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -48,6 +51,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -87,10 +91,33 @@ import java.util.stream.Collectors;
  * This situation will lead to problems when such record is removed because on removal it removes the shared border
  * information for all ranges.
  *
+ * ## Threshold scale — a persisted-format contract
+ *
+ * A threshold is an **untyped** `long` and this index carries no record of what it measures: one and the same class
+ * serves `DateTimeRange` and all five `NumberRange` subtypes. The scale is entirely the caller's, and every threshold
+ * in one index must be derived the same way — for a `DateTimeRange` index that is a whole epoch **millisecond**
+ * ({@link DateTimeRange#toComparableLong}), for a `NumberRange` index it is the bound's own numeric value.
+ *
+ * That matters beyond the live structure, because the scale is not self-describing on disk either. What identifies a
+ * persisted index's scale is the `serialVersionUID` of the **root** storage part that owns it — never a leaf page,
+ * which holds bare thresholds and nothing that could disambiguate them. A `DateTimeRange` index is the only one whose
+ * scale ever changed (epoch seconds → epoch milliseconds); one written by a release predating that move is repaired
+ * on load by {@link #rescaledFromSecondGranularity} / {@link #rescaledFromSecondGranularityPages}, routed by the
+ * declared attribute type so a numeric index is never inflated a thousandfold. `AttributeIndexLoader#loadRangeIndex`
+ * carries the full argument and names the other three load paths that make the same repair.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
+public class RangeIndex
+	implements VoidTransactionMemoryProducer<RangeIndex>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link TransactionalRangePoint}.
@@ -138,8 +165,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated index becomes a fresh
 	 * instance with a fresh id (correctly invalidating dependent cached formulas). With the constant `1L` default the
 	 * token never changed across commits, so a cached result over a `> EXCESSIVE_HIGH_CARDINALITY`-bucket range was
-	 * never invalidated — the stale-read defect tracked as issue #37. This is a runtime-only field, regenerated on
-	 * load — it is never persisted (the persisted form carries no id).
+	 * never invalidated and a committed write went unseen by every later query that hit the cache. This is a
+	 * runtime-only field, regenerated on load — it is never persisted (the persisted form carries no id).
 	 */
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -359,6 +386,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	/**
 	 * Adds new record with the interval from/to to the range. The updater mutates and returns the SAME
 	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
+	 *
+	 * Both bounds must be derived in the same scale every other threshold of this index was — normally
+	 * {@code Range#getFrom()} / {@code Range#getTo()}, which for a `DateTimeRange` is already the epoch millisecond.
+	 * See the class javadoc: nothing here can detect a bound handed over in a different scale, and a mixed-scale index
+	 * answers every query over it with the wrong records and no exception.
+	 *
+	 * @param from     the interval's lower threshold, inclusive
+	 * @param to       the interval's upper threshold, inclusive
+	 * @param recordId the record valid over that interval
 	 */
 	public void addRecord(long from, long to, int recordId) {
 		this.dirty.setToTrue();
@@ -383,6 +419,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			}
 		);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
 		}
 	}
@@ -391,13 +428,42 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Removes record with the interval from/to from the range. Each affected point is mutated in place; once a point
 	 * becomes obsolete (no starts, no ends) and is not a border sentinel it is deleted from the tree, which releases
 	 * its transactional layer.
+	 *
+	 * The two bounds must be the very thresholds {@link #addRecord} was called with, in the same scale — a removal at
+	 * a threshold this record never started at silently leaves the original interval in place.
+	 *
+	 * @param start    the interval's lower threshold, as it was added
+	 * @param end      the interval's upper threshold, as it was added
+	 * @param recordId the record whose interval is dropped
 	 */
 	public void removeRecord(long start, long end, int recordId) {
 		this.dirty.setToTrue();
 		removeFromPoint(start, recordId, true);
 		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.envelopingNowCache = null;
+		}
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #envelopingNowCache} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The two mutators above already drop the cache on the forward path, so the state a rollback finds is normally
+	 * correct. The journal entry exists for the case where a query runs LATER inside the same root entity mutation:
+	 * {@link #getRecordsValidNowFormula(long)} would repopulate the cache from the half-mutated range tree, and that
+	 * value would then outlive the rollback of the points underneath it. Re-invalidating on restore costs one
+	 * recomputation and makes no claim about a captured value's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch — inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.envelopingNowCache = null);
 		}
 	}
 
@@ -562,8 +628,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Bypasses the cache entirely when called inside a transaction, since the transactional view of the
 	 * underlying {@code ranges} array may differ from the committed view that backs the cache.
 	 *
-	 * @param now epoch-second value of the moment to evaluate (typically
-	 *            {@code request.getAlignedNow().toEpochSecond()})
+	 * @param now comparison value of the moment to evaluate, in whatever scale the index's thresholds were derived
+	 *            in — for a `DateTimeRange` index that is
+	 *            {@code DateTimeRange.toComparableLong(request.getAlignedNow())}, a whole epoch millisecond
 	 * @return formula computing the records whose validity range envelopes {@code now}
 	 */
 	@Nonnull
@@ -742,8 +809,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * at COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so
 	 * it cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails
 	 * during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
-	 * and a flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged
@@ -852,6 +919,191 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Rescales one threshold persisted while {@link DateTimeRange} still compared at **second** granularity into the
+	 * millisecond scale it compares at now. Applicable **only** to a range index over `DateTimeRange`: the threshold
+	 * is an untyped `long` shared with every `NumberRange` subtype, whose thresholds are the bounds' own numeric
+	 * values and must never be touched. See {@code AttributeIndexLoader#loadRangeIndex} for how the declared
+	 * attribute type routes this.
+	 *
+	 * Three cases, and the separation between them is unambiguous by four orders of magnitude:
+	 *
+	 * - a threshold **below** {@link DateTimeRange#MIN_REPRESENTABLE_EPOCH_SECOND} is an open-from bound. The legacy
+	 *   sentinel was `LocalDateTime.MIN.atOffset(other).toEpochSecond()` ≈ `-3.156e16`, and the index's own lower
+	 *   border point is `Long.MIN_VALUE`; both land here and both map onto {@link DateTimeRange#OPEN_FROM_THRESHOLD},
+	 *   which is what an open-from bound is worth today.
+	 * - a threshold **above** {@link DateTimeRange#MAX_REPRESENTABLE_EPOCH_SECOND} is the symmetric open-to case
+	 *   (legacy sentinel ≈ `+3.156e16`, upper border `Long.MAX_VALUE`) and maps onto
+	 *   {@link DateTimeRange#OPEN_TO_THRESHOLD}.
+	 * - anything else is a real moment — no date expressible as a scalar temporal attribute exceeds ~1e11 seconds,
+	 *   while the window edge sits at ~9.22e15 — and is multiplied by 1000. The multiplication is exact: a value
+	 *   written at second granularity has no millisecond component to recover, so every legacy range lands on a zero
+	 *   millisecond remainder.
+	 *
+	 * The mapping is monotone but **not injective**: several legacy sentinels (one per zone offset they were paired
+	 * with) collapse onto one open-bound constant, and onto the border point already sitting there. Callers must
+	 * therefore merge colliding points rather than assume the thresholds stay distinct — see
+	 * {@link #rescaleSecondGranularityPoints}.
+	 *
+	 * @param threshold the persisted second-granularity threshold
+	 * @return the equivalent millisecond-granularity threshold
+	 */
+	public static long rescaleSecondGranularityThreshold(long threshold) {
+		if (threshold < DateTimeRange.MIN_REPRESENTABLE_EPOCH_SECOND) {
+			return DateTimeRange.OPEN_FROM_THRESHOLD;
+		} else if (threshold > DateTimeRange.MAX_REPRESENTABLE_EPOCH_SECOND) {
+			return DateTimeRange.OPEN_TO_THRESHOLD;
+		} else {
+			return threshold * 1000L;
+		}
+	}
+
+	/**
+	 * Rebuilds an **inline** range index persisted at second granularity onto the millisecond scale, merging the
+	 * points whose thresholds collide after the rescale. The result is a fresh, clean, non-paged index; the caller
+	 * (the load path) hands it on exactly as it would have handed on the deserialized one.
+	 *
+	 * The repair is passive, like the inverted index's sub-millisecond bucket merge: nothing is written back here, so
+	 * every load of an untouched legacy catalog repeats it, and the first flush of the index persists the millisecond
+	 * form — after which this reader is no longer consulted for it.
+	 *
+	 * @param index the just-deserialized index whose thresholds are epoch seconds
+	 * @return an equivalent index whose thresholds are epoch milliseconds
+	 */
+	@Nonnull
+	public static RangeIndex rescaledFromSecondGranularity(@Nonnull RangeIndex index) {
+		return new RangeIndex(
+			rescaleSecondGranularityPoints(index.ranges.valueIterator(), index.ranges.size())
+		);
+	}
+
+	/**
+	 * Rebuilds a **range-`PAGED`** index persisted at second granularity onto the millisecond scale.
+	 *
+	 * Unlike {@link #fromPersistedPages} this is deliberately **not** boundary-stable: the pages are flattened,
+	 * rescaled, merged and replayed into a fresh tree whose leaves carry no page identity, while the registry is
+	 * seeded with the persisted high-water **and the persisted live-page list**. The first flush of the index
+	 * therefore allocates a new page sequence for every leaf, writes every page in the millisecond form and frees
+	 * every legacy page — and, because that makes the live page list change, it necessarily re-emits the root record
+	 * in the same commit.
+	 *
+	 * That atomicity is the whole point, and boundary stability is what has to give for it. The scale of a persisted
+	 * threshold is carried by the **root** record's `serialVersionUID`, not by the leaf pages; a flush that rewrote
+	 * some leaf pages in milliseconds while leaving the legacy root in place (or the reverse) would produce a
+	 * catalog whose scale marker disagrees with its content, and the next load would rescale already-rescaled
+	 * thresholds — silently, since nothing in a `long` says which scale it is in. Re-paginating the whole index once
+	 * costs one rewrite of a structure that has just been upgraded anyway.
+	 *
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending threshold order
+	 * @param perPagePoints         the range points of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @return the rebuilt index, whose thresholds are epoch milliseconds and whose leaves are unpaged
+	 */
+	@Nonnull
+	public static RangeIndex rescaledFromSecondGranularityPages(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull TransactionalRangePoint[][] perPagePoints,
+		int highWaterPageSequence
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPagePoints.length,
+			"The number of page sequences must match the number of leaf-page point arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged range index must have at least one leaf page.");
+		int pointCount = 0;
+		for (final TransactionalRangePoint[] pagePoints : perPagePoints) {
+			pointCount += pagePoints.length;
+		}
+		final List<TransactionalRangePoint> flattened = new ArrayList<>(pointCount);
+		for (final TransactionalRangePoint[] pagePoints : perPagePoints) {
+			flattened.addAll(Arrays.asList(pagePoints));
+		}
+		final RangeIndex rescaled = new RangeIndex(
+			rescaleSecondGranularityPoints(flattened.iterator(), pointCount)
+		);
+		// declare the legacy pages live so the first flush diffs against them, frees every one and re-emits the root
+		rescaled.pageStreamRegistry.restore(RANGE_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
+		return rescaled;
+	}
+
+	/**
+	 * Walks an ascending stream of second-granularity points, rescales each threshold through
+	 * {@link #rescaleSecondGranularityThreshold} and merges the runs that land on the same value by unioning their
+	 * `starts` / `ends` bitmaps.
+	 *
+	 * The merge is not an edge case: every legacy open-from bound rescales onto the very `Long.MIN_VALUE` the index's
+	 * lower border point already occupies (and symmetrically at the top), so any index holding a one-sided range
+	 * collides. Merging is also what makes the reloaded index agree with the write path — after the repair the point
+	 * carrying an open-ended range's records IS the border point, which is exactly where
+	 * {@code FilterIndex.removeRecord} will look for it once the range is removed.
+	 *
+	 * @param points        the persisted points in ascending threshold order
+	 * @param expectedCount the number of points the iterator will yield, used to pre-size the result
+	 * @return the rescaled points, in ascending threshold order and with distinct thresholds
+	 */
+	@Nonnull
+	private static TransactionalRangePoint[] rescaleSecondGranularityPoints(
+		@Nonnull Iterator<TransactionalRangePoint> points, int expectedCount
+	) {
+		final List<TransactionalRangePoint> result = new ArrayList<>(expectedCount);
+		// the point whose threshold the next one may still collide with; its merged bitmaps stay null until a
+		// collision actually happens, so an index with nothing to merge allocates no bitmap it does not need
+		TransactionalRangePoint carried = null;
+		long carriedThreshold = 0L;
+		BaseBitmap mergedStarts = null;
+		BaseBitmap mergedEnds = null;
+		while (points.hasNext()) {
+			final TransactionalRangePoint point = points.next();
+			final long threshold = rescaleSecondGranularityThreshold(point.getThreshold());
+			if (carried == null) {
+				carried = point;
+				carriedThreshold = threshold;
+			} else if (threshold == carriedThreshold) {
+				if (mergedStarts == null) {
+					mergedStarts = new BaseBitmap(carried.getStarts());
+					mergedEnds = new BaseBitmap(carried.getEnds());
+				}
+				mergedStarts.addAll(point.getStarts());
+				mergedEnds.addAll(point.getEnds());
+			} else {
+				result.add(materializeRescaledPoint(carried, carriedThreshold, mergedStarts, mergedEnds));
+				carried = point;
+				carriedThreshold = threshold;
+				mergedStarts = null;
+				mergedEnds = null;
+			}
+		}
+		if (carried != null) {
+			result.add(materializeRescaledPoint(carried, carriedThreshold, mergedStarts, mergedEnds));
+		}
+		return result.toArray(new TransactionalRangePoint[0]);
+	}
+
+	/**
+	 * Materializes one rescaled point. A {@link TransactionalRangePoint}'s threshold is final, so a fresh instance is
+	 * always minted; the record bitmaps are the merged ones when a collision produced them, otherwise the source
+	 * point's own.
+	 *
+	 * @param source       the point the rescaled one is derived from
+	 * @param threshold    the rescaled threshold
+	 * @param mergedStarts the union of every colliding point's starts, or `null` when nothing collided
+	 * @param mergedEnds   the union of every colliding point's ends, or `null` when nothing collided
+	 * @return the rescaled point
+	 */
+	@Nonnull
+	private static TransactionalRangePoint materializeRescaledPoint(
+		@Nonnull TransactionalRangePoint source,
+		long threshold,
+		@Nullable BaseBitmap mergedStarts,
+		@Nullable BaseBitmap mergedEnds
+	) {
+		return new TransactionalRangePoint(
+			threshold,
+			mergedStarts == null ? source.getStarts() : mergedStarts,
+			mergedEnds == null ? source.getEnds() : mergedEnds
+		);
+	}
+
+	/**
 	 * One leaf page produced by the granular write path: its stable page sequence and its range points in ascending
 	 * threshold order.
 	 *
@@ -885,8 +1137,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
-		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+		// id + warmUpTouchStamp + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(2L * Long.BYTES + 4L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.ranges.getHeapSizeInBytes(
 				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()
@@ -917,8 +1169,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			// the EARLIEST publish point on the transactional path only; it is not the only one — a staged set that
 			// never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead, see
 			// `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a failed
-			// flush suspends this catalog's transaction processing — on the warm-up path it poisons the collection's
-			// buffer instead, the same invariant in another dress — so no later flush ever diffs against the baseline
+			// flush suspends this catalog's transaction processing — on the warm-up path it marks the catalog
+			// unpublishable instead, the same invariant in another dress — so no later flush ever diffs against the baseline
 			// a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new RangeIndex(

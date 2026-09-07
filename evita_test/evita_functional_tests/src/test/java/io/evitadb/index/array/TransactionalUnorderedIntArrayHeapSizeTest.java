@@ -24,6 +24,7 @@
 package io.evitadb.index.array;
 
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -138,7 +139,11 @@ class TransactionalUnorderedIntArrayHeapSizeTest {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray();
 
 			assertEquals(
-				JolHeapSize.ownedSize(array) + oneBoxedInteger(),
+				// the value index's eagerly built root leaf is empty, so both of its backing arrays are the JVM-wide
+				// shared empty arrays. The accounting subtracts them by identity (nobody owns a shared empty array),
+				// so the measurement has to be told they are borrowed or it charges 16 B for each
+				JolHeapSize.ownedSize(array, ArrayUtils.EMPTY_INT_ARRAY, ArrayUtils.EMPTY_LONG_ARRAY)
+					+ oneBoxedInteger(),
 				array.getHeapSizeInBytes(),
 				"an empty composite must charge the shared cached Integer to both trees that hold it"
 			);

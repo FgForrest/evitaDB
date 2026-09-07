@@ -65,6 +65,8 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
+import io.evitadb.api.statistics.StoragePartGroup;
+import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
@@ -87,6 +89,9 @@ import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapability;
 import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsage;
 import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSchemaElementKind;
+import io.evitadb.externalApi.grpc.generated.GrpcStoragePartGroup;
+import io.evitadb.externalApi.grpc.generated.GrpcStoragePartKind;
+import io.evitadb.externalApi.grpc.generated.GrpcStoragePartUsage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -196,6 +201,63 @@ class CatalogStatisticsConverterTest {
 	void shouldRoundTripFullyPopulatedEntityCollectionStatistics() throws InvalidProtocolBufferException {
 		final EntityCollectionStatistics original = fullyPopulatedEntityCollectionStatistics();
 		assertEquals(original, roundTrip(original));
+	}
+
+	@Test
+	@DisplayName("send the storage-part kind alongside the group, and derive it back from the group")
+	void shouldCarryStoragePartClassificationBothWays() throws InvalidProtocolBufferException {
+		final GrpcCatalogStatisticsSnapshot snapshot =
+			CatalogStatisticsConverter.toGrpcCatalogStatisticsSnapshot(fullyPopulatedCatalogStatistics());
+		final List<GrpcStoragePartUsage> sent = snapshot.getStorageComposition().getCatalogPartsList();
+
+		// the round-trip tests cannot see this: the decoder derives `kind` from `group`, so an encoder that never
+		// called `setKind` would still round-trip perfectly while sending every client an UNSPECIFIED kind
+		assertFalse(sent.isEmpty(), "The fixture carries a storage composition");
+		final EnumSet<StoragePartKind> kindsSent = EnumSet.noneOf(StoragePartKind.class);
+		for (final GrpcStoragePartUsage usage : sent) {
+			assertNotEquals(
+				GrpcStoragePartGroup.STORAGE_PART_GROUP_UNSPECIFIED, usage.getGroup(),
+				"Every entry names the kind of data it holds: " + usage
+			);
+			assertEquals(
+				EvitaEnumConverter.toGrpcStoragePartKind(
+					EvitaEnumConverter.toStoragePartGroup(usage.getGroup()).kind()
+				),
+				usage.getKind(),
+				"The kind sent must be the one its group folds to: " + usage
+			);
+			kindsSent.add(EvitaEnumConverter.toStoragePartGroup(usage.getGroup()).kind());
+		}
+
+		// the loop above proves the encoder set `kind` for whatever the fixture happens to carry, so what it proves
+		// depends on the fixture covering all three arms - which this pins, and a later fixture edit cannot undo
+		assertEquals(
+			EnumSet.allOf(StoragePartKind.class), kindsSent,
+			"The fixture has to exercise the encoder's kind arm for every kind, not just for entity data: " + kindsSent
+		);
+
+		// and the other direction: the kind is a property of the group, so a peer cannot make a decoded record
+		// contradict itself by sending a kind that disagrees
+		final GrpcCatalogStatisticsSnapshot tampered = snapshot.toBuilder()
+			.setStorageComposition(
+				snapshot.getStorageComposition().toBuilder()
+					.setCatalogParts(
+						0,
+						snapshot.getStorageComposition().getCatalogParts(0).toBuilder()
+							.setKind(GrpcStoragePartKind.STORAGE_PART_KIND_METADATA)
+					)
+			)
+			.build();
+		final StoragePartUsage decoded = CatalogStatisticsConverter
+			.toCatalogStatistics(GrpcCatalogStatisticsSnapshot.parseFrom(tampered.toByteArray()))
+			.storageCompositionIfPresent().orElseThrow()
+			.catalogParts()[0];
+
+		assertEquals(StoragePartGroup.ENTITY_BODY, decoded.group(), "The group is what the wire actually carries");
+		assertEquals(
+			StoragePartKind.ENTITY_DATA, decoded.kind(),
+			"The kind is derived from the group, so a contradicting one on the wire cannot reach the record"
+		);
 	}
 
 	@Test
@@ -1062,9 +1124,14 @@ class CatalogStatisticsConverterTest {
 			new DurabilityStatistics(221L, 222L, 223L, 224, 225L, 226L, LAST_CHECKPOINT_AT, COUNTING_SINCE),
 			new StorageSizeStatistics(301L, 302L, 303L, 310L, 311L, 304L, 305L, 306L, 307L, 308L, 309L),
 			new StorageCompositionStatistics(
+				// one row of each kind, because the classification assertions below prove the encoder populates the
+				// wire `kind` field and a fixture of a single kind proves that for one arm of three. Appended rather
+				// than prepended: the tampering half of that test reads the first entry and expects an entity body
 				new StoragePartUsage[]{
-					new StoragePartUsage("EntityBodyStoragePart", 401, 402L),
-					new StoragePartUsage("AttributesStoragePart", 403, 404L)
+					new StoragePartUsage("EntityBodyStoragePart", StoragePartGroup.ENTITY_BODY, 401, 402L),
+					new StoragePartUsage("AttributesStoragePart", StoragePartGroup.ATTRIBUTE_DATA, 403, 404L),
+					new StoragePartUsage("FilterIndexStoragePart", StoragePartGroup.ATTRIBUTE_INDEX, 405, 406L),
+					new StoragePartUsage("CatalogSchemaStoragePart", StoragePartGroup.SCHEMA, 407, 408L)
 				}
 			),
 			// a projected time *and* an eligible store: the two are independent at the catalog level, where one data
@@ -1132,7 +1199,9 @@ class CatalogStatisticsConverterTest {
 			new CollectionRecordCounts(21, 22, 23),
 			new CollectionStorageSize(31L, 32L, 33L, 34L, 35L),
 			new CollectionStorageComposition(
-				new StoragePartUsage[]{new StoragePartUsage("EntityBodyStoragePart", 41, 42L)}
+				new StoragePartUsage[]{
+					new StoragePartUsage("EntityBodyStoragePart", StoragePartGroup.ENTITY_BODY, 41, 42L)
+				}
 			),
 			// the other half of the same nullable field - an eligible store carries no projection, and an absent one
 			// must decode back to absent rather than to an epoch-zero instant

@@ -29,8 +29,6 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.IndexKey;
-import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
-import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -71,23 +69,16 @@ class DataStoreChangesDirtyIndexKeySnapshotTest {
 	 * the snapshot, which today is exactly an {@code EntityCollection} diff layer. The flag is passed positionally, so
 	 * this comment is what keeps the intent readable if the constructor parameter is ever renamed again.
 	 */
-	private final DataStoreChanges layer = new DataStoreChanges(mockPersistenceService(), true);
-
-	/**
-	 * Creates a throwaway persistence-service stub — none of its methods are exercised by the dirty-index paths under
-	 * test.
-	 *
-	 * @return a Mockito stub of the persistence service
-	 */
-	@Nonnull
-	@SuppressWarnings("unchecked")
-	private static StoragePartPersistenceService<StorageDescriptor> mockPersistenceService() {
-		return Mockito.mock(StoragePartPersistenceService.class);
-	}
+	private final DataStoreChanges layer = new DataStoreChanges(new InMemoryStoragePartPersistenceService(), true);
 
 	/**
 	 * Creates a layer-less {@link EntityIndex} stub — the dirty-index maps store it purely by reference and the flush
 	 * only calls its (no-op on a mock) storage-part collection hooks.
+	 *
+	 * **This one stays a mock deliberately**, unlike the persistence service beside it: those flush hooks
+	 * ({@code getModifiedStorageParts}, {@code notifyFlushed}) are declared `final` on {@link EntityIndex}, so a
+	 * hand-written subclass could not keep them no-ops — it would run the real implementations over a real index and
+	 * emit storage parts of its own. The mock is load-bearing here, not a stateful fake in disguise.
 	 *
 	 * @param primaryKey the primary key the stub reports
 	 * @return an {@link EntityIndex} stub
@@ -174,7 +165,7 @@ class DataStoreChangesDirtyIndexKeySnapshotTest {
 	@Test
 	@DisplayName("the shared non-layer buffer captures nothing - a warm-up flush pays no snapshot cost")
 	void shouldNotCaptureASnapshotOnTheSharedNonLayerBuffer() {
-		final DataStoreChanges sharedBuffer = new DataStoreChanges(mockPersistenceService());
+		final DataStoreChanges sharedBuffer = new DataStoreChanges(new InMemoryStoragePartPersistenceService());
 		sharedBuffer.getOrCreateIndexForModification(LIVE_GLOBAL_KEY, key -> entityIndexStub(1));
 
 		sharedBuffer.popTrappedUpdates();

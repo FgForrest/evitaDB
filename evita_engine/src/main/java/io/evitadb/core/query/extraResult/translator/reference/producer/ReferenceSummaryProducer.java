@@ -25,6 +25,10 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -183,6 +187,20 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	@Nullable
 	private DefaultReferenceSummaryRequest defaultRequest;
 	/**
+	 * The raw settings the all-references summary constraint declared, kept so that a second constraint of the
+	 * same kind can be compared against it rather than silently replacing it. See
+	 * {@link #assertDefaultSummaryNotRedeclared(SummaryDeclaration)}.
+	 */
+	@Nullable
+	private SummaryDeclaration defaultDeclaration;
+	/**
+	 * The raw settings each reference-specific summary constraint declared, keyed by reference name, for the same
+	 * reason as {@link #defaultDeclaration}. See
+	 * {@link #assertReferenceSummaryNotRedeclared(String, SummaryDeclaration)}.
+	 */
+	@Nonnull
+	private final Map<String, SummaryDeclaration> referenceDeclarations = createHashMap(8);
+	/**
 	 * Adapter that wraps the intermediate statistics map into the concrete extra-result DTO.
 	 * Picked by the translator — {@link FacetSummaryAdapter} for the deprecated
 	 * {@link io.evitadb.api.query.require.FacetSummary} /
@@ -242,10 +260,65 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Registers default settings for facet summary in terms of entity richness (both group and facet) and also
-	 * a default type of statistics depth. These settings will be used for all facet references that are not explicitly
-	 * configured by {@link #requireReferenceReferenceSummary(ReferenceSchemaContract, FacetStatisticsDepth,
-	 * IntPredicate, IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}.
+	 * Refuses a second, disagreeing declaration of the all-references summary. Both spellings of the constraint -
+	 * `referenceSummary` and the deprecated `facetSummary` - route here, but each spelling owns its own producer
+	 * instance, so a disagreement can only come from two constraints of the very same kind. An identical repeat is
+	 * folded away; anything else would decide the answer by the order the constraints happen to be written in.
+	 *
+	 * @param declaration the settings the constraint being translated declares
+	 * @throws EvitaInvalidUsageException when a different set of settings was already declared
+	 */
+	public void assertDefaultSummaryNotRedeclared(@Nonnull SummaryDeclaration declaration) {
+		if (this.defaultDeclaration != null && !this.defaultDeclaration.equals(declaration)) {
+			final String reason = "Summary of all references is requested twice with different settings - " +
+				"the two constraints disagree on " + this.defaultDeclaration.describeDifference(declaration) +
+				", and a single result can carry only one of them";
+			throw new EvitaInvalidUsageException(reason + ".", reason + ".");
+		}
+		this.defaultDeclaration = declaration;
+	}
+
+	/**
+	 * Refuses a second, disagreeing declaration of the summary of one named reference. See
+	 * {@link #assertDefaultSummaryNotRedeclared(SummaryDeclaration)} - the rule and the reasoning are the same,
+	 * applied per reference name.
+	 *
+	 * @param referenceName the reference the summary is declared for
+	 * @param declaration   the settings the constraint being translated declares
+	 * @throws EvitaInvalidUsageException when a different set of settings was already declared for that reference
+	 */
+	public void assertReferenceSummaryNotRedeclared(
+		@Nonnull String referenceName,
+		@Nonnull SummaryDeclaration declaration
+	) {
+		final SummaryDeclaration alreadyDeclared = this.referenceDeclarations.get(referenceName);
+		if (alreadyDeclared != null && !alreadyDeclared.equals(declaration)) {
+			final String reason = "Summary of reference `" + referenceName + "` is requested twice with different " +
+				"settings - the two constraints disagree on " + alreadyDeclared.describeDifference(declaration) +
+				", and a single result can carry only one of them";
+			throw new EvitaInvalidUsageException(reason + ".", reason + ".");
+		}
+		this.referenceDeclarations.put(referenceName, declaration);
+	}
+
+	/**
+	 * Registers the settings of the all-references summary constraint - the entity richness of both the facets and
+	 * their groups, the predicates and sorters that shape them, and the statistics depth. They apply to every
+	 * reference that no reference-specific constraint claimed through
+	 * {@link #requireReferenceReferenceSummary(ReferenceSchemaContract, FacetStatisticsDepth, IntPredicate,
+	 * IntPredicate, NestedContextSorter, NestedContextSorter, EntityFetch, EntityGroupFetch)}; a reference that did
+	 * get its own constraint takes **all** of its settings from that one and inherits nothing from here.
+	 *
+	 * The predicates and sorters arrive as functions of the reference schema, because one declaration has to serve
+	 * every reference the summary ends up covering, and each of them resolves its own instance.
+	 *
+	 * @param facetStatisticsDepth      depth of the statistics computed for each facet
+	 * @param facetPredicate            resolves the predicate narrowing the facets of a reference, null when none
+	 * @param groupPredicate            resolves the predicate narrowing the facet groups of a reference, null when none
+	 * @param facetSorter               resolves the sorter ordering the facets of a reference, null when none
+	 * @param groupSorter               resolves the sorter ordering the facet groups of a reference, null when none
+	 * @param facetEntityRequirement    body to fetch for each facet entity, null when only the primary key is wanted
+	 * @param groupEntityRequirement    body to fetch for each group entity, null when only the primary key is wanted
 	 */
 	public void requireDefaultReferenceSummary(
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth,
@@ -266,10 +339,11 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Registers specific settings for facets of certain reference with passed `referenceName` that will
-	 * extend / override the default settings set in
+	 * Registers the settings of a reference-specific summary constraint for the passed `referenceSchema`. They
+	 * **completely replace** the default settings registered by
 	 * {@link #requireDefaultReferenceSummary(FacetStatisticsDepth, Function, Function, Function, Function,
-	 * EntityFetch, EntityGroupFetch)}, should there be any.
+	 * EntityFetch, EntityGroupFetch)} for that one reference - nothing is inherited from them, so the constraint
+	 * has to define all of its own requirements. See {@link #resolveReferenceRequest} for the rule.
 	 */
 	public void requireReferenceReferenceSummary(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -428,96 +502,87 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			);
 			final Formula histogramBaseline = relaxedBaseline == EmptyFormula.INSTANCE
 				? null : relaxedBaseline;
+			// resolve the request governing each reference that carries histograms exactly once, so the facet
+			// sorter, the group entity fetcher and the group predicate the accumulator asks for can never disagree
+			// about which constraint governs the reference - that drift is what made a histogram-only group come
+			// back bare while the same reference at depth COUNTS carried the generic summary's attributes
+			final Map<String, ReferenceSummaryRequest> histogramReferenceRequests = createHashMap(
+				this.histogramRequests.size()
+			);
+			for (final Entry<String, List<HistogramRequest>> histogramEntry : this.histogramRequests.entrySet()) {
+				final ReferenceSummaryRequest referenceRequest = resolveHistogramReferenceRequest(
+					histogramEntry.getKey(), histogramEntry.getValue()
+				);
+				if (referenceRequest != null) {
+					histogramReferenceRequests.put(histogramEntry.getKey(), referenceRequest);
+				}
+			}
 			statisticsByReferenceName = ReferenceHistogramAccumulator.injectHistograms(
 				statisticsByReferenceName,
 				this.histogramRequests,
 				histogramBaseline,
 				context,
 				resultAdapter,
-				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
 					.map(ReferenceSummaryRequest::facetSorter)
 					.orElse(null),
-				referenceName -> resolveGroupEntityFetcher(referenceName, context),
-				this::resolveGroupPredicate
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
+					.map(referenceRequest -> referenceRequest.getGroupEntityFetcher(
+						context, referenceRequest.referenceSchema()
+					))
+					.orElse(null),
+				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
+					.map(ReferenceSummaryRequest::groupPredicate)
+					.orElse(null)
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
 	}
 
 	/**
-	 * Resolves the batched group-entity fetcher for the histogram accumulator. Reuses the
-	 * fetcher cached on the explicit {@link ReferenceSummaryRequest} when one was registered
-	 * for the reference; otherwise falls back to {@link #defaultRequest}, mirroring the
-	 * specific-or-default merge {@link #resolveReferenceRequest} performs in phase 1. The
-	 * fallback is what keeps the all-references {@code referenceSummary(...)} form aligned
-	 * with the per-reference form — without it, histogram-only synthetic groups would be
-	 * emitted as bare {@link EntityReference}s and downstream consumers (notably the GraphQL
-	 * `groupEntity { attributes { ... } }` path) would ClassCast on `AttributesContract`.
-	 * Returns {@code null} only when neither request is available or the reference schema
-	 * cannot be located (e.g. deprecated FacetSummary adapter path).
+	 * Resolves the {@link ReferenceSummaryRequest} governing a reference that carries histograms, applying the very
+	 * rule {@link #resolveReferenceRequest} applies on the facet path: a reference-specific summary constraint
+	 * governs the reference it names **entirely**, and the generic constraint governs every reference that has no
+	 * specific one. Nothing is inherited across that boundary - neither the group entity fetch nor the `filterGroupBy`
+	 * predicate nor the facet order - so the histogram-only groups synthesized at
+	 * {@link FacetStatisticsDepth#NONE} and the facet-emitted groups of the same reference at
+	 * {@link FacetStatisticsDepth#COUNTS} always describe the same entities.
+	 *
+	 * @param referenceName     name of the reference the accumulator is about to compute histograms for
+	 * @param requests          histogram requests registered for that reference; their schema is the only place this
+	 *                          producer keeps the reference schema of a reference no specific constraint named
+	 * @return the governing request, NULL when the reference is governed by neither a specific nor a generic
+	 *         constraint (e.g. the deprecated `FacetSummary` adapter path, which registers no default request)
 	 */
 	@Nullable
-	private Function<int[], EntityClassifier[]> resolveGroupEntityFetcher(
+	private ReferenceSummaryRequest resolveHistogramReferenceRequest(
 		@Nonnull String referenceName,
-		@Nonnull QueryExecutionContext context
+		@Nonnull List<HistogramRequest> requests
 	) {
 		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
 		if (specific != null) {
-			return specific.getGroupEntityFetcher(context, specific.referenceSchema());
+			return specific;
 		}
-		if (this.defaultRequest == null) {
+		if (this.defaultRequest == null || requests.isEmpty()) {
 			return null;
 		}
-		// histogramRequests is the only place this producer keeps the reference schema for
-		// references not registered in referenceSummaryRequests — and it is guaranteed to
-		// carry an entry for `referenceName` because the accumulator only reaches this
-		// resolver while iterating its own keys.
-		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
-		if (requests == null || requests.isEmpty()) {
-			return null;
-		}
-		final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
-		return buildFromDefault(referenceSchema, new AtomicInteger())
-			.getGroupEntityFetcher(context, referenceSchema);
+		return buildFromDefault(requests.get(0).referenceSchema(), new AtomicInteger());
 	}
 
 	/**
-	 * Resolves the `filterGroupBy` predicate for the histogram accumulator, mirroring the
-	 * specific-or-default merge {@link #resolveGroupEntityFetcher} performs. Returns the predicate
-	 * cached on the explicit {@link ReferenceSummaryRequest} when one was registered for the
-	 * reference; otherwise derives it per-schema from {@link #defaultRequest}, the same fallback
-	 * {@link #mergeSpecificWithDefault} and {@link #buildFromDefault} apply during phase 1. This is
-	 * what lets the histogram path drop groups the caller did not select — the facet path already
-	 * applies this predicate in {@code accumulator()}. Returns {@code null} when no `filterGroupBy`
-	 * is in effect for the reference (no group filtering — every group passes).
-	 */
-	@Nullable
-	private IntPredicate resolveGroupPredicate(@Nonnull String referenceName) {
-		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
-		if (specific != null) {
-			if (specific.groupPredicate() != null) {
-				return specific.groupPredicate();
-			}
-			return this.defaultRequest == null
-				? null
-				: applyToSchema(this.defaultRequest.groupPredicate(), specific.referenceSchema());
-		}
-		if (this.defaultRequest == null) {
-			return null;
-		}
-		// histogramRequests is the only place this producer keeps the reference schema for
-		// references not registered in referenceSummaryRequests — guaranteed to carry an entry
-		// because the accumulator only reaches this resolver while iterating its own keys.
-		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
-		if (requests == null || requests.isEmpty()) {
-			return null;
-		}
-		return applyToSchema(this.defaultRequest.groupPredicate(), requests.get(0).referenceSchema());
-	}
-
-	/**
-	 * Resolves the effective {@link ReferenceSummaryRequest} for a given reference schema by merging the
-	 * explicit per-reference request (if registered) with the {@link #defaultRequest} fallback.
+	 * Resolves the {@link ReferenceSummaryRequest} governing the passed reference schema.
+	 *
+	 * A reference-specific summary constraint - `referenceSummaryOfReference` / `facetSummaryOfReference` - governs
+	 * the reference it names **entirely**: it must define all of its own requirements and inherits nothing from
+	 * a generic `referenceSummary` / `facetSummary` written beside it, which is what the class javadoc of
+	 * {@link ReferenceSummary} and {@link io.evitadb.api.query.require.FacetSummary} has always promised. The generic
+	 * constraint keeps governing every reference that has no specific constraint of its own, and
+	 * {@link #buildFromDefault(ReferenceSchemaContract, AtomicInteger)} derives its per-schema request for them.
+	 *
+	 * @param referenceSchema schema of the reference the summary is being computed for
+	 * @param counter         running order counter for the requests derived from the generic constraint
+	 * @return the governing request; never NULL, because the caller only reaches this method for references either
+	 *         constraint covers
 	 */
 	@Nonnull
 	private ReferenceSummaryRequest resolveReferenceRequest(
@@ -527,57 +592,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(
 			referenceSchema.getName()
 		);
-		if (specific != null) {
-			return this.defaultRequest == null ? specific : mergeSpecificWithDefault(specific);
-		}
-		return buildFromDefault(referenceSchema, counter);
-	}
-
-	/**
-	 * Overlays the reference-specific request onto {@link #defaultRequest}, combining entity fetches and
-	 * falling back to per-schema predicates/sorters derived from the default whenever the specific request
-	 * does not supply its own.
-	 */
-	@Nonnull
-	private ReferenceSummaryRequest mergeSpecificWithDefault(
-		@Nonnull ReferenceSummaryRequest specific
-	) {
-		// caller in resolveReferenceRequest guards against null defaultRequest; pin the invariant here
-		final DefaultReferenceSummaryRequest fallback = Objects.requireNonNull(this.defaultRequest);
-		final ReferenceSchemaContract schema = specific.referenceSchema();
-
-		// combine entity-fetch requirements: specific extends default when both exist, else use default's
-		final EntityFetch combinedFacetEntityRequirement = specific.facetEntityRequirement() == null
-			? fallback.facetEntityRequirement()
-			: specific.facetEntityRequirement().combineWith(fallback.facetEntityRequirement());
-		final EntityGroupFetch combinedGroupEntityRequirement = specific.groupEntityRequirement() == null
-			? fallback.groupEntityRequirement()
-			: specific.groupEntityRequirement().combineWith(fallback.groupEntityRequirement());
-
-		final IntPredicate facetPredicate = specific.facetPredicate() != null
-			? specific.facetPredicate()
-			: applyToSchema(fallback.facetPredicate(), schema);
-		final IntPredicate groupPredicate = specific.groupPredicate() != null
-			? specific.groupPredicate()
-			: applyToSchema(fallback.groupPredicate(), schema);
-		final NestedContextSorter facetSorter = specific.facetSorter() != null
-			? specific.facetSorter()
-			: applyToSchema(fallback.facetSorter(), schema);
-		final NestedContextSorter groupSorter = specific.groupSorter() != null
-			? specific.groupSorter()
-			: applyToSchema(fallback.groupSorter(), schema);
-
-		return new ReferenceSummaryRequest(
-			specific.order(),
-			schema,
-			facetPredicate,
-			groupPredicate,
-			facetSorter,
-			groupSorter,
-			combinedFacetEntityRequirement,
-			combinedGroupEntityRequirement,
-			specific.facetStatisticsDepth()
-		);
+		return specific == null ? buildFromDefault(referenceSchema, counter) : specific;
 	}
 
 	/**
@@ -606,7 +621,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 
 	/**
 	 * Applies a nullable per-schema resolver to the given schema, returning `null` when the resolver is
-	 * absent. Lets the merge/build helpers express predicate and sorter fallbacks uniformly.
+	 * absent. Lets {@link #buildFromDefault(ReferenceSchemaContract, AtomicInteger)} express the predicate and
+	 * sorter derivation from the generic constraint uniformly.
 	 */
 	@Nullable
 	private static <R> R applyToSchema(
@@ -1480,6 +1496,68 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to
 	) {
+	}
+
+	/**
+	 * The settings a single summary constraint declares, in the shape they were written in. It exists purely so
+	 * that two constraints aimed at one target can be compared: the built request carries predicates and sorters,
+	 * which are lambdas and never equal even when two constraints are identical.
+	 *
+	 * @param statisticsDepth            requested depth of the computed statistics
+	 * @param referenceEntityRequirement body of the referenced entity, `null` when only references are returned
+	 * @param groupEntityRequirement     body of the group entity, `null` when only group references are returned
+	 * @param filterBy                   filter narrowing the individual references, `null` when none was declared
+	 * @param filterGroupBy              filter narrowing the reference groups, `null` when none was declared
+	 * @param orderBy                    order of the individual references, `null` when none was declared
+	 * @param orderGroupBy               order of the reference groups, `null` when none was declared
+	 */
+	public record SummaryDeclaration(
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable EntityFetch referenceEntityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy orderGroupBy
+	) {
+
+		/**
+		 * Names the parts on which this declaration and the passed one disagree, so that the refusal can say what
+		 * the client has to reconcile instead of merely that something differs.
+		 *
+		 * @param another the competing declaration
+		 * @return a human readable enumeration of the differing parts
+		 */
+		@Nonnull
+		public String describeDifference(@Nonnull SummaryDeclaration another) {
+			final StringBuilder result = new StringBuilder(128);
+			appendDifference(result, "statistics depth", this.statisticsDepth, another.statisticsDepth);
+			appendDifference(result, "entity body", this.referenceEntityRequirement, another.referenceEntityRequirement);
+			appendDifference(result, "group entity body", this.groupEntityRequirement, another.groupEntityRequirement);
+			appendDifference(result, "filterBy", this.filterBy, another.filterBy);
+			appendDifference(result, "filterGroupBy", this.filterGroupBy, another.filterGroupBy);
+			appendDifference(result, "orderBy", this.orderBy, another.orderBy);
+			appendDifference(result, "orderGroupBy", this.orderGroupBy, another.orderGroupBy);
+			return result.toString();
+		}
+
+		/**
+		 * Appends `<name> (<first> and <second>)` to the builder when the two values differ.
+		 */
+		private static void appendDifference(
+			@Nonnull StringBuilder result,
+			@Nonnull String name,
+			@Nullable Object first,
+			@Nullable Object second
+		) {
+			if (!Objects.equals(first, second)) {
+				if (!result.isEmpty()) {
+					result.append(", ");
+				}
+				result.append(name).append(" (").append(first).append(" and ").append(second).append(')');
+			}
+		}
+
 	}
 
 }

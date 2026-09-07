@@ -27,8 +27,11 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,8 +53,16 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalBoolean implements TransactionalLayerProducer<BooleanChanges, Boolean>, Serializable {
+public class TransactionalBoolean
+	implements TransactionalLayerProducer<BooleanChanges, Boolean>, WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = 7796376128158582312L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private boolean value;
 
@@ -81,11 +92,23 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
+	 * The whole mutable state of this wrapper is one `boolean`, so its pre-image is captured in full on the first
+	 * write-touch of the delegate branch and restored by a single field assignment.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * Sets the value to TRUE in a transaction-safe way (if transaction is available).
 	 */
 	public void setToTrue() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value = true;
 		} else {
 			layer.setToTrue();
@@ -98,9 +121,30 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void setToFalse() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value = false;
 		} else {
 			layer.setToFalse();
+		}
+	}
+
+	/**
+	 * Captures {@link #value} for the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a failed mutation rewinds this flag to what it held before the mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * The capture is made on the FIRST write-touch only: this whole object *is* one boolean, so a single captured
+	 * pre-image is an absolute restore of all of it, and re-capturing on a later write would only overwrite it with a
+	 * mid-savepoint value. That matters here more than anywhere else in the index code — a flag of this shape is the
+	 * `dirty` marker of nearly every index, set again on every single modification, so a per-write inverse would push
+	 * one journal entry per modification for no added fidelity.
+	 *
+	 * Must be called BEFORE the assignment. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final boolean preImage = this.value;
+			savepoint.push(() -> this.value = preImage);
 		}
 	}
 
@@ -139,8 +183,8 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	public long getHeapSizeInBytes() {
-		// id + the boolean
-		return VMLayout.current().sizeOfObject(Long.BYTES + 1L);
+		// id + warmUpTouchStamp + the boolean
+		return VMLayout.current().sizeOfObject(2L * Long.BYTES + 1L);
 	}
 
 	/*

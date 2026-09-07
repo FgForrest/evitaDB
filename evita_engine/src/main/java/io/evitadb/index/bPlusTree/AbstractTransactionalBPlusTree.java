@@ -710,6 +710,29 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 		@Nonnull private final Object[] values;
 		private final int peek;
 
+		/**
+		 * Captures the leaf's value array and occupancy as **two independent reads**, array first — the shape that
+		 * tears elsewhere in these trees, because `size()` bounds a walk that `valueAt(int)` then indexes on the
+		 * array captured beside it. Since the leaf arrays follow their content, a stale short array paired with a
+		 * fresh larger `peek` would run off the end rather than merely return a stale element.
+		 *
+		 * **It cannot tear here, because this path is thread-confined to the writer.** Both reads resolve through
+		 * {@code currentState()} → {@link Transaction#getTransactionalMemoryLayerIfExists}, which reads a
+		 * {@link ThreadLocal} binding of the current transaction. A flush running on any other thread would resolve
+		 * every leaf to its committed instance, read `dirty == false` on each one the transaction touched, and emit
+		 * no pages at all — so the paging tests passing is itself the evidence that the emission runs inside the
+		 * writing transaction's thread. In warm-up there is no transaction and the writes and the flush share the
+		 * single `@NotThreadSafe` session thread. Same thread, program order, no tear — which is why the reader-side
+		 * clamp the cursors and heap walks carry is deliberately absent here rather than forgotten.
+		 *
+		 * **This is confinement by consequence, not by an asserted invariant, and that is the hazard worth naming.**
+		 * Nothing here enforces it. Should a future change move page emission onto a background thread, it would not
+		 * fail by crashing: it would emit zero pages long before it managed an index out of bounds, so the first
+		 * symptom would be silently lost writes. Anything moving this off the writer's thread must give the leaf a
+		 * combined publish of `(values, peek)` first.
+		 *
+		 * @param leaf the leaf whose page contents this handle exposes
+		 */
 		LeafPageHandleImpl(@Nonnull LeafBPlusTreeNode<?> leaf) {
 			this.leaf = leaf;
 			this.values = leaf.getValueArray();

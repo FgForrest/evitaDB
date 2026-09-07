@@ -45,10 +45,6 @@ public class ConstantFormula extends AbstractFormula {
 	 */
 	private static final long CLASS_ID = 2713157071360876502L;
 	/**
-	 * Reusable empty long array returned when the delegate bitmap has no transactional identity.
-	 */
-	private static final long[] EMPTY_LONG_ARRAY = new long[0];
-	/**
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
 	@Getter private final Bitmap delegate;
@@ -59,11 +55,21 @@ public class ConstantFormula extends AbstractFormula {
 		this.initFields();
 	}
 
+	/**
+	 * The staleness token set of this formula: the delegate's transactional id when it owns one, its CONTENT hash
+	 * otherwise.
+	 *
+	 * The content fallback matters because a delegate without a transactional identity is now ordinary rather than
+	 * exotic - a single-record bucket view and a sorted-array bucket view are both read-only projections created per
+	 * read, so neither can carry an id. Returning an empty set for those left a cacheable answer with no staleness
+	 * dependency at all, which is to say a cached result that no write could ever invalidate. The cache compares the
+	 * HASH of this set rather than resolving individual ids, so a content hash serves the purpose, and it mirrors what
+	 * {@link #includeAdditionalHash} has always done for the same delegate.
+	 */
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return this.delegate instanceof TransactionalBitmap txBitmap ?
-			new long[]{txBitmap.getId()} : EMPTY_LONG_ARRAY;
+		return new long[]{bitmapIdentityToken(this.delegate, HASH_FUNCTION)};
 	}
 
 	@Override
@@ -78,15 +84,10 @@ public class ConstantFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.delegate instanceof TransactionalLayerProducer) {
-			return ((TransactionalLayerProducer<?, ?>) this.delegate).getId();
-		} else {
-			// a bitmap that is not part of a transactional layer carries no id to key on, so its contents are what
-			// identify it - and since this formula gathers no transactional ids for such a delegate, that hash is
-			// the sole cache discriminator. The walk is `O(size)`, which is why index memos hand out the same bitmap
-			// instance every time: `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
-			return this.delegate.getContentHash(hashFunction);
-		}
+		// the same token the staleness set is built from - see AbstractFormula#bitmapIdentityToken. The walk a
+		// content hash costs is `O(size)`, which is why index memos hand out the same bitmap instance every time:
+		// `BaseBitmap#getContentHash` memoizes it, so only the first formula pays
+		return bitmapIdentityToken(this.delegate, hashFunction);
 	}
 
 	@Override

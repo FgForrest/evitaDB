@@ -24,7 +24,9 @@
 package io.evitadb.api.functional.hierarchy;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.functional.hierarchy.EntityByHierarchyFilteringFunctionalTest.TestHierarchyPredicate;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -41,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -82,6 +85,9 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HIERARCHY;
 
@@ -101,6 +107,57 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
+
+	/**
+	 * Runs a product query restricted by the passed filtering constraint and returns the matching primary keys.
+	 */
+	@Nonnull
+	private static Set<Integer> queryProductPrimaryKeys(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull FilterConstraint filter
+	) {
+		return session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(filter),
+					require(page(1, Integer.MAX_VALUE))
+				),
+				EntityReference.class
+			)
+			.getRecordData()
+			.stream()
+			.map(EntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns true when the entity references any of the passed categories or any of their descendants - the reference
+	 * implementation of what `hierarchyWithin(CATEGORY, entityPrimaryKeyInSet(...))` is expected to match.
+	 */
+	private static boolean isInAnyOfCategorySubtrees(
+		@Nonnull SealedEntity entity,
+		@Nonnull one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
+		int... categoryIds
+	) {
+		return entity
+			.getReferences(Entities.CATEGORY)
+			.stream()
+			.anyMatch(category -> {
+				final String categoryId = String.valueOf(category.getReferenceKey().primaryKey());
+				for (int examinedCategoryId : categoryIds) {
+					final String examinedCategory = String.valueOf(examinedCategoryId);
+					// is either the category itself
+					if (Objects.equals(categoryId, examinedCategory) ||
+						// or has it among its parents
+						categoryHierarchy.getParentItems(categoryId)
+							.stream()
+							.anyMatch(it -> Objects.equals(it.getCode(), examinedCategory))) {
+						return true;
+					}
+				}
+				return false;
+			});
+	}
 
 	@Nonnull
 	private static CardinalityProvider computeCardinalities(
@@ -651,6 +708,171 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 						}),
 					result.getRecordData()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products in selected category subtree combined by or with another condition")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInCategorySubtreeOredWithAnotherCondition(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							or(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+								entityPrimaryKeyInSet(1, 2, 3)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> Set.of(1, 2, 3).contains(sealedEntity.getPrimaryKey()) ||
+						isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products in either of two selected category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInEitherOfTwoCategorySubtrees(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							or(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7, 2),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products outside the selected category subtree")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsOutsideCategorySubtree(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)))
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !isInAnyOfCategorySubtrees(sealedEntity, categoryHierarchy, 7),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse hierarchy statistics restricted by two hierarchy filters joined by or")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseHierarchyStatisticsWithTwoHierarchyFiltersJoinedByOr(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								or(
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7)),
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(Entities.CATEGORY, fromRoot("megaMenu", stopAt(level(1))))
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return the union of two differently excluded category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnUnionOfTwoDifferentlyExcludedCategorySubtrees(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// each branch declares its own `excluding` filter - the two node visibility predicates differ
+				final FilterConstraint firstBranch = hierarchyWithin(
+					Entities.CATEGORY, entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(2))
+				);
+				final FilterConstraint secondBranch = hierarchyWithin(
+					Entities.CATEGORY, entityPrimaryKeyInSet(6), excluding(entityPrimaryKeyInSet(7))
+				);
+
+				final Set<Integer> first = queryProductPrimaryKeys(session, firstBranch);
+				final Set<Integer> second = queryProductPrimaryKeys(session, secondBranch);
+				final Set<Integer> both = queryProductPrimaryKeys(session, or(firstBranch, secondBranch));
+
+				assertFalse(first.isEmpty(), "the first branch must match something for the test to mean anything");
+				assertFalse(second.isEmpty(), "the second branch must match something for the test to mean anything");
+
+				final Set<Integer> expected = new HashSet<>(first);
+				expected.addAll(second);
+				assertEquals(expected, both);
 				return null;
 			}
 		);
@@ -2735,6 +2957,165 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
 				assertNotNull(statistics);
 				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should keep the order declared by a sibling hierarchyOfReference constraint")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldKeepOrderDeclaredBySiblingHierarchyOfReferenceConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> alone = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final EvitaResponse<EntityReference> withSibling = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							page(1, 0),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(2)))
+							),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy aloneStatistics = alone.getExtraResult(Hierarchy.class);
+				final Hierarchy siblingStatistics = withSibling.getExtraResult(Hierarchy.class);
+				assertNotNull(aloneStatistics);
+				assertNotNull(siblingStatistics);
+				// an order shapes the result, the absence of one is no competing claim about it - so the sibling
+				// that declares none defers rather than wiping the order declared beside it
+				assertEquals(
+					aloneStatistics.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"),
+					siblingStatistics.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse two hierarchyOfReference constraints ordering the same reference differently")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseTwoHierarchyOfReferenceConstraintsWithDifferentOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityLocaleEquals(CZECH_LOCALE),
+									hierarchyWithinRoot(Entities.CATEGORY)
+								)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+									fromRoot("plainMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("ordered by two different `orderBy` constraints"),
+					exception.getMessage()
+				);
+				assertTrue(
+					exception.getMessage().contains(Entities.CATEGORY),
+					exception.getMessage()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should refuse reference hierarchy statistics restricted by two different hierarchy filters")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldRefuseReferenceHierarchyStatisticsWithTwoDifferentHierarchyFilters(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1)),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							),
+							require(
+								page(1, 0),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									fromRoot("megaMenu", entityFetch(attributeContent()), stopAt(level(1)))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("restricts that hierarchy by two different constraints"),
+					exception.getMessage()
+				);
+				assertTrue(
+					exception.getMessage().contains(Entities.CATEGORY),
+					exception.getMessage()
+				);
 
 				return null;
 			}

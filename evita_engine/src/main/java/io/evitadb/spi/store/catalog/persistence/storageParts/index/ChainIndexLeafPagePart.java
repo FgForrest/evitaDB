@@ -66,6 +66,12 @@ public class ChainIndexLeafPagePart extends AbstractAttributeLeafPagePart {
 
 	/**
 	 * The leaf's record primary keys in tree (chain) order. Not sorted — the order is the value-tree ordering.
+	 *
+	 * Exactly the leaf's **live run**, never its backing array. The in-memory container sizes that array to its
+	 * content and grows it towards the leaf capacity, so its length is an allocation detail that changes as the leaf
+	 * fills; the page is produced by copying the live prefix out of it, so the persisted form is unaffected by how
+	 * the container happens to be allocated. The reload path is symmetric: it rebuilds one leaf per page from this
+	 * array's length alone.
 	 */
 	@Nonnull @Getter private final int[] recordIds;
 	/**

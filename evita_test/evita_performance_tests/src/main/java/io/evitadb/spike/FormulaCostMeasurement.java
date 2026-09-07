@@ -345,7 +345,7 @@ public class FormulaCostMeasurement {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
 			"test histogram",
 			bucketDataSet.getFormula(),
-			40, HistogramBehavior.STANDARD,
+			BucketsRecordState.REQUESTED_BUCKET_COUNT, HistogramBehavior.STANDARD,
 			bucketDataSet.getRequest()
 		);
 		blackhole.consume(testedFormula.compute());

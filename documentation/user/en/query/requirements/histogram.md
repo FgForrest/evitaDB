@@ -109,6 +109,24 @@ attribute values actually reachable under the user's current facet and price pic
 example are covered in [Baseline relaxation](#baseline-relaxation--sliders-dont-contract-under-their-own-handles)
 below.
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Can I ask for several histograms with different bucket counts?
+</NoteTitle>
+
+Yes. Several `attributeHistogram` requirements may be written side by side, and each one applies its own bucket
+count and behaviour to the attributes it names - a query asking for 20 buckets of one attribute and 3 of another
+gets exactly that.
+
+One attribute may be requested only once, though: it occupies a single slot in the result, so two requirements
+naming it with a different bucket count or behaviour have no answer that satisfies both and are refused with an
+exception. Requesting it twice with the *same* bucket count and behaviour is accepted, which is how one attribute
+asked for in two scopes is computed across both of them.
+
+</Note>
+
 To demonstrate the use of the histogram, we will use the following example:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -307,7 +325,7 @@ prices actually reachable under the user's current attribute range and facet pic
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
 requirement, the histogram visualizes the price with tax.
 
-### Price histogram granularity and inner-record handling {#price-histogram-granularity}
+### Price histogram granularity and inner-record handling
 
 The histogram answers *"what prices are reachable in the candidate pool?"* The answer depends on how the collection
 handles inner records (`PriceInnerRecordHandling`), because that determines what constitutes one price data point:

@@ -28,6 +28,8 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -58,6 +60,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -100,8 +103,16 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ReferenceTypeCardinalityIndex
-	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure, Serializable {
+	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure,
+	WarmUpTouchStamped, Serializable {
 	@Serial private static final long serialVersionUID = -7416602590381722682L;
+	/**
+	 * This structure's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured its pre-image. {@link WarmUpTouchStamped}
+	 * carries the requirements the field has to meet, and why breaking one of them corrupts a
+	 * rollback rather than merely slowing it down.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 
 	/**
 	 * Block-size geometry of the cardinality bucket tree — a 256-entry leaf with the matching minimum split thresholds
@@ -323,6 +334,7 @@ public class ReferenceTypeCardinalityIndex
 		}
 
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
@@ -371,10 +383,31 @@ public class ReferenceTypeCardinalityIndex
 			}
 		}
 		if (!isTransactionAvailable()) {
+			recordWarmUpSavepointTouch();
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
 		return removed ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
+	}
+
+	/**
+	 * Records, for the warm-up savepoint bracketing the current root entity mutation if one is open, that
+	 * {@link #memoizedAllReferencedPrimaryKeys} has to be left INVALIDATED should the mutation be rolled back (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * Both mutators already null the memo on the forward path; the journal entry covers a read performed LATER inside
+	 * the same root entity mutation, which would repopulate it from the half-mutated cardinalities and leave it stale
+	 * once those are rewound. Re-invalidating on restore costs one recomputation and makes no claim about a captured
+	 * bitmap's validity.
+	 *
+	 * Recorded once per savepoint, and only from the non-transactional branch - inside a transaction no warm-up
+	 * savepoint is ever open. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			savepoint.pushPostRestoreInvalidation(() -> this.memoizedAllReferencedPrimaryKeys = null);
+		}
 	}
 
 	/**
@@ -669,9 +702,9 @@ public class ReferenceTypeCardinalityIndex
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
-		// the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
+		// warmUpTouchStamp + the dirty / cardinalities / pageStreamRegistry / referencedPrimaryKeysIndex /
 		// memoizedAllReferencedPrimaryKeys slots
-		long size = layout.sizeOfObject(5L * layout.referenceSize())
+		long size = layout.sizeOfObject(Long.BYTES + 5L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.cardinalities.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
@@ -715,8 +748,8 @@ public class ReferenceTypeCardinalityIndex
 			// This is the EARLIEST publish point on the transactional path only; it is not the only one — a staged set
 			// that never reaches a merge (the warm-up path has no merge at all) is published by the next flush instead,
 			// see `publishPreviousFlush`. (No discard counterpart is needed: a pre-flush abort never stages, and a
-			// failed flush suspends this catalog's transaction processing — on the warm-up path it poisons the
-			// collection's buffer instead, the same invariant in another dress — so no later flush ever diffs against
+			// failed flush suspends this catalog's transaction processing — on the warm-up path it marks the
+			// catalog unpublishable instead, the same invariant in another dress — so no later flush ever diffs against
 			// the baseline a failed one left behind; restart rebuilds a clean registry from disk.)
 			this.pageStreamRegistry.publishStaged();
 			return new ReferenceTypeCardinalityIndex(
@@ -827,8 +860,8 @@ public class ReferenceTypeCardinalityIndex
 	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
 	 * cannot lean on the previous flush's bytes having landed by now. It does not need to: a flush that fails during
 	 * trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}), and a
-	 * flush that fails on the warm-up path POISONS the collection's buffer
-	 * ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses deterministically. Those two
+	 * flush that fails on the warm-up path makes the catalog UNPUBLISHABLE
+	 * ({@code Catalog.markUnpublishable}), so every later flush of it refuses deterministically. Those two
 	 * are the same invariant in different dresses: after a failed flush no later flush of that data ever runs, so
 	 * nothing can ever diff against the baselines it left behind. A flush that does NOT fail leaves `staged` holding
 	 * exactly the page set it wrote — the baseline the next flush must diff against — regardless of which path staged

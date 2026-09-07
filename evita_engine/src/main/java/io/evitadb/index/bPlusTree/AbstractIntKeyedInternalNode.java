@@ -27,10 +27,13 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,6 +41,7 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.function.ToLongFunction;
 
+import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfIntInOrderedArray;
 import static io.evitadb.utils.ArrayUtils.insertIntIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
@@ -75,6 +79,18 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	IntBoundaryKeyedNode,
 	Snapshotable<AbstractIntKeyedInternalNode.IntKeyedInternalNodeMemento> {
 	@Serial private static final long serialVersionUID = -6245889213004517882L;
+	/**
+	 * This node's first-touch mark for the warm-up savepoint mechanism: the stamp of the
+	 * {@link WarmUpSavepoint} that most recently captured this node's memento.
+	 * {@link WarmUpTouchStamped} carries the requirements the field has to meet, and why breaking
+	 * one of them corrupts a rollback rather than merely slowing it down.
+	 *
+	 * Deliberately NOT serialized, NOT carried into the memento, and NOT copied by
+	 * {@code createCopyWithMergedTransactionalMemory} — it describes one live instance's
+	 * relationship to one open savepoint, so a copy inheriting a live stamp would claim a capture
+	 * that never happened.
+	 */
+	@Getter @Setter private transient long warmUpTouchStamp;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
@@ -220,9 +236,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 
 	@Override
 	public void setPeek(int peek) {
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			final int originPeek = this.peek;
 			this.peek = peek;
@@ -258,8 +272,8 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 		final VMLayout layout = VMLayout.current();
-		// id + transactionalLayer + keys/children slots + peek
-		long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+		// id + warmUpTouchStamp + transactionalLayer + keys/children slots + peek
+		long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
 		size += layout.sizeOfArray(this.keys.length, Integer.BYTES);
 		size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 		// separator keys are `int` values inside the array, so unlike a boxed-key tree there is nothing here for
@@ -335,9 +349,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	public void stealFromLeft(int numberOfTailValues, @Nonnull SELF previousNode) {
 		Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			// we preserve all the current node children
 			System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
@@ -387,9 +399,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	public void stealFromRight(int numberOfHeadValues, @Nonnull SELF nextNode) {
 		Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			// the right sibling may be a committed (shared) node while `this` is a transaction-local node
 			// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
@@ -453,9 +463,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		);
 		final int mergePeek = previousNode.getPeek();
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 			this.keys[mergePeek] = leftBoundaryKeyOf(this.children[0]);
@@ -488,9 +496,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		);
 		final int mergePeek = nextNode.getPeek();
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 			this.keys[this.peek] = leftBoundaryKeyOf(nextNode.getChildren()[0]);
@@ -530,9 +536,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	 */
 	@Nonnull
 	public int[] getKeysForUpdate() {
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			return this.keys;
 		} else {
@@ -571,9 +575,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	 */
 	@Nonnull
 	public BPlusTreeNode<?>[] getChildrenForUpdate() {
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			return this.children;
 		} else {
@@ -609,9 +611,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 			"Internal node must not be full to accommodate two leaf nodes after their split!"
 		);
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
 			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
@@ -682,9 +682,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 
 	@Override
 	public void removeChildOnIndex(int keyIndex, int childIndex) {
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			removeIntFromSameArrayOnIndex(this.keys, keyIndex);
 			this.keys[this.peek - 1] = 0;
@@ -715,9 +713,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 			"Leftmost child node does not have a key in the parent node!"
 		);
 
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
 			Assert.isPremiseValid(
 				this.children[index] == node,
@@ -864,9 +860,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	 * {@code SELF}) in addition to {@code this}.
 	 */
 	protected void decoupleTransactionalArrays() {
-		final SELF layer = this.transactionalLayer ?
-			Transaction.getOrCreateTransactionalMemoryLayer(this) :
-			null;
+		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer != null) {
 			//noinspection ArrayEquality
 			if (layer.keys == this.keys) {

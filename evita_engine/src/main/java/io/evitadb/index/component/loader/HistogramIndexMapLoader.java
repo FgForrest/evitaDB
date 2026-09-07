@@ -24,6 +24,7 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.HistogramIndex;
@@ -179,6 +180,13 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 	 * Reconstructs the histogram's embedded {@link OwnerFilterIndex} from its root part, reassembling any `PAGED` bucket
 	 * / range axis from its leaf pages (boundary-stable) and using the inline data for a `SINGLE` axis.
 	 *
+	 * It is also where a histogram's legacy range thresholds are rescaled from epoch seconds to epoch milliseconds —
+	 * the histogram twin of {@code AttributeIndexLoader#loadRangeIndex}, which carries the full argument for why the
+	 * repair belongs on a load path and why it must be routed by the declared attribute type rather than by the
+	 * reader's provenance alone. The `PAGED` arm is deliberately **not** boundary-stable, unlike every other axis
+	 * reassembled here; {@link RangeIndex#rescaledFromSecondGranularityPages} says why root and pages must move to the
+	 * millisecond form in one commit.
+	 *
 	 * @param part           the already-fetched histogram root part
 	 * @param referenceName  the reference name (part of the filter index identity)
 	 * @param histogramName  the histogram name (part of the page-stream identity)
@@ -206,6 +214,12 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(referenceName, histogramName, locale);
 		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		final Comparator<?> comparator = FilterIndex.getComparator(attributeIndexKey, plainType);
+		// a part read by a backward-compatible serializer carries second-granularity range thresholds, but only a
+		// `DateTimeRange` histogram ever measured its thresholds in seconds - every NumberRange threshold is the
+		// bound's own numeric value and must be left exactly as persisted. Mirrors
+		// AttributeIndexLoader#loadRangeIndex, which is the same repair on the attribute filter index
+		final boolean rescaleThresholds =
+			part.isSecondGranularityRangeThresholds() && DateTimeRange.class.equals(plainType);
 
 		// BUCKET axis
 		final InvertedIndex invertedIndex;
@@ -242,7 +256,10 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		// RANGE axis
 		final RangeIndex rangeIndex;
 		if (!part.isRangePaged()) {
-			rangeIndex = part.getRangeIndex();
+			final RangeIndex inlineRange = part.getRangeIndex();
+			rangeIndex = rescaleThresholds && inlineRange != null
+				? RangeIndex.rescaledFromSecondGranularity(inlineRange)
+				: inlineRange;
 		} else {
 			final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
 				new HistogramLeafStreamKey(entityIndexId, histogramName, locale, StreamKind.RANGE)
@@ -262,10 +279,17 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				);
 				perPagePoints[i] = leafPage.getPoints();
 			}
-			rangeIndex = RangeIndex.fromPersistedPages(
-				"histogram '" + histogramName + "'", rangePageSequences, perPagePoints,
-				part.getRangeHighWaterPageSequence()
-			);
+			// the rescaled reload is deliberately NOT boundary-stable - see the method's javadoc on
+			// RangeIndex#rescaledFromSecondGranularityPages for why root and pages have to move to the millisecond
+			// form in one commit
+			rangeIndex = rescaleThresholds
+				? RangeIndex.rescaledFromSecondGranularityPages(
+					rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
+				)
+				: RangeIndex.fromPersistedPages(
+					"histogram '" + histogramName + "'", rangePageSequences, perPagePoints,
+					part.getRangeHighWaterPageSequence()
+				);
 		}
 
 		return OwnerFilterIndex.fromPersistedPages(

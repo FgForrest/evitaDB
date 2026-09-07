@@ -51,6 +51,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
@@ -149,6 +150,20 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	public PriceIndexChanges createLayer() {
 		return new PriceIndexChanges();
+	}
+
+	/**
+	 * {@link PriceIndexChanges} is pure in-transaction bookkeeping — it records which contained price-list indexes a
+	 * commit-merge has to visit — and the delegate branch writes nothing of its own (every call site is
+	 * `ofNullable(layer).ifPresent(...)`). The price data a mutation touches lives in the contained
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex} instances, which journal their own warm-up
+	 * writes.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
 	}
 
 	@Nonnull
@@ -274,6 +289,10 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 * unwarranted. Only reachable from the ambiguous shape, which the price-tagged functional suite exercises once
 	 * across a thousand tests, so the linear probe costs nothing in practice.
 	 *
+	 * The probe walks the id bitmap directly instead of asking for an array of it - it needs each id exactly once, in
+	 * ascending order, and materializing the whole id set to read it that way would allocate an array as large as the
+	 * index for a check that usually stops on its first element.
+	 *
 	 * @param superIndex     the live GLOBAL combination index the reduced index is checked against
 	 * @param priceListIndex the reduced combination index that is about to be discarded
 	 * @param internalPriceId the internal id of the price whose removal triggered the check
@@ -287,7 +306,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 			// a terminated index holds nothing anyone can still reach
 			return;
 		}
-		for (final int indexedPriceId : priceListIndex.getIndexedPriceIds()) {
+		final OfInt indexedPriceIdIterator = priceListIndex.getIndexedPriceIds().iterator();
+		while (indexedPriceIdIterator.hasNext()) {
+			final int indexedPriceId = indexedPriceIdIterator.nextInt();
 			if (indexedPriceId != internalPriceId && superIndex.getPriceRecordIfPresent(indexedPriceId) != null) {
 				throw new GenericEvitaInternalError(
 					"Reduced price index " + priceListIndex.getPriceIndexKey() + " would be discarded because " +

@@ -33,12 +33,19 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-07 | [A storage part declares which kind of data it holds, at registration, in a closed enum](2026-09-07-storage-part-classification.md) | feature | accepted | #1500 |
+| 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |
+| 2026-09-05 | [Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch](2026-09-05-duplicate-content-requirements-reduction.md) | fix | accepted | #1493 |
+| 2026-09-04 | [Rank the index-footprint work on a production catalog, and take 4.2 GB out of its resident heap](2026-09-04-long-keyed-tree-content-sizing.md) | optimization | accepted | #1486, #1455 |
+| 2026-09-04 | [Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column](2026-09-04-millisecond-temporal-precision.md) | feature | accepted | #1486 |
+| 2026-09-03 | [Size the value tree's leaf columns to their live content instead of adding a second array-backed representation](2026-09-03-content-sized-value-tree-columns.md) | optimization | accepted | #1486 |
 | 2026-08-31 | [Store front-coded String keys as WTF-8 rather than refusing values UTF-8 cannot carry](2026-08-31-front-coded-column-stores-wtf8.md) | fix | accepted | #1454 |
 | 2026-08-31 | [Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership](2026-08-31-cross-entity-histogram-removal-pre-pass.md) | fix | accepted | #1467, PR #1468, PR #1469 |
 | 2026-08-31 | [Drop the netty version override instead of pinning tcnative to take netty 4.2.17](2026-08-31-netty-override-removal.md) | infrastructure | accepted | PR #1474 |
 | 2026-08-31 | [Cut the trigram substring query path's per-candidate cost sixfold, and leave the selectivity gate alone](2026-08-31-trigram-query-path-optimization.md) | optimization | accepted | #1454 |
 | 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459, PR #1460 |
 | 2026-08-28 | [Count each evitaDB error once, at the hierarchy root, and record where it was created](2026-08-28-attributable-internal-error-metrics.md) | fix | accepted | #1461, PR #1462, PR #1463 |
+| 2026-08-26 | [Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally](2026-08-26-warm-up-per-entity-mutation-atomicity.md) | feature | accepted | #1432, PR #1494 |
 | 2026-08-24 | [Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene](2026-08-24-fulltext-search-lucene-vs-inhouse/) | feature | partially-implemented | #258, #1454 |
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |

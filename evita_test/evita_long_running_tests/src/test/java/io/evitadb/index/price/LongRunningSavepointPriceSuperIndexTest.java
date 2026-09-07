@@ -24,16 +24,14 @@
 package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.index.price.LongRunningPriceSuperIndexTest.PriceIndexSnapshot;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,10 +45,7 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 
 /**
  * Generational randomized backfill proof that {@link PriceListAndCurrencyPriceSuperIndex} — the leaf price index driven
@@ -68,57 +63,28 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * so the commit-time layer-sweep verification proves the restore left no dangling layer. The run is time-bounded; the
  * random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("PriceSuperIndex savepoint rollback/commit backfill (generational fuzz)")
 @Tag(INDEXING)
 @Tag(PRICE)
 @Tag(TRANSACTION)
-class LongRunningSavepointPriceSuperIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointPriceSuperIndexTest extends AbstractSavepointFuzzTest<PriceIndexSnapshot> {
 	private static final int MAX_OPS = 10;
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final String PRICE_LIST = "basic";
 	private static final PriceIndexKey KEY = new PriceIndexKey(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint price contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint price contents")
-	void shouldRollBackPriceSuperIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final SuperIndexState state = new SuperIndexState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningPriceSuperIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint price contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint price contents")
-	void shouldCommitPriceSuperIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final SuperIndexState state = new SuperIndexState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningPriceSuperIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<PriceIndexSnapshot> newGeneration(@Nonnull Random random) {
+		return new SuperIndexState(random);
 	}
 
 	/**
@@ -128,7 +94,7 @@ class LongRunningSavepointPriceSuperIndexTest implements TimeBoundedTestSupport 
 	 * within the framework's transaction. Globally unique price-id / internal-price-id sequences guarantee every add
 	 * uses a fresh (entityPrimaryKey, priceId) slot, so no price is ever rejected as already assigned.
 	 */
-	private static final class SuperIndexState {
+	private static final class SuperIndexState implements FuzzGeneration<PriceIndexSnapshot> {
 		private static final int MAX_ENTITY_ID = 10;
 
 		private final PriceListAndCurrencyPriceSuperIndex index = new PriceListAndCurrencyPriceSuperIndex(KEY);
@@ -143,6 +109,30 @@ class LongRunningSavepointPriceSuperIndexTest implements TimeBoundedTestSupport 
 			for (int i = 0; i < seedOperations; i++) {
 				addRandomPrice(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public PriceIndexSnapshot contents() {
+			return LongRunningPriceSuperIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

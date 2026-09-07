@@ -46,11 +46,11 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the
 one writing the data, we can afford to do this.
 
-The same applies to a *single* failed write: bulk indexing has **no per-entity rollback**, so an `upsertEntity` /
-`deleteEntity` that fails part-way through can leave that entity's index entries half-applied. Recovery is the client's
-responsibility — either compensate for the partial write or (recommended) rebuild the catalog. See
+A *single* failed write is a different matter: even during bulk indexing, each `upsertEntity` / `deleteEntity` is
+**atomic on its own**, so a call that fails part-way through is reverted completely and leaves no half-applied index
+entries behind. The session remains usable — skip or retry the offending entity and continue the import. See
 [Atomicity of individual writes](../../deep-dive/bulk-vs-incremental-indexing.md#atomicity-of-individual-writes) for
-details and how this differs from the transactional (`ALIVE`) phase.
+details.
 
 </LS>
 

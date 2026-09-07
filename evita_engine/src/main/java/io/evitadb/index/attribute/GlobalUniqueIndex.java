@@ -822,7 +822,7 @@ public class GlobalUniqueIndex implements
 	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
 	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
 	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
-	 * the collection's buffer ({@code WarmUpDataStoreMemoryBuffer.poison}), so every later collect of it refuses
+	 * the catalog unpublishable ({@code Catalog.markUnpublishable}), so every later flush of it refuses
 	 * deterministically. The two are the same invariant in different dresses: after a failed flush nothing ever diffs
 	 * against the baseline it left behind, because no later flush of that data runs at all. Whatever a SUCCEEDING flush
 	 * leaves staged is exactly the page set it wrote, regardless of whether a commit-merge ever ran for it. (If the

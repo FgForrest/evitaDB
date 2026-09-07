@@ -49,7 +49,8 @@ import java.util.concurrent.TimeUnit;
  * ({@code docs/design/2026-07-09-frontcoded-keyat-flush-path-plan.md}'s Option B, broadened to every
  * primitive {@code ValueColumn} — see {@code docs/design/2026-07-10-option-b-generalized-stage1-results.md}
  * for the results this benchmark produced) on
- * {@code InstantValueColumn} and {@code LongValueColumn}/{@code IntValueColumn}'s shared shape. Measures
+ * the then-current {@code InstantValueColumn} and {@code LongValueColumn}/{@code IntValueColumn}'s shared shape.
+ * Measures
  * whether skipping the box-then-Kryo-polymorphic-write round trip on the granular leaf-page flush/load path
  * is worth building, with {@code BoxedObjectColumn} included as the zero-alloc control (its "bypass" variant
  * is defined to equal its "today" variant, since there is no primitive form to fall back to — it establishes
@@ -93,6 +94,13 @@ import java.util.concurrent.TimeUnit;
  * main class (hardcoded to run the full {@code io.evitadb.performance.externalApi.*} suite) instead of
  * JMH's own arg-parsing {@code Main}, regardless of what class-name regex is passed.</p>
  *
+ * <p><b>Frozen fixture</b>: {@code InstantValueColumn} — the parallel {@code (seconds, nanos)} temporal column
+ * this benchmark's Instant fixture mirrors — no longer exists; temporal keys now ride the single-{@code long}
+ * {@code LongValueColumn} as epoch-millis. The fixture is deliberately left as it was: the published results in
+ * {@code docs/design/2026-07-10-option-b-generalized-stage1-results.md} were measured against this shape, and
+ * re-shaping it would silently move numbers that have already been reported. Read the Instant arm as the
+ * two-array control it was, and the Long arm as the shape a temporal column takes today.</p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @BenchmarkMode(Mode.AverageTime)
@@ -113,7 +121,8 @@ public class PrimitiveColumnSerializationBenchmark {
 
 	private Kryo kryo;
 
-	// --- Instant fixture: parallel (seconds, nanos) arrays, mirrors InstantValueColumn's backing exactly ---
+	// --- Instant fixture: parallel (seconds, nanos) arrays, mirroring the InstantValueColumn backing that existed
+	// when this gate was measured; see the "Frozen fixture" note on the class ---
 	private long[] instantSeconds;
 	private int[] instantNanos;
 	private byte[] instantSerializedToday;
@@ -252,7 +261,8 @@ public class PrimitiveColumnSerializationBenchmark {
 	private int writeInstantToday() {
 		this.instantTodayOutput.reset();
 		for (int i = 0; i < this.blockSize; i++) {
-			// the allocation under test: mirrors InstantValueColumn.keyAt's Instant.ofEpochSecond boxing
+			// the allocation under test: mirrors the then-current InstantValueColumn.keyAt's Instant.ofEpochSecond
+			// boxing
 			final Instant boxed = Instant.ofEpochSecond(this.instantSeconds[i], this.instantNanos[i]);
 			this.kryo.writeClassAndObject(this.instantTodayOutput, boxed);
 		}

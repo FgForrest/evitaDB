@@ -173,13 +173,22 @@ public class FinderVisitor implements ConstraintVisitor {
 			return null;
 		} else if (this.result.size() == 1) {
 			return this.result.get(0);
-		} else if (this.matcher instanceof PredicateWithDescription<?> withDescription) {
-			throw new MoreThanSingleResultException(
-				"A total of `" + this.result.size() + "` constraints were found in a query that searched for " + withDescription + ", but only one was expected!"
-			);
 		} else {
+			// the constraints themselves are what the caller needs in order to find them in the query - the visitor
+			// tracks no position, and the type alone does not say which of the matches are the offending ones
+			final StringBuilder found = new StringBuilder(64 * this.result.size());
+			for (int i = 0; i < this.result.size(); i++) {
+				if (i > 0) {
+					found.append(", ");
+				}
+				found.append(this.result.get(i));
+			}
 			throw new MoreThanSingleResultException(
-				"A total of `" + this.result.size() + "` constraints were found in a query, but expected is only one!"
+				this.matcher instanceof PredicateWithDescription<?> withDescription ?
+					"A total of `" + this.result.size() + "` constraints were found in a query that searched for " +
+						withDescription + ", but only one was expected: " + found + "." :
+					"A total of `" + this.result.size() + "` constraints were found in a query, but expected is " +
+						"only one: " + found + "."
 			);
 		}
 	}

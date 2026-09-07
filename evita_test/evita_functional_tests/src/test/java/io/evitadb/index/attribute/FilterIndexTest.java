@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -100,7 +101,9 @@ class FilterIndexTest {
 			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-07-31T23:59:59Z")
 		));
-		final long now = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+		// the probe must be reduced by the very converter the write path derives its thresholds with - a raw
+		// `toEpochSecond()` would land a thousand times below every stored threshold and match nothing
+		final long now = DateTimeRange.toComparableLong(OffsetDateTime.parse("2026-07-01T00:00:00Z"));
 
 		final var firstBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
 		final var secondBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
@@ -122,7 +125,8 @@ class FilterIndexTest {
 			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-07-31T23:59:59Z")
 		));
-		final long moment = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+		// see the sibling test: the probe is reduced by the production converter, not by `toEpochSecond()`
+		final long moment = DateTimeRange.toComparableLong(OffsetDateTime.parse("2026-07-01T00:00:00Z"));
 
 		final var firstBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
 		final var secondBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
@@ -1602,10 +1606,15 @@ class FilterIndexTest {
 	/**
 	 * Pins the index-side encoding of the temporal attribute types. `LocalDateTime` carries no offset of its own, so
 	 * it is anchored at UTC before it becomes a bucket key — the same `Instant` space `OffsetDateTime` already uses,
-	 * which is what lets the tree store it in the packed `InstantValueColumn` instead of boxing it. Because the
-	 * anchor is a *constant* offset the mapping is a lossless bijection and monotonic with `LocalDateTime`'s natural
-	 * order, so equality lookup and ordered iteration are unaffected. `LocalDate` and `LocalTime` are deliberately
-	 * left alone — each fits losslessly in a single `long`, so they take the cheaper `LongValueColumn`.
+	 * which is what lets the tree store it as epoch-millis in a single-`long` `LongValueColumn` instead of boxing it.
+	 * Because the anchor is a *constant* offset the mapping is a lossless bijection and monotonic with
+	 * `LocalDateTime`'s natural order, so equality lookup and ordered iteration are unaffected. `LocalDate` keeps its
+	 * own type — it has no sub-day component to cut — while `LocalTime` keeps its type but IS truncated: its codec
+	 * could hold the full nano-of-day, so the cut is not forced by the codec's domain, it is what makes the index
+	 * agree with the millisecond precision every other surface applies.
+	 *
+	 * The normalizer additionally truncates to whole milliseconds, which is what keeps every key inside
+	 * `LongKeyCodec.INSTANT`'s domain no matter where the value came from — see `FilterIndex#getNormalizer`.
 	 */
 	@Nested
 	@DisplayName("Temporal attribute index encoding")
@@ -1650,15 +1659,441 @@ class FilterIndexTest {
 		}
 
 		@Test
-		@DisplayName("LocalDate and LocalTime pass through unnormalized")
-		void shouldLeaveLocalDateAndLocalTimeAlone() {
-			final LocalDate date = LocalDate.of(2026, 5, 20);
-			final LocalTime time = LocalTime.of(12, 19, 26);
+		@DisplayName("OffsetDateTime is truncated to whole milliseconds on the way into the index")
+		void shouldTruncateOffsetDateTimeToMilliseconds() {
+			final OffsetDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26)
+				.atOffset(ZoneOffset.ofHours(2)).plusNanos(123_456_789L);
 
-			assertSame(date, FilterIndex.getNormalizer(LocalDate.class, 0).apply(date));
-			assertSame(time, FilterIndex.getNormalizer(LocalTime.class, 0).apply(time));
+			assertEquals(
+				Instant.parse("2026-05-20T10:19:26.123Z"),
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0).apply(value)
+			);
 		}
 
+		@Test
+		@DisplayName("LocalDateTime is truncated to whole milliseconds on the way into the index")
+		void shouldTruncateLocalDateTimeToMilliseconds() {
+			final LocalDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26).plusNanos(123_456_789L);
+
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(LocalDateTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("a nano-precise Instant of any provenance is truncated too")
+		void shouldTruncateARawInstant() {
+			// this is the case `EvitaDataTypes#toSupportedType` cannot cover: a bucket value rehydrated from a catalog
+			// written before millisecond truncation existed reaches the normalizer as an `Instant`, never as an
+			// `OffsetDateTime`, and would otherwise be handed to the leaf column outside the codec's domain
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0)
+					.apply(Instant.parse("2026-05-20T12:19:26.123999999Z"))
+			);
+			assertEquals(
+				Instant.parse("2026-05-20T12:19:26.123Z"),
+				FilterIndex.getNormalizer(LocalDateTime.class, 0)
+					.apply(Instant.parse("2026-05-20T12:19:26.123000001Z"))
+			);
+		}
+
+		@Test
+		@DisplayName("truncation floors on both sides of the epoch, so it can never reorder two values")
+		void shouldFloorTemporalValuesBelowTheEpochToo() {
+			// a truncate-toward-zero implementation would round a pre-1970 value UP, which is the one way this could
+			// break the monotonicity `LongKeyCodec.INSTANT` and the tree's binary search rest on
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+			final Instant lower = (Instant) normalizer.apply(
+				OffsetDateTime.ofInstant(Instant.parse("1969-12-31T23:59:59.000999999Z"), ZoneOffset.UTC));
+			final Instant higher = (Instant) normalizer.apply(
+				OffsetDateTime.ofInstant(Instant.parse("1969-12-31T23:59:59.001000000Z"), ZoneOffset.UTC));
+
+			assertEquals(Instant.parse("1969-12-31T23:59:59.000Z"), lower);
+			assertEquals(Instant.parse("1969-12-31T23:59:59.001Z"), higher);
+			assertTrue(lower.isBefore(higher));
+		}
+
+		@Test
+		@DisplayName("an already-millisecond-exact value comes back as the very same instance")
+		void shouldNotAllocateForAnAlreadyExactValue() {
+			// the normalizer runs once per indexed value on the write path; after `EvitaDataTypes#toSupportedType`
+			// almost every value is already exact, and re-deriving an equal `Instant` for each of them would be pure
+			// allocation
+			final Instant exact = Instant.parse("2026-05-20T12:19:26.123Z");
+
+			assertSame(exact, FilterIndex.getNormalizer(OffsetDateTime.class, 0).apply(exact));
+		}
+
+		@Test
+		@DisplayName("two sub-millisecond values reach one bucket end-to-end through a FilterIndex")
+		void shouldMatchAtMillisecondGranularityThroughAFilterIndex() {
+			final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "published", null), OffsetDateTime.class
+			);
+			final OffsetDateTime base = LocalDateTime.of(2026, 5, 20, 12, 19, 26).atOffset(ZoneOffset.ofHours(2));
+			filterIndex.addRecord(1, base.plusNanos(123_000_001L));
+			filterIndex.addRecord(2, base.plusNanos(123_999_999L));
+			filterIndex.addRecord(3, base.plusNanos(124_000_000L));
+
+			// a THIRD sub-millisecond value inside the same millisecond finds both records - a probe that merely
+			// echoed one of the stored values back would prove nothing
+			assertArrayEquals(
+				new int[]{1, 2},
+				filterIndex.getRecordsEqualTo(base.plusNanos(123_456_789L)).getArray()
+			);
+			// and the neighbouring millisecond stays separate, so the collapse is not simply "everything matches"
+			assertArrayEquals(
+				new int[]{3},
+				filterIndex.getRecordsEqualTo(base.plusNanos(124_000_000L)).getArray()
+			);
+			assertEquals(2, filterIndex.getDistinctValueCount());
+		}
+
+		@Test
+		@DisplayName("LocalDate passes through unnormalized")
+		void shouldLeaveLocalDateAlone() {
+			final LocalDate date = LocalDate.of(2026, 5, 20);
+
+			assertSame(date, FilterIndex.getNormalizer(LocalDate.class, 0).apply(date));
+		}
+
+		@Test
+		@DisplayName("LocalTime keeps its type but is truncated to whole milliseconds")
+		void shouldTruncateLocalTimeToMilliseconds() {
+			// this assertion used to read `assertSame(time, ...)` under the name "LocalTime passes through
+			// unnormalized", and it kept passing after the truncation was added because the value it used had no
+			// sub-millisecond digits to lose - the identity fast path returned the very same instance. A value that
+			// actually carries nanoseconds is the only one that can tell the two behaviours apart
+			final LocalTime value = LocalTime.of(12, 19, 26).plusNanos(123_456_789L);
+
+			assertEquals(
+				LocalTime.of(12, 19, 26).plusNanos(123_000_000L),
+				FilterIndex.getNormalizer(LocalTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("an already-exact LocalTime comes back as the very same instance")
+		void shouldNotAllocateForAnAlreadyExactLocalTime() {
+			final LocalTime exact = LocalTime.of(12, 19, 26).plusNanos(123_000_000L);
+
+			assertSame(exact, FilterIndex.getNormalizer(LocalTime.class, 0).apply(exact));
+		}
+
+		@Test
+		@DisplayName("two sub-millisecond LocalTimes reach one bucket end-to-end through a FilterIndex")
+		void shouldMatchLocalTimeAtMillisecondGranularityThroughAFilterIndex() {
+			// the regression this guards: without a `LocalTime` branch in `getNormalizer` the index kept
+			// nanosecond-exact keys while every query probe was cut to milliseconds at the data-type boundary, so a
+			// value written before the truncation existed became permanently unreachable by its own attribute
+			final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "openedAt", null), LocalTime.class
+			);
+			final LocalTime base = LocalTime.of(12, 19, 26);
+			filterIndex.addRecord(1, base.plusNanos(123_000_001L));
+			filterIndex.addRecord(2, base.plusNanos(123_999_999L));
+			filterIndex.addRecord(3, base.plusNanos(124_000_000L));
+
+			// a THIRD sub-millisecond value inside the same millisecond finds both records - a probe that merely
+			// echoed one of the stored values back would prove nothing
+			assertArrayEquals(
+				new int[]{1, 2},
+				filterIndex.getRecordsEqualTo(base.plusNanos(123_456_789L)).getArray()
+			);
+			// and the neighbouring millisecond stays separate, so the collapse is not simply "everything matches"
+			assertArrayEquals(
+				new int[]{3},
+				filterIndex.getRecordsEqualTo(base.plusNanos(124_000_000L)).getArray()
+			);
+			assertEquals(2, filterIndex.getDistinctValueCount());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("array-delta parity over a reconstructed range column")
+	@Tag(DATA_TYPE)
+	class RangeColumnDeltaParity {
+
+		/**
+		 * Renders a range index's thresholds, which is what the parity assertions compare.
+		 *
+		 * @param index the filter index whose range index is rendered
+		 * @return the range index's points, one per line
+		 */
+		@Nonnull
+		private String thresholdsOf(@Nonnull OwnerFilterIndex index) {
+			final RangePoint<?>[] ranges = index.getRangeIndex().getRanges();
+			return Arrays.stream(ranges).map(Object::toString).collect(Collectors.joining("\n"));
+		}
+
+		@Test
+		@DisplayName("a date-time array mixing an open and a closed range at another offset leaves no threshold behind")
+		void shouldLeaveNoThresholdBehindForAMixedDateTimeArray() {
+			// this is the counterexample the offset-carrying encoding existed for, driven end to end.
+			// `addRecordDelta` consolidates
+			// the ORIGINAL objects and inserts the resulting thresholds; `removeRecordDelta` reads the ranges back out
+			// of the tree - now RECONSTRUCTED by the range column - consolidates those and removes the thresholds it
+			// gets. An encoding that dropped the closed range's zone offset would consolidate to a lower bound five
+			// hours away from the one that went in, and the removal would silently miss
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+			final ZoneOffset twoHours = ZoneOffset.ofHours(2);
+			final ZoneOffset fiveHours = ZoneOffset.ofHours(5);
+			final DateTimeRange[] mixed = {
+				DateTimeRange.until(LocalDateTime.of(2024, 1, 10, 0, 0).atOffset(twoHours)),
+				DateTimeRange.between(
+					LocalDateTime.of(2024, 1, 5, 0, 0).atOffset(fiveHours),
+					LocalDateTime.of(2024, 1, 20, 0, 0).atOffset(fiveHours)
+				)
+			};
+
+			// a second record keeps the index non-empty throughout, so the parity assertion is about the delta rather
+			// than about an index that happens to have been emptied
+			final DateTimeRange resident = DateTimeRange.between(
+				LocalDateTime.of(2030, 1, 1, 0, 0).atOffset(ZoneOffset.UTC),
+				LocalDateTime.of(2030, 2, 1, 0, 0).atOffset(ZoneOffset.UTC)
+			);
+			index.addRecord(9, resident);
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(mixed[0]).getArray());
+			assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(mixed[1]).getArray());
+
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+			assertTrue(index.getRecordsEqualTo(mixed[0]).isEmpty());
+			assertTrue(index.getRecordsEqualTo(mixed[1]).isEmpty());
+			assertArrayEquals(new int[]{9}, index.getRecordsEqualTo(resident).getArray());
+		}
+
+		@Test
+		@DisplayName("a numeric array mixing an open and a closed range leaves no threshold behind")
+		void shouldLeaveNoThresholdBehindForAMixedNumericArray() {
+			// the same parity for the two-array shape, whose open bounds ARE the constructor's own sentinels
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "quantity", null), IntegerNumberRange.class);
+			final IntegerNumberRange[] mixed = {
+				IntegerNumberRange.to(10),
+				IntegerNumberRange.between(5, 40),
+				IntegerNumberRange.between(60, 70)
+			};
+			index.addRecord(9, IntegerNumberRange.between(1_000, 2_000));
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			for (final IntegerNumberRange range : mixed) {
+				assertArrayEquals(new int[]{1}, index.getRecordsEqualTo(range).getArray());
+			}
+
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+			for (final IntegerNumberRange range : mixed) {
+				assertTrue(index.getRecordsEqualTo(range).isEmpty());
+			}
+		}
+
+		@Test
+		@DisplayName("a big decimal array round-trips through the index scale rather than the intrinsic one")
+		void shouldLeaveNoThresholdBehindForAScaledBigDecimalArray() {
+			// the range column rebuilds a `BigDecimalNumberRange` at the index's `indexedDecimalPlaces` and carries
+			// that scale into the object, which is what makes the removal's consolidation re-derive the same longs
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class, 2);
+			final BigDecimalNumberRange[] mixed = {
+				BigDecimalNumberRange.to(new BigDecimal("10.50")),
+				BigDecimalNumberRange.between(new BigDecimal("5.25"), new BigDecimal("40.75"))
+			};
+			index.addRecord(9, BigDecimalNumberRange.between(new BigDecimal("500.00"), new BigDecimal("600.00")));
+			final String before = thresholdsOf(index);
+
+			index.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(index), "the delta must actually have changed the range index");
+			index.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(index), "the removal must retire exactly the thresholds it added");
+		}
+
+		@Test
+		@DisplayName("a concrete range attribute really is served by the reconstructing column, not the boxed one")
+		void shouldServeAConcreteRangeAttributeFromTheReconstructingColumn() {
+			// every parity assertion above would pass unchanged with the boxed column, which is what this seam used
+			// to select - so nothing here fails if a future change routes a range attribute back to it. The range
+			// column cannot be named from this package, so the pin is its three observable fingerprints: it MINTS
+			// the value it hands back (the boxed column returns the very instance stored, a `DateTimeRange`
+			// attribute being normalized by identity), and it rebuilds the bounds from whole epoch MILLISECONDS at
+			// UTC - both of which the boxed column, handing back the original object, cannot show
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+			final ZoneOffset offset = ZoneOffset.ofHours(3);
+			final DateTimeRange stored = DateTimeRange.between(
+				LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_456_789).atOffset(offset),
+				LocalDateTime.of(2024, 6, 7, 8, 9, 10, 987_654_321).atOffset(offset)
+			);
+			index.addRecord(1, stored);
+
+			final DateTimeRange[] readBack = index.getInvertedIndex().getValuesForRecord(1, DateTimeRange.class);
+			assertEquals(1, readBack.length, "the record must be found under exactly one value");
+			assertEquals(stored, readBack[0], "the reconstruction must be equal to the value that went in");
+			assertNotSame(stored, readBack[0], "the boxed column would hand the stored instance straight back");
+			assertEquals(
+				123_000_000, readBack[0].getPreciseFrom().getNano(),
+				"the bound is rebuilt from a whole epoch millisecond - the nanosecond tail below it is gone"
+			);
+			assertEquals(
+				987_000_000, readBack[0].getPreciseTo().getNano(),
+				"the bound is rebuilt from a whole epoch millisecond - the nanosecond tail below it is gone"
+			);
+			// the zone offset is NOT carried by the column any more, and does not need to be: the two comparison
+			// longs identify instants, so a UTC rebuild re-encodes to exactly what was stored
+			assertEquals(ZoneOffset.UTC, readBack[0].getPreciseFrom().getOffset(), "rebuilt at UTC");
+			assertEquals(ZoneOffset.UTC, readBack[0].getPreciseTo().getOffset(), "rebuilt at UTC");
+			assertEquals(stored.getFrom(), readBack[0].getFrom(), "the lower comparison long is reproduced exactly");
+			assertEquals(stored.getTo(), readBack[0].getTo(), "the upper comparison long is reproduced exactly");
+		}
+
+		@Test
+		@DisplayName("an index declared over the abstract NumberRange type still accepts array deltas")
+		void shouldStillServeAnIndexDeclaredOverTheAbstractRangeType() {
+			// `NumberRange.class` is not a supported schema attribute type and has no subtype to rebuild, so the
+			// column selection falls through to the boxed column - the fallback this whole exact-class-equality
+			// selection exists to preserve. The delta path must behave exactly as it always did
+			final IntegerNumberRange[] mixed = {IntegerNumberRange.to(10), IntegerNumberRange.between(5, 40)};
+			FilterIndexTest.this.rangeAttribute.addRecord(9, IntegerNumberRange.between(1_000, 2_000));
+			final String before = thresholdsOf(FilterIndexTest.this.rangeAttribute);
+
+			FilterIndexTest.this.rangeAttribute.addRecordDelta(1, mixed);
+			assertNotEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
+			FilterIndexTest.this.rangeAttribute.removeRecordDelta(1, mixed);
+			assertEquals(before, thresholdsOf(FilterIndexTest.this.rangeAttribute));
+		}
+
+		@Test
+		@DisplayName("an array delta over a saturated long range matches the boxed index it replaced")
+		void shouldLeaveNoThresholdBehindForASaturatedLongRangeArray() {
+			// the delta paths are the only ones that feed values READ BACK out of the tree into
+			// `Range.consolidateRange`, and every other parity case in this nest uses bounds nowhere near the two
+			// sentinels the open-bound encoding spends. A range saturating BOTH of them is the shape that is not
+			// covered - and `LongNumberRange.from(Long.MIN_VALUE)` is an ordinary way for a caller to write one.
+			// `NumberRange.class` is the counterfactual: an abstract declared type falls through to the boxed
+			// column, which hands the stored instances back and therefore never rebuilds a bound at all
+			final LongNumberRange[] added = {LongNumberRange.between(10L, 20L)};
+			final OwnerFilterIndex rebuilding = saturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex boxed = saturatedLongRangeIndex(NumberRange.class);
+			final String before = thresholdsOf(rebuilding);
+			assertEquals(before, thresholdsOf(boxed), "the two arms must start from one shape");
+
+			rebuilding.addRecordDelta(1, added);
+			boxed.addRecordDelta(1, added);
+			assertEquals(
+				thresholdsOf(boxed), thresholdsOf(rebuilding), "the added delta must agree with the boxed arm");
+			rebuilding.removeRecordDelta(1, added);
+			boxed.removeRecordDelta(1, added);
+			assertEquals(before, thresholdsOf(rebuilding), "the removal must retire exactly the thresholds it added");
+			assertEquals(thresholdsOf(boxed), thresholdsOf(rebuilding), "the removed delta must agree too");
+
+			// the other arm: a removal that leaves the saturated range behind, which is what the consolidation of
+			// the REMAINING ranges then has to clone
+			final OwnerFilterIndex shrinking = saturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex shrinkingBoxed = saturatedLongRangeIndex(NumberRange.class);
+			final LongNumberRange[] removed = {LongNumberRange.between(1L, 5L)};
+			shrinking.removeRecordDelta(1, removed);
+			shrinkingBoxed.removeRecordDelta(1, removed);
+			assertEquals(thresholdsOf(shrinkingBoxed), thresholdsOf(shrinking));
+			assertArrayEquals(
+				new int[]{1}, shrinking.getRecordsEqualTo(LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE))
+					.getArray(),
+				"the saturated range must survive the removal of its sibling"
+			);
+		}
+
+		@Test
+		@DisplayName("an array delta over two long ranges saturating OPPOSITE sentinels")
+		void shouldLeaveNoThresholdBehindForOppositelySaturatedLongRanges() {
+			// the sibling above stores ONE range saturating both sentinels. Two ranges saturating one sentinel each
+			// are the shape a decoder reading the sentinels independently would hand back with a null lower bound on
+			// the first and a null upper one on the second, leaving the delta's consolidation to clone a winner out
+			// of one bound from each - the (null, null) pair every `Range` implementation refuses.
+			// `NumberRange.class` is the counterfactual arm: an abstract declared type falls through to the boxed
+			// column, which hands the stored instances back and therefore never drops a precise bound
+			final LongNumberRange[] added = {LongNumberRange.between(10L, 20L)};
+			final OwnerFilterIndex rebuilding = oppositelySaturatedLongRangeIndex(LongNumberRange.class);
+			final OwnerFilterIndex boxed = oppositelySaturatedLongRangeIndex(NumberRange.class);
+			final String before = thresholdsOf(rebuilding);
+			assertEquals(before, thresholdsOf(boxed), "the two arms must start from one shape");
+
+			// the boxed arm is the oracle: its consolidation sees the two precise bounds that went in, merges them
+			// back into the saturated range and the delta completes. The thresholds do not move - the saturated
+			// range already spans the added one - so what the oracle establishes is that the write succeeds at all
+			boxed.addRecordDelta(1, added);
+			assertEquals(
+				before, thresholdsOf(boxed),
+				"the saturated range already spans the added one, so no threshold may move"
+			);
+			assertArrayEquals(
+				new int[]{1}, boxed.getRecordsEqualTo(added[0]).getArray(),
+				"and the added range must be indexed for the record"
+			);
+
+			rebuilding.addRecordDelta(1, added);
+			assertEquals(
+				thresholdsOf(boxed), thresholdsOf(rebuilding), "the added delta must agree with the boxed arm");
+			assertArrayEquals(
+				new int[]{1}, rebuilding.getRecordsEqualTo(added[0]).getArray(),
+				"and the added range must be indexed for the record here too"
+			);
+
+			rebuilding.removeRecordDelta(1, added);
+			boxed.removeRecordDelta(1, added);
+			assertEquals(before, thresholdsOf(rebuilding), "the removal must retire exactly the thresholds it added");
+			assertEquals(thresholdsOf(boxed), thresholdsOf(rebuilding), "the removed delta must agree too");
+		}
+
+		/**
+		 * Builds a range index holding one record whose value set contains two overlapping ranges saturating
+		 * <strong>opposite</strong> open-bound sentinels — the shape a delta has to read back out of the tree and
+		 * consolidate. A fresh index per arm keeps a half-applied delta from colouring the next one.
+		 *
+		 * @param attributeType the declared attribute type, which decides whether the keys are rebuilt or boxed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private OwnerFilterIndex oppositelySaturatedLongRangeIndex(@Nonnull Class<?> attributeType) {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "span", null), attributeType);
+			index.addRecord(
+				1,
+				new LongNumberRange[]{
+					LongNumberRange.between(Long.MIN_VALUE, 5L), LongNumberRange.between(3L, Long.MAX_VALUE)
+				}
+			);
+			return index;
+		}
+
+		/**
+		 * Builds a range index holding one record whose value set contains a range saturating both open-bound
+		 * sentinels plus an overlapping sibling — the shape a delta has to read back out of the tree and
+		 * consolidate. A fresh index per arm keeps a half-applied delta from colouring the next one.
+		 *
+		 * @param attributeType the declared attribute type, which decides whether the keys are rebuilt or boxed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private OwnerFilterIndex saturatedLongRangeIndex(@Nonnull Class<?> attributeType) {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "span", null), attributeType);
+			index.addRecord(
+				1,
+				new LongNumberRange[]{
+					LongNumberRange.between(Long.MIN_VALUE, Long.MAX_VALUE), LongNumberRange.between(1L, 5L)
+				}
+			);
+			return index;
+		}
 	}
 
 }

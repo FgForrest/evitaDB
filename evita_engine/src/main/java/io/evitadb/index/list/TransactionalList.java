@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.Getter;
 
@@ -39,6 +40,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -111,6 +113,19 @@ public class TransactionalList<V> implements
 	}
 
 	/**
+	 * The delegate branch mutates the backing `ArrayList` in place, so a whole-state pre-image would be a deep copy of
+	 * the accumulated base list — the rollback cliff the journal strategy exists to avoid. It journals PER OPERATION
+	 * instead, recording the slot each write overwrites (and the position each insertion or removal shifts) before
+	 * applying it.
+	 *
+	 * @return always `true` — see above
+	 */
+	@Override
+	public boolean supportsWarmUpRollback() {
+		return true;
+	}
+
+	/**
 	 * Produces an immutable copy of this list with all transactional changes from `layer` merged in.
 	 *
 	 * @param layer              the diff layer to merge; may be `null` if no changes were recorded
@@ -174,7 +189,7 @@ public class TransactionalList<V> implements
 	public Iterator<V> iterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.listDelegate.iterator();
+			return new WarmUpJournalingListIterator<>(this.listDelegate, 0);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
@@ -211,7 +226,20 @@ public class TransactionalList<V> implements
 	public boolean remove(Object o) {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			return this.listDelegate.remove(Objects.requireNonNull(o));
+			Objects.requireNonNull(o);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// resolved to a position first, so the inverse can put the element back exactly where it was; the extra
+				// scan matches the one `List#remove(Object)` performs itself and is paid only inside a savepoint
+				final int index = this.listDelegate.indexOf(o);
+				if (index < 0) {
+					return false;
+				}
+				journalRemoval(savepoint, index);
+				this.listDelegate.remove(index);
+				return true;
+			}
+			return this.listDelegate.remove(o);
 		} else {
 			return layer.remove(Objects.requireNonNull(o));
 		}
@@ -277,6 +305,16 @@ public class TransactionalList<V> implements
 	public void clear() {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// the one place a whole-list pre-image is right: the clear is O(size) in any case, so a copy of the
+				// same order changes no complexity, and per-element inverses would push one entry per survivor
+				final List<V> preImage = new ArrayList<>(this.listDelegate);
+				savepoint.push(() -> {
+					this.listDelegate.clear();
+					this.listDelegate.addAll(preImage);
+				});
+			}
 			this.listDelegate.clear();
 		} else {
 			layer.cleanAll(
@@ -302,6 +340,11 @@ public class TransactionalList<V> implements
 	public V set(int index, V element) {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				final V previous = this.listDelegate.get(index);
+				savepoint.push(() -> this.listDelegate.set(index, previous));
+			}
 			return this.listDelegate.set(index, element);
 		} else {
 			// remove element and add on the same index new value
@@ -316,6 +359,13 @@ public class TransactionalList<V> implements
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.listDelegate.add(index, Objects.requireNonNull(element));
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// an insertion has no pre-image to capture, so the inverse is recorded only once the insertion has
+				// actually happened - a rejected index or element would otherwise leave behind an inverse that drops a
+				// position nothing ever added, and a rollback must never do that
+				savepoint.push(() -> this.listDelegate.remove(index));
+			}
 		} else {
 			layer.add(index, Objects.requireNonNull(element));
 		}
@@ -326,10 +376,47 @@ public class TransactionalList<V> implements
 	public V remove(int index) {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				journalRemoval(savepoint, index);
+			}
 			return this.listDelegate.remove(index);
 		} else {
 			return layer.remove(index);
 		}
+	}
+
+	/**
+	 * Records the inverse of a pending removal of the element at `index`: captures the element and pushes an operation
+	 * that inserts it back at the same position. Must be called BEFORE the removal.
+	 *
+	 * **Why a positional inverse is still an absolute restore.** A list's slots are addressed by position, so an insert
+	 * or a removal shifts every element after it - a per-slot capture like the map's would not describe what changed.
+	 * Reverse replay is what makes the positional form exact: the journal runs the inverses newest-first, so by the
+	 * time this one runs every later shift has already been undone and `index` addresses the same slot it did when the
+	 * element was taken out. This is the identical scheme the transactional branch uses in {@link ListChanges}, whose
+	 * `add` / `remove` inverses un-shift its insertion map the same way.
+	 *
+	 * @param savepoint the open savepoint to record into
+	 * @param index     the position about to be removed
+	 */
+	private void journalRemoval(@Nonnull WarmUpSavepoint savepoint, int index) {
+		final V removed = this.listDelegate.get(index);
+		savepoint.push(() -> this.listDelegate.add(index, removed));
+	}
+
+	/**
+	 * Resolves whether a warm-up savepoint brackets the current root entity mutation, and therefore whether a raw
+	 * delegate view handed out of this class could carry a write the savepoint would not be able to rewind.
+	 *
+	 * The iterators no longer ask: they are journaled unconditionally on the non-transactional branch, because the
+	 * answer here is only valid at the instant it is asked and an iterator outlives that instant. {@link #subList}
+	 * does ask, because it hands out a view it cannot journal at all and has to refuse writes instead.
+	 *
+	 * @return `true` when a warm-up savepoint is open on this thread
+	 */
+	private static boolean warmUpSavepointIsOpen() {
+		return WarmUpSavepoint.getIfOpen() != null;
 	}
 
 	@Override
@@ -369,7 +456,7 @@ public class TransactionalList<V> implements
 	public ListIterator<V> listIterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.listDelegate.listIterator();
+			return new WarmUpJournalingListIterator<>(this.listDelegate, 0);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, 0);
 		}
@@ -380,18 +467,33 @@ public class TransactionalList<V> implements
 	public ListIterator<V> listIterator(int index) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.listDelegate.listIterator(index);
+			return new WarmUpJournalingListIterator<>(this.listDelegate, index);
 		} else {
 			return new TransactionalMemoryEntryAbstractIterator<>(layer, this, index);
 		}
 	}
 
+	/**
+	 * Returns a view of the portion of this list between `fromIndex` (inclusive) and `toIndex` (exclusive).
+	 *
+	 * **Read-only by contract, in both branches.** Inside a transaction this returns a detached copy rather than a
+	 * view, so a write made through it is silently discarded - a caller therefore cannot rely on sub-list writes
+	 * reaching the list, and none does.
+	 *
+	 * Outside a transaction the delegate's own live view would reach the delegate without passing any of this class's
+	 * journaling mutators, and journaling it properly would mean wrapping the whole positional `List` surface for a
+	 * write that is not part of the contract to begin with. While a warm-up savepoint is open the view is therefore
+	 * handed out UNMODIFIABLE: the write that a rollback could not have rewound becomes an immediate
+	 * {@link UnsupportedOperationException} instead of state the rollback silently misses. The transactional branch
+	 * already discards such writes, so no caller can have depended on them landing.
+	 */
 	@Nonnull
 	@Override
 	public List<V> subList(int fromIndex, int toIndex) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.listDelegate.subList(fromIndex, toIndex);
+			final List<V> view = this.listDelegate.subList(fromIndex, toIndex);
+			return warmUpSavepointIsOpen() ? Collections.unmodifiableList(view) : view;
 		} else {
 			final List<V> subList = new ArrayList<>(toIndex - fromIndex);
 			// create copy of new list with all changes merged - not entirely fast, but safe
@@ -494,6 +596,110 @@ public class TransactionalList<V> implements
 		}
 
 		return copy;
+	}
+
+	/**
+	 * `ListIterator` over the raw delegate that journals every {@link #remove()}, {@link #set(Object)} and
+	 * {@link #add(Object)} into the open warm-up savepoint. It is handed out instead of the delegate's own iterator
+	 * while a savepoint is open, because writing through an iterator reaches the delegate without passing through any
+	 * of this list's mutators. It is the warm-up counterpart of {@link TransactionalMemoryEntryAbstractIterator},
+	 * which closes the same hole on the transactional branch.
+	 *
+	 * The savepoint is re-resolved at write time rather than captured at construction, so an iterator that outlives the
+	 * savepoint that justified wrapping it records nothing.
+	 *
+	 * @param <V> the element type of the list
+	 */
+	private static final class WarmUpJournalingListIterator<V> implements ListIterator<V> {
+		private final List<V> listDelegate;
+		private final ListIterator<V> delegate;
+		/**
+		 * Position of the element the last {@link #next()} / {@link #previous()} returned, or `-1` when there is none
+		 * to write through - which is exactly when the {@link ListIterator} contract forbids `remove` and `set`.
+		 */
+		private int lastIndex = -1;
+		@Nullable private V lastValue;
+
+		WarmUpJournalingListIterator(@Nonnull List<V> listDelegate, int initialIndex) {
+			this.listDelegate = listDelegate;
+			this.delegate = listDelegate.listIterator(initialIndex);
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.delegate.hasNext();
+		}
+
+		@Override
+		public V next() {
+			this.lastIndex = this.delegate.nextIndex();
+			this.lastValue = this.delegate.next();
+			return this.lastValue;
+		}
+
+		@Override
+		public boolean hasPrevious() {
+			return this.delegate.hasPrevious();
+		}
+
+		@Override
+		public V previous() {
+			this.lastIndex = this.delegate.previousIndex();
+			this.lastValue = this.delegate.previous();
+			return this.lastValue;
+		}
+
+		@Override
+		public int nextIndex() {
+			return this.delegate.nextIndex();
+		}
+
+		@Override
+		public int previousIndex() {
+			return this.delegate.previousIndex();
+		}
+
+		/**
+		 * The pre-image of every write here is already in hand before the write runs (it is the element the cursor
+		 * last returned), so each inverse is pushed only AFTER the delegate accepted the write - a rejected write then
+		 * leaves no inverse behind, and a rollback can never undo something that never happened.
+		 */
+		@Override
+		public void remove() {
+			final int index = this.lastIndex;
+			final V value = this.lastValue;
+			this.delegate.remove();
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && index > -1) {
+				savepoint.push(() -> this.listDelegate.add(index, value));
+			}
+			// per the ListIterator contract neither remove nor set may follow until the cursor moves again
+			this.lastIndex = -1;
+		}
+
+		@Override
+		public void set(V v) {
+			final int index = this.lastIndex;
+			final V value = this.lastValue;
+			this.delegate.set(v);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && index > -1) {
+				savepoint.push(() -> this.listDelegate.set(index, value));
+			}
+		}
+
+		@Override
+		public void add(V v) {
+			// the element lands at the cursor, pushing everything from there on one position further; reverse replay
+			// undoes the later shifts first, so dropping that position again is an exact inverse
+			final int index = this.delegate.nextIndex();
+			this.delegate.add(v);
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.push(() -> this.listDelegate.remove(index));
+			}
+			this.lastIndex = -1;
+		}
 	}
 
 	/**

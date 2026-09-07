@@ -36,8 +36,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -598,6 +602,138 @@ class UniqueIndexTest {
 				IllegalArgumentException.class,
 				() -> UniqueIndex.verifyValueArray(notSerializableArray)
 			);
+		}
+	}
+
+
+	/**
+	 * A unique index over a temporal attribute. These indexes keep their values **raw** — `OwnerUniqueIndex`'s own
+	 * javadoc says so — which makes the leaf column choice a correctness matter rather than a memory one: the
+	 * `Instant`-keyed primitive column casts every key it is handed to {@link java.time.Instant}, so selecting it
+	 * for a declared `OffsetDateTime` threw a `ClassCastException` on the first write. See
+	 * {@code ValueColumnFactory#forKey} for the key-space split that keeps such an index on the boxed column.
+	 */
+	@Nested
+	@DisplayName("Temporal unique attributes")
+	class TemporalValueTest {
+		/**
+		 * Two moments a millisecond apart, both carrying sub-second digits so nothing here can accidentally pass by
+		 * comparing two whole seconds.
+		 */
+		private static final OffsetDateTime NOON =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC);
+		private static final OffsetDateTime NOON_PLUS_ONE_MILLI =
+			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 124_000_000, ZoneOffset.UTC);
+		/**
+		 * The very same instant as {@link #NOON}, written at a different offset. `OffsetDateTime.compareTo` breaks
+		 * the instant tie on the local date-time, so these two are **distinct** keys — an index that reduced its
+		 * keys to epoch-milliseconds would fold them into one.
+		 */
+		private static final OffsetDateTime NOON_AT_PLUS_TWO =
+			OffsetDateTime.of(2026, 5, 20, 14, 19, 26, 123_000_000, ZoneOffset.ofHours(2));
+
+		/**
+		 * Creates an empty unique index over an attribute declared with the passed temporal type.
+		 *
+		 * @param attributeType the declared attribute type
+		 * @return the fresh empty index
+		 */
+		@Nonnull
+		private UniqueIndex temporalIndex(@Nonnull Class<? extends Serializable> attributeType) {
+			return new OwnerUniqueIndex(
+				Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), attributeType
+			);
+		}
+
+		@Test
+		@DisplayName("an OffsetDateTime value is registered and retrieved back")
+		void shouldRegisterAndRetrieveAnOffsetDateTimeValue() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON, 1);
+			index.registerUniqueKey(NOON_PLUS_ONE_MILLI, 2);
+
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(2, index.getRecordIdByUniqueValue(NOON_PLUS_ONE_MILLI));
+			assertNull(index.getRecordIdByUniqueValue(NOON.plusSeconds(1)));
+			assertEquals(2, index.size());
+		}
+
+		@Test
+		@DisplayName("a duplicate OffsetDateTime value is refused")
+		void shouldRefuseADuplicateOffsetDateTimeValue() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON, 1);
+
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(NOON, 2)
+			);
+			// the refusal must not have disturbed the value already there
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(1, index.size());
+		}
+
+		@Test
+		@DisplayName("two offsets naming the same instant stay two distinct unique keys")
+		void shouldKeepTwoOffsetsOfOneInstantDistinct() {
+			// the discriminating case: NOON and NOON_AT_PLUS_TWO are the SAME epoch-millisecond, so an index whose
+			// leaf column reduced its keys to `Instant` would report a uniqueness violation here instead of storing
+			// two records — a raw-valued index must keep them apart, exactly as OffsetDateTime.compareTo does
+			assertEquals(NOON.toInstant(), NOON_AT_PLUS_TWO.toInstant());
+			assertNotEquals(0, NOON.compareTo(NOON_AT_PLUS_TWO));
+
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON, 1);
+			index.registerUniqueKey(NOON_AT_PLUS_TWO, 2);
+
+			assertEquals(2, index.getDistinctValueCount());
+			assertEquals(2, index.size());
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(2, index.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
+		}
+
+		@Test
+		@DisplayName("an OffsetDateTime value is unregistered again")
+		void shouldUnregisterAnOffsetDateTimeValue() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON, 1);
+			index.registerUniqueKey(NOON_PLUS_ONE_MILLI, 2);
+
+			assertEquals(1, index.unregisterUniqueKey(NOON, 1));
+			assertNull(index.getRecordIdByUniqueValue(NOON));
+			assertEquals(2, index.getRecordIdByUniqueValue(NOON_PLUS_ONE_MILLI));
+			assertEquals(1, index.size());
+		}
+
+		@Test
+		@DisplayName("a LocalDateTime attribute behaves the same way")
+		void shouldRegisterRetrieveAndRefuseALocalDateTimeValue() {
+			final UniqueIndex index = temporalIndex(LocalDateTime.class);
+			final LocalDateTime first = LocalDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000);
+			final LocalDateTime second = LocalDateTime.of(2026, 5, 20, 12, 19, 26, 124_000_000);
+			index.registerUniqueKey(first, 1);
+			index.registerUniqueKey(second, 2);
+
+			assertEquals(1, index.getRecordIdByUniqueValue(first));
+			assertEquals(2, index.getRecordIdByUniqueValue(second));
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(first, 3)
+			);
+			assertEquals(2, index.size());
+		}
+
+		@Test
+		@DisplayName("an array of OffsetDateTime values registers every element")
+		void shouldRegisterEveryElementOfAnOffsetDateTimeArray() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime[].class);
+			index.registerUniqueKey(new OffsetDateTime[]{NOON, NOON_PLUS_ONE_MILLI}, 1);
+
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON_PLUS_ONE_MILLI));
+			// one record owning two values: `size()` counts records, `getDistinctValueCount()` counts keys
+			assertEquals(1, index.size());
+			assertEquals(2, index.getDistinctValueCount());
 		}
 	}
 
