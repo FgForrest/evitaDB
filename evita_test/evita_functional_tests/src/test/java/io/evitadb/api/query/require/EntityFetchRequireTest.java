@@ -57,7 +57,7 @@ class EntityFetchRequireTest {
 		@Test
 		@DisplayName("an array shorter than two requirements is handed back untouched")
 		void shouldReturnSameArrayWhenFewerThanTwoRequirements() {
-			final EntityContentRequire[] empty = new EntityContentRequire[0];
+			final EntityContentRequire[] empty = EntityContentRequire.EMPTY_ARRAY;
 			assertSame(empty, EntityFetchRequire.combineDuplicateRequirements(empty));
 
 			final EntityContentRequire[] single = new EntityContentRequire[]{attributeContent("code")};

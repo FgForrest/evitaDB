@@ -114,10 +114,11 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	/**
 	 * Memoized parent-chain bound. This constraint is immutable, so the scan can only ever produce one answer, and
 	 * every `combineWith` / `isFullyContainedWithin` / `forPrefetch` call asks for it. A `null` field means *not
-	 * computed yet* - an absent bound is memoized as {@link Optional#empty()}, which is a computed answer. The field
-	 * is `transient` because it is derived state a deserialized instance recomputes on demand.
+	 * computed yet* or *computed and absent*, undivided - the scan that decides it is an allocation-free walk over
+	 * a handful of children, so repeating it for an absent bound costs less than a flag to tell the two apart. The
+	 * field is `transient` because it is derived state a deserialized instance recomputes on demand.
 	 */
-	private transient volatile HierarchyStopAt memoizedStopAt;
+	@Nullable private transient volatile HierarchyStopAt memoizedStopAt;
 
 	private HierarchyContent(@Nonnull RequireConstraint[] requirements) {
 		super(NO_ARGS, requirements);

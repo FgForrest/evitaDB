@@ -1257,7 +1257,7 @@ class EntityDuplicateContentRequirementFunctionalTest extends AbstractEntityFetc
 		 * @return map of product primary key to the number of its fetched prices
 		 */
 		@Nonnull
-		private Map<Integer, Integer> countPricesPerProduct(
+		private static Map<Integer, Integer> countPricesPerProduct(
 			@Nonnull EvitaSessionContract session,
 			@Nonnull Integer[] primaryKeys,
 			@Nonnull EntityContentRequire... requirements

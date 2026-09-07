@@ -241,15 +241,15 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * the array reference before its elements. They are `transient` because they are derived state that any
 	 * deserialized instance recomputes on demand.
 	 */
-	private transient volatile String memoizedInstanceName;
+	@Nullable private transient volatile String memoizedInstanceName;
 	private transient volatile String[] memoizedReferenceNames;
 	private transient volatile ManagedReferencesBehaviour memoizedManagedReferencesBehaviour;
-	private transient volatile AttributeContent memoizedAttributeContent;
-	private transient volatile EntityFetch memoizedEntityRequirement;
-	private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
-	private transient volatile ChunkingRequireConstraint memoizedChunking;
-	private transient volatile FilterBy memoizedFilterBy;
-	private transient volatile OrderBy memoizedOrderBy;
+	@Nullable private transient volatile AttributeContent memoizedAttributeContent;
+	@Nullable private transient volatile EntityFetch memoizedEntityRequirement;
+	@Nullable private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
+	@Nullable private transient volatile ChunkingRequireConstraint memoizedChunking;
+	@Nullable private transient volatile FilterBy memoizedFilterBy;
+	@Nullable private transient volatile OrderBy memoizedOrderBy;
 
 	/**
 	 * Internal constructor used in GraphQL API to define multiple reference content definitions and for cloning purposes.
@@ -1215,10 +1215,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			}
 			final Optional<OrderBy> thatOrderBy = referenceContent.getOrderBy();
 			final Optional<OrderBy> thisOrderBy = getOrderBy();
-			if (thisOrderBy.isPresent() && !thisOrderBy.equals(thatOrderBy)) {
-				return false;
-			}
-			return true;
+			return thisOrderBy.isEmpty() || thisOrderBy.equals(thatOrderBy);
 		}
 		return false;
 	}
@@ -1283,9 +1280,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		final FilterBy thisFilterBy = getFilterBy().orElse(null);
 		final FilterBy thatFilterBy = anotherReferenceContent.getFilterBy().orElse(null);
 		assertRestrictionsIdentical("filter", thisFilterBy, thatFilterBy, anotherReferenceContent);
-		// both sides carry the very same filter or neither carries one - anything else was refused above
-		final FilterBy combinedFilterBy = thisFilterBy;
 
+		// both sides carry the very same filter or neither carries one - anything else was refused above
 		final OrderBy thisOrderBy = getOrderBy().orElse(null);
 		final OrderBy thatOrderBy = anotherReferenceContent.getOrderBy().orElse(null);
 		assertOrdersCompatible(thisOrderBy, thatOrderBy, anotherReferenceContent);
@@ -1295,9 +1291,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		final ChunkingRequireConstraint thisChunking = getChunking().orElse(null);
 		final ChunkingRequireConstraint thatChunking = anotherReferenceContent.getChunking().orElse(null);
 		assertRestrictionsIdentical("chunking", thisChunking, thatChunking, anotherReferenceContent);
-		// both sides carry the very same chunking or neither carries one - anything else was refused above
-		final ChunkingRequireConstraint combinedChunking = thisChunking;
 
+		// both sides carry the very same chunking or neither carries one - anything else was refused above
 		// `ANY` is what an absent argument reads as, so a difference here is a silent sibling meeting a stated one
 		// rather than two competing claims - it is resolved like a one-sided `orderBy`, not refused like a
 		// one-sided `filterBy`
@@ -1323,12 +1318,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 						getGroupEntityRequirement().orElse(null),
 						anotherReferenceContent.getGroupEntityRequirement().orElse(null)
 					),
-					combinedChunking
+					thisChunking
 				}
 			).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
 			Arrays.stream(
 				new Constraint<?>[]{
-					combinedFilterBy,
+					thisFilterBy,
 					combinedOrderBy
 				}
 			).filter(Objects::nonNull).toArray(Constraint[]::new)

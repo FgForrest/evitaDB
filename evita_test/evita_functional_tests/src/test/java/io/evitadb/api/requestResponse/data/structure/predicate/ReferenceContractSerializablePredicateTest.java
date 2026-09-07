@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -50,18 +51,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ReferenceContractSerializablePredicate} verifying
@@ -1106,7 +1100,7 @@ class ReferenceContractSerializablePredicateTest {
 		 * @return the predicate to assert on
 		 */
 		@Nonnull
-		private ReferenceContractSerializablePredicate createDefaultBesideSpecificPredicate(
+		private static ReferenceContractSerializablePredicate createDefaultBesideSpecificPredicate(
 			@Nonnull String... defaultAttributes
 		) {
 			return new ReferenceContractSerializablePredicate(
@@ -1123,7 +1117,7 @@ class ReferenceContractSerializablePredicateTest {
 		 * @return the mocked schema
 		 */
 		@Nonnull
-		private EntitySchemaContract createSchemaWithReferences(@Nonnull String... referenceNames) {
+		private static EntitySchemaContract createSchemaWithReferences(@Nonnull String... referenceNames) {
 			final Map<String, ReferenceSchemaContract> references =
 				CollectionUtils.createLinkedHashMap(referenceNames.length);
 			for (final String referenceName : referenceNames) {
@@ -1141,7 +1135,7 @@ class ReferenceContractSerializablePredicateTest {
 		 * @return the mocked reference
 		 */
 		@Nonnull
-		private ReferenceContract createReference(@Nonnull String referenceName) {
+		private static ReferenceContract createReference(@Nonnull String referenceName) {
 			final ReferenceContract reference = Mockito.mock(ReferenceContract.class);
 			Mockito.when(reference.exists()).thenReturn(true);
 			Mockito.when(reference.getReferenceName()).thenReturn(referenceName);
@@ -1348,7 +1342,7 @@ class ReferenceContractSerializablePredicateTest {
 		 * @return the mocked request
 		 */
 		@Nonnull
-		private EvitaRequest createEnrichingRequest(
+		private static EvitaRequest createEnrichingRequest(
 			@Nullable RequirementContext defaultRequirement,
 			@Nonnull Map<String, RequirementContext> referenceEntityFetch
 		) {
@@ -1373,7 +1367,7 @@ class ReferenceContractSerializablePredicateTest {
 		 * @return the requirement asking for no reference attribute
 		 */
 		@Nonnull
-		private RequirementContext createBareRequirementContext() {
+		private static RequirementContext createBareRequirementContext() {
 			return new RequirementContext(
 				ManagedReferencesBehaviour.ANY,
 				null, null, null, null, null,

@@ -43,6 +43,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -54,26 +55,22 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
-import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static io.evitadb.api.query.require.DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS;
-import static io.evitadb.api.query.require.FacetRelationType.*;
-import static io.evitadb.api.query.require.PriceContentMode.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+import static io.evitadb.api.query.require.FacetRelationType.CONJUNCTION;
+import static io.evitadb.api.query.require.FacetRelationType.DISJUNCTION;
+import static io.evitadb.api.query.require.PriceContentMode.ALL;
+import static io.evitadb.api.query.require.PriceContentMode.NONE;
+import static io.evitadb.api.query.require.PriceContentMode.RESPECTING_FILTER;
 import static io.evitadb.api.query.require.QueryPriceMode.WITHOUT_TAX;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
+import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.HIERARCHY;
-import static io.evitadb.test.TestTags.HISTOGRAM;
-import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.REFERENCE;
-import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * Tests for {@link EvitaRequest} verifying lazy-memoized accessor
@@ -1002,10 +999,7 @@ class EvitaRequestTest {
 				)
 			);
 
-			assertEquals(
-				Currency.getInstance("EUR"),
-				request.getRequiresCurrency()
-			);
+			assertSame(Currency.getInstance("EUR"), request.getRequiresCurrency());
 		}
 
 		/**
@@ -2242,7 +2236,7 @@ class EvitaRequestTest {
 		 * from the `product` collection.
 		 */
 		@Nonnull
-		private EvitaRequest createFetchRequest(
+		private static EvitaRequest createFetchRequest(
 			@Nonnull EntityContentRequire... requirements
 		) {
 			return createRequest(
@@ -2258,7 +2252,7 @@ class EvitaRequestTest {
 		 * directly by the passed fetch container.
 		 */
 		@Nonnull
-		private AttributeContent attributeContentOf(
+		private static AttributeContent attributeContentOf(
 			@Nonnull EntityFetch entityFetch
 		) {
 			AttributeContent found = null;
@@ -2283,7 +2277,7 @@ class EvitaRequestTest {
 		 * (alias), the shape produced by the GraphQL API.
 		 */
 		@Nonnull
-		private ReferenceContent namedReferenceContent(
+		private static ReferenceContent namedReferenceContent(
 			@Nonnull String instanceName,
 			@Nonnull String referenceName,
 			@Nonnull EntityFetch entityRequirement
@@ -2304,7 +2298,7 @@ class EvitaRequestTest {
 		 * reference at a time.
 		 */
 		@Nonnull
-		private ReferenceContent filteredReferenceContent(
+		private static ReferenceContent filteredReferenceContent(
 			@Nonnull FilterBy filterBy,
 			@Nonnull String... referenceNames
 		) {

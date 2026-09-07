@@ -43,13 +43,13 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,11 +68,7 @@ import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.REQUIRE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies that a reference-specific summary constraint - `referenceSummaryOfReference` /
@@ -178,11 +174,11 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 			.withAttribute(ATTRIBUTE_BRAND_ONLY, String.class)
 			.withReferenceToEntity(
 				REF_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.withReferenceToEntity(
 				REF_LABELS, ENTITY_LABEL, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.updateVia(session);
 
@@ -192,11 +188,11 @@ class ReferenceSummaryFetchOverrideTest implements EvitaTestSupport {
 			.withAttribute(ATTRIBUTE_NAME, String.class)
 			.withReferenceToEntity(
 				REF_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.withReferenceToEntity(
 				REF_LABELS, ENTITY_LABEL, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.updateVia(session);
 

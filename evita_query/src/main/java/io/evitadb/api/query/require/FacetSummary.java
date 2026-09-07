@@ -183,12 +183,12 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 * final-field guarantee, and `transient` because they are derived state that a deserialized instance
 	 * recomputes on demand.
 	 */
-	private transient volatile EntityFetch memoizedFacetEntityRequirement;
-	private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
-	private transient volatile FilterBy memoizedFilterBy;
-	private transient volatile FilterGroupBy memoizedFilterGroupBy;
-	private transient volatile OrderBy memoizedOrderBy;
-	private transient volatile OrderGroupBy memoizedOrderGroupBy;
+	@Nullable private transient volatile EntityFetch memoizedFacetEntityRequirement;
+	@Nullable private transient volatile EntityGroupFetch memoizedGroupEntityRequirement;
+	@Nullable private transient volatile FilterBy memoizedFilterBy;
+	@Nullable private transient volatile FilterGroupBy memoizedFilterGroupBy;
+	@Nullable private transient volatile OrderBy memoizedOrderBy;
+	@Nullable private transient volatile OrderGroupBy memoizedOrderGroupBy;
 
 	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, children, additionalChildren);

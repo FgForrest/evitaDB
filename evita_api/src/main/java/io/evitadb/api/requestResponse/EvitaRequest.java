@@ -1599,10 +1599,11 @@ public class EvitaRequest {
 						// inside a single requirement folds with itself and claims the reference once.
 						for (final String refName : rc.getReferenceNames()) {
 							final ReferenceContent projection = rc.forReferenceName(refName);
-							final ReferenceContent alreadyFolded = foldedPerName.get(refName);
-							foldedPerName.put(
+							foldedPerName.compute(
 								refName,
-								alreadyFolded == null ? projection : alreadyFolded.combineWith(projection)
+								(k, alreadyFolded) -> alreadyFolded == null
+									? projection
+									: alreadyFolded.combineWith(projection)
 							);
 						}
 					}

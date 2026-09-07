@@ -40,13 +40,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.WithNamedReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -66,17 +67,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -405,7 +396,7 @@ public class EntityFetchRequireResolver {
 				// sale, so two selections sharing a name must agree on the price lists - keeping the first one and
 				// dropping the second would answer the second field with a price it never asked for
 				final AccompanyingPriceContent alreadySelected = deduplicated.putIfAbsent(priceName, content);
-				if (alreadySelected != null && !content.isFullyContainedWithin(alreadySelected)) {
+				if (alreadySelected != null && content != null && !content.isFullyContainedWithin(alreadySelected)) {
 					throw new GraphQLInvalidArgumentException(
 						"Accompanying price `" + priceName + "` is selected with two different price list sequences (" +
 							Arrays.toString(alreadySelected.getPriceLists()) + " and " +
@@ -436,7 +427,7 @@ public class EntityFetchRequireResolver {
 				final ReferenceContentsBuilder contentsBuilder = new ReferenceContentsBuilder(referenceSchema.getName());
 
 				// basic reference fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema))
 					.forEach(basicReferenceField -> resolveReferenceContentFromBasicField(
 						contentsBuilder,
 						basicReferenceField,
@@ -445,7 +436,9 @@ public class EntityFetchRequireResolver {
 						referenceSchema
 					));
 				// reference page fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(
+						WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema)
+					)
 					.forEach(referencePageField -> resolveReferenceContentFromPageField(
 						contentsBuilder,
 						referencePageField,
@@ -454,7 +447,9 @@ public class EntityFetchRequireResolver {
 						referenceSchema
 					));
 				// reference strip fields
-				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+				selectionSetAggregator.getImmediateFields(
+						WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema)
+					)
 					.forEach(referenceStripField -> resolveReferenceContentFromStripField(
 						contentsBuilder,
 						referenceStripField,
@@ -513,7 +508,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
-			ReferenceDefinitionPageDescriptor.DATA.name()));
+			ReferencePageDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
@@ -546,7 +541,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
-			ReferenceDefinitionStripDescriptor.DATA.name()));
+			ReferenceStripDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);

@@ -546,8 +546,9 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			}
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
 				final String referenceName = newEntry.getKey();
-				final AttributeRequest existingAttributeRequest = this.referenceSet.containsKey(referenceName) ?
-					this.referenceSet.get(referenceName) : this.defaultAttributeRequest;
+				final AttributeRequest existingAttributeRequest = this.referenceSet.getOrDefault(
+					referenceName, this.defaultAttributeRequest
+				);
 				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
 				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(
 					existingAttributeRequest, newAttributeRequest
