@@ -75,6 +75,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -102,6 +103,8 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 	private static final String DATA_SET_HEAD_LABEL_PROPAGATION = "clientHeadLabelPropagation";
 	private static final String LABEL_NAME = "rest_method";
 	private static final String LABEL_VALUE = "CartController.updateCartByOperation";
+	private static final String SECOND_LABEL_NAME = "page-url";
+	private static final String SECOND_LABEL_VALUE = "/cart";
 	/**
 	 * Primary key deliberately absent from the dataset — the queries below exist to be *sent*, not to match, and an
 	 * empty result page keeps the assertion about the wire and nothing else.
@@ -150,11 +153,8 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 			)
 		);
 
-		// the entity type taken from the expected result type must still be there ...
-		assertTrue(
-			sentRequest.getQuery().contains("collection("),
-			() -> "the entity type never made it onto the wire: " + sentRequest.getQuery()
-		);
+		// the entity type taken from the expected result type must still be there, exactly once ...
+		assertSingleCollectionOnTheWire(sentRequest);
 		// ... and the label must have been merged into the head rather than replaced by it
 		assertLabelOnTheWire(sentRequest);
 	}
@@ -177,7 +177,54 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 			)
 		);
 
+		assertSingleCollectionOnTheWire(sentRequest);
 		assertLabelOnTheWire(sentRequest);
+	}
+
+	@Test
+	@UseDataSet(DATA_SET_HEAD_LABEL_PROPAGATION)
+	@DisplayName("should derive the collection when the query carries no head at all")
+	void shouldDeriveCollectionWhenQueryCarriesNoHead(EvitaServer evitaServer) {
+		final GrpcQueryRequest sentRequest = captureQueryRequest(
+			evitaServer,
+			session -> session.queryList(
+				query(
+					filterBy(entityPrimaryKeyInSet(MISSING_PRIMARY_KEY)),
+					require(entityFetch())
+				),
+				ProductHandle.class
+			)
+		);
+
+		assertSingleCollectionOnTheWire(sentRequest);
+		assertFalse(
+			sentRequest.getQuery().contains("head("),
+			() -> "a derived collection alone must not be wrapped: " + sentRequest.getQuery()
+		);
+	}
+
+	@Test
+	@UseDataSet(DATA_SET_HEAD_LABEL_PROPAGATION)
+	@DisplayName("should keep every label of a collection-free head container while deriving the collection")
+	void shouldKeepEveryLabelOfCollectionFreeHeadContainer(EvitaServer evitaServer) {
+		final GrpcQueryRequest sentRequest = captureQueryRequest(
+			evitaServer,
+			session -> session.queryList(
+				query(
+					head(
+						label(LABEL_NAME, LABEL_VALUE),
+						label(SECOND_LABEL_NAME, SECOND_LABEL_VALUE)
+					),
+					filterBy(entityPrimaryKeyInSet(MISSING_PRIMARY_KEY)),
+					require(entityFetch())
+				),
+				ProductHandle.class
+			)
+		);
+
+		assertSingleCollectionOnTheWire(sentRequest);
+		assertLabelOnTheWire(sentRequest, LABEL_NAME, LABEL_VALUE);
+		assertLabelOnTheWire(sentRequest, SECOND_LABEL_NAME, SECOND_LABEL_VALUE);
 	}
 
 	/**
@@ -215,6 +262,14 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 	 * the placeholders but loses the values.
 	 */
 	private static void assertLabelOnTheWire(@Nonnull GrpcQueryRequest sentRequest) {
+		assertLabelOnTheWire(sentRequest, LABEL_NAME, LABEL_VALUE);
+	}
+
+	private static void assertLabelOnTheWire(
+		@Nonnull GrpcQueryRequest sentRequest,
+		@Nonnull String labelName,
+		@Nonnull String labelValue
+	) {
 		assertTrue(
 			sentRequest.getQuery().contains("label("),
 			() -> "the head label was dropped by the driver: " + sentRequest.getQuery()
@@ -222,14 +277,27 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 		assertTrue(
 			sentRequest.getPositionalQueryParamsList().stream()
 				.map(GrpcQueryParam::getStringValue)
-				.anyMatch(LABEL_NAME::equals),
+				.anyMatch(labelName::equals),
 			() -> "the label name never reached the wire: " + sentRequest.getPositionalQueryParamsList()
 		);
 		assertTrue(
 			sentRequest.getPositionalQueryParamsList().stream()
 				.map(GrpcQueryParam::getStringValue)
-				.anyMatch(LABEL_VALUE::equals),
+				.anyMatch(labelValue::equals),
 			() -> "the label value never reached the wire: " + sentRequest.getPositionalQueryParamsList()
+		);
+	}
+
+	/**
+	 * Asserts the wire carries exactly one `collection` constraint. Counting rather than merely finding one is what
+	 * catches a merge that prepends a collection to a header that already names one.
+	 */
+	private static void assertSingleCollectionOnTheWire(@Nonnull GrpcQueryRequest sentRequest) {
+		final String sentQuery = sentRequest.getQuery();
+		assertEquals(
+			1,
+			sentQuery.split("collection\\(", -1).length - 1,
+			() -> "expected exactly one collection on the wire: " + sentQuery
 		);
 	}
 
