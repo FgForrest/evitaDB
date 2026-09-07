@@ -278,14 +278,6 @@ class AttributeHistogramProducerTest {
 		assertBucket(output[0], 3, 7);
 	}
 
-	/**
-	 * Asserts a combined output bucket carries the expected value and exactly the expected record ids, reading the
-	 * record ids through the materialized {@link ValueToRecordBitmap#getRecordIds()} bitmap.
-	 *
-	 * @param bucket            the produced bucket to inspect
-	 * @param expectedValue     the value the bucket must represent
-	 * @param expectedRecordIds the record ids the bucket must contain, in ascending order
-	 */
 	@Test
 	@DisplayName("registering one attribute twice widens the index set it is computed from")
 	void shouldWidenIndexSetWhenOneAttributeIsRegisteredTwice() {
@@ -379,6 +371,14 @@ class AttributeHistogramProducerTest {
 		);
 	}
 
+	/**
+	 * Asserts a combined output bucket carries the expected value and exactly the expected record ids, reading the
+	 * record ids through the materialized {@link ValueToRecordBitmap#getRecordIds()} bitmap.
+	 *
+	 * @param bucket            the produced bucket to inspect
+	 * @param expectedValue     the value the bucket must represent
+	 * @param expectedRecordIds the record ids the bucket must contain, in ascending order
+	 */
 	private static void assertBucket(
 		@Nonnull ValueToRecordBitmap bucket,
 		int expectedValue,

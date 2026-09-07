@@ -132,7 +132,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	private transient volatile String[] memoizedReferenceNames;
 	private transient volatile EmptyHierarchicalEntityBehaviour memoizedEmptyHierarchicalEntityBehaviour;
 	private transient volatile HierarchyRequireConstraint[] memoizedRequirements;
-	private transient volatile OrderBy memoizedOrderBy;
+	@Nullable private transient volatile OrderBy memoizedOrderBy;
 
 	private HierarchyOfReference(
 		@Nonnull Serializable[] arguments,

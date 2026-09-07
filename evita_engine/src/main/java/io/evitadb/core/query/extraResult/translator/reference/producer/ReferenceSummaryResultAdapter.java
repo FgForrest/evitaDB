@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
+import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -33,8 +34,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import io.evitadb.api.query.require.Require;
-
 import java.util.Map;
 import java.util.Set;
 

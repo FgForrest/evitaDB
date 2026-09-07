@@ -396,7 +396,7 @@ public class EntityFetchRequireResolver {
 				// sale, so two selections sharing a name must agree on the price lists - keeping the first one and
 				// dropping the second would answer the second field with a price it never asked for
 				final AccompanyingPriceContent alreadySelected = deduplicated.putIfAbsent(priceName, content);
-				if (alreadySelected != null && content != null && !content.isFullyContainedWithin(alreadySelected)) {
+				if (alreadySelected != null && !content.isFullyContainedWithin(alreadySelected)) {
 					throw new GraphQLInvalidArgumentException(
 						"Accompanying price `" + priceName + "` is selected with two different price list sequences (" +
 							Arrays.toString(alreadySelected.getPriceLists()) + " and " +
