@@ -388,11 +388,13 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Override
 	public long getOperationCost() {
-		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		// equalized variants have similar cost structure
+		// OPTIMIZED carries a penalty because a sparse histogram has to be recomputed to drop empty buckets.
+		// The equalised family never produces an empty bucket, so both of its members do exactly the same
+		// single pass and must be costed the same - charging EQUALIZED_OPTIMIZED the recomputation penalty
+		// would bias the planner against a behaviour that does no extra work.
 		return switch (this.behavior) {
-			case STANDARD, EQUALIZED -> 2213;
-			case OPTIMIZED, EQUALIZED_OPTIMIZED -> 3320;
+			case STANDARD, EQUALIZED, EQUALIZED_OPTIMIZED -> 2213;
+			case OPTIMIZED -> 3320;
 		};
 	}
 
