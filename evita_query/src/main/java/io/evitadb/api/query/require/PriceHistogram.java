@@ -61,7 +61,10 @@ import java.util.Arrays;
  *    - `STANDARD`: exactly the requested number of equal-width buckets.
  *    - `OPTIMIZED`: up to the requested count, empty buckets are dropped for a denser result.
  *    - `EQUALIZED`: frequency-equalised boundaries so each bucket covers roughly the same number of entities.
- *    - `EQUALIZED_OPTIMIZED`: frequency-equalised boundaries with empty-bucket suppression combined.
+ *      Every boundary is a value the data contains, so no bucket is ever empty and the actual count may be
+ *      lower than requested. `relativeFrequency` then carries a value density rather than a share.
+ *    - `EQUALIZED_OPTIMIZED`: identical to `EQUALIZED` - the equalised algorithm emits no empty buckets, so
+ *      there is nothing to suppress.
  *
  * **ConstraintWithDefaults behaviour**
  *
