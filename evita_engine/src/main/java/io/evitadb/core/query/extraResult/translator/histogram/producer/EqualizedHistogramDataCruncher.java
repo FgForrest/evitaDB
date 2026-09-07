@@ -306,6 +306,17 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			totalWeight > 0,
 			() -> "Source data of " + this.histogramType + " carries no weight - the quantile function is undefined!"
 		);
+		// the quantile walk compares `cumulativeWeights[j + 1] * bucketCount` against `rank * totalWeight` in
+		// long arithmetic. Both factors are bounded by Integer.MAX_VALUE - `bucketCount` by its own type, and
+		// `totalWeight` because it counts int-addressed records - so the widest product is
+		// `(2^31 - 1)^2 = 4.61e18`, comfortably half of Long.MAX_VALUE. That bound comes from the callers
+		// rather than from anything visible here, so it is asserted once instead of paid for with 128-bit
+		// arithmetic on every one of the comparisons.
+		Assert.isPremiseValid(
+			totalWeight <= Integer.MAX_VALUE,
+			() -> "Source data of " + this.histogramType + " carries a total weight above Integer.MAX_VALUE - " +
+				"the quantile walk would overflow!"
+		);
 
 		// Step 2: a single distinct value is one indivisible plateau - there is nothing to equalize and
 		// nothing to compare its height against, so it takes the whole scale
