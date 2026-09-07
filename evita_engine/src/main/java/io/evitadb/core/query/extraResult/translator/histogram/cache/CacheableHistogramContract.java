@@ -252,7 +252,7 @@ public interface CacheableHistogramContract extends Serializable {
 	 *                          across the histogram, with empty buckets at 0.
 	 *                          For the frequency-equalised behaviours: the smoothed value density at the bucket,
 	 *                          normalised against the maximum of the density curve so the value lies in `(0, 100]` -
-	 *                          the values do <em>not</em> sum to 100 and there is never an empty bucket. See
+	 *                          the values do *not* sum to 100 and there is never an empty bucket. See
 	 *                          {@link io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket#relativeFrequency()}
 	 *                          for the full client rendering contract.
 	 */

@@ -285,38 +285,37 @@ public interface HistogramContract extends Serializable {
 	 * @param relativeFrequency Rendering intensity of the bucket's bar. It is never a count, a share or a
 	 *                          probability - use `occurrences` for anything numeric shown to a person, and
 	 *                          `occurrences / overallCount` for a share.
-	 *                          <p>
+	 *
 	 *                          For the equal-width behaviours ({@link io.evitadb.api.query.require.HistogramBehavior#STANDARD},
 	 *                          {@link io.evitadb.api.query.require.HistogramBehavior#OPTIMIZED}) it is the percentage
 	 *                          of total occurrences, `(occurrences / overallCount) * 100`, and the values sum to 100.
-	 *                          <p>
+	 *
 	 *                          For the frequency-equalised behaviours ({@link io.evitadb.api.query.require.HistogramBehavior#EQUALIZED},
 	 *                          {@link io.evitadb.api.query.require.HistogramBehavior#EQUALIZED_OPTIMIZED}) the axis is
 	 *                          equalised, so occurrences are approximately constant by construction and carry no
 	 *                          information. The field instead carries the smoothed **value density** at the bucket,
 	 *                          normalised against the maximum of the density curve, so the value lies in `(0, 100]`
 	 *                          where `100` is the tallest point of the distribution. Consequently:
-	 *                          <ul>
-	 *                            <li>Scale bars against the <b>constant 100</b> - `chartHeight * relativeFrequency / 100`.
-	 *                                Do not divide by the sum of the buckets (they no longer sum to 100) and do not
-	 *                                scale against the tallest returned bucket, which would re-couple the rendering to
-	 *                                the requested bucket count.</li>
-	 *                            <li>Do not apply `sqrt` or `log`. The value is already a linear rendering intensity
-	 *                                with a moderate dynamic range - tallest-to-median is roughly 1.2 - 2.0 - so a
-	 *                                compressing transform flattens a profile that is legitimately readable as it
-	 *                                stands. Draw it directly.</li>
-	 *                            <li>The value describes the <b>whole bucket</b>, spanning
-	 *                                `[threshold, nextThreshold)` and `[threshold, max]` for the last one - it is
-	 *                                measured at the bucket's weighted median observation, not at its left edge.
-	 *                                The last bucket's threshold may equal `max`, which makes it zero-width; give it
-	 *                                a minimum bar width or the tallest bar can render invisible.</li>
-	 *                            <li>Do not assume exactly one bucket reads `100`: the denominator is the curve
-	 *                                maximum over all observed values rather than over the returned buckets, so a
-	 *                                response may contain none or several. Only `0 &lt; relativeFrequency &lt;= 100`
-	 *                                is guaranteed.</li>
-	 *                            <li>Do not compare the value across behaviours or across two different histograms -
-	 *                                it is a per-response rendering scale.</li>
-	 *                          </ul>
+	 *
+	 *                          - Scale bars against the **constant 100** - `chartHeight * relativeFrequency / 100`.
+	 *                            Do not divide by the sum of the buckets (they no longer sum to 100) and do not
+	 *                            scale against the tallest returned bucket, which would re-couple the rendering to
+	 *                            the requested bucket count.
+	 *                          - Do not apply `sqrt` or `log`. The value is already a linear rendering intensity
+	 *                            with a moderate dynamic range - tallest-to-median is roughly 1.2 - 2.0 - so a
+	 *                            compressing transform flattens a profile that is legitimately readable as it
+	 *                            stands. Draw it directly.
+	 *                          - The value describes the **whole bucket**, spanning `[threshold, nextThreshold)`
+	 *                            and `[threshold, max]` for the last one - it is measured at the bucket's weighted
+	 *                            median observation, not at its left edge. The last bucket's threshold may equal
+	 *                            `max`, which makes it zero-width; give it a minimum bar width or the tallest bar
+	 *                            can render invisible.
+	 *                          - Do not assume exactly one bucket reads `100`: the denominator is the curve
+	 *                            maximum over all observed values rather than over the returned buckets, so a
+	 *                            response may contain none or several. Only `0 < relativeFrequency <= 100` is
+	 *                            guaranteed.
+	 *                          - Do not compare the value across behaviours or across two different histograms -
+	 *                            it is a per-response rendering scale.
 	 */
 	record Bucket(
 		@Nonnull BigDecimal threshold,

@@ -31,7 +31,7 @@ a reader actually perceives on an equal-pixel equalized axis is the **density-qu
 `f(F⁻¹(u))`, how tightly packed the values are at each slider position. The shipped code reached for the
 right quantity and estimated it the cheapest possible way: from the width of the bucket itself.
 
-That estimator has a sample size of one. On the Senesi `zrcadla-a-galerky` category (3 237 products) the
+That estimator has a sample size of one. On a production e-commerce category (3 237 products) the
 bucket holding **81 products rendered at 35.15** while the bucket holding **338 rendered at 6.03** — a
 quarter of the records drawing almost six times taller. On the evitaDB demo dataset the same defect inverts a
 5-product mass against a single product (0.99 against 99.01), and the shipped `histogram.md` example carries
