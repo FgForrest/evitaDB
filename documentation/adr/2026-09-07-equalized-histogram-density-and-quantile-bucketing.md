@@ -1,7 +1,7 @@
 ---
 title: Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio
 date: 2026-09-07
-updated: 2026-09-07 12:10
+updated: 2026-09-07 13:05
 status: accepted
 kind: fix
 issues: [1501]
@@ -141,8 +141,18 @@ Two sub-decisions are worth stating because they will look arbitrary:
   with `mᵢ ≥ 2`, so the emitted count cannot exceed `bucketCount`. `padWithEmptyBuckets` and
   `BucketCountMode` are gone — there is nothing to pad, because every boundary sits on a value the data
   contains and no bucket is ever empty.
-- **The rank comparison is integer-exact** (`C[j+1] · B >= k · N`). A boundary decided by floating-point
-  rounding is a boundary that moves when the JIT changes its mind.
+- **The rank comparison is integer-exact and strict** (`C[j+1] · B > k · N`). Exact, because a boundary decided
+  by floating-point rounding is a boundary that moves when the JIT changes its mind. **Strict**, because the walk
+  must land on the value that *contains* the rank, not the one that *ends* at it — the two differ only when the
+  cumulative weight falls exactly on `k · N / B`, which is precisely what evenly weighted data does at every
+  single rank. Under the non-strict form every cut lands one distinct value early: six values of weight seven
+  into three buckets gives 7/14/21 instead of 14/14/14, and twenty equal plateaus into twenty buckets gives
+  nineteen. Both production corpora bucket identically under either form, so the regression corpus cannot see
+  this — `shouldSplitEvenlyWeightedValuesIntoEqualBuckets` and
+  `shouldFillEveryBucketWhenPlateauCountMatchesBucketCount` exist solely to pin it.
+- **The run-length step is the exact inverse of that comparison.** The batching jumps to
+  `(C[j+1] · B − 1) / N + 1`, the smallest rank the walk no longer resolves to the current value. Pairing it with
+  the wrong comparison silently re-introduces the off-by-one, so the two must change together.
 - **The rank walk is `O(D)`, not `O(bucketCount)`.** `bucketCount` is chosen by the caller and is not bounded
   upstream, so walking one rank at a time would let a request for ten million buckets over three distinct
   values cost ten million iterations. Consecutive ranks landing on the same value are taken in one step via
@@ -173,10 +183,14 @@ Two sub-decisions are worth stating because they will look arbitrary:
 because the heights are a continuous function of the whole catalogue and a golden-value test would break on
 any harmless re-derivation while proving nothing.
 
-- **Differential against the reference implementation:** 4 000 random catalogues across six shapes
-  (charm-priced, uniform, clustered, dominated, sparse, far-outlier) at bucket counts 2–100, plus both
-  production catalogues at 5/10/20/40 — **every threshold, occurrence count and height identical** to the
-  validated Python reference the design was derived in.
+- **Differential against an independently formulated reference:** 4 000 random catalogues across six shapes
+  (charm-priced, uniform, clustered, dominated, sparse, far-outlier) at bucket counts 2–100 — every threshold
+  identical to a reference that locates each bucket start by exact rational search over the cumulative array,
+  rather than by an incremental walk. This replaced an earlier differential against the design's own Python
+  prototype, which shared the prototype's comparison operator and therefore could only ever prove faithful
+  transcription; the off-by-one above survived 4 000 catalogues of that weaker check. **A reference derived
+  from the implementation validates transcription, not correctness** — the same caution applies to the
+  bandwidth helper inside the test suite, which is a transcription and is documented as such.
 - **Bucket budget:** 0 violations of `length ≤ min(bucketCount, D)` in 5 000 catalogues, plus the budget
   proof above. 1 785 of 4 000 returned fewer buckets than requested, which is what makes the contract change
   worth documenting rather than an edge case.
@@ -195,7 +209,10 @@ any harmless re-derivation while proving nothing.
   point — faintest bar anywhere in the sweep is **1.96**, no bucket goes invisible.
 - **Sliding window vs. direct `O(B·D)` evaluation:** agreement within 0.02 on both production catalogues at
   four bucket counts and on 200 random ones.
-- 549 histogram-tagged tests pass across the functional suite (1 skipped, pre-existing).
+- **Red → green on the two bucketing regressions**: both fail against the pre-fix engine (7 vs 14, 19 buckets
+  vs 20) and pass against the fixed one.
+- 552 histogram-tagged tests pass across the functional suite (1 skipped, pre-existing); the cruncher's own
+  class holds 22.
 
 ## Consequences & open follow-ups
 
@@ -222,6 +239,17 @@ any harmless re-derivation while proving nothing.
 - **`relativeFrequency` is floored at `0.01` for a non-empty bucket.** A bucket more than five orders of
   magnitude below the peak would otherwise round to `0.00` at scale 2 and read as empty, breaking the
   documented `(0, 100]` contract. Reachable on catalogues with an extreme mass ratio.
+- **The last bucket can be zero-width.** Its threshold equals `getMaxValue()` whenever the largest value is
+  numerous enough to be isolated — measured at 29–47% of random catalogues depending on the shape mix. Renderers
+  must floor the bar width; documented on the record component, in the user documentation and on the cruncher.
+- **`EQUALIZED_OPTIMIZED` is no longer cost-penalised.** Both computers charged it the `OPTIMIZED` recomputation
+  premium (+50% attribute, +50% price) for work it does not do now that the two behaviours share one cruncher,
+  which biased the planner against it. Both now cost it as `EQUALIZED`.
+- **Four published contract descriptions had to move with the code**, and none of them is in the engine: the
+  GraphQL/OpenAPI field description in `HistogramDescriptor`, the gRPC field comment in `GrpcExtraResults.proto`,
+  and the constraint JavaDoc on `PriceHistogram`, `AttributeHistogram` and `ReferenceHistogramStatistics`. A
+  contract change is not done when the contract class is edited — the surfaces that *publish* it are separate
+  files and none of them shares a symbol with the code, so only a prose search finds them.
 - **Not carried over from the design: exposing the measurement abscissa.** See *Decision*.
 
 ## Related work

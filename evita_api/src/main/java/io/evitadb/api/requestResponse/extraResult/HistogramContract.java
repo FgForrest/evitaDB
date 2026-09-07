@@ -301,13 +301,15 @@ public interface HistogramContract extends Serializable {
 	 *                                Do not divide by the sum of the buckets (they no longer sum to 100) and do not
 	 *                                scale against the tallest returned bucket, which would re-couple the rendering to
 	 *                                the requested bucket count.</li>
-	 *                            <li>Do not apply `sqrt` or `log`. A storefront wrapping this field in a compressing
-	 *                                transform was compensating for the pathological dynamic range of an earlier
-	 *                                formula; the tallest-to-median ratio is now roughly 1.2 - 2.0 and compressing it
-	 *                                again flattens a legitimately readable profile.</li>
+	 *                            <li>Do not apply `sqrt` or `log`. The value is already a linear rendering intensity
+	 *                                with a moderate dynamic range - tallest-to-median is roughly 1.2 - 2.0 - so a
+	 *                                compressing transform flattens a profile that is legitimately readable as it
+	 *                                stands. Draw it directly.</li>
 	 *                            <li>The value describes the <b>whole bucket</b>, spanning
 	 *                                `[threshold, nextThreshold)` and `[threshold, max]` for the last one - it is
-	 *                                measured at the bucket's weighted median observation, not at its left edge.</li>
+	 *                                measured at the bucket's weighted median observation, not at its left edge.
+	 *                                The last bucket's threshold may equal `max`, which makes it zero-width; give it
+	 *                                a minimum bar width or the tallest bar can render invisible.</li>
 	 *                            <li>Do not assume exactly one bucket reads `100`: the denominator is the curve
 	 *                                maximum over all observed values rather than over the returned buckets, so a
 	 *                                response may contain none or several. Only `0 &lt; relativeFrequency &lt;= 100`

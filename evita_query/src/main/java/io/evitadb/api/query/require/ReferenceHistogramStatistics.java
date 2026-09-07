@@ -54,8 +54,11 @@ import java.util.Optional;
  *    positioned and whether empty buckets are suppressed:
  *    - `STANDARD`: exactly the requested number of equal-width buckets, even if some are empty.
  *    - `OPTIMIZED`: up to the requested count, but empty buckets are dropped for a denser result.
- *    - `EQUALIZED`: exactly the requested count with frequency-equalised boundaries.
- *    - `EQUALIZED_OPTIMIZED`: frequency-equalised boundaries with empty-bucket suppression combined.
+ *    - `EQUALIZED`: frequency-equalised boundaries. Every boundary is a value the data contains, so no bucket is
+ *      ever empty and the actual count may be lower than requested. `relativeFrequency` then carries a value
+ *      density rather than a share.
+ *    - `EQUALIZED_OPTIMIZED`: identical to `EQUALIZED` - the equalised algorithm emits no empty buckets, so
+ *      there is nothing to suppress.
  * 3. `indexNames` (String..., required, at least one) - names of the histogram indexes defined on the reference
  *    schema for which histograms should be computed. Each named index produces a separate histogram in the response.
  *

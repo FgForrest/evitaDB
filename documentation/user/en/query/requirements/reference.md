@@ -576,7 +576,7 @@ histogramStatistics(
         - **EQUALIZED**: **frequency-equalised** boundaries (each bucket ends up with roughly the same number of
             occurrences), placed on values the data actually contains — so no bucket is ever empty, and the actual
             count may be lower than requested. `relativeFrequency` carries the smoothed value density rather than a
-            share; see [rendering an equalized histogram](histogram.md#rendering-an-equalized-histogram)
+            share; see [equalized histograms in practice](histogram.md#equalized-histograms-in-practice)
         - **EQUALIZED_OPTIMIZED**: identical to `EQUALIZED` — the equalised algorithm produces no empty buckets, so
             there is nothing to suppress
         </p>
