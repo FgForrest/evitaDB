@@ -22,7 +22,7 @@ The holy grail of faceted browsing is to keep the shopper inside the viable regi
 Sit in front of any large e-shop's category page. Click a brand. Drag the price slider. Tick a screen size. Four invariants hold across virtually every successful storefront:
 
 1. **Sliders never collapse under their own handles.** Drag a price slider down to "€50 – €200" and the outer handles still span the catalog's actual range, usually with a distribution drawn behind them. If they shrank to the dragged range, the shopper would be trapped in a one-way ratchet — only ever narrowing, never widening.
-2. **A facet you just ticked doesn't make its neighbours read zero.** Tick *Amazon*, and the *Kobo* checkbox beside it should still show a meaningful number — "how many products would Kobo unlock for me?", not "products that are both Amazon and Kobo at once", which is structurally zero. Without this rule the panel dies on the first click.
+2. **A facet you just ticked doesn't make its neighbors read zero.** Tick *Amazon*, and the *Kobo* checkbox beside it should still show a meaningful number — "how many products would Kobo unlock for me?", not "products that are both Amazon and Kobo at once", which is structurally zero. Without this rule the panel dies on the first click.
 3. **Facets in different groups multiply, not add.** Tick *Amazon* under *Brand* and *6-inch* under *Screen size* and the shopper expects products that are Amazon AND 6-inch. Across groups the mental model is conjunctive; within a group it is disjunctive.
 4. **The category, locale, currency and validity rails are off-limits.** You are on the e-readers page, browsing in EUR. The panel never offers to violate that.
 
@@ -30,7 +30,7 @@ Sit in front of any large e-shop's category page. Click a brand. Drag the price 
 
 <NoteTitle toggles="true">
 
-##### On a side note — when "different groups multiply" stops being true
+##### When "different groups multiply" stops being true
 
 </NoteTitle>
 
@@ -41,7 +41,7 @@ The conjunctive-across-groups default is right roughly 90 % of the time, but rea
 - **Source or seller** — *Sold by us* / *Sold by partners* / *Marketplace*. The shopper means "I don't care who sells it".
 - **Store availability** — *In stock at Store A* / *In stock at Store B*. The shopper means "anywhere nearby".
 
-The diagnostic: groups constraining *independent attributes* of one product (brand, colour, size) keep the AND default; groups offering *alternative routes to one purchase event* (channel, discount, source) flip to OR.
+The diagnostic: groups constraining *independent attributes* of one product (brand, color, size) keep the AND default; groups offering *alternative routes to one purchase event* (channel, discount, source) flip to OR.
 
 </Note>
 
@@ -69,7 +69,7 @@ Price distributions in retail are severely skewed: a dense cluster of ordinary p
 
 The clean fix is older than e-commerce and comes from image processing, where it is used to redistribute the brightness levels of a photograph so that detail spreads evenly across the available range instead of bunching in the shadows. The same idea transfers directly: instead of placing slider pivots at equal *price* intervals, place them at equal *product-count* intervals.
 
-Mathematically that is the **empirical inverse cumulative distribution function**, or quantile function. Sort every price, and put the *k*-th of *B* pivots at the price below which *k/B* of the catalog sits. The shopper's handle then moves linearly over *product count* rather than over price, so every millimetre of travel is worth the same number of products.
+Mathematically that is the **empirical inverse cumulative distribution function**, or quantile function. Sort every price, and put the *k*-th of *B* pivots at the price below which *k/B* of the catalog sits. The shopper's handle then moves linearly over *product count* rather than over price, so every millimeter of travel is worth the same number of products.
 
 A well-known walkthrough of this construction at [howdoi.me](https://www.howdoi.me/blog/slider-scale.html) puts the trick plainly — "we simply pretend that our slider is the new data set, and then use the inverse of the mapping to get the value represented by a point on the slider" — and demonstrates the payoff on a camera-lens catalog: at the slider's midpoint a linear scale still matched **548 of 561 lenses**, whereas the equalized scale matched **269**. The same article is honest about the cost, noting that a biased scale "can make selecting exact filter values difficult, whereas logarithmic or exponential scales maintain better user intuitiveness".
 
@@ -79,13 +79,12 @@ So far, so good. The pivots are fixed. And that is exactly where the trap opens.
 
 Both sources are about the **scale** — where the handle sits and how fast it moves. Neither says anything about the histogram usually drawn *behind* the slider. And once the pivots are equalized, that histogram has nothing left to say: every bucket holds the same number of products **by construction**. Plot the counts and you get a flat row of identical bars. The chart that was supposed to tell the shopper where products accumulate has been mathematically emptied of information.
 
-The obvious repair is to plot *density* instead of count — products per unit of price, which is count divided by the bucket's width in currency. That quantity is legitimate; it is a real statistical object with a real name. The problem is how it gets estimated in practice. On an equalized axis, a bucket's width is the gap between two adjacent prices in the catalog — so the entire bar height rests on **a single gap between two neighbouring products**. That is about as fragile as an estimator gets.
+The obvious repair is to plot *density* instead of count — products per unit of price, which is count divided by the bucket's width in currency. That quantity is legitimate; it is a real statistical object with a real name. The problem is how it gets estimated in practice. On an equalized axis, a bucket's width is the gap between two adjacent prices in the catalog — so the entire bar height rests on **a single gap between two neighboring products**. That is about as fragile as an estimator gets.
 
 The consequences are not subtle, and they are easy to observe on real data:
 
-- In a category of 45 products, one bucket took **59.8 %** of the chart's ink while holding **4.4 %** of the products. Repricing a single item by one crown dropped that bar to **0.06**.
-- In a live production category of 3 237 products, the bucket holding **81 products** rendered almost **six times taller** than the bucket holding **338**.
-- In another catalog, five products sharing one price rendered at **0.99** while a single product at a different price rendered at **99.01** — the tallest bar in the chart pointing at the emptiest place in the catalog.
+- In a live production category of 3 237 products, the bucket holding **81 products** rendered almost **six times taller** than the bucket holding **338** — a quarter of the records drawing six times the ink.
+- On our own public demo dataset, five products sharing one price rendered at **0.99** while a single product at a different price rendered at **99.01** — the tallest bar in the chart pointing at the emptiest place in the catalog.
 
 Storefronts notice this. At least one deals with it by taking the square root of the value before drawing, purely to compress a dynamic range that should never have been that wide. That is a bandage over an estimator problem, and it hides real structure along with the noise.
 
@@ -114,21 +113,21 @@ Suppose 30 % of a category costs exactly 199. The exact inverse CDF says that pr
 
 That is not merely ugly. Every handle position inside that plateau returns the **identical result set** — there is no price between 199 and 199 to filter differently. So a third of the track is not just visually inert, it is *functionally* inert: hundreds of positions that cannot express a distinct query, while the prices at which the catalog actually changes get squeezed into what remains.
 
-The defensible answer is to collapse the plateau to a single selectable position. It is a deliberate deviation from the textbook construction, and it should be documented as one — but it follows from a clear principle: **every distinct slider position should correspond to a distinct achievable result.** Where a price is worth several intervals, the shopper is offered it once, because no intermediate value exists to separate them.
+The answer we settled on is to collapse the plateau to a single selectable position. It is a deliberate deviation from the textbook construction, and it follows from a clear principle: **every distinct slider position should correspond to a distinct achievable result.** Where a price is worth several intervals, the shopper is offered it once, because no intermediate value exists to separate them.
 
 ### What an honest answer has to satisfy
 
-If the bar heights are to mean anything, they have to answer one question — *where do products actually pile up?* — stably. The mature tool for that is **kernel density estimation**: instead of measuring one gap, every product contributes a small smooth bump to a curve, and the height at any price is the sum of nearby contributions. Neighbouring prices reinforce each other, so a single reprice moves the answer by a little rather than by orders of magnitude.
+If the bar heights are to mean anything, they have to answer one question — *where do products actually pile up?* — stably. The mature tool for that is **kernel density estimation**: instead of measuring one gap, every product contributes a small smooth bump to a curve, and the height at any price is the sum of nearby contributions. Neighboring prices reinforce each other, so a single reprice moves the answer by a little rather than by orders of magnitude.
 
 That buys stability at the cost of one new decision: **how wide should the bumps be?** Too narrow and every distinct price becomes its own spike; too wide and real structure washes out. This is the bandwidth-selection problem, and it has a substantial literature — Silverman's rule of thumb being the classic starting point.
 
-The caveat matters more than the rule. Rules of that family are derived under normal-theory assumptions and are typically stated for continuous data. Retail prices are neither normal nor continuous, and, as above, a large point mass can distort the very statistics such rules are built from. Anyone implementing this should expect to validate the choice against real catalogs — including ones dominated by a single price — rather than trusting a textbook constant.
+The caveat matters more than the rule. Rules of that family are derived under normal-theory assumptions and are typically stated for continuous data. Retail prices are neither normal nor continuous, and, as above, a large point mass can distort the very statistics such rules are built from. A textbook constant applied unexamined to a catalog dominated by a single price does not merely lose accuracy — it can drive the spread estimate it depends on to zero from the inside.
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### On a side note — the fields this quietly touches
+##### The fields this quietly touches
 
 </NoteTitle>
 
@@ -137,14 +136,16 @@ A price slider with a distribution behind it sits on top of several distinct are
 - **Histogram equalization**, from image processing, is the reason the pivots are placed at quantiles rather than at equal price steps.
 - **The empirical distribution function and its inverse** (the quantile function) are the formal object the pivots are read from.
 - **Density estimation** is what the bars are trying to be; plotting a count divided by a single inter-price gap is the naive estimator of it, and a famously unstable one.
-- **Kernel smoothing and bandwidth selection** are how that estimate is stabilised, and where the remaining judgement calls live.
+- **Kernel smoothing and bandwidth selection** are how that estimate is stabilized, and where the remaining judgment calls live.
 - **Order statistics on tied data** is the corner that retail pricing drags everything into, and the one most standard treatments quietly assume away.
 
 None of this needs to surface to the shopper. All of it decides whether the chart they see is true.
 
 </Note>
 
-We are currently rebuilding exactly this part of evitaDB — the equalized histogram shipped in an earlier release, and measuring it against production catalogs is what produced most of the numbers above. The work is tracked in the open and the reasoning will be published with it.
+This is not a hypothetical for us. evitaDB has been able to return [a histogram with equalized buckets](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram-equalization) since version `2026.1`, and every number above came out of measuring that implementation against real catalogs. It had two independent defects. The bar heights were the naive estimator described above — a count divided by one inter-price gap — and the bucketing advanced a single bucket per distinct price however many quantile targets that price had crossed, so one heavy charm price starved every bucket after it. On a synthetic charm-priced catalog asking for twenty buckets of a hundred products each, thirteen of the twenty came back under half their target and a third of the catalog landed in the first bar.
+
+Both are now fixed. Bucket boundaries are read off the empirical quantile function in exact integer arithmetic, and a price that absorbs two or more quantile targets is closed into a bucket of its own — the plateau collapse described above. Heights come from a single triangular-kernel density estimate over the whole price axis, normalized against that curve's own maximum. The bandwidth needed the two departures the caveat above predicts: the count term is the number of *distinct* prices rather than the number of products, so replicating a catalog does not sharpen its curve; and the spread term caps how much weight any single price may contribute, because a price holding more than half the catalog otherwise collapses the interquartile range from the inside. Nudging each of the 135 production prices by one unit in turn now moves the worst bar by **0.010 %**, where it used to move by orders of magnitude, and tripling every product's count leaves every threshold and every bar height bit-identical. The square-root bandage can come off with it — the dynamic range it existed to compress is gone. The work is merged and lands in the next release; the full derivation, including every alternative design that was measured and dropped, is in the repository alongside it.
 
 ## The Boolean logic shoppers actually expect
 
@@ -157,7 +158,7 @@ Real catalogs need more than the default, and every variation has both a UX stor
 - **Negated groups.** A grocery store's *Allergens* panel: a shopper with a peanut allergy ticks *Peanuts* because they want products *without* them. The count beside the option has to answer "how many products remain if I exclude this?", not "how many contain it".
 - **Hierarchical facets.** Ticking *Laptops* should almost always match products tagged *Ultrabooks* too. Whether a category pick extends to its descendants is a decision, and getting it wrong silently under-reports every parent category.
 
-The point is that "what does ticking this checkbox mean" is a modelling decision about the catalog, not something a query layer can guess. Whatever expresses it has to reshape both the filtering *and* the predicted numbers, or the panel will show counts that do not survive the click.
+The point is that "what does ticking this checkbox mean" is a modeling decision about the catalog, not something a query layer can guess. Whatever expresses it has to reshape both the filtering *and* the predicted numbers, or the panel will show counts that do not survive the click.
 
 ## Why the rules look like this: evidence from the field
 
@@ -169,7 +170,7 @@ None of the above is arbitrary engineering taste. These are established shopper 
 
 **The mandatory rails boundary.** E-commerce UX research draws a strict line between dynamic filters and the page's structural identity. Taxonomical categories, locales and currencies are not perceived as filters at all — they define the universe (Baymard; Search Engine Land). Keeping them outside the relaxable region serves shopper orientation and SEO simultaneously: a category page stays crawlable and canonical no matter which boxes are checked.
 
-## In closing
+## Conclusion
 
 A modern filter panel is not one thing. On every redraw it is at least four overlapping things — a narrowed product page, facets carrying both a stable count and a what-if delta, attribute distributions, and a price distribution — all of which must *agree* with the shopper's current picks while staying *informative* about the picks they have not made yet.
 
@@ -177,4 +178,4 @@ And the price slider, the most ordinary-looking control on the page, is the one 
 
 If you are building filter panels of any complexity, the question to ask of your stack is not "can it do facets". It is "can it compute every answer consistently, in one round-trip, against the same shopper-controlled picks — and is the distribution it draws actually true?"
 
-If you have war stories, sharper edge cases, or a better mental model for any of this, come tell us on our [Discord server](https://discord.gg/VsNBWxgmSw) — filter-panel pathology is one of our favourite topics.
+If you have war stories, sharper edge cases, or a better mental model for any of this, come tell us on our [Discord server](https://discord.gg/VsNBWxgmSw) — filter-panel pathology is one of our favorite topics.
