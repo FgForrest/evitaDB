@@ -21,7 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult.translator.histogram.producer;
+package io.evitadb.spike;
+
+import io.evitadb.core.query.extraResult.translator.histogram.producer.EqualizedHistogramDataCruncher;
+import io.evitadb.core.query.extraResult.translator.histogram.producer.HistogramDataCruncherContract;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
@@ -36,77 +39,20 @@ import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 
 /**
- * Computes a histogram whose bucket boundaries sit at equal *quantiles* of the data rather than at equal
- * *value* intervals. Unlike {@link HistogramDataCruncher}, which uses equal-width buckets, every bucket
- * produced here covers approximately the same share of the records.
+ * Frozen verbatim copy of {@link EqualizedHistogramDataCruncher} **as it stood before the scratch-array and
+ * pass-fusion optimizations** were applied to it. Together with {@link LegacyEqualizedHistogramDataCruncher}
+ * (the pre-*rewrite* algorithm) it lets one JMH run separate the two questions that are otherwise conflated:
+ * what the correctness rewrite cost, and how much of that the optimizations gave back.
  *
- * This is what a filter slider wants: when 90% of the products cost between $10 and $50 and 10% cost between
- * $50 and $1000, an equal-width axis spends nine tenths of the track on a tenth of the catalogue. Equalizing
- * the axis gives every slider position roughly the same number of products to move past.
- *
- * The result has two independent parts, and they answer two different questions.
- *
- * ## Part 1 — where the bucket boundaries go
- *
- * The thresholds are the empirical inverse CDF (quantile function) sampled at ranks `k / bucketCount`,
- * de-duplicated:
- *
- * 1. accumulate the source items into distinct values with their weights,
- * 2. for each `k` in `[0, bucketCount)` walk to the first distinct value whose cumulative weight reaches
- *    the rank `k / bucketCount` - the value that *contains* that rank, compared in exact integer arithmetic
- *    (`C[j+1] * B > k * N`) so the boundary never depends on floating-point rounding,
- * 3. when several consecutive targets land on the *same* distinct value — which is what a price held by
- *    many products does — emit that value once and, if it absorbed two or more targets, additionally emit
- *    the *next* distinct value. That closes the heavy value's mass into a bucket of its own instead of
- *    letting it bleed into the following one.
- *
- * The result therefore contains **no empty buckets and no repeated thresholds**: every threshold is a real,
- * selectable value, so every slider position yields a different result set. It may legitimately contain
- * **fewer** than `bucketCount` buckets — when a value is held by many records, there is simply no distinct
- * value to split the interval at. Callers must not assume otherwise. The final bucket's threshold may also
- * equal {@link #getMaxValue()}, making it zero-width — that is what isolating a numerous largest value looks
- * like, and renderers are expected to floor the bar width rather than treat it as degenerate.
- *
- * The bucket count stays within budget: with `m_i` targets absorbed by start `i`,
- * `Σ m_i = bucketCount`, the isolation rule adds at most one threshold per start with `m_i >= 2`, and
- * `bucketCount = Σ m_i >= |starts| + Σ_{m_i >= 2} (m_i − 1) >= |starts| + |{i : m_i >= 2}|`, so the emitted
- * count never exceeds `bucketCount`.
- *
- * ## Part 2 — how tall the bar is
- *
- * `relativeFrequency` is a **rendering intensity in `(0, 100]`** — not a count, not a share. Because the
- * axis is equalized, occurrences per bucket are ~constant by construction and carry no information; the
- * quantity a reader actually perceives on an equal-pixel equalized axis is the density-quantile function
- * `f(F⁻¹(u))`. Deriving it from a single bucket's own width rests on the gap between two adjacent values -
- * a sample of one - and swings by orders of magnitude when a single record is repriced, so it is instead
- * read off one global kernel density estimate over the whole value axis:
- *
- * - **kernel**: triangular, `K(u) = max(0, 1 − |u|)`. Compact support keeps the evaluation `O(D + B)`.
- * - **bandwidth**: `h = √6 · 0.9 · min(σ_w, IQR_c / 1.34) · D^(−1/5)` — Silverman's rule, with the `√6`
- *   converting the normal-reference σ into the triangular kernel's support radius (the triangular kernel
- *   has variance `h²/6`).
- * - **normalisation**: against the maximum of the curve itself, so the tallest point of the *distribution*
- *   reads 100 regardless of how many buckets were requested.
- *
- * Two deliberate departures from textbook Silverman, both consequences of what this estimate is *for*:
- * it is a deterministic smoothing of a catalogue that is known in full, not an estimate of a latent
- * population from a sample.
- *
- * - The count term is `D`, the number of **distinct** values, not `N`. Cloning every product leaves the
- *   catalogue's shape identical, so it must leave the curve identical; `N^(−1/5)` would sharpen it by 13%
- *   per doubling.
- * - The robust spread term caps a heavy value at `w' = min(w, (N − w) / 2)`. A value holding more than half
- *   the weight otherwise spans the whole interquartile range and drives the IQR to zero from the inside,
- *   collapsing the bandwidth. See {@link #computeBandwidth} for why this is a `min` and not an `if`.
- *
- * The height belongs to the **whole bucket** and is evaluated at the bucket's weighted median observation,
- * so a bucket that is mostly one heavy value is measured where its records actually are. Clients render a
- * bar spanning `[threshold_k, threshold_{k+1})`.
+ * **Do not fix, tidy or extend this class** - see the note on {@link LegacyEqualizedHistogramDataCruncher}.
+ * The only edits applied were the package, the class/constructor name and this javadoc. It produces
+ * bit-identical output to the optimized version; the difference is purely how much it allocates and how many
+ * times it walks the distinct values.
  *
  * @param <T> the type of source data elements
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
+public class PreOptimizationEqualizedHistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
 
 	/**
 	 * Constant for 100 used in relative frequency normalization.
@@ -140,7 +86,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	private static final double NORMAL_IQR_CONSTANT = 1.34;
 	/**
 	 * Half-width, in rank units, of the band the quantile is averaged over - see
-	 * {@link #bandAveragedInterQuartileSpread}. Must stay small enough that `quartile ± radius` remains inside
+	 * {@link #bandAveragedQuantile}. Must stay small enough that `quartile ± radius` remains inside
 	 * `[0, 1]` for both quartiles.
 	 */
 	private static final double QUANTILE_BAND_RADIUS = 0.05;
@@ -214,7 +160,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * @param weightRetriever       function to extract weight (record count) from source item
 	 * @param toBigDecimalConverter function to convert int threshold to BigDecimal
 	 */
-	public EqualizedHistogramDataCruncher(
+	public PreOptimizationEqualizedHistogramDataCruncher(
 		@Nonnull String histogramType,
 		int bucketCount,
 		int limitDecimalPlacesTo,
@@ -306,7 +252,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			totalWeight > 0,
 			() -> "Source data of " + this.histogramType + " carries no weight - the quantile function is undefined!"
 		);
-		// the quantile walk compares the running cumulative weight times `bucketCount` against `rank * totalWeight` in
+		// the quantile walk compares `cumulativeWeights[j + 1] * bucketCount` against `rank * totalWeight` in
 		// long arithmetic. Both factors are bounded by Integer.MAX_VALUE - `bucketCount` by its own type, and
 		// `totalWeight` because it counts int-addressed records - so the widest product is
 		// `(2^31 - 1)^2 = 4.61e18`, comfortably half of Long.MAX_VALUE. That bound comes from the callers
@@ -331,40 +277,36 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			};
 		}
 
-		// Step 3: place bucket boundaries on the empirical quantile function. The cumulative weight the walk
-		// compares against is carried as a running scalar rather than materialized - the walk index only ever
-		// moves forward, so a `long[distinctCount + 1]` prefix table would be read strictly left to right.
+		// Step 3: place bucket boundaries on the empirical quantile function
+		final long[] cumulativeWeights = new long[distinctCount + 1];
+		for (int i = 0; i < distinctCount; i++) {
+			cumulativeWeights[i + 1] = cumulativeWeights[i] + distinctWeights[i];
+		}
 		final int[] bucketStarts = new int[Math.min(this.bucketCount, distinctCount)];
 		final int actualBucketCount = computeBucketStarts(
-			distinctWeights, distinctCount, totalWeight, bucketStarts
+			cumulativeWeights, distinctCount, totalWeight, bucketStarts
 		);
 
-		// Step 4: one walk over the distinct values folds every bucket's weight and both accumulators the
-		// bandwidth needs - see accumulateTotals for why these three share a pass
+		// Step 4: fold each bucket's weight and locate the observation the bar height is measured at
 		final int[] bucketCounts = new int[actualBucketCount];
-		final double[] cappedWeights = new double[distinctCount];
-		final DistinctValueTotals totals = accumulateTotals(
-			distinctThresholds, distinctWeights, distinctCount, totalWeight,
-			bucketStarts, actualBucketCount, bucketCounts, cappedWeights
-		);
-
-		// Step 5: locate the observation each bar height is measured at
 		final int[] representativeIndexes = new int[actualBucketCount];
-		locateRepresentatives(
+		collectBucketWeights(
 			distinctWeights, distinctCount, bucketStarts, actualBucketCount,
 			bucketCounts, representativeIndexes
 		);
 
-		// Step 6: one global density curve over the value axis, sampled only where the bars actually sit
+		// Step 5: one global density curve over the value axis, read at each bucket's representative
 		final double bandwidth = computeBandwidth(
-			distinctThresholds, distinctWeights, distinctCount, totalWeight, totals, cappedWeights
+			distinctThresholds, distinctWeights, distinctCount, totalWeight
 		);
-		final double[] representativeMasses = new double[actualBucketCount];
-		final double peakMass = computeKernelMasses(
-			distinctThresholds, distinctWeights, distinctCount, bandwidth,
-			representativeIndexes, actualBucketCount, representativeMasses
+		final double[] kernelMasses = computeKernelMasses(
+			distinctThresholds, distinctWeights, distinctCount, bandwidth
 		);
 
+		double peakMass = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			peakMass = Math.max(peakMass, kernelMasses[i]);
+		}
 		// every distinct value contributes its own full weight to its own evaluation point, so the peak is
 		// strictly positive for any positive total weight
 		Assert.isPremiseValid(
@@ -372,7 +314,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			() -> "Kernel density of " + this.histogramType + " collapsed to zero everywhere!"
 		);
 
-		// Step 7: materialize the buckets
+		// Step 6: materialize the buckets
 		final CacheableBucket[] result = new CacheableBucket[actualBucketCount];
 		for (int i = 0; i < actualBucketCount; i++) {
 			final BigDecimal threshold = this.toBigDecimalConverter.apply(distinctThresholds[bucketStarts[i]])
@@ -383,7 +325,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			// is a difference of two running sums and can land a few ulps outside [0, peakMass] even though
 			// the exact value never does.
 			final double intensity = Math.min(
-				100.0, Math.max(0.0, 100.0 * representativeMasses[i] / peakMass)
+				100.0, Math.max(0.0, 100.0 * kernelMasses[representativeIndexes[i]] / peakMass)
 			);
 			final BigDecimal rounded = BigDecimal.valueOf(intensity).setScale(2, RoundingMode.HALF_UP);
 
@@ -402,16 +344,9 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * bucket into `bucketStarts`.
 	 *
 	 * For every rank `k / bucketCount` the walk advances to the first distinct value whose cumulative
-	 * weight reaches that rank. The comparison `C[j+1] * bucketCount > k * totalWeight` is the
-	 * multiplied-out form of `C[j+1] / totalWeight > k / bucketCount` and is exact in `long` arithmetic,
-	 * so a boundary can never be decided by a rounding artefact. The strictness is what makes this the
-	 * value *containing* the rank - see the comment on the walk itself, which realizes it as the negated
-	 * `<=` loop condition.
-	 *
-	 * `C[j+1]` is carried as the running scalar `cumulativeThroughWalk` rather than read out of a prefix
-	 * table: `walkIndex` never moves backwards, so the table would be consumed strictly left to right and
-	 * exists only to be read once per entry. Accumulating it in the same left-to-right order gives
-	 * bit-identical sums for one `long[distinctCount + 1]` less per histogram.
+	 * weight reaches that rank. The comparison `C[j+1] * bucketCount >= k * totalWeight` is the
+	 * multiplied-out form of `C[j+1] / totalWeight >= k / bucketCount` and is exact in `long` arithmetic,
+	 * so a boundary can never be decided by a rounding artefact.
 	 *
 	 * Consecutive ranks landing on the same distinct value are the normal case for retail pricing, where a
 	 * single price can hold a large share of the catalogue. Such a value is emitted once; if it absorbed
@@ -419,24 +354,22 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * bucket of its own rather than letting it spill into the next bucket. The extra threshold is skipped
 	 * when it would duplicate the next start or when no following value exists.
 	 *
-	 * @param distinctWeights weight of each distinct value
-	 * @param distinctCount   number of distinct values, at least 2
-	 * @param totalWeight     total weight of all observations
-	 * @param bucketStarts    output array, sized `min(bucketCount, distinctCount)`; receives strictly
-	 *                        increasing distinct-value indices
+	 * @param cumulativeWeights running weight totals, `cumulativeWeights[i]` being the weight below
+	 *                          distinct index `i`; length `distinctCount + 1`
+	 * @param distinctCount     number of distinct values, at least 2
+	 * @param totalWeight       total weight of all observations
+	 * @param bucketStarts      output array, sized `min(bucketCount, distinctCount)`; receives strictly
+	 *                          increasing distinct-value indices
 	 * @return number of bucket starts written into `bucketStarts`
 	 */
 	private int computeBucketStarts(
-		@Nonnull int[] distinctWeights,
+		@Nonnull long[] cumulativeWeights,
 		int distinctCount,
 		long totalWeight,
 		@Nonnull int[] bucketStarts
 	) {
 		int startCount = 0;
 		int walkIndex = 0;
-		// the cumulative weight through `walkIndex` inclusive - i.e. `C[walkIndex + 1]` of the prefix table
-		// this replaces. Kept in step with `walkIndex` by every advance below.
-		long cumulativeThroughWalk = distinctWeights[0];
 		// the start whose absorbed-rank count is still growing; it can only be emitted once the next
 		// start is known, because the isolation rule must not duplicate it
 		int pendingStart = 0;
@@ -453,9 +386,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			// Bounded by distinctCount - 1: the last value's cumulative weight equals totalWeight, and
 			// totalWeight * bucketCount <= rank * totalWeight is false for every rank < bucketCount.
 			while (walkIndex < distinctCount - 1
-				&& cumulativeThroughWalk * this.bucketCount <= (long) rank * totalWeight) {
+				&& cumulativeWeights[walkIndex + 1] * this.bucketCount <= (long) rank * totalWeight) {
 				walkIndex++;
-				cumulativeThroughWalk += distinctWeights[walkIndex];
 			}
 
 			// The walk lands on this value for every rank below `C[walkIndex + 1] * B / N`, so the whole run
@@ -466,7 +398,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			// strictly increases on every following iteration and the loop visits at most `distinctCount`
 			// values.
 			final long lastRankOnThisValue = walkIndex < distinctCount - 1
-				? (cumulativeThroughWalk * this.bucketCount - 1) / totalWeight
+				? (cumulativeWeights[walkIndex + 1] * this.bucketCount - 1) / totalWeight
 				: this.bucketCount - 1L;
 			final int nextRank = (int) Math.min(this.bucketCount, lastRankOnThisValue + 1);
 
@@ -530,103 +462,21 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	}
 
 	/**
-	 * The two whole-axis accumulators that {@link #computeBandwidth} needs, produced by the same walk that
-	 * folds the bucket weights.
-	 *
-	 * @param weightedSum  `Σ w_i · v_i` over every distinct value, the numerator of the weighted mean
-	 * @param cappedTotal  `Σ min(w_i, (N − w_i) / 2)` (floored), the denominator of the capped rank axis
-	 */
-	private record DistinctValueTotals(
-		double weightedSum,
-		double cappedTotal
-	) {
-	}
-
-	/**
-	 * Folds every bucket's weight and both whole-axis accumulators in a single walk over the distinct values.
-	 *
-	 * The three have nothing to do with each other mathematically; they share a pass because they share a
-	 * traversal. At a hundred thousand distinct values the weight and threshold arrays are several hundred
-	 * kilobytes each, so a pass is a memory-bandwidth cost rather than an arithmetic one, and the bucket
-	 * boundary test costs one predictable branch per value against the read stream it saves.
-	 *
-	 * Bucket `i` spans `[bucketStarts[i], bucketStarts[i + 1])`, the last one running to `distinctCount`.
-	 * Distinct values below `bucketStarts[0]` belong to no bucket and are deliberately not counted into one -
-	 * they still contribute to the accumulators, which describe the whole axis rather than the buckets.
-	 *
-	 * @param distinctThresholds distinct values in ascending order
-	 * @param distinctWeights    weight of each distinct value
-	 * @param distinctCount      number of distinct values
-	 * @param totalWeight        total weight of all observations
-	 * @param bucketStarts       distinct-value index opening each bucket
-	 * @param actualBucketCount  number of buckets
-	 * @param bucketCounts       output: total weight of each bucket
-	 * @param cappedWeights      output: the robust-spread weight of each distinct value, see
-	 *                           {@link #cappedWeight}
-	 * @return the whole-axis accumulators
-	 */
-	@Nonnull
-	private static DistinctValueTotals accumulateTotals(
-		@Nonnull int[] distinctThresholds,
-		@Nonnull int[] distinctWeights,
-		int distinctCount,
-		long totalWeight,
-		@Nonnull int[] bucketStarts,
-		int actualBucketCount,
-		@Nonnull int[] bucketCounts,
-		@Nonnull double[] cappedWeights
-	) {
-		final double observationCount = totalWeight;
-		double weightedSum = 0.0;
-		double cappedTotal = 0.0;
-
-		int nextBucket = 0;
-		int currentBucket = -1;
-		long bucketWeight = 0;
-
-		for (int i = 0; i < distinctCount; i++) {
-			weightedSum += (double) distinctWeights[i] * distinctThresholds[i];
-			cappedWeights[i] = cappedWeight(distinctWeights[i], observationCount);
-			cappedTotal += cappedWeights[i];
-
-			if (nextBucket < actualBucketCount && i == bucketStarts[nextBucket]) {
-				if (currentBucket >= 0) {
-					bucketCounts[currentBucket] = Math.toIntExact(bucketWeight);
-				}
-				currentBucket = nextBucket++;
-				bucketWeight = 0;
-			}
-			if (currentBucket >= 0) {
-				bucketWeight += distinctWeights[i];
-			}
-		}
-		if (currentBucket >= 0) {
-			bucketCounts[currentBucket] = Math.toIntExact(bucketWeight);
-		}
-
-		return new DistinctValueTotals(weightedSum, cappedTotal);
-	}
-
-	/**
-	 * Locates the observation each bucket's bar height is measured at.
+	 * Folds the weight of every bucket and locates the observation its bar height is measured at.
 	 *
 	 * The measurement point is the bucket's **weighted median** distinct value - the first value at which
 	 * the bucket's own cumulative weight reaches half of the bucket's total. Measuring at the threshold
 	 * instead would read the density at the bucket's left edge, which for a bucket dominated by one heavy
 	 * value sitting away from that edge is not where its records are.
 	 *
-	 * The indices written out are strictly increasing, because the bucket ranges are disjoint and ascending
-	 * and each representative lies inside its own range. {@link #computeKernelMasses} relies on that to
-	 * collect the masses in one forward sweep.
-	 *
 	 * @param distinctWeights       weight of each distinct value
 	 * @param distinctCount         number of distinct values
 	 * @param bucketStarts          distinct-value index opening each bucket
 	 * @param actualBucketCount     number of buckets
-	 * @param bucketCounts          total weight of each bucket, as folded by {@link #accumulateTotals}
+	 * @param bucketCounts          output: total weight of each bucket
 	 * @param representativeIndexes output: distinct-value index the height of each bucket is read at
 	 */
-	private static void locateRepresentatives(
+	private static void collectBucketWeights(
 		@Nonnull int[] distinctWeights,
 		int distinctCount,
 		@Nonnull int[] bucketStarts,
@@ -637,7 +487,12 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		for (int i = 0; i < actualBucketCount; i++) {
 			final int from = bucketStarts[i];
 			final int to = i + 1 < actualBucketCount ? bucketStarts[i + 1] - 1 : distinctCount - 1;
-			final long bucketWeight = bucketCounts[i];
+
+			long bucketWeight = 0;
+			for (int j = from; j <= to; j++) {
+				bucketWeight += distinctWeights[j];
+			}
+			bucketCounts[i] = Math.toIntExact(bucketWeight);
 
 			long cumulated = 0;
 			int representative = from;
@@ -650,30 +505,6 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			}
 			representativeIndexes[i] = representative;
 		}
-	}
-
-	/**
-	 * The robust spread estimate's weight for one distinct value: `max(min(w, (N − w) / 2), floor)`.
-	 *
-	 * Evaluated **once per distinct value** in {@link #accumulateTotals}, into an array the rank-axis walk in
-	 * {@link #bandAveragedInterQuartileSpread} then reads. (Not the *quantile walk* - that name belongs to
-	 * {@link #computeBucketStarts}, which reads the raw weights.)
-	 *
-	 * Recomputing it at both use sites instead removes that array, and was measured 12% slower over the
-	 * whole computation: `Math.min` against a widened `int` plus a division is several times the cost of the
-	 * sequential `double[]` load it replaces, and the saving is one array against a per-element price. The
-	 * same trade was measured on the shifted-value axis and lost the same way - see {@link #computeKernelMasses}.
-	 * See {@link #computeBandwidth} for why the cap is a `min` and not an `if`.
-	 *
-	 * @param weight           the distinct value's own weight
-	 * @param observationCount total weight of all observations, as a double
-	 * @return the capped weight, strictly positive
-	 */
-	private static double cappedWeight(int weight, double observationCount) {
-		return Math.max(
-			Math.min(weight, (observationCount - weight) / 2.0),
-			MINIMAL_CAPPED_WEIGHT
-		);
 	}
 
 	/**
@@ -692,30 +523,27 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 *   histogram sits at 50.75% of its weight on one value - five records from that cliff, where the
 	 *   bandwidth stepped by 2.06x. The `min` form starts binding at `w = N / 3` and is continuous
 	 *   everywhere. The cap applies to the spread estimate only, never to the histogram itself.
-	 * - **The quantiles are band-averaged** rather than point-valued - see
-	 *   {@link #bandAveragedInterQuartileSpread}, which reads both off a single walk.
+	 * - **The quantiles are band-averaged** rather than point-valued - see {@link #bandAveragedQuantile}.
 	 *
 	 * @param distinctThresholds distinct values in ascending order
 	 * @param distinctWeights    weight of each distinct value
 	 * @param distinctCount      number of distinct values, at least 2
 	 * @param totalWeight        total weight of all observations
-	 * @param totals             the whole-axis accumulators folded by {@link #accumulateTotals}
-	 * @param cappedWeights      the robust-spread weights filled by {@link #accumulateTotals}
 	 * @return strictly positive support radius of the triangular kernel
 	 */
 	private double computeBandwidth(
 		@Nonnull int[] distinctThresholds,
 		@Nonnull int[] distinctWeights,
 		int distinctCount,
-		long totalWeight,
-		@Nonnull DistinctValueTotals totals,
-		@Nonnull double[] cappedWeights
+		long totalWeight
 	) {
 		final double observationCount = totalWeight;
 
-		// the weighted sum and the capped total were folded into the bucket walk; the variance cannot join
-		// them, because it needs the mean this line produces
-		final double mean = totals.weightedSum() / observationCount;
+		double weightedSum = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			weightedSum += (double) distinctWeights[i] * distinctThresholds[i];
+		}
+		final double mean = weightedSum / observationCount;
 
 		double weightedSquares = 0.0;
 		for (int i = 0; i < distinctCount; i++) {
@@ -724,8 +552,18 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		}
 		final double standardDeviation = Math.sqrt(weightedSquares / observationCount);
 
-		final double interQuartileRange = bandAveragedInterQuartileSpread(
-			distinctThresholds, cappedWeights, distinctCount, totals.cappedTotal()
+		final double[] cappedWeights = new double[distinctCount];
+		double cappedTotal = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			cappedWeights[i] = Math.max(
+				Math.min(distinctWeights[i], (observationCount - distinctWeights[i]) / 2.0),
+				MINIMAL_CAPPED_WEIGHT
+			);
+			cappedTotal += cappedWeights[i];
+		}
+		final double interQuartileRange = (
+			bandAveragedQuantile(distinctThresholds, cappedWeights, distinctCount, cappedTotal, UPPER_QUARTILE) -
+				bandAveragedQuantile(distinctThresholds, cappedWeights, distinctCount, cappedTotal, LOWER_QUARTILE)
 		) / NORMAL_IQR_CONSTANT;
 
 		// Silverman takes the smaller of the two, but only among the ones that carry information: a tied
@@ -751,18 +589,9 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	}
 
 	/**
-	 * Returns `Q̄(UPPER_QUARTILE) − Q̄(LOWER_QUARTILE)`, where `Q̄(p)` is the weighted quantile at rank `p`
-	 * averaged over the rank band `[p − QUANTILE_BAND_RADIUS, p + QUANTILE_BAND_RADIUS]` - the L-estimator
+	 * Returns the weighted quantile at rank `p`, averaged over the rank band
+	 * `[p − QUANTILE_BAND_RADIUS, p + QUANTILE_BAND_RADIUS]` - the L-estimator
 	 * `Q̄(p) = 1 / (2r) · ∫ Q(u) du`.
-	 *
-	 * Both quartiles are read off **one** walk of the rank axis. They are independent integrals over the same
-	 * cumulative weights, so evaluating them together costs one extra overlap test per distinct value and
-	 * saves a whole pass. Each keeps its own band endpoints and divides by its own `(p + r) − (p − r)`: those
-	 * two widths are equal in exact arithmetic but not necessarily bit-identical in floating point, and
-	 * collapsing them onto a shared `2r` would silently move the result.
-	 *
-	 * The per-value weights are read from the array {@link #accumulateTotals} filled - see
-	 * {@link #cappedWeight} for why they are materialized rather than recomputed here.
 	 *
 	 * A point-valued quantile is a step function of the weights, so a quartile crossing a value boundary
 	 * moves by a whole gap at once. On values `0, 1, 2, G` with equal weights, moving a *single* record out
@@ -781,42 +610,35 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * the band never has to be clipped to `[0, 1]`.
 	 *
 	 * @param distinctThresholds distinct values in ascending order
-	 * @param cappedWeights      the robust-spread weight of each distinct value, as filled by
-	 *                           {@link #accumulateTotals}
+	 * @param cappedWeights      per-value weights the rank axis is built from
 	 * @param distinctCount      number of distinct values
 	 * @param cappedTotal        sum of `cappedWeights`, strictly positive
-	 * @return the band-averaged interquartile spread, before the normal-consistency division
+	 * @param p                  rank of the requested quantile
+	 * @return the band-averaged quantile value
 	 */
-	private static double bandAveragedInterQuartileSpread(
+	private static double bandAveragedQuantile(
 		@Nonnull int[] distinctThresholds,
 		@Nonnull double[] cappedWeights,
 		int distinctCount,
-		double cappedTotal
+		double cappedTotal,
+		double p
 	) {
-		final double lowerBandFrom = LOWER_QUARTILE - QUANTILE_BAND_RADIUS;
-		final double lowerBandTo = LOWER_QUARTILE + QUANTILE_BAND_RADIUS;
-		final double upperBandFrom = UPPER_QUARTILE - QUANTILE_BAND_RADIUS;
-		final double upperBandTo = UPPER_QUARTILE + QUANTILE_BAND_RADIUS;
+		final double lowerRank = p - QUANTILE_BAND_RADIUS;
+		final double upperRank = p + QUANTILE_BAND_RADIUS;
 
-		double lowerAccumulated = 0.0;
-		double upperAccumulated = 0.0;
+		double accumulated = 0.0;
 		double cumulated = 0.0;
 		for (int i = 0; i < distinctCount; i++) {
 			final double rankFrom = cumulated / cappedTotal;
 			cumulated += cappedWeights[i];
 			final double rankTo = cumulated / cappedTotal;
 
-			final double lowerOverlap = Math.min(lowerBandTo, rankTo) - Math.max(lowerBandFrom, rankFrom);
-			if (lowerOverlap > 0.0) {
-				lowerAccumulated += (double) distinctThresholds[i] * lowerOverlap;
-			}
-			final double upperOverlap = Math.min(upperBandTo, rankTo) - Math.max(upperBandFrom, rankFrom);
-			if (upperOverlap > 0.0) {
-				upperAccumulated += (double) distinctThresholds[i] * upperOverlap;
+			final double overlap = Math.min(upperRank, rankTo) - Math.max(lowerRank, rankFrom);
+			if (overlap > 0.0) {
+				accumulated += (double) distinctThresholds[i] * overlap;
 			}
 		}
-		return upperAccumulated / (upperBandTo - upperBandFrom)
-			- lowerAccumulated / (lowerBandTo - lowerBandFrom);
+		return accumulated / (upperRank - lowerRank);
 	}
 
 	/**
@@ -832,40 +654,28 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 *
 	 * Values are shifted to be relative to the first distinct value before the running sums are formed,
 	 * which keeps the magnitudes of `Σ w·v` proportional to the data's own range rather than to its
-	 * absolute position and preserves precision for catalogues clustered far from zero. The shifted axis is
-	 * **materialized** into a `double[distinctCount]`: deriving it on demand instead saves the array but was
-	 * measured 12% slower, because the three window pointers read each entry several times and each read then
-	 * pays two int-to-double conversions and a subtract in place of one sequential load. See the note on
-	 * {@link #cappedWeight} - the same trade was measured on the other scratch array and lost the same way.
+	 * absolute position and preserves precision for catalogues clustered far from zero.
 	 *
-	 * Only `actualBucketCount` of the `distinctCount` masses are ever read - the rest exist solely to find
-	 * the peak the curve is normalized against. The sweep therefore keeps the peak in a scalar and copies
-	 * out only the masses at `representativeIndexes`, which is why that array must be strictly increasing.
-	 * The curve itself is still evaluated everywhere, so the peak is unchanged.
-	 *
-	 * @param distinctThresholds    distinct values in ascending order
-	 * @param distinctWeights       weight of each distinct value
-	 * @param distinctCount         number of distinct values
-	 * @param bandwidth             support radius of the kernel, strictly positive
-	 * @param representativeIndexes strictly increasing distinct-value indices the bars are measured at
-	 * @param actualBucketCount     number of buckets, i.e. the length of `representativeIndexes`
-	 * @param representativeMasses  output: kernel mass at each representative, in bucket order
-	 * @return the maximum kernel mass over the whole curve
+	 * @param distinctThresholds distinct values in ascending order
+	 * @param distinctWeights    weight of each distinct value
+	 * @param distinctCount      number of distinct values
+	 * @param bandwidth          support radius of the kernel, strictly positive
+	 * @return kernel mass at each distinct value, in the same order
 	 */
-	private static double computeKernelMasses(
+	@Nonnull
+	private static double[] computeKernelMasses(
 		@Nonnull int[] distinctThresholds,
 		@Nonnull int[] distinctWeights,
 		int distinctCount,
-		double bandwidth,
-		@Nonnull int[] representativeIndexes,
-		int actualBucketCount,
-		@Nonnull double[] representativeMasses
+		double bandwidth
 	) {
-		final int origin = distinctThresholds[0];
 		final double[] values = new double[distinctCount];
+		final int origin = distinctThresholds[0];
 		for (int i = 0; i < distinctCount; i++) {
 			values[i] = (double) distinctThresholds[i] - origin;
 		}
+
+		final double[] kernelMasses = new double[distinctCount];
 
 		// window invariant: [lower, middle) holds the observations at or below x, [middle, upper) those
 		// above it; everything outside [x - h, x + h] contributes exactly zero and is kept out
@@ -877,73 +687,36 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		double rightWeight = 0.0;
 		double rightWeightedValue = 0.0;
 
-		double peakMass = 0.0;
-		int nextRepresentative = 0;
-
 		for (int q = 0; q < distinctCount; q++) {
 			final double x = values[q];
 
-			// each loop derives its entry's shifted value exactly once and tests the derived value, rather
-			// than deriving it again in the loop condition - the conditions are negated accordingly, which is
-			// equivalent because no value here can be NaN (the thresholds are ints and the bandwidth is
-			// asserted finite and positive)
-			final double rightEdge = x + bandwidth;
-			final double leftEdge = x - bandwidth;
-
 			// admit everything that entered the right edge of the window
-			while (upper < distinctCount) {
-				final double value = values[upper];
-				if (value >= rightEdge) {
-					break;
-				}
+			while (upper < distinctCount && values[upper] < x + bandwidth) {
 				rightWeight += distinctWeights[upper];
-				rightWeightedValue += distinctWeights[upper] * value;
+				rightWeightedValue += distinctWeights[upper] * values[upper];
 				upper++;
 			}
 			// move everything at or below x from the right half into the left half
-			while (middle < upper) {
-				final double value = values[middle];
-				if (value > x) {
-					break;
-				}
+			while (middle < upper && values[middle] <= x) {
 				rightWeight -= distinctWeights[middle];
-				rightWeightedValue -= distinctWeights[middle] * value;
+				rightWeightedValue -= distinctWeights[middle] * values[middle];
 				leftWeight += distinctWeights[middle];
-				leftWeightedValue += distinctWeights[middle] * value;
+				leftWeightedValue += distinctWeights[middle] * values[middle];
 				middle++;
 			}
 			// drop everything that fell out of the left edge of the window
-			while (lower < middle) {
-				final double value = values[lower];
-				if (value > leftEdge) {
-					break;
-				}
+			while (lower < middle && values[lower] <= x - bandwidth) {
 				leftWeight -= distinctWeights[lower];
-				leftWeightedValue -= distinctWeights[lower] * value;
+				leftWeightedValue -= distinctWeights[lower] * values[lower];
 				lower++;
 			}
 
 			final double absoluteDeviationSum =
 				(x * leftWeight - leftWeightedValue) + (rightWeightedValue - x * rightWeight);
-			final double kernelMass = (leftWeight + rightWeight) - absoluteDeviationSum / bandwidth;
-
-			peakMass = Math.max(peakMass, kernelMass);
-			if (nextRepresentative < actualBucketCount && q == representativeIndexes[nextRepresentative]) {
-				representativeMasses[nextRepresentative++] = kernelMass;
-			}
+			kernelMasses[q] = (leftWeight + rightWeight) - absoluteDeviationSum / bandwidth;
 		}
 
-		// the sweep visits every distinct value once in ascending order, so a representative it failed to
-		// collect means `representativeIndexes` was not strictly increasing or pointed outside the curve -
-		// either way the bars below would silently read a zero mass
-		final int collectedRepresentatives = nextRepresentative;
-		Assert.isPremiseValid(
-			collectedRepresentatives == actualBucketCount,
-			() -> "Kernel density sweep collected " + collectedRepresentatives + " of " + actualBucketCount +
-				" bucket representatives - the representative indices are not strictly increasing!"
-		);
-
-		return peakMass;
+		return kernelMasses;
 	}
 
 }
