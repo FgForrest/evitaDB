@@ -44,8 +44,10 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
@@ -122,6 +124,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
@@ -301,10 +304,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		}
 		if (query.getCollection() == null) {
 			return extractEntityTypeFromClass(expectedType, reflectionLookup)
-				.or(() -> ofNullable(query.getCollection()).map(io.evitadb.api.query.head.Collection::getEntityType))
 				.map(
 					entityType -> Query.query(
-						collection(entityType),
+						mergeEntityTypeIntoHead(query.getHead(), entityType),
 						query.getFilterBy(),
 						query.getOrderBy(),
 						query.getRequire()
@@ -313,6 +315,34 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.orElseGet(query::normalizeQuery);
 		} else {
 			return query.normalizeQuery();
+		}
+	}
+
+	/**
+	 * Combines the entity type derived from the expected result type with the header the caller wrote.
+	 *
+	 * Omitting the {@link io.evitadb.api.query.head.Collection} from the header is a legitimate caller shape - the
+	 * entity type then comes from the model class instead - so the header must be completed, not replaced. Everything
+	 * else the caller put there, {@link io.evitadb.api.query.head.Label labels} above all, is theirs and has to reach
+	 * the server; the query string is the only channel it has.
+	 *
+	 * @param head       the header the caller supplied, may be null
+	 * @param entityType the entity type derived from the expected result type
+	 * @return a header naming the collection first, followed by whatever the caller's header carried
+	 */
+	@Nonnull
+	private static HeadConstraint mergeEntityTypeIntoHead(@Nullable HeadConstraint head, @Nonnull String entityType) {
+		if (head == null) {
+			return collection(entityType);
+		} else if (head instanceof Head headContainer) {
+			return head(
+				ArrayUtils.mergeArrays(
+					new HeadConstraint[]{collection(entityType)},
+					headContainer.getChildren()
+				)
+			);
+		} else {
+			return head(collection(entityType), head);
 		}
 	}
 
