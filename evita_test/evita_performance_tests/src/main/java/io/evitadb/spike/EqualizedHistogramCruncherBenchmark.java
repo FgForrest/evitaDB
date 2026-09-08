@@ -30,7 +30,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.spike.LegacyEqualizedHistogramDataCruncher.BucketCountMode;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -52,67 +51,67 @@ import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 
 /**
- * Answers one question: **did rewriting {@link EqualizedHistogramDataCruncher} cost anything at runtime?**
+ * Measures what {@link EqualizedHistogramDataCruncher} costs per computation, on the two source shapes the
+ * production call sites actually produce.
  *
  * `HistogramBehavior.EQUALIZED` was reimplemented in `e84668e82` - bucket boundaries moved from a single
- * cumulative-weight sweep to the empirical quantile function, and `relativeFrequency` moved from
- * `occurrences / bucketWidth` to a triangular-kernel density estimate over the whole value axis. Both changes
- * were made for correctness, and both add passes over the distinct values. This benchmark measures what those
- * passes cost, against the algorithm they replaced, in one JVM.
+ * cumulative-weight sweep to the empirical quantile function, and `relativeFrequency` from
+ * `occurrences / bucketWidth` to a triangular-kernel density estimate over the whole value axis - and then
+ * optimized in `8cda8175e`. Both rounds were measured with this harness, against frozen copies of the two
+ * earlier generations that no longer live here: the fork they answered is settled and shipped, and what they
+ * measured is recorded in
+ * `documentation/adr/2026-09-07-equalized-histogram-density-and-quantile-bucketing.md`.
  *
- * ## What is compared
+ * ## Getting a historical baseline back
  *
- * Three generations of the same computation, so one run separates two questions that are otherwise
- * conflated - what the correctness rewrite cost, and how much of that the later optimizations gave back:
+ * Both removed copies were verbatim copies of the production class at a revision, differing from it only in
+ * the class name, so either comparison is reconstructible without carrying dead code in the tree:
  *
- * - {@link #equalizedCurrent} - the shipped implementation, after the scratch-array and pass-fusion work.
- * - {@link #equalizedPreOptimization} - {@link PreOptimizationEqualizedHistogramDataCruncher}, the rewrite
- *   before those optimizations. Its output is bit-identical to {@link #equalizedCurrent} (verified by
- *   differential comparison over ~200 000 random fixtures, including zero-weight and leading-zero-weight
- *   axes), so the gap between the two is pure overhead removed: two of the four `D`-sized scratch arrays
- *   and three of the walks over the distinct values.
- * - {@link #equalizedLegacyExact} / {@link #equalizedLegacyAdaptive} -
- *   {@link LegacyEqualizedHistogramDataCruncher}, a frozen copy of the pre-rewrite class, in the two modes the
- *   two old behaviours used ({@link BucketCountMode#EXACT} for `EQUALIZED`, {@link BucketCountMode#ADAPTIVE}
- *   for `EQUALIZED_OPTIMIZED`). `EXACT` pads up to the requested bucket count using `BigDecimal` division per
- *   placed bucket, so the two legacy modes are not interchangeable as a baseline.
- * - {@link #standardEqualWidth} - {@link HistogramDataCruncher}, untouched by the rewrite. Not a competitor;
- *   it is the scale reference that says what "a histogram" costs on this fixture, so an absolute number for the
- *   equalized family can be read as cheap or expensive rather than merely as a ratio.
+ * ```
+ * P=evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram/producer
+ * git show 373dfc9b2:$P/EqualizedHistogramDataCruncher.java   # pre-rewrite (EQUALIZED / EQUALIZED_OPTIMIZED)
+ * git show 84e599586:$P/EqualizedHistogramDataCruncher.java   # rewritten, before the optimization pass
+ * ```
  *
- * ## Where the cost is expected, from reading the algorithms
+ * Rename the class, drop it in this package, bind a factory and add an arm. Read the ADR first - it records
+ * what each generation cost and why the current shape won, so most questions do not need the code back.
  *
- * All three generations share an identical `O(N)` first pass that folds the source items into `D` distinct
- * values. Everything after that is `O(D)` or `O(B)`, and that is where they diverge. The pre-rewrite version
- * walked the distinct values once and then made two `O(B)` passes. The rewrite walked them roughly eight
- * times - cumulative weights, the quantile walk, the bucket fold, mean, variance, the capped weights, two
- * band-averaged quantiles, the kernel window, the peak scan - and allocated a `long[D]` plus three `double[D]`
- * on the way; that is what {@link #equalizedPreOptimization} still does. The current version streams the
- * cumulative weight, fuses the bucket fold with two of the bandwidth accumulators, reads both quartiles off
- * one walk and keeps only the `B` kernel masses the bars actually need - removing the `long[D]` and one
- * `double[D]`.
+ * ## What is measured
  *
- * The other two `double[D]` (the shifted value axis and the capped weights) were also removed at one point,
- * by deriving both on demand. That version was measured and **reverted**: it is bit-identical and 12-15%
- * slower, because the kernel sweep reads each entry through several pointers and each read then pays
- * conversions and a division in place of one sequential load. Do not re-propose it - the arrays pay for
- * themselves, and the reasoning sits on `EqualizedHistogramDataCruncher#cappedWeight`.
+ * - {@link #equalizedCurrent} - the shipped equalized cruncher. This is the regression signal: compare its
+ *   ns/op against the figures the ADR records for the same fixtures rather than against a second arm.
+ * - {@link #standardEqualWidth} - {@link HistogramDataCruncher}, the equal-width cruncher that also ships and
+ *   that the rewrite never touched. Not a competitor; it is the scale reference that says what "a histogram"
+ *   costs on this fixture, so the equalized number reads as cheap or expensive rather than merely as a ratio.
  *
- * The penalty of the rewrite, and therefore the benefit of removing it, scales with `D / N`: invisible when a
- * few distinct prices back a large record set, largest when every source item is its own distinct value.
+ * ## Where the cost sits, from reading the algorithm
  *
- * That is exactly the split the {@link SourceShape} parameter draws, and it is not synthetic - it is the
- * difference between the two production call sites:
+ * An `O(N)` first pass folds the source items into `D` distinct values; everything after it is `O(D)` or
+ * `O(B)`. The current version streams the quantile walk's cumulative weight, fuses the bucket fold with two
+ * of the bandwidth accumulators, reads both quartiles off one walk, and keeps only the `B` kernel masses the
+ * bars are measured at - leaving two `double[D]` of scratch.
+ *
+ * Those two (the shifted value axis and the capped weights) were also removed at one point, by deriving both
+ * on demand. That version was measured and **reverted**: it is bit-identical and 12-15% slower, because the
+ * kernel sweep reads each entry through several window pointers and each read then pays two conversions and a
+ * division in place of one sequential load. Do not re-propose it - the arrays pay for themselves, and the
+ * reasoning sits on `EqualizedHistogramDataCruncher#cappedWeight`.
+ *
+ * The equalized family's cost, relative to the shared first pass, scales with `D / N`: invisible when a few
+ * distinct prices back a large record set, largest when every source item is its own distinct value. That is
+ * exactly the split the {@link SourceShape} parameter draws, and it is not synthetic - it is the difference
+ * between the two production call sites:
  *
  * - {@link SourceShape#PRICE} - `PriceHistogramComputer` hands over one `PriceRecordContract` per matching
  *   record, each of weight 1, so `N` is the record count and `D` the number of distinct prices. Here the
  *   shared `O(N)` pass dominates and dilutes any `O(D)` regression.
  * - {@link SourceShape#ATTRIBUTE} - `AttributeHistogramComputer` hands over one `ValueToRecordBitmap` per
- *   distinct value, weighted by its bitmap size, so `N == D`. Here the shared pass is at its smallest and the
+ *   distinct value, weighted by its bitmap size, so `N == D`. Here the shared pass is at its smallest and a
  *   regression at its most visible. This is the worst case, and it is a real one.
  *
- * Both shapes are generated to carry the **same total weight** (`AVERAGE_WEIGHT * distinctCount`), so the two
- * columns describe the same catalogue seen through two call sites rather than two different catalogues.
+ * Both shapes are generated to carry the same total weight, so the two columns describe the same catalogue
+ * seen through two call sites rather than two different catalogues - see {@link #AVERAGE_WEIGHT} for the one
+ * distribution that only approaches that target.
  *
  * ## Value distributions
  *
@@ -122,20 +121,19 @@ import java.util.function.ToIntFunction;
  *   price axis, clustered low with a long expensive tail.
  * - {@link Distribution#PLATEAU} - one value in the middle holding ~50% of the total weight. This is the shape
  *   the rewrite was made for (a price held by a large share of the catalogue) and the one that exercises the
- *   weight cap in `computeBandwidth` and the rank-run batching in the quantile walk. Worth measuring
- *   separately because it is the case where the two algorithms take genuinely different paths, not merely the
- *   same path at different speeds.
+ *   weight cap in `computeBandwidth` and the rank-run batching in the quantile walk.
  *
- * `@Setup` prints the bucket count each variant actually produced for the current parameter combination, so
- * the run log carries evidence that no variant was measured while short-circuiting on a degenerate fixture.
+ * `@Setup` prints the bucket count each arm actually produced for the current parameter combination, so the
+ * run log carries evidence that nothing was measured while short-circuiting on a degenerate fixture.
  *
  * Run with `-prof gc` - the scratch arrays are as much the point as the wall-clock, and a query that
  * allocates more per call costs more than the average time alone shows.
  *
  * **Five forks is not negotiable.** JMH forks per benchmark method, so with one fork every method-vs-method
- * comparison here is really a fork-vs-fork comparison. Measured: at `-f 1` the two legacy arms - which differ
- * only by a padding pass - came out up to 70% apart and several rows inverted outright. At `-f 5` their
- * disagreement drops to 2.7% median, which is the noise floor this benchmark can resolve.
+ * comparison here is really a fork-vs-fork comparison. Measured during the attribution study this harness was
+ * built for: at `-f 1` two arms differing only by a padding pass came out up to 70% apart and several rows
+ * inverted outright, while at `-f 5` their disagreement dropped to 2.7% median - the noise floor this
+ * benchmark can resolve. The same applies to reading one arm across two runs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -193,9 +191,9 @@ public class EqualizedHistogramCruncherBenchmark {
 	private SourceShape shape;
 
 	/**
-	 * Builds one cruncher over the fixture. Four instances are bound in `@Setup`, one per measured variant,
-	 * each already closed over the source array its {@link #shape} requires - so the timed methods contain
-	 * neither a branch on the shape nor a generic cast, and each call site stays monomorphic within its fork.
+	 * Builds one cruncher over the fixture. One instance is bound in `@Setup` per measured arm, each already
+	 * closed over the source array its {@link #shape} requires - so the timed methods contain neither a branch
+	 * on the shape nor a generic cast, and each call site stays monomorphic within its fork.
 	 */
 	@FunctionalInterface
 	private interface CruncherFactory {
@@ -206,9 +204,6 @@ public class EqualizedHistogramCruncherBenchmark {
 	}
 
 	private CruncherFactory currentFactory;
-	private CruncherFactory preOptimizationFactory;
-	private CruncherFactory legacyExactFactory;
-	private CruncherFactory legacyAdaptiveFactory;
 	private CruncherFactory standardFactory;
 
 	@Setup(Level.Trial)
@@ -229,18 +224,6 @@ public class EqualizedHistogramCruncherBenchmark {
 				"price histogram", BUCKET_COUNT, DECIMAL_PLACES, priceRecords,
 				thresholdRetriever, weightRetriever, toBigDecimal
 			);
-			this.preOptimizationFactory = () -> new PreOptimizationEqualizedHistogramDataCruncher<>(
-				"price histogram", BUCKET_COUNT, DECIMAL_PLACES, priceRecords,
-				thresholdRetriever, weightRetriever, toBigDecimal
-			);
-			this.legacyExactFactory = () -> new LegacyEqualizedHistogramDataCruncher<>(
-				"price histogram", BUCKET_COUNT, DECIMAL_PLACES, priceRecords,
-				thresholdRetriever, weightRetriever, toBigDecimal, BucketCountMode.EXACT
-			);
-			this.legacyAdaptiveFactory = () -> new LegacyEqualizedHistogramDataCruncher<>(
-				"price histogram", BUCKET_COUNT, DECIMAL_PLACES, priceRecords,
-				thresholdRetriever, weightRetriever, toBigDecimal, BucketCountMode.ADAPTIVE
-			);
 			this.standardFactory = () -> new HistogramDataCruncher<>(
 				"price histogram", BUCKET_COUNT, DECIMAL_PLACES, priceRecords,
 				thresholdRetriever, weightRetriever, toBigDecimal, fromBigDecimal
@@ -253,76 +236,33 @@ public class EqualizedHistogramCruncherBenchmark {
 				"attribute histogram", BUCKET_COUNT, DECIMAL_PLACES, buckets,
 				thresholdRetriever, weightRetriever, toBigDecimal
 			);
-			this.preOptimizationFactory = () -> new PreOptimizationEqualizedHistogramDataCruncher<>(
-				"attribute histogram", BUCKET_COUNT, DECIMAL_PLACES, buckets,
-				thresholdRetriever, weightRetriever, toBigDecimal
-			);
-			this.legacyExactFactory = () -> new LegacyEqualizedHistogramDataCruncher<>(
-				"attribute histogram", BUCKET_COUNT, DECIMAL_PLACES, buckets,
-				thresholdRetriever, weightRetriever, toBigDecimal, BucketCountMode.EXACT
-			);
-			this.legacyAdaptiveFactory = () -> new LegacyEqualizedHistogramDataCruncher<>(
-				"attribute histogram", BUCKET_COUNT, DECIMAL_PLACES, buckets,
-				thresholdRetriever, weightRetriever, toBigDecimal, BucketCountMode.ADAPTIVE
-			);
 			this.standardFactory = () -> new HistogramDataCruncher<>(
 				"attribute histogram", BUCKET_COUNT, DECIMAL_PLACES, buckets,
 				thresholdRetriever, weightRetriever, toBigDecimal, fromBigDecimal
 			);
 		}
 
-		// evidence in the run log that every variant did real work on this fixture - a variant that
-		// short-circuits to a single bucket would otherwise post a fast, meaningless score
+		// evidence in the run log that both arms did real work on this fixture - an arm that short-circuits
+		// to a single bucket would otherwise post a fast, meaningless score
 		long totalWeight = 0;
 		for (final int weight : weights) {
 			totalWeight += weight;
 		}
 		System.err.printf(
-			"[fixture] shape=%s dist=%s D=%d N=%d totalWeight=%d -> buckets: current=%d preOpt=%d " +
-				"legacyExact=%d legacyAdaptive=%d standard=%d%n",
+			"[fixture] shape=%s dist=%s D=%d N=%d totalWeight=%d -> buckets: current=%d standard=%d%n",
 			this.shape, this.distribution, this.distinctCount,
 			this.shape == SourceShape.PRICE ? totalWeight : this.distinctCount, totalWeight,
 			this.currentFactory.create().getHistogram().length,
-			this.preOptimizationFactory.create().getHistogram().length,
-			this.legacyExactFactory.create().getHistogram().length,
-			this.legacyAdaptiveFactory.create().getHistogram().length,
 			this.standardFactory.create().getHistogram().length
 		);
 	}
 
 	/**
-	 * The shipped implementation - quantile boundaries plus a kernel-density intensity.
+	 * The shipped implementation - quantile boundaries plus a kernel-density intensity. The regression signal.
 	 */
 	@Benchmark
 	public Object equalizedCurrent() {
 		return this.currentFactory.create().getHistogram();
-	}
-
-	/**
-	 * The same algorithm as {@link #equalizedCurrent}, before the scratch arrays were removed and the passes
-	 * fused. Bit-identical output, so the difference between the two is pure overhead.
-	 */
-	@Benchmark
-	public Object equalizedPreOptimization() {
-		return this.preOptimizationFactory.create().getHistogram();
-	}
-
-	/**
-	 * The pre-rewrite implementation in the mode `HistogramBehavior.EQUALIZED` used, which pads the result up
-	 * to the requested bucket count with `BigDecimal`-placed empty buckets.
-	 */
-	@Benchmark
-	public Object equalizedLegacyExact() {
-		return this.legacyExactFactory.create().getHistogram();
-	}
-
-	/**
-	 * The pre-rewrite implementation in the mode `HistogramBehavior.EQUALIZED_OPTIMIZED` used - the same
-	 * boundary sweep without the padding pass, and therefore the cheaper of the two legacy baselines.
-	 */
-	@Benchmark
-	public Object equalizedLegacyAdaptive() {
-		return this.legacyAdaptiveFactory.create().getHistogram();
 	}
 
 	/**
