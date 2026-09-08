@@ -1,0 +1,63 @@
+# LLM generated using ChatGPT 5
+
+auto, automobil, vozidlo
+pes, hafan, "čtyřnohý kamarád", čokl
+kočka, kocour, kočička
+chlapec, kluk, hoch, mladík
+dívka, holka, slečna, "mladá žena"
+domov, byt, domácnost, obydlí
+stůl, stoleček, "pracovní deska"
+měsíc, "lunární fáze", luna
+budova, objekt, stavení, dům, chalupa, "obytný dům"
+knížka, kniha, publikace, literatura
+ovoce, plod
+počítač, PC, "počítačová stanice"
+telefon, mobil, "mobilní telefon"
+ulice, silnice, komunikace, cesta
+město, obec, osada, aglomerace, metropole
+král, monarcha, panovník
+královna, panovnice, vládkyně
+kolo, bicykl, velociped
+muž, chlap, pán
+žena, dáma, slečna
+moc, síla, energie
+slunce, hvězda
+noci, večer, soumrak
+den, ráno, světlo
+okno, okénko, průhled
+zahrada, "zahradní parcela", pozemek
+zvíře, živočich, tvor
+strom, dřevina
+tráva, bylinka
+voda, tekutina, kapalina
+kamarád, přítel, známý
+vůně, aroma, parfém
+důvod, příčina, motiv
+myšlenka, idea, koncept
+řeka, potok, tok
+moře, oceán, "vodní plocha"
+kraj, oblast, region
+les, "lesní porost", lesík, stromy
+planeta, těleso, "vesmírný objekt"
+nebe, atmosféra, obloha
+kniha, publikace, literatura
+noviny, časopis, tisk
+dům, stavba, obydlí
+kabelka, taška, kabela
+zámek, hrad, pevnost
+práce, zaměstnání, job
+pošta, dopisy, zásilky
+hledat, pátrat, vyhledávat
+moc, síla, energie
+zdraví, "fyzická pohoda", vitalita
+les, prales, "lesní komplex"
+hory, pohoří, kopce
+kuchyně, kuchyně, vaření
+světlo, osvit, záře
+obrázek, fotka, obraz
+klid, ticho, mír
+skála, kámen, balvan
+lékař, doktor, odborník
+každý, všichni
+zahrada, příroda, venkov
+notebook, laptop, "přenosný počítač"

@@ -9,6 +9,7 @@
 .idea/**/dictionaries
 .idea/**/shelf
 .idea/compiler.xml
+.idea/go.imports.xml
 
 # AWS User-specific
 .idea/**/aws.xml

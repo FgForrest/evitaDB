@@ -171,14 +171,19 @@ The packages we need are exported: `org.apache.lucene.analysis`, `org.apache.luc
 `org.apache.lucene.analysis.tokenattributes` and `org.apache.lucene.util.automaton` from the core;
 `org.apache.lucene.analysis.cz`, `.de`, `.en`, `.custom`, `.core`, `.miscellaneous` and `.hunspell` from
 analysis-common; and `analysis.pl` from stempel. The module `org.apache.lucene.analysis.common` declares
-`requires org.apache.lucene.core`, so a single `requires` in our module-info suffices and the core comes
-with it:
+`requires org.apache.lucene.core` **without `transitive`** (verified with `jar --describe-module` on
+9.12.3, and confirmed by the P5 implementation in PR #1453), so our module-info must require the core
+explicitly — code compiling against `Analyzer` or the token attributes reads types from the core module:
 
 ```java
+requires org.apache.lucene.core;
 requires org.apache.lucene.analysis.common;
 // only if the decision falls to support Polish via stempel:
 requires org.apache.lucene.analysis.stempel;
 ```
+
+*(An earlier revision of this section claimed the single `requires` on analysis-common would bring the
+core along; that was wrong — the requires is not transitive.)*
 
 One place deserves attention. Lucene has a service layer: `lucene-core` declares
 `uses org.apache.lucene.analysis.TokenizerFactory` (and the same for `CharFilterFactory` and
@@ -405,6 +410,12 @@ This shape keeps the schema independent of Lucene: a Lucene type never appears i
 time it leaves the door open for `"custom:…"`, where the parameters describe the pipeline as a list of steps
 — `CustomAnalyzer` then applies (§3.3).
 
+> **Resolution (2026-08-25, PR #1453 review):** P5 shipped the identifier half of this contract only —
+> `AnalyzerAssignment` carries names, no parameters. That is deliberate, not an omission: the parameters
+> travel with the schema work and are recorded as a deferred item in `schema-design.md` §6.5. With §4.6
+> point 1 discarded, "expressions exempted from stemming" drops out of the parameter set entirely; the
+> custom stop-word list remains its primary content.
+
 ### 4.6 A catalog of filters the pipeline has to offer or deliberately reject
 
 The analysis of the existing client (internal, §2.5, §6.5 and §6.6)
@@ -434,6 +445,17 @@ their pipeline (§5.1) and `CzechAnalyzer` accepts the corresponding set in its 
 is written. The difference against the old client is that the protected expressions are given in the schema
 once, not in every value separately — which besides data cleanliness is better operability too.
 
+> **Discarded (2026-08-25).** Token-level protection is not adopted in any form. Values that must be found
+> exactly — catalog numbers, EANs, model designations — are to be modelled as **separate attributes that
+> are not fulltext-indexed** and searched via `attributeContains`, prospectively via the trigram
+> `SUBSTRING` capability (#1454, `p8-trigram-substring-index.md`), which is precisely the code-lookup lane.
+> A code still embedded in a sentence does pass through the stemmer, but analysis is symmetric — the query
+> side is mangled identically — so it keeps matching itself; the residual risk is rare false merges and
+> stem-mangled dictionary entries surfacing in the P3 suggester. *What would have to change for this to be
+> revisited:* the §10.3 real-value review showing actual collisions on production data. Discarding this
+> also retires the `KeywordAttribute` concern in point 3's parenthesis — with no protected tokens there is
+> nothing for diacritics folding to honour.
+
 **2. `WordWithNumberSplitFilter` — splitting a token into a word and a numeric part. Take up.** A token
 beginning or ending with a digit is split into a numeric and a textual part and **both are added at the same
 position**: from `123xyz` arises, besides the original token, also `123` and `xyz`. It is switched on by the
@@ -442,6 +464,44 @@ production-proven filter for e-commerce catalog numbers, which §6.6 of the anal
 belongs in the catalog as an optional pipeline step **switched off by default**: adding tokens at the same
 position enlarges both the dictionary and the postings and it has no business in the CMS profile, whereas
 for a field with an EAN or a catalog number it is exactly what the user expects.
+
+> **Confirmed and pulled forward (2026-08-25):** to be implemented within **PR #1453** as a composable,
+> off-by-default token filter with its own tests, so the analysis package closes with the filter catalog
+> complete rather than being reopened later. The per-field switch that turns it on arrives with the
+> analyzer parameters (`schema-design.md` §6.5).
+
+> **Revised (2026-09-02).** The filter did **not** ship in PR #1453 — the note above and the wording in
+> `schema-design.md` §6.5 ran ahead of the code; the plan's "deliberately not done" list was the accurate one.
+> Analysing the placement before implementing it changed the shape of the step; the side-by-side measurement,
+> the old client's wiring and the query-side shapes are in
+> [`p5-word-number-split-comparison.md`](p5-word-number-split-comparison.md). The old client's documentation
+> motivates the step with a code found by its bare number — the data holds `UHD7800`, users type `7800`. Both
+> placements below serve that, because a digit run has nothing for a stemmer to change; the placement decides
+> the fate of the word half only.
+>
+> - **Appending the filter to the finished analyzer — the old client's route, and the one this point
+>   described — is rejected for stemming chains.** The word part comes out unstemmed and never meets the term
+>   the same word produces on its own: `boty42` yields `boty` while the query `boty` yields `bot`; `iPhone15`
+>   yields `iphone` while `iPhone` yields `iphon`. And once the stemmer has shortened the token (`GTX1080Ti` →
+>   `gtx1080t`) the parts' offsets can no longer be adjusted, so every part reports the whole token as its
+>   surface form and the word part is a fragment (`t`). The placement is harmless only on chains without a
+>   stemmer (generic, Slovak), where it coincides with the accepted one.
+> - **Accepted: Lucene's `WordDelimiterGraphFilter` directly after the tokenizer**, ahead of the stop filter
+>   and the stemmer, with `GENERATE_WORD_PARTS | GENERATE_NUMBER_PARTS | SPLIT_ON_NUMERICS | PRESERVE_ORIGINAL`,
+>   `adjustInternalOffsets = true` and a `FlattenGraphFilter` behind it (the term contract carries a position
+>   increment, no position length). Parts are then stemmed and folded exactly like standalone words, each
+>   part's surface form is the part, and positions follow Lucene's graph convention — the original at one
+>   position, its parts at consecutive ones — so `boty42 kožené` and `boty 42 kožené` align position for position,
+>   which the old client's "every part at one position" did not. No filter of our own is written, for the
+>   reason point 3 gives. Accepted differences from the old client: every letter/digit transition splits
+>   (`GTX1080Ti` → `gtx`, `1080`, `ti`, not `gtx` + `1080ti`); punctuation the tokenizer kept inside a token
+>   splits too (`3.5mm` → `3`, `5`, `mm`), symmetric and therefore harmless; a digits-only code such as an EAN is
+>   never touched — the motivating case is a mixed code like `XC90`, not a barcode.
+> - **Consequence for the built-in chains.** The accepted placement cannot be reached by wrapping
+>   `CzechAnalyzer` and its siblings; enabling the step for a language means composing that language's chain
+>   from its components in `BuiltInAnalyzers`. That work travels with the per-attribute switch of
+>   `schema-design.md` §6.5. Until then the step has no production caller; its contract is pinned by
+>   `WordNumberSplitAnalysisTest`, which is what the wiring is written against.
 
 **3. `DiacriticFilter` — and why it is *not* NFD. Reject as a component, adopt as a test criterion.** The
 existing filter is a manual, fully written-out conversion table of European characters with diacritics onto
@@ -464,6 +524,10 @@ most cases, but not in all, and migrating an existing website from one to the ot
 search results**. That is not a hypothesis dismissable with a footnote: it is a parity §10.4 measures, and
 its list of differences is the only material from which it can be said in advance what the change will
 touch. Who informs the operator and when is a product decision — carried as P5-6 (§11).
+
+> **Commitment cancelled (2026-08-25).** Migration from the legacy client's stack is not a path this line
+> of work supports, so the difference list has no consumer. The rejection of the component above stands on
+> its own technical grounds; §10.4 and P5-6 fall with the commitment.
 
 ---
 
@@ -556,6 +620,14 @@ behaviour is predictable and needs no foreign data file. If the smoke test shows
 sensible results on Slovak, switching the default to B is a one-line change in the table. Variant A is the
 right target, but it belongs beyond the gate — it requires resolving both the origin and the licence of the
 dictionary, and that is work P5 should not be delayed by.
+
+> **Resolution (2026-08-25, PR #1453 review):** variant C shipped, with one deviation worth recording —
+> Lucene bundles **no Slovak stop-word list**, so the shipped chain is tokenize + lowercase + diacritics
+> folding only, without the stop words this section assumed. The **variant B measurement is discarded**:
+> the safe lower bound is in place, the false-merge risk of the Czech stemmer has no demonstrated upside
+> to buy, and the folded surface-form lane being weighed for P1 (accent-typing gap, see PR #1453 review)
+> would benefit Slovak recall without borrowing a foreign stemmer. Variant A remains the long-term target
+> under P5-2.
 
 ---
 
@@ -867,7 +939,16 @@ decision then arises about whether it belongs in the pipeline's own rules — an
 delivers to P1. The last two cases named are at the same time exactly the ones the existing client answers
 with the filters of §4.6, so it is immediately visible with them whether the filter catalog is sufficient.
 
+> **Status (2026-08-25):** not executed in PR #1453; carried forward as an explicit **P1 gate input** —
+> see `p1-index-core.md` §2. It must run before the dictionary layout freezes, because its findings plus
+> the measured accent-typing gap (PR #1453 review) decide the folded surface-form lane. It is also the
+> designated tripwire for revisiting the discarded keyword-marker protection (§4.6 point 1).
+
 ### 10.4 Parity of diacritics folding against the existing `DiacriticFilter`
+
+> **Discarded (2026-08-25)** together with the migration commitment of §4.6 point 3 and P5-6: no supported
+> migration path from the legacy stack means no consumer for the difference list. Kept below for the
+> record of what the test would have been.
 
 §4.6 rejects adopting the old client's manual conversion table as a component, but does not reject the
 commitment to know where exactly the two paths diverge. This test is therefore **decisional, not
@@ -917,7 +998,9 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   the schema addresses it.
 - **P5-5 — the registry's behaviour on an unknown language (§4.1).** The recommendation is a generic
   analyzer plus a log message, but it is a product decision: the alternative is to reject the query. Name it
-  in the documentation before somebody discovers it in production.
+  in the documentation before somebody discovers it in production. *Resolution (2026-08-25): the
+  generic-plus-warning behaviour shipped in PR #1453; the user-facing documentation of the fallback lands
+  with the schema step (`schema-design.md` §6.5), where analyzer selection first becomes user-visible.*
 - **P5-6 — who informs about the change of results on migrating from the existing `DiacriticFilter`, and
   when (§4.6, §10.4).** The old client's manual conversion table is equivalent neither to NFD decomposition
   nor to `ASCIIFoldingFilter`; the differences are small but they exist, and they manifest as **different
@@ -925,4 +1008,62 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   to do with it — whether the differences are levelled with a targeted pipeline step, or merely announced as
   a behaviour change on migration — is a product decision, not a technical one, and it has to fall before
   the first existing website is switched over. Not according to complaints, because at that moment the way
-  back is a reindex.
+  back is a reindex. *Discarded (2026-08-25) — see §4.6 point 3: migration from the legacy stack is not a
+  supported path, and the parity list of §10.4 falls with it.*
+
+---
+
+## 12. Implementation reference — prior-art research on folding vs. stemming
+
+The ordering dilemma this plan inherits (fold after the stemmer, §4.6/§7, and the accent-typed
+recall it costs — measured by `CzechAccentTypingTest` at 83/108 for `CzechStemFilter` and 27/108
+for Hunspell `cs_CZ`) was surveyed against seven engines — Lucene, Solr, Elasticsearch,
+OpenSearch, Vespa, Meilisearch, Typesense — plus the in-house EdeeCMS analyzers. The full record,
+assignment and findings with `path:line` evidence, is
+[`p5-prior-art-accent-vs-stemming.md`](p5-prior-art-accent-vs-stemming.md) (2026-08-27). What it
+settles for the implementation:
+
+- **No engine reconciles folding with a native-orthography stemmer.** Lucene/Solr/ES ship Czech
+  with no folding at all; Vespa and Typesense fold first by default and let Czech go unstemmed.
+  Typesense even ships both orders at once — fold→stem for Latin scripts, stem→fold for
+  Cyrillic — because the order is dictated by the alphabet the stemmer's tables are written in,
+  not by principle.
+- **The established fix is co-design (findings §3, mechanism M1):** a language-specific
+  normalization step plus a stemmer written in folded space — Lucene's German/Spanish/French/
+  Italian/Portuguese/Greek pattern. For Czech it exists as a pattern only; a folded-space port of
+  `CzechStemmer`'s tables is mostly mechanical, with two rules needing language judgment
+  (`št→sk`, `ů→o`) — validate against the fixture vocabulary.
+- **The only shipped both-axes mechanism is a second lane per term (mechanism M2):** Vespa's
+  `stemming: multiple` (original + stems, queried as 1.0/0.7-weighted alternatives, intended
+  future default); Lucene/Solr document the same `KeywordRepeatFilter` idiom without enabling it.
+  **M2 is the mechanism with a claim on the term dictionary layout** — whether a token may ever
+  carry a folded-surface lane next to its stem lane, distinguishable at scoring time, must be
+  decided before the dictionary layout freezes (ties into P5-1 in §11 and the P5 → P1 gate).
+- **Dead ends verified:** no engine wires a spell-suggester into the query path; the fuzzy
+  ceiling is 2 edits everywhere (so 3+-edit accent gaps stay unreachable, refining O3); ICU
+  collation keys are whole-value sort lanes only; ES `unicode_aware` is code-point counting, not
+  accent-blind fuzzy.
+
+**All six mechanisms were then built and measured** —
+[`p5-approach-measurements-accent-vs-stemming.md`](p5-approach-measurements-accent-vs-stemming.md)
+(run of 2026-09-01), 23 matrix rows over one 32-lemma/119-form vocabulary on five metrics. It
+amends two of the points above:
+
+- **M1 is confirmed and quantified:** up to a **perfect 348/348** on the bare-typed cross-form
+  query (the production chain scores 253/348), at one term per token. The port needed a **third**
+  rule the survey did not predict — the neuter `-at-` paradigm entries
+  (`atech`/`atům`/`ata`/`aty`/`at`), which folding makes ambiguous with the far commoner `-át`
+  masculines. That rule is a three-way switch, all positions measured: kept single-pass splits
+  `kabát` (8 pairs) *and* merges `formát`≡`forma` (12 merges); dropped splits `rajče`/`rajčata`
+  (4 pairs); kept with the stemmer applied **twice** converges everything and keeps the
+  `formát`≡`forma` merges — two-step is what makes the perfect score reachable. The two rules the
+  survey *did* flag are both genuine trades: `št→sk` buys 32 pairs (the largest lever in the
+  matrix) for 50 false merges, `ů→o` buys 2 for 30+ and is dominated by two-step on the fixture.
+  Note that the folded `st`/`št` ambiguity produces 8 false merges even with both rewrites
+  disabled, so declining them is not a precision-free option either. Where to sit on that curve
+  (A16 342/348 @ 58 merges, A19 346/348 @ 76, A18 348/348 @ 112) is the one open decision.
+- **M2 is refuted, which releases the term dictionary layout:** the second lane buys 3 pairs of 95
+  for a 1.95x term inflation, because a folded surface lane and a stem lane only ever meet like for
+  like. **The "settle the second lane before the layout freezes" constraint above is therefore
+  lifted** — if a surface lane is wanted later it must be argued from exact-phrase or highlighting,
+  not from accent recall. `AnalyzedTerm.surfaceForm()` stays regardless.

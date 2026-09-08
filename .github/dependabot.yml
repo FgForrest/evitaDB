@@ -8,6 +8,12 @@ updates:
       - "documentation/**"
     schedule:
       interval: "weekly"
+    ignore:
+      # The Lucene analysis chain is deliberately frozen (see <lucene.version> in the root pom): its
+      # output IS the content of the full-text term dictionary, so a bump that changes a stop-word
+      # list or a stemmer's behaviour changes the terms produced for unchanged data - that is a
+      # catalog reindex, and it has to be a conscious decision rather than an automated PR.
+      - dependency-name: "org.apache.lucene:*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
