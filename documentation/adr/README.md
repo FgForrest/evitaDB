@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-08 | [JDK 21 modernization is adopted only where it is provably behaviour-preserving](2026-09-08-jdk21-safe-modernization.md) | refactor | accepted | #1518, PR #1519 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
 | 2026-09-07 | [A storage part declares which kind of data it holds, at registration, in a closed enum](2026-09-07-storage-part-classification.md) | feature | accepted | #1500 |
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |
