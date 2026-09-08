@@ -222,7 +222,7 @@ public interface RandomQueryGenerator {
 		}
 
 		return Query.query(
-			existingQuery.getCollection(),
+			existingQuery.getHead(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -291,7 +291,7 @@ public interface RandomQueryGenerator {
 		);
 
 		return Query.query(
-			existingQuery.getCollection(),
+			existingQuery.getHead(),
 			filterBy(
 				and(
 					ArrayUtils.mergeArrays(
@@ -310,7 +310,7 @@ public interface RandomQueryGenerator {
 	 */
 	default Query generateRandomPriceHistogramQuery(@Nonnull Query existingQuery, @Nonnull Random random) {
 		return Query.query(
-			existingQuery.getCollection(),
+			existingQuery.getHead(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
