@@ -2642,9 +2642,11 @@ public final class Catalog
 	 * FUTURE publication derives a record from state that can no longer be trusted - see
 	 * `.claude/rules/durability-model.md`.
 	 *
-	 * This is the **public entry point**: it raises the barrier and reports it in the operator's own terms. A caller
-	 * that has already reported its situation accurately - the message here would contradict it - raises the same
-	 * barrier through {@link #recordUnpublishableCause(Throwable)} instead.
+	 * This is the **public entry point** for all three: it raises the barrier and reports it in the operator's own
+	 * terms. A caller that has already reported its situation accurately - the message here would contradict it -
+	 * raises the same barrier through {@link #recordUnpublishableCause(Throwable)} instead, and a warm-up schema
+	 * change refused by validation takes {@link #markUnpublishableDueToInvalidSchema(SchemaAlteringException)},
+	 * which is that pattern with a message of its own.
 	 *
 	 * @param cause the warm-up failure that made the in-memory state unpublishable
 	 */
@@ -2654,6 +2656,39 @@ public final class Catalog
 				"Catalog `{}` can no longer persist changes and will be deactivated. Its stored data is intact at the " +
 					"version of the last successful flush; everything written since then must be replayed after the " +
 					"catalog is activated again.",
+				getName(), cause
+			);
+		}
+	}
+
+	/**
+	 * Reports that a schema change refused by {@link CatalogSchemaContract#validate()} has left this WARMING_UP
+	 * catalog holding a schema the engine itself would refuse to accept, so no bootstrap record may be derived from
+	 * it. Raises the same barrier as {@link #markUnpublishable(Throwable)} and reports it in the terms of THIS
+	 * situation, which is a rejected user change rather than an engine failure.
+	 *
+	 * The catalog schema is validated as a whole, once, when a warm-up session closes - intermediate states that do
+	 * not validate are legitimate, so nothing can be checked earlier. By the time the refusal is known, the change is
+	 * already applied: `EntityCollection#updateSchema` has exchanged the schema in every collection the change
+	 * reached, run the structural work that goes with it (root nodes, capability usage, trigger registries), and
+	 * trapped an `EntitySchemaStoragePart` for it. Warm-up has no undo that spans those collections, and a corrective
+	 * mutation would exchange again ON TOP of that work rather than reverse it - so the in-memory catalog cannot be
+	 * argued back into a state worth publishing.
+	 *
+	 * **Nothing on disk is damaged.** The last bootstrap record still names a complete, correct state, and the
+	 * deactivation this schedules is what lets the operator get back to it: activating the catalog again loads
+	 * exactly that state, with a schema that validates. What is lost is everything written since - which was never
+	 * durable, warm-up publishing only when a session closes.
+	 *
+	 * @param cause the validation failure that refused the schema change
+	 */
+	public void markUnpublishableDueToInvalidSchema(@Nonnull SchemaAlteringException cause) {
+		if (recordUnpublishableCause(cause)) {
+			log.error(
+				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
+					"phase, so it will be deactivated. Its stored data is intact at the version of the last " +
+					"successfully closed session; activating the catalog again loads exactly that state, and " +
+					"everything written since then has to be replayed once the schema change is corrected.",
 				getName(), cause
 			);
 		}

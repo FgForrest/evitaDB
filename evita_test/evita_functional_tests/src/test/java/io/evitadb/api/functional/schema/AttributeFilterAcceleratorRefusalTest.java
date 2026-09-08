@@ -961,19 +961,16 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					// the refusal above precedes the refused session's own write - a warming-up close validates
-					// before `Catalog#flush` - but it cannot take back the schema exchange that
-					// `EntityCollection#updateSchema` has already performed on the running catalog, and warm-up
-					// catalog termination flushes whatever sits in memory without consulting the same rule. So a
-					// clean shutdown still writes the orphan out, and the reopened catalog is past the schema
-					// version gate that decides whether to validate at all, which is why it loads without
-					// complaint. Asserted rather than left to be discovered: closing the gap needs an undo for a
-					// warm-up schema exchange, which does not exist today, and validating each
-					// `updateEntitySchema` batch instead would refuse the legitimate sequence of declaring the
-					// accelerator in one call and the filterability that licenses it in the next. Tracked as #1466 -
-					// flip this assertion to `Set.of()` when that issue is closed
+					// the refusal precedes the refused session's own write - a warming-up close validates before
+					// `Catalog#flush` - and it cannot take back the schema exchange that
+					// `EntityCollection#updateSchema` has already performed on the running catalog. What keeps that
+					// exchange off the disk is the unpublishable barrier the refusal raises: warm-up catalog
+					// termination consults it and skips its flush, as does every other route that would write a
+					// bootstrap record. The reopened catalog therefore carries the schema of the last session that
+					// closed successfully. See WarmUpRefusedSchemaPersistenceTest for the same guarantee proven on a
+					// second, unrelated validation rule
 					assertEquals(
-						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+						Set.of(),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)
 							.getAttribute(ATTRIBUTE_CODE).orElseThrow()
 							.getAcceleratorsInScope(Scope.LIVE)

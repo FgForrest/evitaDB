@@ -42,9 +42,12 @@ The client can both write and
 query the written data, but no other client can open another session because the consistency of the data could not be
 guaranteed for them. The goal here is to index hundreds or thousands of entities per second.
 
-If the database crashes during this initial bulk indexing, the state and consistency of the data must be considered
-corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the
-one writing the data, we can afford to do this.
+If the database crashes during this initial bulk indexing, or a failure occurs that this phase cannot revert, the
+catalog returns to the last state it published - the one written by the last session that closed successfully - and
+everything written after it has to be replayed. Since there is no client other than the one writing the data, we can
+afford to recover this way. See
+[Failures that cannot be reverted](../../deep-dive/bulk-vs-incremental-indexing.md#failures-that-cannot-be-reverted)
+for the failures this covers, what happens to the catalog, and why the recovery is this coarse.
 
 A *single* failed write is a different matter: even during bulk indexing, each `upsertEntity` / `deleteEntity` is
 **atomic on its own**, so a call that fails part-way through is reverted completely and leaves no half-applied index

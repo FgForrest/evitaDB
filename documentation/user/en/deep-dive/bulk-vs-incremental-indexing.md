@@ -13,6 +13,7 @@ Bulk indexing is used for rapid indexing of large volumes of source data from an
 1. Only a single client (single session) can be open at a time.
 2. There are no transactions - a group of writes cannot be committed or discarded as a unit. A *single* entity write is still atomic on its own, so an error part-way through one leaves nothing behind (see [Atomicity of individual writes](#atomicity-of-individual-writes)).
 3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, all changes are lost.
+4. A failure that cannot be reverted returns the catalog to the last state it published and makes it inactive (see [Failures that cannot be reverted](#failures-that-cannot-be-reverted)).
 
 <Note type="info">
 
@@ -37,6 +38,26 @@ The failing call throws an exception and the session stays usable. You may catch
 In the ALIVE phase the enclosing transaction is untouched by the failure: every entity written before the failing one remains valid, and you may commit afterwards — the commit publishes exactly the entities that succeeded. Rolling back still discards everything, as usual.
 
 One thing is deliberately not rewound: the primary key drawn for a failed entity is not returned to the pool. Primary key sequences guarantee uniqueness, not contiguity, so a reverted write leaves a harmless gap in the numbering.
+
+## Failures that cannot be reverted
+
+A [single failed write](#atomicity-of-individual-writes) is reverted on its own and costs you nothing beyond that one entity. Some failures reach further than one entity, and the bulk indexing phase answers all of them the same way — by returning the catalog to the last state it published.
+
+Three failures behave like this:
+
+- **A schema change refused by validation.** The catalog schema is validated as a whole when a session closes, because a schema is routinely built across several steps whose intermediate states are allowed not to validate — a reflected reference may be declared before the reference it reflects, for instance. By the time the refusal is known, the change has already been applied to every entity collection it touches.
+- **A failure while writing the collected changes** at session close.
+- **A failed revert of a single entity write**, where the revert itself throws.
+
+In each case the catalog stops accepting writes and stops publishing, and the engine moves it to the *inactive* state (see [Control Engine](../use/api/control-engine.md)). <LS to="j">Activating it again with the `activateCatalog` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> loads</LS><LS to="e,r,g,c">Activating it again loads</LS> the last published state from disk — the one written by the last session that closed successfully. Its schema and its indexes are consistent with each other, because that state was published by a session that completed. Everything written after it has to be replayed.
+
+### Why the recovery is this coarse
+
+The bulk indexing phase earns its speed by leaving out the machinery a narrower recovery would need.
+
+There is no transaction to roll back. A schema change is applied to each entity collection separately, together with the structural work it implies — root nodes for an entity that becomes hierarchical, reference indexes, capability registries — and only then is the catalog validated as a whole. Sending a corrective schema change afterwards repeats that work on top of what already ran rather than reversing it, and nothing guarantees the result matches what a clean path would have produced. Reloading the last published state is the only recovery that is consistent by construction.
+
+It also costs less than it may appear. Nothing written since the last session close was durable in the first place, so what the reload discards is exactly the work you had not yet checkpointed. How large that is, is the trade-off described at the top of this chapter: frequent session closes make each failure cheap and the import slower, while a single long session makes the import as fast as possible and each failure expensive.
 
 ## Full reindex of the live catalog
 

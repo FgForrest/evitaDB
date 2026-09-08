@@ -1,7 +1,7 @@
 ---
 title: The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain
 date: 2026-09-06
-updated: 2026-09-06 18:05
+updated: 2026-09-08 13:10
 status: accepted
 kind: fix
 issues: [1495]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
 ---
 
 # The go-live operator owns the catalog's quiescence, and `Catalog#goLive()` is the boundary it must beat

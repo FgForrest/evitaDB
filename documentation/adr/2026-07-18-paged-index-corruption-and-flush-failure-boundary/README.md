@@ -1,7 +1,7 @@
 ---
 title: Publish the previous flush's page baseline before collecting; fail fast on stale twins and suspend the catalog rather than retrying a failed flush
 date: 2026-07-18
-updated: 2026-09-04 07:15
+updated: 2026-09-08 13:10
 status: accepted
 kind: fix
 issues: []
@@ -9,7 +9,7 @@ prs: [1293, 1284]
 areas: [evita_engine/index, evita_engine/store, evita_engine/core/transaction, evita_engine/core/session]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-09-04-millisecond-temporal-precision, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
 ---
 
 # Paged-index corruption on warm-up flush, and the failure boundary for a failed flush

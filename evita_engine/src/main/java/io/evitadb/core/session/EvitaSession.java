@@ -1906,16 +1906,28 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					);
 					final ProgressingFuture<Void> flushFuture;
 					try {
-						// the schema is validated BEFORE anything is written, unlike in the transactional branch
-						// below where the enclosing transaction can still be marked rollback-only after the fact.
-						// A warm-up flush has no such undo: it persists the schema exactly as it stands, and
-						// a reopened catalog is past the version gate in validateCatalogSchema and so never
-						// revalidates - so validating after the flush would report a refusal about a schema that
-						// is already on disk and from then on permanent. This keeps the refused session from
-						// performing the write it is refused for; it does not un-exchange the schema, which
-						// EntityCollection#updateSchema has already swapped into the running catalog and which
-						// Catalog#terminate still flushes on shutdown - that residual gap is tracked as #1466
-						validateCatalogSchema(this.catalog);
+						try {
+							// the schema is validated BEFORE anything is written, unlike in the transactional branch
+							// below where the enclosing transaction can still be marked rollback-only after the fact.
+							// A warm-up flush has no such undo: it persists the schema exactly as it stands, and
+							// a reopened catalog is past the version gate in validateCatalogSchema and so never
+							// revalidates - so validating after the flush would report a refusal about a schema that
+							// is already on disk and from then on permanent
+							validateCatalogSchema(this.catalog);
+						} catch (SchemaAlteringException ex) {
+							// keeping THIS session from writing is not enough. The exchange stays in the
+							// running catalog - EntityCollection#updateSchema has already swapped it into
+							// every collection the change reached - so every later publisher would write
+							// it: the shutdown flush in Catalog#terminateInternally, and any subsequent
+							// session close, a read-only one included, since this branch is taken for
+							// every session regardless of its traits. Warm-up has no undo spanning those
+							// collections, so the barrier is raised instead: it refuses every publication
+							// route at once and hands the catalog over for deactivation, after which
+							// activating it again loads the last published state - whose schema validates,
+							// because it was published by a session that closed successfully
+							this.catalog.markUnpublishableDueToInvalidSchema(ex);
+							throw ex;
+						}
 						// building the warm-up flush future pops the trapped changes SYNCHRONOUSLY
 						// (Catalog.flush -> EntityCollection.createFlushFuture -> popTrappedChanges); a throw
 						// here (e.g. a corrupted index serialized at close) must complete the close future
