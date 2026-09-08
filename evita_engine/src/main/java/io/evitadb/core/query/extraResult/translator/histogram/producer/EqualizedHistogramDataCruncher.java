@@ -551,8 +551,10 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * boundary test costs one predictable branch per value against the read stream it saves.
 	 *
 	 * Bucket `i` spans `[bucketStarts[i], bucketStarts[i + 1])`, the last one running to `distinctCount`.
-	 * Distinct values below `bucketStarts[0]` belong to no bucket and are deliberately not counted into one -
-	 * they still contribute to the accumulators, which describe the whole axis rather than the buckets.
+	 * `bucketStarts[0]` is the first distinct value the quantile walk reaches with a positive cumulative
+	 * weight, so every value below it necessarily carries zero weight - no positive weight ever escapes a
+	 * bucket, and skipping those values subtracts nothing from the totals. They are still walked for the
+	 * accumulators, which describe the whole axis rather than the buckets.
 	 *
 	 * @param distinctThresholds distinct values in ascending order
 	 * @param distinctWeights    weight of each distinct value

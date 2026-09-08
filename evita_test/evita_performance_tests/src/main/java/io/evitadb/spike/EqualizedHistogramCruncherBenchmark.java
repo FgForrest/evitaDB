@@ -156,8 +156,12 @@ public class EqualizedHistogramCruncherBenchmark {
 	 */
 	private static final int DECIMAL_PLACES = 2;
 	/**
-	 * Mean number of records per distinct value. Fixes the total weight at `AVERAGE_WEIGHT * distinctCount`
-	 * for every distribution, so the two source shapes describe one catalogue rather than two.
+	 * Mean number of records per distinct value - the total weight of `AVERAGE_WEIGHT * distinctCount` the
+	 * distributions aim at, so that they describe one catalogue rather than three. UNIFORM and PLATEAU hit it
+	 * exactly; LOGNORMAL's floored draw averages nearer 4.14 and so lands 3-6% over it. That is left alone
+	 * deliberately: rescaling would flatten the very weight shape the distribution exists to supply, and
+	 * every arm of one `@Param` combination is measured against the identical fixture, so no comparison this
+	 * benchmark makes ever crosses a distribution boundary.
 	 */
 	private static final int AVERAGE_WEIGHT = 4;
 	private static final long RANDOM_SEED = 42L;
@@ -356,7 +360,8 @@ public class EqualizedHistogramCruncherBenchmark {
 	}
 
 	/**
-	 * Builds the per-value weights. Every distribution targets a total of `AVERAGE_WEIGHT * distinctCount`.
+	 * Builds the per-value weights. Every distribution targets a total of `AVERAGE_WEIGHT * distinctCount` -
+	 * see {@link #AVERAGE_WEIGHT} for the one that only approaches it.
 	 */
 	@Nonnull
 	private static int[] buildWeights(@Nonnull Distribution distribution, int distinctCount, @Nonnull Random random) {
