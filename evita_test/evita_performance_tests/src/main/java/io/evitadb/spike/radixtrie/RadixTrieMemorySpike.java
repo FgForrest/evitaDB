@@ -374,7 +374,7 @@ public class RadixTrieMemorySpike {
 	 * @return bytes allocated by the current thread while running the task (via the JVM allocation counter)
 	 */
 	private static long measureAllocation(@Nonnull Runnable task) {
-		final long threadId = Thread.currentThread().getId();
+		final long threadId = Thread.currentThread().threadId();
 		final long before = THREAD_MX.getThreadAllocatedBytes(threadId);
 		task.run();
 		final long after = THREAD_MX.getThreadAllocatedBytes(threadId);
