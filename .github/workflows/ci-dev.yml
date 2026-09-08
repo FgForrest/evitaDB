@@ -116,7 +116,7 @@ jobs:
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
-      uses: advanced-security/maven-dependency-submission-action@b275d12641ac2d2108b2cbb7598b154ad2f2cee8 # v5.0.0
+      uses: advanced-security/maven-dependency-submission-action@a64327a7329c9939cf675e458452febe1894a70c # v6.0.1
 
     - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository (`full` includes the all-in-one driver)
       # `evita_long_running_tests` is excluded from the reactor: it depends on the `test-jar` of
