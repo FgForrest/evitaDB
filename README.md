@@ -180,6 +180,23 @@ The build uses Maven toolchains to select the correct JDK version. You must have
 in your Maven toolchains. You can find more information about Maven toolchains in the
 [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
 
+> [!IMPORTANT]
+> **Maven itself must run on JDK 21 - registering a 21 toolchain while leaving an older default JDK is not
+> enough.** evitaDB is a modular (JPMS) project, and `maven-archiver` assembles modular JARs with the
+> in-process `jar` tool of the JVM that Maven is running on. A toolchain redirects *forked* processes such
+> as `javac`, but it cannot redirect that in-process call. On an older host the build therefore fails at
+> packaging, after compilation has already succeeded, with:
+>
+> ```
+> Error assembling JAR: Could not create modular JAR file. The JDK jar tool exited with 1
+> ```
+>
+> Verify with `mvn -version` that the reported Java version is 21. Note the diagnostic trap: only `clean`
+> builds fail - otherwise the jar step can be skipped as up-to-date and the build appears to succeed.
+
+The toolchains setup below is still required: it is what `maven-compiler-plugin`, surefire and
+`maven-javadoc-plugin` use to select the JDK they run against.
+
 In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
 
 ```xml
