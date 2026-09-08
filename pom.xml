@@ -430,9 +430,15 @@
 		<!--
 			Engages the toolchains plugin when Maven itself runs on a JDK *older* than the one the
 			project targets, so javac (and everything else that honours the build-wide toolchain,
-			notably maven-javadoc-plugin) is forked from a matching JDK. That is the whole point of
-			toolchains: a contributor whose default `java` is 17 can still build a release targeting
-			21.
+			notably maven-javadoc-plugin) is forked from a matching JDK. That covers the *forked*
+			work - `mvn compile` and `mvn test` therefore succeed on an older default JDK.
+
+			It does NOT make a full build work there, and this profile must not be read as saying so.
+			evitaDB is a modular (JPMS) project and `maven-archiver` assembles modular JARs with the
+			in-process `jar` tool of the JVM Maven itself runs on, which no toolchain can redirect; on
+			an older host `package`/`install` therefore fails at packaging, after compilation already
+			succeeded, for every module carrying a module-info.java. **Maven itself must run on JDK 21**
+			- see the [!IMPORTANT] note under "How to build evitaDB" in README.md.
 
 			The range must therefore always be [1.3,${java.version}) - it was [1.3,17) while the
 			project targeted 17 and moves to [1.3,21) with the target. Note that <jdk> activation
