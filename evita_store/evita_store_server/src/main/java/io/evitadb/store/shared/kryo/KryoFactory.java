@@ -187,11 +187,11 @@ public class KryoFactory {
 		kryoInstance.register(TrieNode.class, new TrieNodeSerializer<>(), index++);
 		kryoInstance.register(OffsetDateTime.class, new OffsetDateTimeSerializer(), index++);
 		kryoInstance.register(Collections.emptyList().getClass(), new CollectionsEmptyListSerializer(), index++);
-		kryoInstance.register(Collections.unmodifiableList(Collections.EMPTY_LIST).getClass(), new ListSerializer<>(count -> Collections.unmodifiableList(new ArrayList<>(count))), index++);
+		kryoInstance.register(Collections.unmodifiableList(Collections.EMPTY_LIST).getClass(), new UnmodifiableListSerializer<>(), index++);
 		kryoInstance.register(Collections.emptyMap().getClass(), new CollectionsEmptyMapSerializer(), index++);
-		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new MapSerializer<>(count -> Collections.unmodifiableMap(HashMap.newHashMap(count))), index++);
+		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new UnmodifiableMapSerializer<>(), index++);
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
-		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(HashSet.newHashSet(count))), index++);
+		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new UnmodifiableSetSerializer<>(), index++);
 		kryoInstance.register(Instant.class, new InstantSerializer(), index++);
 		kryoInstance.register(ReferencedEntityPredecessor.class, new ReferencedEntityPredecessorSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
