@@ -607,8 +607,10 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static GrpcHostSystemEvent toGrpcHostSystemEvent(@Nonnull HostSystemEvent event) {
 		final GrpcHostSystemEvent.Builder builder = GrpcHostSystemEvent.newBuilder();
-		// pattern-matching switch on sealed types is a Java 21 feature; evitaDB targets Java 17
-		// so we use an `instanceof`-pattern chain that the compiler still supports here
+		// An `instanceof`-pattern chain rather than a pattern-matching switch over the sealed set:
+		// written while the project still targeted Java 17, where that switch was not available.
+		// It is now expressible as a pattern switch - a readability-only change, left for a
+		// follow-up so the Java 21 bump stays behaviour-preserving.
 		if (event instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 			builder.setCatalogInstalled(
 				GrpcCatalogInstalledIntoLiveView.newBuilder()
