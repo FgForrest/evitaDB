@@ -1,7 +1,7 @@
 ---
 title: Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio
 date: 2026-09-07
-updated: 2026-09-07 13:25
+updated: 2026-09-08 00:30
 status: accepted
 kind: fix
 issues: [1501]
@@ -278,6 +278,28 @@ any harmless re-derivation while proving nothing.
   contract change is not done when the contract class is edited — the surfaces that *publish* it are separate
   files and none of them shares a symbol with the code, so only a prose search finds them.
 - **Not carried over from the design: exposing the measurement abscissa.** See *Decision*.
+- **The rewrite cost ~8.5 ns and 32 bytes per distinct value against the algorithm it replaced**, measured
+  after the fact (JMH, 5 forks, both call-site shapes, `D` from 100 to 100 000). Roughly half of that was
+  removed by a follow-up that streams the quantile walk's cumulative weight, keeps only the `B` kernel masses
+  the bars are measured at, and fuses the bucket fold with two of the bandwidth accumulators: 7% faster than
+  this record's implementation and 1.5 MB less garbage per computation on a 100 000-value axis, output
+  bit-identical. The remaining 16 B per distinct value are two `double[D]` that **measurably pay for
+  themselves** — see the next point.
+- **Do not remove the `values` and `cappedWeights` arrays.** Deriving both on demand is the obvious next
+  optimization, is bit-identical, and was implemented and **reverted**: it costs 12–15%, because the kernel
+  sweep reads each entry through several window pointers and each read then pays two int-to-double
+  conversions and a division in place of one sequential load. The measurement sits on
+  `EqualizedHistogramDataCruncher#cappedWeight` and `#computeKernelMasses` so the trade is not re-proposed
+  from the code alone.
+- **Bit-identity is not a screen for cost.** Both reverted changes above were bit-identical and one was the
+  single most expensive change in the set, while an adversarial review rated it *low risk* on exactly that
+  basis. Output equivalence and runtime cost are independent axes here; a change to this cruncher needs both
+  the differential and a benchmark before it is called an optimization.
+- **The histogram unit tests cannot see kernel-height errors.** Perturbing the kernel peak by 0.01% passes
+  all 22 cases in `EqualizedHistogramDataCruncherTest`; doubling it — halving every rendered bar — is caught
+  by one. Any future change to the height computation must be proved by differential comparison against the
+  previous implementation over randomised fixtures (zero-weight and leading-zero-weight axes included), not
+  by the suite going green.
 
 ## Related work
 
