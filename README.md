@@ -155,7 +155,7 @@ To checkout Git repository on Windows you need to have long paths enabled:
 git config --system core.longpaths true
 ```
 
-evitaDB requires and is tested on OpenJDK 17.
+evitaDB requires and is tested on OpenJDK 21.
 
 Java applications support multiple platforms depending on the
 [JRE/JDK vendor](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). All major hardware
@@ -176,7 +176,9 @@ mvn clean install
 
 **Maven setup**
 
-The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 21 installed and configured
+in your Maven toolchains. You can find more information about Maven toolchains in the
+[Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
 
 In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
 
@@ -188,12 +190,12 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   <toolchain>
     <type>jdk</type>
     <provides>
-      <version>17</version>
+      <version>21</version>
       <vendor>openjdk</vendor>
-      <id>jdk17</id>
+      <id>jdk21</id>
     </provides>
     <configuration>
-      <jdkHome>/path/to/your/jdk17/installation/directory</jdkHome>
+      <jdkHome>/path/to/your/jdk21/installation/directory</jdkHome>
     </configuration>
   </toolchain>
 </toolchains>
