@@ -35,7 +35,6 @@ import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.dataType.expression.UnaryExpressionNode;
-import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -144,6 +143,8 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		// add steps path
 		ObjectOperationStep step = objectAccessOperator.getAccessChain();
 		do {
+			// the switch needs no `default` branch - `ObjectOperationStep` is sealed and all five
+			// permitted implementations are covered, so javac proves the dispatch exhaustive
 			switch (step) {
 				case PropertyAccessStep propertyAccessStep ->
 					path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
@@ -170,8 +171,6 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 				case NullSafeAccessStep ignored -> {
 					continue;
 				}
-				default ->
-					throw new GenericEvitaInternalError("Unsupported step `" + step.getClass().getName() + "`.");
 			}
 		} while ((step = step.getNext()) != null);
 

@@ -45,7 +45,7 @@ import java.io.Serializable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
-public class NullSafeAccessStep implements ObjectOperationStep {
+public final class NullSafeAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = -2195956191525819662L;
 	@Nonnull @Getter private final ObjectOperationStep next;
