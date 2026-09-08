@@ -277,8 +277,8 @@ public class EvitaDataTypes {
 		BIG_DECIMAL_FUNCTION =
 		(requestedType, unknownObject) -> {
 			try {
-				if (unknownObject instanceof Number) {
-					return (Number) unknownObject;
+				if (unknownObject instanceof Number number) {
+					return number;
 				} else {
 					return new BigDecimal(unknownObject.toString());
 				}
@@ -312,10 +312,10 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, Boolean>
 		BOOLEAN_FUNCTION =
 		(requestedType, unknownObject) -> {
-			if (unknownObject instanceof Boolean) {
-				return (Boolean) unknownObject;
-			} else if (unknownObject instanceof Number) {
-				return Objects.equals(1L, ((Number) unknownObject).longValue());
+			if (unknownObject instanceof Boolean booleanValue) {
+				return booleanValue;
+			} else if (unknownObject instanceof Number number) {
+				return Objects.equals(1L, number.longValue());
 			} else {
 				return Boolean.parseBoolean(unknownObject.toString());
 			}
@@ -332,8 +332,8 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, Character>
 		CHAR_FUNCTION =
 		(requestedType, unknownObject) -> {
-			if (unknownObject instanceof Character) {
-				return (Character) unknownObject;
+			if (unknownObject instanceof Character characterValue) {
+				return characterValue;
 			} else if (unknownObject instanceof Number) {
 				final int intValue =
 					(int) WRAPPING_FUNCTION.apply(
@@ -399,8 +399,8 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, Locale>
 		LOCALE_FUNCTION =
 		(requestedType, unknownObject) -> {
-			if (unknownObject instanceof Locale) {
-				return (Locale) unknownObject;
+			if (unknownObject instanceof Locale locale) {
+				return locale;
 			} else {
 				String localeString = unknownObject.toString();
 				Assert.isTrue(
@@ -443,12 +443,12 @@ public class EvitaDataTypes {
 		OFFSET_DATE_TIME_FUNCTION =
 		(requestedType, unknownObject) -> {
 			try {
-				if (unknownObject instanceof OffsetDateTime) {
-					return (OffsetDateTime) unknownObject;
-				} else if (unknownObject instanceof LocalDateTime) {
-					return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
-				} else if (unknownObject instanceof LocalDate) {
-					return ((LocalDate) unknownObject)
+				if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+					return offsetDateTime;
+				} else if (unknownObject instanceof LocalDateTime localDateTime) {
+					return localDateTime.atOffset(ZoneOffset.UTC);
+				} else if (unknownObject instanceof LocalDate localDate) {
+					return localDate
 						.atStartOfDay(ZoneOffset.UTC)
 						.toOffsetDateTime();
 				} else {
@@ -487,8 +487,8 @@ public class EvitaDataTypes {
 	private static final BiFunction<Class<?>, Serializable, DateTimeRange>
 		DATE_TIME_RANGE_FUNCTION =
 		(requestedType, unknownObject) -> {
-			if (unknownObject instanceof DateTimeRange) {
-				return (DateTimeRange) unknownObject;
+			if (unknownObject instanceof DateTimeRange dateTimeRange) {
+				return dateTimeRange;
 			} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
 				return DateTimeRange.between(offsetDateTime, offsetDateTime);
 			} else if (unknownObject instanceof LocalDateTime localDateTime) {
@@ -543,12 +543,12 @@ public class EvitaDataTypes {
 		LOCAL_DATE_TIME_FUNCTION =
 		(requestedType, unknownObject) -> {
 			try {
-				if (unknownObject instanceof LocalDateTime) {
-					return (LocalDateTime) unknownObject;
-				} else if (unknownObject instanceof OffsetDateTime) {
-					return ((OffsetDateTime) unknownObject).toLocalDateTime();
-				} else if (unknownObject instanceof LocalDate) {
-					return ((LocalDate) unknownObject).atStartOfDay();
+				if (unknownObject instanceof LocalDateTime localDateTime) {
+					return localDateTime;
+				} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+					return offsetDateTime.toLocalDateTime();
+				} else if (unknownObject instanceof LocalDate localDate) {
+					return localDate.atStartOfDay();
 				} else {
 					final String value = unknownObject.toString();
 					final LocalDateTime parsedLocalDateTime = PARSE_TO_LOCAL_DATE_TIME.apply(value);
@@ -581,12 +581,12 @@ public class EvitaDataTypes {
 		LOCAL_DATE_FUNCTION =
 		(requestedType, unknownObject) -> {
 			try {
-				if (unknownObject instanceof LocalDate) {
-					return (LocalDate) unknownObject;
-				} else if (unknownObject instanceof OffsetDateTime) {
-					return ((OffsetDateTime) unknownObject).toLocalDate();
-				} else if (unknownObject instanceof LocalDateTime) {
-					return ((LocalDateTime) unknownObject).toLocalDate();
+				if (unknownObject instanceof LocalDate localDate) {
+					return localDate;
+				} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+					return offsetDateTime.toLocalDate();
+				} else if (unknownObject instanceof LocalDateTime localDateTime) {
+					return localDateTime.toLocalDate();
 				} else {
 					final String value = unknownObject.toString();
 					final LocalDate parsedLocalDate = PARSE_TO_LOCAL_DATE.apply(value);
@@ -620,12 +620,12 @@ public class EvitaDataTypes {
 		LOCAL_TIME_FUNCTION =
 		(requestedType, unknownObject) -> {
 			try {
-				if (unknownObject instanceof LocalTime) {
-					return (LocalTime) unknownObject;
-				} else if (unknownObject instanceof OffsetDateTime) {
-					return ((OffsetDateTime) unknownObject).toLocalTime();
-				} else if (unknownObject instanceof LocalDateTime) {
-					return ((LocalDateTime) unknownObject).toLocalTime();
+				if (unknownObject instanceof LocalTime localTime) {
+					return localTime;
+				} else if (unknownObject instanceof OffsetDateTime offsetDateTime) {
+					return offsetDateTime.toLocalTime();
+				} else if (unknownObject instanceof LocalDateTime localDateTime) {
+					return localDateTime.toLocalTime();
 				} else {
 					final String value = unknownObject.toString();
 					final LocalTime parsedLocalTime = PARSE_TO_LOCAL_TIME.apply(value);
@@ -662,8 +662,8 @@ public class EvitaDataTypes {
 		NUMBER_RANGE_FUNCTION =
 		(typeWithPrecision, unknownObject) -> {
 			try {
-				if (unknownObject instanceof NumberRange) {
-					return (NumberRange<?>) unknownObject;
+				if (unknownObject instanceof NumberRange<?> numberRange) {
+					return numberRange;
 				} else {
 					final String value = unknownObject.toString();
 					final String[] parsedResult = NumberRange.PARSE_FCT.apply(value);

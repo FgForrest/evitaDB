@@ -64,11 +64,11 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
     @Nonnull
     @Override
     public Byte parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
+        if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Byte input value is not a integer.");
         }
         try {
-            return ((IntValue) input).getValue().byteValueExact();
+            return intValue.getValue().byteValueExact();
         } catch (NumberFormatException | ArithmeticException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

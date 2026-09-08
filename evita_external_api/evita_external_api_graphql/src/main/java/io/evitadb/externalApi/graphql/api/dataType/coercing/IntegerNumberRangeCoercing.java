@@ -73,10 +73,10 @@ public class IntegerNumberRangeCoercing extends RangeCoercing<Integer, IntegerNu
     @Nonnull
     @Override
     protected Integer extractRangeEndFromNode(@Nonnull Object node) {
-        if (!(node instanceof IntValue)) {
+        if (!(node instanceof IntValue intValue)) {
             throw new CoercingParseLiteralException("Item of range input value is not a integer.");
         }
-        return ((IntValue) node).getValue().intValueExact();
+        return intValue.getValue().intValueExact();
     }
 
     @Nullable

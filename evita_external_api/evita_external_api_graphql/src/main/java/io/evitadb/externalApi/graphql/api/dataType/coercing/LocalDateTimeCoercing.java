@@ -48,11 +48,11 @@ public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof LocalDateTime)) {
+        if (!(dataFetcherResult instanceof LocalDateTime localDateTime)) {
             throw new CoercingSerializeException("Local date time data fetcher result is not a local date time.");
         }
         try {
-            return ((LocalDateTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
+            return localDateTime.truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -61,11 +61,11 @@ public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
     @Nonnull
     @Override
     public LocalDateTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Local date time input is not a string.");
         }
         try {
-            return LocalDateTime.parse((String) input, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
+            return LocalDateTime.parse(stringInput, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(getParseErrorMessage(ex), ex);
         }
@@ -74,11 +74,11 @@ public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
     @Nonnull
     @Override
     public LocalDateTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Local date time input is not a StringValue.");
         }
         try {
-            return LocalDateTime.parse(((StringValue) input).getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
+            return LocalDateTime.parse(stringValue.getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(getParseErrorMessage(ex), ex);
         }

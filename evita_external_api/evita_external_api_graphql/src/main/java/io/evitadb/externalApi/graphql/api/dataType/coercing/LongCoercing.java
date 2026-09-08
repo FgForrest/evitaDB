@@ -51,11 +51,11 @@ public class LongCoercing implements Coercing<Long, String> {
     @Nonnull
     @Override
     public Long parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Long input value is not a string.");
         }
         try {
-            return Long.parseLong((String) input);
+            return Long.parseLong(stringInput);
         } catch (NumberFormatException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -64,11 +64,11 @@ public class LongCoercing implements Coercing<Long, String> {
     @Nonnull
     @Override
     public Long parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Long input value is not a string.");
         }
         try {
-            return Long.parseLong(((StringValue) input).getValue());
+            return Long.parseLong(stringValue.getValue());
         } catch (NumberFormatException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
