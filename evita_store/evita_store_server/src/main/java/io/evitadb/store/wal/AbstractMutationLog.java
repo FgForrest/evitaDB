@@ -387,7 +387,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					"Missing WAL file with index `" + (indexes.get(i - 1) + 1) + "`!"
 				);
 			}
-			return new int[]{indexes.get(0), indexes.get(indexes.size() - 1)};
+			return new int[]{indexes.getFirst(), indexes.getLast()};
 		}
 	}
 

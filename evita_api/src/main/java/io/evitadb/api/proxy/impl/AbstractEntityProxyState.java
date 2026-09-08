@@ -949,7 +949,7 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull
 		public Collection<Object> proxies(@Nonnull Propagation propagation) {
 			if (propagation == Propagation.SHALLOW) {
-				return this.proxies.isEmpty() ? List.of() : List.of(this.proxies.get(0));
+				return this.proxies.isEmpty() ? List.of() : List.of(this.proxies.getFirst());
 			} else {
 				return this.proxies;
 			}

@@ -1914,13 +1914,13 @@ public final class Catalog
 		final List<MaterializedVersionBlock> newest = this.persistenceService
 			.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 1)
 			.getData();
-		final MaterializedVersionBlock newestBlock = newest.isEmpty() ? null : newest.get(0);
+		final MaterializedVersionBlock newestBlock = newest.isEmpty() ? null : newest.getFirst();
 		final MaterializedVersionBlock oldestBlock;
 		if (timeTravelEnabled) {
 			final List<MaterializedVersionBlock> oldest = this.persistenceService
 				.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 1)
 				.getData();
-			oldestBlock = oldest.isEmpty() ? null : oldest.get(0);
+			oldestBlock = oldest.isEmpty() ? null : oldest.getFirst();
 		} else {
 			// only the current version's data files survive the purge, so the window has one version in it
 			oldestBlock = newestBlock;
