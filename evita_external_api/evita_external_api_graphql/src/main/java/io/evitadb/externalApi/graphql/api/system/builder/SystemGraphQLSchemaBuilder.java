@@ -507,17 +507,15 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		final TypeResolver resolver = env -> {
 			final Object source = env.getObject();
-			if (source instanceof HostSystemEvent.CatalogInstalledIntoLiveView) {
-				return catalogInstalledObject;
-			} else if (source instanceof HostSystemEvent.CatalogRemovedFromLiveView) {
-				return catalogRemovedObject;
-			} else if (source instanceof HostSystemEvent.CatalogSchemaUpdated) {
-				return catalogSchemaUpdatedObject;
-			}
-			throw new GenericEvitaInternalError(
-				"Unsupported HostSystemEvent variant: " +
-					(source == null ? "null" : source.getClass().getName())
-			);
+			return switch (source) {
+				case HostSystemEvent.CatalogInstalledIntoLiveView ignored -> catalogInstalledObject;
+				case HostSystemEvent.CatalogRemovedFromLiveView ignored -> catalogRemovedObject;
+				case HostSystemEvent.CatalogSchemaUpdated ignored -> catalogSchemaUpdatedObject;
+				case null, default -> throw new GenericEvitaInternalError(
+					"Unsupported HostSystemEvent variant: " +
+						(source == null ? "null" : source.getClass().getName())
+				);
+			};
 		};
 		this.buildingContext.registerTypeResolver(hostSystemEventUnion, resolver);
 
@@ -558,26 +556,25 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		final TypeResolver resolver = env -> {
 			final Object source = env.getObject();
-			if (source instanceof HostSystemEvent.CatalogInstalledIntoLiveView) {
-				return catalogInstalledObject;
-			} else if (source instanceof HostSystemEvent.CatalogRemovedFromLiveView) {
-				return catalogRemovedObject;
-			} else if (source instanceof HostSystemEvent.CatalogSchemaUpdated) {
-				return catalogSchemaUpdatedObject;
-			} else if (source instanceof EngineMutation<?> mutation) {
-				final GraphQLObjectType mutationType = registeredOutputMutations.get(mutation.getClass());
-				if (mutationType == null) {
-					throw new GenericEvitaInternalError(
-						"No GraphQL object type registered for engine mutation `" +
-							mutation.getClass().getName() + "`."
-					);
+			return switch (source) {
+				case HostSystemEvent.CatalogInstalledIntoLiveView ignored -> catalogInstalledObject;
+				case HostSystemEvent.CatalogRemovedFromLiveView ignored -> catalogRemovedObject;
+				case HostSystemEvent.CatalogSchemaUpdated ignored -> catalogSchemaUpdatedObject;
+				case EngineMutation<?> mutation -> {
+					final GraphQLObjectType mutationType = registeredOutputMutations.get(mutation.getClass());
+					if (mutationType == null) {
+						throw new GenericEvitaInternalError(
+							"No GraphQL object type registered for engine mutation `" +
+								mutation.getClass().getName() + "`."
+						);
+					}
+					yield mutationType;
 				}
-				return mutationType;
-			}
-			throw new GenericEvitaInternalError(
-				"Unsupported `ChangeSystemCapture#body` value: " +
-					(source == null ? "null" : source.getClass().getName())
-			);
+				case null, default -> throw new GenericEvitaInternalError(
+					"Unsupported `ChangeSystemCapture#body` value: " +
+						(source == null ? "null" : source.getClass().getName())
+				);
+			};
 		};
 		this.buildingContext.registerTypeResolver(bodyUnion, resolver);
 

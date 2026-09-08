@@ -406,14 +406,14 @@ public class ChangeCaptureConverter {
 				EvitaEnumConverter.toGrpcOperation(
 					capture.operation()));
 		final SystemCaptureBody body = capture.body();
-		if (body instanceof final EngineMutation<?> engineMutation) {
-			builder.setSystemMutation(
+		switch (body) {
+			case EngineMutation<?> engineMutation -> builder.setSystemMutation(
 				DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation)
 			);
-		} else if (body instanceof final HostSystemEvent hostEvent) {
-			builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
-		} else if (body != null) {
-			throw new GenericEvitaInternalError(
+			case HostSystemEvent hostEvent -> builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
+			// HEADER content mode carries no body at all - the oneof is deliberately left unset
+			case null -> { }
+			default -> throw new GenericEvitaInternalError(
 				"Unsupported SystemCaptureBody type: " + body.getClass().getName()
 			);
 		}
@@ -607,35 +607,28 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static GrpcHostSystemEvent toGrpcHostSystemEvent(@Nonnull HostSystemEvent event) {
 		final GrpcHostSystemEvent.Builder builder = GrpcHostSystemEvent.newBuilder();
-		// An `instanceof`-pattern chain rather than a pattern-matching switch over the sealed set:
-		// written while the project still targeted Java 17, where that switch was not available.
-		// It is now expressible as a pattern switch - a readability-only change, left for a
-		// follow-up so the Java 21 bump stays behaviour-preserving.
-		if (event instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
-			builder.setCatalogInstalled(
+		switch (event) {
+			case HostSystemEvent.CatalogInstalledIntoLiveView installed -> builder.setCatalogInstalled(
 				GrpcCatalogInstalledIntoLiveView.newBuilder()
 					.setCatalogName(installed.catalogName())
 					.setObservedState(EvitaEnumConverter.toGrpcCatalogState(installed.observedState()))
 					.setCurrentEngineVersion(installed.currentEngineVersion())
 					.build()
 			);
-		} else if (event instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
-			builder.setCatalogRemoved(
+			case HostSystemEvent.CatalogRemovedFromLiveView removed -> builder.setCatalogRemoved(
 				GrpcCatalogRemovedFromLiveView.newBuilder()
 					.setCatalogName(removed.catalogName())
 					.setCurrentEngineVersion(removed.currentEngineVersion())
 					.build()
 			);
-		} else if (event instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
-			builder.setCatalogSchemaUpdated(
+			case HostSystemEvent.CatalogSchemaUpdated schemaUpdated -> builder.setCatalogSchemaUpdated(
 				GrpcCatalogSchemaUpdated.newBuilder()
 					.setCatalogName(schemaUpdated.catalogName())
 					.setNewSchemaVersion(schemaUpdated.newSchemaVersion())
 					.setCurrentEngineVersion(schemaUpdated.currentEngineVersion())
 					.build()
 			);
-		} else {
-			throw new GenericEvitaInternalError(
+			default -> throw new GenericEvitaInternalError(
 				"Unsupported HostSystemEvent type: " + event.getClass().getName()
 			);
 		}

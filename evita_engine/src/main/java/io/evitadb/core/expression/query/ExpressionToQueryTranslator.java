@@ -213,32 +213,26 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		@Nonnull Serializable value,
 		boolean reversed
 	) {
-		if (comparisonNode instanceof EqualsOperator) {
-			return attributeEquals(attributeName, value);
-		} else if (comparisonNode instanceof NotEqualsOperator) {
-			return not(attributeEquals(attributeName, value));
-		} else if (comparisonNode instanceof GreaterThanOperator) {
-			return reversed
+		return switch (comparisonNode) {
+			case EqualsOperator ignored -> attributeEquals(attributeName, value);
+			case NotEqualsOperator ignored -> not(attributeEquals(attributeName, value));
+			case GreaterThanOperator ignored -> reversed
 				? attributeLessThan(attributeName, value)
 				: attributeGreaterThan(attributeName, value);
-		} else if (comparisonNode instanceof GreaterThanEqualsOperator) {
-			return reversed
+			case GreaterThanEqualsOperator ignored -> reversed
 				? attributeLessThanEquals(attributeName, value)
 				: attributeGreaterThanEquals(attributeName, value);
-		} else if (comparisonNode instanceof LesserThanOperator) {
-			return reversed
+			case LesserThanOperator ignored -> reversed
 				? attributeGreaterThan(attributeName, value)
 				: attributeLessThan(attributeName, value);
-		} else if (comparisonNode instanceof LesserThanEqualsOperator) {
-			return reversed
+			case LesserThanEqualsOperator ignored -> reversed
 				? attributeGreaterThanEquals(attributeName, value)
 				: attributeLessThanEquals(attributeName, value);
-		} else {
-			throw new NonTranslatableExpressionException(
+			default -> throw new NonTranslatableExpressionException(
 				"Unsupported comparison operator `" + comparisonNode.getClass().getSimpleName() +
 					"` cannot be translated to a FilterBy attribute constraint."
 			);
-		}
+		};
 	}
 
 	/**

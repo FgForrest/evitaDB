@@ -91,19 +91,22 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 			this.stack.push(this.rootNode);
 		} else {
 			final JsonNode stackNode = this.stack.peek();
-			// if its "map" node
-			// create appropriate node type as a children in it
-			if (stackNode instanceof ObjectNode objectNode) {
-				objectNode.putIfAbsent(this.propertyNameStack.peek(), newArrayNode);
-				this.stack.push(newArrayNode);
-			} else if (stackNode instanceof ArrayNode arrayNode) {
+			switch (stackNode) {
+				// if its "map" node
+				// create appropriate node type as a children in it
+				case ObjectNode objectNode -> {
+					objectNode.putIfAbsent(this.propertyNameStack.peek(), newArrayNode);
+					this.stack.push(newArrayNode);
+				}
 				// if it's "array" node
 				// create appropriate node type as a children in it
-				arrayNode.add(newArrayNode);
-				this.stack.push(newArrayNode);
-			} else {
-				// otherwise throw exception (this should never occur)
-				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
+				case ArrayNode arrayNode -> {
+					arrayNode.add(newArrayNode);
+					this.stack.push(newArrayNode);
+				}
+				// otherwise throw exception (this should never occur) - an empty stack peeks NULL
+				case null, default ->
+					throw new IllegalStateException("Unexpected node on stack: " + stackNode);
 			}
 		}
 
@@ -135,17 +138,16 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		} else {
 			// otherwise pick up relative parent in the stack
 			final JsonNode stackNode = this.stack.peek();
-			if (stackNode instanceof ObjectNode objectNode) {
+			switch (stackNode) {
 				// if its "map" node
 				// create appropriate node type as a children in it
-				this.stack.push(objectNode.putObject(this.propertyNameStack.peek()));
-			} else if (stackNode instanceof ArrayNode arrayNode) {
+				case ObjectNode objectNode -> this.stack.push(objectNode.putObject(this.propertyNameStack.peek()));
 				// if it's "array" node
 				// create appropriate node type as a children in it
-				this.stack.push(arrayNode.addObject());
-			} else {
-				// otherwise throw exception (this should never occur)
-				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
+				case ArrayNode arrayNode -> this.stack.push(arrayNode.addObject());
+				// otherwise throw exception (this should never occur) - an empty stack peeks NULL
+				case null, default ->
+					throw new IllegalStateException("Unexpected node on stack: " + stackNode);
 			}
 		}
 
@@ -178,64 +180,47 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 			throw new IllegalStateException("Value item is not allowed as the root item!");
 		}
 		final JsonNode theNode = this.stack.peek();
-		if (theNode instanceof ObjectNode objectNode) {
+		switch (theNode) {
 			// if its "map" node
 			// create appropriate node type as a children in it
-			final String propertyName = this.propertyNameStack.peek();
-			final Serializable object = valueItem.value();
-			if (object instanceof Short s) {
-				objectNode.put(propertyName, s);
-			} else if (object instanceof Byte b) {
-				objectNode.put(propertyName, b);
-			} else if (object instanceof Integer i) {
-				objectNode.put(propertyName, i);
-			} else if (object instanceof Long l) {
-				objectNode.put(propertyName, l.toString());
-			} else if (object instanceof String s) {
-				objectNode.put(propertyName, s);
-			} else if (object instanceof BigDecimal bd) {
-				objectNode.put(propertyName, bd.toPlainString());
-			} else if (object instanceof Boolean b) {
-				objectNode.put(propertyName, b);
-			} else if (object instanceof Character c) {
-				objectNode.put(propertyName, c.toString());
-			} else if (object instanceof Locale locale) {
-				objectNode.put(propertyName, locale.toLanguageTag());
-			} else if (object == null) {
-				objectNode.putNull(propertyName);
-			} else {
-				objectNode.put(propertyName, EvitaDataTypes.formatValue(object));
+			case ObjectNode objectNode -> {
+				final String propertyName = this.propertyNameStack.peek();
+				final Serializable object = valueItem.value();
+				switch (object) {
+					case Short s -> objectNode.put(propertyName, s);
+					case Byte b -> objectNode.put(propertyName, b);
+					case Integer i -> objectNode.put(propertyName, i);
+					case Long l -> objectNode.put(propertyName, l.toString());
+					case String s -> objectNode.put(propertyName, s);
+					case BigDecimal bd -> objectNode.put(propertyName, bd.toPlainString());
+					case Boolean b -> objectNode.put(propertyName, b);
+					case Character c -> objectNode.put(propertyName, c.toString());
+					case Locale locale -> objectNode.put(propertyName, locale.toLanguageTag());
+					case null -> objectNode.putNull(propertyName);
+					default -> objectNode.put(propertyName, EvitaDataTypes.formatValue(object));
+				}
 			}
-		} else if (theNode instanceof ArrayNode arrayNode) {
 			// if it's "array" node
 			// create appropriate node type as a children in it
-			final Serializable object = valueItem.value();
-			if (object instanceof Short s) {
-				arrayNode.add(s);
-			} else if (object instanceof Byte b) {
-				arrayNode.add(b);
-			} else if (object instanceof Integer i) {
-				arrayNode.add(i);
-			} else if (object instanceof Long l) {
-				arrayNode.add(l.toString());
-			} else if (object instanceof String s) {
-				arrayNode.add(s);
-			} else if (object instanceof BigDecimal bd) {
-				arrayNode.add(bd.toPlainString());
-			} else if (object instanceof Boolean b) {
-				arrayNode.add(b);
-			} else if (object instanceof Character c) {
-				arrayNode.add(c.toString());
-			} else if (object instanceof Locale locale) {
-				arrayNode.add(locale.toLanguageTag());
-			} else if (object == null) {
-				arrayNode.addNull();
-			} else {
-				arrayNode.add(EvitaDataTypes.formatValue(object));
+			case ArrayNode arrayNode -> {
+				final Serializable object = valueItem.value();
+				switch (object) {
+					case Short s -> arrayNode.add(s);
+					case Byte b -> arrayNode.add(b);
+					case Integer i -> arrayNode.add(i);
+					case Long l -> arrayNode.add(l.toString());
+					case String s -> arrayNode.add(s);
+					case BigDecimal bd -> arrayNode.add(bd.toPlainString());
+					case Boolean b -> arrayNode.add(b);
+					case Character c -> arrayNode.add(c.toString());
+					case Locale locale -> arrayNode.add(locale.toLanguageTag());
+					case null -> arrayNode.addNull();
+					default -> arrayNode.add(EvitaDataTypes.formatValue(object));
+				}
 			}
-		} else {
-			// otherwise throw exception (this should never occur)
-			throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
+			// otherwise throw exception (this should never occur) - an empty stack peeks NULL
+			case null, default ->
+				throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
 		}
 	}
 
@@ -254,17 +239,18 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 			this.stack.push(this.rootNode);
 		}
 		final JsonNode theNode = this.stack.peek();
-		if (theNode instanceof ObjectNode objectNode) {
+		switch (theNode) {
 			// if its "map" node
 			// create appropriate node type as a children in it
-			final String propertyName = this.propertyNameStack.peek();
-			objectNode.putNull(propertyName);
-		} else if (theNode instanceof ArrayNode arrayNode) {
+			case ObjectNode objectNode -> {
+				final String propertyName = this.propertyNameStack.peek();
+				objectNode.putNull(propertyName);
+			}
 			// if it's "array" node
-			arrayNode.addNull();
-		} else {
-			// otherwise throw exception (this should never occur)
-			throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
+			case ArrayNode arrayNode -> arrayNode.addNull();
+			// otherwise throw exception (this should never occur) - an empty stack peeks NULL
+			case null, default ->
+				throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
 		}
 	}
 

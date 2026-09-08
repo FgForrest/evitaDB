@@ -47,7 +47,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -1442,78 +1441,60 @@ public class EvitaDataTypes {
 	public static String formatValue(
 		@Nullable Serializable value
 	) {
-		if (value instanceof String) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(
-				((String) value)
-			).replaceAll("\\\\'")
+		return switch (value) {
+			case String stringValue -> CHAR_STRING_DELIMITER
+				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
 				+ STRING_DELIMITER;
-		} else if (value instanceof Character) {
-			return CHAR_STRING_DELIMITER
-				+ STRING_DELIMITER_PATTERN.matcher(
-				((Character) value).toString()
-			).replaceAll("\\\\'")
+			case Character characterValue -> CHAR_STRING_DELIMITER
+				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
 				+ STRING_DELIMITER;
-		} else if (
-			value instanceof BigDecimal bigDecimalValue
-		) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto
 			// docs from Google.
 			// All other validation parts are done
 			// automatically by Java's BigDecimal
-			return bigDecimalValue.toString()
+			case BigDecimal bigDecimalValue -> bigDecimalValue.toString()
 				.replace("E", "e")
 				.replace("e+", "e");
-		} else if (value instanceof Number) {
-			return value.toString();
-		} else if (value instanceof Boolean) {
-			return value.toString();
-		} else if (value instanceof Range) {
-			return value.toString();
-		} else if (value instanceof OffsetDateTime offsetDateTime) {
-			return DateTimeFormatter
+			case Number numberValue -> numberValue.toString();
+			case Boolean booleanValue -> booleanValue.toString();
+			case Range<?> rangeValue -> rangeValue.toString();
+			case OffsetDateTime offsetDateTime -> DateTimeFormatter
 				.ISO_OFFSET_DATE_TIME
 				.format(offsetDateTime.truncatedTo(ChronoUnit.MILLIS));
-		} else if (value instanceof LocalDateTime localDateTime) {
-			return DateTimeFormatter
+			case LocalDateTime localDateTime -> DateTimeFormatter
 				.ISO_LOCAL_DATE_TIME
 				.format(localDateTime.truncatedTo(ChronoUnit.MILLIS));
-		} else if (value instanceof LocalDate) {
-			return DateTimeFormatter.ISO_LOCAL_DATE.format((TemporalAccessor) value);
-		} else if (value instanceof LocalTime localTime) {
-			return DateTimeFormatter.ISO_LOCAL_TIME
+			case LocalDate localDate -> DateTimeFormatter.ISO_LOCAL_DATE.format(localDate);
+			case LocalTime localTime -> DateTimeFormatter.ISO_LOCAL_TIME
 				.format(localTime.truncatedTo(ChronoUnit.MILLIS));
-		} else if (value instanceof Locale) {
-			return CHAR_STRING_DELIMITER
-				+ ((Locale) value).toLanguageTag()
+			case Locale localeValue -> CHAR_STRING_DELIMITER
+				+ localeValue.toLanguageTag()
 				+ CHAR_STRING_DELIMITER;
-		} else if (value instanceof Currency) {
-			return CHAR_STRING_DELIMITER
-				+ value.toString()
+			case Currency currencyValue -> CHAR_STRING_DELIMITER
+				+ currencyValue.toString()
 				+ CHAR_STRING_DELIMITER;
-		} else if (value instanceof Enum) {
-			return value.toString();
-		} else if (value instanceof UUID) {
-			return CHAR_STRING_DELIMITER
-				+ value.toString()
+			case Enum<?> enumValue -> enumValue.toString();
+			case UUID uuidValue -> CHAR_STRING_DELIMITER
+				+ uuidValue.toString()
 				+ CHAR_STRING_DELIMITER;
-		} else if (value instanceof Predecessor || value instanceof ReferencedEntityPredecessor) {
-			return value.toString();
-		} else if (value instanceof ExpressionNode expressionNode) {
-			return expressionNode.toString();
-		} else if (value == null) {
-			throw new GenericEvitaInternalError(
+			case Predecessor predecessor -> predecessor.toString();
+			case ReferencedEntityPredecessor referencedEntityPredecessor -> referencedEntityPredecessor.toString();
+			case ExpressionNode expressionNode -> expressionNode.toString();
+			case null -> throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in "
 					+ "constructor of the class!"
 			);
-		} else if (value.getClass().isAnnotationPresent(SupportedClass.class)) {
-			return value.toString();
-		}
-		throw new UnsupportedDataTypeException(
-			value.getClass(),
-			EvitaDataTypes.getSupportedDataTypes()
-		);
+			default -> {
+				if (value.getClass().isAnnotationPresent(SupportedClass.class)) {
+					yield value.toString();
+				}
+				throw new UnsupportedDataTypeException(
+					value.getClass(),
+					EvitaDataTypes.getSupportedDataTypes()
+				);
+			}
+		};
 	}
 
 	/**

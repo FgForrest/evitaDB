@@ -59,42 +59,35 @@ public class ArrayElementAccessor implements ObjectElementAccessor {
 	@Override
 	public Serializable get(@Nonnull Serializable object, int elementIndex) throws ExpressionEvaluationException {
 		try {
-			// Primitive arrays (must check before Object[])
-			if (object instanceof boolean[] array) {
-				return array[elementIndex];
-			} else if (object instanceof byte[] array) {
-				return array[elementIndex];
-			} else if (object instanceof char[] array) {
-				return array[elementIndex];
-			} else if (object instanceof double[] array) {
-				return array[elementIndex];
-			} else if (object instanceof float[] array) {
-				return array[elementIndex];
-			} else if (object instanceof int[] array) {
-				return array[elementIndex];
-			} else if (object instanceof long[] array) {
-				return array[elementIndex];
-			} else if (object instanceof short[] array) {
-				return array[elementIndex];
-			} else if (object instanceof Object[] array) {
+			return switch (object) {
+				// Primitive arrays are not `Object[]` subtypes, so their order relative to it carries no meaning
+				case boolean[] array -> array[elementIndex];
+				case byte[] array -> array[elementIndex];
+				case char[] array -> array[elementIndex];
+				case double[] array -> array[elementIndex];
+				case float[] array -> array[elementIndex];
+				case int[] array -> array[elementIndex];
+				case long[] array -> array[elementIndex];
+				case short[] array -> array[elementIndex];
 				// Handles all object arrays (String[], Integer[], BigDecimal[], etc.)
-				final Object element = array[elementIndex];
-				if (element == null) {
-					return null;
+				case Object[] array -> {
+					final Object element = array[elementIndex];
+					if (element == null) {
+						yield null;
+					}
+					if (!(element instanceof Serializable)) {
+						throw new ExpressionEvaluationException(
+							"Cannot access element `" + elementIndex + "` on object of type `" + object.getClass().getName() + "`. Expected serializable element.",
+							"Cannot access element."
+						);
+					}
+					yield (Serializable) element;
 				}
-				if (!(element instanceof Serializable)) {
-					throw new ExpressionEvaluationException(
-						"Cannot access element `" + elementIndex + "` on object of type `" + object.getClass().getName() + "`. Expected serializable element.",
-						"Cannot access element."
-					);
-				}
-				return (Serializable) element;
-			} else {
-				throw new ExpressionEvaluationException(
+				default -> throw new ExpressionEvaluationException(
 					"Cannot access element by index on object of type `" + object.getClass().getName() + "`. Expected array type.",
 					"Cannot access element by index. Expected array type."
 				);
-			}
+			};
 		} catch (ArrayIndexOutOfBoundsException e) {
 			final int length = java.lang.reflect.Array.getLength(object);
 			throw new ExpressionEvaluationException(
