@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -68,21 +69,32 @@ import static io.evitadb.test.TestTags.TASK;
 @Tag(TASK)
 class ProgressingFutureTest {
 
-	private Executor executor;
+	private ExecutorService executor;
 
 	@BeforeEach
 	void setUp() {
 		this.executor = Executors.newFixedThreadPool(4);
 	}
 
+	/**
+	 * Shuts the pool down after each test via an explicit `shutdownNow()`.
+	 *
+	 * `ExecutorService` implements `AutoCloseable` only since JDK 19, so the `instanceof AutoCloseable`
+	 * guard this method used to carry was dead code on JDK 17 and merely leaked the pool. On JDK 21 it
+	 * comes alive, and the live version is far worse than the leak: `ExecutorService#close` calls
+	 * `shutdown()`, which does **not** interrupt already-running tasks, and then loops on
+	 * `awaitTermination(1, DAYS)` until the pool terminates. Several tests here deliberately abandon a
+	 * task parked on a latch that is never counted down - see
+	 * {@link #shouldCallOnFailureWhenManuallyCompletedExceptionally()} - so that loop never exits and the
+	 * whole surefire JVM wedges silently, truncating the rest of the suite rather than failing it.
+	 *
+	 * `shutdownNow()` interrupts the parked task instead and returns immediately. Mirrors
+	 * `ProgressRecordTest.RealExecutorIntegrationTest#tearDown`, which already carries this fix.
+	 */
 	@AfterEach
 	void tearDown() {
-		if (this.executor instanceof AutoCloseable) {
-			try {
-				((AutoCloseable) this.executor).close();
-			} catch (Exception e) {
-				// ignore
-			}
+		if (this.executor != null) {
+			this.executor.shutdownNow();
 		}
 	}
 
