@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescriptor;
@@ -98,31 +97,19 @@ public class ChangeSystemCaptureSerializer {
 			// HEADER content (or body intentionally omitted) — no body field on the wire
 			return rootNode;
 		}
-		if (body instanceof EngineMutation<?> engineMutation) {
-			rootNode.putIfAbsent(
-				ChangeSystemCaptureDescriptor.BODY.name(),
-				(JsonNode) this.delegatingEngineMutationConverter.convertToOutput(engineMutation)
-			);
-		} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
-			rootNode.putIfAbsent(
-				ChangeSystemCaptureDescriptor.BODY.name(),
-				serializeCatalogInstalled(installed)
-			);
-		} else if (body instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
-			rootNode.putIfAbsent(
-				ChangeSystemCaptureDescriptor.BODY.name(),
-				serializeCatalogRemoved(removed)
-			);
-		} else if (body instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
-			rootNode.putIfAbsent(
-				ChangeSystemCaptureDescriptor.BODY.name(),
-				serializeCatalogSchemaUpdated(schemaUpdated)
-			);
-		} else {
-			throw new GenericEvitaInternalError(
-				"Unsupported `ChangeSystemCapture` body kind: " + body.getClass().getName()
-			);
-		}
+		// the switch needs no `default` branch - `SystemCaptureBody` is sealed down to the three
+		// `HostSystemEvent` records, and every permitted variant is covered, so javac proves the
+		// dispatch exhaustive
+		rootNode.putIfAbsent(
+			ChangeSystemCaptureDescriptor.BODY.name(),
+			switch (body) {
+				case EngineMutation<?> engineMutation ->
+					(JsonNode) this.delegatingEngineMutationConverter.convertToOutput(engineMutation);
+				case HostSystemEvent.CatalogInstalledIntoLiveView installed -> serializeCatalogInstalled(installed);
+				case HostSystemEvent.CatalogRemovedFromLiveView removed -> serializeCatalogRemoved(removed);
+				case HostSystemEvent.CatalogSchemaUpdated schemaUpdated -> serializeCatalogSchemaUpdated(schemaUpdated);
+			}
+		);
 
 		return rootNode;
 	}

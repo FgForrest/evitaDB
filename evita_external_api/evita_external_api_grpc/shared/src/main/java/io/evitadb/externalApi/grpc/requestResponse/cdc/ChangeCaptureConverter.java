@@ -413,9 +413,6 @@ public class ChangeCaptureConverter {
 			case HostSystemEvent hostEvent -> builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
 			// HEADER content mode carries no body at all - the oneof is deliberately left unset
 			case null -> { }
-			default -> throw new GenericEvitaInternalError(
-				"Unsupported SystemCaptureBody type: " + body.getClass().getName()
-			);
 		}
 		return builder.build();
 	}
@@ -597,9 +594,9 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts a {@link HostSystemEvent} to a {@link GrpcHostSystemEvent}.
 	 *
-	 * Pattern-switches over the sealed variant set; defensively rejects any unknown
-	 * subtype with a {@link GenericEvitaInternalError} (the sealed contract makes this
-	 * unreachable, but the defensive-design rule applies anyway).
+	 * Pattern-switches over the sealed variant set; the switch carries no `default` branch
+	 * because the compiler proves it exhaustive, so a new permitted variant breaks the build
+	 * here instead of throwing at runtime.
 	 *
 	 * @param event the host event to convert
 	 * @return the converted gRPC representation
@@ -627,9 +624,6 @@ public class ChangeCaptureConverter {
 					.setNewSchemaVersion(schemaUpdated.newSchemaVersion())
 					.setCurrentEngineVersion(schemaUpdated.currentEngineVersion())
 					.build()
-			);
-			default -> throw new GenericEvitaInternalError(
-				"Unsupported HostSystemEvent type: " + event.getClass().getName()
 			);
 		}
 		return builder.build();

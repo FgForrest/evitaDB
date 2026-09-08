@@ -112,13 +112,13 @@ public class ConstraintDescriptorProvider {
 
 				final Optional<ImplicitClassifier> implicitClassifier = creator.implicitClassifier();
 				if (implicitClassifier.isPresent()) {
-					if (implicitClassifier.get() instanceof SilentImplicitClassifier) {
-						return classifier == null;
-					} else if (implicitClassifier.get() instanceof final FixedImplicitClassifier fixedImplicitClassifier) {
-						return fixedImplicitClassifier.classifier().equals(classifier);
-					} else {
-						throw new GenericEvitaInternalError("Unsupported implicit classifier class.");
-					}
+					// the switch needs no `default` branch - `ImplicitClassifier` is sealed and both
+					// permitted variants are covered, so javac proves the dispatch exhaustive
+					return switch (implicitClassifier.get()) {
+						case SilentImplicitClassifier ignored -> classifier == null;
+						case FixedImplicitClassifier fixedImplicitClassifier ->
+							fixedImplicitClassifier.classifier().equals(classifier);
+					};
 				}
 				if (creator.hasClassifierParameter()) {
 					return classifier != null;
