@@ -1,7 +1,7 @@
 ---
 title: JDK 21 modernization is adopted only where it is provably behaviour-preserving
 date: 2026-09-08
-updated: 2026-09-08 12:00
+updated: 2026-09-08 13:20
 status: accepted
 kind: refactor
 issues: [1518]
@@ -45,6 +45,7 @@ converters, visitors and serializers. Several already-`sealed` hierarchies carri
 | Replace `instanceof` + redundant cast with binding patterns | 85 sites / 26 files, from a convertible population of 176. JDK 16 syntax — residue the 17 migration left, not something 21 unlocked |
 | Size Kryo's collection factories with `HashMap.newHashMap` and friends | `(int) Math.ceil(count / .75f)` **is** the JDK's `calculateHashMapCapacity`; removes a duplicated copy of the load-factor rule |
 | Correct `MapHeapSize` to JDK 19+'s copy-constructor arithmetic | The platform bump silently invalidated the model — see *Key technical details* |
+| Seal the **`LocalMutation`** hierarchy, 16 leaves `final` | Approved as a second deliberate **breaking API change**. Closes `Entity#mutate`'s silent drop: 10 sealed types over 4 levels with **six** diamond members, nothing outside `evita_api` ever implemented it |
 
 ## Rejected outright
 
@@ -57,7 +58,7 @@ converters, visitors and serializers. Several already-`sealed` hierarchies carri
 | `list.reversed()` for `Collections.reverse(list)` | `Collections.reverse` **mutates in place**; `reversed()` returns a lazy view and mutates nothing. Both call sites use the mutated list afterwards | The caller is refactored to want a view |
 | `getLast()` on the B+ tree cursor path | `Cursor#path` is declared `List<CursorLevel>`, so `getLast()` dispatches to `List`'s **default** method (`isEmpty()` + indexed get) rather than `ArrayList`'s override — an extra virtual call the current code does not make | The field is declared `ArrayList`, or the default is inlined away provably |
 | `getFirst()` where `size() == 1` is enforced | A **naming** objection, not a risk one: `get(0)` under an enforced single-element invariant denotes *the sole element*, and `getFirst()` implies an ordering the code does not rely on. Six sites (`FinderVisitor`, `Prices`, `ConstraintResolver`, …) | Never — the invariant is the point |
-| Sealing any further hierarchy to enable exhaustiveness | Changing extensibility is an API decision, not a modernization one. `ObjectOperationStep` was put to the maintainer and approved; nothing else was | Case by case, with the maintainer |
+| Sealing a hierarchy on an agent's own initiative | Changing extensibility is an API decision, not a modernization one. Two hierarchies were put to the maintainer and approved (`ObjectOperationStep`, `LocalMutation`); none was sealed without that | Case by case, with the maintainer — never unilaterally |
 
 ## Key technical details
 
@@ -103,6 +104,10 @@ environmental, neither related to this work:
 
 Run with fixed parallelism 8 and a 12 GB fork heap; the default dynamic factor OOMs on this box.
 
+The `LocalMutation` sealing, which lands in `evita_api` and therefore recompiles every downstream
+module, added a further **26,240 tests across four tag groups, 0 failures** (the only error being the
+same Docker-less `ExportS3ServiceTest`).
+
 Every step additionally ran the full reactor (`mvn -T1C clean install -DskipTests`, BUILD SUCCESS)
 plus targeted tagged suites — 11,689 tests at step 2, 7,718 at step 4, 14,928 across three groups at
 step 6.
@@ -122,15 +127,18 @@ The sealing was proved the same way: deleting one `case` arm makes javac reject 
 
 ## Consequences & open follow-ups
 
-* **`Entity#mutate` silently drops an unrecognized `LocalMutation`** on the write path, with no
-  trailing `else`. `LocalMutation` is `non-sealed`, so the compiler offers no guarantee the seven
-  arms are all of them. Its sibling `InitialEntityBuilder#mutate` throws. Reported, not fixed —
-  adding a throw is a behaviour change and the silence may be deliberate.
+* **`Entity#mutate`'s silent drop is FIXED** by the sealing above, with a trailing throw rather than
+  an exhaustive `switch`. Compile-time exhaustiveness was available and verified — javac accepts the
+  seven arms with no `default` and rejects them when one is removed — but taking it would have
+  changed the dispatch mechanism on the write path, so the proof was moved somewhere free instead:
+  `LocalMutationDispatchCoverageTest#dispatchBranchOf` repeats the arms as a default-less pattern
+  switch, so a new permitted subtype the production chain would drop fails to compile the test module.
 * **`ExtraResultsJsonSerializer#serialize` has the same shape.** Currently unreachable —
   `CacheableAttributeHistogram` and `CacheablePriceHistogram` are never constructed anywhere, which
   also makes those two classes look like dead code.
-* **`InitialEntityBuilder` and the GraphQL `coercing` package are space-indented**, against
-  `.claude/rules/code-style.md`. A whitespace-only fix, deliberately not mixed into a semantic diff.
+* **`InitialEntityBuilder`, `ExistingEntityBuilder` and the GraphQL `coercing` package are
+  space-indented**, against `.claude/rules/code-style.md`. A whitespace-only fix, deliberately not
+  mixed into a semantic diff.
 * **91 binding-pattern sites remain**, a bounded low-risk remainder, mostly in the hot zones.
 * **`QueryConverter` (59 arms) and `EvitaDataTypesConverter` (51 arms)** are genuine low-risk pattern
   switch candidates deferred only because converting both is ~800 lines of mechanical diff. Good
@@ -146,6 +154,25 @@ The sealing was proved the same way: deleting one `case` arm makes javac reject 
   static; `EndpointDescriptor#operation()` builds a string; `CatalogWrapper#catalog()` is an
   `AtomicReference#get()`). None is dispatched on today, but a record pattern invokes every accessor
   it binds — a hazard if record patterns are ever adopted.
+
+### Reported as defects and refuted on inspection
+
+Recorded so they are not re-raised. Both are `if / else if` chains with no trailing branch, which
+looks like the `Entity#mutate` defect and is not:
+
+* **`EvitaSessionService` leaving the `DataChunk` oneof unset for `PlainChunk`** is **correct**.
+  `PlainChunk` carries no paging metadata at all — no offset, limit, page number or page size — so
+  there is nothing to set and an unset protobuf oneof is the right encoding of "no paging".
+* **`ChangeCaptureConverter#toGrpcChangeCaptureCriteria`** is **correct**. `CaptureSite` is
+  `sealed ... permits SchemaSite, DataSite` and both are covered; the only fall-through is
+  `site() == null`, which is `@Nullable` and means "no site filter".
+
+### A survey lesson worth keeping
+
+Three of the six `SchemaEvolvingLocalMutation` diamond members were missed by the initial survey
+because `implements ...` sat on a **continuation line**, invisible to a single-line `rg` pattern.
+Any future closure survey over this codebase must read declarations across line breaks rather than
+grepping one line at a time.
 
 ## Related work
 
