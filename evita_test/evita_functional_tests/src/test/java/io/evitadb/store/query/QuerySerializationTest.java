@@ -189,7 +189,20 @@ public class QuerySerializationTest {
 						require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS), entityFetchAll()))),
 				arguments("collection + require",
 					Query.query(collection("a"),
-						require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS), entityFetchAll())))
+						require(debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS), entityFetchAll()))),
+				// the head is a whole HeadConstraint subtree, not just the Collection extracted from it —
+				// a serializer that persists only the collection silently drops query labels (issue #1507)
+				arguments("head(collection + label)",
+					Query.query(head(collection("a"), label("x", "y")))),
+				arguments("head(collection + label) + filter",
+					Query.query(head(collection("a"), label("x", "y")),
+						filterBy(attributeEquals("a", "b")))),
+				arguments("label-only head",
+					Query.query(label("x", "y"), filterBy(attributeEquals("a", "b")))),
+				// a header-less query still has to round-trip - the head slot is written polymorphically and its
+				// null representation is part of that contract
+				arguments("no head at all",
+					Query.query(filterBy(attributeEquals("a", "b"))))
 			);
 		}
 	}

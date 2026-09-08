@@ -559,7 +559,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		if (query.getRequire() == null) {
 			return queryOne(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					require(entityFetch())
@@ -571,7 +571,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			.isEmpty()) {
 			return queryOne(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
@@ -658,7 +658,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		if (query.getRequire() == null) {
 			return queryList(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					require(entityFetch())
@@ -670,7 +670,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			.isEmpty()) {
 			return queryList(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
@@ -750,7 +750,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		if (query.getRequire() == null) {
 			return query(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					require(entityFetch())
@@ -762,7 +762,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			.isEmpty()) {
 			return query(
 				Query.query(
-					query.getCollection(),
+					query.getHead(),
 					query.getFilterBy(),
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(

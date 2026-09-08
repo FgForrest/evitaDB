@@ -9,7 +9,7 @@ prs: [1435, 1436]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/algebra/price, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-09-07-equalized-histogram-density-and-quantile-bucketing]
 ---
 
 # Price histogram granularity is decided per accessor, not all-or-nothing across the query
@@ -208,6 +208,12 @@ list would get simpler.
 - `SUM` still contributes one data point per entity, per the #1159 specification table. Nothing in
   this change makes that assumption load-bearing anywhere new — a future `SUM` per-inner-record
   requirement only has to flip its termination formula's probe to `true`.
+
+## Related work
+
+- [2026-09-07-equalized-histogram-density-and-quantile-bucketing](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md)
+  — the sibling fix in the same `translator/histogram` package; this record decides which price records reach
+  the cruncher, that one rewrites what the equalized cruncher does with them.
 
 ## Timeline
 

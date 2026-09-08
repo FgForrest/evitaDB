@@ -282,13 +282,40 @@ public interface HistogramContract extends Serializable {
 	 * @param requested         contains true if the query contained {@link AttributeBetween} or {@link PriceBetween}
 	 *                          constraint for particular attribute / price and the bucket threshold lies within the
 	 *                          range (inclusive) of the constraint. False otherwise.
-	 * @param relativeFrequency Relative frequency value used for visualization purposes.
-	 *                          For standard histograms: percentage of total occurrences (0-100), calculated as
-	 *                          `(occurrences / overallCount) * 100`.
-	 *                          For equalized histograms: normalized value density (0-100) that accounts for both
-	 *                          the number of occurrences in the bucket and its width. Raw density is calculated as
-	 *                          `occurrences * (totalRange / bucketWidth)`, then normalized so all buckets sum to 100.
-	 *                          Higher values indicate denser data concentration (more values packed into narrower range).
+	 * @param relativeFrequency Rendering intensity of the bucket's bar. It is never a count, a share or a
+	 *                          probability - use `occurrences` for anything numeric shown to a person, and
+	 *                          `occurrences / overallCount` for a share.
+	 *
+	 *                          For the equal-width behaviours ({@link io.evitadb.api.query.require.HistogramBehavior#STANDARD},
+	 *                          {@link io.evitadb.api.query.require.HistogramBehavior#OPTIMIZED}) it is the percentage
+	 *                          of total occurrences, `(occurrences / overallCount) * 100`, and the values sum to 100.
+	 *
+	 *                          For the frequency-equalised behaviours ({@link io.evitadb.api.query.require.HistogramBehavior#EQUALIZED},
+	 *                          {@link io.evitadb.api.query.require.HistogramBehavior#EQUALIZED_OPTIMIZED}) the axis is
+	 *                          equalised, so occurrences are approximately constant by construction and carry no
+	 *                          information. The field instead carries the smoothed **value density** at the bucket,
+	 *                          normalised against the maximum of the density curve, so the value lies in `(0, 100]`
+	 *                          where `100` is the tallest point of the distribution. Consequently:
+	 *
+	 *                          - Scale bars against the **constant 100** - `chartHeight * relativeFrequency / 100`.
+	 *                            Do not divide by the sum of the buckets (they no longer sum to 100) and do not
+	 *                            scale against the tallest returned bucket, which would re-couple the rendering to
+	 *                            the requested bucket count.
+	 *                          - Do not apply `sqrt` or `log`. The value is already a linear rendering intensity
+	 *                            with a moderate dynamic range - tallest-to-median is roughly 1.2 - 2.0 - so a
+	 *                            compressing transform flattens a profile that is legitimately readable as it
+	 *                            stands. Draw it directly.
+	 *                          - The value describes the **whole bucket**, spanning `[threshold, nextThreshold)`
+	 *                            and `[threshold, max]` for the last one - it is measured at the bucket's weighted
+	 *                            median observation, not at its left edge. The last bucket's threshold may equal
+	 *                            `max`, which makes it zero-width; give it a minimum bar width or the tallest bar
+	 *                            can render invisible.
+	 *                          - Do not assume exactly one bucket reads `100`: the denominator is the curve
+	 *                            maximum over all observed values rather than over the returned buckets, so a
+	 *                            response may contain none or several. Only `0 < relativeFrequency <= 100` is
+	 *                            guaranteed.
+	 *                          - Do not compare the value across behaviours or across two different histograms -
+	 *                            it is a per-response rendering scale.
 	 */
 	record Bucket(
 		@Nonnull BigDecimal threshold,

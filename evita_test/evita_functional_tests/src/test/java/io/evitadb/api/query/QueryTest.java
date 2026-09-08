@@ -24,11 +24,14 @@
 package io.evitadb.api.query;
 
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.parser.DefaultQueryParser;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
@@ -609,6 +612,87 @@ class QueryTest {
 					)
 				)
 			).normalizeQuery()
+		);
+	}
+
+	/**
+	 * The EvitaQL string is the only channel the remote driver has — {@link io.evitadb.api.query.head.Label labels}
+	 * that survive in the object model but not in the printed string never reach the server. A head therefore has to
+	 * come back from the parser exactly as it went in.
+	 *
+	 * The emitted shape is additionally constrained by the grammar: `EvitaQLQueryVisitor#findHeadConstraint` accepts
+	 * exactly one top-level head constraint, so several head constraints must be printed inside a `head(...)`
+	 * container rather than as siblings of `filterBy`. These round-trips fail the moment that rule is broken.
+	 *
+	 * See issue #1507.
+	 */
+	@Test
+	void shouldRoundTripHeadWithCollectionAndLabelThroughEvitaQlString() {
+		final Query original = query(
+			head(
+				collection("product"),
+				label("rest_method", "CartController.updateCartByOperation")
+			),
+			filterBy(attributeEquals("code", "samsung"))
+		);
+
+		assertEquals(
+			original,
+			DefaultQueryParser.getInstance().parseQueryUnsafe(original.toString())
+		);
+	}
+
+	@Test
+	void shouldRoundTripLabelOnlyHeadThroughEvitaQlString() {
+		final Query original = query(
+			label("rest_method", "CartController.updateCartByOperation"),
+			filterBy(attributeEquals("code", "samsung"))
+		);
+
+		assertEquals(
+			original,
+			DefaultQueryParser.getInstance().parseQueryUnsafe(original.toString())
+		);
+	}
+
+	/**
+	 * Mirrors what the gRPC driver actually does: print the query with its scalar arguments extracted into
+	 * positional parameters, then let the server parse the pair back.
+	 */
+	@Test
+	void shouldRoundTripHeadLabelsThroughParameterExtraction() {
+		final Query original = query(
+			head(
+				collection("product"),
+				label("rest_method", "CartController.updateCartByOperation")
+			),
+			filterBy(attributeEquals("code", "samsung"))
+		);
+
+		final StringWithParameters printed = original.toStringWithParameterExtraction();
+
+		assertEquals(
+			original,
+			DefaultQueryParser.getInstance().parseQuery(
+				printed.query(),
+				new ArrayList<Object>(printed.parameters())
+			)
+		);
+	}
+
+	/**
+	 * Documents why the printed form must use the `head(...)` container: the grammar allows exactly one top-level
+	 * head constraint, so printing the collection and the label as siblings would produce a string the server
+	 * refuses to parse.
+	 */
+	@Test
+	void shouldRejectSeveralTopLevelHeadConstraints() {
+		assertThrows(
+			EvitaSyntaxException.class,
+			() -> DefaultQueryParser.getInstance().parseQueryUnsafe(
+				"query(collection('product'),label('rest_method', 'CartController.updateCartByOperation')," +
+					"filterBy(attributeEquals('code', 'samsung')))"
+			)
 		);
 	}
 
