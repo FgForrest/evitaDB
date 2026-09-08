@@ -25,31 +25,46 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.EqualizedHistogramDataCruncher.BucketCountMode;
-import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.Map;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
- * This test verifies {@link EqualizedHistogramDataCruncher} contract.
+ * This test verifies the {@link EqualizedHistogramDataCruncher} contract.
+ *
+ * The suite is deliberately **invariant-based rather than pinned to expected numbers**. The bar heights come from a
+ * kernel density estimate whose bandwidth is a continuous function of the whole catalogue, so a golden-value test
+ * would break on any harmless re-derivation while saying nothing about whether the histogram is still *correct*. What
+ * has to hold instead are the properties a filter slider depends on:
+ *
+ * - the returned bucket count never exceeds the requested one, and every bucket is non-empty with a distinct,
+ *   selectable threshold,
+ * - a value held by many records is charged for every quantile target it absorbs, so it cannot starve the buckets
+ *   that follow it (the defect this class was rewritten for),
+ * - the height reacts to the *distribution* and not to incidental structure: it is invariant to replicating the
+ *   catalogue, insensitive to how the same mass is spread over neighbouring values, and continuous when a record
+ *   crosses a quartile boundary.
+ *
+ * Two production catalogues captured from a live storefront are part of the corpus and stay in it permanently -
+ * charm-priced retail data is precisely the shape that broke the previous implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -59,1041 +74,919 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 @Tag(QUERY)
 @Tag(HISTOGRAM)
 class EqualizedHistogramDataCruncherTest {
-
-	@Test
-	@DisplayName("Should throw exception for invalid bucket count")
-	void shouldThrowExceptionForInvalidCountOfBuckets() {
-		for (int i = 1; i > -2; i--) {
-			final int bucketCount = i;
-			assertThrows(
-				InvalidHistogramBucketCountException.class,
-				() -> createEqualizedIntCruncher(bucketCount, 100, 200)
-			);
-		}
-	}
-
-	@Test
-	@DisplayName("Should compute histogram from single value")
-	void equalizedHistogramFromSingleValue() {
-		// Single value should return single bucket regardless of requested bucket count
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(5, 100);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should compute histogram from two distinct values with EXACT mode padding")
-	void equalizedHistogramFromTwoDistinctValues() {
-		// Two distinct values with 4 buckets requested in EXACT mode
-		// Should produce exactly 4 buckets: 2 data + 2 empty in the gap
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(4, 100, 500);
-		// Gap between 100 and 500 is 400, distributed into 3 segments (2 empty buckets)
-		// Empty thresholds at 100 + 400/3 = 233, 100 + 2*400/3 = 367
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 1),
-				bucket(new BigDecimal(233), 0),
-				bucket(new BigDecimal(367), 0),
-				bucket(new BigDecimal(500), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(500), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should compute histogram from two distinct values with ADAPTIVE mode (no padding)")
-	void equalizedHistogramFromTwoDistinctValuesAdaptive() {
-		// Two distinct values with ADAPTIVE mode should produce only 2 buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4, BucketCountMode.ADAPTIVE, 100, 500
-		);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 1),
-				bucket(new BigDecimal(500), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(500), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should handle heavily skewed data with EXACT mode padding")
-	void equalizedHistogramFromHeavilySkewedData() {
-		// Data heavily skewed: 9 items at value 1, 1 item at value 100
-		// With EXACT mode, 4 buckets requested = 2 data + 2 empty in gap
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4,
-			1, 1, 1, 1, 1, 1, 1, 1, 1, 100
-		);
-		// Gap between 1 and 100 is 99, distributed into 3 segments (2 empty buckets)
-		// Empty thresholds at 1 + 99/3 = 34, 1 + 2*99/3 = 67
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(1), 9),
-				bucket(new BigDecimal(34), 0),
-				bucket(new BigDecimal(67), 0),
-				bucket(new BigDecimal(100), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should handle heavily skewed data with ADAPTIVE mode (no padding)")
-	void equalizedHistogramFromHeavilySkewedDataAdaptive() {
-		// Data heavily skewed: 9 items at value 1, 1 item at value 100
-		// With ADAPTIVE mode, only 2 buckets because only 2 distinct values
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4, BucketCountMode.ADAPTIVE,
-			1, 1, 1, 1, 1, 1, 1, 1, 1, 100
-		);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(1), 9),
-				bucket(new BigDecimal(100), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should distribute evenly by weight")
-	void equalizedHistogramDistributesEvenlyByWeight() {
-		// Test that equalized histogram distributes records evenly across buckets
-		// Data: 10 items at value 10, 10 items at value 20, 10 items at value 30, 10 items at value 40
-		// With 4 buckets and 40 total items, each bucket should have ~10 items
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4,
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-			30, 30, 30, 30, 30, 30, 30, 30, 30, 30,
-			40, 40, 40, 40, 40, 40, 40, 40, 40, 40
-		);
-		// Each distinct value group has 10 items, target per bucket is 10
-		// So each distinct value should map to one bucket
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(10), 10),
-				bucket(new BigDecimal(20), 10),
-				bucket(new BigDecimal(30), 10),
-				bucket(new BigDecimal(40), 10)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(40), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should handle uneven distribution with EXACT mode padding")
-	void equalizedHistogramWithUnevenDistribution() {
-		// Data with uneven distribution: 30 at value 10, 5 at value 20, 5 at value 30
-		// Total weight = 40, 4 buckets requested, 3 distinct values
-		// With EXACT mode: need 1 empty bucket, distributed between 2 equal gaps (10-20 and 20-30)
-		// With floor + largest-remainder method, equal gaps get floor(0.5)=0 each,
-		// then the 1 remaining bucket goes to the first gap
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4,
-			// 30 items at value 10
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			// 5 items at value 20
-			20, 20, 20, 20, 20,
-			// 5 items at value 30
-			30, 30, 30, 30, 30
-		);
-		// Empty bucket placed at midpoint of first gap: 10 + 10/2 = 15
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(10), 30),
-				bucket(new BigDecimal(15), 0),
-				bucket(new BigDecimal(20), 5),
-				bucket(new BigDecimal(30), 5)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(30), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should handle uneven distribution with ADAPTIVE mode (no padding)")
-	void equalizedHistogramWithUnevenDistributionAdaptive() {
-		// Same data but with ADAPTIVE mode - should produce 3 buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4, BucketCountMode.ADAPTIVE,
-			// 30 items at value 10
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-			// 5 items at value 20
-			20, 20, 20, 20, 20,
-			// 5 items at value 30
-			30, 30, 30, 30, 30
-		);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(10), 30),
-				bucket(new BigDecimal(20), 5),
-				bucket(new BigDecimal(30), 5)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(30), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should keep repeated values in same bucket with EXACT mode padding")
-	void equalizedHistogramWithRepeatedValuesInMiddle() {
-		// Test that items with same value are never split across buckets
-		// Data: 1, 2, 2, 2, 2, 2, 2, 2, 2, 3 (8 items at value 2)
-		// Algorithm produces 2 data buckets (1 with 9 items, 3 with 1 item)
-		// With EXACT mode and 4 buckets requested: need 2 empty buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4,
-			1, 2, 2, 2, 2, 2, 2, 2, 2, 3
-		);
-		// Gap is 2 (from 1 to 3), divided into 3 segments for 2 empty buckets
-		// Empty thresholds at 1 + 2/3 ≈ 1.67 → 2, 1 + 4/3 ≈ 2.33 → 2
-		// With integer precision, only 1 bucket fits in the gap (at 2).
-		// The second empty bucket extends the range beyond 3.
-		// EXACT mode guarantees exactly 4 buckets.
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-		assertEquals(4, histogram.length, "EXACT mode must return exactly 4 buckets");
-
-		// Bucket 0: data bucket at threshold 1 (contains 9 items: 1 at value 1, 8 at value 2)
-		assertEquals(new BigDecimal(1), histogram[0].threshold());
-		assertEquals(9, histogram[0].occurrences());
-
-		// Bucket 1: empty bucket in gap at threshold 2
-		assertEquals(new BigDecimal(2), histogram[1].threshold());
-		assertEquals(0, histogram[1].occurrences());
-
-		// Bucket 2: data bucket at threshold 3
-		assertEquals(new BigDecimal(3), histogram[2].threshold());
-		assertEquals(1, histogram[2].occurrences());
-
-		// Bucket 3: extended empty bucket at threshold 4
-		assertEquals(new BigDecimal(4), histogram[3].threshold());
-		assertEquals(0, histogram[3].occurrences());
-
-		// Verify strict monotonicity
-		for (int i = 1; i < histogram.length; i++) {
-			assertTrue(histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
-				"Thresholds must be strictly increasing");
-		}
-
-		// Max value should be the extended threshold (4)
-		assertTrue(cruncher.getMaxValue().compareTo(new BigDecimal(3)) > 0,
-			"Max value should be extended beyond original data max");
-	}
-
-	@Test
-	@DisplayName("Should keep repeated values in same bucket with ADAPTIVE mode (no padding)")
-	void equalizedHistogramWithRepeatedValuesInMiddleAdaptive() {
-		// Same data with ADAPTIVE mode - should produce 2 buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4, BucketCountMode.ADAPTIVE,
-			1, 2, 2, 2, 2, 2, 2, 2, 2, 3
-		);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(1), 9),
-				bucket(new BigDecimal(3), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(3), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should pad to exact bucket count with EXACT mode")
-	void equalizedHistogramWithMoreBucketsThanDistinctValues() {
-		// Requesting 10 buckets with only 3 distinct values in EXACT mode
-		// Should produce exactly 10 buckets: 3 data + 7 empty distributed in gaps
-		// Two equal gaps (100-200, 200-300), each size 100
-		// With floor + largest-remainder: floor(3.5)=3 each, 1 remaining goes to first
-		// Result: 4 in first gap, 3 in second gap
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10,
-			100, 200, 300
-		);
-		// First gap [100, 200]: 4 empty buckets at 100 + 100/5*i = 120, 140, 160, 180
-		// Second gap [200, 300]: 3 empty buckets at 200 + 100/4*i = 225, 250, 275
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 1),
-				bucket(new BigDecimal(120), 0),
-				bucket(new BigDecimal(140), 0),
-				bucket(new BigDecimal(160), 0),
-				bucket(new BigDecimal(180), 0),
-				bucket(new BigDecimal(200), 1),
-				bucket(new BigDecimal(225), 0),
-				bucket(new BigDecimal(250), 0),
-				bucket(new BigDecimal(275), 0),
-				bucket(new BigDecimal(300), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(300), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should limit buckets to distinct value count with ADAPTIVE mode")
-	void equalizedHistogramWithMoreBucketsThanDistinctValuesAdaptive() {
-		// Requesting 10 buckets with only 3 distinct values in ADAPTIVE mode
-		// Should produce only 3 buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.ADAPTIVE,
-			100, 200, 300
-		);
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 1),
-				bucket(new BigDecimal(200), 1),
-				bucket(new BigDecimal(300), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(300), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should handle all same values")
-	void equalizedHistogramWithAllSameValues() {
-		// All items have the same value
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4,
-			100, 100, 100, 100, 100
-		);
-		// Should produce single bucket
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 5)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("ADAPTIVE mode reduces buckets for sparse data")
-	void adaptiveModeReducesBucketsWhenSparse() {
-		// ADAPTIVE mode naturally reduces bucket count for sparse data because
-		// the equalized algorithm caps bucket count to number of distinct values.
-		// This is the behavior that makes createOptimalHistogram redundant.
-		final EqualizedHistogramDataCruncher<Integer> cruncher = new EqualizedHistogramDataCruncher<>(
-			"test histogram",
-			10,
-			0,
-			new Integer[]{100, 100, 100, 500, 500},
-			value -> value,
-			value -> 1,
-			BigDecimal::new,
-			BucketCountMode.ADAPTIVE
-		);
-		// Only 2 distinct values, ADAPTIVE mode caps to 2 buckets
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 3),
-				bucket(new BigDecimal(500), 2)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(500), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Equalized algorithm naturally avoids empty buckets - ADAPTIVE provides full optimization")
-	void equalizedAlgorithmNaturallyAvoidsEmptyBuckets() {
-		// The equalized histogram algorithm places bucket boundaries based on cumulative frequency,
-		// which means it naturally creates non-empty buckets. This test demonstrates that
-		// ADAPTIVE mode provides full optimization for equalized histograms because the algorithm
-		// inherently minimizes empty buckets by placing boundaries at data value transitions.
-		//
-		// Historical note: A createOptimalHistogram method was previously added to mirror
-		// HistogramDataCruncher, but testing proved it was redundant for equalized histograms.
-
-		// Test with bimodal data: heavy at extremes, light in middle
-		final ValueToRecordBitmap[] bimodalData = new ValueToRecordBitmap[]{
-			createWeightedValue(1, 1000),   // 1000 records at value 1
-			createWeightedValue(2, 1),
-			createWeightedValue(3, 1),
-			createWeightedValue(4, 1),
-			createWeightedValue(5, 1),
-			createWeightedValue(6, 1),
-			createWeightedValue(7, 1),
-			createWeightedValue(8, 1),
-			createWeightedValue(9, 1),
-			createWeightedValue(10, 1000)   // 1000 records at value 10
-		};
-
-		// ADAPTIVE mode
-		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
-			new EqualizedHistogramDataCruncher<>(
-				"test histogram",
-				10, 0,
-				bimodalData,
-				it -> (int) it.getValue(),
-				bucket -> bucket.getRecordIds().size(),
-				BigDecimal::new,
-				BucketCountMode.ADAPTIVE
-			);
-
-		final CacheableBucket[] adaptiveHistogram = adaptiveCruncher.getHistogram();
-
-		// Count non-empty buckets in ADAPTIVE result
-		int nonEmptyAdaptive = 0;
-		for (CacheableBucket bucket : adaptiveHistogram) {
-			if (bucket.occurrences() > 0) {
-				nonEmptyAdaptive++;
-			}
-		}
-
-		// For equalized histograms, all buckets are non-empty because boundaries
-		// are placed at data value transitions, not arbitrary intervals
-		assertEquals(adaptiveHistogram.length, nonEmptyAdaptive,
-			"Equalized algorithm should produce all non-empty buckets");
-
-		// Verify data integrity
-		int totalAdaptive = 0;
-		for (CacheableBucket bucket : adaptiveHistogram) {
-			totalAdaptive += bucket.occurrences();
-		}
-		assertEquals(2008, totalAdaptive, "Should have 2008 total records");
-	}
-
-	@Test
-	@DisplayName("ADAPTIVE mode caps to distinct value count - 2 values produce 2 buckets")
-	void adaptiveModeCapsToDistinctValueCount() {
-		// When there are only 2 distinct values, ADAPTIVE mode correctly caps to 2 buckets
-		// regardless of how many buckets were requested. This is the core mechanism that
-		// makes separate optimization logic redundant for equalized histograms.
-		//
-		// Historical note: A createOptimalHistogram method was previously considered,
-		// but it would produce identical results to ADAPTIVE for this case.
-
-		final ValueToRecordBitmap[] twoValueData = new ValueToRecordBitmap[]{
-			createWeightedValue(100, 500),
-			createWeightedValue(500, 500)
-		};
-
-		// ADAPTIVE mode with 10 buckets requested
-		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
-			new EqualizedHistogramDataCruncher<>(
-				"test histogram",
-				10, 0,
-				twoValueData,
-				it -> (int) it.getValue(),
-				bucket -> bucket.getRecordIds().size(),
-				BigDecimal::new,
-				BucketCountMode.ADAPTIVE
-			);
-
-		// Should produce exactly 2 buckets (capped to distinct value count)
-		assertEquals(2, adaptiveCruncher.getHistogram().length,
-			"ADAPTIVE should cap to 2 buckets for 2 distinct values");
-
-		// Verify bucket contents
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(100), 500),
-				bucket(new BigDecimal(500), 500)
-			},
-			adaptiveCruncher.getHistogram()
-		);
-	}
-
-	@Test
-	@DisplayName("ADAPTIVE handles extreme weight distribution - all buckets non-empty")
-	void adaptiveHandlesExtremeWeightDistribution() {
-		// This test demonstrates that ADAPTIVE mode handles extreme weight distributions
-		// correctly. Even with very uneven weights, the equalized algorithm places
-		// boundaries at data value transitions, resulting in non-empty buckets.
-		//
-		// This is the key insight that makes separate optimization logic redundant:
-		// equalized histograms inherently avoid empty buckets because they use
-		// cumulative frequency, not fixed-width intervals.
-
-		// Extreme case: 3 distinct values with 1000:1:1000 weights
-		final ValueToRecordBitmap[] threeValueData = new ValueToRecordBitmap[]{
-			createWeightedValue(10, 1000),   // very heavy
-			createWeightedValue(50, 1),      // very light
-			createWeightedValue(100, 1000)   // very heavy
-		};
-
-		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
-			new EqualizedHistogramDataCruncher<>(
-				"test histogram",
-				3, 0,
-				threeValueData,
-				it -> (int) it.getValue(),
-				bucket -> bucket.getRecordIds().size(),
-				BigDecimal::new,
-				BucketCountMode.ADAPTIVE
-			);
-
-		final CacheableBucket[] adaptiveResult = adaptiveCruncher.getHistogram();
-
-		// Count non-empty
-		int nonEmpty = 0;
-		for (CacheableBucket bucket : adaptiveResult) {
-			if (bucket.occurrences() > 0) {
-				nonEmpty++;
-			}
-		}
-
-		// The equalized algorithm produces all non-empty buckets
-		// because it places boundaries at value transitions, not arbitrary intervals
-		assertEquals(nonEmpty, adaptiveResult.length,
-			"Equalized histogram should produce all non-empty buckets");
-		assertTrue(nonEmpty >= 2,
-			"Equalized histogram should have at least 2 non-empty buckets");
-
-		// Verify total weight is preserved
-		int totalWeight = 0;
-		for (CacheableBucket bucket : adaptiveResult) {
-			totalWeight += bucket.occurrences();
-		}
-		assertEquals(2001, totalWeight, "Total weight should be 2001 (1000 + 1 + 1000)");
-	}
-
-	@Test
-	@DisplayName("ADAPTIVE handles extreme weight distribution - all buckets non-empty")
-	void adaptiveHandlesExtremeWeightDistributionAndJitter() {
-		// This test demonstrates that ADAPTIVE mode handles extreme weight distributions
-		// correctly. Even with very uneven weights, the equalized algorithm places
-		// boundaries at data value transitions, resulting in non-empty buckets.
-		//
-		// This is the key insight that makes separate optimization logic redundant:
-		// equalized histograms inherently avoid empty buckets because they use
-		// cumulative frequency, not fixed-width intervals.
-
-		// Extreme case: 3 distinct values with 1000:1:1000 weights
-		final ValueToRecordBitmap[] threeValueData = Stream.of(
-			createWeightedValue(10, 1000, 10),   // very heavy
-			createWeightedValue(50, 1, 1),       // very light
-			createWeightedValue(100, 1000, 50)   // very heavy
-		)
-			.flatMap(Stream::of)
-			.toArray(ValueToRecordBitmap[]::new);
-
-		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
-			new EqualizedHistogramDataCruncher<>(
-				"test histogram",
-				5, 0,
-				threeValueData,
-				it -> (int) it.getValue(),
-				bucket -> bucket.getRecordIds().size(),
-				BigDecimal::new,
-				BucketCountMode.ADAPTIVE
-			);
-
-		final CacheableBucket[] adaptiveResult = adaptiveCruncher.getHistogram();
-
-		// Count non-empty
-		int nonEmpty = 0;
-		for (CacheableBucket bucket : adaptiveResult) {
-			if (bucket.occurrences() > 0) {
-				nonEmpty++;
-			}
-		}
-
-		// The equalized algorithm produces all non-empty buckets
-		// because it places boundaries at value transitions, not arbitrary intervals
-		assertEquals(nonEmpty, adaptiveResult.length,
-		             "Equalized histogram should produce all non-empty buckets");
-		assertTrue(nonEmpty >= 2,
-		           "Equalized histogram should have at least 2 non-empty buckets");
-
-		// Verify total weight is preserved
-		int totalWeight = 0;
-		for (CacheableBucket bucket : adaptiveResult) {
-			totalWeight += bucket.occurrences();
-		}
-		assertEquals(2001, totalWeight, "Total weight should be 2001 (1000 + 1 + 1000)");
-	}
-
 	/**
-	 * Helper to create a ValueToRecordBitmap with specified value and weight (number of records).
+	 * Production price catalogue of the `zrcadla-a-galerky` category of a live storefront, run-length encoded as
+	 * `priceInThousandths:productCount`. 3 237 products over only 135 distinct prices, the busiest holding 241 of
+	 * them - the charm-pricing shape (999, 799, 899, 699, 599, 499) that the previous bucketing collapsed on.
 	 */
-	@Nonnull
-	private static ValueToRecordBitmap createWeightedValue(int value, int weight) {
-		final int[] recordIds = new int[weight];
-		for (int i = 0; i < weight; i++) {
-			recordIds[i] = value * 10000 + i;  // unique record IDs
-		}
-		return new ValueToRecordBitmap(value, recordIds);
-	}
-
+	private static final String PRODUCTION_PRICES =
+		"9000:3,19000:5,29000:5,31000:1,39000:1,49000:9,56000:1,60000:4,69000:1,70000:1,75000:22,87000:2,90000:7," +
+			"99000:5,105000:1,110000:1,119000:1,129000:6,135000:1,139000:4,143000:1,145000:3,149000:2,179000:1," +
+			"189000:14,199000:1,203000:3,217000:1,229000:1,230000:8,239000:1,245000:3,249000:6,254000:1,259000:5," +
+			"267000:8,269000:4,286000:23,289000:12,299000:30,309000:2,314000:2,319000:4,324000:1,329000:3,338000:3," +
+			"339000:2,349000:21,359000:7,364000:1,369000:16,374000:5,389000:2,393000:18,396000:6,399000:41,419000:6," +
+			"422000:1,424000:20,429000:4,439000:2,441000:8,449000:62,452000:34,458000:1,469000:2,473000:21,479000:3," +
+			"495000:1,499000:82,507000:38,509000:2,529000:9,530000:16,535000:146,539000:3,549000:26,552000:1," +
+			"579000:1,592000:52,595000:1,598000:14,599000:95,618000:1,628000:58,630000:9,649000:28,659000:1," +
+			"674000:67,679000:4,695000:3,699000:110,709000:1,728000:113,749000:81,752000:4,769000:5,799000:176," +
+			"806000:61,811000:3,849000:28,856000:115,872000:3,899000:172,910000:81,934000:86,940000:5,949000:6," +
+			"999000:241,1007000:44,1070000:70,1090000:62,1145000:19,1190000:84,1210000:9,1282000:34,1290000:83," +
+			"1390000:38,1422000:1,1490000:44,1561000:37,1590000:28,1605000:25,1690000:8,1790000:26,1890000:9," +
+			"1990000:28,2090000:1,2117000:3,2190000:6,2290000:4,2390000:1,2490000:76,2809000:14,2990000:27";
 	/**
-	 * Helper to create a ValueToRecordBitmap with specified value and weight (number of records).
+	 * Production attribute histogram captured from the same storefront, run-length encoded the same way. Only 24
+	 * distinct values, and a single one of them holds 338 of the 666 records - 50.75%, five records away from the
+	 * hard majority switch this implementation deliberately does not use.
 	 */
-	@Nonnull
-	private static ValueToRecordBitmap[] createWeightedValue(int value, int weight, int valueJitter) {
-		final long seed = System.nanoTime();
-		log.info("createWeightedValue using seed: {} for value={}, weight={}, jitter={}", seed, value, weight, valueJitter);
-		final Random rnd = new Random(seed);
-		final Map<Integer, CompositeIntArray> recordIds = CollectionUtils.createHashMap(valueJitter);
-		for (int i = 0; i < weight; i++) {
-			recordIds.computeIfAbsent(
-				value + rnd.nextInt(valueJitter),
-				k -> new CompositeIntArray()
-			).add(value * 10000 + i);  // unique record IDs
-		}
-		return recordIds.entrySet().stream().map(it -> new ValueToRecordBitmap(it.getKey(), it.getValue().toArray()))
-			.sorted(Comparator.comparingInt(o -> (Integer) o.getValue()))
-			.toArray(ValueToRecordBitmap[]::new);
-	}
+	private static final String PRODUCTION_ATTRIBUTE =
+		"200000:1,205000:1,400000:3,406000:7,420000:6,430000:6,433000:5,435000:37,440000:2,457000:1,458000:1," +
+			"460000:52,465000:3,475000:4,480000:44,490000:1,495000:2,500000:338,505000:5,510000:123,515000:11," +
+			"520000:6,560000:1,575000:6";
+	/**
+	 * Number of randomly generated catalogues each property-style test runs over.
+	 */
+	private static final int RANDOM_CATALOGUE_COUNT = 5_000;
+	/**
+	 * Fixed seed so a failure is always reproducible.
+	 */
+	private static final long RANDOM_SEED = 20_260_907L;
 
-	@Test
-	@DisplayName("Should handle weighted items correctly")
-	void equalizedHistogramWithWeightedItems() {
-		// Test with weighted items (using ValueToRecordBitmap)
-		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> cruncher = createEqualizedHistogramBucketCruncher(
-			3,
-			new ValueToRecordBitmap(100, 1, 11, 12, 13, 14, 15, 16, 17, 18, 19),  // weight 10
-			new ValueToRecordBitmap(200, 2, 21),                                  // weight 2
-			new ValueToRecordBitmap(300, 3, 31, 32, 33, 34),                      // weight 5
-			new ValueToRecordBitmap(400, 4, 41, 42),                              // weight 3
-			new ValueToRecordBitmap(500, 5, 51, 52, 53, 54, 55)                   // weight 6
-		);
-		// Total weight = 26, target per bucket (3 buckets) = 8.67
-		// Bucket boundaries placed to equalize weight distribution
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-		assertEquals(3, histogram.length);
-		// First bucket should be at value 100
-		assertEquals(new BigDecimal(100), histogram[0].threshold());
-		assertEquals(new BigDecimal(500), cruncher.getMaxValue());
-	}
+	@Nested
+	@DisplayName("Degenerate and invalid inputs")
+	class DegenerateInputs {
 
-	@Test
-	@DisplayName("Should handle decimal places correctly")
-	void equalizedHistogramWithDecimalPlaces() {
-		final EqualizedHistogramDataCruncher<BigDecimal> cruncher = createEqualizedBigDecimalCruncher(
-			3, 2, 2,
-			new BigDecimal("10.00"),
-			new BigDecimal("15.50"),
-			new BigDecimal("20.00"),
-			new BigDecimal("25.50"),
-			new BigDecimal("30.00")
-		);
-
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-		assertEquals(3, histogram.length);
-
-		// Verify thresholds have correct decimal places
-		for (CacheableBucket bucket : histogram) {
-			assertTrue(bucket.threshold().scale() <= 2,
-				"Threshold scale should be <= 2, got: " + bucket.threshold().scale());
-		}
-		assertEquals(new BigDecimal("30.00"), cruncher.getMaxValue());
-	}
-
-	@Test
-	@DisplayName("Should preserve all records when computing histogram")
-	void equalizedHistogramPreservesAllRecords() {
-		final Integer[] data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 50, 100, 500, 1000};
-
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(4, data);
-
-		int totalOccurrences = 0;
-		for (CacheableBucket bucket : cruncher.getHistogram()) {
-			totalOccurrences += bucket.occurrences();
-		}
-		assertEquals(data.length, totalOccurrences, "All records should be accounted for");
-	}
-
-	@Test
-	@DisplayName("Should throw exception for empty source data")
-	void shouldThrowExceptionForEmptySourceData() {
-		assertThrows(
-			IllegalArgumentException.class,
-			() -> new EqualizedHistogramDataCruncher<>(
-				"test histogram",
-				4, 0,
-				new Integer[]{},
-				value -> value,
-				value -> 1,
-				BigDecimal::new,
-				BucketCountMode.EXACT
-			)
-		);
-	}
-
-	@Test
-	@DisplayName("Should maintain monotonicity when padding very close thresholds")
-	void shouldMaintainMonotonicityWhenPaddingCloseThresholds() {
-		// Create data with two very close values - when padded with many
-		// empty buckets, the rounding logic must ensure strict monotonicity
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.EXACT, 100, 101
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// Verify strict monotonicity: each threshold must be > previous
-		for (int i = 1; i < histogram.length; i++) {
-			assertTrue(
-				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
-				"Thresholds must be strictly increasing, but bucket " + i +
-					" (" + histogram[i].threshold() + ") is not greater than bucket " +
-					(i - 1) + " (" + histogram[i - 1].threshold() + ")"
-			);
-		}
-	}
-
-	@Test
-	@DisplayName("EXACT mode guarantees requested bucket count by extending range")
-	void exactModeGuaranteesBucketCountByExtendingRange() {
-		// Data with very small gap that can't fit requested empty buckets
-		// Values 100, 101 with bucketCount=10 and limitDecimalPlacesTo=0
-		// Gap of 1 can only fit 0 empty buckets in the gap, so 8 must go to extension
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.EXACT, 100, 101
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// EXACT mode must return exactly the requested bucket count
-		assertEquals(10, histogram.length,
-			"EXACT mode must return exactly 10 buckets");
-
-		// First bucket should be at 100, second at 101
-		assertEquals(new BigDecimal(100), histogram[0].threshold());
-		assertEquals(new BigDecimal(101), histogram[1].threshold());
-
-		// All data is in first two buckets
-		int totalOccurrences = 0;
-		for (CacheableBucket bucket : histogram) {
-			totalOccurrences += bucket.occurrences();
-		}
-		assertEquals(2, totalOccurrences, "Total occurrences should be 2");
-	}
-
-	@Test
-	@DisplayName("Extended buckets maintain strict monotonicity")
-	void extendedBucketsMaintainStrictMonotonicity() {
-		// Small gap scenario forcing range extension
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			15, BucketCountMode.EXACT, 100, 102
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// Verify exact count
-		assertEquals(15, histogram.length,
-			"EXACT mode must return exactly 15 buckets");
-
-		// Verify all thresholds are strictly increasing including extended ones
-		for (int i = 1; i < histogram.length; i++) {
-			assertTrue(
-				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
-				"All thresholds must be strictly increasing, but bucket " + i +
-					" (" + histogram[i].threshold() + ") is not greater than bucket " +
-					(i - 1) + " (" + histogram[i - 1].threshold() + ")"
-			);
-		}
-	}
-
-	@Test
-	@DisplayName("getMaxValue returns extended max when range is extended")
-	void getMaxValueReturnsExtendedMax() {
-		// Small gap forcing extension - max should be > lastThreshold
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.EXACT, 100, 101
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-		final BigDecimal maxValue = cruncher.getMaxValue();
-
-		// Max value should be >= last bucket threshold
-		assertTrue(maxValue.compareTo(histogram[histogram.length - 1].threshold()) >= 0,
-			"Max value should be >= last bucket threshold");
-
-		// Max value should be > original data max (101) since range was extended
-		assertTrue(maxValue.compareTo(new BigDecimal(101)) > 0,
-			"Max value should be > 101 since range was extended");
-	}
-
-	@Test
-	@DisplayName("Extended buckets have zero relativeFrequency (0 occurrences)")
-	void extendedBucketsHaveZeroRelativeFrequency() {
-		// Scenario requiring range extension
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.EXACT, 100, 101
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// Data buckets (first two) should have non-zero relativeFrequency
-		assertTrue(
-			histogram[0].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
-			"First data bucket should have relativeFrequency > 0"
-		);
-		assertTrue(
-			histogram[1].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
-			"Second data bucket should have relativeFrequency > 0"
-		);
-
-		// Extended buckets (index 2+) should have relativeFrequency = 0 (no occurrences)
-		for (int i = 2; i < histogram.length; i++) {
-			assertEquals(
-				0,
-				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO),
-				"Extended bucket " + i + " should have relativeFrequency = 0 (no occurrences), got " +
-					histogram[i].relativeFrequency()
-			);
-		}
-	}
-
-	@Test
-	@DisplayName("EXACT mode with decimal places extends correctly")
-	void exactModeWithDecimalPlacesExtendsCorrectly() {
-		// Test with decimal places to ensure extension respects precision
-		final EqualizedHistogramDataCruncher<BigDecimal> cruncher = createEqualizedBigDecimalCruncher(
-			10, 2, 2, BucketCountMode.EXACT,
-			new BigDecimal("10.00"),
-			new BigDecimal("10.05")
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// Must return exactly 10 buckets
-		assertEquals(10, histogram.length,
-			"EXACT mode must return exactly 10 buckets");
-
-		// All thresholds must be strictly increasing
-		for (int i = 1; i < histogram.length; i++) {
-			assertTrue(
-				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
-				"Thresholds must be strictly increasing"
-			);
-		}
-
-		// All thresholds must have correct decimal scale
-		for (CacheableBucket bucket : histogram) {
-			assertTrue(bucket.threshold().scale() <= 2,
-				"Threshold scale should be <= 2, got: " + bucket.threshold().scale());
-		}
-	}
-
-	@Test
-	@DisplayName("Relative frequencies should sum to approximately 100")
-	void relativeFrequenciesShouldSumTo100() {
-		// Test with various data distributions
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			5, BucketCountMode.ADAPTIVE,
-			10, 10, 10, 20, 20, 30, 40, 50, 60, 70, 80, 90, 100
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// Sum all relative frequencies
-		BigDecimal sum = BigDecimal.ZERO;
-		for (CacheableBucket bucket : histogram) {
-			sum = sum.add(bucket.relativeFrequency());
-		}
-
-		// Should sum to approximately 100 (allow small rounding error)
-		assertTrue(
-			sum.compareTo(new BigDecimal("99")) >= 0 && sum.compareTo(new BigDecimal("101")) <= 0,
-			"Relative frequencies should sum to ~100, but got " + sum
-		);
-	}
-
-	@Test
-	@DisplayName("Empty buckets should have zero relativeFrequency")
-	void emptyBucketsShouldHaveZeroRelativeFrequency() {
-		// EXACT mode creates empty buckets in gaps
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			10, BucketCountMode.EXACT, 100, 200, 300
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		for (int i = 0; i < histogram.length; i++) {
-			if (histogram[i].occurrences() == 0) {
-				assertEquals(
-					0,
-					histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO),
-					"Empty bucket " + i + " should have relativeFrequency = 0, got " +
-						histogram[i].relativeFrequency()
+		@Test
+		@DisplayName("Should throw exception when fewer than two buckets are requested")
+		void shouldThrowExceptionWhenFewerThanTwoBucketsRequested() {
+			for (int i = 1; i > -2; i--) {
+				final int bucketCount = i;
+				assertThrows(
+					InvalidHistogramBucketCountException.class,
+					() -> cruncher(bucketCount, new int[][]{{100, 1}, {200, 1}})
 				);
 			}
 		}
-	}
 
-	@Test
-	@DisplayName("Relative frequency reflects both occurrences and bucket width")
-	void relativeFrequencyReflectsOccurrencesAndWidth() {
-		// Two buckets with same width but different occurrences
-		// The bucket with more occurrences should have higher relative frequency
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			2, BucketCountMode.ADAPTIVE,
-			// 5 items at value 10
-			10, 10, 10, 10, 10,
-			// 1 item at value 20
-			20
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		assertEquals(2, histogram.length);
-		// First bucket has 5 occurrences, second has 1
-		// First bucket should have higher relative frequency since it has more data
-		// packed into same width range
-		assertTrue(
-			histogram[0].relativeFrequency().compareTo(histogram[1].relativeFrequency()) > 0,
-			"Bucket with more occurrences should have higher relative frequency. " +
-				"First: " + histogram[0].relativeFrequency() + ", Second: " + histogram[1].relativeFrequency()
-		);
-	}
-
-	@Test
-	@DisplayName("Single bucket should have 100 relativeFrequency")
-	void singleBucketShouldHave100RelativeFrequency() {
-		// All items have same value - single bucket
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			5, BucketCountMode.ADAPTIVE,
-			100, 100, 100, 100, 100
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		assertEquals(1, histogram.length, "Should produce single bucket");
-		assertEquals(
-			new BigDecimal("100"),
-			histogram[0].relativeFrequency(),
-			"Single bucket should have relativeFrequency = 100"
-		);
-	}
-
-	@Test
-	@DisplayName("Non-empty buckets in ADAPTIVE mode all have positive relative frequency summing to 100")
-	void nonEmptyBucketsHavePositiveRelativeFrequencySummingTo100() {
-		// ADAPTIVE mode produces only non-empty buckets
-		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
-			4, BucketCountMode.ADAPTIVE,
-			// Varied distribution
-			1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 10 items at value 1
-			50, 50,                          // 2 items at value 50
-			100, 100, 100, 100               // 4 items at value 100
-		);
-		final CacheableBucket[] histogram = cruncher.getHistogram();
-
-		// All buckets should have positive relative frequency
-		for (int i = 0; i < histogram.length; i++) {
-			assertTrue(
-				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
-				"Non-empty bucket " + i + " should have relativeFrequency > 0"
+		@Test
+		@DisplayName("Should throw exception when source data is empty")
+		void shouldThrowExceptionWhenSourceDataIsEmpty() {
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> cruncher(5, new int[0][])
 			);
 		}
 
-		// Sum should be approximately 100
-		BigDecimal sum = BigDecimal.ZERO;
-		for (CacheableBucket bucket : histogram) {
-			sum = sum.add(bucket.relativeFrequency());
+		@Test
+		@DisplayName("Should collapse a single distinct value into one bucket occupying the whole scale")
+		void shouldCollapseSingleDistinctValueIntoOneFullHeightBucket() {
+			// D = 1 is a routine production result for attribute histograms once a facet narrows the selection
+			final CacheableBucket[] histogram = cruncher(20, new int[][]{{100, 7}}).getHistogram();
+
+			assertEquals(1, histogram.length, "One distinct value cannot be split into more than one bucket");
+			assertEquals(new BigDecimal(100), histogram[0].threshold());
+			assertEquals(7, histogram[0].occurrences());
+			assertEquals(
+				new BigDecimal("100"), histogram[0].relativeFrequency(),
+				"The only bucket is by definition the peak of the distribution"
+			);
 		}
-		assertTrue(
-			sum.compareTo(new BigDecimal("99")) >= 0 && sum.compareTo(new BigDecimal("101")) <= 0,
-			"Relative frequencies should sum to ~100, but got " + sum
-		);
+
+		@Test
+		@DisplayName("Should yield exactly two buckets when only two distinct values exist")
+		void shouldYieldTwoBucketsWhenOnlyTwoDistinctValuesExist() {
+			final CacheableBucket[] histogram = cruncher(20, new int[][]{{100, 3}, {500, 9}}).getHistogram();
+
+			assertEquals(2, histogram.length, "There is no third value to open a third bucket at");
+			assertEquals(new BigDecimal(100), histogram[0].threshold());
+			assertEquals(3, histogram[0].occurrences());
+			assertEquals(new BigDecimal(500), histogram[1].threshold());
+			assertEquals(9, histogram[1].occurrences());
+		}
+
+		@Test
+		@DisplayName("Should stay linear in the data when a huge bucket count is requested")
+		void shouldStayLinearInTheDataWhenHugeBucketCountRequested() {
+			// The caller picks bucketCount and nothing bounds it, so walking the quantile function one rank at a
+			// time would let a single request cost O(bucketCount) regardless of how little data there is. The
+			// rank walk consumes whole runs in one step instead. The timeout is the assertion that matters:
+			// asserting only the output would pass just as happily against a walk that took a hundred million
+			// iterations to produce it.
+			final CacheableBucket[] histogram = assertTimeoutPreemptively(
+				Duration.ofSeconds(5),
+				() -> cruncher(
+					Integer.MAX_VALUE, new int[][]{{10, 3}, {20, 999_000}, {30, 7}}
+				).getHistogram(),
+				"The quantile walk scaled with the requested bucket count instead of with the data"
+			);
+
+			assertEquals(3, histogram.length, "Three distinct values cannot produce more than three buckets");
+			assertEquals(3, histogram[0].occurrences());
+			assertEquals(999_000, histogram[1].occurrences());
+			assertEquals(7, histogram[2].occurrences());
+		}
+
+		@Test
+		@DisplayName("Should preserve requested decimal places in thresholds")
+		void shouldPreserveRequestedDecimalPlacesInThresholds() {
+			final EqualizedHistogramDataCruncher<int[]> cruncher = new EqualizedHistogramDataCruncher<>(
+				"test histogram", 5, 2,
+				new int[][]{{1_050, 4}, {2_575, 6}, {9_999, 2}},
+				pair -> pair[0], pair -> pair[1],
+				value -> new BigDecimal(value).scaleByPowerOfTen(-2)
+			);
+			final CacheableBucket[] histogram = cruncher.getHistogram();
+
+			assertEquals(3, histogram.length);
+			assertEquals(new BigDecimal("10.50"), histogram[0].threshold());
+			assertEquals(new BigDecimal("25.75"), histogram[1].threshold());
+			assertEquals(new BigDecimal("99.99"), histogram[2].threshold());
+			assertEquals(new BigDecimal("99.99"), cruncher.getMaxValue());
+		}
 	}
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<Integer> createEqualizedIntCruncher(int stepCount, Integer... data) {
-		return createEqualizedIntCruncher(stepCount, BucketCountMode.EXACT, data);
+	@Nested
+	@DisplayName("Bucketing invariants")
+	class BucketingInvariants {
+
+		@Test
+		@DisplayName("Should never exceed the requested bucket count nor emit an empty or repeated bucket")
+		void shouldNeverExceedBudgetNorEmitDegenerateBucket() {
+			forEachRandomCatalogue((values, weights, bucketCount, histogram) -> {
+				assertTrue(
+					histogram.length <= Math.min(bucketCount, values.length),
+					"Returned " + histogram.length + " buckets for a budget of " + bucketCount +
+						" over " + values.length + " distinct values"
+				);
+				assertTrue(histogram.length > 0, "A non-empty catalogue must produce at least one bucket");
+				for (int i = 0; i < histogram.length; i++) {
+					assertTrue(
+						histogram[i].occurrences() > 0,
+						"Bucket " + i + " is empty - the equalized algorithm must never emit one"
+					);
+					if (i > 0) {
+						assertTrue(
+							histogram[i - 1].threshold().compareTo(histogram[i].threshold()) < 0,
+							"Thresholds must strictly increase so that every slider position selects a different set"
+						);
+					}
+				}
+			});
+		}
+
+		@Test
+		@DisplayName("Should account for the whole catalogue in bucket occurrences")
+		void shouldAccountForWholeCatalogueInBucketOccurrences() {
+			forEachRandomCatalogue((values, weights, bucketCount, histogram) -> {
+				long total = 0;
+				for (int weight : weights) {
+					total += weight;
+				}
+				long counted = 0;
+				for (CacheableBucket bucket : histogram) {
+					counted += bucket.occurrences();
+				}
+				assertEquals(total, counted, "Buckets must partition the catalogue without loss or duplication");
+			});
+		}
+
+		@Test
+		@DisplayName("Should charge every bucket for the quantile targets its values absorbed")
+		void shouldChargeEveryBucketForTheTargetsItAbsorbed() {
+			// This is the invariant the previous implementation broke. A distinct value's weight is atomic - a
+			// bucket that opens on a value holding 30% of the catalogue is going to hold at least 30%, and that is
+			// inherent. What is not inherent is failing to *charge* that value for the quantile targets it
+			// swallowed, which is what let one bar absorb a third of the catalogue while thirteen of the twenty
+			// that followed it starved.
+			forEachRandomCatalogue((values, weights, bucketCount, histogram) -> {
+				long total = 0;
+				for (int weight : weights) {
+					total += weight;
+				}
+				final double targetMass = (double) total / bucketCount;
+
+				for (int i = 0; i < histogram.length; i++) {
+					final int from = indexOfThreshold(values, histogram[i].threshold());
+					final int to = i + 1 < histogram.length
+						? indexOfThreshold(values, histogram[i + 1].threshold()) - 1
+						: values.length - 1;
+					int heaviest = 0;
+					for (int j = from; j <= to; j++) {
+						heaviest = Math.max(heaviest, weights[j]);
+					}
+					assertTrue(
+						histogram[i].occurrences() - heaviest <= targetMass,
+						"Bucket " + i + " holds " + histogram[i].occurrences() + " records, of which its heaviest " +
+							"single value contributes " + heaviest + " - the remainder exceeds one target of " +
+							targetMass
+					);
+				}
+			});
+		}
+
+		@Test
+		@DisplayName("Should split evenly weighted values into exactly equal buckets")
+		void shouldSplitEvenlyWeightedValuesIntoEqualBuckets() {
+			// Evenly weighted data is the one shape where every quantile rank falls exactly on a value
+			// boundary, which makes it the only shape that can tell "the value that CONTAINS the rank" apart
+			// from "the value that ENDS at it". Picking the latter puts every cut one distinct value early and
+			// piles the remainder onto the last bucket. Irregular retail data never exhibits it - both
+			// production corpora below bucket identically under either convention - so this case has to be
+			// constructed deliberately or the error is invisible.
+			final int[][] sixEqualValues = new int[6][];
+			for (int i = 0; i < sixEqualValues.length; i++) {
+				sixEqualValues[i] = new int[]{(i + 1) * 10, 7};
+			}
+			final CacheableBucket[] thirds = cruncher(3, sixEqualValues).getHistogram();
+
+			assertEquals(3, thirds.length, "Six equal masses split three ways must produce three buckets");
+			for (int i = 0; i < thirds.length; i++) {
+				assertEquals(
+					14, thirds[i].occurrences(),
+					"Bucket " + i + " of an evenly weighted catalogue must hold exactly a third of it"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should fill every bucket when the plateau count matches the bucket count")
+		void shouldFillEveryBucketWhenPlateauCountMatchesBucketCount() {
+			// Twenty equal plateaus asked to fill twenty buckets is the degenerate form of the case above:
+			// one plateau per bucket is both achievable and obviously correct, so anything less is a defect
+			// rather than the unavoidable consequence of an indivisible value.
+			final int[][] twentyPlateaus = new int[20][];
+			for (int i = 0; i < twentyPlateaus.length; i++) {
+				twentyPlateaus[i] = new int[]{(i + 1) * 100 - 1, 100};
+			}
+			final CacheableBucket[] histogram = cruncher(20, twentyPlateaus).getHistogram();
+
+			assertEquals(20, histogram.length, "Twenty equal plateaus must fill twenty buckets");
+			for (int i = 0; i < histogram.length; i++) {
+				assertEquals(
+					100, histogram[i].occurrences(),
+					"Bucket " + i + " must hold exactly one plateau, not two"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should aggregate duplicate consecutive thresholds in the source data")
+		void shouldAggregateDuplicateConsecutiveThresholds() {
+			// This is the shape the price histogram always has: one source item per entity carrying weight 1,
+			// so a price shared by several products arrives as repeated consecutive entries rather than as a
+			// pre-aggregated pair. Feeding only distinct pairs leaves the aggregation pass unexercised.
+			final int[][] perRecord = {
+				{100, 1}, {100, 1}, {100, 1},
+				{200, 1},
+				{300, 1}, {300, 1}, {300, 1}, {300, 1}, {300, 1}
+			};
+			final CacheableBucket[] histogram = cruncher(3, perRecord).getHistogram();
+
+			assertEquals(3, histogram.length, "Three distinct prices must open three buckets");
+			assertEquals(new BigDecimal(100), histogram[0].threshold());
+			assertEquals(3, histogram[0].occurrences(), "The three records priced 100 must be folded together");
+			assertEquals(new BigDecimal(200), histogram[1].threshold());
+			assertEquals(1, histogram[1].occurrences());
+			assertEquals(new BigDecimal(300), histogram[2].threshold());
+			assertEquals(5, histogram[2].occurrences(), "The five records priced 300 must be folded together");
+		}
+
+		@Test
+		@DisplayName("Should isolate a heavy value into a bucket of its own")
+		void shouldIsolateHeavyValueIntoItsOwnBucket() {
+			// forty evenly priced values holding ten products each, plus one price holding two hundred - a third
+			// of the catalogue on a single value, which is exactly what charm pricing produces. This pins the
+			// isolation rule only: the heavy value opens a bucket and the next distinct price opens the one
+			// after it, so its mass cannot spill forwards. It is deliberately NOT the regression guard for
+			// target-crossing accounting - a bucketing that mis-charges absorbed ranks can still isolate this
+			// particular value, and shouldChargeEveryBucketForTheTargetsItAbsorbed is what actually detects
+			// that across the random corpus.
+			final int[][] catalogue = new int[40][];
+			for (int i = 0; i < catalogue.length; i++) {
+				catalogue[i] = new int[]{(i + 1) * 37, 10};
+			}
+			catalogue[12][1] = 200;
+
+			final CacheableBucket[] histogram = cruncher(10, catalogue).getHistogram();
+
+			int isolating = -1;
+			for (int i = 0; i < histogram.length; i++) {
+				if (histogram[i].threshold().compareTo(new BigDecimal(13 * 37)) == 0) {
+					isolating = i;
+				}
+			}
+			assertTrue(isolating >= 0, "The heavy value must open a bucket of its own");
+			assertEquals(
+				200, histogram[isolating].occurrences(),
+				"The heavy value's bucket must hold its mass and nothing else - it was charged for every quantile " +
+					"target it absorbed, so the following bucket reopens at the very next price"
+			);
+		}
 	}
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<Integer> createEqualizedIntCruncher(
-		int stepCount,
-		@Nonnull BucketCountMode bucketCountMode,
-		Integer... data
-	) {
-		return new EqualizedHistogramDataCruncher<>(
-			"test histogram",
-			stepCount, 0,
-			data,
-			value -> value,
-			value -> 1,
-			BigDecimal::new,
-			bucketCountMode
-		);
+	@Nested
+	@DisplayName("Height stability")
+	class HeightStability {
+
+		@Test
+		@DisplayName("Should keep relative frequency inside the documented (0, 100] scale")
+		void shouldKeepRelativeFrequencyWithinDocumentedScale() {
+			forEachRandomCatalogue((values, weights, bucketCount, histogram) -> {
+				for (int i = 0; i < histogram.length; i++) {
+					final BigDecimal frequency = histogram[i].relativeFrequency();
+					assertTrue(
+						frequency.compareTo(BigDecimal.ZERO) > 0,
+						"Bucket " + i + " holds records but renders at " + frequency
+					);
+					assertTrue(
+						frequency.compareTo(new BigDecimal("100")) <= 0,
+						"Bucket " + i + " renders at " + frequency + ", above the curve maximum"
+					);
+				}
+			});
+		}
+
+		@Test
+		@DisplayName("Should keep bar heights stable when a neighbouring value is repriced by one unit")
+		void shouldKeepHeightStableWhenNeighbouringValueIsRepriced() {
+			// The previous implementation read the height off the single gap between two adjacent prices, so
+			// nudging one price by one unit could change a bar by orders of magnitude. Every distinct price in the
+			// production catalogue is nudged in turn; the worst observed drift is around 0.01%.
+			final int[][] original = parse(PRODUCTION_PRICES);
+			final CacheableBucket[] reference = cruncher(20, original).getHistogram();
+
+			double worstDrift = 0.0;
+			for (int i = 0; i < original.length; i++) {
+				if (i + 1 < original.length && original[i][0] + 1 >= original[i + 1][0]) {
+					// nudging here would collide with the next price and genuinely change the catalogue
+					continue;
+				}
+				final int[][] nudged = parse(PRODUCTION_PRICES);
+				nudged[i][0] += 1;
+				worstDrift = Math.max(
+					worstDrift, maximumRelativeDrift(reference, cruncher(20, nudged).getHistogram())
+				);
+			}
+
+			assertTrue(
+				worstDrift < 0.001,
+				"Moving one price by one unit shifted a bar by " + (worstDrift * 100) + "% - the height must " +
+					"describe the distribution, not the gap between two neighbours"
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep bar heights identical when the whole catalogue is replicated")
+		void shouldKeepHeightInvariantWhenCatalogueIsReplicated() {
+			// The estimate smooths a catalogue that is known in full - it does not infer a latent population from a
+			// sample. Cloning every product leaves the shape identical, so it must leave the curve identical; this
+			// is why the bandwidth's count term is the number of distinct values and not the number of records.
+			final int[][] single = parse(PRODUCTION_PRICES);
+			final int[][] tripled = parse(PRODUCTION_PRICES);
+			for (int[] pair : tripled) {
+				pair[1] *= 3;
+			}
+
+			final CacheableBucket[] one = cruncher(20, single).getHistogram();
+			final CacheableBucket[] three = cruncher(20, tripled).getHistogram();
+
+			assertEquals(one.length, three.length, "Replication must not change the bucketing");
+			for (int i = 0; i < one.length; i++) {
+				assertEquals(
+					one[i].threshold(), three[i].threshold(),
+					"Replication moved the threshold of bucket " + i
+				);
+				assertEquals(
+					one[i].relativeFrequency(), three[i].relativeFrequency(),
+					"Replication changed the height of bucket " + i
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should keep bar heights stable when the same mass is spread over neighbouring values")
+		void shouldKeepHeightStableWhenMassIsFragmentedOverNeighbours() {
+			// Whether a shop prices 240 mirrors at exactly 999 or scatters them over 997..1001 is a pricing
+			// accident, not a change in the distribution - a bandwidth read off the value grid would react
+			// violently to it.
+			final int[][] concentrated = parse(PRODUCTION_PRICES);
+			final List<int[]> fragmented = new ArrayList<>();
+			for (int[] pair : concentrated) {
+				if (pair[1] >= 60) {
+					// scatter a heavy plateau over five adjacent values one unit apart
+					final int share = pair[1] / 5;
+					for (int k = 0; k < 5; k++) {
+						fragmented.add(new int[]{pair[0] + k, k == 4 ? pair[1] - 4 * share : share});
+					}
+				} else {
+					fragmented.add(new int[]{pair[0], pair[1]});
+				}
+			}
+
+			// The discriminating measure is WHERE the profile peaks. A density read off each bucket's own width
+			// relocates the peak entirely when a plateau is split - the mass at one position collapses and a new
+			// maximum appears several buckets away - whereas a density pooled over the whole axis barely moves
+			// it. Counting bars above some height threshold cannot see that: both profiles can have the same
+			// number of tall bars in completely different places.
+			final double peakShift = relativePeakShift(
+				concentrated,
+				cruncher(20, concentrated).getHistogram(),
+				cruncher(20, fragmented.toArray(new int[0][])).getHistogram()
+			);
+			assertTrue(
+				peakShift < 0.05,
+				"Fragmenting heavy plateaus over adjacent values moved the peak of the profile by " +
+					(peakShift * 100) + "% of the value range - the bandwidth must not be a function of the " +
+					"value grid"
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep bar heights continuous when a record crosses the quartile boundary")
+		void shouldKeepHeightContinuousWhenRecordCrossesQuartileBoundary() {
+			// A point-valued quantile is a step function of the weights: on values 0, 1, 2, G a single record
+			// moving across the upper quartile takes a nearest-rank IQR from 2 to G, and the bandwidth with it -
+			// measured at 293 885x for G = 10^6. Band-averaging the quantile removes the cliff, so walking one
+			// record of a hundred across the boundary must stay smooth. The worst observed step is 1.26x.
+			final int outlier = 1_000_000;
+			double worstStep = 1.0;
+			CacheableBucket[] previous = null;
+			for (int moved = 0; moved <= 10; moved++) {
+				final int[][] catalogue = {
+					{0, 25 + moved}, {1, 25}, {2, 25}, {outlier, 25 - moved}
+				};
+				final CacheableBucket[] histogram = cruncher(4, catalogue).getHistogram();
+				if (previous != null && previous.length == histogram.length) {
+					worstStep = Math.max(worstStep, 1.0 + maximumRelativeDrift(previous, histogram));
+				}
+				previous = histogram;
+			}
+			assertTrue(
+				worstStep < 1.5,
+				"Moving one record of a hundred across the quartile boundary changed a bar by " + worstStep +
+					"x - the spread estimate is discontinuous"
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep every bar visible while one value grows to dominate the catalogue")
+		void shouldKeepEveryBucketVisibleWhenOneValueDominates() {
+			// Sweeps a single value from a third to nine tenths of the catalogue, straight through the point where
+			// a hard `w > N / 2` majority switch would have stepped the bandwidth discontinuously. The faintest bar
+			// observed anywhere in the sweep renders at 1.96.
+			for (int dominantWeight = 200; dominantWeight <= 3_600; dominantWeight += 100) {
+				final int[][] catalogue = {
+					{100, 40}, {200, 60}, {300, 80}, {400, dominantWeight},
+					{500, 70}, {600, 90}, {700, 50}, {900, 30}
+				};
+				final CacheableBucket[] histogram = cruncher(8, catalogue).getHistogram();
+				for (int i = 0; i < histogram.length; i++) {
+					assertTrue(
+						histogram[i].relativeFrequency().compareTo(new BigDecimal("0.50")) > 0,
+						"With the dominant value at weight " + dominantWeight + " bucket " + i + " rendered at " +
+							histogram[i].relativeFrequency() + " - the bandwidth collapsed"
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("Should match a direct quadratic reference for the kernel evaluation")
+		void shouldMatchDirectQuadraticReferenceForKernelEvaluation() {
+			// The kernel masses are produced by one O(D + B) sweep that maintains running sums across a moving
+			// window. This recomputes the same quantity the naive O(B * D) way, from the published output only.
+			for (String corpus : new String[]{PRODUCTION_PRICES, PRODUCTION_ATTRIBUTE}) {
+				final int[][] catalogue = parse(corpus);
+				for (int bucketCount : new int[]{2, 5, 20, 50}) {
+					assertMatchesDirectReference(catalogue, bucketCount);
+				}
+			}
+			final Random random = new Random(RANDOM_SEED);
+			for (int i = 0; i < 200; i++) {
+				assertMatchesDirectReference(randomCatalogue(random), 2 + random.nextInt(30));
+			}
+		}
 	}
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<ValueToRecordBitmap> createEqualizedHistogramBucketCruncher(int stepCount, ValueToRecordBitmap... data) {
-		return createEqualizedHistogramBucketCruncher(stepCount, BucketCountMode.EXACT, data);
+	@Nested
+	@DisplayName("Production corpus")
+	class ProductionCorpus {
+
+		@Test
+		@DisplayName("Should render the production price catalogue as a readable profile")
+		void shouldRenderProductionPriceCatalogueAsReadableProfile() {
+			final CacheableBucket[] histogram = cruncher(20, parse(PRODUCTION_PRICES)).getHistogram();
+
+			assertEquals(20, histogram.length, "3 237 products over 135 distinct prices fill the whole budget");
+
+			// the defect this replaces rendered the bucket holding 81 products at 35.15 and the one holding 338 at
+			// 6.03 - a quarter of the records drawing almost six times taller. Heights must now track the mass.
+			final int tallest = indexOfMaximumRelativeFrequency(histogram);
+			final int shortest = indexOfMinimumRelativeFrequency(histogram);
+			assertTrue(
+				histogram[tallest].occurrences() > histogram[shortest].occurrences(),
+				"The tallest bar (" + histogram[tallest].occurrences() + " products) must not hold fewer " +
+					"records than the shortest one (" + histogram[shortest].occurrences() + ")"
+			);
+
+			// the dynamic range must stay renderable without a compressing transform on the client
+			final double ratio = histogram[tallest].relativeFrequency().doubleValue()
+				/ histogram[shortest].relativeFrequency().doubleValue();
+			assertTrue(
+				ratio < 25.0,
+				"Tallest-to-shortest bar ratio is " + ratio + " - storefronts would have to compress it again"
+			);
+		}
+
+		@Test
+		@DisplayName("Should render the production attribute histogram when one value holds half the records")
+		void shouldRenderProductionAttributeHistogramWhenOneValueHoldsHalfTheRecords() {
+			// 338 of 666 records sit on a single value - 50.75%, right beside the point where a hard majority
+			// switch on the spread estimate would have stepped discontinuously.
+			final CacheableBucket[] histogram = cruncher(20, parse(PRODUCTION_ATTRIBUTE)).getHistogram();
+
+			assertTrue(
+				histogram.length < 20,
+				"Only 24 distinct values with half the mass on one of them cannot fill twenty buckets"
+			);
+			int majorityBucket = -1;
+			for (int i = 0; i < histogram.length; i++) {
+				if (histogram[i].threshold().compareTo(new BigDecimal(500_000)) == 0) {
+					majorityBucket = i;
+				}
+			}
+			assertTrue(majorityBucket >= 0, "The majority value must open a bucket of its own");
+			assertEquals(
+				338, histogram[majorityBucket].occurrences(),
+				"The majority value's mass must be closed into its own bucket, not spilled into the next"
+			);
+		}
 	}
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<ValueToRecordBitmap> createEqualizedHistogramBucketCruncher(
-		int stepCount,
-		@Nonnull BucketCountMode bucketCountMode,
-		ValueToRecordBitmap... data
-	) {
-		return new EqualizedHistogramDataCruncher<>(
-			"test histogram",
-			stepCount, 0,
-			data,
-			it -> (int) it.getValue(),
-			bucket -> bucket.getRecordIds().size(),
-			BigDecimal::new,
-			bucketCountMode
-		);
-	}
+	/*
+		HELPER METHODS AND TYPES
+	 */
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<BigDecimal> createEqualizedBigDecimalCruncher(
-		int stepCount,
-		int expectedDecimalPlaces,
-		int allowedDecimalPlaces,
-		BigDecimal... data
-	) {
-		return createEqualizedBigDecimalCruncher(stepCount, expectedDecimalPlaces, allowedDecimalPlaces, BucketCountMode.EXACT, data);
-	}
+	/**
+	 * Assertion applied to a randomly generated catalogue and the histogram computed from it.
+	 */
+	@FunctionalInterface
+	private interface CatalogueAssertion {
 
-	@Nonnull
-	private static EqualizedHistogramDataCruncher<BigDecimal> createEqualizedBigDecimalCruncher(
-		int stepCount,
-		int expectedDecimalPlaces,
-		int allowedDecimalPlaces,
-		@Nonnull BucketCountMode bucketCountMode,
-		BigDecimal... data
-	) {
-		return new EqualizedHistogramDataCruncher<>(
-			"test histogram",
-			stepCount, expectedDecimalPlaces,
-			data,
-			value -> value.scaleByPowerOfTen(allowedDecimalPlaces).intValueExact(),
-			value -> 1,
-			value -> allowedDecimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * allowedDecimalPlaces),
-			bucketCountMode
+		/**
+		 * Verifies one property of a computed histogram.
+		 *
+		 * @param values      distinct values of the catalogue in ascending order
+		 * @param weights     weight of each distinct value
+		 * @param bucketCount bucket count the histogram was requested with
+		 * @param histogram   the computed histogram
+		 */
+		void verify(
+			@Nonnull int[] values, @Nonnull int[] weights, int bucketCount, @Nonnull CacheableBucket[] histogram
 		);
 	}
 
 	/**
-	 * Helper method to create a CacheableBucket for comparison purposes.
-	 * Uses a placeholder relativeFrequency since the exact value is not the focus of most tests.
+	 * Runs `assertion` over {@link #RANDOM_CATALOGUE_COUNT} pseudo-random catalogues drawn from a spread of shapes:
+	 * charm-priced, uniform, tightly clustered, dominated by one value, very sparse, and one with a far outlier.
+	 *
+	 * @param assertion property to verify on every generated catalogue
 	 */
-	@Nonnull
-	private static CacheableBucket bucket(@Nonnull BigDecimal threshold, int occurrences) {
-		// Placeholder relativeFrequency - the actual value will be calculated by the cruncher
-		return new CacheableBucket(threshold, occurrences, BigDecimal.ZERO);
+	private static void forEachRandomCatalogue(@Nonnull CatalogueAssertion assertion) {
+		final Random random = new Random(RANDOM_SEED);
+		for (int i = 0; i < RANDOM_CATALOGUE_COUNT; i++) {
+			final int[][] catalogue = randomCatalogue(random);
+			final int bucketCount = 2 + random.nextInt(50);
+			final int[] values = new int[catalogue.length];
+			final int[] weights = new int[catalogue.length];
+			for (int j = 0; j < catalogue.length; j++) {
+				values[j] = catalogue[j][0];
+				weights[j] = catalogue[j][1];
+			}
+			assertion.verify(values, weights, bucketCount, cruncher(bucketCount, catalogue).getHistogram());
+		}
 	}
 
 	/**
-	 * Custom assertion that compares only threshold and occurrences, ignoring relativeFrequency.
-	 * This is useful for tests that focus on bucket placement rather than relative frequency calculation.
+	 * Draws one pseudo-random catalogue as an ascending array of `{value, weight}` pairs. Values are grown by random
+	 * positive steps, so they are distinct and sorted by construction.
+	 *
+	 * @param random source of randomness
+	 * @return catalogue with at least two distinct values
 	 */
-	private static void assertBucketsEqual(@Nonnull CacheableBucket[] expected, @Nonnull CacheableBucket[] actual) {
-		assertEquals(expected.length, actual.length, "Bucket count mismatch");
-		for (int i = 0; i < expected.length; i++) {
-			assertEquals(expected[i].threshold(), actual[i].threshold(),
-				"Bucket " + i + " threshold mismatch");
-			assertEquals(expected[i].occurrences(), actual[i].occurrences(),
-				"Bucket " + i + " occurrences mismatch");
+	@Nonnull
+	private static int[][] randomCatalogue(@Nonnull Random random) {
+		final int shape = random.nextInt(6);
+		final int distinctCount = switch (shape) {
+			case 4 -> 2 + random.nextInt(5);
+			default -> 2 + random.nextInt(60);
+		};
+		// largest step between two neighbouring values - small for a tightly clustered catalogue, large for a
+		// sparse one
+		final int maximumStep = switch (shape) {
+			case 1 -> 4_000;
+			case 2 -> 7;
+			case 4 -> 300_000;
+			default -> 200;
+		};
+
+		final int[] values = new int[distinctCount];
+		int value = random.nextInt(1_000);
+		for (int i = 0; i < distinctCount; i++) {
+			value += 1 + random.nextInt(maximumStep);
+			values[i] = value;
 		}
+
+		final int[][] catalogue = new int[distinctCount][];
+		for (int i = 0; i < distinctCount; i++) {
+			final int weight = switch (shape) {
+				case 0 -> new int[]{1, 1, 2, 3, 5, 40, 120, 240}[random.nextInt(8)];
+				case 2 -> 1 + random.nextInt(50);
+				case 3 -> 1;
+				default -> 1 + random.nextInt(5);
+			};
+			catalogue[i] = new int[]{values[i], weight};
+		}
+		if (shape == 3) {
+			// one value carries several times the weight of everything else put together
+			catalogue[random.nextInt(distinctCount)][1] = distinctCount * (3 + random.nextInt(48));
+		}
+		if (shape == 5) {
+			// push the last value far away from the rest of the catalogue
+			catalogue[distinctCount - 1][0] = 1_000_000 + random.nextInt(1_000_000);
+		}
+		return catalogue;
+	}
+
+	/**
+	 * Recomputes the histogram's relative frequencies the naive way - deriving the bucket spans from the published
+	 * thresholds, re-deriving the bandwidth from its published formula, and evaluating the triangular kernel at
+	 * every distinct value with a direct double loop - and asserts the cruncher agrees.
+	 *
+	 * @param catalogue   ascending `{value, weight}` pairs
+	 * @param bucketCount requested bucket count
+	 */
+	private static void assertMatchesDirectReference(@Nonnull int[][] catalogue, int bucketCount) {
+		final int distinctCount = catalogue.length;
+		if (distinctCount < 2) {
+			return;
+		}
+		final CacheableBucket[] histogram = cruncher(bucketCount, catalogue).getHistogram();
+		final int[] values = new int[distinctCount];
+		final int[] weights = new int[distinctCount];
+		long total = 0;
+		for (int i = 0; i < distinctCount; i++) {
+			values[i] = catalogue[i][0];
+			weights[i] = catalogue[i][1];
+			total += weights[i];
+		}
+
+		final double bandwidth = referenceBandwidth(values, weights, total);
+		final double[] density = new double[distinctCount];
+		double peak = 0.0;
+		for (int q = 0; q < distinctCount; q++) {
+			double mass = 0.0;
+			for (int j = 0; j < distinctCount; j++) {
+				final double distance = Math.abs((double) values[q] - values[j]);
+				if (distance < bandwidth) {
+					mass += weights[j] * (1.0 - distance / bandwidth);
+				}
+			}
+			density[q] = mass;
+			peak = Math.max(peak, mass);
+		}
+
+		for (int i = 0; i < histogram.length; i++) {
+			final int from = indexOfThreshold(values, histogram[i].threshold());
+			final int to = i + 1 < histogram.length
+				? indexOfThreshold(values, histogram[i + 1].threshold()) - 1
+				: distinctCount - 1;
+			long bucketWeight = 0;
+			for (int j = from; j <= to; j++) {
+				bucketWeight += weights[j];
+			}
+			int representative = from;
+			long cumulated = 0;
+			for (int j = from; j <= to; j++) {
+				cumulated += weights[j];
+				if (cumulated * 2 >= bucketWeight) {
+					representative = j;
+					break;
+				}
+			}
+			final double expected = 100.0 * density[representative] / peak;
+			final double actual = histogram[i].relativeFrequency().doubleValue();
+			// the sliding window accumulates its sums in a different order than the direct loop, so the two agree
+			// to within floating-point noise rather than bit for bit
+			assertTrue(
+				Math.abs(expected - actual) <= 0.02,
+				"Bucket " + i + " of " + bucketCount + " renders at " + actual + " but the direct evaluation " +
+					"gives " + expected
+			);
+		}
+	}
+
+	/**
+	 * Re-derivation of `h = √6 · 0.9 · min(σ_w, IQR_c / 1.34) · D^(−1/5)` written out longhand, used only to
+	 * cross-check the production implementation.
+	 *
+	 * @param values  distinct values in ascending order
+	 * @param weights weight of each distinct value
+	 * @param total   total weight
+	 * @return support radius of the triangular kernel
+	 */
+	private static double referenceBandwidth(@Nonnull int[] values, @Nonnull int[] weights, long total) {
+		final int distinctCount = values.length;
+		double weightedSum = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			weightedSum += (double) weights[i] * values[i];
+		}
+		final double mean = weightedSum / total;
+		double squares = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			squares += weights[i] * (values[i] - mean) * (values[i] - mean);
+		}
+		final double standardDeviation = Math.sqrt(squares / total);
+
+		final double[] capped = new double[distinctCount];
+		double cappedTotal = 0.0;
+		for (int i = 0; i < distinctCount; i++) {
+			capped[i] = Math.max(Math.min(weights[i], (total - (double) weights[i]) / 2.0), 1e-12);
+			cappedTotal += capped[i];
+		}
+		final double interQuartileRange =
+			(referenceBandQuantile(values, capped, cappedTotal, 0.75)
+				- referenceBandQuantile(values, capped, cappedTotal, 0.25)) / 1.34;
+
+		final double spread;
+		if (standardDeviation > 0.0 && interQuartileRange > 0.0) {
+			spread = Math.min(standardDeviation, interQuartileRange);
+		} else if (standardDeviation > 0.0) {
+			spread = standardDeviation;
+		} else {
+			spread = interQuartileRange;
+		}
+		return Math.sqrt(6.0) * 0.9 * spread * Math.pow(distinctCount, -0.2);
+	}
+
+	/**
+	 * Longhand band-averaged weighted quantile, used only to cross-check the production implementation.
+	 *
+	 * @param values      distinct values in ascending order
+	 * @param capped      per-value weights the rank axis is built from
+	 * @param cappedTotal sum of `capped`
+	 * @param quantile    requested rank
+	 * @return band-averaged quantile value
+	 */
+	private static double referenceBandQuantile(
+		@Nonnull int[] values, @Nonnull double[] capped, double cappedTotal, double quantile
+	) {
+		final double low = quantile - 0.05;
+		final double high = quantile + 0.05;
+		double accumulated = 0.0;
+		double cumulated = 0.0;
+		for (int i = 0; i < values.length; i++) {
+			final double from = cumulated / cappedTotal;
+			cumulated += capped[i];
+			final double to = cumulated / cappedTotal;
+			final double overlap = Math.min(high, to) - Math.max(low, from);
+			if (overlap > 0.0) {
+				accumulated += (double) values[i] * overlap;
+			}
+		}
+		return accumulated / (high - low);
+	}
+
+	/**
+	 * Returns the largest relative change of any bar height between two histograms of equal length, expressed as a
+	 * fraction of the smaller value.
+	 *
+	 * @param before histogram before the perturbation
+	 * @param after  histogram after the perturbation
+	 * @return largest relative drift, or zero when the two histograms cannot be compared bar by bar
+	 */
+	private static double maximumRelativeDrift(@Nonnull CacheableBucket[] before, @Nonnull CacheableBucket[] after) {
+		assertEquals(
+			before.length, after.length,
+			"Histograms of different lengths cannot be compared bar by bar - returning \"no drift\" here would " +
+				"turn a structural change into a silent pass"
+		);
+		double worst = 0.0;
+		for (int i = 0; i < before.length; i++) {
+			final double a = before[i].relativeFrequency().doubleValue();
+			final double b = after[i].relativeFrequency().doubleValue();
+			worst = Math.max(worst, Math.abs(a - b) / Math.min(a, b));
+		}
+		return worst;
+	}
+
+	/**
+	 * Returns how far the tallest bar moved between two histograms of the same catalogue, as a fraction of the
+	 * catalogue's own value range. Peak *position* is what distinguishes a density pooled over the whole axis
+	 * from one derived per bucket: the former barely moves when a plateau is redistributed over neighbouring
+	 * values, the latter relocates the maximum entirely.
+	 *
+	 * @param catalogue the source catalogue, used for the value range the shift is expressed in
+	 * @param first     histogram before the perturbation
+	 * @param second    histogram after the perturbation
+	 * @return absolute peak shift divided by the value range
+	 */
+	private static double relativePeakShift(
+		@Nonnull int[][] catalogue, @Nonnull CacheableBucket[] first, @Nonnull CacheableBucket[] second
+	) {
+		final double range = (double) catalogue[catalogue.length - 1][0] - catalogue[0][0];
+		assertTrue(range > 0.0, "A catalogue with no value range cannot express a peak shift");
+		return Math.abs(peakThreshold(first) - peakThreshold(second)) / range;
+	}
+
+	/**
+	 * Returns the threshold of the bucket rendering tallest.
+	 *
+	 * @param histogram histogram to inspect
+	 * @return threshold of the tallest bucket
+	 */
+	private static double peakThreshold(@Nonnull CacheableBucket[] histogram) {
+		return histogram[indexOfMaximumRelativeFrequency(histogram)].threshold().doubleValue();
+	}
+
+	/**
+	 * Returns the index of the bucket with the largest relative frequency.
+	 *
+	 * @param histogram histogram to inspect
+	 * @return index of the tallest bucket
+	 */
+	private static int indexOfMaximumRelativeFrequency(@Nonnull CacheableBucket[] histogram) {
+		int best = 0;
+		for (int i = 1; i < histogram.length; i++) {
+			if (histogram[i].relativeFrequency().compareTo(histogram[best].relativeFrequency()) > 0) {
+				best = i;
+			}
+		}
+		return best;
+	}
+
+	/**
+	 * Returns the index of the bucket with the smallest relative frequency.
+	 *
+	 * @param histogram histogram to inspect
+	 * @return index of the shortest bucket
+	 */
+	private static int indexOfMinimumRelativeFrequency(@Nonnull CacheableBucket[] histogram) {
+		int worst = 0;
+		for (int i = 1; i < histogram.length; i++) {
+			if (histogram[i].relativeFrequency().compareTo(histogram[worst].relativeFrequency()) < 0) {
+				worst = i;
+			}
+		}
+		return worst;
+	}
+
+	/**
+	 * Locates the distinct value a published threshold was produced from.
+	 *
+	 * @param values    distinct values in ascending order
+	 * @param threshold published bucket threshold
+	 * @return index of the matching distinct value
+	 */
+	private static int indexOfThreshold(@Nonnull int[] values, @Nonnull BigDecimal threshold) {
+		final int index = Arrays.binarySearch(values, threshold.intValueExact());
+		assertTrue(index >= 0, "Threshold " + threshold + " is not one of the catalogue's own values");
+		return index;
+	}
+
+	/**
+	 * Parses a run-length encoded catalogue of the form `value:weight,value:weight,...`.
+	 *
+	 * @param runLengthEncoded encoded catalogue
+	 * @return ascending array of `{value, weight}` pairs
+	 */
+	@Nonnull
+	private static int[][] parse(@Nonnull String runLengthEncoded) {
+		final String[] pairs = runLengthEncoded.split(",");
+		final int[][] result = new int[pairs.length][];
+		for (int i = 0; i < pairs.length; i++) {
+			final int colon = pairs[i].indexOf(':');
+			result[i] = new int[]{
+				Integer.parseInt(pairs[i].substring(0, colon)),
+				Integer.parseInt(pairs[i].substring(colon + 1))
+			};
+		}
+		return result;
+	}
+
+	/**
+	 * Creates a cruncher over `{value, weight}` pairs with integral thresholds.
+	 *
+	 * @param bucketCount requested bucket count
+	 * @param catalogue   ascending `{value, weight}` pairs
+	 * @return configured cruncher
+	 */
+	@Nonnull
+	private static EqualizedHistogramDataCruncher<int[]> cruncher(int bucketCount, @Nonnull int[][] catalogue) {
+		return new EqualizedHistogramDataCruncher<>(
+			"test histogram", bucketCount, 0, catalogue,
+			pair -> pair[0], pair -> pair[1],
+			BigDecimal::valueOf
+		);
 	}
 
 }
