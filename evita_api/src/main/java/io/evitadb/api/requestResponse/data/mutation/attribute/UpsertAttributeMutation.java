@@ -45,7 +45,7 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
+public final class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = 4274174996930002364L;
 	@Nonnull private final Serializable value;
 

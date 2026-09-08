@@ -46,7 +46,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class RemoveAttributeMutation extends AttributeMutation {
+public final class RemoveAttributeMutation extends AttributeMutation {
 	@Serial private static final long serialVersionUID = 7072678664245663785L;
 
 	public RemoveAttributeMutation(@Nonnull AttributeKey attributeKey) {

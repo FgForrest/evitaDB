@@ -54,7 +54,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSchemaEvolvingMutation {
+public final class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = -107926476337012921L;
 	/**
 	 * Delta value that should be applied to the existing attribute.

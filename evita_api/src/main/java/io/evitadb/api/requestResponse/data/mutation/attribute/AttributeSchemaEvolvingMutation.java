@@ -50,7 +50,9 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation implements SchemaEvolvingLocalMutation<AttributeValue, AttributeKey> {
+public abstract sealed class AttributeSchemaEvolvingMutation extends AttributeMutation
+	implements SchemaEvolvingLocalMutation<AttributeValue, AttributeKey>
+	permits ApplyDeltaAttributeMutation, UpsertAttributeMutation {
 	@Serial private static final long serialVersionUID = 2509373417337487380L;
 
 	protected AttributeSchemaEvolvingMutation(@Nonnull AttributeKey attributeKey) {

@@ -50,7 +50,8 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public abstract class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer> {
+public abstract sealed class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer>
+	permits RemoveParentMutation, SetParentMutation {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 	@Getter private final long decisiveTimestamp;
 
