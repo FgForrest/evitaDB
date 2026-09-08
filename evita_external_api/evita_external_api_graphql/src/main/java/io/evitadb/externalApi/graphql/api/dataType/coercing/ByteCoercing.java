@@ -42,10 +42,10 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
     @Nonnull
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Byte)) {
+        if (!(dataFetcherResult instanceof Byte byteValue)) {
             throw new CoercingSerializeException("Byte data fetcher result is not a byte.");
         }
-        return (int) dataFetcherResult;
+        return (int) byteValue;
     }
 
     @Nonnull

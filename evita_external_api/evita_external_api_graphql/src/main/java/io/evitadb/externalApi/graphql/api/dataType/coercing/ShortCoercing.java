@@ -42,10 +42,10 @@ public class ShortCoercing implements Coercing<Short, Integer> {
     @Nonnull
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Short)) {
+        if (!(dataFetcherResult instanceof Short shortValue)) {
             throw new CoercingSerializeException("Short data fetcher result is not a short.");
         }
-        return (int) dataFetcherResult;
+        return (int) shortValue;
     }
 
     @Nonnull
