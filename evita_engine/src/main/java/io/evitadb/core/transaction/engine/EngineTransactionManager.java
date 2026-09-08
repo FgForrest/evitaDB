@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine;
 
 
 import io.evitadb.api.exception.ConflictingEngineMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
@@ -493,11 +494,15 @@ public class EngineTransactionManager implements Closeable {
 	 * underlying persistence service is properly closed to prevent resource leaks.
 	 */
 	public void close() {
-		// wait for all engine level tasks to complete
+		// wait for all engine level tasks to complete - for their COMPLETION, not for their success. A mutation still
+		// in flight when the engine goes down fails by construction (`Evita#closeCatalogs` clears the engine state
+		// before this runs, so the state update below it has nothing to build on), and propagating that failure here
+		// would skip the release below and leave the engine's folder lock held - which the next start reports as
+		// `FolderAlreadyUsedException` against a process that has already exited
 		CompletableFuture.allOf(
 			this.currentCatalogMutations.values()
 				.stream()
-				.map(it -> it.onCompletion().toCompletableFuture())
+				.map(it -> it.onCompletion().toCompletableFuture().exceptionally(ex -> null))
 				.toArray(CompletableFuture[]::new)
 		).join();
 		// close the engine executor
@@ -807,6 +812,17 @@ public class EngineTransactionManager implements Closeable {
 	private void updateEngineStateAfterEngineMutation(@Nonnull EngineStateUpdater engineStateUpdater) {
 		this.engineStateLock.lock();
 		try {
+			// `Evita#closeCatalogs` clears the engine state before draining the mutations still in flight, so
+			// a mutation that reaches here during shutdown has nothing to build its next state on. Refusing by
+			// name rather than dereferencing the null keeps the operator's log readable, and refusing HERE -
+			// ahead of the write-ahead log append below - keeps the refusal honest, because nothing of this
+			// mutation is durable yet
+			final ExpandedEngineState currentEngineState = this.evita.getEngineState();
+			//noinspection ConstantValue
+			if (currentEngineState == null) {
+				throw new InstanceTerminatedException("instance");
+			}
+
 			final long nextStateVersion = this.lastStoredEngineStateVersion + 1;
 
 			// Build the next in-memory engine state up-front. The persistence-layer
@@ -822,7 +838,7 @@ public class EngineTransactionManager implements Closeable {
 			// is left for the following commit rather than being forgotten below without having been pruned.
 			final Set<CatalogFolderId> drainedFolders = Set.copyOf(this.folderContext.getDrainedFolders());
 			final ExpandedEngineState mutatedEngineState = engineStateUpdater.apply(
-				nextStateVersion, this.evita.getEngineState()
+				nextStateVersion, currentEngineState
 			);
 			final ExpandedEngineState nextEngineState = drainedFolders.isEmpty() ?
 				mutatedEngineState :
