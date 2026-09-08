@@ -10,7 +10,7 @@ ENV TZ=Europe/Prague
 USER root
 
 RUN apt-get update && apt-get install -y \ 
-    openjdk-17-jdk-headless \
+    openjdk-21-jdk-headless \
     curl \
     wget \
     gh \
