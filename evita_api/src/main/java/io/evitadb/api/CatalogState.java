@@ -80,10 +80,14 @@ public enum CatalogState {
 	 *
 	 * A failure the phase cannot revert - a schema change refused by validation, a flush that fails or is cancelled
 	 * after collecting its changes, a per-entity rollback that itself throws - is answered by returning the catalog to
-	 * the last state it published, which is the one written by the last session that closed successfully. The catalog
-	 * refuses every further write and every further publication, is moved to {@link #INACTIVE}, and has to be
-	 * activated again through {@link EvitaContract#activateCatalog(String)}; activation loads that published state
-	 * from disk. Everything written since then has to be replayed.
+	 * the last state it published - the newest one that reached the disk, which a session close writes and a
+	 * collection-level schema operation may write again mid-session. The catalog
+	 * refuses every further write and every further publication from that moment on, so nothing untrustworthy can
+	 * reach the disk. It is then moved to {@link #INACTIVE} and has to be activated again through
+	 * {@link EvitaContract#activateCatalog(String)}, which loads that published state from disk; everything written
+	 * since then has to be replayed. Where the engine cannot complete that move - it is a lifecycle operation of its
+	 * own, and one is refused while another is in flight for the same catalog - the refusal is what remains, and the
+	 * catalog is reloaded by restarting the engine instead. The state that comes back is the same either way.
 	 *
 	 * The recovery is deliberately this coarse, because the phase buys its speed by not keeping the machinery a
 	 * narrower one would need. There is no transaction to roll back, and a schema change is applied to every entity

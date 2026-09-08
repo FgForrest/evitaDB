@@ -12,7 +12,7 @@ Bulk indexing is used for rapid indexing of large volumes of source data from an
 
 1. Only a single client (single session) can be open at a time.
 2. There are no transactions - a group of writes cannot be committed or discarded as a unit. A *single* entity write is still atomic on its own, so an error part-way through one leaves nothing behind (see [Atomicity of individual writes](#atomicity-of-individual-writes)).
-3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, all changes are lost.
+3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, everything written since the last session close is lost.
 4. A failure that cannot be reverted returns the catalog to the last state it published and makes it inactive (see [Failures that cannot be reverted](#failures-that-cannot-be-reverted)).
 
 <Note type="info">
@@ -49,7 +49,9 @@ Three failures behave like this:
 - **A failure while writing the collected changes** at session close.
 - **A failed revert of a single entity write**, where the revert itself throws.
 
-In each case the catalog stops accepting writes and stops publishing, and the engine moves it to the *inactive* state (see [Control Engine](../use/api/control-engine.md)). <LS to="j">Activating it again with the `activateCatalog` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> loads</LS><LS to="e,r,g,c">Activating it again loads</LS> the last published state from disk — the one written by the last session that closed successfully. Its schema and its indexes are consistent with each other, because that state was published by a session that completed. Everything written after it has to be replayed.
+In each case the catalog stops accepting writes and stops publishing. That refusal is what protects the data on disk, and it holds from the moment the failure is detected. The engine then moves the catalog to the *inactive* state (see [Control Engine](../use/api/control-engine.md)). <LS to="j">Activating it again with the `activateCatalog` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> loads</LS><LS to="e,r,g,c">Activating it again loads</LS> the last published state from disk — the newest state that reached the disk, which a session close writes and a collection-level schema operation may write again mid-session. Its schema and its indexes are consistent with each other, because nothing is published unless the schema validates. Everything written after it has to be replayed.
+
+Moving a catalog to the inactive state is itself an engine-level operation, and one such operation is refused while another is in flight for the same catalog. Where the engine cannot complete the move, the catalog is left refusing every write and every publication, and restarting the engine loads the same published state that activating it would have. The server log says which of the two happened.
 
 ### Why the recovery is this coarse
 

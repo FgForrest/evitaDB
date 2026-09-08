@@ -112,18 +112,31 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				Collections.singletonList(evita.loadCatalogInternal(catalogName, readOnly)),
 				(progressingFuture, loadedCatalog) -> {
 					final CatalogContract installed = loadedCatalog.iterator().next();
-					completionEngineStateUpdater.accept(
-						new AbstractEngineStateUpdater(transactionId, mutation) {
-							@Override
-							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-								return ExpandedEngineState
-									.builder(expandedEngineState)
-									.withVersion(version)
-									.withCatalog(installed)
-									.build();
+					// The engine state is the only place that will ever hold a reference to the catalog just
+					// loaded, so failing to install it strands the instance: nobody can reach it afterwards to
+					// close it, and the folder lock it took on load stays held for the life of the process.
+					// Shutdown makes that reachable - `Evita#closeCatalogs` clears the engine state before
+					// draining the mutations still in flight - so terminating here is the only release there is.
+					boolean installedIntoEngineState = false;
+					try {
+						completionEngineStateUpdater.accept(
+							new AbstractEngineStateUpdater(transactionId, mutation) {
+								@Override
+								public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+									return ExpandedEngineState
+										.builder(expandedEngineState)
+										.withVersion(version)
+										.withCatalog(installed)
+										.build();
+								}
 							}
+						);
+						installedIntoEngineState = true;
+					} finally {
+						if (!installedIntoEngineState) {
+							terminateQuietly(installed, catalogName);
 						}
-					);
+					}
 					// Emit the host event AFTER the engine state has been updated so the host
 					// event lands strictly after the underlying mutation in the system CDC stream.
 					evita.notifyCatalogStateSettled(catalogName, installed.getCatalogState());
@@ -139,51 +152,78 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 					// while it is being deactivated is served against a catalog about to be terminated.
 					evita.suspendCatalogSessions(catalogName, SuspendOperation.REJECT);
 
-					completionEngineStateUpdater.accept(
-						new AbstractEngineStateUpdater(transactionId, mutation) {
-							@Override
-							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-								return ExpandedEngineState
-									.builder(expandedEngineState)
-									.withVersion(version)
-									.withCatalog(
-										SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
-											catalogName, CatalogState.INACTIVE,
-											CatalogInactiveException::new
+					// The teardown below has to run even when the engine state update fails, and shutdown makes
+					// that reachable: `Evita#closeCatalogs` clears the engine state before draining the mutations
+					// still in flight. What that shutdown pass terminated on its way through is the
+					// `UnusableCatalog` placeholder the transition phase installed, whose `terminate()` only flips
+					// a flag - the real `Catalog` is held by this operator and by nothing else. Letting the failure
+					// skip the block below therefore leaves the real catalog's folder lock held for the life of
+					// the process, and the next `Evita` opened over the same directory fails with
+					// `FolderAlreadyUsedException`.
+					boolean engineStateTransitioned = false;
+					try {
+						completionEngineStateUpdater.accept(
+							new AbstractEngineStateUpdater(transactionId, mutation) {
+								@Override
+								public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+									return ExpandedEngineState
+										.builder(expandedEngineState)
+										.withVersion(version)
+										.withCatalog(
+											SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
+												catalogName, CatalogState.INACTIVE,
+												CatalogInactiveException::new
+											)
 										)
-									)
-									.build();
+										.build();
+								}
+							}
+						);
+						engineStateTransitioned = true;
+					} finally {
+						// Wrap the destructive side-effects in try-finally so the host event fires
+						// even if `theCatalog.terminate()` throws — the engine state has already
+						// transitioned to INACTIVE and HOST subscribers must observe that
+						// transition regardless of downstream cleanup failures.
+						try {
+							evita.removeCatalogSessionRegistryIfPresent(catalogName);
+							terminateQuietly(theCatalog, catalogName);
+						} finally {
+							// Emit the host event AFTER the engine state and the live `Catalog`
+							// resources have been torn down so subscribers see the INACTIVE settlement
+							// strictly after the mutation in the system CDC stream. Only when the state
+							// actually transitioned, though: announcing a settlement the engine state never
+							// took would misinform every subscriber.
+							if (engineStateTransitioned) {
+								evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
 							}
 						}
-					);
-
-					// Wrap the destructive side-effects in try-finally so the host event fires
-					// even if `theCatalog.terminate()` throws — the engine state has already
-					// transitioned to INACTIVE and HOST subscribers must observe that
-					// transition regardless of downstream cleanup failures.
-					try {
-						evita.removeCatalogSessionRegistryIfPresent(catalogName);
-						// Logged rather than propagated: the state transition has already committed, so an
-						// exception escaping here would report a failure for an operation that succeeded. The
-						// `finally` below guarantees only that the host event fires, not that the caller is
-						// told the truth about the outcome.
-						try {
-							theCatalog.terminate();
-						} catch (RuntimeException ex) {
-							log.warn(
-								"Failed to terminate catalog `{}` while deactivating it - its handles stay open " +
-									"until the process ends.",
-								catalogName, ex
-							);
-						}
-					} finally {
-						// Emit the host event AFTER the engine state and the live `Catalog`
-						// resources have been torn down so subscribers see the INACTIVE settlement
-						// strictly after the mutation in the system CDC stream.
-						evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
 					}
 					return null;
 				}
+			);
+		}
+	}
+
+	/**
+	 * Terminates the passed catalog, logging a failure rather than propagating it.
+	 *
+	 * Both call sites are past the point where reporting would help. Either the state transition has already
+	 * committed - so an exception escaping here would report a failure for an operation that succeeded - or the
+	 * transition failed and its own exception is the one the caller must be told about. What is left in both cases
+	 * is releasing the catalog's handles, and that is best-effort by nature.
+	 *
+	 * @param catalog     catalog whose resources are to be released
+	 * @param catalogName name of the catalog, for the log record
+	 */
+	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
+		try {
+			catalog.terminate();
+		} catch (Throwable terminationFailure) {
+			log.warn(
+				"Failed to terminate catalog `{}` while changing its state - the handles its persistence " +
+					"service holds into the storage folder stay open until the server is restarted.",
+				catalogName, terminationFailure
 			);
 		}
 	}

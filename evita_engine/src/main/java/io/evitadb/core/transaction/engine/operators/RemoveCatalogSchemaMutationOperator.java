@@ -120,53 +120,62 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 
 				theFuture.updateProgress(1);
 
-				completionEngineStateUpdater.accept(
-					new AbstractEngineStateUpdater(transactionId, mutation) {
-						@Override
-						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-							return ExpandedEngineState
-								.builder(expandedEngineState)
-								.withVersion(version)
-								.withoutCatalog(catalogToRemove)
-								// The tombstone is what makes the wipe optional. Dropping the binding leaves a
-								// folder nothing references, and an unreferenced folder is deliberately never
-								// destroyed - that rule is what protects an operator's hand-placed directory - so
-								// without this entry a wipe the operating system refuses would leave the data
-								// behind permanently, with nothing recording that it was meant to go.
-								.withRetiredFolder(catalogName, folderToReclaim)
-								.build();
-						}
-					}
-				);
-
-				// Wrap the destructive side-effects in try-finally so the host event fires even
-				// if the wipe throws (e.g. transient I/O failure). The engine state has already advanced
-				// through the live view at this point — fire the host event regardless so HOST subscribers
-				// do not miss the removal.
+				boolean removalCommitted = false;
 				try {
-					evita.removeCatalogSessionRegistryIfPresent(catalogName);
-					// Close first, wipe second, and let the wipe fail: the removal is already committed, so
-					// propagating a filesystem error here would report a failure for an operation that
-					// succeeded, and would do it precisely on the platform where a reader holding the
-					// directory open makes the wipe fail - the second Windows failure this design removes.
-					// `terminate()` gets the same treatment for the same reason: the `finally` below only
-					// guarantees the host event, so an exception escaping here would still surface a failure
-					// for a drop that has already committed - and would additionally skip the wipe.
-					try {
-						catalogToRemove.terminate();
-					} catch (RuntimeException ex) {
-						log.warn(
-							"Failed to terminate removed catalog `{}` - its handles stay open until the process " +
-								"ends, which may cause the folder wipe below to be refused and retried at boot.",
-							catalogName, ex
-						);
-					}
-					RemoveCatalogSchemaMutationOperator.this.folderContext.deleteRetiredFolder(folderToReclaim);
+					completionEngineStateUpdater.accept(
+						new AbstractEngineStateUpdater(transactionId, mutation) {
+							@Override
+							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withVersion(version)
+									.withoutCatalog(catalogToRemove)
+									// The tombstone is what makes the wipe optional. Dropping the binding leaves a
+									// folder nothing references, and an unreferenced folder is deliberately never
+									// destroyed - that rule is what protects an operator's hand-placed directory - so
+									// without this entry a wipe the operating system refuses would leave the data
+									// behind permanently, with nothing recording that it was meant to go.
+									.withRetiredFolder(catalogName, folderToReclaim)
+									.build();
+							}
+						}
+					);
+					removalCommitted = true;
 				} finally {
-					// Emit the host event AFTER the catalog has been fully removed from the live
-					// view so HOST-area subscribers can deregister endpoints / clean up
-					// caches that referenced the now-gone catalog.
-					evita.notifyCatalogRemovedFromLiveView(catalogName);
+					if (removalCommitted) {
+						// Wrap the destructive side-effects in try-finally so the host event fires even
+						// if the wipe throws (e.g. transient I/O failure). The engine state has already advanced
+						// through the live view at this point — fire the host event regardless so HOST subscribers
+						// do not miss the removal.
+						try {
+							evita.removeCatalogSessionRegistryIfPresent(catalogName);
+							// Close first, wipe second, and let the wipe fail: the removal is already committed, so
+							// propagating a filesystem error here would report a failure for an operation that
+							// succeeded, and would do it precisely on the platform where a reader holding the
+							// directory open makes the wipe fail - the second Windows failure this design removes.
+							// `terminate()` gets the same treatment for the same reason: the `finally` below only
+							// guarantees the host event, so an exception escaping here would still surface a failure
+							// for a drop that has already committed - and would additionally skip the wipe.
+							terminateQuietly(catalogToRemove, catalogName);
+							RemoveCatalogSchemaMutationOperator.this.folderContext.deleteRetiredFolder(folderToReclaim);
+						} finally {
+							// Emit the host event AFTER the catalog has been fully removed from the live
+							// view so HOST-area subscribers can deregister endpoints / clean up
+							// caches that referenced the now-gone catalog.
+							evita.notifyCatalogRemovedFromLiveView(catalogName);
+						}
+					} else {
+						// **The removal did not commit, so only the handles are released - never the folder.**
+						// The engine state still binds this catalog's name to that folder, and deleting a folder
+						// the published state still reaches is the one act that damages a catalog for real (see
+						// `.claude/rules/durability-model.md`); a restart reloads the catalog from it. The
+						// instance itself is another matter: the transition updater put a `BEING_DELETED`
+						// placeholder behind the name, so this operator holds the only reference to the real
+						// catalog and nothing else can ever close it. Shutdown is what makes this reachable -
+						// `Evita#closeCatalogs` clears the engine state before draining the mutations still in
+						// flight, and the placeholder it terminated on its way through releases nothing.
+						terminateQuietly(catalogToRemove, catalogName);
+					}
 				}
 				return null;
 			}
@@ -208,6 +217,29 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 				.withRetiredFolder(catalogName, folderToReclaim)
 				.build()
 		);
+	}
+
+	/**
+	 * Terminates the catalog being removed, logging a failure rather than propagating it.
+	 *
+	 * Neither call site can act on a failure. On the committed path the removal has already happened, so an
+	 * exception escaping here would report a failure for an operation that succeeded - and would additionally skip
+	 * the wipe. On the uncommitted path the exception the caller must see is the one that failed the commit. What
+	 * is left in both cases is releasing the handles, which is best-effort by nature.
+	 *
+	 * @param catalog     catalog whose resources are to be released
+	 * @param catalogName name of the catalog, for the log record
+	 */
+	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
+		try {
+			catalog.terminate();
+		} catch (Throwable terminationFailure) {
+			log.warn(
+				"Failed to terminate removed catalog `{}` - its handles stay open until the process " +
+					"ends, which may cause the folder wipe to be refused and retried at boot.",
+				catalogName, terminationFailure
+			);
+		}
 	}
 
 }

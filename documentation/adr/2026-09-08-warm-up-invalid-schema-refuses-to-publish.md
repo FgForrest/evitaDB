@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-09-08 13:10
+updated: 2026-09-08 14:45
 status: accepted
 kind: fix
 issues: [1466]
@@ -17,8 +17,13 @@ relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-
 When catalog-schema validation refuses a schema change in a `WARMING_UP` catalog, the catalog now raises the
 unpublishable barrier that `2026-07-18-paged-index-corruption-and-flush-failure-boundary` introduced for failed
 flushes. Every route that would write a bootstrap record refuses from that moment on, the catalog is handed over
-for deactivation, and activating it again loads the last state it published — the one written by the last session
-that closed successfully. Nothing is undone in memory, because nothing can be.
+for deactivation, and activating it again loads the last state it published. Nothing is undone in memory, because
+nothing can be.
+
+**The barrier alone is not the whole fix, and the first implementation of this decision was wrong about that.**
+Validation runs when a session closes, so the barrier is raised at the close — and anything that publishes
+*earlier in that same session* gets there first. Two such publications exist, and each needed a gate of its own
+ahead of the barrier: the warm-up flush that collection-level DDL runs inline, and go-live.
 
 ## Why
 
@@ -59,15 +64,19 @@ enumerates publishers has to find that one, and the first draft of this work did
 ### Option A — raise the unpublishable barrier (chosen)
 
 One call at the refusal site. `Catalog#markUnpublishableDueToInvalidSchema` records the cause and schedules
-deactivation; every publication route already consults the barrier, and `Catalog#terminateInternally` already
-skips its flush when it is set.
+deactivation; every publication route already consults the barrier before writing, and
+`Catalog#terminateInternally` already skips its flush when it is set. The consulting is what costs nothing to
+extend — the option's weakness is *when* the barrier gets raised, not which routes read it.
 
-- **Pros:** complete by construction rather than by enumeration — a publication route added later is covered
-  without being found. Reuses a mechanism that already exists, is already tested, and whose operator story
-  (deactivate, then activate again) is already a documented API. Recovery lands on a state that is consistent by
-  construction, because it was published by a session that completed.
-- **Cons:** everything written since the last session close is discarded, and the client has to call
+- **Pros:** for every publication *after* it is raised, complete by construction rather than by enumeration — a
+  route added later is covered without being found. Reuses a mechanism that already exists, is already tested, and
+  whose operator story (deactivate, then activate again) is already a documented API. Recovery lands on a state
+  that is consistent by construction, because it was published by a session that completed.
+- **Cons:** everything written since the last publication is discarded, and the client has to call
   `EvitaContract#activateCatalog`. Makes deactivation a routine path, which raises the stakes on #1497.
+  **And its completeness is temporal, not total:** it says nothing about publications that happen before it is
+  raised, which is the whole of the mid-session problem below. This was missed in the first implementation and
+  found by adversarial review — see *Verification*.
 
 ### Option B — validate at every publication route (declined)
 
@@ -82,6 +91,11 @@ stop read-only sessions from flushing in warm-up.
   again on top of them rather than reversing them; nothing shows the composition equals what a clean path would
   have produced. Its safety also rested on enumerating publishers, and the enumeration was already incomplete
   once (the read-only session above). Worth revisiting only if warm-up ever gains an undo that spans collections.
+- **But one part of it was necessary anyway, and declining the option as a whole hid that.** Option B's
+  "defer the three opportunistic mid-session publications" is not an alternative to the barrier — it addresses a
+  case the barrier cannot reach at all, because those publications happen before the barrier exists. It is
+  implemented here, in the narrower form described under *Key technical details*. A rejected option is rejected
+  as a whole design; that is not licence to drop the problems it was the only option to name.
 
 ### Option C — refresh the schema in place from the last bootstrap pointer (declined)
 
@@ -103,13 +117,24 @@ Build the post-mutation schemas as values, validate, and exchange only if the re
   mutation pending until the graph validates is deferred schema application: a feature that changes the semantics
   of every schema mutation, not a fix. Worth revisiting only if the schema API ever gains an explicit
   "apply this batch atomically" boundary.
+- **Not to be confused with `flushMidSessionIfSchemaValid`**, which is also a validity check that is allowed to
+  fail without refusing. The difference is what it gates: that one gates a **publication**, which is always safe
+  to postpone, while this option gates the **mutation**, which is not — postponing the mutation changes what the
+  caller's next read sees.
 
 ## Decision
 
-**Chosen: Option A.** The drivers were completeness and provable recovery, and the barrier wins on both: it is
-one flag that every publication route already reads, and reload is the only recovery whose result can be argued
-about at all. Option B lost on the second driver rather than the first — enumeration is fragile, but the deciding
-point is that its "repair and continue" story assumed an undo that does not exist.
+**Chosen: Option A, plus the one piece of Option B that answers a different question.** The drivers were
+completeness and provable recovery. Reload is the only recovery whose result can be argued about at all, so
+Option A wins the second outright; Option B lost it, because its "repair and continue" story assumed an undo that
+does not exist.
+
+On completeness the honest statement is narrower than the first version of this record claimed. The barrier makes
+every publication *downstream of the refusal* refuse, without those routes having to be enumerated. It does
+nothing for publications upstream of it, and two exist. Those are handled by two explicit gates, and those gates
+**are** an enumeration — a route added ahead of the barrier in future will need finding, exactly the fragility
+Option B was rejected for. The mitigation is that both gates sit at chokepoints (see below), not that the problem
+is gone.
 
 Two properties of the chosen mechanism are deliberate. The barrier is raised through
 `Catalog#markUnpublishableDueToInvalidSchema` rather than `markUnpublishable`, because the latter's message is
@@ -123,23 +148,67 @@ forbids partial replay.
 
 ## Key technical details
 
-- **The refusal site is the only one.** `CatalogSchema#validate()` has exactly one engine call site —
-  `EvitaSession#validateCatalogSchema`, reached from `closeInternal`. The hard stop is therefore *automatically*
-  limited to post-exchange failures: the pre-flight refusals (`verifyEntitySchemaMutationsApplicable`,
-  `verifyNoAcceleratorAddedToNonEmptyCollection`, the mutations' own asserts) are untouched and keep refusing
-  cleanly, so an ordinary schema typo never costs a reload. A future change that adds a second `validate()` call
-  site must decide deliberately whether it also raises the barrier.
+- **Only the close-time refusal raises the barrier.** Before this change `CatalogSchema#validate()` had exactly
+  one engine call site — `EvitaSession#validateCatalogSchema`, reached from `closeInternal` — which is why the
+  hard stop is limited to post-exchange failures: the pre-flight refusals
+  (`verifyEntitySchemaMutationsApplicable`, `verifyNoAcceleratorAddedToNonEmptyCollection`, the mutations' own
+  asserts) are untouched and keep refusing cleanly, so an ordinary schema typo never costs a reload. This change
+  adds two more call sites, and **neither of them may be turned into a refusal**:
+  - `Catalog#isSchemaValid()`, behind `Catalog#flushMidSessionIfSchemaValid()`. The three warm-up DDL flushes
+    (`createEntitySchema`, `removeEntitySchema`, `doReplaceEntityCollectionInternal`) publish inline while the
+    session is still open. They now publish only when the schema validates, and **skip silently otherwise** — they
+    must not refuse, because a schema that does not validate mid-session is not an error. Skipping loses nothing:
+    the changes stay in the data store buffer and the session close publishes them, after validating.
+  - `MakeCatalogAliveMutationOperator`, ahead of its flush. This one *does* raise the barrier, because go-live is
+    the end of warm-up and there is no later close to defer to. It sits in the operator rather than in
+    `EvitaSession#goLiveAndCloseWithProgress` because all three go-live entry points funnel through the operator,
+    and because the session-driven path terminates its session through `executeTerminationSteps` rather than
+    through `closeInternal` — so the close-time validation never runs for the session that calls it.
+- **`validate()` refuses in two vocabularies, and only one of them is a `SchemaAlteringException`.** A rule it
+  evaluates throws that type; a getter it *reaches* on a schema it cannot resolve simply refuses to answer, with a
+  plain `EvitaInvalidUsageException` — `ReflectedReferenceSchema#isIndexedInScope` throwing "the reflected
+  reference is not available", which `EntitySchema#validate` walks straight into. This is not a hypothesis:
+  catching only the narrow type in `Catalog#isSchemaValid` turned a legitimate intermediate state into a failed
+  DDL operation and cost **17 tests** in the full suite. All three sites — `isSchemaValid`, the warm-up close and
+  the go-live operator — therefore catch `EvitaInvalidUsageException`, and
+  `Catalog#markUnpublishableDueToInvalidSchema` takes that type. `EvitaInternalError` is a sibling of that class,
+  not a subtype, so an engine bug uncovered by the walk still surfaces.
+  **Only the `isSchemaValid` half of that is demonstrated.** Whether a schema can still be in the getter-refusing
+  shape at the *close*, where the barrier is raised, was not shown: every attempt to construct one met a
+  schema-altering refusal first, and narrowing the close-time catch back leaves the whole class green. The wide
+  catch is kept at the two barrier sites anyway, because the outcomes are asymmetric — a bare refusal slipping
+  past a narrow catch publishes exactly the state the barrier exists to stop, while catching one that did not need
+  catching costs a deactivation of a catalog whose schema was already exchanged and whose operation already
+  failed, which is what this design does everywhere else.
 - **Only the warm-up branch.** `validateCatalogSchema` is also called transactionally, where it marks the
   transaction rollback-only and the state unwinds properly. Nothing changed there.
-- **Two shutdown defects were fixed in passing**, both pre-existing and both made routine by this change, since
-  a client that reacts to the refusal by shutting down now has a lifecycle mutation in flight while the engine
-  closes:
+- **A family of shutdown defects was fixed in passing**, all pre-existing and all made routine by this change,
+  since a client that reacts to the refusal by shutting down now has a lifecycle mutation in flight while the
+  engine closes. They share one shape: `Evita#closeCatalogs` clears the engine state *before* draining the
+  mutations still in flight, so every in-flight lifecycle mutation fails at its completion updater, and whatever
+  that updater was going to do is skipped.
   - `EngineTransactionManager#close()` joined the pending engine mutations and let their *failure* propagate,
     skipping `enginePersistenceService::close` — so the engine's folder lock stayed held and the next start died
     with `FolderAlreadyUsedException` against a process that had already exited. The wait is now completion-only.
-  - `updateEngineStateAfterEngineMutation` dereferenced `Evita#getEngineState()`, which `Evita#closeCatalogs`
-    clears *before* draining the mutations still in flight. It now refuses with `InstanceTerminatedException`,
-    ahead of the write-ahead log append, so nothing of the refused mutation is durable.
+  - `updateEngineStateAfterEngineMutation` dereferenced the cleared state. It now refuses with
+    `InstanceTerminatedException`, ahead of the write-ahead log append, so **the mutation leaves no engine-level
+    trace** — no WAL entry and no engine bootstrap record, which is what makes reporting it as failed accurate.
+    It is *not* a claim that the mutation had no effect: the operator's work phase ran first and may already have
+    published at the catalog level, `Catalog#goLive()`'s ALIVE bootstrap record being the clear case. Those
+    effects are durable and stay durable, and the catalog reloads from its own bootstrap record whatever the
+    engine recorded. The first version of this record said "nothing of the refused mutation is durable", which is
+    the wider claim and false; the adversarial review caught it.
+  - **Three operators stranded a real `Catalog` on that same path**, which is the defect the second bullet's fix
+    made visible rather than fixed. Deactivation, creation and removal each hold the only reference to a real
+    catalog while the engine state holds an `UnusableCatalog` placeholder — and `UnusableCatalog#terminate()` only
+    flips a flag, so the shutdown pass that walked the engine state released nothing. A completion updater that
+    threw then skipped the real catalog's `terminate()` entirely, leaving *its* folder lock held: the same
+    `FolderAlreadyUsedException`, one level down from the one the first bullet fixed.
+    `SetCatalogStateMutationOperator` (both branches), `CreateCatalogMutationOperator` and
+    `RemoveCatalogSchemaMutationOperator` now release the catalog whether or not the state update lands. The
+    removal path deliberately releases the handles **without** wiping the folder — the removal did not commit, the
+    engine state still names that folder, and deleting a file the published record still reaches is the one act
+    that damages a catalog for real (`.claude/rules/durability-model.md`).
 - **Whether a restart finds the catalog `INACTIVE` is a race, and both outcomes are correct.** The deactivation
   is scheduled rather than run inline, so a process that shuts down promptly after the refusal may exit before it
   lands - in which case nothing is persisted and the catalog comes back loaded. When it does land first, the
@@ -155,17 +224,33 @@ forbids partial replay.
   moment later; an activation issued in between is refused with `ConflictingEngineMutationException`. That is the
   engine's "another lifecycle operation is still in flight" signal, and a client reacting instantly to the
   deactivation has to retry. `WarmUpRefusedSchemaPersistenceTest#activateOnceTheDeactivationSettles` documents it.
+- **The conflict key can refuse the deactivation itself, so `scheduleDeactivation` now retries it.** The catalog
+  raises the barrier from inside `Catalog#flush`'s failure handler, which the go-live operator calls while its own
+  lifecycle mutation is still finalizing — so the deactivation the barrier schedules races the very mutation that
+  triggered it and is refused. It was previously logged and dropped, which left a catalog that refused everything
+  and could only be cleared by a restart: safe, but flatly contradicting the recovery this record promises. Five
+  attempts, 200 ms apart, wait out a key whose holder is already finalizing. Exhausting them keeps the old
+  behaviour and the old message, because the safety property never depended on the deactivation landing. The
+  returned `Progress` is now observed too — a deactivation accepted and then failing while being applied used to
+  leave the catalog refusing with nothing in the log to say why.
 
 ## Verification
 
 The full functional suite runs green: **23,717 tests, 0 failures**, the only error being `ExportS3ServiceTest`,
 which needs a Docker environment this workstation does not provide.
 
-`WarmUpRefusedSchemaPersistenceTest` (new, 5 tests) proves the guarantee on **two independent validation rules** —
+`WarmUpRefusedSchemaPersistenceTest` (new, 7 tests) proves the guarantee on **two independent validation rules** —
 the attribute filter-accelerator rule and the managed-reference rule — so it is pinned to the warm-up write path
 rather than to one validator. Each refusal is asserted on its message, not merely on the exception type, and each
 is paired with a control that pushes the *same* schema element through legitimately and finds it after a reopen,
 so an empty assertion cannot pass because the reopened schema was read wrongly.
+
+**Every refusal additionally asserts that the barrier was raised**, by waiting for the deactivation it schedules
+to be reported on the system change stream (`assertRefusalRaisesTheBarrier`). Without that, each of these tests
+would also pass against a refusal thrown by a *pre-flight* check — which leaves the catalog untouched and makes
+every assertion about the reopened schema hold trivially. The distinction is one edit away from mattering:
+`SetAttributeSchemaAcceleratedMutation` deliberately does not run the accelerator's own applicability check, and
+the sibling `CreateAttributeSchemaMutation` does.
 `Recovery#shouldDeactivateTheCatalogAndHandBackTheLastPublishedStateOnActivation` covers the whole story: an
 entity written by a session that closed successfully survives the recovery, and one written by the refused session
 does not.
@@ -173,11 +258,28 @@ does not.
 `AttributeFilterAcceleratorRefusalTest#shouldRefuseAnAcceleratorDeclaredOnAnAttributeWithNoFilterIndex` was a
 characterisation asserting the wrong outcome deliberately; it now asserts `Set.of()`.
 
+`MidSessionPublication` covers the two cases the barrier cannot reach, and both were written as failing tests
+before the gates existed: a session that applies the offending mutation and *then* defines another collection
+(the refused reference was on disk — `expected: <false> but was: <true>`), and one that calls `goLiveAndClose`
+(no exception was raised at all, and the catalog went ALIVE carrying the invalid schema).
+
+**Both were found by adversarial review after this decision had already been implemented and its tests were
+green.** The first implementation had five tests passing and a full suite of 23,717 green, and was wrong: it
+asserted the barrier's completeness without testing anything upstream of the barrier. The review that found it was
+asked specifically to attack completeness — "is there any route that writes a bootstrap record in WARMING_UP that
+does not consult the barrier?" — which is the question the record itself should have provoked.
+
 **Counterfactual:** with the single `markUnpublishableDueToInvalidSchema` call removed and everything else
-unchanged, all four guards fail — the two repros (`expected: <[]> but was: <[SUBSTRING_SEARCH]>` and
+unchanged, all four of the close-time guards fail — the two repros (`expected: <[]> but was: <[SUBSTRING_SEARCH]>` and
 `expected: <false> but was: <true>`), the characterisation flip, and the recovery test (`stayed at WARMING_UP
 instead of reaching INACTIVE`) — while the other 21 tests in the two classes still pass. The folder-lock fix has
 its own counterfactual: before it, the reopen in every repro died with `FolderAlreadyUsedException`.
+
+The barrier assertion has one of its own, and it isolates cleanly. With only the `scheduleDeactivation()` call
+removed — so the barrier is still raised and still stops every publication — exactly the five tests that assert
+it fail, all on `Catalog 'testCatalog' was never reported as having settled into 'INACTIVE'`, while the two
+controls pass. That is the assertion carrying its own weight rather than riding on the persistence assertions
+beside it.
 
 ## Consequences & open follow-ups
 
@@ -192,6 +294,15 @@ its own counterfactual: before it, the reopen in every repro died with `FolderAl
   catalog should be discarded and rebuilt from scratch.
 - **#1497 (deactivate and drop have no undo) matters more now**, because deactivation went from a rare
   consequence of a flush failure to the ordinary answer to a schema typo.
+- **`.claude/rules/durability-model.md`'s "In `WARM_UP` every flush publishes" is no longer unconditionally
+  true.** A warm-up DDL flush is skipped when the schema does not currently validate. The rule's *point* survives
+  untouched — a flush that does run still publishes, and there is still no deferred checkpoint in warm-up — but
+  the sentence now carries a qualifier saying which flushes run, because anyone reasoning "warm-up flushed,
+  therefore it is durable" needs to know about the gate.
+- **The two gates ahead of the barrier are an enumeration, and enumerations rot.** A future publication route
+  added upstream of the session close will not be covered by anything here. The chokepoints were chosen to make
+  that unlikely — the operator is the single funnel for go-live, and `flushMidSessionIfSchemaValid` is the single
+  helper the three DDL flushes now share — but this is the part of the design a later change can silently break.
 
 ## Related work
 
@@ -208,3 +319,5 @@ its own counterfactual: before it, the reopen in every repro died with `FolderAl
 
 - **2026-09-08** — reproduction written, publishers identified by counterfactual measurement, barrier design
   chosen over the publication-route gate, implemented
+- **2026-09-08** — adversarial review found two publications upstream of the barrier that the implementation did
+  not cover; both reproduced, both gated, this record corrected

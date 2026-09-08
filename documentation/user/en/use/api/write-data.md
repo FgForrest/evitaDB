@@ -43,7 +43,7 @@ query the written data, but no other client can open another session because the
 guaranteed for them. The goal here is to index hundreds or thousands of entities per second.
 
 If the database crashes during this initial bulk indexing, or a failure occurs that this phase cannot revert, the
-catalog returns to the last state it published - the one written by the last session that closed successfully - and
+catalog returns to the last state it published - the newest state that reached the disk - and
 everything written after it has to be replayed. Since there is no client other than the one writing the data, we can
 afford to recover this way. See
 [Failures that cannot be reverted](../../deep-dive/bulk-vs-incremental-indexing.md#failures-that-cannot-be-reverted)

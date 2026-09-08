@@ -1914,7 +1914,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// revalidates - so validating after the flush would report a refusal about a schema that
 							// is already on disk and from then on permanent
 							validateCatalogSchema(this.catalog);
-						} catch (SchemaAlteringException ex) {
+						} catch (EvitaInvalidUsageException ex) {
 							// keeping THIS session from writing is not enough. The exchange stays in the
 							// running catalog - EntityCollection#updateSchema has already swapped it into
 							// every collection the change reached - so every later publisher would write
@@ -1924,7 +1924,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							// collections, so the barrier is raised instead: it refuses every publication
 							// route at once and hands the catalog over for deactivation, after which
 							// activating it again loads the last published state - whose schema validates,
-							// because it was published by a session that closed successfully
+							// because it was published by a session that closed successfully.
+							//
+							// Caught as the whole EvitaInvalidUsageException family rather than as
+							// SchemaAlteringException. validate() refuses in two vocabularies: a rule it evaluates
+							// throws the schema-altering kind, while a getter it reaches on a schema it cannot
+							// resolve simply refuses to answer - ReflectedReferenceSchema#isIndexedInScope throwing
+							// "the reflected reference is not available" is the demonstrated case, and it is what
+							// Catalog#isSchemaValid had to widen its own catch for. Whether a schema can still be
+							// in that shape HERE, at the close, was not demonstrated: every attempt to build one
+							// met a schema-altering refusal first. The wide catch is kept anyway, because the two
+							// outcomes are not symmetric - a bare refusal that slipped past a narrow catch would
+							// publish exactly the state this guard exists to stop, while the cost of catching one
+							// that did not need catching is a deactivation of a catalog whose schema was already
+							// exchanged and whose operation already failed, which is the answer this design gives
+							// everywhere else
 							this.catalog.markUnpublishableDueToInvalidSchema(ex);
 							throw ex;
 						}

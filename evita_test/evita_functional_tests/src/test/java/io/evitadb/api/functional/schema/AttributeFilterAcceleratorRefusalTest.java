@@ -24,7 +24,9 @@
 package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -53,6 +55,7 @@ import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Guards the refusal that protects users from a silently-incomplete substring index.
@@ -88,6 +91,13 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 	/** The attribute the reflected reference excludes from inheritance, which is what makes it hold a filter. */
 	private static final String ATTRIBUTE_NOT_INHERITED = "notInherited";
 	private static final int CATEGORY_PK = 1;
+	/**
+	 * Upper bound on how long the catalog is retried for after a reopen finds it deactivated. Generous on purpose:
+	 * the retry returns on the first attempt the engine accepts, so the bound is only ever paid by a genuine hang.
+	 */
+	private static final long ACTIVATION_BUDGET_MILLIS = 30_000L;
+	/** Backoff between two attempts at an activation the engine refuses while another lifecycle step is in flight. */
+	private static final long RETRY_BACKOFF_MILLIS = 20L;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -955,8 +965,7 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 
 			// reopening over the same storage directory is the only honest way to ask what the refused session
 			// actually left behind - the in-memory catalog would answer for a schema that was never written
-			AttributeFilterAcceleratorRefusalTest.this.evita.close();
-			AttributeFilterAcceleratorRefusalTest.this.evita = new Evita(configuration());
+			AttributeFilterAcceleratorRefusalTest.this.reopenOverTheSameStorage();
 
 			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
 				TEST_CATALOG,
@@ -1028,6 +1037,58 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				);
 			}
 		);
+	}
+
+	/**
+	 * Closes the running instance and opens a fresh one over the same storage directory, leaving the catalog loaded
+	 * and queryable however the previous instance shut down.
+	 *
+	 * The refusal under test raises the unpublishable barrier, and the barrier schedules a deactivation - so whether
+	 * this test's `close()` outruns that deactivation is a race, and both outcomes are correct. When the
+	 * deactivation lands first the `INACTIVE` state is persisted and the reopened engine leaves the catalog
+	 * unloaded; when the close wins, the catalog comes back loaded. Both sides read the same bootstrap record, which
+	 * is the state under assertion, so the reopen simply has to tolerate either.
+	 */
+	private void reopenOverTheSameStorage() {
+		this.evita.close();
+		this.evita = new Evita(configuration());
+		// deterministic rather than a wait: the constructor schedules the initial catalog load and this joins the
+		// futures it created, so the state read below is the settled one
+		this.evita.waitUntilFullyInitialized();
+		if (this.evita.getCatalogState(TEST_CATALOG).orElse(null) == CatalogState.INACTIVE) {
+			activateWithConflictRetry();
+		}
+	}
+
+	/**
+	 * Activates the test catalog, retrying while the engine reports that another lifecycle operation for it is still
+	 * in flight.
+	 *
+	 * This is a **retry of a refused operation**, not a poll for a condition: the deactivation's engine-state update
+	 * lands before the lifecycle mutation carrying it releases its conflict key, and no seam exposes that release.
+	 */
+	private void activateWithConflictRetry() {
+		final long deadline = System.currentTimeMillis() + ACTIVATION_BUDGET_MILLIS;
+		RuntimeException lastConflict;
+		do {
+			try {
+				this.evita.activateCatalog(TEST_CATALOG);
+				return;
+			} catch (RuntimeException ex) {
+				if (!(ex instanceof ConflictingEngineMutationException)
+					&& !(ex.getCause() instanceof ConflictingEngineMutationException)) {
+					throw ex;
+				}
+				lastConflict = ex;
+				try {
+					Thread.sleep(RETRY_BACKOFF_MILLIS);
+				} catch (InterruptedException interruption) {
+					Thread.currentThread().interrupt();
+					fail("Interrupted while retrying an engine operation refused by a lifecycle conflict.");
+				}
+			}
+		} while (System.currentTimeMillis() < deadline);
+		fail("Catalog `" + TEST_CATALOG + "` could not be activated: " + lastConflict.getMessage());
 	}
 
 	/**

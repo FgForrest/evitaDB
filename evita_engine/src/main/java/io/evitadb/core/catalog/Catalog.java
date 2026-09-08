@@ -56,6 +56,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
+import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -136,6 +137,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.set.LazyHashSet;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
@@ -193,6 +195,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -248,6 +251,14 @@ public final class Catalog
 	 * therefore does not exist yet. Three zeroes is the truthful reading of that state, not a missing measurement.
 	 */
 	private static final SessionStatistics NO_ACTIVE_SESSIONS = new SessionStatistics(0, 0, 0);
+	/**
+	 * How many times {@link #attemptDeactivation(int)} issues the deactivation mutation before giving up, and how
+	 * long it waits between attempts. Sized for the one thing that refuses it - a lifecycle mutation for this same
+	 * catalog still holding the conflict key - which releases the key as it finalizes, so the window to wait out is
+	 * the tail of another mutation rather than anything open-ended.
+	 */
+	private static final int DEACTIVATION_ATTEMPTS = 5;
+	private static final long DEACTIVATION_RETRY_DELAY_MILLIS = 200L;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -418,11 +429,13 @@ public final class Catalog
 	 */
 	private long lastPersistedSchemaVersion;
 	/**
-	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, or
-	 * a {@link #goLive()} that threw after publishing its ALIVE bootstrap record - or `null` while the catalog can
-	 * still be persisted. Set by {@link #recordUnpublishableCause(Throwable)}, whose public entry point is
-	 * {@link #markUnpublishable(Throwable)}, and never cleared - a catalog recovers by being reloaded from disk,
-	 * not by this field going back to `null`.
+	 * The failure that made this catalog's in-memory state impossible to publish - a warm-up flush or rollback, a
+	 * {@link #goLive()} that threw after publishing its ALIVE bootstrap record, or a warm-up schema change refused
+	 * by validation - or `null` while the catalog can still be persisted. Set by
+	 * {@link #recordUnpublishableCause(Throwable)} through one of two public entry points:
+	 * {@link #markUnpublishable(Throwable)} for the engine failures, {@link #markUnpublishableDueToInvalidSchema}
+	 * for the refused schema change. Never cleared - a catalog recovers by being reloaded from disk, not by this
+	 * field going back to `null`.
 	 *
 	 * Holds the cause atomically so the FIRST failure wins - it is the one that explains every refusal after it -
 	 * and so that the deactivation it schedules is issued exactly once. Written from more than one thread: the
@@ -2678,17 +2691,24 @@ public final class Catalog
 	 * **Nothing on disk is damaged.** The last bootstrap record still names a complete, correct state, and the
 	 * deactivation this schedules is what lets the operator get back to it: activating the catalog again loads
 	 * exactly that state, with a schema that validates. What is lost is everything written since - which was never
-	 * durable, warm-up publishing only when a session closes.
+	 * durable. A warm-up catalog publishes when a session closes and again whenever a collection-level schema
+	 * operation flushes mid-session, so the state that comes back is the newest one that reached the disk rather
+	 * than the newest closed session.
+	 *
+	 * The parameter is the whole {@link EvitaInvalidUsageException} family rather than
+	 * {@link SchemaAlteringException} alone, because `validate()` refuses in both vocabularies: a rule it evaluates
+	 * throws the schema-altering kind, while a getter it reaches on a half-built schema simply refuses to answer.
+	 * Both mean the same thing here - the schema as it stands is not acceptable and cannot be un-applied.
 	 *
 	 * @param cause the validation failure that refused the schema change
 	 */
-	public void markUnpublishableDueToInvalidSchema(@Nonnull SchemaAlteringException cause) {
+	public void markUnpublishableDueToInvalidSchema(@Nonnull EvitaInvalidUsageException cause) {
 		if (recordUnpublishableCause(cause)) {
 			log.error(
 				"Catalog `{}` holds a schema that failed validation and cannot be un-applied in the warm-up " +
-					"phase, so it will be deactivated. Its stored data is intact at the version of the last " +
-					"successfully closed session; activating the catalog again loads exactly that state, and " +
-					"everything written since then has to be replayed once the schema change is corrected.",
+					"phase, so it will be deactivated. Its stored data is intact at the last version it published; " +
+					"activating the catalog again loads exactly that state, and everything written since then has " +
+					"to be replayed once the schema change is corrected.",
 				getName(), cause
 			);
 		}
@@ -2723,13 +2743,64 @@ public final class Catalog
 	}
 
 	/**
+	 * Tells whether the catalog schema as it currently stands would survive
+	 * {@link CatalogSchemaContract#validate()}.
+	 *
+	 * Exists for the publications that happen while a warm-up session is **still open**, which the barrier cannot
+	 * help with: the barrier is raised when a session closes and validation refuses it, so anything publishing
+	 * earlier in that same session publishes before there is a barrier to consult. Those callers ask this instead.
+	 *
+	 * It is deliberately a question rather than an assertion. A schema that does not validate mid-session is not an
+	 * error - building one across several steps whose intermediate states do not validate is supported, a reflected
+	 * reference declared before the reference it reflects being the worked example. The caller therefore skips its
+	 * publication and leaves the decision to the session close, which is the point at which the state is final.
+	 *
+	 * **The catch is {@link EvitaInvalidUsageException}, not {@link SchemaAlteringException}, and the difference is
+	 * load-bearing.** `validate()` does not report every refusal in the schema-altering vocabulary: walking a
+	 * half-built schema reaches getters that refuse to answer at all, and `ReflectedReferenceSchema#isIndexedInScope`
+	 * throwing "the reflected reference is not available" for a reflected reference whose target is not wired yet is
+	 * exactly the intermediate state this method exists to tolerate. Catching only the narrower type turned that
+	 * legitimate state into a failed DDL operation. {@link io.evitadb.exception.EvitaInternalError} stays outside
+	 * the catch deliberately - an engine bug uncovered by the walk must still surface.
+	 *
+	 * @return true when the current catalog schema validates
+	 */
+	private boolean isSchemaValid() {
+		try {
+			getSchema().validate();
+			return true;
+		} catch (EvitaInvalidUsageException ex) {
+			return false;
+		}
+	}
+
+	/**
+	 * Performs the warm-up flush that a collection-level DDL operation runs while its session is still open, unless
+	 * the catalog schema would be refused by validation as it currently stands.
+	 *
+	 * Skipping is not a lost write. The changes stay in the data store buffer and are published by the session
+	 * close, which validates first - so a schema that is merely half-built at this moment still reaches the disk,
+	 * while one that is still invalid when the session closes reaches nothing.
+	 */
+	private void flushMidSessionIfSchemaValid() {
+		if (!isSchemaValid()) {
+			return;
+		}
+		// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
+		final ProgressingFuture<Void> flushFuture = this.flush();
+		flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
+		flushFuture.join();
+	}
+
+	/**
 	 * Tells whether this catalog may still publish its in-memory state.
 	 *
 	 * Exists for the one caller that must NOT throw on a barrier it finds set - {@link #terminateInternally()} skips
 	 * the flush loop and the header write, and then goes on to release every resource. Everything else uses
 	 * {@link #assertPublishable()}.
 	 *
-	 * @return true when no warm-up failure has made this catalog's state unpublishable
+	 * @return true when nothing - neither a warm-up engine failure nor a schema change refused by validation - has
+	 *         made this catalog's state unpublishable
 	 */
 	public boolean isPublishable() {
 		return this.unpublishableCause.get() == null;
@@ -2742,7 +2813,8 @@ public final class Catalog
 	 * replace path) and the next root entity mutation, so a bulk load that can never be saved stops at once instead
 	 * of pouring in more work. Termination deliberately does not call this - see {@link #isPublishable()}.
 	 *
-	 * @throws CatalogUnpublishableException when a warm-up failure has made this catalog's state unpublishable
+	 * @throws CatalogUnpublishableException when something - a warm-up engine failure, or a schema change refused
+	 *                                       by validation - has made this catalog's state unpublishable
 	 */
 	public void assertPublishable() {
 		final Throwable cause = this.unpublishableCause.get();
@@ -2761,29 +2833,103 @@ public final class Catalog
 	 * deactivation closes exactly the sessions that thread is running under.
 	 *
 	 * The barrier set by {@link #recordUnpublishableCause(Throwable)} is what protects the window until this lands:
-	 * every publication route and every further mutation already refuses. Failure to deactivate is therefore logged
-	 * rather than propagated - the catalog stays refusing, which is the property that matters.
+	 * every publication route and every further mutation already refuses. A refusal by the conflict key is waited
+	 * out ({@link #attemptDeactivation(int)}); any other failure, and an exhausted retry, are logged rather than
+	 * propagated - the catalog stays refusing, which is the property that matters.
 	 */
 	private void scheduleDeactivation() {
+		this.scheduler.execute(() -> attemptDeactivation(1));
+	}
+
+	/**
+	 * Issues one attempt at the deactivation mutation, re-scheduling itself while another lifecycle mutation for
+	 * this catalog still holds the conflict key.
+	 *
+	 * The conflict is transient by construction - the key is released when the mutation holding it finalizes - and
+	 * the case is not hypothetical: {@link #markUnpublishable(Throwable)} is called from the go-live operator's own
+	 * flush failure handler, which runs while that operator's mutation is still finalizing. Waiting the key out is
+	 * the difference between a catalog an operator can reactivate and one that needs the engine restarted, and it
+	 * costs nothing to wait: the barrier is already raised, so the catalog refuses every write and every flush for
+	 * the whole retry window.
+	 *
+	 * When the attempts run out, the catalog stays published and refusing. That is safe rather than merely
+	 * tolerable - nothing untrustworthy can be published from it - but it is a state only a restart clears.
+	 *
+	 * @param attempt 1-based number of this attempt
+	 */
+	private void attemptDeactivation(int attempt) {
 		final String catalogName = getName();
-		this.scheduler.execute(
-			() -> {
-				try {
-					// an engine that is already shutting down terminates this catalog anyway, and issuing a lifecycle
-					// mutation into a closing engine would only trade a clean shutdown for a logged failure
-					if (!this.evita.isActive()) {
-						return;
-					}
-					this.evita.deactivateCatalogWithProgress(catalogName);
-				} catch (RuntimeException ex) {
-					log.error(
-						"Failed to deactivate catalog `{}` after it became unpublishable. It keeps refusing every write " +
-							"and every flush, so no untrustworthy state can be published; restart the engine to reload it.",
-						catalogName, ex
-					);
-				}
+		try {
+			// an engine that is already shutting down terminates this catalog anyway, and issuing a lifecycle
+			// mutation into a closing engine would only trade a clean shutdown for a logged failure
+			if (!this.evita.isActive()) {
+				return;
 			}
+			this.evita.deactivateCatalogWithProgress(catalogName)
+				.onCompletion()
+				// the mutation is accepted on this thread but applied elsewhere, so a failure past acceptance
+				// surfaces only on this stage - without it a deactivation that failed while being applied would
+				// leave the catalog refusing everything with nothing in the log to say why
+				.whenComplete((__, failure) -> {
+					if (failure != null) {
+						handleFailedDeactivation(catalogName, failure, attempt);
+					}
+				});
+		} catch (RuntimeException ex) {
+			handleFailedDeactivation(catalogName, ex, attempt);
+		}
+	}
+
+	/**
+	 * Decides what a failed deactivation attempt earns: another attempt when a lifecycle conflict refused it and
+	 * attempts remain, a log record otherwise.
+	 *
+	 * The conflict is looked for down the cause chain rather than on the exception itself, because the refusal is
+	 * raised at submission but may reach here through the returned progress instead - and a wrapped conflict that
+	 * went unrecognised would silently cost the retry rather than fail loudly.
+	 *
+	 * @param catalogName name of the catalog that could not be deactivated
+	 * @param failure     what stopped it
+	 * @param attempt     1-based number of the attempt that failed
+	 */
+	private void handleFailedDeactivation(@Nonnull String catalogName, @Nonnull Throwable failure, int attempt) {
+		if (attempt < DEACTIVATION_ATTEMPTS && isLifecycleConflict(failure)) {
+			this.scheduler.schedule(
+				() -> attemptDeactivation(attempt + 1),
+				DEACTIVATION_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS
+			);
+			return;
+		}
+		// Silent during shutdown: the engine going down under the deactivation fails it by construction, the
+		// catalog is being terminated anyway, and the advice the message carries - restart to reload - is
+		// precisely what is already happening.
+		if (!this.evita.isActive()) {
+			return;
+		}
+		log.error(
+			"Failed to deactivate catalog `{}` after it became unpublishable. It keeps refusing every write " +
+				"and every flush, so no untrustworthy state can be published; restart the engine to reload it.",
+			catalogName, failure
 		);
+	}
+
+	/**
+	 * Tells whether the passed failure is the engine refusing a lifecycle mutation because another one for the same
+	 * catalog is still in flight.
+	 *
+	 * @param failure the failure to classify; must not be null
+	 * @return true when a {@link ConflictingEngineMutationException} appears anywhere in its cause chain
+	 */
+	private static boolean isLifecycleConflict(@Nonnull Throwable failure) {
+		for (Throwable current = failure; current != null; current = current.getCause()) {
+			if (current instanceof ConflictingEngineMutationException) {
+				return true;
+			}
+			if (current.getCause() == current) {
+				break;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -3223,10 +3369,7 @@ public final class Catalog
 		entitySchemaUpdated(newCollection.getSchema());
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is created
 		if (transaction == null) {
-			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
-			flushFuture.join();
+			flushMidSessionIfSchemaValid();
 		}
 		return newSchema;
 	}
@@ -3273,10 +3416,7 @@ public final class Catalog
 		}
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is removed
 		if (transaction == null) {
-			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
-			flushFuture.join();
+			flushMidSessionIfSchemaValid();
 		}
 		return result;
 	}
@@ -3455,10 +3595,7 @@ public final class Catalog
 				}
 			}
 			// store catalog with a new file pointer
-			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
-			flushFuture.join();
+			flushMidSessionIfSchemaValid();
 		} else {
 			// update managed reference entity types and groups that target renamed entity
 			for (EntityCollection otherCollection : this.entityCollections.values()) {
