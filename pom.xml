@@ -691,7 +691,6 @@
 					<release>${java.version}</release>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
-					<compilerVersion>${java.version}</compilerVersion>
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
