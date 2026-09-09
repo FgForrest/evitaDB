@@ -88,6 +88,14 @@ import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.intersects;
  *   first common bit and allocates nothing, so the `and()` runs only where it produces something. Unlike D and
  *   E this one is implementable as written — it changes only the order of two operations that already exist.
  *
+ * - **G** — the same hybrid as C, but with the reverse map **split per `ReferencedTypeEntityIndex`** instead
+ *   of merged across the collection, which is where the structure most naturally lives. Each index also
+ *   carries the union of the owners its covered partitions hold, so the affected set is intersected against
+ *   that once per index and only owners that can hit are looked up. C and G emit identical pairs and differ
+ *   only in layout: C pays one hash lookup per affected owner, G pays one per `(owner, reference)` that hits.
+ *   The delta is the price of the placement, and it decides whether the map can be a field on the type index
+ *   or has to be a collection-level structure with a much harder transactional story.
+ *
  * D and E are **not implementable** as they stand — a real walk cannot pre-resolve a transactional bitmap and
  * still see the transaction's own writes. They exist to bound what step 1 of the #1529 plan (hoisting the
  * loop-invariant transaction resolution) could ever be worth, before that seam is cut into the engine.
@@ -487,7 +495,8 @@ public class ConditionalFacetSiblingResolverReport {
 		C_HYBRID_REVERSE("C hybrid reverse"),
 		D_INDEX_PRERESOLVED("D index preresolved"),
 		E_BITMAP_PRERESOLVED("E bitmap preresolved"),
-		F_INTERSECTS_FIRST("F intersects first");
+		F_INTERSECTS_FIRST("F intersects first"),
+		G_PER_INDEX_HYBRID("G per-index hybrid");
 
 		private final String label;
 
@@ -506,6 +515,49 @@ public class ConditionalFacetSiblingResolverReport {
 	}
 
 	/**
+	 * One type index's own slice of the hybrid: its reverse map, the union of the owners its covered
+	 * partitions hold, and the partitions of its own that stayed above the threshold.
+	 *
+	 * @param reverse       owner primary key to the covered partitions of this index holding it
+	 * @param coveredOwners union of this index's covered partitions' members, so the affected set can be
+	 *                      intersected against it once instead of probing the map per affected owner
+	 * @param residual      this index's partitions left on the walk
+	 */
+	private record Slice(
+		@Nonnull Map<Integer, int[]> reverse,
+		@Nonnull PersistentRoaringBitmap coveredOwners,
+		@Nonnull int[] residual
+	) {
+
+		/**
+		 * Packs one index's accumulated lists into the immutable slice the timed loop reads.
+		 *
+		 * @param building accumulated owner to partition lists
+		 * @param residual accumulated above-threshold partitions
+		 * @return the packed slice
+		 */
+		@Nonnull
+		static Slice of(@Nonnull Map<Integer, List<Integer>> building, @Nonnull List<Integer> residual) {
+			final Map<Integer, int[]> packed = CollectionUtils.createHashMap(Math.max(building.size(), 1));
+			final PersistentRoaringBitmap owners = new PersistentRoaringBitmap();
+			for (final Map.Entry<Integer, List<Integer>> entry : building.entrySet()) {
+				final List<Integer> value = entry.getValue();
+				final int[] partitions = new int[value.size()];
+				for (int i = 0; i < partitions.length; i++) {
+					partitions[i] = value.get(i);
+				}
+				packed.put(entry.getKey(), partitions);
+				owners.add(entry.getKey());
+			}
+			final int[] left = new int[residual.size()];
+			for (int i = 0; i < left.length; i++) {
+				left[i] = residual.get(i);
+			}
+			return new Slice(packed, owners, left);
+		}
+	}
+
+	/**
 	 * The prepared walk: the sibling type indexes, and the hybrid reverse map over their small partitions.
 	 */
 	private static final class Walk {
@@ -516,6 +568,8 @@ public class ConditionalFacetSiblingResolverReport {
 		/** partition storage PK to its already-resolved membership bitmap, for the E bound */
 		private final IntObjectMap<PersistentRoaringBitmap> resolvedBitmaps = new IntObjectHashMap<>(4096);
 		private final Map<Integer, int[]> reverse = CollectionUtils.createHashMap(1024);
+		/** one reverse map per type index, the placement arm G prices against C's merged one */
+		private final List<Slice> slices = new ArrayList<>();
 		private final int[] residual;
 		private final long totalPartitions;
 		private final long coveredPartitions;
@@ -538,6 +592,8 @@ public class ConditionalFacetSiblingResolverReport {
 						continue;
 					}
 					this.typeIndexes.add(typeIndex);
+					final Map<Integer, List<Integer>> sliceBuilding = CollectionUtils.createHashMap(1024);
+					final List<Integer> sliceResidual = new ArrayList<>();
 					final List<Integer> pks = new ArrayList<>();
 					typeIndex.forEachReferenceIndexPrimaryKey(pks::add);
 					for (final int pk : pks) {
@@ -553,15 +609,19 @@ public class ConditionalFacetSiblingResolverReport {
 						this.resolvedBitmaps.put(pk, getRoaringBitmap(owners));
 						if (owners.size() > threshold) {
 							big.add(pk);
+							sliceResidual.add(pk);
 							continue;
 						}
 						covered++;
 						members += owners.size();
 						final OfInt it = owners.iterator();
 						while (it.hasNext()) {
-							building.computeIfAbsent(it.nextInt(), __ -> new ArrayList<>(2)).add(pk);
+							final int owner = it.nextInt();
+							building.computeIfAbsent(owner, __ -> new ArrayList<>(2)).add(pk);
+							sliceBuilding.computeIfAbsent(owner, __ -> new ArrayList<>(2)).add(pk);
 						}
 					}
+					this.slices.add(Slice.of(sliceBuilding, sliceResidual));
 				}
 			}
 			for (final Map.Entry<Integer, List<Integer>> entry : building.entrySet()) {
@@ -590,7 +650,8 @@ public class ConditionalFacetSiblingResolverReport {
 		 * @return the probe count
 		 */
 		long probesFor(@Nonnull Arm arm) {
-			return arm == Arm.C_HYBRID_REVERSE ? this.residualPartitions : this.totalPartitions;
+			return arm == Arm.C_HYBRID_REVERSE || arm == Arm.G_PER_INDEX_HYBRID
+				? this.residualPartitions : this.totalPartitions;
 		}
 
 		/**
@@ -609,6 +670,7 @@ public class ConditionalFacetSiblingResolverReport {
 				case D_INDEX_PRERESOLVED -> runPreresolved(affected, false);
 				case E_BITMAP_PRERESOLVED -> runPreresolved(affected, true);
 				case F_INTERSECTS_FIRST -> runIntersectsFirst(affected);
+				case G_PER_INDEX_HYBRID -> runPerIndexHybrid(affected);
 			};
 		}
 
@@ -667,6 +729,33 @@ public class ConditionalFacetSiblingResolverReport {
 			}
 			for (final int pk : this.residual) {
 				checksum += probe(pk, affected);
+			}
+			return checksum;
+		}
+
+		/**
+		 * Arm G — the same hybrid as C with the reverse map split per type index. Each slice's covered-owner
+		 * union is intersected against the affected set once, so only owners that can hit are looked up; the
+		 * pairs emitted are identical to C's and only the number of hash lookups differs.
+		 *
+		 * @param affected the affected owner primary keys
+		 * @return the checksum
+		 */
+		private long runPerIndexHybrid(@Nonnull PersistentRoaringBitmap affected) {
+			long checksum = 0L;
+			for (int i = 0; i < this.slices.size(); i++) {
+				final Slice slice = this.slices.get(i);
+				for (final int owner : and(slice.coveredOwners(), affected).toArray()) {
+					final int[] partitions = slice.reverse().get(owner);
+					if (partitions != null) {
+						for (final int pk : partitions) {
+							checksum += pair(owner, pk);
+						}
+					}
+				}
+				for (final int pk : slice.residual()) {
+					checksum += probe(pk, affected);
+				}
 			}
 			return checksum;
 		}
