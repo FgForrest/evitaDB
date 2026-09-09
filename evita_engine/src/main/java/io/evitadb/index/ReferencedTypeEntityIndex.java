@@ -69,6 +69,7 @@ import one.edee.oss.proxycian.util.ReflectionUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
+import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
@@ -413,6 +414,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * @return an array of all reference indexes primary keys associated with the specified referenced entity primary key
 	 */
 	@Nonnull
+	/**
+	 * Visits every reduced-index primary key this type index advertises, in a single pass.
+	 * See {@link ReferenceTypeCardinalityIndex#forEachIndexPrimaryKey(IntConsumer)} for why callers that
+	 * need all of them should prefer this over the per-referenced-PK accessors.
+	 *
+	 * @param consumer invoked once per advertised reduced-index primary key
+	 */
+	public void forEachReferenceIndexPrimaryKey(@Nonnull IntConsumer consumer) {
+		this.indexPrimaryKeyCardinality.forEachIndexPrimaryKey(consumer);
+	}
+
 	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
 		return this.indexPrimaryKeyCardinality.getAllReferenceIndexes(referencedEntityPrimaryKey);
 	}
