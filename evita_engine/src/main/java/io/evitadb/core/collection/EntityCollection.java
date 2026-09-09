@@ -149,6 +149,8 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
@@ -1843,6 +1845,115 @@ public final class EntityCollection implements
 	@Nullable
 	public EntityIndex getIndexByKeyIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 		return this.dataStoreBuffer.getIndexIfExists(entityIndexKey, this.indexes::get);
+	}
+
+	/**
+	 * The two families of `REFERENCED_*_TYPE` index a reference may own; both advertise reduced indexes whose
+	 * membership the cross-entity facet trigger consults, and neither can stand in for the other.
+	 */
+	private static final EntityIndexType[] REFERENCED_TYPE_INDEX_FAMILIES = {
+		EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+	};
+
+	/**
+	 * Rebuilds the reduced-index membership lookup the cross-entity conditional-facet trigger consults instead
+	 * of walking every reduced index of this collection. Called once, after a load has put every index in
+	 * place and every schema has been resolved.
+	 *
+	 * # Why this runs at load and never inside a transaction
+	 *
+	 * The lookup is derived state, so it is not persisted and has to be rebuilt when a collection comes back
+	 * from disk. It must be rebuilt **outside** a transaction: building it inside one would record every
+	 * entry into that transaction's diff layer, and merging such a diff would overwrite entries a
+	 * concurrently-committed transaction had already contributed — a whole-structure write racing with
+	 * entry-level ones. At load there is no transaction and no concurrency, which is what makes this the
+	 * single safe moment.
+	 *
+	 * # Why references that are not partitioned are registered too
+	 *
+	 * They are registered as residual, which costs one bit per reduced index and no entries at all. It buys
+	 * the invariant everything else depends on: **a slice is absent only when the reference has no reduced
+	 * indexes.** Maintenance may therefore create a slice on demand — during a bulk load, say — without ever
+	 * risking one that silently omits indexes which existed before it started watching.
+	 *
+	 * Collections that declare no conditional facet at all never fire this trigger, so they are skipped
+	 * entirely and pay nothing.
+	 */
+	public void rebuildReducedIndexMembership() {
+		final EntitySchema schema = getInternalSchema();
+		for (final Scope scope : Scope.values()) {
+			if (!declaresConditionalFacet(schema, scope)) {
+				continue;
+			}
+			final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+			if (!(globalIndex instanceof final GlobalEntityIndex typedGlobalIndex)) {
+				continue;
+			}
+			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+				final boolean partitioned = referenceSchema.getReferenceIndexType(scope)
+					== ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
+				final ReducedIndexMembership membership =
+					typedGlobalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+				for (final EntityIndexType family : REFERENCED_TYPE_INDEX_FAMILIES) {
+					final EntityIndex typeIndex = getIndexByKeyIfExists(
+						new EntityIndexKey(family, scope, referenceSchema.getName())
+					);
+					if (!(typeIndex instanceof final ReferencedTypeEntityIndex typedTypeIndex)) {
+						continue;
+					}
+					typedTypeIndex.forEachReferenceIndexPrimaryKey(
+						reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk, partitioned)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Registers one reduced index into the membership lookup, skipping primary keys the type index advertises
+	 * more than once — a group index is advertised once per referenced entity filed under it.
+	 *
+	 * @param membership      the lookup being built
+	 * @param reducedIndexPk  primary key of the advertised reduced index
+	 * @param partitioned     `true` when the owning reference is indexed for partitioning, and its indexes are
+	 *                        therefore worth covering rather than merely recording
+	 */
+	private void registerReducedIndex(
+		@Nonnull ReducedIndexMembership membership,
+		int reducedIndexPk,
+		boolean partitioned
+	) {
+		if (membership.isKnown(reducedIndexPk)) {
+			return;
+		}
+		if (!partitioned) {
+			membership.registerIndexAsResidual(reducedIndexPk);
+			return;
+		}
+		final EntityIndex reducedIndex = getIndexByPrimaryKeyIfExists(reducedIndexPk);
+		if (reducedIndex == null) {
+			// advertised but not resolvable - leave it entirely unknown so the walk still visits it
+			return;
+		}
+		membership.registerIndex(reducedIndexPk, reducedIndex.getAllPrimaryKeys());
+	}
+
+	/**
+	 * Returns `true` when the schema declares a conditional facet in the given scope, which is the only
+	 * situation in which the cross-entity facet trigger — and hence the reduced-index membership lookup — is
+	 * ever used.
+	 *
+	 * @param schema the entity schema to inspect
+	 * @param scope  the scope to inspect
+	 * @return `true` when a conditional facet is declared
+	 */
+	private static boolean declaresConditionalFacet(@Nonnull EntitySchema schema, @Nonnull Scope scope) {
+		for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+			if (referenceSchema.getFacetedPartiallyInScope(scope) != null) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

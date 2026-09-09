@@ -228,6 +228,30 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
+	 * Registers a reduced index as residual without deciding coverage for it — the load path's treatment of a
+	 * reference that is **not** currently partitioned.
+	 *
+	 * Such a reference's reduced indexes are never visited by the sibling walk, so covering them would buy
+	 * nothing and cost one entry per membership. Recording them as residual costs one bit each and preserves
+	 * the invariant the whole design rests on: **a slice is absent only when the reference has no reduced
+	 * indexes at all.** That is what makes it safe for maintenance to create a slice on demand — an absent
+	 * slice cannot be hiding indexes that were loaded before maintenance started watching.
+	 *
+	 * @param indexPrimaryKey primary key of the reduced index
+	 * @throws GenericEvitaInternalError when the index is already known to this map
+	 */
+	public void registerIndexAsResidual(int indexPrimaryKey) {
+		Assert.isPremiseValid(
+			!this.coveredIndexPrimaryKeys.contains(indexPrimaryKey)
+				&& !this.residualIndexPrimaryKeys.contains(indexPrimaryKey),
+			() -> new GenericEvitaInternalError(
+				"Reduced index " + indexPrimaryKey + " is already known to the membership map!"
+			)
+		);
+		this.residualIndexPrimaryKeys.add(indexPrimaryKey);
+	}
+
+	/**
 	 * Forgets a reduced index entirely — it was dropped from the collection. The index leaves both the
 	 * covered and the residual set, so a later caller sees it as "never known" and walks it if it ever
 	 * reappears advertised.
@@ -261,8 +285,15 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 				recordMembership(ownerPrimaryKey, indexPrimaryKey);
 			}
 		} else if (this.residualIndexPrimaryKeys.contains(indexPrimaryKey)) {
-			// a residual index only grows on insert, so it can never demote here
-			this.residualIndexPrimaryKeys.add(indexPrimaryKey);
+			// A residual index grows on insert and so cannot outgrow anything - but it may be residual for a
+			// reason other than size: a slice seeded from a reference's advertisement records every index as
+			// residual without inspecting it, because seeding cannot resolve them. Demoting here is what lets
+			// such a slice acquire coverage as its indexes are written, and it cannot oscillate: promotion
+			// needs `T` owners and demotion `T/2`, so the two boundaries never meet.
+			if (size <= this.demotionThreshold) {
+				this.residualIndexPrimaryKeys.remove(indexPrimaryKey);
+				addCoverage(indexPrimaryKey, membersAfter);
+			}
 		} else {
 			// first time this index is seen - decide from scratch
 			registerIndex(indexPrimaryKey, membersAfter);
@@ -291,6 +322,19 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 				addCoverage(indexPrimaryKey, membersAfter);
 			}
 		}
+	}
+
+	/**
+	 * Returns `true` when this map already knows the reduced index, whether as covered or as residual. Used by
+	 * the load-time build to skip a primary key the type index advertises more than once — a group reduced
+	 * index is advertised once per referenced entity filed under it.
+	 *
+	 * @param indexPrimaryKey primary key of the reduced index
+	 * @return `true` when the index is already known
+	 */
+	public boolean isKnown(int indexPrimaryKey) {
+		return this.coveredIndexPrimaryKeys.contains(indexPrimaryKey)
+			|| this.residualIndexPrimaryKeys.contains(indexPrimaryKey);
 	}
 
 	/**

@@ -51,12 +51,14 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
@@ -798,13 +800,14 @@ public interface ReferenceIndexMutator {
 		);
 
 		// index entity primary key into the reduced index and populate with existing data
+		final boolean entityFirstIndexedInTargetIndex;
 		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
 			// group indexes need cardinality tracking — use two-arg version
 			// `entityFirstIndexedInTargetIndex` is true only when this insert causes the entity to
 			// enter this group reduced index for the first time (cardinality 0 -> 1); subsequent
 			// references contributing to the same group still need per-reference indexing (facets,
 			// reference attributes) but must skip entity-level data that was already populated
-			final boolean entityFirstIndexedInTargetIndex =
+			entityFirstIndexedInTargetIndex =
 				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
 			indexAllExistingData(
@@ -816,7 +819,7 @@ public interface ReferenceIndexMutator {
 				existingDataSupplierFactory
 			);
 		} else {
-			final boolean entityFirstIndexedInTargetIndex =
+			entityFirstIndexedInTargetIndex =
 				referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 			// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
 			// full entity-level + reference-level population when the entity is freshly inserted
@@ -830,6 +833,11 @@ public interface ReferenceIndexMutator {
 					existingDataSupplierFactory
 				);
 			}
+		}
+		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
+		// exactly the 0 -> 1 transition, for both index families, and for no other event
+		if (entityFirstIndexedInTargetIndex) {
+			recordOwnerEnteredReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
 		}
 
 		// add facet to reduced index
@@ -962,13 +970,14 @@ public interface ReferenceIndexMutator {
 		);
 
 		// remove entity primary key from the reduced index
+		final boolean entityFullyRemovedFromTargetIndex;
 		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
 			// group indexes need cardinality tracking — use two-arg version
 			// `entityFullyRemovedFromTargetIndex` is true only when this removal causes the entity
 			// to leave this group reduced index entirely (cardinality 1 -> 0); earlier removals on
 			// the same (entity, RGEI) pair still need per-reference cleanup (facets, reference
 			// attributes) but must skip entity-level data that other references still rely on
-			final boolean entityFullyRemovedFromTargetIndex =
+			entityFullyRemovedFromTargetIndex =
 				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
 			removeAllExistingData(
@@ -980,7 +989,7 @@ public interface ReferenceIndexMutator {
 				existingDataSupplierFactory
 			);
 		} else {
-			final boolean entityFullyRemovedFromTargetIndex =
+			entityFullyRemovedFromTargetIndex =
 				referenceIndex.removePrimaryKey(entityPrimaryKey);
 			if (entityFullyRemovedFromTargetIndex) {
 				removeAllExistingData(
@@ -992,6 +1001,10 @@ public interface ReferenceIndexMutator {
 					existingDataSupplierFactory
 				);
 			}
+		}
+		// the symmetric 1 -> 0 boundary; see the insert counterpart
+		if (entityFullyRemovedFromTargetIndex) {
+			recordOwnerLeftReducedIndex(executor, referenceSchema, referenceIndex, entityPrimaryKey);
 		}
 	}
 
@@ -1239,6 +1252,137 @@ public interface ReferenceIndexMutator {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Records that an owner entity has entered a reduced index, into the reverse lookup the cross-entity
+	 * conditional-facet trigger consults instead of walking every reduced index of the collection.
+	 *
+	 * Maintained **only** for references indexed at {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING},
+	 * because those are the only ones the trigger's sibling walk visits. A reference raised to that level
+	 * without a reindex therefore has no slice here at all, and its reduced indexes are walked exactly as they
+	 * were before — correct, merely unaccelerated, which is the intended behaviour for a schema change the
+	 * engine does not rebuild indexes for (issue #409).
+	 *
+	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema   schema of the reference whose reduced index was joined
+	 * @param referenceIndex    the reduced index the owner entered
+	 * @param entityPrimaryKey  primary key of the owner entity
+	 */
+	private static void recordOwnerEnteredReducedIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int entityPrimaryKey
+	) {
+		final Scope scope = executor.getScope();
+		if (!isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope)) {
+			return;
+		}
+		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
+		ReducedIndexMembership membership =
+			globalIndex.getReducedIndexMembership(referenceSchema.getName());
+		if (membership == null) {
+			membership = globalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+			seedFromAdvertisedIndexes(executor, referenceSchema, scope, membership);
+		}
+		membership.ownerAdded(
+			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
+		);
+	}
+
+	/**
+	 * Seeds a freshly created membership map with every reduced index the reference already advertises,
+	 * recorded as residual.
+	 *
+	 * This is what keeps the map honest when a slice is created outside the load-time build — a reference that
+	 * only became partitioned after the collection was loaded, say. Without it the slice would know about the
+	 * one index being written and nothing else, and the trigger would skip every index that already existed:
+	 * a **wrong facet**, not a slow one. Recording them as residual instead leaves them on the walk, which is
+	 * exactly where they were before the map existed.
+	 *
+	 * Seeding cannot decide coverage, because it has no way to resolve a reduced index from its primary key
+	 * here. It does not need to: {@link ReducedIndexMembership#ownerAdded} demotes a small residual index into
+	 * coverage the next time it is written, so a seeded slice acquires coverage as its indexes are touched.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceSchema schema of the reference being seeded
+	 * @param scope           the scope whose indexes are inspected
+	 * @param membership      the freshly created map to seed
+	 */
+	private static void seedFromAdvertisedIndexes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull ReducedIndexMembership membership
+	) {
+		// both families advertise reduced indexes the trigger consults, and neither stands in for the other;
+		// allocated here rather than held as a constant because this runs once per reference per collection
+		final EntityIndexType[] families = {
+			EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+		};
+		for (final EntityIndexType family : families) {
+			final EntityIndex typeIndex = executor.getIndexIfExists(
+				new EntityIndexKey(family, scope, referenceSchema.getName())
+			);
+			if (!(typeIndex instanceof final ReferencedTypeEntityIndex typedTypeIndex)) {
+				continue;
+			}
+			typedTypeIndex.forEachReferenceIndexPrimaryKey(reducedIndexPk -> {
+				if (!membership.isKnown(reducedIndexPk)) {
+					membership.registerIndexAsResidual(reducedIndexPk);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Records that an owner entity has left a reduced index. Symmetric counterpart of
+	 * {@link #recordOwnerEnteredReducedIndex}; see that method for why only partitioned references are kept.
+	 *
+	 * @param executor          the mutation executor, which owns the global index the lookup hangs off
+	 * @param referenceSchema   schema of the reference whose reduced index was left
+	 * @param referenceIndex    the reduced index the owner left
+	 * @param entityPrimaryKey  primary key of the owner entity
+	 */
+	private static void recordOwnerLeftReducedIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		int entityPrimaryKey
+	) {
+		final Scope scope = executor.getScope();
+		if (!isIndexedReferenceForFilteringAndPartitioning(referenceSchema, scope)) {
+			return;
+		}
+		final GlobalEntityIndex globalIndex = resolveGlobalIndex(executor, scope);
+		final ReducedIndexMembership membership =
+			globalIndex.getReducedIndexMembership(referenceSchema.getName());
+		if (membership == null) {
+			// nothing was ever recorded for this reference - the index is walked, so there is nothing to undo
+			return;
+		}
+		membership.ownerRemoved(
+			referenceIndex.getPrimaryKey(), entityPrimaryKey, referenceIndex.getAllPrimaryKeys()
+		);
+	}
+
+	/**
+	 * Resolves the collection's global index for the given scope, which is where the reduced-index membership
+	 * lookup lives.
+	 *
+	 * @param executor the mutation executor
+	 * @param scope    the scope whose global index is resolved
+	 * @return the global index, never `null`
+	 */
+	@Nonnull
+	private static GlobalEntityIndex resolveGlobalIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull Scope scope
+	) {
+		return (GlobalEntityIndex) executor.getOrCreateIndex(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
 	}
 
 	/**

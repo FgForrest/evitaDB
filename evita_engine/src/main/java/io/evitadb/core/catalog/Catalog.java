@@ -663,6 +663,13 @@ public final class Catalog
 				}
 				// after all schemas are resolved, build the expression trigger registry
 				catalog.buildInitialExpressionTriggerRegistry();
+				// derived state that is not persisted and has to come back with the collection: the reverse
+				// lookup the cross-entity facet trigger uses instead of walking every reduced index. Built
+				// here because it is the one moment that has every index in place, every schema resolved, and
+				// no transaction open - and it must not be built inside one, see the method's javadoc.
+				for (EntityCollection collection : initBulk.collections().values()) {
+					collection.rebuildReducedIndexMembership();
+				}
 				onSuccess.accept(catalogName, catalog);
 				theFuture.updateProgress(1);
 				return catalog;
