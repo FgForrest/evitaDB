@@ -1,7 +1,7 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-09-09 00:20
+updated: 2026-09-09 05:15
 status: accepted
 kind: fix
 issues: [1470]
@@ -277,6 +277,34 @@ ever shows up in a profile.
 - **Already-drifted catalogs are not repaired**, unchanged from
   [[2026-08-31-cross-entity-histogram-removal-pre-pass]]: a catalog that lost or gained histogram entries before
   this fix keeps the wrong cardinality until the affected histograms are rebuilt.
+- **Duplicate references (`*_WITH_DUPLICATES` cardinality) are not distinguished, and this predates this fix.**
+  A Codex adversarial review of this commit raised two findings; verifying them against the code and against a
+  throwaway regression test settled both to the same root cause. The literal claim — that the gate at
+  `evaluateCondition` can send a mixed condition (a bare `$reference.attributes[...]` predicate combined with
+  `$reference.referencedEntity...`) down the owner-level path — does not hold: any condition compiled from a
+  cross-entity dependency carries an `EntityHaving`/`GroupHaving` node by construction, and `ReferenceHaving`'s
+  query-time translator (`ReferenceHavingTranslator`) evaluates the whole nested filter once per
+  `ReducedEntityIndex` — one instance per referenced entity — so a bare reference-attribute predicate is
+  already isolated to the one reference instance targeting that entity. A throwaway test (two references from
+  one owner, opposite `priority` values, the mutated one's own `priority` failing) confirmed this: the mutated
+  reference was correctly excluded, not accepted on its sibling's `priority`.
+  What *is* real, and is the true reading of both findings, only shows up when the two references share a
+  **target** — `*_WITH_DUPLICATES` cardinality (`documentation/user/en/use/schema.md`'s own example: several
+  `medias` references to one `Media` entity, distinguished by a `representative` `role` attribute). Then both
+  references live in the *same* `ReducedEntityIndex`, and `AffectedReferenceGroup`/`AffectedReferenceEntry`
+  (`ReevaluateExpressionExecutor`, unchanged by this commit — confirmed by diffing `resolveAffected` against
+  `dev`) track owners as a `Bitmap` keyed by `(referencedEntityPK, groupPK)`, with no reference-instance identity
+  at all. Two duplicate references to the same target, with different verdicts, collapse onto one entry; this
+  fix's own `mergeVerdict` comment states the assumption plainly ("an owner holds at most one reference to a
+  given target") and is exactly where it stops holding.
+  This is not a regression: before this fix the same references were already conflated at the coarser
+  owner-wide level (one verdict for *all* of an owner's references, any target), so per-contribution evaluation
+  is strictly more precise for them, just not fully precise. No schema-level guard rejects `bucketed` /
+  `bucketedPartially` on a `*_WITH_DUPLICATES` reference today. Fixing it for real needs
+  `RepresentativeReferenceKey` (or the internal reference PK) carried through `resolveAffected`, the verdict
+  maps, and the add/remove iteration — a materially larger change than this commit's scope, and a decision
+  Johnny should make deliberately rather than inherit from a review finding. Filed as a follow-up rather than
+  folded in here.
 
 ## Related work
 
