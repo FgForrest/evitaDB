@@ -1,8 +1,8 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-09 20:15
-status: proposed
+updated: 2026-09-09 21:45
+status: accepted
 kind: optimization
 issues: [1529]
 prs: []
@@ -24,8 +24,9 @@ touches. Measured against a production catalog it is **0.78 ms** as that catalog
 **81–113 ms** after a single schema edit any client can make. This record fixes what was measured, what the
 numbers mean, and which of the candidate fixes is worth building.
 
-Nothing here is implemented yet beyond the measurement harness. The prior constant-factor change (PRs
-#1524 / #1525) shipped unmeasured and is now quantified — at far less than its cost model claimed.
+Option A is **implemented and measured**; the figures below distinguish throughout between what the
+harness *modelled* and what the shipped code *does*. The prior constant-factor change (PRs #1524 / #1525)
+shipped unmeasured and is now quantified — at far less than its cost model claimed.
 
 **Three local optimizations of this loop were measured and all three failed**, two of them after being
 argued for on a cost model that looked sound. That is the record's second finding, and it is worth as much
@@ -163,6 +164,33 @@ A probe inside a transaction resolves a transactional layer three separate times
 `getIndexByPrimaryKeyIfExists` additionally allocates an `IntFunction`, an `Optional`, a capturing lambda and
 an `Integer` box per call. All of that together is the 39 ns/partition of `B − D`. It is real, and at high
 `P` it is not the problem.
+
+### The implementation, measured against the model that justified it
+
+`ConditionalFacetMembershipReport` runs the shipped resolver and the walk it replaces in one process, with a
+bound transaction and rotated arm order, checksum-compared.
+
+| `P` | shape | walk | lookup | |
+|---|---|---|---|---|
+| 4,633 | sparse | 1.76 ms | **391 µs** | 4.5× |
+| 4,633 | dense | 7.45 ms | **5.28 ms** | 1.41× |
+| 188,387 | sparse | 103.18 ms | **1.78 ms** | **58×** |
+| 188,387 | dense | 123.73 ms | **14.89 ms** | **8.3×** |
+
+Memory: **4.3 MiB** on the shipping schema, **25.0 MiB** with every reference partitioned. Rebuilding the
+lookup over 188,387 reduced indexes costs **173.5 ms**, against a 26 s catalog load.
+
+**Holding the model to account.** Arm C predicted the sparse case to 3.5 % (1.72 vs 1.78 ms), the memory to
+1.6 % (24.6 vs 25.0 MiB) and the residual walk exactly (2,912). It was **40 % optimistic in the dense
+shape** — 10.65 ms modelled against 14.89 ms measured — because the model emitted a pair and moved on where
+the implementation must resolve each emitted index through `getOrCreateIndexByPrimaryKey` (the registering
+accessor that enrols it in the dirty set, not optional) and de-duplicate siblings per owner. At 57,962
+affected owners that is paid tens of thousands of times. The decision stands; **arm C's dense figure must
+not be quoted for the implementation.**
+
+**Absolute figures do not transfer between the two spikes.** The same walk measures 1.76 ms here and 836 µs
+in `ConditionalFacetSiblingResolverReport`, 103 ms here and 80.7 ms there. Only ratios within one run mean
+anything — the cross-run comparison is what produced a spurious +11.6 % on this loop once before.
 
 ## Options considered
 
@@ -322,6 +350,19 @@ Six arms, all checksum-gated against each other: the pre-#1524 walk, current `HE
 unimplementable bounds (D, E) and the `intersects` gate (F). Run-to-run reproducibility across independent
 JVMs: `HEAD` at P=188,387 sparse measured 80,687,553 ns and 80,626,005 ns — **0.08 % apart**; the dense pair
 1.1 % apart. The deltas quoted here are resolved comfortably by the paired warm-rotation series.
+
+**The implementation's own tests are proved by counterfactual, not by being green.**
+`ReducedIndexMembershipCompletenessTest` asserts the lookup against the reduced indexes themselves — never
+against its own bookkeeping — and each mechanism was disabled in turn to confirm the assertions are
+load-bearing. Disabling the remove boundary fails exactly four tests with
+`coveredOwners must be exactly the owners of covered indexes ==> expected: <[2, 3, 4, 5]> but was: <[1, 2, 3, 4, 5]>`.
+This matters more than usual here: the failure mode is silent, because a lookup that omits an entry makes the
+trigger skip a facet registration, and a missing facet is invisible to anyone not looking for it.
+
+The completeness quantifier is also checked statically, since a green test says nothing about an unhooked
+path: `rg -n "insertPrimaryKeyIfMissing|removePrimaryKey" evita_engine/src/main/java` returns exactly four
+sites that mutate a **reduced** index's membership, and both hooks cover all four; every other hit is the type
+index or the global index.
 
 `ConditionalFacetPartitionExistenceProbe` (counts only, no quiet machine needed) is what establishes that
 205,315 partitions of `FOR_FILTERING` references already exist and resolve to live indexes; it prints its
