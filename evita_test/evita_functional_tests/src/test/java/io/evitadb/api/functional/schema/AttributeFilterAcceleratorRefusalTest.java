@@ -939,32 +939,40 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 				}
 			);
 
-			final InvalidSchemaMutationException exception = assertThrows(
-				InvalidSchemaMutationException.class,
-				() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
-					TEST_CATALOG,
-					session -> {
-						session.updateEntitySchema(
-							new ModifyEntitySchemaMutation(
-								Entities.PRODUCT,
-								new SetAttributeSchemaAcceleratedMutation(
-									ATTRIBUTE_CODE,
-									new ScopedAttributeFilterAccelerators(
-										Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+			// the barrier is asserted explicitly, not merely the exception: `SetAttributeSchemaAcceleratedMutation`
+			// deliberately skips its own pre-flight applicability check today (its sibling
+			// `CreateAttributeSchemaMutation` already has one), so a refusal here is confirmed post-exchange rather
+			// than assumed - see CatalogUnpublishableBarrierAssertions
+			final InvalidSchemaMutationException exception =
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					AttributeFilterAcceleratorRefusalTest.this.evita, TEST_CATALOG,
+					InvalidSchemaMutationException.class,
+					() -> AttributeFilterAcceleratorRefusalTest.this.evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							session.updateEntitySchema(
+								new ModifyEntitySchemaMutation(
+									Entities.PRODUCT,
+									new SetAttributeSchemaAcceleratedMutation(
+										ATTRIBUTE_CODE,
+										new ScopedAttributeFilterAccelerators(
+											Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
+										)
 									)
 								)
-							)
-						);
-					}
-				)
-			);
+							);
+						}
+					)
+				);
 			// asserted on the message rather than on the type alone: the collection-emptiness refusal throws the
 			// same exception, and it would satisfy a bare assertThrows while proving something else entirely
 			assertTrue(exception.getMessage().contains(AttributeFilterAccelerator.SUBSTRING_SEARCH.name()));
 			assertTrue(exception.getMessage().contains("no filter index"));
 
 			// reopening over the same storage directory is the only honest way to ask what the refused session
-			// actually left behind - the in-memory catalog would answer for a schema that was never written
+			// actually left behind - the in-memory catalog would answer for a schema that was never written. The
+			// barrier assertion above already waited for the deactivation to settle, so unlike the general case
+			// `reopenOverTheSameStorage` documents, this reopen is not racing it
 			AttributeFilterAcceleratorRefusalTest.this.reopenOverTheSameStorage();
 
 			AttributeFilterAcceleratorRefusalTest.this.evita.queryCatalog(
@@ -975,9 +983,9 @@ class AttributeFilterAcceleratorRefusalTest implements EvitaTestSupport {
 					// `EntityCollection#updateSchema` has already performed on the running catalog. What keeps that
 					// exchange off the disk is the unpublishable barrier the refusal raises: warm-up catalog
 					// termination consults it and skips its flush, as does every other route that would write a
-					// bootstrap record. The reopened catalog therefore carries the schema of the last session that
-					// closed successfully. See WarmUpRefusedSchemaPersistenceTest for the same guarantee proven on a
-					// second, unrelated validation rule
+					// bootstrap record. The reopened catalog therefore carries the newest state that reached the
+					// disk. See WarmUpRefusedSchemaPersistenceTest for the same guarantee proven on a second,
+					// unrelated validation rule
 					assertEquals(
 						Set.of(),
 						session.getEntitySchemaOrThrow(Entities.PRODUCT)

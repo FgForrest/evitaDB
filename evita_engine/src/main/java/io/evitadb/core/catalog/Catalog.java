@@ -2658,8 +2658,8 @@ public final class Catalog
 	 * This is the **public entry point** for all three: it raises the barrier and reports it in the operator's own
 	 * terms. A caller that has already reported its situation accurately - the message here would contradict it -
 	 * raises the same barrier through {@link #recordUnpublishableCause(Throwable)} instead, and a warm-up schema
-	 * change refused by validation takes {@link #markUnpublishableDueToInvalidSchema(SchemaAlteringException)},
-	 * which is that pattern with a message of its own.
+	 * change refused by validation takes {@link #markUnpublishableDueToInvalidSchema}, which is that pattern with a
+	 * message of its own.
 	 *
 	 * @param cause the warm-up failure that made the in-memory state unpublishable
 	 */

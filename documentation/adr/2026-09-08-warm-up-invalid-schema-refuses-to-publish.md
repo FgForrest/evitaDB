@@ -1,11 +1,11 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-09-08 14:45
+updated: 2026-09-09 04:50
 status: accepted
 kind: fix
 issues: [1466]
-prs: []
+prs: [1520]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
 superseded-by: []
@@ -246,17 +246,19 @@ is paired with a control that pushes the *same* schema element through legitimat
 so an empty assertion cannot pass because the reopened schema was read wrongly.
 
 **Every refusal additionally asserts that the barrier was raised**, by waiting for the deactivation it schedules
-to be reported on the system change stream (`assertRefusalRaisesTheBarrier`). Without that, each of these tests
-would also pass against a refusal thrown by a *pre-flight* check — which leaves the catalog untouched and makes
-every assertion about the reopened schema hold trivially. The distinction is one edit away from mattering:
-`SetAttributeSchemaAcceleratedMutation` deliberately does not run the accelerator's own applicability check, and
-the sibling `CreateAttributeSchemaMutation` does.
+to be reported on the system change stream (`CatalogUnpublishableBarrierAssertions#assertRefusalRaisesTheBarrier`,
+extracted from `WarmUpRefusedSchemaPersistenceTest` into its own class once `AttributeFilterAcceleratorRefusalTest`
+needed it too — see *Timeline*). Without that, each of these tests would also pass against a refusal thrown by a
+*pre-flight* check — which leaves the catalog untouched and makes every assertion about the reopened schema hold
+trivially. The distinction is one edit away from mattering: `SetAttributeSchemaAcceleratedMutation` deliberately
+does not run the accelerator's own applicability check, and the sibling `CreateAttributeSchemaMutation` does.
 `Recovery#shouldDeactivateTheCatalogAndHandBackTheLastPublishedStateOnActivation` covers the whole story: an
 entity written by a session that closed successfully survives the recovery, and one written by the refused session
 does not.
 
 `AttributeFilterAcceleratorRefusalTest#shouldRefuseAnAcceleratorDeclaredOnAnAttributeWithNoFilterIndex` was a
-characterisation asserting the wrong outcome deliberately; it now asserts `Set.of()`.
+characterisation asserting the wrong outcome deliberately; it now asserts `Set.of()` and, like every case above,
+asserts the barrier explicitly rather than relying on the exception type alone.
 
 `MidSessionPublication` covers the two cases the barrier cannot reach, and both were written as failing tests
 before the gates existed: a session that applies the offending mutation and *then* defines another collection
@@ -321,3 +323,10 @@ beside it.
   chosen over the publication-route gate, implemented
 - **2026-09-08** — adversarial review found two publications upstream of the barrier that the implementation did
   not cover; both reproduced, both gated, this record corrected
+- **2026-09-08** — PR #1520 opened; Copilot and `claude[bot]` review found a stale `@link` parameter type on
+  `Catalog#markUnpublishable`'s javadoc (fixed) and that
+  `AttributeFilterAcceleratorRefusalTest#shouldRefuseAnAcceleratorDeclaredOnAnAttributeWithNoFilterIndex` checked
+  disk state without asserting the barrier itself — exactly the gap this record's own *Verification* section
+  already named as "one edit away from mattering". The barrier-assertion machinery was extracted from
+  `WarmUpRefusedSchemaPersistenceTest` into `CatalogUnpublishableBarrierAssertions` so both test classes share it,
+  and the flagged test now asserts the barrier too. Full functional suite re-run green after both fixes.

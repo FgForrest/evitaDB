@@ -34,12 +34,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.dataType.Scope;
@@ -51,13 +46,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Flow;
-import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -67,7 +58,6 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -161,7 +151,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			// mutation has to be submitted raw. Every other route into the schema (gRPC, REST, GraphQL, the WAL)
 			// carries mutations the same way, which is what makes this the shape worth pinning
 			final InvalidSchemaMutationException exception =
-				WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 					InvalidSchemaMutationException.class,
 					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 						TEST_CATALOG,
@@ -252,7 +243,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			WarmUpRefusedSchemaPersistenceTest.this.defineProductWithPlainAttribute();
 
 			final InvalidSchemaMutationException exception =
-				WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 					InvalidSchemaMutationException.class,
 					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 						TEST_CATALOG,
@@ -341,7 +333,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			// the barrier - see the comment at `EvitaSession#closeInternal` for what does and does not
 			WarmUpRefusedSchemaPersistenceTest.this.defineProductWithPlainAttribute();
 
-			WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+			CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+				WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 				EvitaInvalidUsageException.class,
 				() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 					TEST_CATALOG,
@@ -426,7 +419,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			// publication: `Catalog#createEntitySchema` runs a full flush inline and joins it while still in warm-up
 			WarmUpRefusedSchemaPersistenceTest.this.defineProductWithPlainAttribute();
 
-			WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+			CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+				WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 				InvalidSchemaMutationException.class,
 				() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 					TEST_CATALOG,
@@ -469,7 +463,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			// the barrier here is raised by the go-live operator, and the deactivation it schedules races that same
 			// operator's finalization for the catalog's conflict key - so awaiting it also pins the retry in
 			// `Catalog#attemptDeactivation`
-			WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+			CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+				WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 				InvalidSchemaMutationException.class,
 				() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 					TEST_CATALOG,
@@ -522,7 +517,8 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 			// collection that already holds entities is refused by a pre-flight check instead, before any exchange
 			// happens, so it would leave nothing to recover FROM and the test would pass without proving anything
 			final InvalidSchemaMutationException exception =
-				WarmUpRefusedSchemaPersistenceTest.this.assertRefusalRaisesTheBarrier(
+				CatalogUnpublishableBarrierAssertions.assertRefusalRaisesTheBarrier(
+					WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG,
 					InvalidSchemaMutationException.class,
 					() -> WarmUpRefusedSchemaPersistenceTest.this.evita.updateCatalog(
 						TEST_CATALOG,
@@ -574,70 +570,12 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs an action expected to be refused, and asserts that the refusal raised the unpublishable barrier.
-	 *
-	 * **This is what keeps the tests below from passing for the wrong reason.** The guarantee they assert rests on
-	 * the barrier, and the barrier is raised only by the catalog-schema validation that runs once the schema has
-	 * already been exchanged into the running catalog. A refusal from a pre-flight check instead - the accelerator
-	 * rule has one for non-empty collections, and {@code SetAttributeSchemaAcceleratedMutation} is one edit away
-	 * from gaining another - throws the same exception type with a similar message and leaves the catalog untouched.
-	 * Every assertion about the reopened schema would then hold trivially, because nothing was ever exchanged.
-	 * Deactivation is the barrier's observable consequence ({@code Catalog#recordUnpublishableCause} schedules it),
-	 * so waiting for it is what tells the two refusals apart.
-	 *
-	 * @param expectedException type the refusal is expected to throw; must not be null
-	 * @param refusedAction     the action whose refusal is under test; must not be null
-	 * @return the exception the action was refused with; never null
-	 */
-	@Nonnull
-	private <T extends RuntimeException> T assertRefusalRaisesTheBarrier(
-		@Nonnull Class<T> expectedException,
-		@Nonnull Executable refusedAction
-	) {
-		// registered BEFORE the action, so the deactivation it schedules cannot settle into a stream nobody is
-		// subscribed to
-		try (final SettledStateLatch deactivation = subscribeToSettledState(CatalogState.INACTIVE)) {
-			final T exception = assertThrows(expectedException, refusedAction);
-			deactivation.await();
-			return exception;
-		}
-	}
-
-	/**
-	 * Subscribes to the system change stream and returns a latch that opens when the engine reports the test catalog
-	 * as having settled into the given state.
-	 *
-	 * The deactivation a refusal schedules is asynchronous by design - it runs on the engine's scheduler because it
-	 * has to close the very sessions the refusing thread is running under - so a test that asks what happened next
-	 * has to wait for it. This is the transition announcing itself rather than the test guessing when to look:
-	 * `Evita#notifyCatalogStateSettled` emits a {@link HostSystemEvent.CatalogInstalledIntoLiveView} from the
-	 * deactivation operator's own completion phase. **Register before triggering the deactivation**, or the event
-	 * fires into a stream nobody is subscribed to.
-	 *
-	 * @param expectedState the settled state to wait for; must not be null
-	 * @return the subscription, which closes the underlying publisher and carries the latch; never null
-	 */
-	@Nonnull
-	private SettledStateLatch subscribeToSettledState(@Nonnull CatalogState expectedState) {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			ChangeSystemCaptureRequest.builder()
-				.sinceVersion(this.evita.getEngineState().version() + 1)
-				.content(ChangeCaptureContent.BODY)
-				.hostArea()
-				.build()
-		);
-		final SettledStateLatch latch = new SettledStateLatch(publisher, expectedState);
-		publisher.subscribe(latch);
-		return latch;
-	}
-
-	/**
 	 * Activates the test catalog, retrying while the engine reports that another lifecycle operation for it is
 	 * still in flight.
 	 *
 	 * The retry is not optional. A deactivation settles in two steps: the engine-state update lands - which is what
-	 * {@link SettledStateLatch} observes - and the lifecycle mutation carrying it releases its conflict key a
-	 * moment later, as it finalizes. An activation issued in between is refused with
+	 * {@link CatalogUnpublishableBarrierAssertions.SettledStateLatch} observes - and the lifecycle mutation carrying
+	 * it releases its conflict key a moment later, as it finalizes. An activation issued in between is refused with
 	 * {@link ConflictingEngineMutationException}, the engine's "another lifecycle operation for this catalog is
 	 * still in flight" signal, which is a transient rather than a failure worth failing the test over.
 	 *
@@ -674,72 +612,6 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 		} catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
 			fail("Interrupted while retrying an engine operation refused by a lifecycle conflict.");
-		}
-	}
-
-	/**
-	 * A {@link Flow.Subscriber} over the system change stream that opens a latch when the test catalog is reported
-	 * as having settled into one particular state.
-	 */
-	private static final class SettledStateLatch implements Flow.Subscriber<ChangeSystemCapture>, AutoCloseable {
-		private final ChangeCapturePublisher<ChangeSystemCapture> publisher;
-		private final CatalogState expectedState;
-		private final CountDownLatch latch = new CountDownLatch(1);
-
-		SettledStateLatch(
-			@Nonnull ChangeCapturePublisher<ChangeSystemCapture> publisher,
-			@Nonnull CatalogState expectedState
-		) {
-			this.publisher = publisher;
-			this.expectedState = expectedState;
-		}
-
-		@Override
-		public void onSubscribe(@Nonnull Flow.Subscription subscription) {
-			subscription.request(Long.MAX_VALUE);
-		}
-
-		@Override
-		public void onNext(@Nonnull ChangeSystemCapture item) {
-			if (item.body() instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed
-				&& TEST_CATALOG.equals(installed.catalogName())
-				&& installed.observedState() == this.expectedState) {
-				this.latch.countDown();
-			}
-		}
-
-		@Override
-		public void onError(@Nonnull Throwable throwable) {
-			// nothing to do - a stream that fails leaves the latch closed and `await` reports the timeout, which
-			// carries the same verdict with a message that names the state the test was waiting for
-		}
-
-		@Override
-		public void onComplete() {
-			// see `onError` - a stream that ends without the event is indistinguishable from one that never
-			// delivered it, and both are the same test failure
-		}
-
-		/**
-		 * Blocks until the expected state is reported, failing the test when it is not reported in time.
-		 */
-		void await() {
-			try {
-				if (!this.latch.await(AWAIT_BUDGET_MILLIS, TimeUnit.MILLISECONDS)) {
-					fail(
-						"Catalog `" + TEST_CATALOG + "` was never reported as having settled into `" +
-							this.expectedState + "`."
-					);
-				}
-			} catch (InterruptedException ex) {
-				Thread.currentThread().interrupt();
-				fail("Interrupted while waiting for catalog `" + TEST_CATALOG + "` to settle.");
-			}
-		}
-
-		@Override
-		public void close() {
-			this.publisher.close();
 		}
 	}
 
