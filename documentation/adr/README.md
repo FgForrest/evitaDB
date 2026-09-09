@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-09-08 | [Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container](2026-09-08-conditional-histogram-per-contribution-verdicts.md) | fix | accepted | #1470 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
 | 2026-09-07 | [A storage part declares which kind of data it holds, at registration, in a closed enum](2026-09-07-storage-part-classification.md) | feature | accepted | #1500 |
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |

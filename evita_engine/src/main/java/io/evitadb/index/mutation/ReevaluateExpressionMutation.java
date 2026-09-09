@@ -77,7 +77,7 @@ public record ReevaluateExpressionMutation(
 	@Nonnull DependencyType dependencyType,
 	@Nonnull Scope scope,
 	@Nullable Map<String, Map<Locale, Serializable>> preMutationSourceValues,
-	@Nullable Map<String, Bitmap> previouslyIndexedOwnerPKs
+	@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs
 ) implements IndexMutation, Serializable {
 	@Serial private static final long serialVersionUID = -1L;
 
@@ -115,7 +115,7 @@ public record ReevaluateExpressionMutation(
 	 */
 	@Nonnull
 	public ReevaluateExpressionMutation withPreviouslyIndexedOwnerPKs(
-		@Nullable Map<String, Bitmap> previouslyIndexedOwnerPKs
+		@Nullable Map<String, ContributionVerdicts> previouslyIndexedOwnerPKs
 	) {
 		return new ReevaluateExpressionMutation(
 			this.referenceName, this.mutatedEntityPK, this.dependencyType, this.scope,

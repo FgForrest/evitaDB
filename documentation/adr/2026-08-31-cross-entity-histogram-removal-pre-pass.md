@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-08-31 11:48
+updated: 2026-09-08 11:52
 status: accepted
 kind: fix
 issues: [1467]
@@ -248,10 +248,16 @@ contribution never existed, spending a sibling's cardinality unit.
   here.** `popIndexImplicitMutations` has always scanned only the root batch, so an `AttributeMutation`
   or `ReferenceAttributeMutation` synthesised by `GENERATE_ATTRIBUTES` /
   `GENERATE_REFERENCE_ATTRIBUTES` never reaches trigger discovery, even when it writes an attribute a
-  trigger watches. The mechanism is confirmed by reading the dispatch path; no failing case has been
-  constructed, and the `GENERATE_ATTRIBUTES` half looks benign because it only runs for a *new*
-  entity, which no owner can reference yet. The `GENERATE_REFERENCE_ATTRIBUTES` half is the one worth
-  chasing. Deliberately left out of scope here — closing it means widening dispatch, and the pre-pass
+  trigger watches. The `GENERATE_REFERENCE_ATTRIBUTES` half is confirmed by a failing test
+  (`ConditionalBucketIndexingTest#shouldFireCrossEntityTriggerForImplicitlyDefaultedReferenceAttribute`,
+  #1470). **Correction, 2026-09-08:** this record originally called the `GENERATE_ATTRIBUTES` half
+  benign "because it only runs for a *new* entity, which no owner can reference yet". That is wrong.
+  `ContainerizedLocalMutationExecutor#popImplicitMutations` calls `verifyMandatoryAttributes` from
+  *both* branches of its `entityContainer.isNew()` test — the `else` branch runs it for an existing,
+  non-removed entity whenever a global or localized attribute container is dirty. Both halves of the
+  gap are therefore reachable; the `GENERATE_ATTRIBUTES` half needs schema evolution or a newly-added
+  locale to surface, and no failing case has been constructed for it. Deliberately left out of scope
+  here — closing it means widening dispatch, and the pre-pass
   must widen with it or the new triggers fall straight through to unrestricted removal. Tracked as
   #1470 (milestone 2026.3).
 - **The pre-pass evaluates a superset of triggers**, since it cannot yet know which attribute writes

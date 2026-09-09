@@ -113,7 +113,7 @@ public class IndexMutationExecutorRegistry {
 	 * @see ReevaluateExpressionExecutor#evaluateHistogramConditionState
 	 */
 	@Nullable
-	public Map<String, Bitmap> evaluateHistogramConditionState(
+	public Map<String, ContributionVerdicts> evaluateHistogramConditionState(
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull IndexMutationTarget target
 	) {

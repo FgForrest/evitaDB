@@ -153,6 +153,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.IndexMutationExecutor;
@@ -1946,7 +1947,7 @@ public final class EntityCollection implements
 	 *         declares no histogram trigger and there is therefore nothing to guard
 	 */
 	@Nullable
-	public Map<String, Bitmap> evaluateHistogramConditionState(
+	public Map<String, ContributionVerdicts> evaluateHistogramConditionState(
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nullable EvitaSessionContract session
 	) {

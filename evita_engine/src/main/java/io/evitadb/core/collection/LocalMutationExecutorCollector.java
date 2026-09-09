@@ -52,6 +52,7 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.mutation.ContributionVerdicts;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
@@ -70,6 +71,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -208,7 +210,7 @@ class LocalMutationExecutorCollector {
 	 *
 	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
 	 */
-	@Nullable private Map<ConditionStateKey, Map<String, Bitmap>> preMutationConditionState;
+	@Nullable private Map<ConditionStateKey, Map<String, ContributionVerdicts>> preMutationConditionState;
 
 	/**
 	 * Key of {@link #preMutationConditionState} — a captured condition answer belongs to one trigger *in one
@@ -265,7 +267,7 @@ class LocalMutationExecutorCollector {
 				}
 				// null means the reference declares no histogram trigger (a facet-only trigger, say) — there is
 				// nothing to guard, and storing an empty map would wrongly suppress removals
-				final Map<String, Bitmap> conditionState = this.catalog
+				final Map<String, ContributionVerdicts> conditionState = this.catalog
 					.getCollectionForEntityOrThrowException(indexMutation.entityType())
 					.evaluateHistogramConditionState(reevaluation, session);
 				if (conditionState != null) {
@@ -300,7 +302,7 @@ class LocalMutationExecutorCollector {
 			if (!(mutations[i] instanceof ReevaluateExpressionMutation reevaluation)) {
 				continue;
 			}
-			final Map<String, Bitmap> conditionState = this.preMutationConditionState.get(
+			final Map<String, ContributionVerdicts> conditionState = this.preMutationConditionState.get(
 				new ConditionStateKey(entityType, reevaluation)
 			);
 			if (conditionState == null) {
@@ -496,12 +498,23 @@ class LocalMutationExecutorCollector {
 				executor.finishLocalMutationExecutionPhase();
 			}
 
+			LocalMutation<?, ?>[] implicitLocalMutations = null;
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
 				);
+				implicitLocalMutations = implicitMutations.localMutations();
+				// Implicit local mutations fire cross-entity triggers of their own, and those need the same
+				// pre-pass guarantee the root batch gets. They cannot be captured alongside it: they are derived
+				// from the containers *after* the root batch has been applied, so at that point they do not exist
+				// yet. Here — after they are known, before any of them is applied — is the pre-state that matters
+				// for them, and put-if-absent keeps the root batch's earlier, genuinely pre-batch answer wherever
+				// the two fire the same trigger.
+				capturePreMutationConditionState(
+					session, entityIndexUpdater, Arrays.asList(implicitLocalMutations), entityRemoval
+				);
 				// immediately apply all local mutations
-				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+				for (final LocalMutation<?, ?> localMutation : implicitLocalMutations) {
 					for (final LocalMutationExecutor executor : orderedExecutors) {
 						executor.applyMutation(localMutation);
 					}
@@ -543,11 +556,15 @@ class LocalMutationExecutorCollector {
 			// mutations are never written to WAL — they are regenerated deterministically on replay.
 			// The dispatch is synchronous and bounded by the number of affected entities.
 			//
-			// `localMutations` is deliberately the same list the condition pre-pass above was given: trigger
-			// discovery runs over the *root* batch only, so every dispatched envelope has a captured counterpart
-			// and none is left to fall back on unrestricted histogram removal. Widening this to cover implicit
-			// local mutations means widening the pre-pass with it, in the same commit.
-			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(localMutations);
+			// Trigger discovery runs over the root batch *and* the implicit local mutations derived from it: an
+			// attribute written by `GENERATE_ATTRIBUTES` / `GENERATE_REFERENCE_ATTRIBUTES` is as capable of
+			// invalidating another collection's histogram as one the caller wrote by hand. Both halves are
+			// covered by a `capturePreMutationConditionState` call, so every dispatched envelope still has a
+			// captured counterpart and none falls back on unrestricted histogram removal — the invariant this
+			// pairing exists to hold. Widening either half alone would break it.
+			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(
+				localMutations, implicitLocalMutations
+			);
 			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
 				// route each envelope to the target collection's thin dispatcher — bypasses
 				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)

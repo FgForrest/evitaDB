@@ -29,6 +29,10 @@ import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor;
@@ -132,14 +136,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		}
 
 		/**
-		 * Returns a lazily filtered iterable yielding entries only for owner PKs present in `pks`.
+		 * Returns a lazily filtered iterable yielding only the entries `verdicts` answered positively.
+		 * The membership test is taken per referenced entity, so a verdict that differs between two of an
+		 * owner's references is honoured rather than collapsed onto both.
 		 *
-		 * @param pks filter bitmap; only owner PKs present in this bitmap are yielded
+		 * @param verdicts the condition's answer, at whatever granularity it was answered
 		 * @return lazily filtered iterable over matching entries
 		 */
 		@Nonnull
-		Iterable<AffectedReferenceEntry> entriesForOwnerPKs(@Nonnull Bitmap pks) {
-			return () -> new FilteredEntryIterator(this.groups, pks);
+		Iterable<AffectedReferenceEntry> entriesForOwnerPKs(@Nonnull ContributionVerdicts verdicts) {
+			return () -> new FilteredEntryIterator(this.groups, verdicts);
 		}
 	}
 
@@ -173,10 +179,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * two disjoint bitmaps: entities for which the condition is true (should be indexed) and entities for
 	 * which it is false (should not be indexed).
 	 *
-	 * @param shouldBeIndexed    owner PKs for which the condition is now true
-	 * @param shouldNotBeIndexed owner PKs for which the condition is now false
+	 * @param shouldBeIndexed    contributions for which the condition is now true
+	 * @param shouldNotBeIndexed contributions for which the condition is now false
 	 */
-	record ConditionalSplit(@Nonnull Bitmap shouldBeIndexed, @Nonnull Bitmap shouldNotBeIndexed) {
+	record ConditionalSplit(
+		@Nonnull ContributionVerdicts shouldBeIndexed,
+		@Nonnull ContributionVerdicts shouldNotBeIndexed
+	) {
 	}
 
 	/**
@@ -238,7 +247,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *         has no histogram triggers at all
 	 */
 	@Nullable
-	public static Map<String, Bitmap> evaluateHistogramConditionState(
+	public static Map<String, ContributionVerdicts> evaluateHistogramConditionState(
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull IndexMutationTarget target
 	) {
@@ -250,12 +259,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		}
 		final AffectedEntityResolution affected = resolveAffected(target, mutation);
 		final Bitmap allAffectedOwnerPKs = affected.allOwnerPKs();
-		final Map<String, Bitmap> result = CollectionUtils.createHashMap(histogramTriggers.size());
+		final Map<String, ContributionVerdicts> result = CollectionUtils.createHashMap(histogramTriggers.size());
 		if (allAffectedOwnerPKs.isEmpty()) {
 			// no owner referenced the mutated entity yet, so no owner can have contributed — record that
 			// explicitly rather than returning null, which would re-enable unrestricted removal
 			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-				result.put(trigger.getHistogramIndexName(), EmptyBitmap.INSTANCE);
+				result.put(
+					trigger.getHistogramIndexName(),
+					ContributionVerdicts.ownerLevel(EmptyBitmap.INSTANCE)
+				);
 			}
 			return result;
 		}
@@ -270,10 +282,34 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// rebuild the same thing.
 			result.put(
 				trigger.getHistogramIndexName(),
-				new BaseBitmap(split.shouldBeIndexed())
+				materialize(split.shouldBeIndexed())
 			);
 		}
 		return result;
+	}
+
+	/**
+	 * Copies every bitmap in `verdicts` out of the indexes that own them.
+	 *
+	 * The mutations this pre-pass runs ahead of are about to modify the very indexes a passthrough filter plan
+	 * may hand back by reference, and these bitmaps have to outlive them. The {@link BaseBitmap} copy
+	 * constructor clones the compressed representation when the source is roaring-backed (it always is here);
+	 * going through `getArray()` would spend an `int[]` of the full cardinality to rebuild the same thing.
+	 *
+	 * @param verdicts the freshly evaluated answer
+	 * @return an equivalent answer owning its own bitmaps
+	 */
+	@Nonnull
+	private static ContributionVerdicts materialize(@Nonnull ContributionVerdicts verdicts) {
+		final Map<Integer, Bitmap> perReferencedEntity = verdicts.perReferencedEntity();
+		if (perReferencedEntity == null) {
+			return ContributionVerdicts.ownerLevel(new BaseBitmap(verdicts.allOwnerPKs()));
+		}
+		final Map<Integer, Bitmap> copy = CollectionUtils.createHashMap(perReferencedEntity.size());
+		for (final Map.Entry<Integer, Bitmap> entry : perReferencedEntity.entrySet()) {
+			copy.put(entry.getKey(), new BaseBitmap(entry.getValue()));
+		}
+		return new ContributionVerdicts(new BaseBitmap(verdicts.allOwnerPKs()), copy);
 	}
 
 	/**
@@ -289,31 +325,56 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param allAffectedOwnerPKs all owners affected by the mutation
 	 * @param mutation            the cross-entity re-evaluation signal
 	 * @param histogramName       name of the histogram definition being processed
-	 * @return the owners whose contribution may be removed
+	 * @return the contributions whose histogram entry may be removed
 	 */
 	@Nonnull
-	private static Bitmap restrictToPreviouslyIndexed(
+	private static ContributionVerdicts restrictToPreviouslyIndexed(
 		@Nonnull Bitmap allAffectedOwnerPKs,
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull String histogramName
 	) {
-		final Map<String, Bitmap> previouslyIndexedByHistogram = mutation.previouslyIndexedOwnerPKs();
+		final Map<String, ContributionVerdicts> previouslyIndexedByHistogram =
+			mutation.previouslyIndexedOwnerPKs();
 		if (previouslyIndexedByHistogram == null) {
 			// No pre-pass ran for this mutation, so fall back to the historical (unrestricted) behaviour. In
 			// production this is unreachable: `LocalMutationExecutorCollector` is the sole caller of
 			// `EntityCollection#applyIndexMutations` and always attaches the captured state. It is reached only
 			// by tests that construct a mutation directly. A future second dispatch path that skips the pre-pass
 			// would silently reintroduce the sibling-cardinality defect here — attach the state there too.
-			return allAffectedOwnerPKs;
+			return ContributionVerdicts.ownerLevel(allAffectedOwnerPKs);
 		}
-		final Bitmap previouslyIndexed = previouslyIndexedByHistogram.get(histogramName);
+		final ContributionVerdicts previouslyIndexed = previouslyIndexedByHistogram.get(histogramName);
 		if (previouslyIndexed == null || previouslyIndexed.isEmpty()) {
-			return EmptyBitmap.INSTANCE;
+			return ContributionVerdicts.ownerLevel(EmptyBitmap.INSTANCE);
 		}
-		final int[] restricted = and(
-			getRoaringBitmap(allAffectedOwnerPKs), getRoaringBitmap(previouslyIndexed)
-		).toArray();
-		return restricted.length == 0 ? EmptyBitmap.INSTANCE : new BaseBitmap(restricted);
+		final PersistentRoaringBitmap affectedRoaring = getRoaringBitmap(allAffectedOwnerPKs);
+		final Map<Integer, Bitmap> perReferencedEntity = previouslyIndexed.perReferencedEntity();
+		if (perReferencedEntity == null) {
+			final int[] restricted = and(
+				affectedRoaring, getRoaringBitmap(previouslyIndexed.allOwnerPKs())
+			).toArray();
+			return ContributionVerdicts.ownerLevel(
+				restricted.length == 0 ? EmptyBitmap.INSTANCE : new BaseBitmap(restricted)
+			);
+		}
+		// Narrow each referenced entity's captured owners independently. A contribution the capture never saw
+		// keeps no entry here, and `ContributionVerdicts.forReferencedEntity` answers it with an empty bitmap —
+		// it did not exist before the batch, so it contributed nothing that could be removed.
+		final Map<Integer, Bitmap> restrictedPerReferencedEntity =
+			CollectionUtils.createHashMap(perReferencedEntity.size());
+		final RoaringBitmapWriter<PersistentRoaringBitmap> unionWriter = buildWriter();
+		for (final Map.Entry<Integer, Bitmap> entry : perReferencedEntity.entrySet()) {
+			final PersistentRoaringBitmap restricted = and(
+				affectedRoaring, getRoaringBitmap(entry.getValue())
+			);
+			if (!restricted.isEmpty()) {
+				restrictedPerReferencedEntity.put(entry.getKey(), new BaseBitmap(restricted));
+				unionWriter.addMany(restricted.toArray());
+			}
+		}
+		return new ContributionVerdicts(
+			new BaseBitmap(unionWriter.get()), restrictedPerReferencedEntity
+		);
 	}
 
 	/**
@@ -478,7 +539,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final boolean canUseScopedRemoval = resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE;
 			// only owners that actually contributed before this batch may have their contribution removed —
 			// removing on mere bucket membership consumes a sibling reference's cardinality unit
-			final Bitmap ownerPKsToRemove = restrictToPreviouslyIndexed(
+			final ContributionVerdicts ownerPKsToRemove = restrictToPreviouslyIndexed(
 				allAffectedOwnerPKs, mutation, histogramName
 			);
 			if (canUseScopedRemoval) {
@@ -535,20 +596,30 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull Bitmap allAffectedOwnerPKs
 	) {
 		if (!trigger.hasFilterByConstraint()) {
-			return new ConditionalSplit(allAffectedOwnerPKs, new BaseBitmap());
+			return new ConditionalSplit(
+				ContributionVerdicts.ownerLevel(allAffectedOwnerPKs),
+				ContributionVerdicts.ownerLevel(new BaseBitmap())
+			);
 		}
-		final DependencyType depType = mutation.dependencyType();
-		final boolean needsPerGroupEvaluation =
-			(depType == DependencyType.REFERENCED_ENTITY_ATTRIBUTE
-				|| depType == DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE)
-				&& affected.groups().stream().anyMatch(g -> g.groupPK() != null)
-				&& !FinderVisitor.findConstraints(
-					trigger.getFilterByConstraint(),
-					GroupHaving.class::isInstance
-				).isEmpty();
-
-		if (needsPerGroupEvaluation) {
-			return evaluateConditionPerGroup(trigger, mutation, target, affected);
+		// A condition can only tell one of an owner's references from another if it actually reads something
+		// that differs between them — the referenced entity, or the group the reference sits in. When it reads
+		// neither (a pure `$entity.…` or `$entity.parentEntity.…` predicate), every reference of an owner
+		// shares one verdict by construction and a single filter run is the exact answer, not an approximation.
+		// This gate is what keeps the per-contribution evaluation off the paths that cannot benefit from it.
+		//
+		// **The number of resolved contributions is deliberately not part of this test.** `affected` enumerates
+		// only the contributions *this mutation* resolves; the owner's other references never appear in it, and
+		// they are exactly what an unpinned `groupHaving` or `entityHaving` can be satisfied by. A single
+		// resolved contribution therefore still needs both pins — it just costs one filter run to apply them.
+		final FilterConstraint conditionConstraint = trigger.getFilterByConstraint();
+		final boolean readsReferencedEntity = !FinderVisitor.findConstraints(
+			conditionConstraint, EntityHaving.class::isInstance
+		).isEmpty();
+		final boolean readsGroup = !FinderVisitor.findConstraints(
+			conditionConstraint, GroupHaving.class::isInstance
+		).isEmpty();
+		if (readsReferencedEntity || readsGroup) {
+			return evaluateConditionPerContribution(trigger, mutation, target, affected);
 		} else {
 			return evaluateConditionGlobal(trigger, mutation, target, allAffectedOwnerPKs);
 		}
@@ -583,28 +654,47 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				getRoaringBitmap(truePKs)
 			)
 		);
-		return new ConditionalSplit(shouldBeIndexed, shouldNotBeIndexed);
+		return new ConditionalSplit(
+			ContributionVerdicts.ownerLevel(shouldBeIndexed),
+			ContributionVerdicts.ownerLevel(shouldNotBeIndexed)
+		);
 	}
 
 	/**
-	 * Per-group evaluation: for each affected group, parameterizes the filter with both the referenced
-	 * entity PK AND the group entity PK, ensuring that `groupHaving` checks only the specific group
-	 * of the reference being evaluated, not other groups of the same owner entity.
+	 * Per-contribution evaluation: runs the condition once for each resolved
+	 * `(referencedEntityPK, groupPK)` contribution, with the filter pinned to that contribution, and keeps
+	 * the answers apart instead of unioning them.
+	 *
+	 * This is what makes the answer reference-grained. A filter answers in owner PKs, so a single run can
+	 * only ever say "this owner has *a* reference satisfying the condition" — and the executor then applies
+	 * that to every one of the owner's references. Pinning per contribution turns the same question into
+	 * "does *this* reference satisfy it", which is what the histogram's `(value, owner)` cardinality counter
+	 * is actually gated on.
+	 *
+	 * Cost is one filter evaluation per resolved contribution rather than one per mutation. The gate in
+	 * {@link #evaluateCondition} keeps this off conditions that cannot tell an owner's references apart.
+	 *
+	 * @param trigger  the expression trigger carrying the condition
+	 * @param mutation the cross-entity re-evaluation signal
+	 * @param target   access to the entity collection's filter evaluator
+	 * @param affected resolved contributions with their owner PKs
+	 * @return split result carrying the per-referenced-entity answers
 	 */
 	@Nonnull
-	private static ConditionalSplit evaluateConditionPerGroup(
+	private static ConditionalSplit evaluateConditionPerContribution(
 		@Nonnull ExpressionIndexTrigger trigger,
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull AffectedEntityResolution affected
 	) {
+		final List<AffectedReferenceGroup> groups = affected.groups();
 		final RoaringBitmapWriter<PersistentRoaringBitmap> shouldBeWriter = buildWriter();
 		final RoaringBitmapWriter<PersistentRoaringBitmap> shouldNotBeWriter = buildWriter();
-		for (final AffectedReferenceGroup group : affected.groups()) {
-			final FilterBy parameterizedFilter = parameterizeWithGroupScope(
-				trigger.getFilterByConstraint(), mutation.referenceName(),
-				mutation.mutatedEntityPK(), mutation.dependencyType(),
-				group.groupPK()
+		final Map<Integer, Bitmap> shouldBePerRef = CollectionUtils.createHashMap(groups.size());
+		final Map<Integer, Bitmap> shouldNotBePerRef = CollectionUtils.createHashMap(groups.size());
+		for (final AffectedReferenceGroup group : groups) {
+			final FilterBy parameterizedFilter = parameterizeForContribution(
+				trigger.getFilterByConstraint(), mutation.referenceName(), group
 			);
 			final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
 			final PersistentRoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
@@ -612,41 +702,79 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final PersistentRoaringBitmap notMatched = andNot(groupOwnerPKs, getRoaringBitmap(truePKs));
 			shouldBeWriter.addMany(matched.toArray());
 			shouldNotBeWriter.addMany(notMatched.toArray());
+			// Two contributions can share a referenced entity across different groups; their owner sets are
+			// disjoint (an owner holds at most one reference to a given target), so merging them under one
+			// key preserves every owner's own verdict.
+			mergeVerdict(shouldBePerRef, group.referencedEntityPK(), matched);
+			mergeVerdict(shouldNotBePerRef, group.referencedEntityPK(), notMatched);
 		}
 		return new ConditionalSplit(
-			new BaseBitmap(shouldBeWriter.get()),
-			new BaseBitmap(shouldNotBeWriter.get())
+			new ContributionVerdicts(new BaseBitmap(shouldBeWriter.get()), shouldBePerRef),
+			new ContributionVerdicts(new BaseBitmap(shouldNotBeWriter.get()), shouldNotBePerRef)
 		);
 	}
 
 	/**
-	 * Extended parameterization that injects both the referenced entity PK (via `entityHaving`)
-	 * and the group entity PK (via `groupHaving(entityPrimaryKeyInSet)`) into the filter.
-	 * The group PK is injected into the ORIGINAL filter FIRST (before entity PK scoping) so that
-	 * the `GroupHaving` clause is still directly accessible for merging. This ensures that the
-	 * resulting filter has a single `GroupHaving(and(condition, entityPrimaryKeyInSet(groupPK)))`,
-	 * preventing cross-reference false positives.
+	 * Accumulates `owners` under `referencedEntityPK`, OR-ing with anything already recorded for that key.
+	 *
+	 * @param target             the per-referenced-entity verdict map being built
+	 * @param referencedEntityPK key to record under
+	 * @param owners             the owners answered for this contribution
+	 */
+	private static void mergeVerdict(
+		@Nonnull Map<Integer, Bitmap> target,
+		int referencedEntityPK,
+		@Nonnull PersistentRoaringBitmap owners
+	) {
+		if (owners.isEmpty()) {
+			return;
+		}
+		final Bitmap existing = target.get(referencedEntityPK);
+		target.put(
+			referencedEntityPK,
+			existing == null
+				? new BaseBitmap(owners)
+				: new BaseBitmap(or(getRoaringBitmap(existing), owners))
+		);
+	}
+
+	/**
+	 * Pins the trigger's filter to one resolved contribution, so it answers "does *this* reference of the
+	 * owner satisfy the condition" rather than "does this owner have *a* reference that does".
+	 *
+	 * Both axes are taken from the contribution itself rather than from the mutation, which is what makes
+	 * this work for every dependency type. For a `REFERENCED_ENTITY_*` mutation the contribution's referenced
+	 * entity *is* the mutated entity and the pin is the one {@link #parameterize} would apply; for a `GROUP_*`
+	 * mutation the contribution's group is the mutated entity and its referenced entity is the axis the
+	 * dependency type could never supply; for a `PARENT_*` mutation neither is, and the hierarchy constraint
+	 * in the filter goes on carrying the owner-level half unchanged.
+	 *
+	 * Injection order is irrelevant: {@link #injectPkScope} descends through the boolean containers, so
+	 * whichever pin runs second still finds the scope container the first one left behind, wherever an `and`
+	 * put it.
+	 *
+	 * @param triggerFilterBy the pre-translated `FilterBy` from the trigger
+	 * @param referenceName   name of the reference whose `referenceHaving` clauses receive the pins
+	 * @param group           the contribution being decided
+	 * @return a `FilterBy` answering for that contribution alone
 	 */
 	@Nonnull
-	private static FilterBy parameterizeWithGroupScope(
+	private static FilterBy parameterizeForContribution(
 		@Nonnull FilterBy triggerFilterBy,
 		@Nonnull String referenceName,
-		int mutatedEntityPK,
-		@Nonnull DependencyType dependencyType,
-		@Nullable Integer groupPK
+		@Nonnull AffectedReferenceGroup group
 	) {
-		if (groupPK == null) {
-			return parameterize(triggerFilterBy, referenceName, mutatedEntityPK, dependencyType);
-		}
-		// Inject group PK scope into the ORIGINAL filter first (before entity PK injection); the
-		// recursive rewrite reaches every matching ReferenceHaving regardless of nesting (Or/And/Not),
-		// and injectPkScope merges the PK into every GroupHaving sibling in each match.
-		final EntityPrimaryKeyInSet groupPkConstraint = new EntityPrimaryKeyInSet(groupPK);
-		final FilterBy groupScoped = rewriteMatchingReferenceHavings(
-			triggerFilterBy, referenceName, groupPkConstraint, true
+		FilterBy result = rewriteMatchingReferenceHavings(
+			triggerFilterBy, referenceName,
+			new EntityPrimaryKeyInSet(group.referencedEntityPK()), false
 		);
-		// then apply the standard entity PK scoping
-		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType);
+		final Integer groupPK = group.groupPK();
+		if (groupPK != null) {
+			result = rewriteMatchingReferenceHavings(
+				result, referenceName, new EntityPrimaryKeyInSet(groupPK), true
+			);
+		}
+		return result;
 	}
 
 	/**
@@ -660,7 +788,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName    name of the histogram definition
 	 * @param resolution       value resolution metadata
-	 * @param ownerPKsToRemove owner PKs whose histogram entries should be cleared
+	 * @param ownerPKsToRemove per-contribution owners whose histogram entries should be cleared
 	 * @param affected         resolved affected groups
 	 * @param rtei             the top-level referenced-type entity index
 	 * @param isGrouped        `true` when the reference has a group type
@@ -671,7 +799,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void scopedRemoveForReferencedEntityAttribute(
 		@Nonnull String histogramName,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull ContributionVerdicts ownerPKsToRemove,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -734,7 +862,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param histogramName    name of the histogram definition
 	 * @param locale           locale for localized histograms, or `null` for non-localized
 	 * @param resolution       value resolution metadata
-	 * @param ownerPKsToRemove   owner PKs whose histogram entries should be cleared
+	 * @param ownerPKsToRemove   per-contribution owners whose histogram entries should be cleared
 	 * @param affected           resolved affected groups
 	 * @param rtei               the top-level referenced-type entity index
 	 * @param isGrouped          `true` when the reference has a group type
@@ -745,7 +873,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull ContributionVerdicts ownerPKsToRemove,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -768,11 +896,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
 			sourceEntityType, resolution.sourceAttributeName(), locale, scope
 		);
-		final PersistentRoaringBitmap removePKs = getRoaringBitmap(ownerPKsToRemove);
-
 		for (final AffectedReferenceGroup group : affected.groups()) {
 			final PersistentRoaringBitmap groupPKs = getRoaringBitmap(group.ownerPKs());
-			final PersistentRoaringBitmap matched = and(removePKs, groupPKs);
+			// the removal set is taken for *this* contribution: an owner that withdrew one reference's
+			// contribution must not have a sibling reference's cardinality unit consumed on its behalf
+			final PersistentRoaringBitmap matched = and(
+				getRoaringBitmap(ownerPKsToRemove.forReferencedEntity(group.referencedEntityPK())),
+				groupPKs
+			);
 
 			if (!matched.isEmpty()) {
 				// values to remove: known old values (value-change) or current source values (condition-change)
@@ -895,7 +1026,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName            name of the histogram definition
 	 * @param trigger                  the histogram trigger with value resolution metadata
-	 * @param histogramShouldBeIndexed owner PKs that must have a histogram value
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
@@ -907,7 +1038,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void addHistogramEntries(
 		@Nonnull String histogramName,
 		@Nonnull HistogramExpressionTrigger trigger,
-		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -939,7 +1070,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName            name of the histogram definition
 	 * @param resolution               value resolution metadata
-	 * @param histogramShouldBeIndexed owner PKs that must have a histogram value
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
@@ -949,7 +1080,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void addFromReferencedEntityAttribute(
 		@Nonnull String histogramName,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -984,7 +1115,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param histogramName            name of the histogram definition
 	 * @param locale                   locale for the source FilterIndex, or `null` for non-localized
 	 * @param resolution               value resolution metadata
-	 * @param histogramShouldBeIndexed owner PKs that must have a histogram value
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
@@ -994,7 +1125,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -1015,8 +1146,6 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		} else {
 			final Class<? extends Serializable> plainType = resolution.plainType();
 			final boolean rangeSource = resolution.innerNumericType() != null;
-			final PersistentRoaringBitmap shouldBeIndexedBitmap =
-				getRoaringBitmap(histogramShouldBeIndexed);
 			final ValueToRecord[] sourceBuckets =
 				sourceFilterIndex.getHistogramOfAllRecords().getBuckets();
 			// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
@@ -1036,9 +1165,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					if (refPKsInBucket.contains(group.referencedEntityPK())) {
 						encounteredRefPKsWriter.add(group.referencedEntityPK());
 						final PersistentRoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
-						// Intersect "should be indexed" with the group's owner PKs
-						// to avoid touching unrelated entities.
-						final PersistentRoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+						// Intersect *this contribution's* verdict with the group's owner PKs. An owner whose
+						// OTHER reference satisfies the condition must not be indexed on this one's behalf.
+						final PersistentRoaringBitmap matched = and(
+							getRoaringBitmap(
+								histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
+							),
+							ownerPKs
+						);
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, emittedValue, ownerPK, group, rtei, isGrouped,
@@ -1057,7 +1191,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					// Skip groups whose referenced entity was already found in at least one source bucket.
 					if (!encounteredRefPKs.contains(group.referencedEntityPK())) {
 						final PersistentRoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
-						final PersistentRoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+						final PersistentRoaringBitmap matched = and(
+							getRoaringBitmap(
+								histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
+							),
+							ownerPKs
+						);
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
@@ -1077,7 +1216,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName            name of the histogram definition
 	 * @param resolution               value resolution metadata
-	 * @param histogramShouldBeIndexed owner PKs that must have a histogram value
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
@@ -1088,7 +1227,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void addFromReferenceAttribute(
 		@Nonnull String histogramName,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -1119,7 +1258,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param histogramName            name of the histogram definition
 	 * @param locale                   locale for the reference attribute FilterIndex, or `null`
 	 * @param resolution               value resolution metadata
-	 * @param histogramShouldBeIndexed owner PKs that must have a histogram value
+	 * @param histogramShouldBeIndexed per-contribution owners that must have a histogram value
 	 * @param affected                 resolved affected groups
 	 * @param rtei                     the top-level referenced-type index
 	 * @param isGrouped                `true` when the reference has a group type
@@ -1130,14 +1269,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull ContributionVerdicts histogramShouldBeIndexed,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull String referenceName
 	) {
-		final PersistentRoaringBitmap shouldBeIndexedBitmap = getRoaringBitmap(histogramShouldBeIndexed);
 		final String sourceAttrName = resolution.sourceAttributeName();
 		final AttributeIndexKey attrKey = new AttributeIndexKey(referenceName, sourceAttrName, locale);
 
@@ -1146,6 +1284,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// each ReducedGroupEntityIndex holds its own per-reference attribute index.
 			for (final AffectedReferenceGroup group : affected.groups()) {
 				if (group.groupPK() != null) {
+					final PersistentRoaringBitmap groupShouldBeIndexed = getRoaringBitmap(
+						histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
+					);
 					final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
 					for (int storagePK : storagePKs) {
 						final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
@@ -1153,7 +1294,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						);
 						processRefAttrFilterIndex(
 							histogramName, locale, resolution, rgei.getFilterIndex(attrKey),
-							shouldBeIndexedBitmap, group, rtei, true, target
+							groupShouldBeIndexed, group, rtei, true, target
 						);
 					}
 				}
@@ -1164,7 +1305,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final AffectedReferenceGroup group : affected.groups()) {
 				processRefAttrFilterIndex(
 					histogramName, locale, resolution, refAttrFilterIndex,
-					shouldBeIndexedBitmap, group, rtei, false, target
+					getRoaringBitmap(
+						histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
+					),
+					group, rtei, false, target
 				);
 			}
 		}
@@ -1290,7 +1434,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void removeFromReferenceAttribute(
 		@Nonnull String histogramName,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull ContributionVerdicts ownerPKsToRemove,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -1324,20 +1468,22 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull ContributionVerdicts ownerPKsToRemove,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull String referenceName
 	) {
-		final PersistentRoaringBitmap removeBitmap = getRoaringBitmap(ownerPKsToRemove);
 		final String sourceAttrName = resolution.sourceAttributeName();
 		final AttributeIndexKey attrKey = new AttributeIndexKey(referenceName, sourceAttrName, locale);
 
 		if (isGrouped) {
 			for (final AffectedReferenceGroup group : affected.groups()) {
 				if (group.groupPK() != null) {
+					final PersistentRoaringBitmap groupToRemove = getRoaringBitmap(
+						ownerPKsToRemove.forReferencedEntity(group.referencedEntityPK())
+					);
 					final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
 					for (int storagePK : storagePKs) {
 						final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
@@ -1345,7 +1491,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						);
 						processRefAttrFilterIndexForRemoval(
 							histogramName, locale, resolution, rgei.getFilterIndex(attrKey),
-							removeBitmap, group, rtei, true, target
+							groupToRemove, group, rtei, true, target
 						);
 					}
 				}
@@ -1355,7 +1501,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final AffectedReferenceGroup group : affected.groups()) {
 				processRefAttrFilterIndexForRemoval(
 					histogramName, locale, resolution, refAttrFilterIndex,
-					removeBitmap, group, rtei, false, target
+					getRoaringBitmap(
+						ownerPKsToRemove.forReferencedEntity(group.referencedEntityPK())
+					),
+					group, rtei, false, target
 				);
 			}
 		}
@@ -1881,6 +2030,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * && !visitor.isWithin(GroupHaving.class)` skips such inner clauses even when they happen to
 	 * carry the same `referenceName` as the owner-scope reference (e.g. self-referencing schemas).
 	 *
+	 * A hierarchy container is the third such foreign scope. `PARENT_ENTITY_REFERENCE_ATTRIBUTE`
+	 * translates to `hierarchyWithinSelf(referenceHaving(otherRef, ...), directRelation())`, whose inner
+	 * clause describes the *parent's* reference, not the owner's — pinning the owner's contribution into it
+	 * would ask the wrong entity. `HierarchyWithin` / `HierarchyWithinRoot` are therefore guarded the same
+	 * way. This matters for any condition mixing a parent predicate with a referenced-entity one, whichever
+	 * of the two dependency types the mutation fires under, since both halves are present in the filter
+	 * either way.
+	 *
 	 * @param filterBy       the filter to rewrite
 	 * @param referenceName  the reference whose `ReferenceHaving` instances receive the PK scope
 	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
@@ -1902,6 +2059,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				&& rh.getReferenceName().equals(referenceName)
 				&& !visitor.isWithin(EntityHaving.class)
 				&& !visitor.isWithin(GroupHaving.class)
+				&& !visitor.isWithin(HierarchyWithin.class)
+				&& !visitor.isWithin(HierarchyWithinRoot.class)
 				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
 				: constraint
 		);
@@ -1918,13 +2077,37 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. Every existing
-	 * {@link GroupHaving} (or {@link EntityHaving} for entity-scoped dependencies) child receives the
-	 * PK constraint merged into its body, so a {@link ReferenceHaving} carrying multiple sibling
-	 * scope containers (produced by the expression translator when the same reference declares more
-	 * than one `groupEntity?.…` / `entity?.…` predicate) is correctly constrained on every branch.
-	 * When no scope container is present, a new one wrapping the PK constraint is appended as an
-	 * And-sibling.
+	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. Every
+	 * {@link GroupHaving} (or {@link EntityHaving} for entity-scoped dependencies) reachable from the
+	 * clause through {@link And} / {@link Or} containers receives the PK constraint merged into its
+	 * body, so the mutated entity's identity is asserted *inside* the same scope container as the
+	 * condition's own predicates.
+	 *
+	 * Merging inside the container rather than beside it is what makes the scoping bind. An `and`
+	 * under a `referenceHaving` intersects owner sets; it does not require one reference to satisfy
+	 * every branch. A PK constraint added as a sibling therefore asserts only "the owner has *a*
+	 * reference to the mutated entity", which any owner holding a second, unrelated reference
+	 * satisfies for free — so the condition could be answered by a reference other than the one being
+	 * re-evaluated, and the trigger would resolve an owner-level answer where it needs a
+	 * reference-level one. Everything inside a single {@link EntityHaving} / {@link GroupHaving}, by
+	 * contrast, constrains one and the same target entity.
+	 *
+	 * The shape that makes this reachable is not exotic: {@code ExpressionToQueryTranslator#mergeReferenceHaving}
+	 * collapses same-name sibling `referenceHaving` clauses into `referenceHaving(name, and(…))`, so any
+	 * condition with two predicates on the referenced entity — including the `bucketedPartially` +
+	 * `assignedWhen` pair, which is built that way by construction — buries its scope containers one
+	 * level below the clause's direct children.
+	 *
+	 * Descent deliberately stops at {@link Not}. `not(entityHaving(x))` asks whether the owner has
+	 * *some* reference whose target fails `x`; merging the PK into it would ask whether some reference
+	 * fails "x and is the mutated entity", which any unrelated sibling reference satisfies. Pinning a
+	 * negated branch means restructuring it to `entityHaving(and(pk, not(x)))` rather than merging into
+	 * it. That is deliberately out of scope here, and currently unreachable: `!=` and `!` are folded
+	 * *inside* the scope container by `ExpressionToQueryTranslator#wrapForPathType`, never around it.
+	 *
+	 * When no scope container is reachable, a new one wrapping the PK constraint is appended as an
+	 * And-sibling — the widest scoping available for that shape, and the behaviour that predates this
+	 * descent.
 	 *
 	 * @param rh            the original referenceHaving clause
 	 * @param referenceName the reference name for the new ReferenceHaving
@@ -1941,26 +2124,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean isGroupScope
 	) {
 		final FilterConstraint[] rhChildren = rh.getChildren();
-		final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
-		boolean scopeContainerFound = false;
-		for (int j = 0; j < rhChildren.length; j++) {
-			final FilterConstraint child = rhChildren[j];
-			if (isGroupScope && child instanceof final GroupHaving existing) {
-				updatedChildren[j] = new GroupHaving(new And(existing.getChild(), pkConstraint));
-				scopeContainerFound = true;
-			} else if (!isGroupScope && child instanceof final EntityHaving existing) {
-				updatedChildren[j] = new EntityHaving(new And(existing.getChild(), pkConstraint));
-				scopeContainerFound = true;
-			} else {
-				updatedChildren[j] = child;
-			}
-		}
-		if (scopeContainerFound) {
+		final FilterConstraint[] updatedChildren = mergePkIntoScopeContainers(
+			rhChildren, pkConstraint, isGroupScope
+		);
+		if (updatedChildren != null) {
 			return updatedChildren.length == 1
 				? new ReferenceHaving(referenceName, updatedChildren[0])
 				: new ReferenceHaving(referenceName, new And(updatedChildren));
 		}
-		// No existing scope container — wrap PK in a new one and add as an And-sibling.
+		// No reachable scope container — wrap PK in a new one and add as an And-sibling.
 		final FilterConstraint pkScope = isGroupScope
 			? new GroupHaving(pkConstraint)
 			: new EntityHaving(pkConstraint);
@@ -1968,6 +2140,84 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
 		andChildren[rhChildren.length] = pkScope;
 		return new ReferenceHaving(referenceName, new And(andChildren));
+	}
+
+	/**
+	 * Rewrites `children` by merging `pkConstraint` into every scope container reachable through
+	 * {@link And} / {@link Or} containers. Returns `null` when the array holds no reachable scope
+	 * container at all, so the caller can tell "nothing to merge into" from "merged" without a second
+	 * traversal — and so an untouched array is never reallocated.
+	 *
+	 * @param children     the container's children to rewrite
+	 * @param pkConstraint the PK constraint to merge into each reachable scope container
+	 * @param isGroupScope `true` when the scope container is {@link GroupHaving}, `false` for
+	 *                     {@link EntityHaving}
+	 * @return a rewritten copy of `children`, or `null` when no scope container was reachable
+	 */
+	@Nullable
+	private static FilterConstraint[] mergePkIntoScopeContainers(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull EntityPrimaryKeyInSet pkConstraint,
+		boolean isGroupScope
+	) {
+		FilterConstraint[] rewritten = null;
+		for (int i = 0; i < children.length; i++) {
+			final FilterConstraint merged = mergePkIntoScopeContainer(
+				children[i], pkConstraint, isGroupScope
+			);
+			if (merged != null) {
+				if (rewritten == null) {
+					rewritten = children.clone();
+				}
+				rewritten[i] = merged;
+			}
+		}
+		return rewritten;
+	}
+
+	/**
+	 * Merges `pkConstraint` into `constraint` when it is — or transitively contains through
+	 * {@link And} / {@link Or} — a scope container of the requested kind. Returns `null` when it does
+	 * not, leaving the caller to keep the original node.
+	 *
+	 * See {@link #injectPkScope} for why the merge goes *inside* the container, and why the descent
+	 * stops at {@link Not}.
+	 *
+	 * @param constraint   the node to rewrite
+	 * @param pkConstraint the PK constraint to merge into each reachable scope container
+	 * @param isGroupScope `true` when the scope container is {@link GroupHaving}, `false` for
+	 *                     {@link EntityHaving}
+	 * @return the rewritten node, or `null` when it holds no reachable scope container
+	 */
+	@Nullable
+	private static FilterConstraint mergePkIntoScopeContainer(
+		@Nonnull FilterConstraint constraint,
+		@Nonnull EntityPrimaryKeyInSet pkConstraint,
+		boolean isGroupScope
+	) {
+		if (isGroupScope) {
+			if (constraint instanceof final GroupHaving existing) {
+				return new GroupHaving(new And(existing.getChild(), pkConstraint));
+			}
+		} else if (constraint instanceof final EntityHaving existing) {
+			return new EntityHaving(new And(existing.getChild(), pkConstraint));
+		}
+		if (constraint instanceof final And and) {
+			final FilterConstraint[] rewritten = mergePkIntoScopeContainers(
+				and.getChildren(), pkConstraint, isGroupScope
+			);
+			return rewritten == null ? null : new And(rewritten);
+		}
+		if (constraint instanceof final Or or) {
+			final FilterConstraint[] rewritten = mergePkIntoScopeContainers(
+				or.getChildren(), pkConstraint, isGroupScope
+			);
+			return rewritten == null ? null : new Or(rewritten);
+		}
+		// Everything else — a reference-attribute predicate, a Not, a scope container of the opposite
+		// kind, a nested referenceHaving belonging to the referenced entity's own scope — carries no
+		// container this pass may merge into, and is returned to the caller unchanged.
+		return null;
 	}
 
 	/**
@@ -2063,8 +2313,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static class FilteredEntryIterator implements Iterator<AffectedReferenceEntry> {
 		/** All resolved reference groups to iterate over. */
 		private final List<AffectedReferenceGroup> groups;
-		/** Membership bitmap — only owner PKs present in this bitmap are yielded. */
-		private final PersistentRoaringBitmap filterBitmap;
+		/** The condition's answer, consulted per referenced entity as each group is entered. */
+		private final ContributionVerdicts verdicts;
+		/** Membership bitmap for the group currently being iterated. */
+		@Nullable private PersistentRoaringBitmap filterBitmap;
 		/** Index of the current group in {@link #groups} being iterated. */
 		private int groupIdx;
 		/** Current group's owner PK array, or {@code null} when not yet loaded / fully consumed. */
@@ -2079,14 +2331,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nullable private AffectedReferenceEntry nextEntry;
 
 		/**
-		 * @param groups resolved reference groups to iterate over
-		 * @param pks    membership filter bitmap
+		 * @param groups   resolved reference groups to iterate over
+		 * @param verdicts the condition's answer, resolved per referenced entity
 		 */
 		FilteredEntryIterator(
-			@Nonnull List<AffectedReferenceGroup> groups, @Nonnull Bitmap pks
+			@Nonnull List<AffectedReferenceGroup> groups, @Nonnull ContributionVerdicts verdicts
 		) {
 			this.groups = groups;
-			this.filterBitmap = getRoaringBitmap(pks);
+			this.verdicts = verdicts;
 			this.groupIdx = 0;
 			this.ownerIdx = 0;
 			this.currentOwnerPKs = null;
@@ -2122,11 +2374,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					this.currentRefEntityPK = group.referencedEntityPK();
 					this.currentGroupPK = group.groupPK();
 					this.currentOwnerPKs = group.ownerPKs().getArray();
+					// re-read the membership set for this group: the verdict may differ between two of an
+					// owner's references, and collapsing them onto one is the defect this iterator avoids
+					this.filterBitmap = getRoaringBitmap(
+						this.verdicts.forReferencedEntity(group.referencedEntityPK())
+					);
 					this.ownerIdx = 0;
 				}
 				while (this.ownerIdx < this.currentOwnerPKs.length) {
 					final int ownerPK = this.currentOwnerPKs[this.ownerIdx++];
-					if (this.filterBitmap.contains(ownerPK)) {
+					if (Objects.requireNonNull(this.filterBitmap).contains(ownerPK)) {
 						this.nextEntry = new AffectedReferenceEntry(
 							this.currentRefEntityPK, this.currentGroupPK, ownerPK
 						);
