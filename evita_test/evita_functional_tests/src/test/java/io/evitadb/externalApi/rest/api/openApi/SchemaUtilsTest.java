@@ -81,7 +81,7 @@ class SchemaUtilsTest {
 	private static final String urlPathToProductList = "/PRODUCT/list";
 	public static final String REST_THOUSAND_PRODUCTS_OPEN_API = REST_THOUSAND_PRODUCTS + "openApi";
 	private static final Pattern JVM_IDENTITY_STRING_PATTERN =
-		Pattern.compile("io\\.evitadb(?:\\.[\\w$]+)*@[0-9a-f]{6,10}\\b");
+		Pattern.compile("io\\.evitadb(?:\\.[\\w$]+)*@[0-9a-f]{1,8}\\b");
 
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {

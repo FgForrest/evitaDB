@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class GraphQLSchemaDescriptionTest {
 	private static final String GRAPHQL_SCHEMA_DESCRIPTION_TEST_DATA_SET = "GraphQLSchemaDescriptionTestDataSet";
 	private static final Pattern JVM_IDENTITY_STRING_PATTERN =
-		Pattern.compile("io\\.evitadb(?:\\.[\\w$]+)*@[0-9a-f]{6,10}\\b");
+		Pattern.compile("io\\.evitadb(?:\\.[\\w$]+)*@[0-9a-f]{1,8}\\b");
 
 	@DataSet(value = GRAPHQL_SCHEMA_DESCRIPTION_TEST_DATA_SET, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
