@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-09-09 11:00
+updated: 2026-09-09 12:41
 status: accepted
 kind: feature
 issues: [8]
@@ -268,20 +268,33 @@ not a parallel mechanism.
     a real but negligible win (-5.6% dense p=0.007, -2.6% sparse p=0.07) and went with it; it also performed
     *worse* in the sparse shape it was designed for, because `and(...)` on disjoint roaring bitmaps is
     already container-cheap and the avoided allocation was overestimated.
-  - **The ceiling is why this is not worth revisiting.** Nested decomposition, every figure measured: the
-    walk is ~0.47 ms, the whole `resolveSiblingReducedIndexes` ~2.0 ms - the remaining ~1.5 ms is the
-    `getOrCreateIndexByPrimaryKey` registration that enrols touched partitions in the dirty set, which is
-    required for correctness and cannot be skipped - and a full entity flip ~33.5 ms. The walk is therefore
-    ~1.4% of a trigger: perfect elimination buys ~1.4%, and the `intersects` half bought ~0.08%.
-  - **Rejected because** the only mechanism that changes the asymptotics is a new persisted
-    `ownerPK -> reducedIndexPKs` reverse map on `ReferencedTypeEntityIndex`, maintained at the membership
-    boundaries in `ReferenceIndexMutator`. No existing in-memory structure supplies that direction: the
-    cardinality index runs referenced-entity -> index, `FacetIndex` is facet -> owner and conditional on
-    `isFaceted`, and `ValidEntityToReferenceMapping` is populated only after an `enrichEntity` fetch - the
-    per-owner storage read this method's own javadoc already rejects. The reverse map would trade a
-    permanent write-path and storage cost proportional to every owner-partition membership for a resolver
-    floor of ~1.5 ms instead of ~2.0 ms. Revisit only if the trigger's other ~31 ms is optimized away first,
-    since that is what makes this share negligible.
+  - **The ceiling is small - *at the cardinality measured*, which is the whole caveat.** Nested
+    decomposition, every figure measured **at 3,000 partitions**: the walk is ~0.47 ms, the whole
+    `resolveSiblingReducedIndexes` ~2.0 ms - the remaining ~1.5 ms is the `getOrCreateIndexByPrimaryKey`
+    registration that enrols touched partitions in the dirty set, which is required for correctness and
+    cannot be skipped - and a full entity flip ~33.5 ms. So the walk is ~1.4% of a trigger there: perfect
+    elimination buys ~1.4%, and the `intersects` half bought ~0.08%.
+  - **That 1.4% does not generalise, and must not be quoted without its cardinality.** The walk is the
+    *only* term in a trigger that is linear in total partition count - `resolveAffected`, the
+    `evaluateFilter` query plan, the registration (proportional to *intersecting* partitions only) and both
+    `applyFacetDecisionMatrix` loops are all independent of it. At the measured ~157 ns/partition the share
+    becomes ~11% at 25k partitions and ~32% at 100k, and probably worse than linear once the partition set
+    exceeds LLC. Migrated catalogs are the population at risk: `ReferenceSchemaSerializer_2025_5` promotes
+    *every* indexed reference of a pre-2025.7 schema to `FOR_FILTERING_AND_PARTITIONING`. Tracked in #1529,
+    which fixes the measurement protocol before any implementation - including the density of affected
+    owners per partition, the one variable this run never captured and the one that decides whether a
+    reverse index saves the walk alone or the walk plus the registration.
+  - **Rejected because** the only mechanism that changes the asymptotics is a new `ownerPK ->
+    reducedIndexPKs` reverse map on `ReferencedTypeEntityIndex`, maintained at the membership boundaries in
+    `ReferenceIndexMutator`. No existing in-memory structure supplies that direction: the cardinality index
+    runs referenced-entity -> index, `FacetIndex` is facet -> owner and conditional on `isFaceted`, and
+    `ValidEntityToReferenceMapping` is populated only after an `enrichEntity` fetch - the per-owner storage
+    read this method's own javadoc already rejects. Rejected **for this change**, not forever: at 3,000
+    partitions it would trade a permanent write-path and memory cost on every owner-partition membership
+    for a resolver floor of ~1.5 ms instead of ~2.0 ms. Revisit at high cardinality (#1529), where the
+    trade reverses - and note the map need not be persisted, since every entity index is loaded eagerly at
+    catalog open and it is therefore derivable, which removes the storage-format and BWC burden the
+    original assessment assumed.
 
 - **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
   partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
