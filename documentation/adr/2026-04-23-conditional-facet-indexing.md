@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-09-09 05:10
+updated: 2026-09-09 11:00
 status: accepted
 kind: feature
 issues: [8]
@@ -248,6 +248,40 @@ not a parallel mechanism.
     before the fix - two false negatives on the add direction, two stale-`true` false positives on the
     remove direction - and the unconditional-facet control passes throughout, proving the synchronous path
     always reached the group partition and only the deferred one did not.
+
+- **The same review's performance suggestion was implemented, measured, and rejected (2026-09-09).**
+  `ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes` walks every partition of every partitioned
+  sibling reference on each trigger - `O(all partitions)`, independent of how many owners the trigger
+  actually affects. Two constant-factor fixes were tried: an allocation-free
+  `PersistentRoaringBitmap.intersects` membership test before `and(...).toArray()`, and an `IntHashSet`
+  dedup of partitions advertised more than once. **Both were dropped and the code is unchanged.**
+  - **The dedup can never fire.** A reduced entity index is keyed from the referenced entity's
+    `RepresentativeReferenceKey` and a reduced group index from the group primary key, and that same key is
+    what `insertPrimaryKeyIfMissing` records in the advertising bitmap - so within one family the mapping is
+    1:1 and no partition is ever advertised twice. Instrumentation agreed: probes == intersections == 3000
+    on every single trigger. The set was pure overhead, and measurably so.
+  - **Numbers.** Measured in-JVM against identical live index state, the implementations run back to back
+    with their order rotated per trigger, 870 paired samples per shape - a cross-JVM A/B cannot resolve this
+    at all, since between-JVM variance is 15-20% and a first 5-vs-5 run produced a confident +11.6%
+    (p=0.004) that failed to reproduce at +0.5%. Walk time, baseline -> intersects+dedup: 0.470 -> 0.532 ms
+    dense (+13.1%, p=2e-8), 0.375 -> 0.446 ms sparse (+18.9%, p=5e-14). The `intersects` pre-check alone was
+    a real but negligible win (-5.6% dense p=0.007, -2.6% sparse p=0.07) and went with it; it also performed
+    *worse* in the sparse shape it was designed for, because `and(...)` on disjoint roaring bitmaps is
+    already container-cheap and the avoided allocation was overestimated.
+  - **The ceiling is why this is not worth revisiting.** Nested decomposition, every figure measured: the
+    walk is ~0.47 ms, the whole `resolveSiblingReducedIndexes` ~2.0 ms - the remaining ~1.5 ms is the
+    `getOrCreateIndexByPrimaryKey` registration that enrols touched partitions in the dirty set, which is
+    required for correctness and cannot be skipped - and a full entity flip ~33.5 ms. The walk is therefore
+    ~1.4% of a trigger: perfect elimination buys ~1.4%, and the `intersects` half bought ~0.08%.
+  - **Rejected because** the only mechanism that changes the asymptotics is a new persisted
+    `ownerPK -> reducedIndexPKs` reverse map on `ReferencedTypeEntityIndex`, maintained at the membership
+    boundaries in `ReferenceIndexMutator`. No existing in-memory structure supplies that direction: the
+    cardinality index runs referenced-entity -> index, `FacetIndex` is facet -> owner and conditional on
+    `isFaceted`, and `ValidEntityToReferenceMapping` is populated only after an `enrichEntity` fetch - the
+    per-owner storage read this method's own javadoc already rejects. The reverse map would trade a
+    permanent write-path and storage cost proportional to every owner-partition membership for a resolver
+    floor of ~1.5 ms instead of ~2.0 ms. Revisit only if the trigger's other ~31 ms is optimized away first,
+    since that is what makes this share negligible.
 
 - **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
   partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
