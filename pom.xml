@@ -122,6 +122,17 @@
 
 	<properties>
 		<java.version>21</java.version>
+		<!--
+			Language and API level javac enforces (its `release` flag), as opposed to `java.version`, which is the JDK
+			the build runs on and the toolchain it selects. The two agree everywhere except in the modules the
+			Java driver is built from: those set `java.release` to `${java.driver.release}` so that the driver
+			(`evita_java_driver`, `evita_java_driver_observability`, `evita_java_driver_all_in_one`) keeps
+			compiling against - and running on - JDK 17 while the server requires JDK 21. javac 21 with
+			`release` 17 rejects every JDK 18+ language feature and API in those modules, so a regression
+			fails the build instead of the consumer's classloader.
+		-->
+		<java.release>${java.version}</java.release>
+		<java.driver.release>17</java.driver.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.6.1</logback.version>
@@ -631,6 +642,45 @@
 		<pluginManagement>
 			<plugins>
 				<plugin>
+					<!--
+						Guards the Java driver's dependency graph at the JDK 17 floor that javac already
+						enforces for the driver's own sources (`java.release`). javac cannot see the bytecode
+						level of a dependency, so without this rule a dependency bump shipping JDK 18+ classes
+						would pass every build here and fail in the consumer's classloader. Referenced from the
+						two driver modules; test-scoped dependencies are ignored because they never reach a
+						consumer. Multi-release overlays (META-INF/versions/N) above the floor are legitimate
+						and the rule skips them.
+					-->
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<version>3.6.2</version>
+					<dependencies>
+						<dependency>
+							<groupId>org.codehaus.mojo</groupId>
+							<artifactId>extra-enforcer-rules</artifactId>
+							<version>1.12.0</version>
+						</dependency>
+					</dependencies>
+					<executions>
+						<execution>
+							<id>driver-dependencies-stay-at-driver-jdk</id>
+							<goals>
+								<goal>enforce</goal>
+							</goals>
+							<configuration>
+								<rules>
+									<enforceBytecodeVersion>
+										<maxJdkVersion>${java.driver.release}</maxJdkVersion>
+										<ignoredScopes>
+											<ignoredScope>test</ignoredScope>
+										</ignoredScopes>
+									</enforceBytecodeVersion>
+								</rules>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-shade-plugin</artifactId>
 					<version>3.6.2</version>
@@ -694,9 +744,9 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<release>${java.version}</release>
-					<source>${java.version}</source>
-					<target>${java.version}</target>
+					<release>${java.release}</release>
+					<source>${java.release}</source>
+					<target>${java.release}</target>
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>

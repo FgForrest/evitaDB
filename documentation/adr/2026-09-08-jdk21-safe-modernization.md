@@ -1,12 +1,12 @@
 ---
 title: JDK 21 modernization is adopted only where it is provably behaviour-preserving
 date: 2026-09-08
-updated: 2026-09-08 13:20
+updated: 2026-09-09 17:45
 status: accepted
 kind: refactor
 issues: [1518]
 prs: [1519]
-areas: [evita_common/dataType, evita_common/utils, evita_query/api/query/expression, evita_engine/core/expression, evita_engine/index/map, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_rest, evita_store/evita_store_server]
+areas: [pom.xml, evita_common/dataType, evita_common/utils, evita_query/api/query/expression, evita_engine/core/expression, evita_engine/index/map, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_grpc/client, evita_external_api/evita_external_api_rest, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
 relates: []
@@ -28,6 +28,10 @@ from the code. Without a record, each will be re-proposed.
 The pass also surfaced **three latent defects** that had nothing to do with JDK 21 syntax. Those are
 described in their own commits; only the one caused by the platform bump is discussed here.
 
+A day later the pass was **partially reverted**: the Java driver has to keep compiling and running on
+JDK 17, which pins the language and API level of every module it is built from. The decision, the
+modules it covers and what was taken back are in their own rows and paragraphs below.
+
 ### Previous state
 
 Multi-branch runtime type dispatch was written as `if / else if instanceof` chains throughout the
@@ -46,6 +50,8 @@ converters, visitors and serializers. Several already-`sealed` hierarchies carri
 | Size Kryo's collection factories with `HashMap.newHashMap` and friends | `(int) Math.ceil(count / .75f)` **is** the JDK's `calculateHashMapCapacity`; removes a duplicated copy of the load-factor rule |
 | Correct `MapHeapSize` to JDK 19+'s copy-constructor arithmetic | The platform bump silently invalidated the model — see *Key technical details* |
 | Seal the **`LocalMutation`** hierarchy, 16 leaves `final` | Approved as a second deliberate **breaking API change**. Closes `Entity#mutate`'s silent drop: 10 sealed types over 4 levels with **six** diamond members, nothing outside `evita_api` ever implemented it |
+| Keep the **Java driver on the JDK 17 language and API level** | `evita_java_driver`, `_observability` and `_all_in_one` are consumed by client applications that move JDKs on their own schedule. The six modules the driver is built from compile with javac's `release` 17 (`java.release` in the root POM), so the pass was taken back there: **14 pattern switches in 8 files, four `getFirst()` sites and one `threadId()`**. The two sealings and every binding pattern (JDK 16/17 syntax) stay |
+| Guard that floor **three ways**, each catching what the others cannot | javac's `release` 17 catches the driver's *own* sources; the enforcer's `enforceBytecodeVersion` rule (managed in the root POM, bound in `client` and `client_observability`) catches a *dependency* bump shipping JDK 18+ classes, which javac never sees; and the `driver-jdk17` CI job (`tools/verify-driver-on-jdk.sh`) runs the shaded driver on a real JDK 17 JVM against a JDK 21 server, which catches what no static check can — the Proxycian defect below was found exactly that way |
 
 ## Rejected outright
 
@@ -59,6 +65,10 @@ converters, visitors and serializers. Several already-`sealed` hierarchies carri
 | `getLast()` on the B+ tree cursor path | `Cursor#path` is declared `List<CursorLevel>`, so `getLast()` dispatches to `List`'s **default** method (`isEmpty()` + indexed get) rather than `ArrayList`'s override — an extra virtual call the current code does not make | The field is declared `ArrayList`, or the default is inlined away provably |
 | `getFirst()` where `size() == 1` is enforced | A **naming** objection, not a risk one: `get(0)` under an enforced single-element invariant denotes *the sole element*, and `getFirst()` implies an ordering the code does not rely on. Six sites (`FinderVisitor`, `Prices`, `ConstraintResolver`, …) | Never — the invariant is the point |
 | Sealing a hierarchy on an agent's own initiative | Changing extensibility is an API decision, not a modernization one. Two hierarchies were put to the maintainer and approved (`ObjectOperationStep`, `LocalMutation`); none was sealed without that | Case by case, with the maintainer — never unilaterally |
+| Require JDK 21 of driver consumers | The driver is the product's integration surface. A driver that silently needs a newer JVM fails in the consumer's classloader (`UnsupportedClassVersionError`), not in this build, and client applications upgrade on their own schedule | The driver's JDK floor is raised deliberately, as a release-note item |
+| Split `evita_common` / `evita_query` / `evita_api` into driver-safe and server-only halves so the server halves could modernize | The three modules are the shared data model and query language; the split is a wide refactor plus a module-boundary redesign, bought for a purely stylistic gain (pattern switches over `if` chains) | The server needs a JDK 18+ *API* in one of them that cannot live in `evita_engine` |
+| Compile the driver modules with a real JDK 17 toolchain instead of javac 21 with `release` 17 | Needs a second JDK on every developer machine and in CI. The `release` flag compiles against the JDK 17 API signatures (`ct.sym`), which is the same public-API guarantee, and it holds on a machine with only JDK 21 installed | A compiler-behaviour difference, not an API difference, is found to matter |
+| Multi-release driver jar carrying a JDK 21 overlay of the modernized classes | Two builds of the same modules and two copies of the same logic, for no runtime difference at all | Never — there is nothing to overlay |
 
 ## Key technical details
 
@@ -80,6 +90,39 @@ rejecting an unknown subtype — see `dec653b6f`'s message for the four.
 **A pattern `switch` throws NPE on `null` regardless of exhaustiveness**, where the `if/else` chain it
 replaces routed `null` to the trailing `else`. Every converted selector was checked; those that can
 be null carry an explicit `case null ->`.
+
+**Two properties, one number each.** `java.version` (21) is the JDK the build runs on and the toolchain
+it selects; `java.release` is what javac's `release` flag enforces and defaults to `java.version`. Six
+POMs pin `java.release` to `${java.driver.release}` (17): `evita_common`, `evita_query`, `evita_api`,
+`evita_external_api_grpc_shared`, `evita_java_driver` and `evita_java_driver_observability`
+(`evita_java_driver_all_in_one` has no sources; it shades the driver). Anything JDK 18+ in those modules
+fails the build — `cannot find symbol` or "not supported in -source 17" — on every machine, with no JDK 17
+installed. `ChangeCaptureConverter#toGrpcHostSystemEvent` had carried a comment saying exactly this; the
+pass removed it, which is how the constraint got lost.
+
+**The driver's dependencies are not guarded by javac.** A dependency bump that ships JDK 18+ bytecode
+would pass compilation and fail the consumer, so `maven-enforcer-plugin` with `extra-enforcer-rules`'
+`enforceBytecodeVersion` (`maxJdkVersion` = `${java.driver.release}`, test scope ignored) runs at
+`validate` in the two driver modules. It understands multi-release jars: the `META-INF/versions/21`
+overlay in `jackson-core` does not trip it, a base-level class above 61 does.
+
+**The CI smoke is the only check on a real JDK 17 JVM.** `tools/verify-driver-on-jdk.sh` starts
+`evita-server.jar` on one JDK, compiles `tools/driver-smoke/DriverSmoke.java` with the other JDK's
+`javac` against the shaded all-in-one jar alone, and runs it there; the smoke refuses to run on any
+feature version other than the expected one, so it cannot silently pass on the build JDK. The
+`driver-jdk17` job in `ci-dev.yml` and `pr-review.yml` runs it on the artifacts the build job uploads.
+`javac` 17 must be given `-encoding UTF-8` — UTF-8 became the default only in JDK 18.
+
+**The JDK 17 runtime probe found a fourth latent defect, unrelated to the JDK version.**
+`References.DUPLICATE_REFERENCE` — the identity marker for duplicate references, in a static
+initializer that runs on the first entity any client reads — was generated with Proxycian/Byte Buddy,
+while `proxycian_bytebuddy` is an *optional* dependency of `evita_api` (needed only by the
+custom-contract proxies). Neither the plain driver's transitive classpath nor the shaded all-in-one jar
+carries it, so every entity read failed with `NoClassDefFoundError` since `4874816d7` (2025-09-02); on
+the server the same initializer needed `--add-opens java.base/java.lang` for Byte Buddy's reflective
+class injection, which `run-server.sh` passes and the Docker entrypoint does not. The marker is only
+ever compared with `==`, so it is now a `java.lang.reflect.Proxy` — no dependency, no opens, identical
+identity and `toString` semantics. The reason is stated on `createThrowingStub`.
 
 **`ArrayList.getLast()` is cheaper than `get(size() - 1)`, not merely equal.** `javap` on this JDK
 shows the override compiles to `getfield size; isub 1; ifge; elementData(i)` and skips the
@@ -125,6 +168,35 @@ step 6.
 The sealing was proved the same way: deleting one `case` arm makes javac reject the switch with
 "the switch statement does not cover all possible input values".
 
+**The driver's JDK 17 floor (2026-09-09):**
+
+* The six pinned modules compile with `javac [forked debug release 17 module-path]` — 2,192 source
+  files — and every emitted class is major version 61 (spot-checked `ReflectionLookup`, `Entity`,
+  `EvitaClient` and the `shared` module's `module-info`; a JDK 21 module emits 65 for contrast).
+  The full reactor (`mvn -T1C clean install -DskipTests`, 30 modules) then built green.
+* A class-file scan of `evita_java_driver_all_in_one` (3,956 evitaDB classes at 17, 16,302 shaded
+  third-party classes at Java 5–8) and of all 80 jars on the plain driver's runtime classpath found no
+  base-level class above 61; the only newer bytecode sits in multi-release overlays
+  (`META-INF/versions/9` through `24`), of which a JDK 17 runtime loads nothing beyond 17.
+* A throwaway probe compiled with **javac 17.0.20** and run on **OpenJDK 17.0.20** against a server on
+  OpenJDK 21.0.12 created a catalog, defined a schema, upserted two entities, went live, read one back by
+  primary key and one by an attribute query, and dropped the catalog — on the plain driver classpath and
+  on the shaded jar. The same probe on JDK 21 passes as well.
+* The probe is also what proved the Proxycian defect: before the `References` fix it failed on JDK 17
+  **and** JDK 21 with `ClassNotFoundException: one.edee.oss.proxycian.DispatcherInvocationHandler`
+  from `EntityConverter#toEntity`, on both classpaths. After the fix the server side runs from a plain
+  `java -jar evita-server.jar` with no `--add-opens` and no agent. Regression check: the nine
+  duplicate-reference builder/structure test classes (297 tests, 0 failures) and
+  `EvitaClientReadOnlyTest` + `EvitaClientReadWriteTest` + `EntityByDuplicateReferencesFunctionalTest`
+  (180 tests, 0 failures, 1 skipped) pass against the installed `evita_api`.
+* **Enforcer, proved by counterfactual:** `mvn validate` on `client` and `client_observability` passes
+  at the 17 floor; with `-Djava.driver.release=8` it fails naming exactly the four evitaDB jars
+  (`evita_common`, `evita_query`, `evita_api`, `evita_external_api_grpc_shared`) — which also shows every
+  third-party jar in compile and runtime scope is Java 8 bytecode or older.
+* **Smoke script, proved by counterfactual:** `tools/verify-driver-on-jdk.sh` with a JDK 17 client and a
+  JDK 21 server prints `SMOKE OK on Java 17` and leaves no server behind; run with a JDK 21 client while
+  expecting 17 it fails with "expected to run on Java 17 but this JVM is Java 21".
+
 ## Consequences & open follow-ups
 
 * **`Entity#mutate`'s silent drop is FIXED** by the sealing above, with a trailing throw rather than
@@ -140,9 +212,16 @@ The sealing was proved the same way: deleting one `case` arm makes javac reject 
   space-indented**, against `.claude/rules/code-style.md`. A whitespace-only fix, deliberately not
   mixed into a semantic diff.
 * **91 binding-pattern sites remain**, a bounded low-risk remainder, mostly in the hot zones.
-* **`QueryConverter` (59 arms) and `EvitaDataTypesConverter` (51 arms)** are genuine low-risk pattern
-  switch candidates deferred only because converting both is ~800 lines of mechanical diff. Good
-  standalone follow-ups, one file per commit.
+* **`QueryConverter` (59 arms) and `EvitaDataTypesConverter` (51 arms)** were low-risk pattern switch
+  candidates, but both live in the gRPC `shared` module, which the driver is built from and which
+  therefore stays at JDK 17. **Not candidates** until the driver's JDK floor moves.
+* **Driver-reachable modules cannot use JDK 18+ language features or APIs.** The build enforces it;
+  the module list and the reason are in the `java.release` comment of the root POM. A modernization
+  pass over `evita_common`, `evita_query`, `evita_api` or the gRPC `shared` module is limited to what
+  JDK 17 offers — binding patterns, sealed types, records, text blocks.
+* **The Docker entrypoint passes no `--add-opens` flags** while `run-server.sh` does. The `References`
+  fix removed the one initializer known to need them for a plain entity read; whether anything else
+  still does (custom-contract proxies, Kryo) has not been checked.
 * **`new URL(...)` — 5 sites, 2 in production** (`ClientCertificateManager`), deprecated since JDK 20.
   Declined: `URI.create(...).toURL()` swaps a declared `IOException` for an unchecked
   `IllegalArgumentException` and parses more strictly — a behaviour change, not a rename.
@@ -184,3 +263,6 @@ trap in `ProgressingFutureTest.tearDown()`).
 ## Timeline
 
 * **2026-09-08** — modernization pass executed as seven steps; record accepted.
+* **2026-09-09** — driver-reachable modules pinned to the JDK 17 language level; the pass reverted in
+  eight files; `References.DUPLICATE_REFERENCE` moved off Proxycian; enforcer bytecode rule and the
+  `driver-jdk17` CI smoke added; record updated.

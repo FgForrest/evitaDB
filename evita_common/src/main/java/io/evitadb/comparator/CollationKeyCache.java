@@ -260,7 +260,7 @@ public final class CollationKeyCache implements Serializable {
 		}
 		// borrow a collator from the stripe keyed by the current thread (exclusive via exchange);
 		// an empty stripe - first use or a concurrent borrower - just creates a fresh instance
-		final int stripe = (int) Thread.currentThread().threadId() & (COLLATOR_STRIPES - 1);
+		final int stripe = (int) Thread.currentThread().getId() & (COLLATOR_STRIPES - 1);
 		Collator collator = this.collators.getAndSet(stripe, null);
 		if (collator == null) {
 			// Collator.getInstance returns a fresh clone per call, safe to use exclusively

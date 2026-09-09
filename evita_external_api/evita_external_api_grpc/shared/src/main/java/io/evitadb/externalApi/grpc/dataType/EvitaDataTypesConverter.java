@@ -383,32 +383,30 @@ public class EvitaDataTypesConverter {
 	 *
 	 * @param dataItem the DataItem to be converted; must not be null
 	 * @return the converted GrpcDataItem instance
+	 * @throws EvitaInvalidUsageException if the dataItem is of an unsupported type
 	 */
 	@Nonnull
 	public static GrpcDataItem toGrpcDataItem(@Nonnull DataItem dataItem) {
 		final GrpcDataItem.Builder builder = GrpcDataItem.newBuilder();
-		// the switch needs no `default` branch - `DataItem` is sealed and all three permitted
-		// implementations are covered, so javac proves the dispatch exhaustive
-		switch (dataItem) {
-			case DataItemValue div -> builder.setPrimitiveValue(toGrpcEvitaValue(div.value()));
-			case DataItemArray dia -> {
-				final GrpcDataItemArray.Builder arrayBuilder = GrpcDataItemArray.newBuilder();
-				for (DataItem child : dia.children()) {
-					arrayBuilder.addChildren(toGrpcDataItem(child));
-				}
-				builder.setArrayValue(arrayBuilder.build());
+		if (dataItem instanceof DataItemValue div) {
+			builder.setPrimitiveValue(toGrpcEvitaValue(div.value()));
+		} else if (dataItem instanceof DataItemArray dia) {
+			final GrpcDataItemArray.Builder arrayBuilder = GrpcDataItemArray.newBuilder();
+			for (DataItem child : dia.children()) {
+				arrayBuilder.addChildren(toGrpcDataItem(child));
 			}
-			case DataItemMap dim -> {
-				final io.evitadb.externalApi.grpc.generated.DataItemMap.Builder mapBuilder =
-					io.evitadb.externalApi.grpc.generated.DataItemMap.newBuilder();
-				for (String propertyName : dim.getPropertyNames()) {
-					final DataItem property = dim.getProperty(propertyName);
-					if (property != null) {
-						mapBuilder.putData(propertyName, toGrpcDataItem(property));
-					}
+			builder.setArrayValue(arrayBuilder.build());
+		} else if (dataItem instanceof DataItemMap dim) {
+			final io.evitadb.externalApi.grpc.generated.DataItemMap.Builder mapBuilder = io.evitadb.externalApi.grpc.generated.DataItemMap.newBuilder();
+			for (String propertyName : dim.getPropertyNames()) {
+				final DataItem property = dim.getProperty(propertyName);
+				if (property != null) {
+					mapBuilder.putData(propertyName, toGrpcDataItem(property));
 				}
-				builder.setMapValue(mapBuilder.build());
 			}
+			builder.setMapValue(mapBuilder.build());
+		} else {
+			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API '" + dataItem.getClass().getName() + "'.");
 		}
 		return builder.build();
 	}

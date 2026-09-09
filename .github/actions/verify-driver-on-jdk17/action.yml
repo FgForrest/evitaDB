@@ -1,0 +1,46 @@
+# Composite action that proves the Java driver still runs on the oldest JDK it supports (17)
+# against a server running on the JDK the server itself requires (21). Used by the dev and PR
+# pipelines after their build job has uploaded `evita-server.jar` and the shaded all-in-one driver
+# as artifacts; the work itself is tools/verify-driver-on-jdk.sh, which also runs locally.
+
+name: 'Verify Java driver on JDK 17'
+description: 'Starts evita-server.jar on JDK 21, compiles and runs the driver smoke on JDK 17 against the shaded driver'
+inputs:
+  server-artifact:
+    description: 'Name of the uploaded artifact holding evita-server.jar'
+    default: 'evita-server.jar'
+  driver-artifact:
+    description: 'Name of the uploaded artifact holding the shaded evita_java_driver_all_in_one jar'
+    default: 'evita_java_driver_all_in_one.jar'
+runs:
+  using: 'composite'
+  steps:
+    - name: Download evitaDB server
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ inputs.server-artifact }}
+        path: driver-smoke/server
+
+    - name: Download shaded Java driver
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ inputs.driver-artifact }}
+        path: driver-smoke/driver
+
+    - name: Setup JDK 17 (client) and JDK 21 (server)   # setup-java exports JAVA_HOME_<major>_X64 per version
+      uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+      with:
+        distribution: 'temurin'
+        java-version: |
+          17
+          21
+
+    - name: Run the driver smoke on JDK 17
+      shell: bash
+      run: |
+        tools/verify-driver-on-jdk.sh \
+          --server-jar "$(ls driver-smoke/server/*.jar)" \
+          --driver-jar "$(ls driver-smoke/driver/*.jar)" \
+          --client-java-home "$JAVA_HOME_17_X64" \
+          --server-java-home "$JAVA_HOME_21_X64" \
+          --expect-java 17

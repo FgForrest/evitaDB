@@ -92,21 +92,21 @@ public class ArrayMethodAccessor implements ObjectMethodAccessor {
 		@Nonnull List<ExpressionNode> args
 	) {
 		validateRequiredNumberOfArgs("size", args, 0);
-		return switch (object) {
-			case Object[] a -> a.length;
-			case boolean[] a -> a.length;
-			case byte[] a -> a.length;
-			case char[] a -> a.length;
-			case double[] a -> a.length;
-			case float[] a -> a.length;
-			case short[] a -> a.length;
-			case int[] a -> a.length;
-			case long[] a -> a.length;
-			default -> throw new ExpressionEvaluationException(
+		if (object instanceof Object[] a) return a.length;
+		else if (object instanceof boolean[] a) return a.length;
+		else if (object instanceof byte[] a) return a.length;
+		else if (object instanceof char[] a) return a.length;
+		else if (object instanceof double[] a) return a.length;
+		else if (object instanceof float[] a) return a.length;
+		else if (object instanceof short[] a) return a.length;
+		else if (object instanceof int[] a) return a.length;
+		else if (object instanceof long[] a) return a.length;
+		else {
+			throw new ExpressionEvaluationException(
 				"Cannot invoke method `size` on object of type `" + object.getClass().getName() + "`. Expected array.",
 				"Cannot invoke method `size`. Expected array."
 			);
-		};
+		}
 	}
 
 	/**
@@ -130,80 +130,71 @@ public class ArrayMethodAccessor implements ObjectMethodAccessor {
 		validateRequiredNumberOfArgs(methodName, args, 1);
 		final ExpressionNode predicate = args.get(0);
 
-		switch (object) {
-			case Object[] array -> {
-				for (final Object element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		if (object instanceof Object[] array) {
+			for (final Object element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case boolean[] array -> {
-				for (final boolean element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof boolean[] array) {
+			for (final boolean element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case byte[] array -> {
-				for (final byte element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof byte[] array) {
+			for (final byte element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case char[] array -> {
-				for (final char element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof char[] array) {
+			for (final char element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case double[] array -> {
-				for (final double element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof double[] array) {
+			for (final double element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case float[] array -> {
-				for (final float element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof float[] array) {
+			for (final float element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case short[] array -> {
-				for (final short element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof short[] array) {
+			for (final short element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case int[] array -> {
-				for (final int element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof int[] array) {
+			for (final int element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			case long[] array -> {
-				for (final long element : array) {
-					final boolean result = computePredicateArgument(context, element, predicate);
-					if (mode == MatchMode.ANY && result) return true;
-					if (mode == MatchMode.ALL && !result) return false;
-					if (mode == MatchMode.NONE && result) return false;
-				}
+		} else if (object instanceof long[] array) {
+			for (final long element : array) {
+				final boolean result = computePredicateArgument(context, element, predicate);
+				if (mode == MatchMode.ANY && result) return true;
+				if (mode == MatchMode.ALL && !result) return false;
+				if (mode == MatchMode.NONE && result) return false;
 			}
-			default -> throw new ExpressionEvaluationException(
+		} else {
+			throw new ExpressionEvaluationException(
 				"Cannot invoke method `" + methodName + "` on object of type `" + object.getClass().getName() + "`. Expected array.",
 				"Cannot invoke method `" + methodName + "`. Expected array."
 			);

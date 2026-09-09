@@ -157,6 +157,14 @@ git config --system core.longpaths true
 
 evitaDB requires and is tested on OpenJDK 21.
 
+The Java driver is the exception: `evita_java_driver`, `evita_java_driver_observability` and
+`evita_java_driver_all_in_one` are compiled against the JDK 17 language and API level and run on JDK 17 or
+newer, so a client application does not have to move to JDK 21 together with the server. The modules the
+driver is built from (`evita_common`, `evita_query`, `evita_api` and the gRPC `shared` module) therefore
+stay at that level too - see the `java.release` property in the root `pom.xml`. The build enforces the floor for
+the driver's dependencies as well, and CI runs the shaded driver on a real JDK 17 against a JDK 21 server on every
+push and pull request; the same check runs locally with `tools/verify-driver-on-jdk.sh`.
+
 Java applications support multiple platforms depending on the
 [JRE/JDK vendor](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). All major hardware
 architectures (x86_64, ARM64) and operating systems (Linux, MacOS, Windows) are supported. Due to the size of our
@@ -240,11 +248,12 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_external_api_core**: shared logic for all web APIs, Armeria HTTP server integration, and common utilities
   - **evita_external_api_graphql**: GraphQL API implementation
   - **evita_external_api_grpc**: gRPC API implementation
-    - **shared**: shared classes between gRPC server and Java client (generated gRPC stubs)
+    - **shared**: shared classes between gRPC server and Java client (generated gRPC stubs), JDK 17 level
     - **server**: gRPC server implementation
-    - **client**: Java driver for client/server usage scenario
-    - **client_observability**: Java driver observability capabilities (OpenTelemetry integration)
-    - **client_all_in_one**: Java driver with all dependencies shaded to avoid conflicts (larger JAR due to gRPC and Armeria dependencies)
+    - **client**: Java driver for client/server usage scenario, runs on JDK 17+
+    - **client_observability**: Java driver observability capabilities (OpenTelemetry integration), runs on JDK 17+
+    - **client_all_in_one**: Java driver with all dependencies shaded to avoid conflicts (larger JAR due to gRPC
+      and Armeria dependencies), runs on JDK 17+
   - **evita_external_api_rest**: REST API implementation with OpenAPI/Swagger support
   - **evita_external_api_system**: System API for server management and monitoring
   - **evita_external_api_lab**: evitaLab GUI client server support

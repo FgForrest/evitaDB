@@ -406,13 +406,17 @@ public class ChangeCaptureConverter {
 				EvitaEnumConverter.toGrpcOperation(
 					capture.operation()));
 		final SystemCaptureBody body = capture.body();
-		switch (body) {
-			case EngineMutation<?> engineMutation -> builder.setSystemMutation(
+		if (body instanceof final EngineMutation<?> engineMutation) {
+			builder.setSystemMutation(
 				DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation)
 			);
-			case HostSystemEvent hostEvent -> builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
-			// HEADER content mode carries no body at all - the oneof is deliberately left unset
-			case null -> { }
+		} else if (body instanceof final HostSystemEvent hostEvent) {
+			builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
+		} else if (body != null) {
+			// HEADER content mode carries no body at all - a null body deliberately leaves the oneof unset
+			throw new GenericEvitaInternalError(
+				"Unsupported SystemCaptureBody type: " + body.getClass().getName()
+			);
 		}
 		return builder.build();
 	}
@@ -594,9 +598,9 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts a {@link HostSystemEvent} to a {@link GrpcHostSystemEvent}.
 	 *
-	 * Pattern-switches over the sealed variant set; the switch carries no `default` branch
-	 * because the compiler proves it exhaustive, so a new permitted variant breaks the build
-	 * here instead of throwing at runtime.
+	 * Dispatches over the sealed variant set with an `instanceof` chain; defensively rejects any
+	 * unknown subtype with a {@link GenericEvitaInternalError} (the sealed contract makes this
+	 * unreachable, but the defensive-design rule applies anyway).
 	 *
 	 * @param event the host event to convert
 	 * @return the converted gRPC representation
@@ -604,26 +608,35 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static GrpcHostSystemEvent toGrpcHostSystemEvent(@Nonnull HostSystemEvent event) {
 		final GrpcHostSystemEvent.Builder builder = GrpcHostSystemEvent.newBuilder();
-		switch (event) {
-			case HostSystemEvent.CatalogInstalledIntoLiveView installed -> builder.setCatalogInstalled(
+		// a pattern-matching switch over the sealed variants is a Java 21 feature, and this module is
+		// reachable from the Java driver, which stays at the JDK 17 language level (`java.release` in
+		// the root POM) - hence the `instanceof` chain with a defensive tail
+		if (event instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
+			builder.setCatalogInstalled(
 				GrpcCatalogInstalledIntoLiveView.newBuilder()
 					.setCatalogName(installed.catalogName())
 					.setObservedState(EvitaEnumConverter.toGrpcCatalogState(installed.observedState()))
 					.setCurrentEngineVersion(installed.currentEngineVersion())
 					.build()
 			);
-			case HostSystemEvent.CatalogRemovedFromLiveView removed -> builder.setCatalogRemoved(
+		} else if (event instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
+			builder.setCatalogRemoved(
 				GrpcCatalogRemovedFromLiveView.newBuilder()
 					.setCatalogName(removed.catalogName())
 					.setCurrentEngineVersion(removed.currentEngineVersion())
 					.build()
 			);
-			case HostSystemEvent.CatalogSchemaUpdated schemaUpdated -> builder.setCatalogSchemaUpdated(
+		} else if (event instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+			builder.setCatalogSchemaUpdated(
 				GrpcCatalogSchemaUpdated.newBuilder()
 					.setCatalogName(schemaUpdated.catalogName())
 					.setNewSchemaVersion(schemaUpdated.newSchemaVersion())
 					.setCurrentEngineVersion(schemaUpdated.currentEngineVersion())
 					.build()
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported HostSystemEvent type: " + event.getClass().getName()
 			);
 		}
 		return builder.build();

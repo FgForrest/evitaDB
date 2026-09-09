@@ -14,6 +14,8 @@ on:
       - jacoco/**/pom.xml
       - docker/**
       - .github/**
+      - tools/verify-driver-on-jdk.sh
+      - tools/driver-smoke/**
 
 permissions:
   contents: write
@@ -109,6 +111,17 @@ jobs:
         path: 'evita_server/target/evita-server.jar'
         retention-days: 14
 
+    - name: Upload shaded Java driver artifact   # consumed by the `driver-jdk17` job below
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: success()
+      with:
+        name: evita_java_driver_all_in_one.jar
+        path: |
+          evita_external_api/evita_external_api_grpc/client_all_in_one/target/evita_java_driver_all_in_one-*.jar
+          !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-sources.jar
+          !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-javadoc.jar
+        retention-days: 3
+
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
@@ -130,3 +143,16 @@ jobs:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+  driver-jdk17:                    # the Java driver must keep running on JDK 17 while the server needs 21
+    runs-on: ubuntu-latest         # (README "Prerequisites"); javac's `release 17` guards the sources and the
+    needs: build                   # enforcer guards dependency bytecode, this is the one check on a real 17 JVM
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Verify the Java driver on JDK 17 against a JDK 21 server
+      uses: ./.github/actions/verify-driver-on-jdk17

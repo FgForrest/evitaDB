@@ -1441,60 +1441,74 @@ public class EvitaDataTypes {
 	public static String formatValue(
 		@Nullable Serializable value
 	) {
-		return switch (value) {
-			case String stringValue -> CHAR_STRING_DELIMITER
+		if (value instanceof String stringValue) {
+			return CHAR_STRING_DELIMITER
 				+ STRING_DELIMITER_PATTERN.matcher(stringValue).replaceAll("\\\\'")
 				+ STRING_DELIMITER;
-			case Character characterValue -> CHAR_STRING_DELIMITER
+		} else if (value instanceof Character characterValue) {
+			return CHAR_STRING_DELIMITER
 				+ STRING_DELIMITER_PATTERN.matcher(characterValue.toString()).replaceAll("\\\\'")
 				+ STRING_DELIMITER;
+		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalizations were taken from
 			// https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto
 			// docs from Google.
 			// All other validation parts are done
 			// automatically by Java's BigDecimal
-			case BigDecimal bigDecimalValue -> bigDecimalValue.toString()
+			return bigDecimalValue.toString()
 				.replace("E", "e")
 				.replace("e+", "e");
-			case Number numberValue -> numberValue.toString();
-			case Boolean booleanValue -> booleanValue.toString();
-			case Range<?> rangeValue -> rangeValue.toString();
-			case OffsetDateTime offsetDateTime -> DateTimeFormatter
+		} else if (value instanceof Number numberValue) {
+			return numberValue.toString();
+		} else if (value instanceof Boolean booleanValue) {
+			return booleanValue.toString();
+		} else if (value instanceof Range<?> rangeValue) {
+			return rangeValue.toString();
+		} else if (value instanceof OffsetDateTime offsetDateTime) {
+			return DateTimeFormatter
 				.ISO_OFFSET_DATE_TIME
 				.format(offsetDateTime.truncatedTo(ChronoUnit.MILLIS));
-			case LocalDateTime localDateTime -> DateTimeFormatter
+		} else if (value instanceof LocalDateTime localDateTime) {
+			return DateTimeFormatter
 				.ISO_LOCAL_DATE_TIME
 				.format(localDateTime.truncatedTo(ChronoUnit.MILLIS));
-			case LocalDate localDate -> DateTimeFormatter.ISO_LOCAL_DATE.format(localDate);
-			case LocalTime localTime -> DateTimeFormatter.ISO_LOCAL_TIME
+		} else if (value instanceof LocalDate localDate) {
+			return DateTimeFormatter.ISO_LOCAL_DATE.format(localDate);
+		} else if (value instanceof LocalTime localTime) {
+			return DateTimeFormatter.ISO_LOCAL_TIME
 				.format(localTime.truncatedTo(ChronoUnit.MILLIS));
-			case Locale localeValue -> CHAR_STRING_DELIMITER
+		} else if (value instanceof Locale localeValue) {
+			return CHAR_STRING_DELIMITER
 				+ localeValue.toLanguageTag()
 				+ CHAR_STRING_DELIMITER;
-			case Currency currencyValue -> CHAR_STRING_DELIMITER
+		} else if (value instanceof Currency currencyValue) {
+			return CHAR_STRING_DELIMITER
 				+ currencyValue.toString()
 				+ CHAR_STRING_DELIMITER;
-			case Enum<?> enumValue -> enumValue.toString();
-			case UUID uuidValue -> CHAR_STRING_DELIMITER
+		} else if (value instanceof Enum<?> enumValue) {
+			return enumValue.toString();
+		} else if (value instanceof UUID uuidValue) {
+			return CHAR_STRING_DELIMITER
 				+ uuidValue.toString()
 				+ CHAR_STRING_DELIMITER;
-			case Predecessor predecessor -> predecessor.toString();
-			case ReferencedEntityPredecessor referencedEntityPredecessor -> referencedEntityPredecessor.toString();
-			case ExpressionNode expressionNode -> expressionNode.toString();
-			case null -> throw new GenericEvitaInternalError(
+		} else if (value instanceof Predecessor predecessor) {
+			return predecessor.toString();
+		} else if (value instanceof ReferencedEntityPredecessor referencedEntityPredecessor) {
+			return referencedEntityPredecessor.toString();
+		} else if (value instanceof ExpressionNode expressionNode) {
+			return expressionNode.toString();
+		} else if (value == null) {
+			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in "
 					+ "constructor of the class!"
 			);
-			default -> {
-				if (value.getClass().isAnnotationPresent(SupportedClass.class)) {
-					yield value.toString();
-				}
-				throw new UnsupportedDataTypeException(
-					value.getClass(),
-					EvitaDataTypes.getSupportedDataTypes()
-				);
-			}
-		};
+		} else if (value.getClass().isAnnotationPresent(SupportedClass.class)) {
+			return value.toString();
+		}
+		throw new UnsupportedDataTypeException(
+			value.getClass(),
+			EvitaDataTypes.getSupportedDataTypes()
+		);
 	}
 
 	/**

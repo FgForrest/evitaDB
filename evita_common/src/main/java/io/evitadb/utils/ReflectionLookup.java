@@ -858,7 +858,7 @@ public class ReflectionLookup {
 	@Nullable
 	public <T extends Annotation> T getClassAnnotation(@Nonnull Class<?> type, @Nonnull Class<T> annotationType) {
 		final List<T> result = getClassAnnotations(type, annotationType);
-		return result.isEmpty() ? null : result.getFirst();
+		return result.isEmpty() ? null : result.get(0);
 	}
 
 	/**
@@ -1191,7 +1191,7 @@ public class ReflectionLookup {
 			if (annotations == null || annotations.isEmpty()) {
 				return null;
 			} else {
-				return annotations.getFirst();
+				return annotations.get(0);
 			}
 		}
 	}
@@ -1329,7 +1329,7 @@ public class ReflectionLookup {
 		if (constructorsByBestFit.isEmpty()) {
 			return simplePropertiesWithSetter.collect(Collectors.toList());
 		} else {
-			final WeightedConstructorKey bestConstructor = constructorsByBestFit.getFirst();
+			final WeightedConstructorKey bestConstructor = constructorsByBestFit.get(0);
 			final long bestFitWeight = bestConstructor.weight();
 			if (bestFitWeight > 0) {
 				final List<Method> gettersCombined = getGettersForSettersAndBestConstructor(

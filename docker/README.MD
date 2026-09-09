@@ -24,6 +24,10 @@ docker run -i --rm --net=host \
       index.docker.io/evitadb/evitadb:latest
 ```
 
+## Java version
+The image is based on `azul/zulu-openjdk:21` - the evitaDB server requires Java 21. Client applications that
+connect to it through the Java driver (`evita_java_driver`) only need Java 17 or newer.
+
 ## Environment variables
 - **EVITA_CONFIG_FILE** - Path to configuration file. Default: `/evita/conf/evita-configuration.yaml`
 - **EVITA_STRICT_CONFIG_FILE_CHECK** - Optional flag that may set configuration file validations to strict. Default: `false`

@@ -41,6 +41,12 @@ implementation 'io.evitadb:evita_java_driver:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
+<Note type="info">
+The driver is compiled for Java 17 and runs on Java 17 or newer; the same holds for the
+`evita_java_driver_all_in_one` artifact that bundles all of its dependencies. The evitaDB server itself
+requires Java 21, but the client application does not have to run on the server's Java version.
+</Note>
+
 Java remote client builds on top of the [gRPC API](./grpc.md). The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 is thread safe and only single instance of it is expected to be used in the application. The client internally manages
 a pool of gRPC connections to handle parallel communication with the server.

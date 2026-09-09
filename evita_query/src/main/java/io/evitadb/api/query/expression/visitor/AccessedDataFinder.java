@@ -35,6 +35,7 @@ import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.dataType.expression.UnaryExpressionNode;
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -91,36 +92,38 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 
 	@Override
 	public void visit(@Nonnull ExpressionNode node) {
-		switch (node) {
-			case ObjectAccessOperator objectAccessOperator -> visit(objectAccessOperator);
-			case ConstantOperand constantOperand -> visit(constantOperand);
-			case VariableOperand variableOperand -> visit(variableOperand);
-			case UnaryExpressionNode unary -> unary.getOperand().accept(this);
-			default -> {
-				// traverse children to find potential nested accessed data
-				final ExpressionNode[] children = node.getChildren();
-				if (children == null || children.length == 0) {
-					return;
-				}
-
-				// save the current path to revert to after visiting children
-				final List<PathItem> parentPath = this.currentPath;
-
-				// traverse children and generate possible multiple paths
-				for (ExpressionNode child : children) {
-					if (parentPath == null) {
-						child.accept(this);
-					} else {
-						final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
-						this.currentPath = childPath;
-						child.accept(this);
-						this.accessedPaths.add(childPath);
-					}
-				}
-
-				// revert to the parent path so that the parent can continue where they left off
-				this.currentPath = parentPath;
+		if (node instanceof ObjectAccessOperator objectAccessOperator) {
+			visit(objectAccessOperator);
+		} else if (node instanceof ConstantOperand constantOperand) {
+			visit(constantOperand);
+		} else if (node instanceof VariableOperand variableOperand) {
+			visit(variableOperand);
+		} else if (node instanceof UnaryExpressionNode unary) {
+			unary.getOperand().accept(this);
+		} else {
+			// traverse children to find potential nested accessed data
+			final ExpressionNode[] children = node.getChildren();
+			if (children == null || children.length == 0) {
+				return;
 			}
+
+			// save the current path to revert to after visiting children
+			final List<PathItem> parentPath = this.currentPath;
+
+			// traverse children and generate possible multiple paths
+			for (ExpressionNode child : children) {
+				if (parentPath == null) {
+					child.accept(this);
+				} else {
+					final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
+					this.currentPath = childPath;
+					child.accept(this);
+					this.accessedPaths.add(childPath);
+				}
+			}
+
+			// revert to the parent path so that the parent can continue where they left off
+			this.currentPath = parentPath;
 		}
 	}
 
@@ -143,34 +146,31 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		// add steps path
 		ObjectOperationStep step = objectAccessOperator.getAccessChain();
 		do {
-			// the switch needs no `default` branch - `ObjectOperationStep` is sealed and all five
-			// permitted implementations are covered, so javac proves the dispatch exhaustive
-			switch (step) {
-				case PropertyAccessStep propertyAccessStep ->
-					path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
-				case ElementAccessStep elementAccessStep -> {
-					final ExpressionNode identifierOperand = elementAccessStep.getElementIdentifierOperand();
-					if (identifierOperand instanceof ConstantOperand constantOperand) {
-						// constants are only meaningful for path building as element access keys
-						// (e.g., references['brand']). In other contexts (comparison operands, method
-						// arguments), constants do not contribute to data access paths.
-						final Serializable value = constantOperand.getValue();
-						path.add(new ElementPathItem(value != null ? value.toString() : "null"));
-					} else {
-						// dynamic element access (e.g. variable or complex expression)
-						identifierOperand.accept(this);
-					}
+			if (step instanceof PropertyAccessStep propertyAccessStep) {
+				path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
+			} else if (step instanceof ElementAccessStep elementAccessStep) {
+				final ExpressionNode identifierOperand = elementAccessStep.getElementIdentifierOperand();
+				if (identifierOperand instanceof ConstantOperand constantOperand) {
+					// constants are only meaningful for path building as element access keys
+					// (e.g., references['brand']). In other contexts (comparison operands, method
+					// arguments), constants do not contribute to data access paths.
+					final Serializable value = constantOperand.getValue();
+					path.add(new ElementPathItem(value != null ? value.toString() : "null"));
+				} else {
+					// dynamic element access (e.g. variable or complex expression)
+					identifierOperand.accept(this);
 				}
-				case SpreadAccessStep spreadAccessStep -> spreadAccessStep.getMappingExpression().accept(this);
-				case MethodInvocationStep methodInvocationStep -> {
-					for (final ExpressionNode argumentOperand : methodInvocationStep.getArgumentOperands()) {
-						argumentOperand.accept(this);
-					}
+			} else if (step instanceof SpreadAccessStep spreadAccessStep) {
+				spreadAccessStep.getMappingExpression().accept(this);
+			} else if (step instanceof MethodInvocationStep methodInvocationStep) {
+				for (final ExpressionNode argumentOperand : methodInvocationStep.getArgumentOperands()) {
+					argumentOperand.accept(this);
 				}
+			} else if (step instanceof NullSafeAccessStep) {
 				// a null-safe marker contributes nothing to the path - move on to the next step
-				case NullSafeAccessStep ignored -> {
-					continue;
-				}
+				continue;
+			} else {
+				throw new GenericEvitaInternalError("Unsupported step `" + step.getClass().getName() + "`.");
 			}
 		} while ((step = step.getNext()) != null);
 
