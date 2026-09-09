@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-09-08 22:20
+updated: 2026-09-09 05:10
 status: accepted
 kind: feature
 issues: [8]
@@ -223,6 +223,32 @@ not a parallel mechanism.
 
 ## Consequences & open follow-ups
 
+- **Third post-ship bug, fixed 2026-09-09: the cross-entity path skipped the mutated reference's own
+  *group* partitions.** Found by an adversarial review of the #2933 fix, not in production. A reference
+  owns up to two independent families of reduced indexes, and which exist is decided by its
+  `indexedComponents` alone, never by whether it happens to be grouped: the entity-side family is keyed by
+  the referenced entity (`REFERENCED_ENTITY_TYPE` -> `ReducedEntityIndex`), the group-side one by the group
+  (`REFERENCED_GROUP_ENTITY_TYPE` -> `ReducedGroupEntityIndex`). One group spans many referenced entities,
+  so neither family substitutes for the other. `ReevaluateExpressionExecutor#processFacetTrigger` resolved
+  the entity-side family unconditionally and the group-side one never, so a grouped, partitioned
+  `facetedPartially` reference kept permanently stale group partitions in **both** directions - a facet
+  turned on never arrived (false negative), one turned off never left (false positive) - and a query
+  filtering through `groupHaving` reads exactly those partitions. Latent since PR #1136; the #2933 fan-out
+  passed over it because that fan-out deliberately excludes the mutated reference, on the assumption that
+  its own partitions were already covered. Both families are now resolved and keyed separately.
+  - **Asking for a family the schema does not index was itself a second failure.** The old resolution
+    demanded the `REFERENCED_ENTITY_TYPE` index whenever the reference was partitioned, so a schema
+    indexing only `REFERENCED_GROUP_ENTITY` aborted the whole re-evaluation with
+    `Expected ReferencedTypeEntityIndex ... but got null`. Resolution is now gated on
+    `ReferenceIndexMutator.isIndexedForEntityComponent` / `isIndexedForGroupComponent`.
+  - **Absent group index vs. corrupted linkage.** A reference may index the group component and still have
+    no group type index, because no owner ever assigned a group - legitimate, and `null`. But an entry that
+    *does* carry a group and finds no index is corruption, and is rejected at the point of use rather than
+    skipped. Verified by `ConditionalFacetGroupPartitionGapTest` (6 tests, `WARMING_UP` + `ALIVE`): 4 fail
+    before the fix - two false negatives on the add direction, two stale-`true` false positives on the
+    remove direction - and the unconditional-facet control passes throughout, proving the synchronous path
+    always reached the group partition and only the deferred one did not.
+
 - **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
   partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
   projects. A reduced index built for a `FOR_FILTERING_AND_PARTITIONING` reference holds the facets of
@@ -348,3 +374,6 @@ not a parallel mechanism.
 - **2026-07-31** — planning documents retired, replaced by this record
 - **2026-09-08** — second post-ship fix: conditional facets now reach the owner's sibling reduced
   indexes (edee/eshop#2933); benchmark harness taught to replicate `facetedPartially`
+- **2026-09-09** — third post-ship fix: the cross-entity path now writes the mutated reference's own
+  group partitions as well as its entity partitions (#1522), found by adversarial review of the previous
+  fix

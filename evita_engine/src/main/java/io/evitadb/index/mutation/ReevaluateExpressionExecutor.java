@@ -346,17 +346,35 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		// Reduced indexes only exist when the reference uses FOR_FILTERING_AND_PARTITIONING indexing.
 		final boolean targetReduced =
 			refSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
-		final ReferencedTypeEntityIndex refTypeIndex;
-		if (targetReduced) {
-			refTypeIndex = asReferencedTypeEntityIndex(
+		// The reference owns up to two *independent* families of reduced indexes, and which of them exist is
+		// decided by its `indexedComponents` alone - not by whether it happens to be grouped. The entity-side
+		// family is keyed by the referenced entity, the group-side one by the group, and one group spans many
+		// referenced entities, so neither can stand in for the other. Resolving only the entity-side family
+		// left a grouped, partitioned conditional reference with permanently stale group partitions: a facet
+		// turned on never arrived there, one turned off never left, and both are visible to a query that
+		// filters through `groupHaving`. Demanding the entity-side family unconditionally also aborted the
+		// whole re-evaluation for a schema that indexes the group component only.
+		final boolean entityComponentIndexed =
+			targetReduced && ReferenceIndexMutator.isIndexedForEntityComponent(refSchema, scope);
+		final boolean groupComponentIndexed =
+			targetReduced && ReferenceIndexMutator.isIndexedForGroupComponent(refSchema, scope);
+		final ReferencedTypeEntityIndex refTypeIndex = entityComponentIndexed ?
+			asReferencedTypeEntityIndex(
 				target.getIndexIfExists(
 					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
 				),
 				() -> "REFERENCED_ENTITY_TYPE/" + referenceName
-			);
-		} else {
-			refTypeIndex = null;
-		}
+			) : null;
+		// Tolerated when absent: a reference may index the group component and still have no group index yet,
+		// because no owner has assigned a group to it. An entry that *does* carry a group and finds no index
+		// is a corrupted linkage and is rejected at the point of use, not silently skipped.
+		final ReferencedTypeEntityIndex groupTypeIndex = groupComponentIndexed ?
+			asReferencedTypeEntityIndexIfExists(
+				target.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName)
+				),
+				() -> "REFERENCED_GROUP_ENTITY_TYPE/" + referenceName
+			) : null;
 
 		// Reduced indexes belonging to the owner's OTHER partitioned references. A reduced index holds the
 		// facets of every faceted reference its members carry - not just those of the reference it was built
@@ -383,7 +401,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
 				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), true
 			);
-			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, true);
+			applyFacetToReducedIndexes(
+				target, refTypeIndex, groupTypeIndex, groupComponentIndexed,
+				refSchema, refKey, entry, true
+			);
 			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, refKey, entry, true);
 		}
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
@@ -391,7 +412,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
 				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), false
 			);
-			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, false);
+			applyFacetToReducedIndexes(
+				target, refTypeIndex, groupTypeIndex, groupComponentIndexed,
+				refSchema, refKey, entry, false
+			);
 			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, refKey, entry, false);
 		}
 	}
@@ -548,35 +572,85 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Propagates the facet decision to every reduced index covering the given referenced entity, using the
-	 * same presence-aware {@link ReferenceIndexMutator#applyFacetDecisionMatrix} as the global index. No-op
-	 * when `refTypeIndex` is `null` (non-partitioned schemas).
+	 * Propagates the facet decision to **both** families of reduced indexes the mutated reference owns: the
+	 * entity-side partitions keyed by the referenced entity, and the group-side partitions keyed by the
+	 * group. Each family is addressed through its own `*_TYPE` index and its own key - they are separate
+	 * partitionings of the same members, so writing one does not cover the other. Uses the same
+	 * presence-aware {@link ReferenceIndexMutator#applyFacetDecisionMatrix} as the global index.
 	 *
-	 * @param target        access to the entity collection's index store
-	 * @param refTypeIndex  the `REFERENCED_ENTITY_TYPE` index, or `null` for non-partitioned schemas
-	 * @param refSchema     schema of the reference being updated
-	 * @param refKey        the `(referenceName, referencedEntityPK)` key
-	 * @param entry         the `(referencedEntityPK, groupPK, ownerPK)` triple
-	 * @param nowFaceted    `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
+	 * @param target               access to the entity collection's index store
+	 * @param refTypeIndex         the `REFERENCED_ENTITY_TYPE` index, or `null` when that component is not
+	 *                             indexed (or the schema is not partitioned)
+	 * @param groupTypeIndex       the `REFERENCED_GROUP_ENTITY_TYPE` index, or `null` when that component is
+	 *                             not indexed or no group partition exists yet
+	 * @param groupComponentIndexed whether the schema indexes the group component at all - tells a legitimately
+	 *                             absent group index apart from a corrupted linkage
+	 * @param refSchema            schema of the reference being updated
+	 * @param refKey               the `(referenceName, referencedEntityPK)` key
+	 * @param entry                the `(referencedEntityPK, groupPK, ownerPK)` triple
+	 * @param nowFaceted           `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
 	 */
 	private static void applyFacetToReducedIndexes(
 		@Nonnull IndexMutationTarget target,
 		@Nullable ReferencedTypeEntityIndex refTypeIndex,
+		@Nullable ReferencedTypeEntityIndex groupTypeIndex,
+		boolean groupComponentIndexed,
 		@Nonnull ReferenceSchemaContract refSchema,
 		@Nonnull ReferenceKey refKey,
 		@Nonnull AffectedReferenceEntry entry,
 		boolean nowFaceted
 	) {
-		if (refTypeIndex == null) {
-			return;
+		if (refTypeIndex != null) {
+			applyFacetToReducedIndexFamily(
+				target, refTypeIndex, entry.referencedEntityPK(), refSchema, refKey, entry, nowFaceted
+			);
 		}
-		final int[] reducedStoragePKs = refTypeIndex.getAllReferenceIndexes(entry.referencedEntityPK());
+		final Integer groupPK = entry.groupPK();
+		if (groupComponentIndexed && groupPK != null) {
+			// the owner carries this reference *with* a group and the schema indexes the group component, so
+			// the group type index must exist - its absence means the index linkage is corrupted, never that
+			// there is nothing to do
+			Assert.isPremiseValid(
+				groupTypeIndex != null,
+				"Expected REFERENCED_GROUP_ENTITY_TYPE index of reference `" + refKey.referenceName() +
+					"` to exist - the group component is indexed and owner " + entry.ownerPK() +
+					" references group " + groupPK + "."
+			);
+			applyFacetToReducedIndexFamily(
+				target, groupTypeIndex, groupPK, refSchema, refKey, entry, nowFaceted
+			);
+		}
+	}
+
+	/**
+	 * Applies the facet decision to every reduced index one `*_TYPE` index advertises for the given key. The
+	 * key is family-specific: the referenced entity's PK for the entity-side family, the group's PK for the
+	 * group-side one.
+	 *
+	 * @param target       access to the entity collection's index store
+	 * @param typeIndex    the `*_TYPE` index of the family being walked
+	 * @param partitionKey key the family is partitioned by - referenced entity PK or group PK
+	 * @param refSchema    schema of the reference being updated
+	 * @param refKey       the `(referenceName, referencedEntityPK)` key
+	 * @param entry        the `(referencedEntityPK, groupPK, ownerPK)` triple
+	 * @param nowFaceted   `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
+	 */
+	private static void applyFacetToReducedIndexFamily(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionKey,
+		@Nonnull ReferenceSchemaContract refSchema,
+		@Nonnull ReferenceKey refKey,
+		@Nonnull AffectedReferenceEntry entry,
+		boolean nowFaceted
+	) {
+		final int[] reducedStoragePKs = typeIndex.getAllReferenceIndexes(partitionKey);
 		for (int reducedStoragePK : reducedStoragePKs) {
 			final EntityIndex reducedIndex = target.getOrCreateIndexByPrimaryKey(reducedStoragePK);
 			Assert.isPremiseValid(
 				reducedIndex != null,
 				"Expected reduced index with storage PK " + reducedStoragePK +
-					" to exist for referenced entity PK " + entry.referencedEntityPK()
+					" to exist for partition key " + partitionKey
 			);
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
 				reducedIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), nowFaceted
@@ -2196,6 +2270,23 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			);
 		}
 		return rtei;
+	}
+
+	/**
+	 * Same as {@link #asReferencedTypeEntityIndex(EntityIndex, Supplier)} but returns `null` for a missing
+	 * index instead of throwing. Used where absence is a legitimate state - a family that no owner has
+	 * populated yet - while a present index of the wrong type remains a programming error.
+	 *
+	 * @param index           index to check, may be `null`
+	 * @param contextSupplier lazily evaluated description of the expected index location
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private static ReferencedTypeEntityIndex asReferencedTypeEntityIndexIfExists(
+		@Nullable EntityIndex index,
+		@Nonnull Supplier<String> contextSupplier
+	) {
+		return index == null ? null : asReferencedTypeEntityIndex(index, contextSupplier);
 	}
 
 	/**
