@@ -3171,10 +3171,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 		);
 		final EntityIndex groupTypeIndex = getIndexIfExists(groupTypeKey);
-		if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
-			return rtei.getAllReferenceIndexes(groupPK);
+		// absence is legitimate - no owner has assigned a group to this reference yet
+		if (groupTypeIndex == null) {
+			return new int[0];
 		}
-		return new int[0];
+		// REFERENCED_GROUP_ENTITY_TYPE always resolves to a ReferencedTypeEntityIndex by
+		// construction - any other type is a programming error, and silently returning no
+		// partitions here would strand the group's reduced indexes with no diagnostic
+		if (!(groupTypeIndex instanceof ReferencedTypeEntityIndex rtei)) {
+			throw new GenericEvitaInternalError(
+				"Expected ReferencedTypeEntityIndex for REFERENCED_GROUP_ENTITY_TYPE key on " +
+					"reference `" + referenceName + "`, scope `" + scope + "`, got " +
+					groupTypeIndex.getClass().getName() + "."
+			);
+		}
+		return rtei.getAllReferenceIndexes(groupPK);
 	}
 
 	/**
