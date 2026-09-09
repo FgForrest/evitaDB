@@ -453,6 +453,12 @@ public class ReferenceTypeCardinalityIndex
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity for which the indexes are to be retrieved
 	 * @return an array of all reference indexes primary keys associated with the specified referenced entity primary key
 	 */
+	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
+		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
+			.map(TransactionalBitmap::getArray)
+			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
+	}
+
 	/**
 	 * Visits every reduced-index primary key advertised by this index, in a single pass over the forward
 	 * map.
@@ -474,12 +480,6 @@ public class ReferenceTypeCardinalityIndex
 				consumer.accept(it.nextInt());
 			}
 		}
-	}
-
-	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
-		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
-			.map(TransactionalBitmap::getArray)
-			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	/**
