@@ -68,6 +68,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator.OfInt;
+import java.util.function.IntConsumer;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -455,6 +457,29 @@ public class ReferenceTypeCardinalityIndex
 		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
 			.map(TransactionalBitmap::getArray)
 			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
+	}
+
+	/**
+	 * Visits every reduced-index primary key advertised by this index, in a single pass over the forward
+	 * map.
+	 *
+	 * Callers that need *all* advertised partitions should prefer this over
+	 * {@link #getAllTrackedReferencedEntityPrimaryKeys()} followed by
+	 * {@link #getAllReferenceIndexes(int)} per key: that shape boxes every referenced PK, performs a
+	 * second hash lookup into this same map for each, and allocates an `int[]` per entry. This walks the
+	 * `entrySet` once and iterates each bitmap primitively, allocating nothing per partition - which
+	 * matters because the cross-entity facet fan-out performs exactly this traversal on every trigger,
+	 * over every partition of the collection.
+	 *
+	 * @param consumer invoked once per advertised reduced-index primary key
+	 */
+	public void forEachIndexPrimaryKey(@Nonnull IntConsumer consumer) {
+		for (final Map.Entry<Integer, TransactionalBitmap> entry : this.referencedPrimaryKeysIndex.entrySet()) {
+			final OfInt it = entry.getValue().iterator();
+			while (it.hasNext()) {
+				consumer.accept(it.nextInt());
+			}
+		}
 	}
 
 	/**

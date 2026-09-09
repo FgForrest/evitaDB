@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-07-31
+updated: 2026-09-09 12:41
 status: accepted
 kind: feature
 issues: [8]
@@ -223,6 +223,142 @@ not a parallel mechanism.
 
 ## Consequences & open follow-ups
 
+- **Third post-ship bug, fixed 2026-09-09: the cross-entity path skipped the mutated reference's own
+  *group* partitions.** Found by an adversarial review of the #2933 fix, not in production. A reference
+  owns up to two independent families of reduced indexes, and which exist is decided by its
+  `indexedComponents` alone, never by whether it happens to be grouped: the entity-side family is keyed by
+  the referenced entity (`REFERENCED_ENTITY_TYPE` -> `ReducedEntityIndex`), the group-side one by the group
+  (`REFERENCED_GROUP_ENTITY_TYPE` -> `ReducedGroupEntityIndex`). One group spans many referenced entities,
+  so neither family substitutes for the other. `ReevaluateExpressionExecutor#processFacetTrigger` resolved
+  the entity-side family unconditionally and the group-side one never, so a grouped, partitioned
+  `facetedPartially` reference kept permanently stale group partitions in **both** directions - a facet
+  turned on never arrived (false negative), one turned off never left (false positive) - and a query
+  filtering through `groupHaving` reads exactly those partitions. Latent since PR #1136; the #2933 fan-out
+  passed over it because that fan-out deliberately excludes the mutated reference, on the assumption that
+  its own partitions were already covered. Both families are now resolved and keyed separately.
+  - **Asking for a family the schema does not index was itself a second failure.** The old resolution
+    demanded the `REFERENCED_ENTITY_TYPE` index whenever the reference was partitioned, so a schema
+    indexing only `REFERENCED_GROUP_ENTITY` aborted the whole re-evaluation with
+    `Expected ReferencedTypeEntityIndex ... but got null`. Resolution is now gated on
+    `ReferenceIndexMutator.isIndexedForEntityComponent` / `isIndexedForGroupComponent`.
+  - **Absent group index vs. corrupted linkage.** A reference may index the group component and still have
+    no group type index, because no owner ever assigned a group - legitimate, and `null`. But an entry that
+    *does* carry a group and finds no index is corruption, and is rejected at the point of use rather than
+    skipped. Verified by `ConditionalFacetGroupPartitionGapTest` (6 tests, `WARMING_UP` + `ALIVE`): 4 fail
+    before the fix - two false negatives on the add direction, two stale-`true` false positives on the
+    remove direction - and the unconditional-facet control passes throughout, proving the synchronous path
+    always reached the group partition and only the deferred one did not.
+
+- **The same review's performance suggestion was implemented, measured, and rejected (2026-09-09).**
+  `ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes` walks every partition of every partitioned
+  sibling reference on each trigger - `O(all partitions)`, independent of how many owners the trigger
+  actually affects. Two constant-factor fixes were tried: an allocation-free
+  `PersistentRoaringBitmap.intersects` membership test before `and(...).toArray()`, and an `IntHashSet`
+  dedup of partitions advertised more than once. **Both were dropped and the code is unchanged.**
+  - **The dedup can never fire.** A reduced entity index is keyed from the referenced entity's
+    `RepresentativeReferenceKey` and a reduced group index from the group primary key, and that same key is
+    what `insertPrimaryKeyIfMissing` records in the advertising bitmap - so within one family the mapping is
+    1:1 and no partition is ever advertised twice. Instrumentation agreed: probes == intersections == 3000
+    on every single trigger. The set was pure overhead, and measurably so.
+  - **Numbers.** Measured in-JVM against identical live index state, the implementations run back to back
+    with their order rotated per trigger, 870 paired samples per shape - a cross-JVM A/B cannot resolve this
+    at all, since between-JVM variance is 15-20% and a first 5-vs-5 run produced a confident +11.6%
+    (p=0.004) that failed to reproduce at +0.5%. Walk time, baseline -> intersects+dedup: 0.470 -> 0.532 ms
+    dense (+13.1%, p=2e-8), 0.375 -> 0.446 ms sparse (+18.9%, p=5e-14). The `intersects` pre-check alone was
+    a real but negligible win (-5.6% dense p=0.007, -2.6% sparse p=0.07) and went with it; it also performed
+    *worse* in the sparse shape it was designed for, because `and(...)` on disjoint roaring bitmaps is
+    already container-cheap and the avoided allocation was overestimated.
+  - **The ceiling is small - *at the cardinality measured*, which is the whole caveat.** Nested
+    decomposition, every figure measured **at 3,000 partitions**: the walk is ~0.47 ms, the whole
+    `resolveSiblingReducedIndexes` ~2.0 ms - the remaining ~1.5 ms is the `getOrCreateIndexByPrimaryKey`
+    registration that enrols touched partitions in the dirty set, which is required for correctness and
+    cannot be skipped - and a full entity flip ~33.5 ms. So the walk is ~1.4% of a trigger there: perfect
+    elimination buys ~1.4%, and the `intersects` half bought ~0.08%.
+  - **That 1.4% does not generalise, and must not be quoted without its cardinality.** The walk is the
+    *only* term in a trigger that is linear in total partition count - `resolveAffected`, the
+    `evaluateFilter` query plan, the registration (proportional to *intersecting* partitions only) and both
+    `applyFacetDecisionMatrix` loops are all independent of it. At the measured ~157 ns/partition the share
+    becomes ~11% at 25k partitions and ~32% at 100k, and probably worse than linear once the partition set
+    exceeds LLC. Migrated catalogs are the population at risk: `ReferenceSchemaSerializer_2025_5` promotes
+    *every* indexed reference of a pre-2025.7 schema to `FOR_FILTERING_AND_PARTITIONING`. Tracked in #1529,
+    which fixes the measurement protocol before any implementation - including the density of affected
+    owners per partition, the one variable this run never captured and the one that decides whether a
+    reverse index saves the walk alone or the walk plus the registration.
+  - **Rejected because** the only mechanism that changes the asymptotics is a new `ownerPK ->
+    reducedIndexPKs` reverse map on `ReferencedTypeEntityIndex`, maintained at the membership boundaries in
+    `ReferenceIndexMutator`. No existing in-memory structure supplies that direction: the cardinality index
+    runs referenced-entity -> index, `FacetIndex` is facet -> owner and conditional on `isFaceted`, and
+    `ValidEntityToReferenceMapping` is populated only after an `enrichEntity` fetch - the per-owner storage
+    read this method's own javadoc already rejects. Rejected **for this change**, not forever: at 3,000
+    partitions it would trade a permanent write-path and memory cost on every owner-partition membership
+    for a resolver floor of ~1.5 ms instead of ~2.0 ms. Revisit at high cardinality (#1529), where the
+    trade reverses - and note the map need not be persisted, since every entity index is loaded eagerly at
+    catalog open and it is therefore derivable, which removes the storage-format and BWC burden the
+    original assessment assumed.
+
+- **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
+  partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
+  projects. A reduced index built for a `FOR_FILTERING_AND_PARTITIONING` reference holds the facets of
+  **every** faceted reference its members carry, not just its own - the invariant `indexAllFacets`
+  establishes when an entity first enters the index. A `facetedPartially` reference is written *only* by
+  the deferred re-evaluation pass, because at `InsertReferenceMutation` time the reference is not yet
+  persisted and a cross-entity expression cannot resolve against it. Both deferred paths
+  (`ReferenceIndexMutator#reEvaluateFacetExpressionsInAllIndexes`,
+  `ReevaluateExpressionExecutor#processFacetTrigger`) updated the global index plus the reduced indexes
+  **of the reference being re-evaluated** and nothing else, so for a `FOR_FILTERING` reference such as
+  `Product.parameterValues` they wrote to the global index alone. The facet was therefore missing from
+  every `categories` / `brand` / `groups` partition. Invisible in a plain facet summary (served from the
+  global index) and fatal the moment a facet is *selected*, since selection is evaluated against the
+  category's reduced index: the group vanishes from the summary and the result set collapses to zero.
+  Both paths now fan out to every reduced index the owner belongs to.
+  - **Two traps for anyone touching this fan-out.** The `ReferenceSchemaContract` handed to a reduced
+    index's `addFacet`/`removeFacet` identifies *that index's own* reference - it is asserted to be
+    `FOR_FILTERING_AND_PARTITIONING` - while the facet written is identified by its `ReferenceKey`
+    alone; passing the mutated reference's schema trips the assertion on exactly the conditional facets
+    this fan-out exists to serve. And a sibling index must be obtained through the *registering*
+    accessor (`getOrCreateIndexByPrimaryKey`, not `getIndexByPrimaryKeyIfExists`): the registration is
+    what enrols it in the dirty set and gets its transactional layer swept, and mutating a plainly-read
+    instance kills the commit with `StaleTransactionMemoryException`. That failure is `ALIVE`-only, so a
+    `WARMING_UP` test passes over it - which is why the reproducer is parameterised on catalog state.
+  - **Resolution direction differs between the two paths, deliberately.** The local path has the owner's
+    `ReferencesStoragePart` and reuses `forEachUniqueReferenceIndex`. The cross-entity executor works
+    from owner-PK bitmaps and has no such view, so it inverts the available
+    `referenced entity -> reduced index -> members` mapping once per trigger and intersects each
+    partition against the affected owners. **Rejected: reading each owner's reference container**
+    instead - it is one storage read per affected owner, and a cross-entity trigger routinely affects
+    thousands. Revisit if `IndexMutationTarget` ever gains a cheap owner-to-partition lookup.
+  - **Cost, measured.** A production e-commerce catalog (7,269 products, ~30 conditionally faceted
+    references each, 8 partitions), warm-up bulk load, per-product paired over 4-5 runs per arm,
+    writer 8g/reader 6g: the fan-out alone cost **+7.7 %** on `Product` upsert, rising to **+10.9 %**
+    for the heaviest quartile - the signature of work quadratic in reference count. Two follow-ups
+    brought it to **+3.6 %, flat across quartiles**: memoizing the owner's reduced-index list for the
+    duration of a deferred phase (−1.6 %; every action queued for an entity resolves the same set),
+    and giving `applyFacetDecisionMatrix` a steady-state fast path (−2.4 %) - `isFacetPresentInGroup`
+    now uses the O(1) `getFacetsInGroup` map lookup instead of walking every group, and presence in
+    the target bucket short-circuits before the `wasFaceted` scan. The latter two help the
+    pre-existing path as much as the fan-out. Worth knowing separately: enabling `facetedPartially`
+    at all took `Product` upsert from ~2.9 ms to ~7.8 ms on this dataset, so the deferred path dwarfs
+    the fan-out added on top of it.
+  - **Already-corrupted catalogs are not self-healing, and a full reindex does not repair them.** The
+    fresh-rebuild path was broken too, so re-loading a catalog reproduces the gap rather than clearing
+    it (confirmed: a rebuild on the unfixed engine left all 15,737 conditional-facet slots missing).
+    Re-upserting the products changes nothing either, because the entity is already a member of each
+    partition and `indexAllFacets` does not re-run. What does repair it is removing and re-adding the
+    *partitioned* reference (remove + re-add `categories`, in two commits), which re-enters the entity
+    into the reduced index - verified 12/12 on a restored production catalog. On the fixed engine a
+    plain rebuild is enough.
+  - **The warm-up benchmark harness silently under-reported this whole feature.**
+    `CatalogCopySupport.applyReference` replicated `indexed*` and `facetedInScope` but dropped
+    `facetedPartially`, `bucketedPartially` and `indexedComponents`, so every measurement taken through
+    `IsolatedWarmupLoadBenchmark` ran against a replica with **no conditional facets and missing reduced
+    index families** - the first A/B run of this fix measured a code path that was never entered and
+    reported ~1 %. `facetedPartially` and `indexedComponents` are now replicated. One casualty: a
+    reflected reference may not inherit a `facetedPartially` expression (its paths are
+    direction-specific and resolve to the wrong entity type in the reflected direction) and every
+    explicit alternative is refused in turn, so such projections are omitted from the replica with a
+    logged warning. Bucketed histograms remain unreplicated - the harness still understates any
+    catalog using them.
+
 - **Post-ship bug, fixed.** On 2026-05-28 (`9dc4b9427`, committed directly to `dev`, no PR — five
   weeks after merge), the cross-entity executor was found to issue blind `addFacet`/`removeFacet`
   calls against the freshly-resolved group bucket. When a faceted reference migrated to a
@@ -284,3 +420,8 @@ not a parallel mechanism.
 - **2026-04-23** — PR #1136 merged into `dev`
 - **2026-05-28** — post-ship presence-aware re-evaluation fix (`9dc4b9427`, direct commit, no PR)
 - **2026-07-31** — planning documents retired, replaced by this record
+- **2026-09-08** — second post-ship fix: conditional facets now reach the owner's sibling reduced
+  indexes (edee/eshop#2933); benchmark harness taught to replicate `facetedPartially`
+- **2026-09-09** — third post-ship fix: the cross-entity path now writes the mutated reference's own
+  group partitions as well as its entity partitions (#1522), found by adversarial review of the previous
+  fix
