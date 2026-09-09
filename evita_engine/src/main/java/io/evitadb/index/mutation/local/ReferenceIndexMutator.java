@@ -75,9 +75,11 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -1116,6 +1118,15 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey,
 		boolean nowFaceted
 	) {
+		// Fast path for the overwhelmingly common steady state - the facet is already exactly where it
+		// belongs. Presence in the target bucket implies the facet is present at all, so this is precisely
+		// the `was && now && in target group` no-op below, reached without the scan over every group of the
+		// reference that `wasFaceted` performs. It matters because the deferred re-evaluation applies this
+		// matrix once per (faceted reference, reduced index) pair on every relevant mutation, and nearly
+		// every one of those is a no-op.
+		if (nowFaceted && isFacetPresentInGroup(index, referenceKey, targetGroupId, entityPrimaryKey)) {
+			return;
+		}
 		final boolean wasFaceted = wasFaceted(index, referenceKey, entityPrimaryKey);
 		if (wasFaceted && !nowFaceted) {
 			// was faceted, now not — remove from whichever group it currently resides in
@@ -1141,10 +1152,18 @@ public interface ReferenceIndexMutator {
 	 *
 	 * 1. evaluates the expression
 	 * 2. applies the was/now decision matrix to the global index
-	 * 3. if the reference schema is indexed at
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level with entity-component indexing,
-	 * looks up (or creates) the corresponding {@link ReducedEntityIndex} and applies the same decision
-	 * matrix there
+	 * 3. applies the same decision matrix to **every** reduced index the owning entity is a member of
+	 *
+	 * Step 3 deliberately fans out across the owner's *other* references rather than only the reduced
+	 * indexes of the reference being re-evaluated. A reduced index built for a
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} reference holds the facets of **all** of the
+	 * owner's faceted references, not just its own - that is the invariant established by
+	 * {@link #indexAllFacets} when the entity first enters the index. A conditionally faceted reference
+	 * (`facetedPartially`) is never written at insert time, because a cross-entity expression cannot see a
+	 * reference that has not been persisted yet, so this deferred pass is the *only* writer for it. Fanning
+	 * out only to the mutated reference's own reduced indexes therefore left the facet missing from every
+	 * sibling partition - a product already sitting in a category never received the parameter-value facet
+	 * that category's reduced index is queried through (issue #2933).
 	 *
 	 * @param globalIndex               the global entity index (must be a global-scoped index)
 	 * @param executor                  the mutation executor; provides references storage and schema access
@@ -1163,8 +1182,10 @@ public interface ReferenceIndexMutator {
 		ReferenceSchemaContract cachedSchema = null;
 		FacetExpressionTrigger cachedTrigger = null;
 		boolean cachedTriggerResolved = false;
-		// cache whether the current schema requires reduced-index facet propagation
-		boolean cachedNeedsReducedIndex = false;
+		// every reduced index the owner belongs to, resolved lazily on the first reference that actually
+		// needs it - the majority of invocations find no relevant trigger at all and must not pay for the
+		// traversal
+		List<OwnerReducedIndex> ownerReducedIndexes = null;
 		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
 			if (!reference.exists()) {
 				continue;
@@ -1176,9 +1197,6 @@ public interface ReferenceIndexMutator {
 				cachedSchema = executor.getEntitySchema()
 					.getReferenceOrThrowException(referenceKey.referenceName());
 				cachedTriggerResolved = false;
-				cachedNeedsReducedIndex =
-					isIndexedReferenceFor(cachedSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
-						&& isIndexedForEntityComponent(cachedSchema, scope);
 			}
 			if (!cachedSchema.isFacetedInScope(scope)) {
 				continue;
@@ -1204,18 +1222,76 @@ public interface ReferenceIndexMutator {
 				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted
 			);
 
-			// apply to reduced entity index when the schema requires partitioning-level indexing
-			if (cachedNeedsReducedIndex) {
-				final RepresentativeReferenceKeys bothKeys =
-					executor.getRepresentativeReferenceKeys(referenceKey, true);
-				final ReducedEntityIndex reducedIndex = referenceKey.isKnownInternalPrimaryKey()
-					? getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope)
-					: getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
+			// apply to every reduced index the owner is a member of - see the class-level note above on
+			// why this is not restricted to the mutated reference's own partitions
+			if (ownerReducedIndexes == null) {
+				// memoized on the executor for the whole deferred phase - every action queued for this
+				// entity resolves the same set, and re-walking the references per action is quadratic
+				ownerReducedIndexes = executor.getOrComputeOwnerReducedIndexes(
+					() -> collectOwnerReducedIndexes(executor, scope)
+				);
+			}
+			for (int i = 0; i < ownerReducedIndexes.size(); i++) {
+				final OwnerReducedIndex ownerIndex = ownerReducedIndexes.get(i);
 				applyFacetDecisionMatrix(
-					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted
+					ownerIndex.index(), ownerIndex.indexSchema(), referenceKey, groupId,
+					entityPrimaryKey, nowFaceted
 				);
 			}
 		}
+	}
+
+	/**
+	 * Collects every {@link AbstractReducedEntityIndex} the owning entity is currently a member of - one entry
+	 * per unique index instance, across both the entity and the group path, restricted to references indexed at
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level (the only ones for which reduced indexes
+	 * exist at all).
+	 *
+	 * Resolution is delegated to {@link #forEachUniqueReferenceIndex} so this shares one traversal - including
+	 * its representative-key resolution and its identity dedup of shared
+	 * {@link io.evitadb.index.ReducedGroupEntityIndex} instances - with the synchronous indexing path.
+	 *
+	 * @param executor the mutation executor providing the entity's stored references and index access
+	 * @param scope    the scope whose indexes are collected; must match the executor's own scope
+	 * @return the reduced indexes holding this entity, empty when the entity has no partitioned references
+	 */
+	@Nonnull
+	private static List<OwnerReducedIndex> collectOwnerReducedIndexes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull Scope scope
+	) {
+		isPremiseValid(
+			scope == executor.getScope(),
+			"Facet re-evaluation scope must match the executor scope!"
+		);
+		final List<OwnerReducedIndex> collected = new ArrayList<>(8);
+		forEachUniqueReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, executor,
+			(referenceSchema, indexForRemoval, indexForUpsert) ->
+				collected.add(new OwnerReducedIndex(indexForUpsert, referenceSchema)),
+			reference -> true, true, IterationPath.BOTH
+		);
+		return collected;
+	}
+
+	/**
+	 * A reduced index the owning entity belongs to, paired with the schema of the reference that index was
+	 * built for.
+	 *
+	 * The schema has to travel with the index because
+	 * {@link AbstractReducedEntityIndex#addFacet(ReferenceSchemaContract, ReferenceKey, Integer, int)} reads it
+	 * as *the index's own* reference - it asserts that reference is
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} - while the facet being written is identified
+	 * solely by its {@link ReferenceKey}. Passing the mutated reference's schema instead trips that assertion
+	 * for every conditionally faceted reference, which is exactly the case this fan-out exists to serve.
+	 *
+	 * @param index       the reduced index holding the owning entity
+	 * @param indexSchema the schema of the reference the index was created for
+	 */
+	record OwnerReducedIndex(
+		@Nonnull AbstractReducedEntityIndex index,
+		@Nonnull ReferenceSchemaContract indexSchema
+	) {
 	}
 
 	/**
@@ -2018,21 +2094,14 @@ public interface ReferenceIndexMutator {
 		if (facetRefIndex == null) {
 			return false;
 		}
-		if (groupId != null) {
-			for (final FacetGroupIndex groupIndex : facetRefIndex.getGroupedFacets()) {
-				if (Objects.equals(groupIndex.getGroupId(), groupId)) {
-					final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
-					return facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey);
-				}
-			}
+		// `getFacetsInGroup` is a map lookup and resolves the not-grouped bucket for a null group, so the
+		// whole check is O(1) - it used to walk every group of the reference to find the matching one, and
+		// the facet decision matrix calls it once per (reference, index) pair
+		final FacetGroupIndex groupIndex = facetRefIndex.getFacetsInGroup(groupId);
+		if (groupIndex == null) {
 			return false;
 		}
-		// for ungrouped facets, check the not-grouped bucket directly
-		final FacetGroupIndex notGrouped = facetRefIndex.getNotGroupedFacets();
-		if (notGrouped == null) {
-			return false;
-		}
-		final FacetIdIndex facetIdIndex = notGrouped.getFacetIdIndex(referenceKey.primaryKey());
+		final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
 		return facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey);
 	}
 

@@ -308,6 +308,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private List<Runnable> deferredExpressionReEvaluations;
 	/**
+	 * Memoized result of resolving the reduced indexes the entity being processed belongs to, valid for the
+	 * duration of one deferred re-evaluation phase. See {@link #getOrComputeOwnerReducedIndexes(Supplier)}.
+	 */
+	@Nullable private List<ReferenceIndexMutator.OwnerReducedIndex> deferredOwnerReducedIndexes;
+	/**
 	 * Pre-mutation entity attribute values captured during the container implicit-mutation phase (before index
 	 * updates) for use in cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value. Uses
 	 * `putIfAbsent` to capture only the true pre-mutation value when the same attribute is mutated
@@ -590,6 +595,33 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.deferredExpressionReEvaluations = new ArrayList<>(4);
 		}
 		this.deferredExpressionReEvaluations.add(action);
+	}
+
+	/**
+	 * Returns the reduced indexes the currently processed entity belongs to, computing them through
+	 * `factory` on first use and reusing that answer for the rest of the deferred phase.
+	 *
+	 * Every deferred re-evaluation queued for one entity runs inside a single
+	 * {@link #finishLocalMutationExecutionPhase()} call, after the storage write, so the entity's reference
+	 * set - and hence the set of reduced indexes holding it - is identical for all of them. Without this
+	 * memo each queued action re-walks every reference of the entity, which is quadratic in the number of
+	 * reference mutations: an entity carrying thirty conditionally faceted references walked its references
+	 * thirty times over.
+	 *
+	 * The memo is dropped at the end of each phase, so implicit mutations that add references in a later
+	 * phase get a freshly resolved list.
+	 *
+	 * @param factory computes the list when the memo is empty
+	 * @return the reduced indexes holding the entity being processed
+	 */
+	@Nonnull
+	public List<ReferenceIndexMutator.OwnerReducedIndex> getOrComputeOwnerReducedIndexes(
+		@Nonnull Supplier<List<ReferenceIndexMutator.OwnerReducedIndex>> factory
+	) {
+		if (this.deferredOwnerReducedIndexes == null) {
+			this.deferredOwnerReducedIndexes = factory.get();
+		}
+		return this.deferredOwnerReducedIndexes;
 	}
 
 	/**
@@ -909,11 +941,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Override
 	public void finishLocalMutationExecutionPhase() {
-		if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
-			for (final Runnable action : this.deferredExpressionReEvaluations) {
-				action.run();
+		try {
+			if (this.deferredExpressionReEvaluations != null && !this.deferredExpressionReEvaluations.isEmpty()) {
+				for (final Runnable action : this.deferredExpressionReEvaluations) {
+					action.run();
+				}
+				this.deferredExpressionReEvaluations.clear();
 			}
-			this.deferredExpressionReEvaluations.clear();
+		} finally {
+			// dropped unconditionally: the next phase may see a different reference set, and a memo that
+			// outlived its entity would silently write facets into another entity's partitions
+			this.deferredOwnerReducedIndexes = null;
 		}
 	}
 
