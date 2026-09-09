@@ -1851,14 +1851,14 @@ public interface ReferenceIndexMutator {
 				final int indexedDecimalPlaces = resolution.indexedDecimalPlaces();
 				for (final Serializable value : values) {
 					for (final int storagePK : groupStoragePKs) {
-						final EntityIndex reducedIndex =
-							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-							if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
-								hcei.removeHistogramValue(
-									trigger.getHistogramIndexName(), locale, value, ownerPK, indexedDecimalPlaces
-								);
-							}
+						final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
+							executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+							referenceName, trigger.getHistogramIndexName(), storagePK, scope
+						);
+						if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
+							hcei.removeHistogramValue(
+								trigger.getHistogramIndexName(), locale, value, ownerPK, indexedDecimalPlaces
+							);
 						}
 					}
 				}
@@ -2937,16 +2937,19 @@ public interface ReferenceIndexMutator {
 				final EntityIndexKey groupTypeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 				);
-				final EntityIndex groupTypeIndex = executor.getIndexIfExists(groupTypeKey);
-				if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
+				final ReferencedTypeEntityIndex rtei = asReferencedTypeIndexIfPresent(
+					executor.getIndexIfExists(groupTypeKey),
+					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, referenceName, scope
+				);
+				if (rtei != null) {
 					final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 					for (final int storagePK : storagePKs) {
-						final EntityIndex reducedIndex =
-							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-							if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-								hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-							}
+						final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
+							executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+							referenceName, histogramName, storagePK, scope
+						);
+						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+							hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 						}
 					}
 				}
@@ -2954,12 +2957,13 @@ public interface ReferenceIndexMutator {
 				final EntityIndexKey typeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 				);
-				final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
-				if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-						executor.getOrCreateIndex(typeKey);
-						hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-					}
+				final HistogramCapableEntityIndex hcei = asHistogramCapableIndexIfPresent(
+					executor.getIndexIfExists(typeKey),
+					EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName, histogramName, scope
+				);
+				if (hcei != null && isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+					executor.getOrCreateIndex(typeKey);
+					hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
@@ -2998,15 +3002,19 @@ public interface ReferenceIndexMutator {
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 			);
-			final EntityIndex groupTypeIndex = executor.getIndexIfExists(groupTypeKey);
-			if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
+			final ReferencedTypeEntityIndex rtei = asReferencedTypeIndexIfPresent(
+				executor.getIndexIfExists(groupTypeKey),
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, referenceName, scope
+			);
+			if (rtei != null) {
 				final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 				for (final int storagePK : storagePKs) {
-					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-							hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-						}
+					final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
+						executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+						referenceName, histogramName, storagePK, scope
+					);
+					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+						hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 					}
 				}
 			}
@@ -3014,12 +3022,13 @@ public interface ReferenceIndexMutator {
 			final EntityIndexKey typeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 			);
-			final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
-			if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-				if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-					executor.getOrCreateIndex(typeKey);
-					hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-				}
+			final HistogramCapableEntityIndex hcei = asHistogramCapableIndexIfPresent(
+				executor.getIndexIfExists(typeKey),
+				EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName, histogramName, scope
+			);
+			if (hcei != null && isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+				executor.getOrCreateIndex(typeKey);
+				hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 			}
 		}
 	}
@@ -3309,6 +3318,114 @@ public interface ReferenceIndexMutator {
 			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier
 		);
 
+	}
+
+	/**
+	 * Casts an index registered under a `REFERENCED_*_TYPE` key to {@link ReferencedTypeEntityIndex}.
+	 *
+	 * Absence is legitimate - a reference need not have any partitions of that kind yet - and yields `null`.
+	 * A present index of any other type is a programming error: these keys resolve to a
+	 * {@link ReferencedTypeEntityIndex} by construction, so skipping it silently would drop the whole
+	 * maintenance pass for that reference and leave the index stale with no diagnostic.
+	 *
+	 * @param index         index found under the key, may be `null`
+	 * @param indexType     the key's index type, for the error message
+	 * @param referenceName the reference the key belongs to
+	 * @param scope         the scope the key belongs to
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private static ReferencedTypeEntityIndex asReferencedTypeIndexIfPresent(
+		@Nullable EntityIndex index,
+		@Nonnull EntityIndexType indexType,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
+	) {
+		if (index == null) {
+			return null;
+		}
+		if (!(index instanceof ReferencedTypeEntityIndex rtei)) {
+			throw new GenericEvitaInternalError(
+				"Expected ReferencedTypeEntityIndex for " + indexType + " key on reference `" +
+					referenceName + "`, scope `" + scope + "`, got " + index.getClass().getName() + "."
+			);
+		}
+		return rtei;
+	}
+
+	/**
+	 * Casts an index registered under a `REFERENCED_*_TYPE` key to {@link HistogramCapableEntityIndex}.
+	 * Absence is legitimate and yields `null`; a present index that cannot carry histograms is a
+	 * programming error, since these keys resolve to a {@link ReferencedTypeEntityIndex} which implements
+	 * the interface.
+	 *
+	 * @param index         index found under the key, may be `null`
+	 * @param indexType     the key's index type, for the error message
+	 * @param referenceName the reference the key belongs to
+	 * @param histogramName the histogram being maintained
+	 * @param scope         the scope the key belongs to
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private static HistogramCapableEntityIndex asHistogramCapableIndexIfPresent(
+		@Nullable EntityIndex index,
+		@Nonnull EntityIndexType indexType,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
+		@Nonnull Scope scope
+	) {
+		if (index == null) {
+			return null;
+		}
+		if (!(index instanceof HistogramCapableEntityIndex hcei)) {
+			throw new GenericEvitaInternalError(
+				"Expected HistogramCapableEntityIndex for " + indexType + " key on reference `" +
+					referenceName + "`, histogram `" + histogramName + "`, scope `" + scope + "`, got " +
+					index.getClass().getName() + "."
+			);
+		}
+		return hcei;
+	}
+
+	/**
+	 * Resolves a reduced index that a {@link ReferencedTypeEntityIndex} advertises by storage primary key.
+	 *
+	 * Neither failure mode is tolerable here, and both mirror the insert path: the type-level index
+	 * advertised this storage PK, so a missing index is a corrupted linkage, and a present index that
+	 * cannot carry histograms is a programming error. Skipping either silently would leave a stale
+	 * histogram value behind - the removal-side twin of the staleness this class exists to prevent.
+	 *
+	 * @param index         index registered under `storagePK`, may be `null`
+	 * @param referenceName the reference being maintained
+	 * @param histogramName the histogram being maintained
+	 * @param storagePK     the advertised storage primary key
+	 * @param scope         the scope being maintained
+	 * @return the cast index; never `null`
+	 */
+	@Nonnull
+	private static HistogramCapableEntityIndex asAdvertisedHistogramCapableIndex(
+		@Nullable EntityIndex index,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
+		int storagePK,
+		@Nonnull Scope scope
+	) {
+		if (index == null) {
+			throw new GenericEvitaInternalError(
+				"Cannot remove histogram value: per-group reduced index is missing for reference `" +
+					referenceName + "`, histogram `" + histogramName + "`, storage PK `" + storagePK +
+					"`, scope `" + scope + "` - `ReferencedTypeEntityIndex` advertised this PK but no " +
+					"index is registered under it."
+			);
+		}
+		if (!(index instanceof HistogramCapableEntityIndex hcei)) {
+			throw new GenericEvitaInternalError(
+				"Expected HistogramCapableEntityIndex for grouped reduced index of reference `" +
+					referenceName + "`, histogram `" + histogramName + "`, storage PK `" + storagePK +
+					"`, scope `" + scope + "`, got " + index.getClass().getName() + "."
+			);
+		}
+		return hcei;
 	}
 
 }
