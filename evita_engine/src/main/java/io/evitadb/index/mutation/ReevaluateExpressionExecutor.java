@@ -343,7 +343,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final EntityIndex globalIndex = target.getOrCreateIndex(
 			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
-		// Reduced indexes only exist when the reference uses FOR_FILTERING_AND_PARTITIONING indexing.
+		// Reduced indexes exist for EVERY reference indexed at FOR_FILTERING or above - the local path creates
+		// them behind `isIndexedReferenceForFiltering` (EntityIndexLocalMutationExecutor:2652 and its peers), and
+		// a production catalog can hold two orders of magnitude more of them for FOR_FILTERING references than
+		// for partitioned ones. What is restricted to FOR_FILTERING_AND_PARTITIONING is the maintenance of
+		// FACETS inside them, which is what this flag actually governs. Reading it as "no index exists" is
+		// wrong and load-bearing: it makes the cross-entity walk's cost look bounded by the current schema when
+		// in fact a client raising one reference to FOR_FILTERING_AND_PARTITIONING widens that walk over
+		// partitions that already exist, with no reindexing and no entity writes (issue #1529).
 		final boolean targetReduced =
 			refSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
 		// The reference owns up to two *independent* families of reduced indexes, and which of them exist is

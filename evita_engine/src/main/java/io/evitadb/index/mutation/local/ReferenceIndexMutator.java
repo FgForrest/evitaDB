@@ -1244,8 +1244,9 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Collects every {@link AbstractReducedEntityIndex} the owning entity is currently a member of - one entry
 	 * per unique index instance, across both the entity and the group path, restricted to references indexed at
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level (the only ones for which reduced indexes
-	 * exist at all).
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level - the only ones whose reduced indexes carry
+	 * facets. Reduced indexes themselves exist for every reference indexed at {@link ReferenceIndexType#FOR_FILTERING}
+	 * or above, so this restriction narrows the collected set and does not merely describe what is there.
 	 *
 	 * Resolution is delegated to {@link #forEachUniqueReferenceIndex} so this shares one traversal - including
 	 * its representative-key resolution and its identity dedup of shared
