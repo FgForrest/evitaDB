@@ -314,17 +314,18 @@ not a parallel mechanism.
     partition against the affected owners. **Rejected: reading each owner's reference container**
     instead - it is one storage read per affected owner, and a cross-entity trigger routinely affects
     thousands. Revisit if `IndexMutationTarget` ever gains a cheap owner-to-partition lookup.
-  - **Cost, measured.** decodoma_cz (7,269 products, ~30 conditionally faceted references each,
-    8 partitions), warm-up bulk load, per-product paired over 4-5 runs per arm, writer 8g/reader 6g:
-    the fan-out alone cost **+7.7 %** on `Product` upsert, rising to **+10.9 %** for the heaviest
-    quartile - the signature of work quadratic in reference count. Two follow-ups brought it to
-    **+3.6 %, flat across quartiles**: memoizing the owner's reduced-index list for the duration of a
-    deferred phase (−1.6 %; every action queued for an entity resolves the same set), and giving
-    `applyFacetDecisionMatrix` a steady-state fast path (−2.4 %) - `isFacetPresentInGroup` now uses the
-    O(1) `getFacetsInGroup` map lookup instead of walking every group, and presence in the target bucket
-    short-circuits before the `wasFaceted` scan. The latter two help the pre-existing path as much as
-    the fan-out. Worth knowing separately: enabling `facetedPartially` at all took `Product` upsert from
-    ~2.9 ms to ~7.8 ms on this dataset, so the deferred path dwarfs the fan-out added on top of it.
+  - **Cost, measured.** A production e-commerce catalog (7,269 products, ~30 conditionally faceted
+    references each, 8 partitions), warm-up bulk load, per-product paired over 4-5 runs per arm,
+    writer 8g/reader 6g: the fan-out alone cost **+7.7 %** on `Product` upsert, rising to **+10.9 %**
+    for the heaviest quartile - the signature of work quadratic in reference count. Two follow-ups
+    brought it to **+3.6 %, flat across quartiles**: memoizing the owner's reduced-index list for the
+    duration of a deferred phase (−1.6 %; every action queued for an entity resolves the same set),
+    and giving `applyFacetDecisionMatrix` a steady-state fast path (−2.4 %) - `isFacetPresentInGroup`
+    now uses the O(1) `getFacetsInGroup` map lookup instead of walking every group, and presence in
+    the target bucket short-circuits before the `wasFaceted` scan. The latter two help the
+    pre-existing path as much as the fan-out. Worth knowing separately: enabling `facetedPartially`
+    at all took `Product` upsert from ~2.9 ms to ~7.8 ms on this dataset, so the deferred path dwarfs
+    the fan-out added on top of it.
   - **Already-corrupted catalogs are not self-healing, and a full reindex does not repair them.** The
     fresh-rebuild path was broken too, so re-loading a catalog reproduces the gap rather than clearing
     it (confirmed: a rebuild on the unfixed engine left all 15,737 conditional-facet slots missing).
