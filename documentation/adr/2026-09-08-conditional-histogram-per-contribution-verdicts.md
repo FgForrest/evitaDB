@@ -1,7 +1,7 @@
 ---
 title: Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container
 date: 2026-09-08
-updated: 2026-09-09 05:15
+updated: 2026-09-09 05:22
 status: accepted
 kind: fix
 issues: [1470]
@@ -303,8 +303,8 @@ ever shows up in a profile.
   `bucketedPartially` on a `*_WITH_DUPLICATES` reference today. Fixing it for real needs
   `RepresentativeReferenceKey` (or the internal reference PK) carried through `resolveAffected`, the verdict
   maps, and the add/remove iteration — a materially larger change than this commit's scope, and a decision
-  Johnny should make deliberately rather than inherit from a review finding. Filed as a follow-up rather than
-  folded in here.
+  Johnny should make deliberately rather than inherit from a review finding. Filed as
+  [#1523](https://github.com/FgForrest/evitaDB/issues/1523) rather than folded in here.
 
 ## Related work
 
