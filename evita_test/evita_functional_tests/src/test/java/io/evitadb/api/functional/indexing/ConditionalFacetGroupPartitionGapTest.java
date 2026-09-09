@@ -87,8 +87,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * **on** never appeared there (false negative), and a facet turned **off** stayed behind (false positive).
  * Queries planned through `referenceHaving(..., groupHaving(...))` read exactly those partitions, so the
  * staleness is user-visible while a plain facet summary — served from the global index — looks correct. This
- * is the same failure class as [[ConditionalFacetReducedIndexGapTest]] (edee/eshop#2933), one index family
- * over.
+ * is the same failure class as {@link ConditionalFacetReducedIndexGapTest}, one index family over.
  *
  * `unconditionalFacetReachesOwnGroupPartition` is the guard rail in the other direction: an ordinary
  * `faceted()` reference of the same shape must keep reaching its group partition through the synchronous
@@ -242,6 +241,55 @@ class ConditionalFacetGroupPartitionGapTest implements EvitaTestSupport {
 		assertTrue(
 			isFaceted(groupPartition(REF_PLAIN_VALUES), REF_PLAIN_VALUES),
 			"group-side partition must carry the facet"
+		);
+	}
+
+	/**
+	 * The sibling fan-out has to reach a **grouped** sibling's group-side reduced index, not merely its
+	 * entity-side one. {@code ReevaluateExpressionExecutor#resolveSiblingReducedIndexes} walks both
+	 * families of every partitioned sibling, but every other case in this class leaves the sibling either
+	 * ungrouped or unreferenced by the product, so the `REFERENCED_GROUP_ENTITY_TYPE` half of that walk is
+	 * never actually proved. Here the product carries both references, so the `plainValues` group partition
+	 * holds it and must therefore learn the conditional `parameterValues` facet the moment the trigger
+	 * turns it on - the `indexAllFacets` invariant applies to a group partition exactly as to an entity one.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("cross-entity facet must reach a grouped sibling's group partition")
+	void crossEntityFacetMustReachGroupedSiblingGroupPartition(CatalogState state) {
+		prepare(state, "INTERVAL_INPUT");
+		tx(session -> session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK)
+			.setReference(
+				REF_PARAMETER_VALUES, PARAM_VALUE_PK,
+				whichIs -> whichIs.setGroup(ENTITY_PARAMETER, PARAMETER_PK)
+			)
+			.setReference(
+				REF_PLAIN_VALUES, PARAM_VALUE_PK,
+				whichIs -> whichIs.setGroup(ENTITY_PARAMETER, PARAMETER_PK)
+			)
+			.upsertVia(session));
+
+		assertFalse(
+			isFaceted(groupPartition(REF_PLAIN_VALUES), REF_PARAMETER_VALUES),
+			"expression does not match yet -> the sibling's group partition must not carry the facet"
+		);
+
+		turnWidgetTypeInto("CHECKBOX");
+
+		assertTrue(
+			isFaceted(groupPartition(REF_PLAIN_VALUES), REF_PARAMETER_VALUES),
+			"the grouped sibling's group-side partition must carry the conditional facet"
+		);
+		assertTrue(
+			isFaceted(valuePartition(REF_PLAIN_VALUES), REF_PARAMETER_VALUES),
+			"and its entity-side partition must carry it as well"
+		);
+
+		turnWidgetTypeInto("INTERVAL_INPUT");
+
+		assertFalse(
+			isFaceted(groupPartition(REF_PLAIN_VALUES), REF_PARAMETER_VALUES),
+			"turning the facet off must clear the grouped sibling's group-side partition too"
 		);
 	}
 

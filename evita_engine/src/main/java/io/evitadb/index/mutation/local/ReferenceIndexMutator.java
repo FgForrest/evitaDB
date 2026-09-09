@@ -1163,7 +1163,7 @@ public interface ReferenceIndexMutator {
 	 * reference that has not been persisted yet, so this deferred pass is the *only* writer for it. Fanning
 	 * out only to the mutated reference's own reduced indexes therefore left the facet missing from every
 	 * sibling partition - a product already sitting in a category never received the parameter-value facet
-	 * that category's reduced index is queried through (issue #2933).
+	 * that category's reduced index is queried through.
 	 *
 	 * @param globalIndex               the global entity index (must be a global-scoped index)
 	 * @param executor                  the mutation executor; provides references storage and schema access

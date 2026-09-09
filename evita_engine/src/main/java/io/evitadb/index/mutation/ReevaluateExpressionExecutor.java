@@ -380,8 +380,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		// facets of every faceted reference its members carry - not just those of the reference it was built
 		// for - so a decision taken here has to reach the owner's sibling partitions as well, exactly as the
 		// local path does. Without this a product already sitting in a category never received the facet when
-		// a cross-entity trigger (e.g. the group entity's widget type turning into CHECKBOX) turned it on
-		// (issue #2933).
+		// a cross-entity trigger (e.g. the group entity's widget type turning into CHECKBOX) turned it on.
 		final Map<Integer, List<SiblingReducedIndex>> siblingReducedIndexes = resolveSiblingReducedIndexes(
 			target, scope, referenceName, allAffectedOwnerPKs
 		);
@@ -527,7 +526,6 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * {@link #resolveSiblingReducedIndexes}. No-op for owners that belong to no partition.
 	 *
 	 * @param siblingReducedIndexes owner PK to sibling reduced indexes
-	 * @param refSchema             schema of the reference being updated
 	 * @param refKey                the `(referenceName, referencedEntityPK)` key
 	 * @param entry                 the `(referencedEntityPK, groupPK, ownerPK)` triple
 	 * @param nowFaceted            `true` when the owner should be faceted in `entry.groupPK()`
