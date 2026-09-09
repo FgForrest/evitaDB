@@ -452,6 +452,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * @return an array of all reference indexes primary keys associated with the specified referenced entity primary key
 	 */
 	@Nonnull
+	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
+		return this.indexPrimaryKeyCardinality.getAllReferenceIndexes(referencedEntityPrimaryKey);
+	}
+
 	/**
 	 * Visits every reduced-index primary key this type index advertises, in a single pass.
 	 * See {@link ReferenceTypeCardinalityIndex#forEachIndexPrimaryKey(IntConsumer)} for why callers that
@@ -461,10 +465,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	public void forEachReferenceIndexPrimaryKey(@Nonnull IntConsumer consumer) {
 		this.indexPrimaryKeyCardinality.forEachIndexPrimaryKey(consumer);
-	}
-
-	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
-		return this.indexPrimaryKeyCardinality.getAllReferenceIndexes(referencedEntityPrimaryKey);
 	}
 
 	/**
