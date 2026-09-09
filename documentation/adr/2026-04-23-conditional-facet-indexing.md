@@ -1,7 +1,7 @@
 ---
 title: Conditional (partial) facet indexing via schema-compiled expression triggers, not per-mutation full-entity evaluation
 date: 2026-04-23
-updated: 2026-07-31
+updated: 2026-09-08 22:20
 status: accepted
 kind: feature
 issues: [8]
@@ -223,6 +223,68 @@ not a parallel mechanism.
 
 ## Consequences & open follow-ups
 
+- **Second post-ship bug, fixed 2026-09-08: a conditional facet never reached the owner's *sibling*
+  partitions.** Reported as edee/eshop#2933 against `2026.2.6`, seen in production on two unrelated
+  projects. A reduced index built for a `FOR_FILTERING_AND_PARTITIONING` reference holds the facets of
+  **every** faceted reference its members carry, not just its own - the invariant `indexAllFacets`
+  establishes when an entity first enters the index. A `facetedPartially` reference is written *only* by
+  the deferred re-evaluation pass, because at `InsertReferenceMutation` time the reference is not yet
+  persisted and a cross-entity expression cannot resolve against it. Both deferred paths
+  (`ReferenceIndexMutator#reEvaluateFacetExpressionsInAllIndexes`,
+  `ReevaluateExpressionExecutor#processFacetTrigger`) updated the global index plus the reduced indexes
+  **of the reference being re-evaluated** and nothing else, so for a `FOR_FILTERING` reference such as
+  `Product.parameterValues` they wrote to the global index alone. The facet was therefore missing from
+  every `categories` / `brand` / `groups` partition. Invisible in a plain facet summary (served from the
+  global index) and fatal the moment a facet is *selected*, since selection is evaluated against the
+  category's reduced index: the group vanishes from the summary and the result set collapses to zero.
+  Both paths now fan out to every reduced index the owner belongs to.
+  - **Two traps for anyone touching this fan-out.** The `ReferenceSchemaContract` handed to a reduced
+    index's `addFacet`/`removeFacet` identifies *that index's own* reference - it is asserted to be
+    `FOR_FILTERING_AND_PARTITIONING` - while the facet written is identified by its `ReferenceKey`
+    alone; passing the mutated reference's schema trips the assertion on exactly the conditional facets
+    this fan-out exists to serve. And a sibling index must be obtained through the *registering*
+    accessor (`getOrCreateIndexByPrimaryKey`, not `getIndexByPrimaryKeyIfExists`): the registration is
+    what enrols it in the dirty set and gets its transactional layer swept, and mutating a plainly-read
+    instance kills the commit with `StaleTransactionMemoryException`. That failure is `ALIVE`-only, so a
+    `WARMING_UP` test passes over it - which is why the reproducer is parameterised on catalog state.
+  - **Resolution direction differs between the two paths, deliberately.** The local path has the owner's
+    `ReferencesStoragePart` and reuses `forEachUniqueReferenceIndex`. The cross-entity executor works
+    from owner-PK bitmaps and has no such view, so it inverts the available
+    `referenced entity -> reduced index -> members` mapping once per trigger and intersects each
+    partition against the affected owners. **Rejected: reading each owner's reference container**
+    instead - it is one storage read per affected owner, and a cross-entity trigger routinely affects
+    thousands. Revisit if `IndexMutationTarget` ever gains a cheap owner-to-partition lookup.
+  - **Cost, measured.** decodoma_cz (7,269 products, ~30 conditionally faceted references each,
+    8 partitions), warm-up bulk load, per-product paired over 4-5 runs per arm, writer 8g/reader 6g:
+    the fan-out alone cost **+7.7 %** on `Product` upsert, rising to **+10.9 %** for the heaviest
+    quartile - the signature of work quadratic in reference count. Two follow-ups brought it to
+    **+3.6 %, flat across quartiles**: memoizing the owner's reduced-index list for the duration of a
+    deferred phase (−1.6 %; every action queued for an entity resolves the same set), and giving
+    `applyFacetDecisionMatrix` a steady-state fast path (−2.4 %) - `isFacetPresentInGroup` now uses the
+    O(1) `getFacetsInGroup` map lookup instead of walking every group, and presence in the target bucket
+    short-circuits before the `wasFaceted` scan. The latter two help the pre-existing path as much as
+    the fan-out. Worth knowing separately: enabling `facetedPartially` at all took `Product` upsert from
+    ~2.9 ms to ~7.8 ms on this dataset, so the deferred path dwarfs the fan-out added on top of it.
+  - **Already-corrupted catalogs are not self-healing, and a full reindex does not repair them.** The
+    fresh-rebuild path was broken too, so re-loading a catalog reproduces the gap rather than clearing
+    it (confirmed: a rebuild on the unfixed engine left all 15,737 conditional-facet slots missing).
+    Re-upserting the products changes nothing either, because the entity is already a member of each
+    partition and `indexAllFacets` does not re-run. What does repair it is removing and re-adding the
+    *partitioned* reference (remove + re-add `categories`, in two commits), which re-enters the entity
+    into the reduced index - verified 12/12 on a restored production catalog. On the fixed engine a
+    plain rebuild is enough.
+  - **The warm-up benchmark harness silently under-reported this whole feature.**
+    `CatalogCopySupport.applyReference` replicated `indexed*` and `facetedInScope` but dropped
+    `facetedPartially`, `bucketedPartially` and `indexedComponents`, so every measurement taken through
+    `IsolatedWarmupLoadBenchmark` ran against a replica with **no conditional facets and missing reduced
+    index families** - the first A/B run of this fix measured a code path that was never entered and
+    reported ~1 %. `facetedPartially` and `indexedComponents` are now replicated. One casualty: a
+    reflected reference may not inherit a `facetedPartially` expression (its paths are
+    direction-specific and resolve to the wrong entity type in the reflected direction) and every
+    explicit alternative is refused in turn, so such projections are omitted from the replica with a
+    logged warning. Bucketed histograms remain unreplicated - the harness still understates any
+    catalog using them.
+
 - **Post-ship bug, fixed.** On 2026-05-28 (`9dc4b9427`, committed directly to `dev`, no PR — five
   weeks after merge), the cross-entity executor was found to issue blind `addFacet`/`removeFacet`
   calls against the freshly-resolved group bucket. When a faceted reference migrated to a
@@ -284,3 +346,5 @@ not a parallel mechanism.
 - **2026-04-23** — PR #1136 merged into `dev`
 - **2026-05-28** — post-ship presence-aware re-evaluation fix (`9dc4b9427`, direct commit, no PR)
 - **2026-07-31** — planning documents retired, replaced by this record
+- **2026-09-08** — second post-ship fix: conditional facets now reach the owner's sibling reduced
+  indexes (edee/eshop#2933); benchmark harness taught to replicate `facetedPartially`
