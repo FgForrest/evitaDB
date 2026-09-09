@@ -485,40 +485,46 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull PersistentRoaringBitmap affected,
 		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
 	) {
-		final EntityIndex typeIndex = target.getIndexIfExists(
-			new EntityIndexKey(indexType, scope, siblingSchema.getName())
+		// absence is legitimate - the reference simply has no partitions of this kind yet - but an index
+		// registered under a REFERENCED_*_TYPE key is a ReferencedTypeEntityIndex by construction, so any
+		// other type is a programming error and must not be skipped silently
+		final ReferencedTypeEntityIndex referencedTypeIndex = asReferencedTypeEntityIndexIfExists(
+			target.getIndexIfExists(new EntityIndexKey(indexType, scope, siblingSchema.getName())),
+			() -> indexType + "/" + siblingSchema.getName()
 		);
-		if (!(typeIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex)) {
+		if (referencedTypeIndex == null) {
 			return;
 		}
-		for (final Integer referencedPK : referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys()) {
-			for (final int reducedIndexPK : referencedTypeIndex.getAllReferenceIndexes(referencedPK)) {
-				final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
-				if (probedIndex == null) {
-					continue;
-				}
-				final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
-				if (owners.length == 0) {
-					continue;
-				}
-				// Re-fetch through the registering accessor, and only for partitions that really hold an
-				// affected owner. That registration is what enrols the index in the "dirty" set, and hence
-				// what gets its transactional layer swept at commit - mutating the plainly-read instance
-				// instead leaves the layer stranded and the whole transaction dies with
-				// StaleTransactionMemoryException. Doing it after the intersection keeps every untouched
-				// partition out of the dirty set.
-				final EntityIndex reducedIndex = target.getOrCreateIndexByPrimaryKey(reducedIndexPK);
-				final SiblingReducedIndex sibling = new SiblingReducedIndex(reducedIndex, siblingSchema);
-				for (final int owner : owners) {
-					final List<SiblingReducedIndex> indexes =
-						result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
-					// references sharing a reduced group index resolve to the same instance more than once
-					if (!indexes.contains(sibling)) {
-						indexes.add(sibling);
-					}
+		// One pass over the advertising map. The per-referenced-PK accessors would box every key, hash it a
+		// second time into the same map and allocate an `int[]` per entry - and this traversal runs over
+		// *every* partition of the collection on *every* trigger, so those per-partition allocations are
+		// the bulk of the walk's constant factor.
+		referencedTypeIndex.forEachReferenceIndexPrimaryKey(reducedIndexPK -> {
+			final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
+			if (probedIndex == null) {
+				return;
+			}
+			final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
+			if (owners.length == 0) {
+				return;
+			}
+			// Re-fetch through the registering accessor, and only for partitions that really hold an
+			// affected owner. That registration is what enrols the index in the "dirty" set, and hence
+			// what gets its transactional layer swept at commit - mutating the plainly-read instance
+			// instead leaves the layer stranded and the whole transaction dies with
+			// StaleTransactionMemoryException. Doing it after the intersection keeps every untouched
+			// partition out of the dirty set.
+			final EntityIndex reducedIndex = target.getOrCreateIndexByPrimaryKey(reducedIndexPK);
+			final SiblingReducedIndex sibling = new SiblingReducedIndex(reducedIndex, siblingSchema);
+			for (final int owner : owners) {
+				final List<SiblingReducedIndex> indexes =
+					result.computeIfAbsent(owner, __ -> new ArrayList<>(4));
+				// references sharing a reduced group index resolve to the same instance more than once
+				if (!indexes.contains(sibling)) {
+					indexes.add(sibling);
 				}
 			}
-		}
+		});
 	}
 
 	/**
@@ -2207,13 +2213,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 	/**
 	 * Looks up a {@link ReferencedTypeEntityIndex} by type, scope, and reference name.
-	 * Returns {@code null} when the index does not exist.
+	 * Returns {@code null} when the index does not exist - a legitimate state, since a reference need not
+	 * have any partitions of that kind yet. An index that *is* registered under a `REFERENCED_*_TYPE` key
+	 * but is not a {@link ReferencedTypeEntityIndex} is a programming error and raises instead.
 	 *
 	 * @param target        access to entity collection indexes
 	 * @param type          the entity index type to look up
 	 * @param scope         scope of the entity collection
 	 * @param referenceName name of the reference
 	 * @return the cast index, or {@code null} when not found
+	 * @throws GenericEvitaInternalError when an index exists under the key but has the wrong type
 	 */
 	@Nullable
 	private static ReferencedTypeEntityIndex findReferencedTypeEntityIndex(
@@ -2222,8 +2231,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull Scope scope,
 		@Nonnull String referenceName
 	) {
-		final EntityIndex index = target.getIndexIfExists(new EntityIndexKey(type, scope, referenceName));
-		return index instanceof ReferencedTypeEntityIndex rtei ? rtei : null;
+		return asReferencedTypeEntityIndexIfExists(
+			target.getIndexIfExists(new EntityIndexKey(type, scope, referenceName)),
+			() -> type + "/" + referenceName
+		);
 	}
 
 	/**
