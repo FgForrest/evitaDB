@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-08-31 11:48
+updated: 2026-09-09 19:12
 status: accepted
 kind: fix
 issues: [1467]
@@ -9,7 +9,7 @@ prs: [1468, 1469]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation, evita_engine/src/main/java/io/evitadb/core/collection]
 supersedes: []
 superseded-by: []
-relates: [2026-04-23-bucketed-histogram-indexing]
+relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-09-sibling-resolver-partition-cardinality]
 ---
 
 # Cross-entity histogram removal is gated on the pre-mutation condition, captured before the batch is applied
