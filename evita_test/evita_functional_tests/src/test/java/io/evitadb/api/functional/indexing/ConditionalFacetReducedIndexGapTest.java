@@ -70,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Guards the invariant edee/eshop#2933 broke: a reduced entity index built for a
+ * Guards an invariant that used to break silently: a reduced entity index built for a
  * `FOR_FILTERING_AND_PARTITIONING` reference must carry the facets of **every** faceted reference its members
  * hold — including a **conditionally** faceted one (`facetedPartially`) belonging to a sibling reference.
  *
