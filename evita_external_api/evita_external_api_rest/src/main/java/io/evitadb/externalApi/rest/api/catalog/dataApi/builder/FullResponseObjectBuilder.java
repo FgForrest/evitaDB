@@ -180,7 +180,7 @@ public class FullResponseObjectBuilder {
 		final OpenApiObject recordPageObject = EntityRecordPageDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructRecordPageObjectName(entitySchema, localized))
-			.description(EntityRecordPageDescriptor.THIS.description(entitySchema))
+			.description(EntityRecordPageDescriptor.THIS.description(entitySchema.getName()))
 			.property(buildDataChunkDataProperty(entityObject))
 			.property(createDataChunkDiscriminatorProperty())
 			.build();
@@ -196,7 +196,7 @@ public class FullResponseObjectBuilder {
 		final OpenApiObject recordStripObject = EntityRecordStripDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructRecordStripObjectName(entitySchema, localized))
-			.description(EntityRecordStripDescriptor.THIS.description(entitySchema))
+			.description(EntityRecordStripDescriptor.THIS.description(entitySchema.getName()))
 			.property(buildDataChunkDataProperty(entityObject))
 			.property(createDataChunkDiscriminatorProperty())
 			.build();

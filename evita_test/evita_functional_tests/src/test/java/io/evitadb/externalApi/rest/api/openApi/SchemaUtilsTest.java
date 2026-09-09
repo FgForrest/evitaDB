@@ -44,16 +44,22 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.HashSet;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -74,6 +80,8 @@ import static io.evitadb.test.TestTags.SCHEMA;
 class SchemaUtilsTest {
 	private static final String urlPathToProductList = "/PRODUCT/list";
 	public static final String REST_THOUSAND_PRODUCTS_OPEN_API = REST_THOUSAND_PRODUCTS + "openApi";
+	private static final Pattern JVM_IDENTITY_STRING_PATTERN =
+		Pattern.compile("io\\.evitadb(?:\\.[\\w$]+)*@[0-9a-f]{6,10}\\b");
 
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -164,6 +172,18 @@ class SchemaUtilsTest {
 
 		assertEquals(integerSchema, SchemaUtils.getTargetSchema(referenceToInt, openApi));
 		assertEquals(integerSchema, SchemaUtils.getTargetSchema(topObject, openApi));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
+	@DisplayName("Should not leak a JVM identity hash or internal class name into any description")
+	void shouldNotLeakJvmIdentityHashIntoDescriptions(Evita evita, OpenAPI openApi) throws IOException {
+		final ByteArrayOutputStream out = new ByteArrayOutputStream();
+		OpenApiWriter.toJson(openApi, out);
+		final String document = out.toString(StandardCharsets.UTF_8);
+
+		final Matcher matcher = JVM_IDENTITY_STRING_PATTERN.matcher(document);
+		assertFalse(matcher.find(), () -> "OpenAPI document leaks a JVM identity string: `" + matcher.group() + "`");
 	}
 
 	@Test
