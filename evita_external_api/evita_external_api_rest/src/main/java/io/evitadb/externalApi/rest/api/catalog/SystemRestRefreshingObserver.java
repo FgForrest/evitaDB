@@ -81,57 +81,66 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 	public void onNext(ChangeSystemCapture item) {
 		try {
 			final SystemCaptureBody body = item.body();
-			if (body instanceof CreateCatalogSchemaMutation ccsm) {
-				// if the catalog schema is created, we need to register it
-				if (this.restManager.registerCatalog(ccsm.getCatalogName())) {
-					this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
+			switch (body) {
+				case CreateCatalogSchemaMutation ccsm -> {
+					// if the catalog schema is created, we need to register it
+					if (this.restManager.registerCatalog(ccsm.getCatalogName())) {
+						this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
+					}
 				}
-			} else if (body instanceof DuplicateCatalogMutation duplicate) {
-				// if the catalog schema is duplicated, we need to register the new one
-				if (this.restManager.registerCatalog(duplicate.getNewCatalogName())) {
-					this.restManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+				case DuplicateCatalogMutation duplicate -> {
+					// if the catalog schema is duplicated, we need to register the new one
+					if (this.restManager.registerCatalog(duplicate.getNewCatalogName())) {
+						this.restManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+					}
 				}
-			} else if (body instanceof ModifyCatalogSchemaNameMutation mcsnm) {
-				// remove the old catalog and register the new one
-				this.restManager.unregisterCatalog(mcsnm.getCatalogName());
-				if (mcsnm.isOverwriteTarget()) {
-					this.restManager.unregisterCatalog(mcsnm.getNewCatalogName());
+				case ModifyCatalogSchemaNameMutation mcsnm -> {
+					// remove the old catalog and register the new one
+					this.restManager.unregisterCatalog(mcsnm.getCatalogName());
+					if (mcsnm.isOverwriteTarget()) {
+						this.restManager.unregisterCatalog(mcsnm.getNewCatalogName());
+					}
+					if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
+						this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
+					}
 				}
-				if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
-					this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
+				case SetCatalogStateMutation setState -> {
+					// the engine mutation merely records intent; the authoritative "is the catalog
+					// usable now?" signal arrives as a `CatalogInstalledIntoLiveView` host event after
+					// the state transition completes. We deactivate eagerly here (active=false) but
+					// defer activation to the host event branch below.
+					if (!setState.isActive()) {
+						this.restManager.unregisterCatalog(setState.getCatalogName());
+					}
 				}
-			} else if (body instanceof SetCatalogStateMutation setState) {
-				// the engine mutation merely records intent; the authoritative "is the catalog
-				// usable now?" signal arrives as a `CatalogInstalledIntoLiveView` host event after
-				// the state transition completes. We deactivate eagerly here (active=false) but
-				// defer activation to the host event branch below.
-				if (!setState.isActive()) {
-					this.restManager.unregisterCatalog(setState.getCatalogName());
+				case RemoveCatalogSchemaMutation rccs ->
+					// the engine mutation marks intent to delete; actual removal from the live view is
+					// confirmed by the `CatalogRemovedFromLiveView` host event below.
+					this.restManager.unregisterCatalog(rccs.getCatalogName());
+				case UpgradeCatalogFormatMutation upgrade -> {
+					// defensive — the host event (`CatalogInstalledIntoLiveView`) is the primary signal
+					// for the actual register/refresh, but if the engine emits the upgrade mutation
+					// first and we already have an endpoint for the catalog, refresh it so consumers
+					// don't see a stale schema until the host event arrives.
+					if (this.restManager.refreshCatalog(upgrade.getCatalogName())) {
+						this.restManager.emitObservabilityEvents(upgrade.getCatalogName());
+					}
 				}
-			} else if (body instanceof RemoveCatalogSchemaMutation rccs) {
-				// the engine mutation marks intent to delete; actual removal from the live view is
-				// confirmed by the `CatalogRemovedFromLiveView` host event below.
-				this.restManager.unregisterCatalog(rccs.getCatalogName());
-			} else if (body instanceof UpgradeCatalogFormatMutation upgrade) {
-				// defensive — the host event (`CatalogInstalledIntoLiveView`) is the primary signal
-				// for the actual register/refresh, but if the engine emits the upgrade mutation
-				// first and we already have an endpoint for the catalog, refresh it so consumers
-				// don't see a stale schema until the host event arrives.
-				if (this.restManager.refreshCatalog(upgrade.getCatalogName())) {
-					this.restManager.emitObservabilityEvents(upgrade.getCatalogName());
+				case HostSystemEvent.CatalogSchemaUpdated schemaUpdated -> {
+					// Coalesced schema-refresh signal. Replaces the per-mutation
+					// `ModifyCatalogSchemaMutation` / `SetCatalogMutabilityMutation` reactions that
+					// each triggered a full REST schema rebuild.
+					if (this.restManager.refreshCatalog(schemaUpdated.catalogName())) {
+						this.restManager.emitObservabilityEvents(schemaUpdated.catalogName());
+					}
 				}
-			} else if (body instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
-				// Coalesced schema-refresh signal. Replaces the per-mutation
-				// `ModifyCatalogSchemaMutation` / `SetCatalogMutabilityMutation` reactions that
-				// each triggered a full REST schema rebuild.
-				if (this.restManager.refreshCatalog(schemaUpdated.catalogName())) {
-					this.restManager.emitObservabilityEvents(schemaUpdated.catalogName());
-				}
-			} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
-				handleCatalogInstalled(installed);
-			} else if (body instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
-				// the catalog is gone from the live view on this host — drop its REST endpoints
-				this.restManager.unregisterCatalog(removed.catalogName());
+				case HostSystemEvent.CatalogInstalledIntoLiveView installed -> handleCatalogInstalled(installed);
+				case HostSystemEvent.CatalogRemovedFromLiveView removed ->
+					// the catalog is gone from the live view on this host — drop its REST endpoints
+					this.restManager.unregisterCatalog(removed.catalogName());
+				// every other capture body (and a header-only capture, whose body is NULL) describes a
+				// change the REST endpoint registry does not react to
+				case null, default -> { }
 			}
 		} catch (CatalogGoingLiveException ignored) {
 			// catalog is going live, we cannot update its REST schema now

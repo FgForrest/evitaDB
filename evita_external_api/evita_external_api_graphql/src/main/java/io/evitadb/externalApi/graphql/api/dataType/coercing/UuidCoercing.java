@@ -50,11 +50,11 @@ public class UuidCoercing implements Coercing<UUID, String> {
     @Nonnull
     @Override
     public UUID parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("UUID input value is not a string.");
         }
         try {
-            return UUID.fromString((String) input);
+            return UUID.fromString(stringInput);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -63,11 +63,11 @@ public class UuidCoercing implements Coercing<UUID, String> {
     @Nonnull
     @Override
     public UUID parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("UUID input value is not a string.");
         }
         try {
-            return UUID.fromString(((StringValue) input).getValue());
+            return UUID.fromString(stringValue.getValue());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

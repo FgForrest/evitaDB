@@ -42,10 +42,10 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
     @Nonnull
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Byte)) {
+        if (!(dataFetcherResult instanceof Byte byteValue)) {
             throw new CoercingSerializeException("Byte data fetcher result is not a byte.");
         }
-        return (int) dataFetcherResult;
+        return (int) byteValue;
     }
 
     @Nonnull
@@ -64,11 +64,11 @@ public class ByteCoercing implements Coercing<Byte, Integer> {
     @Nonnull
     @Override
     public Byte parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
+        if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Byte input value is not a integer.");
         }
         try {
-            return ((IntValue) input).getValue().byteValueExact();
+            return intValue.getValue().byteValueExact();
         } catch (NumberFormatException | ArithmeticException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

@@ -78,34 +78,34 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 				"Expected AST type `Value` but was '" + input + "'."
 			);
 		}
-		if (input instanceof FloatValue) {
-			return ((FloatValue) input).getValue();
+		if (input instanceof FloatValue floatValue) {
+			return floatValue.getValue();
 		}
-		if (input instanceof StringValue) {
-			return ((StringValue) input).getValue();
+		if (input instanceof StringValue stringValue) {
+			return stringValue.getValue();
 		}
-		if (input instanceof IntValue) {
-			return ((IntValue) input).getValue().longValueExact();
+		if (input instanceof IntValue intValue) {
+			return intValue.getValue().longValueExact();
 		}
-		if (input instanceof BooleanValue) {
-			return ((BooleanValue) input).isValue();
+		if (input instanceof BooleanValue booleanValue) {
+			return booleanValue.isValue();
 		}
-		if (input instanceof EnumValue) {
-			return ((EnumValue) input).getName();
+		if (input instanceof EnumValue enumValue) {
+			return enumValue.getName();
 		}
-		if (input instanceof VariableReference) {
-			String varName = ((VariableReference) input).getName();
+		if (input instanceof VariableReference variableReference) {
+			String varName = variableReference.getName();
 			return variables.get(varName);
 		}
-		if (input instanceof ArrayValue) {
+		if (input instanceof ArrayValue arrayValue) {
 			//noinspection rawtypes
-			List<Value> values = ((ArrayValue) input).getValues();
+			List<Value> values = arrayValue.getValues();
 			return values.stream()
 				.map(v -> parseLiteral(v, variables))
 				.collect(Collectors.toList());
 		}
-		if (input instanceof ObjectValue) {
-			List<ObjectField> values = ((ObjectValue) input).getObjectFields();
+		if (input instanceof ObjectValue objectValue) {
+			List<ObjectField> values = objectValue.getObjectFields();
 			Map<String, Object> parsedValues = new LinkedHashMap<>();
 			values.forEach(fld -> {
 				Object parsedValue = parseLiteral(fld.getValue(), variables);
@@ -119,33 +119,33 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 	@Nonnull
 	@Override
 	public Value<?> valueToLiteral(@Nonnull Object input) {
-		if (input instanceof String) {
-			return new StringValue((String) input);
+		if (input instanceof String stringInput) {
+			return new StringValue(stringInput);
 		}
-		if (input instanceof Float) {
-			return new FloatValue(BigDecimal.valueOf((Float) input));
+		if (input instanceof Float floatInput) {
+			return new FloatValue(BigDecimal.valueOf(floatInput));
 		}
-		if (input instanceof Double) {
-			return new FloatValue(BigDecimal.valueOf((Double) input));
+		if (input instanceof Double doubleInput) {
+			return new FloatValue(BigDecimal.valueOf(doubleInput));
 		}
-		if (input instanceof BigDecimal) {
-			return new FloatValue((BigDecimal) input);
+		if (input instanceof BigDecimal bigDecimal) {
+			return new FloatValue(bigDecimal);
 		}
-		if (input instanceof BigInteger) {
-			return new IntValue((BigInteger) input);
+		if (input instanceof BigInteger bigInteger) {
+			return new IntValue(bigInteger);
 		}
-		if (input instanceof Number) {
-			long l = ((Number) input).longValue();
+		if (input instanceof Number number) {
+			long l = number.longValue();
 			return new IntValue(BigInteger.valueOf(l));
 		}
-		if (input instanceof Boolean) {
-			return new BooleanValue((Boolean) input);
+		if (input instanceof Boolean booleanInput) {
+			return new BooleanValue(booleanInput);
 		}
 		if (FpKit.isIterable(input)) {
 			return handleIterable(FpKit.toIterable(input));
 		}
-		if (input instanceof Map) {
-			return handleMap((Map<?, ?>) input);
+		if (input instanceof Map<?, ?> map) {
+			return handleMap(map);
 		}
 		throw new UnsupportedOperationException("The ObjectScalar cant handle values of type `" + input.getClass() + "`.");
 	}

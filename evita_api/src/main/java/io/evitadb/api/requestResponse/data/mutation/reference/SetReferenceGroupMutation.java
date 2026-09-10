@@ -53,7 +53,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
-public class SetReferenceGroupMutation extends ReferenceMutation<ComparableReferenceKey>
+public final class SetReferenceGroupMutation extends ReferenceMutation<ComparableReferenceKey>
 	implements SchemaEvolvingLocalMutation<ReferenceContract, ComparableReferenceKey> {
 	@Serial private static final long serialVersionUID = 7138410321528617748L;
 	/**

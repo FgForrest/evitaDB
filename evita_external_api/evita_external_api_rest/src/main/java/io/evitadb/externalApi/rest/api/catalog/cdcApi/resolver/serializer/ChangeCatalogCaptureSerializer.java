@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -89,21 +90,21 @@ public class ChangeCatalogCaptureSerializer {
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_TYPE.name(), capture.entityPrimaryKey() != null ? this.objectJsonSerializer.serializeObject(capture.entityPrimaryKey()) : null);
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.OPERATION.name(), this.objectJsonSerializer.serializeObject(capture.operation()));
 
-		if (capture.body() != null) {
-			final JsonNode convertedBody;
-			if (capture.body() instanceof EntityMutation entityMutation) {
-				convertedBody = (JsonNode) this.entityMutationConverter.convertToOutput(entityMutation);
-			} else if (capture.body() instanceof LocalMutation<?, ?> localMutation) {
-				convertedBody = (JsonNode) this.localMutationConverter.convertToOutput(localMutation);
-			} else if (capture.body() instanceof LocalCatalogSchemaMutation catalogSchemaMutation) {
-				convertedBody = (JsonNode) this.localCatalogSchemaMutationConverter.convertToOutput(catalogSchemaMutation);
-			} else if (capture.body() instanceof EntitySchemaMutation entitySchemaMutation) {
-				convertedBody = (JsonNode) this.entitySchemaMutationConverter.convertToOutput(entitySchemaMutation);
-			} else if (capture.body() instanceof TransactionMutation transactionMutation) {
-				convertedBody = (JsonNode) this.infrastructureMutationConverter.convertToOutput(transactionMutation);
-			} else {
-				throw new RestQueryResolvingInternalError("Unsupported entity mutation: " + capture.body());
-			}
+		final CatalogBoundMutation body = capture.body();
+		if (body != null) {
+			final JsonNode convertedBody = switch (body) {
+				case EntityMutation entityMutation ->
+					(JsonNode) this.entityMutationConverter.convertToOutput(entityMutation);
+				case LocalMutation<?, ?> localMutation ->
+					(JsonNode) this.localMutationConverter.convertToOutput(localMutation);
+				case LocalCatalogSchemaMutation catalogSchemaMutation ->
+					(JsonNode) this.localCatalogSchemaMutationConverter.convertToOutput(catalogSchemaMutation);
+				case EntitySchemaMutation entitySchemaMutation ->
+					(JsonNode) this.entitySchemaMutationConverter.convertToOutput(entitySchemaMutation);
+				case TransactionMutation transactionMutation ->
+					(JsonNode) this.infrastructureMutationConverter.convertToOutput(transactionMutation);
+				default -> throw new RestQueryResolvingInternalError("Unsupported entity mutation: " + body);
+			};
 			rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.BODY.name(), convertedBody);
 		}
 

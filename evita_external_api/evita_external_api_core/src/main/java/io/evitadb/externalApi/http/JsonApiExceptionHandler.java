@@ -58,24 +58,20 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 
 	@Override
 	protected HttpResponse renderError(@Nonnull EvitaError evitaError, @Nonnull HttpRequest httpRequest) {
-		if (evitaError instanceof final HttpExchangeException httpExchangeException) {
-			return setResponse(httpExchangeException.getStatusCode(), httpExchangeException);
-		} else if (evitaError instanceof CatalogMissingException) {
+		return switch (evitaError) {
+			case HttpExchangeException httpExchangeException ->
+				setResponse(httpExchangeException.getStatusCode(), httpExchangeException);
 			// catalog's on-disk folder is gone — treat as 404 Not Found so clients surface the resource-not-available
 			// semantic rather than a generic bad-request.
-			return setResponse(HttpStatus.NOT_FOUND.code(), evitaError);
-		} else if (evitaError instanceof CatalogBeingUpgradedException) {
+			case CatalogMissingException ignored -> setResponse(HttpStatus.NOT_FOUND.code(), evitaError);
 			// transient conflict: the upgrade is in flight and will complete — retryable.
-			return setResponse(HttpStatus.CONFLICT.code(), evitaError);
-		} else if (evitaError instanceof CatalogRequiresUpgradeException) {
+			case CatalogBeingUpgradedException ignored -> setResponse(HttpStatus.CONFLICT.code(), evitaError);
 			// catalog exists but its current state (OUT_OF_DATE) conflicts with any access attempt until the upgrade
 			// mutation is executed.
-			return setResponse(HttpStatus.CONFLICT.code(), evitaError);
-		} else if (evitaError instanceof EvitaInvalidUsageException) {
-			return setResponse(HttpStatus.BAD_REQUEST.code(), evitaError);
-		} else {
-			return setResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), evitaError);
-		}
+			case CatalogRequiresUpgradeException ignored -> setResponse(HttpStatus.CONFLICT.code(), evitaError);
+			case EvitaInvalidUsageException ignored -> setResponse(HttpStatus.BAD_REQUEST.code(), evitaError);
+			default -> setResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), evitaError);
+		};
 	}
 
 	/**

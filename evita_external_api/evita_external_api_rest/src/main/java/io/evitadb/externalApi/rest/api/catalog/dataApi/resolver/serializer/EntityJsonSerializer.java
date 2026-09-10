@@ -475,16 +475,16 @@ public class EntityJsonSerializer {
 				rootNode.putIfAbsent(referencePropertyName, serializeSingleReference(ctx, entity.getLocales(), groupedReferences.getData().get(0), entitySchema));
 			}
 		} else {
-			final String referencePropertyName;
-			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
-				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema);
-			} else if (groupedReferences instanceof PaginatedList<ReferenceContract>) {
-				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema);
-			} else if (groupedReferences instanceof StripList<ReferenceContract>) {
-				referencePropertyName = WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema);
-			} else {
-				throw new OpenApiBuildingError("Unsupported implementation of data chunk `" + groupedReferences.getClass().getName() + "`");
-			}
+			// the switch needs no `default` branch - `DataChunk` is sealed and all three permitted
+			// implementations are covered, so javac proves the dispatch exhaustive
+			final String referencePropertyName = switch (groupedReferences) {
+				case PlainChunk<ReferenceContract> ignored ->
+					WithNamedReferenceDescriptor.REFERENCE.name(referenceSchema);
+				case PaginatedList<ReferenceContract> ignored ->
+					WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema);
+				case StripList<ReferenceContract> ignored ->
+					WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema);
+			};
 			final JsonNode dataChunkNode = this.dataChunkJsonSerializer.serialize(
 				groupedReferences,
 				groupedReference -> serializeSingleReference(ctx, entity.getLocales(), groupedReference, entitySchema)

@@ -57,7 +57,8 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(exclude = "decisiveTimestamp")
-public abstract class AttributeMutation implements NamedLocalMutation<AttributeValue, AttributeKey> {
+public abstract sealed class AttributeMutation implements NamedLocalMutation<AttributeValue, AttributeKey>
+	permits AttributeSchemaEvolvingMutation, RemoveAttributeMutation {
 	@Serial private static final long serialVersionUID = 8615227519108169551L;
 	@Getter private final long decisiveTimestamp;
 	/**

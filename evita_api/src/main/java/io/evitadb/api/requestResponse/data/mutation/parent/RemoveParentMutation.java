@@ -42,7 +42,7 @@ import java.util.OptionalInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class RemoveParentMutation extends ParentMutation {
+public final class RemoveParentMutation extends ParentMutation {
 	@Serial private static final long serialVersionUID = 1740874836848423328L;
 
 	public RemoveParentMutation() {

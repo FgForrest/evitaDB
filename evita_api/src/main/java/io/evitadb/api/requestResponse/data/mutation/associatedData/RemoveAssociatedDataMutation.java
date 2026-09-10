@@ -44,7 +44,7 @@ import java.util.Locale;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
+public final class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 	@Serial private static final long serialVersionUID = 3777453666285515950L;
 
 	public RemoveAssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey) {

@@ -59,7 +59,7 @@ public class ArrayElementAccessor implements ObjectElementAccessor {
 	@Override
 	public Serializable get(@Nonnull Serializable object, int elementIndex) throws ExpressionEvaluationException {
 		try {
-			// Primitive arrays (must check before Object[])
+			// Primitive arrays are not `Object[]` subtypes, so their order relative to it carries no meaning
 			if (object instanceof boolean[] array) {
 				return array[elementIndex];
 			} else if (object instanceof byte[] array) {

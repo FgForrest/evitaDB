@@ -36,7 +36,8 @@ import java.io.Serializable;
  * step receives the result of the previous step (or the initial operand) and produces the next
  * intermediate value.
  *
- * Implementations include:
+ * The hierarchy is closed - the `permits` clause below enumerates every implementation, so a
+ * dispatch covering all five arms is provably exhaustive and needs no defensive `default`:
  *
  * - {@link PropertyAccessStep} for dot-notation property access (`.property`)
  * - {@link ElementAccessStep} for bracket-notation element access (`[index]` or `['key']`)
@@ -46,7 +47,8 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface ObjectOperationStep extends Serializable {
+public sealed interface ObjectOperationStep extends Serializable
+	permits PropertyAccessStep, ElementAccessStep, SpreadAccessStep, NullSafeAccessStep, MethodInvocationStep {
 
 	@Nullable Serializable compute(
 		@Nonnull ExpressionEvaluationContext context,

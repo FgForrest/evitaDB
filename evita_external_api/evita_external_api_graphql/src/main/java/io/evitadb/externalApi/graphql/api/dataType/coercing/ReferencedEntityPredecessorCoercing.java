@@ -41,20 +41,20 @@ public class ReferencedEntityPredecessorCoercing implements Coercing<ReferencedE
 
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof ReferencedEntityPredecessor)) {
+        if (!(dataFetcherResult instanceof ReferencedEntityPredecessor referencedEntityPredecessor)) {
             throw new CoercingSerializeException("ReferencedEntityPredecessor data fetcher result is not a ReferencedEntityPredecessor.");
         }
-        return ((ReferencedEntityPredecessor)dataFetcherResult).predecessorPk();
+        return referencedEntityPredecessor.predecessorPk();
     }
 
     @Nonnull
     @Override
     public ReferencedEntityPredecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof Integer)) {
+        if (!(input instanceof Integer integerInput)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return new ReferencedEntityPredecessor((Integer) input);
+            return new ReferencedEntityPredecessor(integerInput);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -63,11 +63,11 @@ public class ReferencedEntityPredecessorCoercing implements Coercing<ReferencedE
     @Nonnull
     @Override
     public ReferencedEntityPredecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
+        if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("ReferencedEntityPredecessor input value is not an integer.");
         }
         try {
-            return new ReferencedEntityPredecessor(((IntValue) input).getValue().intValueExact());
+            return new ReferencedEntityPredecessor(intValue.getValue().intValueExact());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

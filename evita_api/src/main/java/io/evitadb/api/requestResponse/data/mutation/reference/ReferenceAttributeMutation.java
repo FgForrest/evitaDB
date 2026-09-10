@@ -65,7 +65,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
-public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey>
+public final class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey>
 	implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
 	@Serial private static final long serialVersionUID = -5135310891814031602L;
 	/**

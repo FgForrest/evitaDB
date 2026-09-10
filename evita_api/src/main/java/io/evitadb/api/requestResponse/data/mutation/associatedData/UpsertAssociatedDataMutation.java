@@ -42,7 +42,7 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMutation {
+public final class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = 2106367735845445016L;
 	/**
 	 * The value that is going to be set to the associated data.

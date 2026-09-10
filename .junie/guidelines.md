@@ -39,7 +39,7 @@ This document outlines the coding guidelines and best practices for the Junie pr
 ### Building
 
 - Build Tool: Use Maven for building the project
-- Java Version: OpenJDK 17 (requires Maven toolchains configuration)
+- Java Version: OpenJDK 21 (requires Maven toolchains configuration)
 
 ### Testing
 

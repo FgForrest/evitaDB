@@ -232,10 +232,10 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		@Override
 		public boolean equals(Object other) {
-			if (other instanceof LatentKey<?>) {
-				return ((LatentKey<?>) other).key == get();
-			} else if (other instanceof WeakKey<?>) {
-				return ((WeakKey<?>) other).get() == get();
+			if (other instanceof LatentKey<?> latentKey) {
+				return latentKey.key == get();
+			} else if (other instanceof WeakKey<?> weakKey) {
+				return weakKey.get() == get();
 			} else {
 				return false;
 			}
@@ -260,10 +260,10 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		@Override
 		public boolean equals(Object other) {
-			if (other instanceof LatentKey<?>) {
-				return ((LatentKey<?>) other).key == this.key;
-			} else if (other instanceof WeakKey<?>) {
-				return ((WeakKey<?>) other).get() == this.key;
+			if (other instanceof LatentKey<?> latentKey) {
+				return latentKey.key == this.key;
+			} else if (other instanceof WeakKey<?> weakKey) {
+				return weakKey.get() == this.key;
 			} else {
 				return false;
 			}

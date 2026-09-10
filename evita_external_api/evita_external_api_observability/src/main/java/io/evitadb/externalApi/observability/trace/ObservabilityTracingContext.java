@@ -87,18 +87,15 @@ public class ObservabilityTracingContext implements TracingContext {
 		for (SpanAttribute attribute : attributes) {
 			final String key = attribute.key();
 			final Object value = attribute.value();
-			if (value instanceof String string) {
-				span.setAttribute(key, string);
-			} else if (value instanceof Integer integer) {
-				span.setAttribute(key, integer);
-			} else if (value instanceof Long longValue) {
-				span.setAttribute(key, longValue);
-			} else if (value instanceof Double doubleValue) {
-				span.setAttribute(key, doubleValue);
-			} else if (value instanceof Boolean booleanValue) {
-				span.setAttribute(key, booleanValue);
-			} else if (value != null) {
-				span.setAttribute(key, value.toString());
+			switch (value) {
+				case String string -> span.setAttribute(key, string);
+				case Integer integer -> span.setAttribute(key, integer);
+				case Long longValue -> span.setAttribute(key, longValue);
+				case Double doubleValue -> span.setAttribute(key, doubleValue);
+				case Boolean booleanValue -> span.setAttribute(key, booleanValue);
+				// an attribute with no value is dropped instead of being recorded as the string "null"
+				case null -> { }
+				default -> span.setAttribute(key, value.toString());
 			}
 		}
 	}

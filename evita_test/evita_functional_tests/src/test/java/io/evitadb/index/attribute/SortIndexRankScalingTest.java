@@ -187,7 +187,7 @@ class SortIndexRankScalingTest {
 	 * @return monotonically growing allocated-byte count for the calling thread
 	 */
 	private static long allocatedBytes(@Nonnull ThreadMXBean threads) {
-		return threads.getThreadAllocatedBytes(Thread.currentThread().getId());
+		return threads.getThreadAllocatedBytes(Thread.currentThread().threadId());
 	}
 
 	/**

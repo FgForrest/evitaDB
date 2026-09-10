@@ -49,11 +49,11 @@ public class LocaleCoercing implements Coercing<Locale, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Locale)) {
+        if (!(dataFetcherResult instanceof Locale locale)) {
             throw new CoercingSerializeException("Locale data fetcher result is not a Locale.");
         }
         try {
-            return ((Locale) dataFetcherResult).toLanguageTag();
+            return locale.toLanguageTag();
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -62,11 +62,11 @@ public class LocaleCoercing implements Coercing<Locale, String> {
     @Nonnull
     @Override
     public Locale parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
+        if (!(input instanceof String stringInput)) {
             throw new CoercingParseValueException("Locale input is not a string.");
         }
         try {
-            return Objects.requireNonNull(EvitaDataTypes.toTargetType((String) input, Locale.class));
+            return Objects.requireNonNull(EvitaDataTypes.toTargetType(stringInput, Locale.class));
         } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -75,11 +75,11 @@ public class LocaleCoercing implements Coercing<Locale, String> {
     @Nonnull
     @Override
     public Locale parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
+        if (!(input instanceof StringValue stringValue)) {
             throw new CoercingParseValueException("Locale input is not a StringValue.");
         }
         try {
-            return Objects.requireNonNull(EvitaDataTypes.toTargetType(((StringValue) input).getValue(), Locale.class));
+            return Objects.requireNonNull(EvitaDataTypes.toTargetType(stringValue.getValue(), Locale.class));
         } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

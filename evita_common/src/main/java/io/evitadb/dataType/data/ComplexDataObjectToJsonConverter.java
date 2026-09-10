@@ -102,7 +102,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 				arrayNode.add(newArrayNode);
 				this.stack.push(newArrayNode);
 			} else {
-				// otherwise throw exception (this should never occur)
+				// otherwise throw exception (this should never occur) - an empty stack peeks NULL
 				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
 			}
 		}
@@ -144,7 +144,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 				// create appropriate node type as a children in it
 				this.stack.push(arrayNode.addObject());
 			} else {
-				// otherwise throw exception (this should never occur)
+				// otherwise throw exception (this should never occur) - an empty stack peeks NULL
 				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
 			}
 		}
@@ -234,7 +234,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 				arrayNode.add(EvitaDataTypes.formatValue(object));
 			}
 		} else {
-			// otherwise throw exception (this should never occur)
+			// otherwise throw exception (this should never occur) - an empty stack peeks NULL
 			throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
 		}
 	}
@@ -263,7 +263,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 			// if it's "array" node
 			arrayNode.addNull();
 		} else {
-			// otherwise throw exception (this should never occur)
+			// otherwise throw exception (this should never occur) - an empty stack peeks NULL
 			throw new IllegalStateException("Unexpected type of node on stack: " + ofNullable(theNode).map(JsonNode::getClass).orElse(null));
 		}
 	}

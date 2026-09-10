@@ -222,10 +222,10 @@ class CatalogIndexHeapSizeTest {
 	@Nonnull
 	private static CatalogIndex seeded(int attributes, int values) {
 		// grown organically rather than pre-sized, because that is what the warm-up path does: a fresh catalog index
-		// starts from a default `HashMap` and lets `computeIfAbsent` grow it. It is also the only shape
-		// `MapHeapSize` can price exactly: it cannot read a table's capacity from outside the JDK, so it replays the
-		// JDK's own growth arithmetic and takes the larger candidate - which over-reports a pre-sized map by one table
-		// doubling until it outgrows its initial capacity. That over-report is `MapHeapSize`'s and is pinned by
+		// starts from a default `HashMap` and lets `computeIfAbsent` grow it. It is also the shape `MapHeapSize`
+		// can price exactly: it cannot read a table's capacity from outside the JDK, so it replays the JDK's own
+		// pre-sizing arithmetic - which reads a pre-sized map LOW by the slots it holds but does not use, until it
+		// outgrows its initial capacity. That divergence is `MapHeapSize`'s and is pinned by
 		// `TransactionalMapHeapSizeTest`; seeding it in here would only smuggle it into an assertion about this class
 		final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
 		for (int attribute = 0; attribute < attributes; attribute++) {

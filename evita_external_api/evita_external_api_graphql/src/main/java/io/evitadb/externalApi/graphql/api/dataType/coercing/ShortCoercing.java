@@ -42,10 +42,10 @@ public class ShortCoercing implements Coercing<Short, Integer> {
     @Nonnull
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Short)) {
+        if (!(dataFetcherResult instanceof Short shortValue)) {
             throw new CoercingSerializeException("Short data fetcher result is not a short.");
         }
-        return (int) dataFetcherResult;
+        return (int) shortValue;
     }
 
     @Nonnull
@@ -64,11 +64,11 @@ public class ShortCoercing implements Coercing<Short, Integer> {
     @Nonnull
     @Override
     public Short parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
+        if (!(input instanceof IntValue intValue)) {
             throw new CoercingParseValueException("Short input value is not a integer.");
         }
         try {
-            return ((IntValue) input).getValue().shortValueExact();
+            return intValue.getValue().shortValueExact();
         } catch (NumberFormatException | ArithmeticException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

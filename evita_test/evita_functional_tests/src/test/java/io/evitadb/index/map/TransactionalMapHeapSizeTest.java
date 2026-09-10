@@ -61,11 +61,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * # The one figure that is inferred rather than measured
  *
  * A `HashMap`'s bucket-table capacity cannot be read from outside the JDK, so {@link MapHeapSize} reconstructs it
- * from the entry count — and reports the **larger** of what growing and copying would have produced, because
- * under-reporting memory is the direction that leads to under-provisioning. {@link InferredTableCapacity} pins every
- * consequence of that: a grown map sitting exactly on a load-factor threshold reads one doubling high, the same
- * content copied reads exactly, and a map created pre-sized above its content reads low by its unused slots until it
- * outgrows the capacity it was built with.
+ * from the entry count. Growing and copying land on the same table from JDK 19 onwards, so above the sixteen-slot
+ * floor the reconstruction is exact whichever way the map was built; below it a copy holds fewer slots and the floor
+ * reports the larger of the two, because under-reporting memory is the direction that leads to under-provisioning.
+ * {@link InferredTableCapacity} pins every consequence of that: a map sitting exactly on a load-factor threshold
+ * reads exactly whether it was grown or copied — those are the sizes the JDK's own pre-sizing arithmetic last moved
+ * at, so they are equally the canary for it moving again — and a map created pre-sized above its content reads low
+ * by its unused slots until it outgrows the capacity it was built with.
  *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */
@@ -134,7 +136,8 @@ class TransactionalMapHeapSizeTest {
 		void shouldMatchMeasuredHeapAcrossEveryResizeBoundary() {
 			// walk the sizes around each doubling (12/13, 24/25, 48/49, 96/97) so an off-by-one in the capacity
 			// reconstruction cannot hide between the test points. The threshold sizes themselves are excluded and
-			// asserted separately - see ThresholdSizesRoundUp for why they are deliberately not exact
+			// asserted separately - see InferredTableCapacity, which is where the coupling to the JDK's own pre-sizing
+			// arithmetic is pinned
 			for (int entries : new int[]{1, 13, 25, 49, 97, 200}) {
 				final TransactionalMap<Integer, Integer> map =
 					new TransactionalMap<>(fill(new HashMap<>(), entries));
@@ -169,33 +172,29 @@ class TransactionalMapHeapSizeTest {
 	class InferredTableCapacity {
 
 		@Test
-		void shouldRoundUpAnOrganicallyGrownMapSittingExactlyOnAThreshold() {
-			// the deliberate cost of reporting the larger of the two construction paths. A map GROWN to exactly 12
-			// entries still sits on a 16-slot table, because growth doubles only when the count *exceeds* the
-			// threshold - but the same 12 entries handed to `new HashMap<>(source)` get 32 slots, and nothing
-			// afterwards can tell the two apart. The higher figure is the one reported, so this reads one doubling
-			// high. It costs a few dozen bytes; the alternative reads LOW on a freshly loaded collection
-			final VMLayout layout = VMLayout.current();
+		void shouldMatchAnOrganicallyGrownMapSittingExactlyOnAThreshold() {
+			// the sizes where the reconstruction is most exposed: they divide by the load factor exactly, so `ceil`
+			// and the pre-JDK-19 `+ 1` land a whole doubling apart. A map GROWN to exactly 12 entries sits on a
+			// 16-slot table - growth doubles only when the count *exceeds* the threshold - and since JDK 19 the same
+			// 12 entries handed to `new HashMap<>(source)` sit on 16 slots too, so one figure serves both paths and
+			// this reads exactly. It is the counterpart of the copied case below, and either would break first if a
+			// later JDK moved the arithmetic again
 			for (int entries : new int[]{12, 24, 48, 96}) {
 				final TransactionalMap<Integer, Integer> map =
 					new TransactionalMap<>(fill(new HashMap<>(), entries));
 
-				final int grownCapacity = Integer.highestOneBit(entries - 1) << 1;
-				final long extraSlots = layout.sizeOfArray(2 * grownCapacity, layout.referenceSize())
-					- layout.sizeOfArray(grownCapacity, layout.referenceSize());
-
 				assertEquals(
-					JolHeapSize.ownedSize(map) + extraSlots,
+					JolHeapSize.ownedSize(map),
 					map.getHeapSizeInBytes(BOXED, BOXED),
-					"a grown map on the threshold must over-report by exactly one doubling at " + entries
+					"figure diverged for a grown map at " + entries + " entries"
 				);
 			}
 		}
 
 		@Test
 		void shouldMatchACopiedMapSittingExactlyOnAThreshold() {
-			// the other side of the same coin, and the reason the model was chosen: a map copied straight from its
-			// source really does own the larger table, so for it the figure is exact
+			// the other side of the same coin: `new HashMap<>(source)` pre-sizes its table to ceil(12 / 0.75) = 16
+			// slots, which is where growth stops as well, so the same single figure is exact for a copy too
 			for (int entries : new int[]{12, 24, 48, 96}) {
 				final Map<Integer, Integer> source = fill(new HashMap<>(), entries);
 				final TransactionalMap<Integer, Integer> map = new TransactionalMap<>(new HashMap<>(source));

@@ -35,7 +35,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -54,18 +53,13 @@ public class DataChunkJsonSerializer {
 
 	@Nonnull
 	public <I extends Serializable> JsonNode serialize(@Nonnull DataChunk<I> dataChunk, @Nonnull Function<I, JsonNode> itemSerializer) {
-		if (dataChunk instanceof PlainChunk<I> plainChunk) {
-			return serializePlainChunk(plainChunk, itemSerializer);
-		} else if (dataChunk instanceof PaginatedList<I> paginatedList) {
-			return serializePaginatedList(paginatedList, itemSerializer);
-		} else if (dataChunk instanceof StripList<I> stripList) {
-			return serializeStripList(stripList, itemSerializer);
-		} else {
-			throw new RestInternalError(
-				"Error during data chunk serialization.",
-				"Could not serialize unsupported data chunk type `" + dataChunk.getClass().getName() + "`."
-			);
-		}
+		// the switch needs no `default` branch - `DataChunk` is sealed and all three permitted
+		// implementations are covered, so javac proves the dispatch exhaustive
+		return switch (dataChunk) {
+			case PlainChunk<I> plainChunk -> serializePlainChunk(plainChunk, itemSerializer);
+			case PaginatedList<I> paginatedList -> serializePaginatedList(paginatedList, itemSerializer);
+			case StripList<I> stripList -> serializeStripList(stripList, itemSerializer);
+		};
 	}
 
 	@Nonnull
