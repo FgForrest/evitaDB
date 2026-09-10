@@ -674,9 +674,12 @@ public class EntityDecorator implements SealedEntity {
 				// entity decorator wraps entity with up-to-date schema, so having duplicate reference which is not
 				// allowed by the schema is a sign of an invalid state
 				final ReferenceContract previous = this.filteredReferences.putIfAbsent(referenceKey, reference);
+				// message built through a supplier - this loop runs once per fetched reference, and eagerly
+				// concatenating a ReferenceKey that is only ever read on failure showed up in the profile
 				Assert.isPremiseValid(
 					previous == null,
-					"Unexpected duplicate reference " + referenceKey + " in entity " + getPrimaryKeyOrThrowException() + "!"
+					() -> "Unexpected duplicate reference " + referenceKey +
+						" in entity " + getPrimaryKeyOrThrowException() + "!"
 				);
 			}
 		}

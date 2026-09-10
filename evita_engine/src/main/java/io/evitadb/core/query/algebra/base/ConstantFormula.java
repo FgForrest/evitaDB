@@ -52,6 +52,17 @@ public class ConstantFormula extends AbstractFormula {
 	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
 	 */
 	@Getter private final Bitmap delegate;
+	/**
+	 * Memoized {@link #getEstimatedCardinality()}.
+	 *
+	 * <p>The delegate is final and a constant formula is built fresh per query, so the value cannot change over
+	 * the instance's lifetime - and {@code estimatedCost}, derived from the very same {@code delegate.size()}, is
+	 * already frozen at construction time by {@link io.evitadb.core.query.algebra.AbstractFormula#initFields}.
+	 * Worth memoizing because {@link io.evitadb.index.bitmap.TransactionalBitmap#size()} probes the transactional
+	 * memory layer's ThreadLocal on every call before it ever reaches its own cached cardinality, and a filter
+	 * over a reference fans out to one constant formula per reduced index - hundreds of thousands of them.</p>
+	 */
+	private int memoizedCardinality = -1;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
@@ -73,7 +84,10 @@ public class ConstantFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return this.delegate.size();
+		if (this.memoizedCardinality == -1) {
+			this.memoizedCardinality = this.delegate.size();
+		}
+		return this.memoizedCardinality;
 	}
 
 	@Override
