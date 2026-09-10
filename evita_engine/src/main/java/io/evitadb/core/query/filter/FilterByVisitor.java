@@ -877,10 +877,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final List<ReducedEntityIndex> result = new ArrayList<>(reducedIndexPks.size());
 		final OfInt it = reducedIndexPks.iterator();
 		while (it.hasNext()) {
-			final ReducedEntityIndex reducedEntityIndex = indexAccessor.apply(it.nextInt());
+			final int reducedIndexPk = it.nextInt();
+			final ReducedEntityIndex reducedEntityIndex = indexAccessor.apply(reducedIndexPk);
+			// supplier, not concatenation - this loop runs once per reduced index, which is once per referenced
+			// entity of the whole collection; the old form also interpolated the iterator instead of the key
 			Assert.isPremiseValid(
 				reducedEntityIndex != null,
-				"Reduced entity index with primary key " + it + " was unexpectedly not found!"
+				() -> "Reduced entity index with primary key " + reducedIndexPk + " was unexpectedly not found!"
 			);
 			result.add(reducedEntityIndex);
 		}
@@ -1085,8 +1088,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		if (allowedScopes.isEmpty()) {
 			 return Stream.empty();
 		} else if (allowedScopes.size() == 1) {
+			// hoisted out of the filter lambda - this stream is walked once per reduced entity index, i.e. once
+			// per referenced entity of the whole collection, and the lambda allocated a fresh Iterator per element
+			final Scope theOnlyScope = allowedScopes.iterator().next();
 			return processingScope.getIndexStream()
-				.filter(ix -> ix.getIndexKey().scope() == allowedScopes.iterator().next())
+				.filter(ix -> ix.getIndexKey().scope() == theOnlyScope)
 				.filter(EntityIndex.class::isInstance)
 				.map(EntityIndex.class::cast);
 		} else {
