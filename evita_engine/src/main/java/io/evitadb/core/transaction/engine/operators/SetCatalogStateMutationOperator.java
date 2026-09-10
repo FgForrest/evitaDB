@@ -60,6 +60,13 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class SetCatalogStateMutationOperator implements EngineMutationOperator<Void, SetCatalogStateMutation> {
+	/**
+	 * Warned when releasing the catalog's resources fails - see
+	 * {@link CatalogTerminationHelper#terminateQuietly} for why the failure is not propagated.
+	 */
+	private static final String TERMINATION_FAILURE = "Failed to terminate catalog `{}` while changing its " +
+		"state - the handles its persistence service holds into the storage folder stay open until the server " +
+		"is restarted.";
 	private final CatalogFolderContext folderContext;
 
 	@Nonnull
@@ -134,7 +141,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						installedIntoEngineState = true;
 					} finally {
 						if (!installedIntoEngineState) {
-							terminateQuietly(installed, catalogName);
+							CatalogTerminationHelper.terminateQuietly(log, installed, catalogName, TERMINATION_FAILURE);
 						}
 					}
 					// Emit the host event AFTER the engine state has been updated so the host
@@ -187,7 +194,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						// transition regardless of downstream cleanup failures.
 						try {
 							evita.removeCatalogSessionRegistryIfPresent(catalogName);
-							terminateQuietly(theCatalog, catalogName);
+							CatalogTerminationHelper.terminateQuietly(
+								log, theCatalog, catalogName, TERMINATION_FAILURE
+							);
 						} finally {
 							// Emit the host event AFTER the engine state and the live `Catalog`
 							// resources have been torn down so subscribers see the INACTIVE settlement
@@ -201,29 +210,6 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 					}
 					return null;
 				}
-			);
-		}
-	}
-
-	/**
-	 * Terminates the passed catalog, logging a failure rather than propagating it.
-	 *
-	 * Both call sites are past the point where reporting would help. Either the state transition has already
-	 * committed - so an exception escaping here would report a failure for an operation that succeeded - or the
-	 * transition failed and its own exception is the one the caller must be told about. What is left in both cases
-	 * is releasing the catalog's handles, and that is best-effort by nature.
-	 *
-	 * @param catalog     catalog whose resources are to be released
-	 * @param catalogName name of the catalog, for the log record
-	 */
-	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
-		try {
-			catalog.terminate();
-		} catch (Throwable terminationFailure) {
-			log.warn(
-				"Failed to terminate catalog `{}` while changing its state - the handles its persistence " +
-					"service holds into the storage folder stay open until the server is restarted.",
-				catalogName, terminationFailure
 			);
 		}
 	}

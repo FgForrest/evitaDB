@@ -66,6 +66,13 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperator<Void, RemoveCatalogSchemaMutation> {
+	/**
+	 * Warned when releasing the removed catalog's resources fails - see
+	 * {@link CatalogTerminationHelper#terminateQuietly} for why the failure is not propagated. Held handles matter
+	 * more here than elsewhere, because they are what makes the folder wipe below fail on Windows.
+	 */
+	private static final String TERMINATION_FAILURE = "Failed to terminate removed catalog `{}` - its handles " +
+		"stay open until the process ends, which may cause the folder wipe to be refused and retried at boot.";
 	private final CatalogFolderContext folderContext;
 
 	@Nonnull
@@ -156,7 +163,9 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 							// `terminate()` gets the same treatment for the same reason: the `finally` below only
 							// guarantees the host event, so an exception escaping here would still surface a failure
 							// for a drop that has already committed - and would additionally skip the wipe.
-							terminateQuietly(catalogToRemove, catalogName);
+							CatalogTerminationHelper.terminateQuietly(
+								log, catalogToRemove, catalogName, TERMINATION_FAILURE
+							);
 							RemoveCatalogSchemaMutationOperator.this.folderContext.deleteRetiredFolder(folderToReclaim);
 						} finally {
 							// Emit the host event AFTER the catalog has been fully removed from the live
@@ -174,7 +183,9 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 						// catalog and nothing else can ever close it. Shutdown is what makes this reachable -
 						// `Evita#closeCatalogs` clears the engine state before draining the mutations still in
 						// flight, and the placeholder it terminated on its way through releases nothing.
-						terminateQuietly(catalogToRemove, catalogName);
+						CatalogTerminationHelper.terminateQuietly(
+							log, catalogToRemove, catalogName, TERMINATION_FAILURE
+						);
 					}
 				}
 				return null;
@@ -217,29 +228,6 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 				.withRetiredFolder(catalogName, folderToReclaim)
 				.build()
 		);
-	}
-
-	/**
-	 * Terminates the catalog being removed, logging a failure rather than propagating it.
-	 *
-	 * Neither call site can act on a failure. On the committed path the removal has already happened, so an
-	 * exception escaping here would report a failure for an operation that succeeded - and would additionally skip
-	 * the wipe. On the uncommitted path the exception the caller must see is the one that failed the commit. What
-	 * is left in both cases is releasing the handles, which is best-effort by nature.
-	 *
-	 * @param catalog     catalog whose resources are to be released
-	 * @param catalogName name of the catalog, for the log record
-	 */
-	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
-		try {
-			catalog.terminate();
-		} catch (Throwable terminationFailure) {
-			log.warn(
-				"Failed to terminate removed catalog `{}` - its handles stay open until the process " +
-					"ends, which may cause the folder wipe to be refused and retried at boot.",
-				catalogName, terminationFailure
-			);
-		}
 	}
 
 }

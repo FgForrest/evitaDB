@@ -25,7 +25,6 @@ package io.evitadb.api.functional.schema;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -125,14 +124,6 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 	private static final int PUBLISHED_PRODUCT_PK = 1;
 	/** Primary key of the entity written by the session whose close is refused, and which therefore never publishes. */
 	private static final int DISCARDED_PRODUCT_PK = 2;
-	/**
-	 * Upper bound on how long any single asynchronous catalog lifecycle step is waited for. Generous on purpose -
-	 * a latch returns the instant the work completes, so the bound is only ever paid by a genuine hang, and a
-	 * loaded machine can only push a positive wait toward expiry (`.claude/rules/testing.md`).
-	 */
-	private static final long AWAIT_BUDGET_MILLIS = 30_000L;
-	/** Backoff between two attempts at an operation the engine refuses while another one is still in flight. */
-	private static final long RETRY_BACKOFF_MILLIS = 20L;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -768,7 +759,9 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 
 			// the deactivation has settled by now - `assertRefusalRaisesTheBarrier` waited for it - but the
 			// lifecycle mutation carrying it releases its conflict key only as it finalizes, a moment later
-			WarmUpRefusedSchemaPersistenceTest.this.activateWithConflictRetry();
+			CatalogUnpublishableBarrierAssertions.activateWithConflictRetry(
+				WarmUpRefusedSchemaPersistenceTest.this.evita, TEST_CATALOG
+			);
 
 			WarmUpRefusedSchemaPersistenceTest.this.evita.queryCatalog(
 				TEST_CATALOG,
@@ -787,52 +780,6 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 					);
 				}
 			);
-		}
-	}
-
-	/**
-	 * Activates the test catalog, retrying while the engine reports that another lifecycle operation for it is
-	 * still in flight.
-	 *
-	 * The retry is not optional. A deactivation settles in two steps: the engine-state update lands - which is what
-	 * {@link CatalogUnpublishableBarrierAssertions.SettledStateLatch} observes - and the lifecycle mutation carrying
-	 * it releases its conflict key a moment later, as it finalizes. An activation issued in between is refused with
-	 * {@link ConflictingEngineMutationException}, the engine's "another lifecycle operation for this catalog is
-	 * still in flight" signal, which is a transient rather than a failure worth failing the test over.
-	 *
-	 * This is a **retry of a refused operation**, not a poll for a condition, which is why it is a loop and stays
-	 * one: the conflict key is released as the deactivation mutation finalizes and no seam exposes that moment, so
-	 * there is nothing to latch on. A slow machine widens the window this rides out rather than shortening it.
-	 */
-	private void activateWithConflictRetry() {
-		final long deadline = System.currentTimeMillis() + AWAIT_BUDGET_MILLIS;
-		RuntimeException lastConflict;
-		do {
-			try {
-				this.evita.activateCatalog(TEST_CATALOG);
-				return;
-			} catch (RuntimeException ex) {
-				if (!(ex instanceof ConflictingEngineMutationException)
-					&& !(ex.getCause() instanceof ConflictingEngineMutationException)) {
-					throw ex;
-				}
-				lastConflict = ex;
-				backOffBeforeRetry();
-			}
-		} while (System.currentTimeMillis() < deadline);
-		fail("Catalog `" + TEST_CATALOG + "` could not be activated: " + lastConflict.getMessage());
-	}
-
-	/**
-	 * Waits out one backoff interval between two attempts at an operation the engine currently refuses, turning an
-	 * interrupt into a test failure rather than a silent early return.
-	 */
-	private void backOffBeforeRetry() {
-		try {
-			Thread.sleep(RETRY_BACKOFF_MILLIS);
-		} catch (InterruptedException ex) {
-			Thread.currentThread().interrupt();
-			fail("Interrupted while retrying an engine operation refused by a lifecycle conflict.");
 		}
 	}
 
@@ -890,7 +837,7 @@ class WarmUpRefusedSchemaPersistenceTest implements EvitaTestSupport {
 		// unloaded; when the close wins, the catalog comes back loaded. Both sides read the same bootstrap record -
 		// the newest state that reached the disk - which is the state under assertion
 		if (this.evita.getCatalogState(TEST_CATALOG).orElse(null) == CatalogState.INACTIVE) {
-			activateWithConflictRetry();
+			CatalogUnpublishableBarrierAssertions.activateWithConflictRetry(this.evita, TEST_CATALOG);
 		}
 	}
 
