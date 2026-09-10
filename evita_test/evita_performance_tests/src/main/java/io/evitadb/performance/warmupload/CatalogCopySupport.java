@@ -50,6 +50,7 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -381,6 +382,49 @@ public class CatalogCopySupport {
 	}
 
 	/**
+	 * Reference names promoted from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` on the target schema,
+	 * parsed once from the `evita.warmup.raiseReferences` system property. A single `*` promotes every plain
+	 * reference; an empty value (the default) replicates the source index types faithfully.
+	 *
+	 * This exists to measure the write path in the shape a client creates by flipping that one schema flag.
+	 * Raising a reference on an already-populated catalog is not supported (the engine does not rebuild
+	 * indexes on a schema change - issue #409), but the target catalog here is created empty and populated
+	 * afterwards, which is precisely the full-reindex path that *is* supported.
+	 */
+	private static final Set<String> RAISED_REFERENCES = parseRaisedReferences();
+
+	/**
+	 * Parses {@link #RAISED_REFERENCES} from the `evita.warmup.raiseReferences` system property.
+	 *
+	 * @return the reference names to promote, empty when the property is unset or blank
+	 */
+	@Nonnull
+	private static Set<String> parseRaisedReferences() {
+		final String raw = System.getProperty("evita.warmup.raiseReferences", "");
+		if (raw.isBlank()) {
+			return Set.of();
+		}
+		final Set<String> result = new HashSet<>(8);
+		for (final String name : raw.split(",")) {
+			final String trimmed = name.trim();
+			if (!trimmed.isEmpty()) {
+				result.add(trimmed);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Tells whether a reference should be promoted to `FOR_FILTERING_AND_PARTITIONING` on the target.
+	 *
+	 * @param referenceName name of the replicated reference
+	 * @return true when the reference is named by `evita.warmup.raiseReferences`, or that property is `*`
+	 */
+	private static boolean isRaisedToPartitioning(@Nonnull final String referenceName) {
+		return RAISED_REFERENCES.contains("*") || RAISED_REFERENCES.contains(referenceName);
+	}
+
+	/**
 	 * Applies the group type, per-scope index type, faceting, attributes and sortable attribute compounds
 	 * of a plain reference onto its target reference builder.
 	 *
@@ -401,9 +445,10 @@ public class CatalogCopySupport {
 
 		final List<Scope> forFiltering = new ArrayList<>(2);
 		final List<Scope> forFilteringAndPartitioning = new ArrayList<>(2);
+		final boolean raised = isRaisedToPartitioning(reference.getName());
 		for (final Scope scope : Scope.values()) {
 			switch (reference.getReferenceIndexType(scope)) {
-				case FOR_FILTERING -> forFiltering.add(scope);
+				case FOR_FILTERING -> (raised ? forFilteringAndPartitioning : forFiltering).add(scope);
 				case FOR_FILTERING_AND_PARTITIONING -> forFilteringAndPartitioning.add(scope);
 				case NONE -> {
 					// not indexed in this scope - nothing to do
@@ -415,6 +460,13 @@ public class CatalogCopySupport {
 		}
 		if (!forFilteringAndPartitioning.isEmpty()) {
 			editor.indexedForFilteringAndPartitioningInScope(forFilteringAndPartitioning.toArray(new Scope[0]));
+		}
+		if (raised) {
+			// printed so a measurement run proves the promotion actually applied, rather than assuming it did:
+			// a reflected reference never reaches this method, and would be silently left at its source type
+			System.out.println(
+				"[raise] " + reference.getName() + " -> FOR_FILTERING_AND_PARTITIONING in " + forFilteringAndPartitioning
+			);
 		}
 
 		final Scope[] facetedScopes = scopesWhere(reference::isFacetedInScope);
