@@ -53,15 +53,13 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import com.carrotsearch.hppc.IntObjectHashMap;
-import com.carrotsearch.hppc.IntObjectMap;
-import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
@@ -79,9 +77,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Supplier;
@@ -437,11 +435,22 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * {@link #applyFacetToReducedIndexes} and are deliberately left out here.
 	 *
 	 * The membership direction available on the indexes is `referenced entity -> reduced index -> owner PKs`,
-	 * so the map is built by walking the `REFERENCED_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY_TYPE` index of
-	 * every partitioned reference and intersecting each reduced index's member bitmap with the affected
-	 * owners. That is one pass over the collection's reduced indexes per trigger, which is why it happens
-	 * once here rather than per `(owner, reference)` entry, and why it is skipped outright when nothing is
-	 * affected. Reading the owners' reference containers instead would be a storage read per owner.
+	 * so a reduced index can only be attributed to an owner by intersecting the index's own member bitmap with
+	 * the affected owners. What differs between the two paths below is only *how many* indexes are intersected;
+	 * every emitted pair comes out of such an intersection either way, which is what keeps the accelerated path
+	 * an accelerator. Either way it is one pass per trigger, which is why it happens once here rather than per
+	 * `(owner, reference)` entry, and why it is skipped outright when nothing is affected. Reading the owners'
+	 * reference containers instead would be a storage read per owner.
+	 *
+	 * Per partitioned sibling reference, one of two paths runs:
+	 *
+	 * - **no reverse lookup** — every reduced index the reference advertises is walked, through its
+	 *   `REFERENCED_ENTITY_TYPE` and `REFERENCED_GROUP_ENTITY_TYPE` index. This is what the trigger did before
+	 *   {@link ReducedIndexMembership} existed and remains the correct-but-unaccelerated baseline;
+	 * - **a reverse lookup exists** — the indexes it covers are narrowed to those named for the affected
+	 *   owners ({@link #collectOwnersFromMembership}) and the ones it left residual are probed whole, both
+	 *   through {@link #collectOwnersOfProbedIndexes}. The reference's full advertisement is never read, which
+	 *   is the `O(total reduced indexes)` traversal this removes.
 	 *
 	 * @param target               access to the entity collection's schema and index store
 	 * @param scope                the scope whose indexes are inspected
@@ -462,9 +471,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final Map<Integer, List<SiblingReducedIndex>> result =
 			CollectionUtils.createHashMap(affectedOwnerPKs.size());
 		final PersistentRoaringBitmap affected = getRoaringBitmap(affectedOwnerPKs);
-		final EntityIndex globalIndex = target.getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
-		final GlobalEntityIndex membershipHolder =
-			globalIndex instanceof final GlobalEntityIndex typed ? typed : null;
+		final GlobalEntityIndex membershipHolder = asGlobalEntityIndexIfExists(
+			target.getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)),
+			() -> EntityIndexType.GLOBAL + "/" + scope
+		);
 		for (final ReferenceSchemaContract siblingSchema : target.getEntitySchema().getReferences().values()) {
 			if (siblingSchema.getName().equals(mutatedReferenceName) ||
 				siblingSchema.getReferenceIndexType(scope) != ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
@@ -473,10 +483,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// The reverse lookup covers the reduced indexes small enough to be worth an entry each, and names
 			// the rest in a residual set that is iterated DIRECTLY - filtering the reference's full
 			// advertisement instead would pay the very `O(total reduced indexes)` traversal this exists to
-			// remove. When a reference has no lookup at all - it gained its partitioning flag after the
-			// collection was loaded, and the engine does not rebuild indexes for a schema change (issue #409)
-			// - the walk below runs over every advertised index exactly as it did before this structure
-			// existed. Correct either way; only the speed differs.
+			// remove. A reference can legitimately have no lookup at all: it gained its partitioning flag
+			// after the collection was loaded and the engine does not rebuild indexes for a schema change
+			// (issue #409), or a schema change discarded a lookup nothing maintains any more, or no write has
+			// yet created one. In every such case the walk below runs over every advertised index exactly as
+			// it did before this structure existed. Correct either way; only the speed differs.
 			final ReducedIndexMembership membership = membershipHolder == null ?
 				null : membershipHolder.getReducedIndexMembership(siblingSchema.getName());
 			if (membership == null) {
@@ -488,7 +499,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				);
 			} else {
 				collectOwnersFromMembership(target, siblingSchema, membership, affected, result);
-				collectOwnersOfResidualIndexes(
+				collectOwnersOfProbedIndexes(
 					target, siblingSchema, membership.getResidualIndexPrimaryKeys(), affected, result
 				);
 			}
@@ -497,7 +508,17 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Contributes the owners the reverse lookup already knows about, without probing a single reduced index.
+	 * Narrows the probe to the reduced indexes the reverse lookup names for the affected owners.
+	 *
+	 * The lookup is used here as an index **selector** and nothing more: it decides *which* reduced indexes
+	 * are worth looking at, and each selected index is then asked itself who is in it, exactly as the
+	 * residual half and the unaccelerated walk do. That is what keeps the structure an accelerator rather
+	 * than an authority — a stale entry can only send the probe at an index that turns out to hold no
+	 * affected owner, and an entry naming an index the collection no longer holds resolves to `null` and is
+	 * dropped. Emitting the map's `(owner, index)` pairs directly would instead write a facet into a
+	 * partition the owner had already left, and would raise from the middle of an index mutation for an
+	 * index that no longer exists. The saving the structure is measured on — not visiting *every* partition
+	 * — is untouched, because the intersection is paid only for the indexes actually selected.
 	 *
 	 * The affected set is intersected against the lookup's covered-owner union **once**, so only owners that
 	 * can possibly hit are looked up — which is what keeps the per-reference split as cheap as a single map
@@ -520,51 +541,45 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (coveredOwners.isEmpty()) {
 			return;
 		}
-		// One resolution per reduced index rather than one per (owner, index) pair. The registering accessor
-		// is what enrols an index in the dirty set, so calling it once is enough - and a covered index is
-		// named by up to `T` owners, so resolving per pair would repeat a transactional-layer lookup that the
-		// dense shape performs hundreds of thousands of times.
-		final IntObjectMap<SiblingReducedIndex> resolved = new IntObjectHashMap<>(64);
+		// the union of the indexes named for the affected covered owners - a covered index is named by up to
+		// `T` owners, so collecting the distinct keys before probing turns `O(affected owners)` index
+		// resolutions into `O(indexes actually named)` ones
+		final BaseBitmap selectedIndexPKs = new BaseBitmap();
 		for (final int owner : and(getRoaringBitmap(coveredOwners), affected).toArray()) {
-			final Bitmap reducedIndexPKs = membership.getIndexPrimaryKeys(owner);
-			final OfInt it = reducedIndexPKs.iterator();
-			while (it.hasNext()) {
-				final int reducedIndexPK = it.nextInt();
-				SiblingReducedIndex sibling = resolved.get(reducedIndexPK);
-				if (sibling == null) {
-					sibling = new SiblingReducedIndex(
-						target.getOrCreateIndexByPrimaryKey(reducedIndexPK), siblingSchema
-					);
-					resolved.put(reducedIndexPK, sibling);
-				}
-				addSibling(result, owner, sibling);
-			}
+			selectedIndexPKs.addAll(membership.getIndexPrimaryKeys(owner));
 		}
+		collectOwnersOfProbedIndexes(target, siblingSchema, selectedIndexPKs, affected, result);
 	}
 
 	/**
-	 * Probes the reduced indexes the reverse lookup deliberately left on the walk — the ones holding more
-	 * owners than covering them is worth. Iterates the residual set itself rather than filtering the
-	 * reference's advertisement, which is the whole point: the set is small by construction (`<= M / T` for
-	 * `M` total memberships) while the advertisement is not.
+	 * Probes a named set of reduced indexes and records, for every affected owner they hold, the index
+	 * holding it. Shared by both halves of the accelerated resolution: the residual set — the indexes holding
+	 * more owners than covering them is worth — and the covered indexes selected by
+	 * {@link #collectOwnersFromMembership}. Iterating a named set rather than filtering the reference's
+	 * advertisement is the whole point: the residual set is small by construction (`<= M / T` for `M` total
+	 * memberships) and the selected set is bounded by the affected owners, while the advertisement is bounded
+	 * by neither.
 	 *
-	 * @param target        access to the entity collection's index store
-	 * @param siblingSchema the reference whose residual indexes are probed
-	 * @param residual      primary keys of the reduced indexes left on the walk
-	 * @param affected      roaring bitmap of affected owner PKs, intersected against each index
-	 * @param result        accumulator, keyed by owner PK
+	 * @param target           access to the entity collection's index store
+	 * @param siblingSchema    the reference whose reduced indexes are probed
+	 * @param indexPrimaryKeys primary keys of the reduced indexes to probe
+	 * @param affected         roaring bitmap of affected owner PKs, intersected against each index
+	 * @param result           accumulator, keyed by owner PK
 	 */
-	private static void collectOwnersOfResidualIndexes(
+	private static void collectOwnersOfProbedIndexes(
 		@Nonnull IndexMutationTarget target,
 		@Nonnull ReferenceSchemaContract siblingSchema,
-		@Nonnull Bitmap residual,
+		@Nonnull Bitmap indexPrimaryKeys,
 		@Nonnull PersistentRoaringBitmap affected,
 		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
 	) {
-		final OfInt it = residual.iterator();
+		final OfInt it = indexPrimaryKeys.iterator();
 		while (it.hasNext()) {
 			final int reducedIndexPK = it.nextInt();
 			final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
+			// Not an unexpected state: the empty-index sweep drops a reduced index the moment its last owner
+			// leaves, so a set naming it can legitimately outlive it. The unaccelerated walk skips such a key
+			// the same way - an index that holds nobody cannot hold an affected owner either.
 			if (probedIndex == null) {
 				continue;
 			}
@@ -633,8 +648,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		}
 		// One pass over the advertising map. The per-referenced-PK accessors would box every key, hash it a
 		// second time into the same map and allocate an `int[]` per entry - and this traversal runs over
-		// *every* partition of the collection on *every* trigger, so those per-partition allocations are
-		// the bulk of the walk's constant factor.
+		// *every* partition the reference advertises, on every trigger that reaches it without a reverse
+		// lookup, so those per-partition allocations are the bulk of the walk's constant factor.
 		referencedTypeIndex.forEachReferenceIndexPrimaryKey(reducedIndexPK -> {
 			final EntityIndex probedIndex = target.getIndexByPrimaryKeyIfExists(reducedIndexPK);
 			if (probedIndex == null) {
@@ -2428,6 +2443,33 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull Supplier<String> contextSupplier
 	) {
 		return index == null ? null : asReferencedTypeEntityIndex(index, contextSupplier);
+	}
+
+	/**
+	 * Asserts that the given index is a {@link GlobalEntityIndex} and returns the cast, or `null` when there
+	 * is no index at all. Absence is a legitimate state - a scope no entity has entered yet - while an index
+	 * registered under a `GLOBAL` key and turning out to be something else is a programming error that must
+	 * surface rather than be read as "absent".
+	 *
+	 * @param index           index to check, may be `null`
+	 * @param contextSupplier lazily evaluated description of the expected index location
+	 * @return the cast index, or `null` when there is none
+	 */
+	@Nullable
+	private static GlobalEntityIndex asGlobalEntityIndexIfExists(
+		@Nullable EntityIndex index,
+		@Nonnull Supplier<String> contextSupplier
+	) {
+		if (index == null) {
+			return null;
+		}
+		if (!(index instanceof final GlobalEntityIndex gei)) {
+			throw new GenericEvitaInternalError(
+				"Expected GlobalEntityIndex for " + contextSupplier.get() +
+					" but got " + index.getClass().getSimpleName()
+			);
+		}
+		return gei;
 	}
 
 	/**

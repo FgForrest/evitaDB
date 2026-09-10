@@ -314,14 +314,14 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Reconstructs a global entity index from persisted or committed state, together with its substring-search
-	 * accelerators.
+	 * Reconstructs a global entity index from persisted or committed state, together with the two derived
+	 * structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
 	 *
-	 * @param reducedIndexMembership the per-reference reverse lookup of owners to the reduced indexes holding
-	 *                               them — derived state, empty on a freshly loaded index until it is rebuilt
 	 * @param trigramIndexes the per-`(attribute, locale)` trigram indexes — the committed ones on the merge copy, the
 	 *                       ones {@link TrigramIndex#rebuildAll} derived from the reloaded shared value trees on a cold
 	 *                       load, and empty for a caller that maintains none
+	 * @param reducedIndexMembership the per-reference reverse lookup of owners to the reduced indexes holding
+	 *                               them — derived state, empty on a freshly loaded index until it is rebuilt
 	 * @param activity       the activity holder to keep counting into — the copied index's own instance on the
 	 *                       commit-time merge copy, a fresh one when loading from disk; see
 	 *                       {@link io.evitadb.index.IndexActivity}
@@ -430,9 +430,20 @@ public class GlobalEntityIndex extends EntityIndex
 	 * Returns the reverse lookup of "which reduced indexes of this reference hold this owner", or `null` when
 	 * nothing has been recorded for the reference yet.
 	 *
-	 * A `null` result — and an incomplete non-`null` one — is not an error: the map is an accelerator, and a
-	 * reduced index it does not cover is walked exactly as it was before this structure existed. Callers must
-	 * treat "advertised but not covered" as *walk it*, never as *not there*.
+	 * A `null` result is not an error and never becomes one: with no lookup the trigger walks every reduced
+	 * index the reference advertises, exactly as it did before this structure existed. Absence costs speed,
+	 * never correctness.
+	 *
+	 * A non-`null` result is a different matter, and the asymmetry is the whole contract. What comes back is
+	 * probed as it stands — the caller never re-derives the reference's advertisement to check it against, since
+	 * that is the `O(total reduced indexes)` traversal the structure exists to remove — so an index the slice
+	 * names in neither its covered nor its residual set is simply never visited. An index left *uncovered* is
+	 * safe because it is *residual*, and residual is probed whole; it is not safe merely by virtue of being
+	 * absent from the covered set. The extreme case is a slice present with both sets empty while its reference
+	 * still advertises indexes: that skips every one of them, which is a wrong facet rather than a slow one.
+	 * The invariant `covered ∪ residual == advertised` is what rules it out, and
+	 * `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` is what enforces it — see
+	 * {@link ReducedIndexMembership} for the reasoning in full.
 	 *
 	 * @param referenceName name of the reference whose membership is requested
 	 * @return the membership map, or `null` when the reference has none
@@ -460,8 +471,31 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Returns the names of the references this index holds a reverse lookup for. Used by the completeness
-	 * verification in tests, which compares the map against the reduced indexes themselves.
+	 * Drops the reverse lookup of the given reference, returning the trigger to walking every reduced index the
+	 * reference advertises.
+	 *
+	 * Called when a schema change stops maintenance following the reference — either the reference itself fell
+	 * below {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, or
+	 * the collection's last conditional facet in this scope went away. Both gates are read on every write, so a
+	 * lookup kept past either of them would freeze while the reduced indexes went on changing — and a frozen
+	 * lookup is consulted as an authority the moment the gate comes back. A dropped one is rebuilt from the
+	 * reference's own advertisement by `ReferenceIndexMutator#seedFromAdvertisedIndexes`, on the first write
+	 * after that happens.
+	 *
+	 * @param referenceName name of the reference whose lookup is dropped
+	 */
+	public void removeReducedIndexMembership(@Nonnull String referenceName) {
+		this.reducedIndexMembership.remove(referenceName);
+	}
+
+	/**
+	 * Returns the names of the references this index holds a reverse lookup for.
+	 *
+	 * A copy rather than a live view, because the caller that needs it iterates while dropping: a schema change
+	 * asks this index which lookups it is still holding and removes the ones the new schema stops maintaining
+	 * (`EntityCollection#discardUnmaintainedReducedIndexMemberships`). The completeness verification in tests
+	 * uses it for the other direction, comparing the map's reference names against the schema and against the
+	 * reduced indexes themselves.
 	 *
 	 * @return reference names with a membership map; never `null`
 	 */

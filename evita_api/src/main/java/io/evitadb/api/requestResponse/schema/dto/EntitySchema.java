@@ -214,6 +214,12 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * the calculation is expensive, it is memoized.
 	 */
 	private volatile Boolean memoizedLocalized;
+	/**
+	 * Memoized set of scopes in which at least one reference declares a conditional facet. Computed for every scope
+	 * at once, because the calculation walks every reference definition and the answer is asked for on the write
+	 * path — once per reference-index boundary — where an `O(reference definitions)` scan would be the whole cost.
+	 */
+	private volatile Set<Scope> memoizedConditionalFacetScopes;
 
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
@@ -795,6 +801,34 @@ public final class EntitySchema implements EntitySchemaContract {
 					.anyMatch(AttributeSchemaContract::isLocalized);
 		}
 		return this.memoizedLocalized;
+	}
+
+	/**
+	 * Returns `true` when at least one reference of this entity declares a **conditional** facet — a
+	 * {@link ReferenceSchemaContract#getFacetedPartiallyInScope(Scope) facetedPartially} expression — in the given
+	 * scope.
+	 *
+	 * This is what decides whether the cross-entity facet trigger can ever fire for the collection, and hence
+	 * whether the reduced-index membership lookup the trigger consults is worth building and maintaining at all.
+	 * Both the load-time build and the per-write maintenance ask it, so it is memoized: it is derived purely from
+	 * the immutable reference definitions, and is therefore neither persisted nor part of the schema's version.
+	 *
+	 * @param scope the scope to examine
+	 * @return `true` when a conditional facet is declared in that scope
+	 */
+	public boolean declaresConditionalFacetInScope(@Nonnull Scope scope) {
+		if (this.memoizedConditionalFacetScopes == null) {
+			final Set<Scope> scopes = EnumSet.noneOf(Scope.class);
+			for (final ReferenceSchemaContract referenceSchema : this.references.values()) {
+				for (final Scope examinedScope : Scope.values()) {
+					if (referenceSchema.getFacetedPartiallyInScope(examinedScope) != null) {
+						scopes.add(examinedScope);
+					}
+				}
+			}
+			this.memoizedConditionalFacetScopes = scopes;
+		}
+		return this.memoizedConditionalFacetScopes.contains(scope);
 	}
 
 	@Override

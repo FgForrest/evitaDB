@@ -23,6 +23,7 @@
 
 package io.evitadb.index.membership;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -36,7 +37,6 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 
@@ -68,12 +68,37 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * # The safety property — this structure is an ACCELERATOR, never an AUTHORITY
  *
- * A reduced index is consulted through this map **only** when it is covered; every other index the reference
- * advertises must still be walked. Consequently a missing entry, a stale entry or an entirely unpopulated
- * instance can only make the trigger **slower**, never wrong — the walk still finds what the map does not.
- * The single way to produce a wrong answer is to claim coverage this map cannot honour, which is why
- * {@link #getResidualIndexPrimaryKeys()} and {@link #getCoveredIndexPrimaryKeys()} are exposed as a pair and
- * why every caller is expected to treat "advertised but in neither" as *walk it*.
+ * The map is read as an index **selector**: it says which reduced indexes are worth probing for a given set of
+ * owners, and each selected index is then asked itself who is in it. Nothing recorded here is taken as an
+ * answer. So a stale entry can only send the probe at an index that turns out to hold no affected owner, an
+ * entry naming an index the collection no longer holds is dropped when that index fails to resolve, and an
+ * instance that decided coverage for nothing leaves every advertised index in the residual set — which is
+ * precisely the walk this structure exists to save. **Slower**, never wrong.
+ *
+ * What the map must never do is *omit* an index its reference advertises. The residual set is probed whole,
+ * but a covered index is probed only while some covered owner names it, so an owner that entered a covered
+ * index unrecorded is an owner the trigger will not consider. That is why `covered ∪ residual == advertised`
+ * is the invariant this structure is maintained against, why {@link #getResidualIndexPrimaryKeys()} and
+ * {@link #getCoveredIndexPrimaryKeys()} are exposed as a pair, and why the whole slice is discarded by the
+ * schema change that stops maintenance following its reference — see
+ * `EntityCollection#discardUnmaintainedReducedIndexMemberships`.
+ *
+ * Note what that invariant is **not**: the resolver never re-derives the advertisement to check it. Reading it
+ * would pay the very `O(total reduced indexes)` traversal the structure removes, so a slice that exists is
+ * probed exactly as it stands, and an index missing from both sets is simply never visited. Nothing at read
+ * time will notice. The extreme case is worth naming, because it reads as the harmless one: a slice that is
+ * **present with both sets empty**, while its reference still advertises indexes, makes the trigger skip every
+ * one of them — a wrong facet, not a slow one. Absence of the whole slice is the safe state; an empty slice is
+ * not.
+ *
+ * What enforces the invariant is therefore a test, not a runtime check:
+ * `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` compares `covered ∪ residual` against
+ * the reference's live advertisement, for every reference in every scope, and fails outright on exactly that
+ * state. **That assertion is the contract** — not the fact that
+ * `ReferenceIndexMutator#seedFromAdvertisedIndexes` happens to fill a fresh slice before anything reads it. A
+ * contract resting on one call site being reached is one refactor away from breaking silently, so a maintainer
+ * adding another site that builds, seeds or maintains a slice has no safety net downstream of it at run time:
+ * that test is what has to be made to fail first.
  *
  * That property is what makes the structure safe to ship against transactional memory, and it is what
  * `ReducedIndexMembershipCompletenessTest` asserts — against the reduced indexes themselves as ground truth,
@@ -88,6 +113,19 @@ import java.util.PrimitiveIterator.OfInt;
  * @author Claude (issue #1529 sibling-resolver optimization), FG Forrest a.s. (c) 2026
  */
 public class ReducedIndexMembership implements VoidTransactionMemoryProducer<ReducedIndexMembership> {
+
+	/**
+	 * The two families of `REFERENCED_*_TYPE` index a reference may own. Together they define what "advertised"
+	 * means for the `covered ∪ residual == advertised` invariant this structure is maintained against: both
+	 * advertise reduced indexes the cross-entity facet trigger consults, and neither stands in for the other.
+	 *
+	 * Shared by every site that builds or seeds a lookup — `EntityCollection#rebuildReducedIndexMembership` at
+	 * load and `ReferenceIndexMutator#seedFromAdvertisedIndexes` on the first write after a reference is raised
+	 * — so a third family could never be added to one of them and forgotten in the other.
+	 */
+	public static final EntityIndexType[] REFERENCED_TYPE_INDEX_FAMILIES = {
+		EntityIndexType.REFERENCED_ENTITY_TYPE, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+	};
 
 	/**
 	 * Default maximum number of owners a reduced index may hold and still be covered by the reverse map.
@@ -228,14 +266,15 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
-	 * Registers a reduced index as residual without deciding coverage for it — the load path's treatment of a
-	 * reference that is **not** currently partitioned.
+	 * Registers a reduced index as residual without deciding coverage for it — for the callers that cannot read
+	 * the index's members and so cannot decide.
 	 *
-	 * Such a reference's reduced indexes are never visited by the sibling walk, so covering them would buy
-	 * nothing and cost one entry per membership. Recording them as residual costs one bit each and preserves
-	 * the invariant the whole design rests on: **a slice is absent only when the reference has no reduced
-	 * indexes at all.** That is what makes it safe for maintenance to create a slice on demand — an absent
-	 * slice cannot be hiding indexes that were loaded before maintenance started watching.
+	 * Two do. Seeding a slice created after the collection was loaded
+	 * (`ReferenceIndexMutator#seedFromAdvertisedIndexes`) has only the reference's advertisement to work from,
+	 * and the load-time build has to record an advertised index it cannot resolve. Both need the same thing:
+	 * the index accounted for, so `covered ∪ residual == advertised` holds, and left on the probe, which is
+	 * where it was before this structure existed. {@link #ownerAdded} demotes such an index into coverage the
+	 * next time it is written, so nothing stays needlessly residual.
 	 *
 	 * @param indexPrimaryKey primary key of the reduced index
 	 * @throws GenericEvitaInternalError when the index is already known to this map
@@ -383,8 +422,11 @@ public class ReducedIndexMembership implements VoidTransactionMemoryProducer<Red
 	}
 
 	/**
-	 * Returns `true` when the map holds no coverage and no residual knowledge at all, which is how a
-	 * collection that never fired a cross-entity trigger stays free of charge.
+	 * Returns `true` when the map holds no coverage and no residual knowledge at all — the state a freshly
+	 * created slice is in before it is seeded, and the state it returns to once its reference's last reduced
+	 * index is dropped. A collection that never fires a cross-entity trigger holds no slice at all rather than
+	 * an empty one, so this is not the predicate for "this collection pays nothing"; that answer is the absence
+	 * of the whole slice, see `GlobalEntityIndex#getReducedIndexMembership`.
 	 *
 	 * @return `true` when nothing is known
 	 */

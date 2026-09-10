@@ -2643,6 +2643,15 @@ public final class ContainerizedLocalMutationExecutor
 	 * and ensures all mandatory attributes are accounted for. It checks for missing attributes,
 	 * processes attributes with default values, and updates the mutation collector if necessary.
 	 *
+	 * On an existing entity the verification covers the references the batch touched, not the whole container:
+	 * an untouched reference is trusted to have been compliant when it was last written. A schema change that
+	 * makes an already-stored reference non-compliant — a reference attribute newly made mandatory, or newly
+	 * given a default value — is therefore not detected by a later upsert that touches a *different* reference
+	 * of the same entity, where it once would have been repaired (or refused) by that unrelated write. Such an
+	 * entity is repaired by writing the reference itself. That is the narrowing issue #1531 made deliberately;
+	 * the conditions that still send the check back over the whole container are listed on
+	 * {@link #collectTouchedReferences}.
+	 *
 	 * @param scope The scope of the current operation.
 	 * @param entityStorageContainer The container representing the entity's body storage.
 	 * @param referencesStoragePart The container holding the entity's references storage, which may be null.
@@ -2815,7 +2824,15 @@ public final class ContainerizedLocalMutationExecutor
 	 *
 	 * Resolution is by binary search over the (name, primary key)-ordered container. **Returns `null` whenever any
 	 * key cannot be resolved unambiguously**, which makes the caller fall back to the full scan - the incremental
-	 * path must never verify less than the full one would.
+	 * path must never verify less than the full one would. Exactly two conditions do that:
+	 *
+	 * - the key carries no known internal primary key, so it names no single reference to look up;
+	 * - the container holds no slot for the key at all, which means the key is stale rather than that there is
+	 *   nothing to verify.
+	 *
+	 * A reference the batch **removed** is neither: its slot resolves, so the key is proved current, and it is
+	 * skipped exactly as the full scan skips it on its own `exists()` check. A batch containing a removal
+	 * therefore stays on the incremental path.
 	 *
 	 * @param referencesStoragePart the container to resolve against
 	 * @param inputMutations        mutations applied to this entity in this batch
@@ -2846,22 +2863,21 @@ public final class ContainerizedLocalMutationExecutor
 			if (!seen.add(referenceKey)) {
 				continue;
 			}
-			final Optional<ReferenceContract> reference = referencesStoragePart.findReference(referenceKey);
-			// A mutation naming a reference the container cannot produce means our key is stale, not that there is
-			// nothing to verify: `ReferenceKeyManager#reassignReferenceKey` only mirrors a reassignment into
-			// `assignedPrimaryKeys` when the old key is present in `createdReferenceKeys`, so a reference whose
-			// already-positive internal id is reassigned outside that path leaves us holding the pre-reassignment
-			// key. Falling back to the full scan is the only safe reading - silently verifying fewer references
-			// than before would surface as a missing default value, with no exception anywhere.
-			if (reference.isEmpty()) {
+			// resolved including a dropped reference on purpose: the two cases below are different verdicts, and
+			// `findReference` cannot tell them apart
+			final Reference resolvedReference = referencesStoragePart.findReferenceIncludingDropped(referenceKey);
+			// A mutation naming a reference the container holds no slot for at all means our key is stale, not
+			// that there is nothing to verify: `ReferenceKeyManager#reassignReferenceKey` only mirrors a
+			// reassignment into `assignedPrimaryKeys` when the old key is present in `createdReferenceKeys`, so a
+			// reference whose already-positive internal id is reassigned outside that path leaves us holding the
+			// pre-reassignment key. Falling back to the full scan is the only safe reading - silently verifying
+			// fewer references than before would surface as a missing default value, with no exception anywhere.
+			if (resolvedReference == null) {
 				return null;
 			}
-			// the container is the sole owner of these instances, so this is the concrete type it stores
-			if (!(reference.get() instanceof final Reference resolvedReference)) {
-				return null;
-			}
-			// a dropped reference is still returned by the lookup and is simply not verified, exactly as the full
-			// scan skips it - this is not the stale-key case above
+			// A reference the batch dropped is skipped rather than verified, exactly as the full scan skips it on
+			// its own `exists()` check - and unlike the stale key above, the slot proves the key resolved, so the
+			// batch stays on the incremental path instead of paying the whole-container scan for every removal.
 			if (resolvedReference.exists()) {
 				result.add(resolvedReference);
 			}

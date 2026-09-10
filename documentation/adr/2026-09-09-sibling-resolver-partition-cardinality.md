@@ -1,7 +1,7 @@
 ---
 title: Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one
 date: 2026-09-09
-updated: 2026-09-09 21:45
+updated: 2026-09-10 13:40
 status: accepted
 kind: optimization
 issues: [1529]
@@ -9,6 +9,7 @@ prs: []
 areas:
   - evita_engine/src/main/java/io/evitadb/index/mutation
   - evita_engine/src/main/java/io/evitadb/index
+  - evita_engine/src/main/java/io/evitadb/index/map
   - evita_test/evita_performance_tests/src/main/java/io/evitadb/spike
 supersedes: []
 superseded-by: []
@@ -348,11 +349,26 @@ references of a single collection.
 - **Derived at load, not persisted.** Deriving costs one pass over the partitions — the same traversal the
   walk does, paid once per collection load — which avoids a storage format change for a structure that is
   pure acceleration.
-- **Option A must not tolerate a stale partition PK with a null check.** Today's walk cannot meet one — it
-  only visits currently-advertised partitions. A reverse map reads its own state and would go straight to
-  `getOrCreateIndexByPrimaryKey`, whose accessor returns `null` for a removed index. Index PKs come from a
-  monotonic sequence and are never reused, so a stale entry is a hard failure rather than silent
-  corruption; that is the desired behaviour and must not be papered over.
+- **Option A tolerates a null partition PK, and the design review that forbade it was incomplete.** The
+  original reasoning was: today's walk cannot meet a stale PK, because it only visits currently-advertised
+  partitions; a reverse map reads its own state and would go straight to `getOrCreateIndexByPrimaryKey`,
+  whose accessor returns `null` for a removed index. Index PKs come from a monotonic sequence and are never
+  reused, so a stale entry naming a *dropped* index is a hard failure rather than silent corruption. On that
+  shape alone, throwing is the right call.
+
+  It misses the other shape. A stale entry can equally name an index that still **exists** while the owner
+  has already left it. There is no null to throw on: the probe finds a live index and hands back owners that
+  do not belong in the trigger's set — silent wrong data, which is the very failure the throw was meant to
+  prevent and the one it cannot see. The shipped resolver therefore intersects the probed index's members
+  with the affected owners (`ReevaluateExpressionExecutor#collectOwnersOfProbedIndexes`), rejecting both
+  shapes with one test; the `null` branch is then the same rejection reached a step earlier, not a papering
+  over.
+
+  The invariant is not abandoned — it is enforced where it can be enforced completely.
+  `ReducedIndexMembershipCompletenessTest#assertMembershipMatchesIndexes` compares the map against the live
+  indexes in both directions, in every scope, and refuses to pass vacuously. That is strictly stronger than
+  a runtime throw, because it also catches the stale-positive the throw is blind to, and it costs operators
+  nothing at runtime.
 
 ## Verification
 
@@ -408,6 +424,16 @@ without a performance claim was the right call — the claim it was never given 
   bulk-load path builds partitions incrementally and its cost was never measured.
 - **The trigger total was never measured**, so "walk as a share of the trigger" is not reported. At 81 ms
   of walk it can no longer change a conclusion.
+- **This map exposed a pre-existing hole in `MapChanges`, and any future producer-valued
+  `TransactionalMap` can reach it.** When a key holding a `TransactionalStateProducer` is overwritten (or
+  removed and re-inserted) and then removed again inside one transaction, the commit-time sweep visits the
+  key but finds the *delegate's original* under it — the replacement instance is visited by nothing, its
+  nested diff layer orphans, and the commit fails with `StaleTransactionMemoryException` **after** the
+  version reached disk. `ProducerMapChanges#createMergedChampMap` shared the blind spot for the same
+  reason: it also releases `getMapDelegate().get(key)`. The membership map is simply the first structure
+  that churns one key's value repeatedly within a single entity mutation, which is why the hole went
+  unseen. Fixed by stashing the discarded replacement under the existing survivor-guarded, commit-time
+  release; both commit paths are covered because neither overrides `remove`.
 - **One catalog is not a population.** Every count here is exact for one snapshot of one schema.
 
 ## Related work

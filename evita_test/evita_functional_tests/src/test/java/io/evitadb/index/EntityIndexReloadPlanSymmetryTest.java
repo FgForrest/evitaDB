@@ -32,6 +32,7 @@ import io.evitadb.index.component.GroupCardinalityComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
 import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
@@ -219,6 +220,14 @@ class EntityIndexReloadPlanSymmetryTest {
 			// but has no on-disk footprint — the reload plan intentionally omits a price loader
 			return null;
 		}
+		if (component instanceof ReducedIndexMembershipMapComponent) {
+			// the reduced-index membership lookup is derived state: every entry is a function of the membership
+			// bitmaps of the collection's reduced indexes, which are persisted in their own right. It writes no
+			// storage part and announces no manifest key, so there is nothing on disk for a loader to read back -
+			// it is re-derived at load by EntityCollection#rebuildReducedIndexMembership. It registers here only
+			// for the transactional-layer half of the IndexComponent contract.
+			return null;
+		}
 		if (component instanceof TrigramIndexMapComponent) {
 			// a trigram index is derived state: it writes no storage part and announces no manifest key, and is
 			// re-derived from the reloaded shared value trees by the finalizer of GlobalEntityIndex.reloadPlan()
@@ -247,14 +256,17 @@ class EntityIndexReloadPlanSymmetryTest {
 			HistogramIndexMapComponent.class,
 			GroupCardinalityComponent.class,
 			ReferenceTypeCardinalityComponent.class,
-			TrigramIndexMapComponent.class
+			TrigramIndexMapComponent.class,
+			ReducedIndexMembershipMapComponent.class
 		);
 		// the components that deliberately have no loader, each for a reason stated at its arm of
 		// `expectedLoaderFor`: price is subclass-dispatched and symmetry is asserted by the per-subclass tests,
-		// and the trigram map is derived state with no on-disk footprint at all
+		// while the trigram map and the reduced-index membership map are derived state with no on-disk
+		// footprint at all
 		final Set<Class<? extends IndexComponent>> componentsWithoutLoader = Set.of(
 			PriceIndexComponent.class,
-			TrigramIndexMapComponent.class
+			TrigramIndexMapComponent.class,
+			ReducedIndexMembershipMapComponent.class
 		);
 		for (final Class<? extends IndexComponent> componentClass : knownComponents) {
 			if (componentsWithoutLoader.contains(componentClass)) {
