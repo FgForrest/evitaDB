@@ -67,7 +67,7 @@ import java.util.PrimitiveIterator.OfInt;
  * # Why it is built the expensive way
  *
  * The map is built here as a {@link TransactionalMap} of {@link TransactionalBitmap}, which is the **only** shape
- * that could ship. A plain `Map<Integer, int[]>` would be roughly half the size, and is disqualified: it is not a
+ * that could ship. A plain {@code Map<Integer, int[]>} would be roughly half the size, and is disqualified: it is not a
  * `TransactionalLayerCreator`, so it never reaches `WarmUpSavepoint#verifyRollbackSupported`, and a rolled-back
  * transaction or a failed warm-up mutation would leave it silently diverged from the indexes it mirrors. The
  * `int[]` figure is still reported, as the floor a bespoke rollback-capable structure could aim at — never as a

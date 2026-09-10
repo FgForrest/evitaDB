@@ -24,18 +24,13 @@
 package io.evitadb.spike;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.Transaction;
@@ -60,7 +55,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.function.Consumer;
 
 import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap;
 import static io.evitadb.roaringbitmap.PersistentRoaringBitmap.and;
@@ -556,6 +550,12 @@ public class ConditionalFacetMembershipReport {
 		);
 	}
 
+	/**
+	 * Resolves the collection's `LIVE` global index, or `null` when the scope holds none.
+	 *
+	 * @param collection the collection holding the indexes
+	 * @return the global index, or `null` when absent or of an unexpected type
+	 */
 	@Nullable
 	private static GlobalEntityIndex globalIndex(@Nonnull EntityCollection collection) {
 		final EntityIndex index = collection.getIndexByKeyIfExists(
@@ -564,6 +564,15 @@ public class ConditionalFacetMembershipReport {
 		return index instanceof final GlobalEntityIndex typed ? typed : null;
 	}
 
+	/**
+	 * Resolves one `REFERENCED_*_TYPE` index of a reference in the `LIVE` scope, whatever its declared index
+	 * type.
+	 *
+	 * @param collection    the collection holding the indexes
+	 * @param family        the referenced-type index family
+	 * @param referenceName the reference whose type index is resolved
+	 * @return the type index, or `null` when the reference has none of that kind
+	 */
 	@Nullable
 	private static ReferencedTypeEntityIndex typeIndex(
 		@Nonnull EntityCollection collection,
@@ -576,6 +585,13 @@ public class ConditionalFacetMembershipReport {
 		return index instanceof final ReferencedTypeEntityIndex typed ? typed : null;
 	}
 
+	/**
+	 * Opens an embedded engine over an existing storage directory, with the default thread-pool options — the
+	 * measurement is single-threaded, so nothing here is tuned for it.
+	 *
+	 * @param storageDirectory directory holding the catalog to read
+	 * @return the running engine, which the caller closes
+	 */
 	@Nonnull
 	private static Evita openEvita(@Nonnull Path storageDirectory) {
 		return new Evita(
@@ -590,6 +606,13 @@ public class ConditionalFacetMembershipReport {
 		);
 	}
 
+	/**
+	 * Waits until the catalog finishes its background load and becomes a usable {@link Catalog}.
+	 *
+	 * @param evita       the running engine
+	 * @param catalogName the catalog to wait for
+	 * @return the loaded catalog
+	 */
 	@Nonnull
 	private static Catalog awaitLoaded(@Nonnull Evita evita, @Nonnull String catalogName) {
 		final long deadline = System.nanoTime() + LOAD_TIMEOUT_NANOS;

@@ -42,7 +42,6 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.TreeMap;
 
 /**
