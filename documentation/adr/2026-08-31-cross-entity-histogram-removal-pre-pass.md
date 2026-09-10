@@ -1,7 +1,7 @@
 ---
 title: Gate cross-entity histogram removal on a pre-mutation condition pre-pass, not bucket membership
 date: 2026-08-31
-updated: 2026-09-09 19:12
+updated: 2026-09-10 14:45
 status: accepted
 kind: fix
 issues: [1467]
@@ -265,12 +265,19 @@ The investigation spent most of its time on two wrong theories. Both are the nat
 
 - **It is not a `TransactionalMap` / `MapChanges` bug.** Remove-then-re-add of the same key was walked
   down both branches: created-then-removed (`existing == false`, so `removedKeys` is never touched and
-  the instance is stashed in `createdThenRemovedProducers`, released at commit) and
+  the instance is stashed in `discardedProducers`, released at commit) and
   base-map-remove-then-re-add (`registerModifiedKey` plus `removedKeys.remove(key)`). Neither loses the
   new instance. The eager `removed.removeLayer(transactionalLayer)` in `HistogramIndexOperations` is
   redundant with what `MapChanges.put` already does, but release is documented idempotent. The
   decisive evidence is simpler than any of that: the defect reproduces identically in `WARMING_UP`,
   where there is no transaction at all.
+
+  **Read this bullet narrowly.** It answers one question — *does the new instance get lost?* — and the
+  answer is still no. It is **not** a clearance of `MapChanges`, and it must not be cited as one: two
+  orphaned-**layer** defects were later found in these very branches, where the *displaced* instance,
+  not the new one, is the casualty. See *2026-09-09-sibling-resolver-partition-cardinality*. The
+  `WARMING_UP` reproduction is what actually rules transactional memory out here, and it is the only
+  part of this bullet that generalises.
 - **`HistogramIndexOperations` lines 152-158 are not the bug**, and the evidence that pointed there
   could not have shown it. `SimpleHistogramIndex.getFilterIndex` returns
   `this.filterIndex.isEmpty() ? null : this.filterIndex`, so a `getHistogramFilterIndex(...) == null`

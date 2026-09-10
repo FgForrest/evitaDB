@@ -1272,8 +1272,10 @@ class TransactionalMapTest {
 	/**
 	 * Tests covering the production shape `TransactionalMap<String, TransactionalBitmap>` (values that are
 	 * themselves {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}s). They focus on the
-	 * lifecycle of a value's nested transactional layer when the holding key is mutated and then removed within
-	 * one transaction. A leaked (never-released) inner layer surfaces as a
+	 * lifecycle of a value's nested transactional layer when the holding key is mutated and then removed,
+	 * overwritten, or removed and re-inserted within one transaction — every shape in which the commit-time
+	 * sweep can lose sight of an instance the transaction has discarded. A leaked (never-released) inner layer
+	 * surfaces as a
 	 * {@link io.evitadb.core.exception.StaleTransactionMemoryException} thrown by the layer-sweep
 	 * verification performed inside {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit}.
 	 *
@@ -1381,6 +1383,126 @@ class TransactionalMapTest {
 					assertEquals(1, committed.size());
 					assertTrue(committed.containsKey("a"));
 					assertFalse(committed.containsKey("z"));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a value displaced by a plain overwrite sweeps cleanly")
+		void shouldReleaseLayerOfAValueDisplacedByAPlainOverwrite() {
+			// No removal anywhere: the key is simply overwritten with a different producer instance. At commit the
+			// base-map loop skips the key because it is now in modifiedKeys, and the modifiedKeys loop merges the NEW
+			// value - so the displaced instance is visited by neither, and its nested layer orphans.
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", new TransactionalBitmap(1));
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// open an ALIVE nested layer on the instance the delegate holds
+					original.get("a").add(2);
+					// ... then displace it, with no intervening remove
+					original.put("a", new TransactionalBitmap(9));
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{1}, original.get("a").getArray());
+					assertEquals(1, committed.size());
+					assertArrayEquals(new int[]{9}, committed.get("a").getArray());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a value displaced by an overwrite is kept when a surviving key still references it")
+		void shouldNotReleaseLayerOfADisplacedValueStillReferencedBySurvivingKey() {
+			// The survivor guard has to hold for the overwrite path too: the displaced instance is aliased under a
+			// second key introduced in this transaction, so its layer must be committed with that key rather than
+			// released as orphaned.
+			final TransactionalBitmap shared = new TransactionalBitmap(1);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", shared);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					shared.add(2);
+					// the displaced instance survives under another key ...
+					original.put("b", shared);
+					// ... while "a" is overwritten with a different one
+					original.put("a", new TransactionalBitmap(9));
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertEquals(2, committed.size());
+					assertArrayEquals(new int[]{9}, committed.get("a").getArray());
+					assertArrayEquals(
+						new int[]{1, 2}, committed.get("b").getArray(),
+						"the surviving alias must carry the in-transaction mutation, so its layer must have been "
+							+ "committed rather than released"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a replacement value removed again within one transaction sweeps cleanly")
+		void shouldReleaseLayerOfAReplacementValueThatIsRemovedAgain() {
+			// The key survives the overwrite, so the commit-time base-map loop DOES visit it - but the instance it
+			// finds under the key is the delegate's original, never the replacement. Without an explicit stash the
+			// replacement's nested layer is visited by nobody and the commit fails on the stale-layer sweep.
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", new TransactionalBitmap(1));
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					final TransactionalBitmap replacement = new TransactionalBitmap(2);
+					original.put("a", replacement);
+					// open an ALIVE nested layer on the replacement instance
+					replacement.add(3);
+					replacement.remove(3);
+					original.remove("a");
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{1}, original.get("a").getArray());
+					assertTrue(committed.isEmpty());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a value re-inserted after removal and removed again within one transaction sweeps cleanly")
+		void shouldReleaseLayerOfAReinsertedValueThatIsRemovedAgain() {
+			// The production shape behind this: the reduced-index membership lookup of issue #1529 holds one bitmap
+			// per owner, drops the entry when the owner leaves its last covered index, re-creates it when the owner
+			// joins another, and drops it again when that one goes - all inside one entity mutation. Every such
+			// second removal used to orphan the re-inserted bitmap's layer and suspend the catalog at commit.
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", new TransactionalBitmap(1));
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// drop the original entry, then put a fresh producer instance back under the same key
+					original.remove("a");
+					final TransactionalBitmap reinserted = new TransactionalBitmap(5);
+					original.put("a", reinserted);
+					// open an ALIVE nested layer on the re-inserted instance, leaving its content unchanged
+					reinserted.add(6);
+					reinserted.remove(6);
+					// ... and drop it again
+					original.remove("a");
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{1}, original.get("a").getArray());
+					assertTrue(committed.isEmpty());
 				}
 			);
 		}

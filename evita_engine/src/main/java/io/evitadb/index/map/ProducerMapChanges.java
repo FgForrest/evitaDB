@@ -157,7 +157,7 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	 * Precedence is unchanged: removed > created/modified > dirty. A dirty key covered by a higher-precedence pass is
 	 * skipped here, and a dirty key that appears in NONE of the three (created and removed again within the same
 	 * transaction, its key already dropped from the map while an earlier flush had recorded it as dirty) is skipped too —
-	 * its layer is released by {@link #releaseOrphanedCreatedThenRemovedLayers}, exactly as in the full-map merge, which
+	 * its layer is released by {@link #releaseOrphanedDiscardedLayers}, exactly as in the full-map merge, which
 	 * would not have visited it either.
 	 *
 	 * @param transactionalLayer the maintainer used to commit nested producer values
@@ -223,8 +223,8 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 			}
 		}
 
-		// 4) release layers of producers created-then-removed within this transaction (in none of the sets walked above)
-		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
+		// 4) release the layers of the producer values this transaction discarded (in none of the sets walked above)
+		releaseOrphanedDiscardedLayers(transactionalLayer);
 
 		return result;
 	}
