@@ -1,7 +1,7 @@
 ---
 title: JDK 21 modernization is adopted only where it is provably behaviour-preserving
 date: 2026-09-08
-updated: 2026-09-09 17:45
+updated: 2026-09-10 09:50
 status: accepted
 kind: refactor
 issues: [1518]
@@ -9,7 +9,7 @@ prs: [1519]
 areas: [pom.xml, evita_common/dataType, evita_common/utils, evita_query/api/query/expression, evita_engine/core/expression, evita_engine/index/map, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_grpc/client, evita_external_api/evita_external_api_rest, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-09-10-simd-vector-api-feasibility]
 ---
 
 # JDK 21 modernization is adopted only where it is provably behaviour-preserving
@@ -259,6 +259,10 @@ The JDK 17 -> 21 platform bump itself (#1518, PR #1519) deliberately has no reco
 `.claude/rules/adr.md` a platform bump is not one, and its two pieces of durable reasoning live at
 their sites (the `toolchains` activation-range invariant in `pom.xml`, the `ExecutorService#close`
 trap in `ProgressingFutureTest.tearDown()`).
+- `2026-09-10-jdk21-virtual-threads-and-scoped-values` — the concurrency-feature question asked right after
+  this bump; declined for the same preview-pin reason this record applies to the driver.
+- `2026-09-10-simd-vector-api-feasibility` — the Vector API question; pursued because incubator modules do
+  not pin class files, and designed so the driver floor recorded here is untouched.
 
 ## Timeline
 

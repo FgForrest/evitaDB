@@ -236,8 +236,9 @@ public interface TransactionContract extends AutoCloseable {
 		 * **Performance**
 		 *
 		 * Slower than {@link #WAIT_FOR_CONFLICT_RESOLUTION} due to fsync overhead, but faster than
-		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. Each transaction pays its own device sync and WAL appends are serialized,
-		 * so latency grows with concurrent commit activity; fsync operations are **not** batched across transactions.
+		 * {@link #WAIT_FOR_CHANGES_VISIBLE}. WAL appends are serialized and the device sync is batched: a single
+		 * fsync covers every transaction appended since the previous one, so concurrent commits share the cost of
+		 * a sync instead of each paying its own (see `ConflictResolutionAndWalAppendingTransactionStage`).
 		 *
 		 * **Use Cases**
 		 *
