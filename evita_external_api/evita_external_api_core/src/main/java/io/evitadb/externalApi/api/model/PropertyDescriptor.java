@@ -144,7 +144,7 @@ public record PropertyDescriptor(@Nonnull String name,
 
 	@Nonnull
 	public String description(@Nonnull Object... args) {
-		return String.format(this.description, args);
+		return DescriptionFormatter.format(this.description, args);
 	}
 
 	@Nullable

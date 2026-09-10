@@ -265,7 +265,7 @@ public class FullResponseObjectBuilder {
 		return EntityRecordPageDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
-			.description(EntityRecordPageDescriptor.THIS.description(entitySchema.getName()))
+			.description(EntityRecordPageDescriptor.THIS.description(entitySchema))
 			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
@@ -296,7 +296,7 @@ public class FullResponseObjectBuilder {
 		return EntityRecordStripDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
-			.description(EntityRecordStripDescriptor.THIS.description(entitySchema.getName()))
+			.description(EntityRecordStripDescriptor.THIS.description(entitySchema))
 			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
