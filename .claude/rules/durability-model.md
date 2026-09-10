@@ -53,6 +53,13 @@ never published must not take the files the last published record still names.
 advances repeatedly during a load; there is no single end-of-load publication. In `ALIVE`, publication may be
 deferred to a checkpoint (`checkpointCoordinator`), so bytes can sit unpublished for a while by design.
 
+*Which flushes run* is the separate question, and the answer is not "all of them". A collection-level schema
+operation flushes mid-session only while the catalog schema validates (`Catalog#flushMidSessionIfSchemaValid`) —
+a schema half-built across several steps is legitimate, so the publication waits for the session close rather
+than refusing. Nothing is lost by the wait: the changes stay in the data store buffer, and the session close
+publishes them once the schema is whole. So read the sentence above as "a flush that runs, publishes", never as
+"every DDL operation reaches the disk".
+
 **A catalog whose *in-memory* state is broken is recovered completely by reload.** The disk was never damaged, so
 reload lands on the last published state — a full recovery, not damage limitation. Say that to the operator.
 Telling them "the persisted state is incomplete" when it is merely *older* sends them looking for corruption
