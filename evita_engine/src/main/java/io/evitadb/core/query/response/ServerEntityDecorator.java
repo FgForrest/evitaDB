@@ -78,11 +78,22 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	/**
 	 * The count of I/O fetches used to load this entity from underlying storage.
 	 */
-	private final int ioFetchCount;
+	private int ioFetchCount;
 	/**
 	 * The count of bytes fetched from underlying storage to load this entity and all referenced entities.
 	 */
-	private final int ioFetchedBytes;
+	private int ioFetchedBytes;
+	/**
+	 * Decorator this one wraps, whose aggregated I/O statistics form the base of this decorator's own.
+	 * Non-null only until {@link #resolveDeferredIoStatistics()} pulls those numbers across.
+	 *
+	 * <p>Aggregating the statistics eagerly in the constructor is what makes this expensive: both
+	 * {@link #getIoFetchCount()} and {@link #getIoFetchedBytes()} walk the entire reference graph, and the fetch
+	 * pipeline wraps every entity several times over (limit, enrich, decorate), so the walk was repeated once per
+	 * wrapping rather than once per entity. Deferring it means an entity nobody asks about pays nothing, and the
+	 * response-level aggregate walks the graph once.</p>
+	 */
+	@Nullable private ServerEntityDecorator deferredIoStatisticsSource;
 	/**
 	 * Memoized ioFetchCount when {@link #getIoFetchCount()} is called for the first time.
 	 */
@@ -161,8 +172,21 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull ReferenceFetcher referenceFetcher
 	) {
 		super(entity, parentEntity, referenceFetcher, evitaRequest);
-		this.ioFetchCount = entity.getIoFetchCount();
-		this.ioFetchedBytes = entity.getIoFetchedBytes();
+		// deliberately NOT resolved here - see #deferredIoStatisticsSource
+		this.deferredIoStatisticsSource = entity;
+	}
+
+	/**
+	 * Pulls the wrapped decorator's aggregated I/O statistics across, at most once. No-op for decorators that were
+	 * handed their statistics directly.
+	 */
+	private void resolveDeferredIoStatistics() {
+		final ServerEntityDecorator source = this.deferredIoStatisticsSource;
+		if (source != null) {
+			this.deferredIoStatisticsSource = null;
+			this.ioFetchCount = source.getIoFetchCount();
+			this.ioFetchedBytes = source.getIoFetchedBytes();
+		}
 	}
 
 	private ServerEntityDecorator(
@@ -353,6 +377,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	@Override
 	public int getIoFetchCount() {
 		if (this.memoizedIoFetchCount == -1) {
+			resolveDeferredIoStatistics();
 			this.memoizedIoFetchCount = this.ioFetchCount +
 				(
 					parentAvailable() ?
@@ -384,6 +409,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	@Override
 	public int getIoFetchedBytes() {
 		if (this.memoizedIoFetchedBytes == -1) {
+			resolveDeferredIoStatistics();
 			this.memoizedIoFetchedBytes = this.ioFetchedBytes +
 				(
 					parentAvailable() ?
