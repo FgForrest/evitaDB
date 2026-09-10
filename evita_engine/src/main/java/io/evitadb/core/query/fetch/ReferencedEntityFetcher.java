@@ -760,6 +760,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						() -> {
 							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
 							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(allReferencedEntityPks.getArray());
+							// The nested query behind an `entityHaving` is planned against the
+							// referenced collection's GLOBAL index, so it evaluates the predicate
+							// over every entity there even though the owners between them reference
+							// only a handful. Restricting it to exactly those keys is what the
+							// `nestedQueryFormulaEnricher` seam exists for, and it is safe because
+							// the nested result is intersected with this same set afterwards.
+							// A deeper nested level targeting a different collection builds its own
+							// FilterByVisitor with a fresh root scope, so this cannot leak into it.
+							final Function<FilterConstraint, FilterConstraint> nestedQueryPkRestriction =
+								nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
+									new FilterBy(
+										ArrayUtils.mergeArrays(
+											new FilterConstraint[]{pkConstraint},
+											nestedBy.getChildren()
+										)
+									) :
+									and(pkConstraint, nestedFilter);
 							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
 								? new FilterConstraint[]{pkConstraint}
 								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
@@ -813,7 +830,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										referenceSchema,
 										theFilterByVisitor,
 										entityLevelFilterBy != null ? entityLevelFilterBy : filterBy,
-										entityNestedQueryComparator
+										entityNestedQueryComparator,
+										nestedQueryPkRestriction
 									);
 
 									if (lastDiscriminator == null) {
@@ -1209,6 +1227,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
+	 * @param nestedQueryFormulaEnricher  optional transformation applied to the filter of a nested query planned for
+	 *                                    an `entityHaving` constraint - it allows narrowing that query down to the
+	 *                                    keys the owners actually reference instead of the whole target collection
 	 * @return formula that calculates the result
 	 */
 	@Nullable
@@ -1218,7 +1239,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
@@ -1229,7 +1251,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			null,
+			nestedQueryFormulaEnricher,
 			entityNestedQueryComparator,
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
