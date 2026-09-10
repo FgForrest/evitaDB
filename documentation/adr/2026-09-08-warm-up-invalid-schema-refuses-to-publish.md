@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-09-09 04:50
+updated: 2026-09-10 11:20
 status: accepted
 kind: fix
 issues: [1466]
@@ -239,10 +239,10 @@ forbids partial replay.
 The full functional suite runs green: **23,717 tests, 0 failures**, the only error being `ExportS3ServiceTest`,
 which needs a Docker environment this workstation does not provide.
 
-`WarmUpRefusedSchemaPersistenceTest` (new, 7 tests) proves the guarantee on **two independent validation rules** —
-the attribute filter-accelerator rule and the managed-reference rule — so it is pinned to the warm-up write path
-rather than to one validator. Each refusal is asserted on its message, not merely on the exception type, and each
-is paired with a control that pushes the *same* schema element through legitimately and finds it after a reopen,
+`WarmUpRefusedSchemaPersistenceTest` (new, 14 tests) proves the guarantee on **three independent validation
+rules** — the attribute filter-accelerator rule, the managed-reference rule and the reflected-reference rule — so
+it is pinned to the warm-up write path rather than to one validator. Each refusal is asserted on its message, not
+merely on the exception type, and each is paired with a control that pushes the *same* schema element through legitimately and finds it after a reopen,
 so an empty assertion cannot pass because the reopened schema was read wrongly.
 
 **Every refusal additionally asserts that the barrier was raised**, by waiting for the deactivation it schedules
@@ -259,6 +259,29 @@ does not.
 `AttributeFilterAcceleratorRefusalTest#shouldRefuseAnAcceleratorDeclaredOnAnAttributeWithNoFilterIndex` was a
 characterisation asserting the wrong outcome deliberately; it now asserts `Set.of()` and, like every case above,
 asserts the barrier explicitly rather than relying on the exception type alone.
+
+`InterlinkedCollectionRemoval` covers the **removal** direction, which reaches the same validation from the
+opposite side: an additive change declares something the catalog cannot satisfy, a removal takes away what an
+existing declaration relied on. It is the case an operator meets by accident — dropping one half of a circular
+product/category link, where the product owns the reference and the category reflects it — and it carries one
+hazard the additive cases do not, because a removal parks the collection's data file for retirement. The tests
+therefore assert the catalog folder as well as the schema: a refused removal must leave every data file the
+published bootstrap record still names, and the one-session control must see both retirements released. **The
+control is the part that matters most**, because without it every refusal above would also be satisfied by an
+engine that simply refused to drop a referenced collection at all: dropping *both* sides inside one session
+succeeds, in either order, and neither order validates halfway through. That is the same tolerance
+`flushMidSessionIfSchemaValid` grants a reflected reference declared before its target, and it makes "both sides
+of a circular link must be dropped in the same session" the operator-facing rule.
+
+**One of these tests is calibrated and four are not, and the comments at the site say which.** Measured by
+disabling the `isSchemaValid()` guard: only
+`shouldNotPublishTheHalfTornPairWhenTheSameSessionThenDefinesAnotherCollection` fails (the reopened catalog then
+holds `[CATEGORY, BRAND]` — the removal published and the product collection is gone from the disk). The
+removal-only refusals pass either way, because a mid-session flush on that path is a no-op for a second,
+independent reason: `Catalog#flush` derives `changeOccurred` from the catalog schema version, and `updateSchema`
+exchanges that version only *after* `removeEntitySchema` has returned, so at the moment of the flush no version
+has moved and the removed collection is already out of the map that would report one. The guard bites only once
+something else in the session supplies a change.
 
 `MidSessionPublication` covers the two cases the barrier cannot reach, and both were written as failing tests
 before the gates existed: a session that applies the offending mutation and *then* defines another collection
@@ -305,6 +328,13 @@ beside it.
   added upstream of the session close will not be covered by anything here. The chokepoints were chosen to make
   that unlikely — the operator is the single funnel for go-live, and `flushMidSessionIfSchemaValid` is the single
   helper the three DDL flushes now share — but this is the part of the design a later change can silently break.
+- **On the removal path the schema gate is not the only thing holding, and the second mechanism is accidental.**
+  `Catalog#flush`'s `changeOccurred` check makes the mid-session flush a no-op immediately after
+  `Catalog#removeEntitySchema`, because the catalog schema version is exchanged only after it returns. That is a
+  belt beside the braces today, but it is not a designed guarantee, and reordering the exchange would remove it
+  without any test noticing — only
+  `InterlinkedCollectionRemoval#shouldNotPublishTheHalfTornPairWhenTheSameSessionThenDefinesAnotherCollection`
+  covers the schema gate itself on this path.
 
 ## Related work
 
@@ -330,3 +360,9 @@ beside it.
   already named as "one edit away from mattering". The barrier-assertion machinery was extracted from
   `WarmUpRefusedSchemaPersistenceTest` into `CatalogUnpublishableBarrierAssertions` so both test classes share it,
   and the flagged test now asserts the barrier too. Full functional suite re-run green after both fixes.
+- **2026-09-10** — the removal direction was found uncovered while answering a question about
+  `Catalog#flushMidSessionIfSchemaValid`: measured, dropping one half of a circular product/category link
+  deactivates the catalog, and dropping both halves inside one session succeeds in either order. Neither shape
+  had a test. `InterlinkedCollectionRemoval` added (5 tests), including the folder assertions for the parked
+  data-file retirements and the calibration note recording which of them the `isSchemaValid()` guard actually
+  holds up.
