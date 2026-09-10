@@ -24,6 +24,19 @@ touches. Measured against a production catalog it is **0.78 ms** as that catalog
 **81–113 ms** after a single schema edit any client can make. This record fixes what was measured, what the
 numbers mean, and which of the candidate fixes is worth building.
 
+**Vocabulary, because both words are used throughout and neither is obvious.** A **partition** is one
+reduced entity index — a `ReducedEntityIndex` or `ReducedGroupEntityIndex` of
+`EntityIndexType.REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY`, one per distinct referenced entity. The
+word is the schema flag's own: `FOR_FILTERING_AND_PARTITIONING` is documented as creating "partitioning
+indexes for the main entity type". A partition's **members** are the owner-entity primary keys it holds
+(`getAllPrimaryKeys()`) — what `EntityIndexType.REFERENCED_ENTITY`'s javadoc calls the record ids connected
+to that referenced entity. For `Product.parameterValues`: one partition per parameter value, whose members
+are the products carrying it.
+
+The distinction carries the entire decision below, because **cost is per member while benefit is per
+partition** — covering a partition costs one map entry per member and saves exactly one bitmap
+intersection, however many members it has.
+
 Option A is **implemented and measured**; the figures below distinguish throughout between what the
 harness *modelled* and what the shipped code *does*. The prior constant-factor change (PRs #1524 / #1525)
 shipped unmeasured and is now quantified — at far less than its cost model claimed.
