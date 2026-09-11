@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingBlockReference;
@@ -253,7 +252,12 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	 */
 	@Nonnull
 	private ClientMetadata extractClientMetadata(@Nonnull RequestHeaders headers) {
-		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
+		final String clientIpAddress = this.headerOptions.forwardedFor()
+			.stream()
+			.map(headers::get)
+			.filter(Objects::nonNull)
+			.findFirst()
+			.orElse(null);
 		final String clientUri = this.headerOptions.forwardedUri()
 			.stream()
 			.map(headers::get)
