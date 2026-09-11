@@ -127,6 +127,20 @@ public interface TracingContext {
 	String MDC_CLIENT_URI = "clientUri";
 
 	/**
+	 * MDC key for the instant the request that is being served started, as epoch milliseconds rendered to a string.
+	 *
+	 * The value is kept as a {@link String} on purpose: it is written once per request by the API layer, copied
+	 * verbatim across every thread hand-off by {@link #captureContext()} / {@link #setContext(CapturedContext)}, and
+	 * parsed only by whoever renders a log line. Keeping it textual means no boxing, formatting or parsing happens on
+	 * the task path.
+	 *
+	 * Consumers compute "how far into the request did this happen" by subtracting it from the timestamp of the event
+	 * they are rendering. Because it is a wall-clock reading it can, in principle, be later than that timestamp after
+	 * a backward clock adjustment — consumers must clamp the difference at zero.
+	 */
+	String MDC_REQUEST_START_PROPERTY = "requestStart";
+
+	/**
 	 * Thread-local storage for client-provided labels (custom metadata). Labels are set via
 	 * {@link #executeWithClientContext} and remain available for the duration of the request.
 	 * Used for custom tagging and filtering in observability systems.
@@ -161,15 +175,111 @@ public interface TracingContext {
 		@Nullable Label[] labels,
 		@Nonnull Supplier<T> runnable
 	) {
+		return executeWithClientContext(null, clientIpAddress, clientUri, labels, runnable);
+	}
+
+	/**
+	 * Variant of {@link #executeWithClientContext(String, String, Label[], Supplier)} that additionally records when
+	 * the request being served started, so that anything logged while the operation runs can report how far into the
+	 * request it happened.
+	 *
+	 * **This method nests.** Callers may already be running inside a restored context — most notably a gRPC service
+	 * method, which opens its client-context block on a worker thread *after*
+	 * {@link #setContext(CapturedContext)} has repopulated the MDC from the captured request. Therefore:
+	 *
+	 * - a {@code null} {@code requestStart} means *"leave whatever is already there alone"*, never *"clear it"* — an
+	 *   inner scope that does not know the request start must not hide the one an outer scope established;
+	 * - every value this method touches is **saved on entry and restored on exit**, rather than removed. Removing
+	 *   would strip an outer scope's values when an inner one finishes, which is the same defect in a different guise.
+	 *
+	 * The client IP, URI and labels are always applied, including when they are {@code null} — the caller is
+	 * describing the request it is serving, and a request genuinely without a client URI must not inherit the
+	 * previous one.
+	 *
+	 * @param requestStart    epoch milliseconds at which the request started, as a string; {@code null} leaves any
+	 *                        value already present untouched
+	 * @param clientIpAddress the client's IP address (null allowed)
+	 * @param clientUri       the request URI or endpoint path (null allowed)
+	 * @param labels          custom client-provided labels for filtering/tagging (null allowed)
+	 * @param runnable        the operation to execute with client context
+	 * @param <T>             return type
+	 * @return the result of invoking the supplier
+	 */
+	static <T> T executeWithClientContext(
+		@Nullable String requestStart,
+		@Nullable String clientIpAddress,
+		@Nullable String clientUri,
+		@Nullable Label[] labels,
+		@Nonnull Supplier<T> runnable
+	) {
+		final String previousRequestStart = MDC.get(MDC_REQUEST_START_PROPERTY);
+		final String previousClientIpAddress = MDC.get(MDC_CLIENT_IP_ADDRESS);
+		final String previousClientUri = MDC.get(MDC_CLIENT_URI);
+		final Label[] previousLabels = CLIENT_LABELS.get();
+
+		if (requestStart != null) {
+			MDC.put(MDC_REQUEST_START_PROPERTY, requestStart);
+		}
 		MDC.put(MDC_CLIENT_IP_ADDRESS, clientIpAddress);
 		MDC.put(MDC_CLIENT_URI, clientUri);
 		CLIENT_LABELS.set(labels);
 		try {
 			return runnable.get();
 		} finally {
-			MDC.remove(MDC_CLIENT_IP_ADDRESS);
-			MDC.remove(MDC_CLIENT_URI);
-			CLIENT_LABELS.remove();
+			restoreOrRemove(MDC_REQUEST_START_PROPERTY, previousRequestStart);
+			restoreOrRemove(MDC_CLIENT_IP_ADDRESS, previousClientIpAddress);
+			restoreOrRemove(MDC_CLIENT_URI, previousClientUri);
+			if (previousLabels == null) {
+				CLIENT_LABELS.remove();
+			} else {
+				CLIENT_LABELS.set(previousLabels);
+			}
+		}
+	}
+
+	/**
+	 * Executes an operation with the start of the request being served recorded in the MDC, leaving every other
+	 * context value untouched.
+	 *
+	 * This is the narrow counterpart of {@link #executeWithClientContext(String, String, String, Label[], Supplier)},
+	 * for callers that know when the request started but have nothing to say about the client — a protocol
+	 * interceptor, typically. Passing {@code null} leaves any value already recorded in place, and the previous value
+	 * is restored on exit rather than removed, so these scopes may nest.
+	 *
+	 * @param requestStart epoch milliseconds at which the request started, as a string; {@code null} leaves any
+	 *                     value already present untouched
+	 * @param runnable     the operation to execute
+	 * @param <T>          return type
+	 * @return the result of invoking the supplier
+	 */
+	static <T> T executeWithRequestStart(
+		@Nullable String requestStart,
+		@Nonnull Supplier<T> runnable
+	) {
+		if (requestStart == null) {
+			return runnable.get();
+		}
+		final String previousRequestStart = MDC.get(MDC_REQUEST_START_PROPERTY);
+		MDC.put(MDC_REQUEST_START_PROPERTY, requestStart);
+		try {
+			return runnable.get();
+		} finally {
+			restoreOrRemove(MDC_REQUEST_START_PROPERTY, previousRequestStart);
+		}
+	}
+
+	/**
+	 * Puts {@code previousValue} back under {@code key}, or removes the key entirely when there was nothing there
+	 * before. Used to unwind a nested client-context scope without destroying the scope that encloses it.
+	 *
+	 * @param key           the MDC key to restore
+	 * @param previousValue the value observed before the scope was entered; {@code null} means "was not set"
+	 */
+	private static void restoreOrRemove(@Nonnull String key, @Nullable String previousValue) {
+		if (previousValue == null) {
+			MDC.remove(key);
+		} else {
+			MDC.put(key, previousValue);
 		}
 	}
 
@@ -223,6 +333,7 @@ public interface TracingContext {
 	 * - Client IP from {@link #MDC_CLIENT_IP_ADDRESS}
 	 * - Client URI from {@link #MDC_CLIENT_URI}
 	 * - Client labels from {@link #CLIENT_LABELS}
+	 * - Request start from {@link #MDC_REQUEST_START_PROPERTY}
 	 *
 	 * @return a snapshot of the current context (contains null values if no context is set)
 	 */
@@ -233,10 +344,12 @@ public interface TracingContext {
 		final String clientIpAddress = MDC.get(MDC_CLIENT_IP_ADDRESS);
 		final String clientUri = MDC.get(MDC_CLIENT_URI);
 		final Label[] clientLabels = CLIENT_LABELS.get();
-		if (traceId == null && clientId == null && clientIpAddress == null && clientUri == null && clientLabels == null) {
+		final String requestStart = MDC.get(MDC_REQUEST_START_PROPERTY);
+		if (traceId == null && clientId == null && clientIpAddress == null && clientUri == null &&
+			clientLabels == null && requestStart == null) {
 			return CapturedContext.EMPTY;
 		}
-		return new CapturedContext(traceId, clientId, clientIpAddress, clientUri, clientLabels);
+		return new CapturedContext(traceId, clientId, clientIpAddress, clientUri, clientLabels, requestStart);
 	}
 
 	/**
@@ -250,6 +363,7 @@ public interface TracingContext {
 		MDC.put(MDC_CLIENT_ID_PROPERTY, ctx.clientId());
 		MDC.put(MDC_CLIENT_IP_ADDRESS, ctx.clientIpAddress());
 		MDC.put(MDC_CLIENT_URI, ctx.clientUri());
+		MDC.put(MDC_REQUEST_START_PROPERTY, ctx.requestStart());
 		CLIENT_LABELS.set(ctx.clientLabels());
 	}
 
@@ -262,6 +376,7 @@ public interface TracingContext {
 		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.remove(MDC_CLIENT_IP_ADDRESS);
 		MDC.remove(MDC_CLIENT_URI);
+		MDC.remove(MDC_REQUEST_START_PROPERTY);
 		CLIENT_LABELS.remove();
 	}
 
@@ -845,31 +960,58 @@ public interface TracingContext {
 	 * @param clientIpAddress the client IP address (may be null)
 	 * @param clientUri       the request URI or endpoint path (may be null)
 	 * @param clientLabels    custom client-provided labels (may be null)
+	 * @param requestStart    epoch milliseconds at which the request started, as a string (may be null)
 	 */
 	record CapturedContext(
 		@Nullable String traceId,
 		@Nullable String clientId,
 		@Nullable String clientIpAddress,
 		@Nullable String clientUri,
-		@Nullable Label[] clientLabels
+		@Nullable Label[] clientLabels,
+		@Nullable String requestStart
 	) {
 		/**
 		 * Sentinel instance representing an empty context (all fields null).
 		 * Used to avoid allocating a new record when no tracing context is active.
 		 */
 		public static final CapturedContext EMPTY = new CapturedContext(
-			null, null, null, null, null
+			null, null, null, null, null, null
 		);
 
 		/**
+		 * Retains the five-component shape this record had before {@link #requestStart()} was introduced, so that
+		 * callers compiled against the earlier signature keep working — both at source level and, because the
+		 * original constructor descriptor survives, at binary level.
+		 *
+		 * @param traceId         the trace identifier from active span (may be null)
+		 * @param clientId        the client identifier from session (may be null)
+		 * @param clientIpAddress the client IP address (may be null)
+		 * @param clientUri       the request URI or endpoint path (may be null)
+		 * @param clientLabels    custom client-provided labels (may be null)
+		 */
+		public CapturedContext(
+			@Nullable String traceId,
+			@Nullable String clientId,
+			@Nullable String clientIpAddress,
+			@Nullable String clientUri,
+			@Nullable Label[] clientLabels
+		) {
+			this(traceId, clientId, clientIpAddress, clientUri, clientLabels, null);
+		}
+
+		/**
 		 * Returns true if all context fields are null — i.e., no tracing context was active when captured.
+		 *
+		 * This is not a convenience: {@code ObservableThreadExecutor} skips restoring the context altogether when it
+		 * reports true, so a component omitted here is a component that never reaches a worker thread.
 		 */
 		public boolean isEmpty() {
 			return this.traceId == null &&
 				this.clientId == null &&
 				this.clientIpAddress == null &&
 				this.clientUri == null &&
-				this.clientLabels == null;
+				this.clientLabels == null &&
+				this.requestStart == null;
 		}
 	}
 
