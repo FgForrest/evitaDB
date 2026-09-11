@@ -1928,10 +1928,11 @@ public final class EntityCollection implements
 	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` de-duplicates by identity. It cannot reach a walk over
 	 * *advertised indexes*, which is what this one is.
 	 *
-	 * The pre-check is kept regardless, because this is the load path:
-	 * {@link ReducedIndexMembership#registerIndex} refuses a repeat by design, and raising there would take the
-	 * whole catalog offline over a structure that is only an accelerator. Skipping a repeat would rebuild the
-	 * identical map.
+	 * A repeat is therefore a programming error, and it is left to surface as one:
+	 * {@link ReducedIndexMembership#registerIndex} and {@link ReducedIndexMembership#registerIndexAsResidual}
+	 * both refuse a primary key they already hold. This method used to swallow the repeat with an
+	 * {@link ReducedIndexMembership#isKnown} pre-check, which turned a corrupt advertisement into a silent
+	 * no-op at the one moment the whole structure is built from scratch.
 	 *
 	 * @param membership      the lookup being built
 	 * @param reducedIndexPk  primary key of the advertised reduced index
@@ -1940,9 +1941,6 @@ public final class EntityCollection implements
 		@Nonnull ReducedIndexMembership membership,
 		int reducedIndexPk
 	) {
-		if (membership.isKnown(reducedIndexPk)) {
-			return;
-		}
 		final EntityIndex reducedIndex = getIndexByPrimaryKeyIfExists(reducedIndexPk);
 		if (reducedIndex == null) {
 			// Advertised but not resolvable, so its members cannot be read and coverage cannot be decided.
